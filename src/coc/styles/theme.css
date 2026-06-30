@@ -1,0 +1,211 @@
+:root {
+  --coc-font-boost: 0px;
+  --coc-ui-scale: 0.333333;
+  --coc-accent: #c97b63;
+  --coc-accent-light: #e8b4a0;
+  --coc-accent-dark: #a85d48;
+  --coc-gold: #d4a574;
+  --coc-bg: #f0f2f5;
+  --coc-card: #ffffff;
+  --coc-border: #e4e7ed;
+  --coc-text: #303133;
+  --coc-text-secondary: #606266;
+  --coc-text-muted: #909399;
+  --coc-success: #67c23a;
+  --coc-warning: #e6a23c;
+  --coc-danger: #f56c6c;
+  --coc-header-h: 52px;
+  --coc-project-list-w: 315px;
+  --coc-video-label-h: 26px;
+  --coc-radius: 8px;
+  --coc-shadow: 0 2px 12px rgba(201, 123, 99, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.coc-screen-shell,
+.coc-screen-shell * {
+  box-sizing: border-box;
+}
+
+.coc-screen-shell {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #1a1a2e;
+  font-family: 'Microsoft YaHei', 'PingFang SC', 'Helvetica Neue', sans-serif;
+}
+
+.screen-viewport {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+}
+
+.screen-canvas {
+  width: 1920px;
+  height: 1080px;
+  transform-origin: center center;
+  background: var(--coc-bg);
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  --el-font-size-base: 14px;
+  --el-font-size-small: 12px;
+  --el-font-size-large: 16px;
+  --el-font-size-extra-large: 18px;
+  --el-component-size: 32px;
+  --el-component-size-small: 24px;
+  --el-component-size-large: 40px;
+}
+
+.screen-canvas > .top-nav {
+  flex-shrink: 0;
+}
+
+.coc-overlay-root {
+  position: absolute;
+  inset: 0;
+  z-index: 99999;
+  pointer-events: none;
+}
+
+.coc-overlay-root:not(:empty) {
+  pointer-events: auto;
+}
+
+.screen-badge {
+  position: fixed;
+  bottom: 10px;
+  right: 10px;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.panel-card {
+  background: var(--coc-card);
+  border-radius: var(--coc-radius);
+  border: 1px solid var(--coc-border);
+  box-shadow: var(--coc-shadow);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0.35em 16px;
+  font-size: 18px;
+  line-height: 1.35;
+  font-weight: 600;
+  color: var(--coc-text);
+  border-bottom: 1px solid var(--coc-border);
+  flex-shrink: 0;
+  min-height: 0;
+  height: auto;
+}
+
+.panel-title::before {
+  content: '';
+  width: 4px;
+  height: 1em;
+  flex-shrink: 0;
+  background: linear-gradient(180deg, var(--coc-accent), var(--coc-gold));
+  border-radius: 2px;
+}
+
+.panel-title.simple-title,
+.simple-title.panel-title {
+  font-size: 18px;
+  padding: 0.4em 20px;
+}
+
+.panel-title.compact {
+  font-size: 15px;
+  padding: 0.35em 14px;
+}
+
+.panel-title.compact.title-left {
+  font-size: 18px;
+  padding: 0.4em 18px;
+}
+
+.panel-title.compact.title-with-tools,
+.panel-title.title-with-tools {
+  padding: 0.4em 20px;
+}
+
+.panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 12px 16px;
+}
+
+.panel-body.list-table-body,
+.panel-body.gantt-body,
+.panel-body.device-body,
+.panel-body.monitor-wrap,
+.video-module > .panel-body.module-body,
+.monitor-module > .panel-body.module-body,
+.dispatch-module > .panel-body.module-body {
+  overflow: hidden;
+}
+
+.panel-body.scroll-list,
+.panel-body.table-body,
+.panel-body.list-wrap,
+.panel-body.ai-scroll,
+.panel-body.dialogue-scroll,
+.panel-body.scroll-body,
+.panel-body.stats-body {
+  overflow: auto;
+}
+
+.stack-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-dot.online { background: var(--coc-success); }
+.status-dot.offline { background: var(--coc-danger); }
+.status-dot.warning { background: var(--coc-warning); }
+
+.lag-red { color: var(--coc-danger); font-weight: 600; }
+.lag-yellow { color: var(--coc-warning); font-weight: 600; }
+.lag-green { color: var(--coc-success); }
+
+.key-badge {
+  background: linear-gradient(135deg, var(--coc-accent), var(--coc-gold));
+  color: #fff;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
