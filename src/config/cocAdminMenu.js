@@ -1,5 +1,7 @@
-import AdminScreenshotList from '../coc/admin/AdminScreenshotList.vue'
+﻿import AdminScreenshotList from '../coc/admin/AdminScreenshotList.vue'
+import AdminDailyWorkEntry from '../coc/admin/AdminDailyWorkEntry.vue'
 import AdminDispatchNoticeList from '../coc/admin/AdminDispatchNoticeList.vue'
+import AdminDispatchReminderList from '../coc/admin/AdminDispatchReminderList.vue'
 import AdminDispatchPenaltyList from '../coc/admin/AdminDispatchPenaltyList.vue'
 import AdminDispatchMeetingList from '../coc/admin/AdminDispatchMeetingList.vue'
 import AdminDispatchRedBlackList from '../coc/admin/AdminDispatchRedBlackList.vue'
@@ -17,16 +19,36 @@ const cocAdminItems = [
     roles: ['COC调度室'],
     description: '保存问题截图及相关字段。',
     component: AdminScreenshotList,
+    hiddenInMenu: true,
+  },
+  {
+    key: 'coc-admin-daily-work',
+    name: 'CocAdminDailyWork',
+    label: '每日施工作业',
+    path: '/coc-admin/daily-work',
+    roles: ['COC调度室', '项目经理', '施工'],
+    description: '',
+    component: AdminDailyWorkEntry,
   },
   {
     key: 'coc-admin-notice',
     name: 'CocAdminNotice',
-    label: '告知单',
+    label: '任务单',
     path: '/coc-admin/notice',
     roles: ['安质部', '项目经理', '施工'],
     description:
-      '管理远程调度产生的告知单：创建、下发、签收、整改反馈与闭环台账，支持从截图/会议一键生成。',
+      '管理远程调度产生的任务单：创建、下发、签收、整改反馈与闭环台账，支持从截图/会议一键生成。',
     component: AdminDispatchNoticeList,
+  },
+  {
+    key: 'coc-admin-reminder',
+    name: 'CocAdminReminder',
+    label: '提示函',
+    path: '/coc-admin/reminder',
+    roles: ['安质部', '项目经理', '施工'],
+    description:
+      '管理远程调度产生的提示函：创建、下发、签收与闭环，支持从截图/调度会一键生成。',
+    component: AdminDispatchReminderList,
   },
   {
     key: 'coc-admin-penalty',
@@ -47,6 +69,7 @@ const cocAdminItems = [
     description:
       '记录调度会议/监理例会纪要，支持AI语音转写、安全质量内容自动摘取及与项目关联检索。',
     component: AdminDispatchMeetingList,
+    hiddenInMenu: true,
   },
   {
     key: 'coc-admin-redblack',
@@ -81,10 +104,11 @@ const cocAdminItems = [
   {
     key: 'coc-admin-supervision-meeting',
     name: 'CocAdminSupervisionMeeting',
-    label: '监理会议纪要',
+    label: '监理会议管理',
     path: '/coc-admin/supervision-meeting',
     roles: ['COC调度室'],
-    description: '上传监理会议纪要，根据标题识别归档安全质量隐患数据。',
+    description:
+      '登记监理例会信息及监理隐患清单；上传监理例会纪要（Word/PDF）、签到表及会议照片，管理安全/质量隐患。',
     component: SupervisionMeetingMinutesView,
   },
 ]
@@ -93,12 +117,14 @@ export const cocAdminMenuGroup = {
   key: 'coc-admin',
   label: 'COC后台管理',
   icon: 'Connection',
-  children: cocAdminItems.map(({ key, label, path, description }) => ({
-    key,
-    label,
-    path,
-    description,
-  })),
+  children: cocAdminItems
+    .filter((item) => !item.hiddenInMenu)
+    .map(({ key, label, path, description }) => ({
+      key,
+      label,
+      path,
+      description,
+    })),
 }
 
 export const cocAdminRoutes = cocAdminItems

@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ref, computed, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
@@ -15,6 +15,7 @@ import {
   laborAttendanceSegments,
   laborAttendanceTotal,
   projectEvalBoard,
+  systemActivityMetrics,
   deviceAlarmByProject,
   deviceAlarmTotal,
   pendingTaskModules,
@@ -209,7 +210,7 @@ function submitApproval() {
 
       <div class="panel-card module-card">
         <div class="panel-head">
-          <span class="panel-title">告知单&amp;处罚单</span>
+          <span class="panel-title">任务单</span>
           <a class="panel-more" href="#">更多</a>
         </div>
         <ul class="data-list doc-list">
@@ -360,6 +361,20 @@ function submitApproval() {
           </div>
         </div>
       </div>
+
+      <div class="panel-card activity-panel-full">
+        <div class="activity-metrics-row">
+          <div
+            v-for="item in systemActivityMetrics"
+            :key="item.key"
+            class="activity-metric-item"
+          >
+            <span class="activity-metric-label">{{ item.label }}</span>
+            <span class="activity-metric-value">{{ item.value.toLocaleString() }}</span>
+            <span class="activity-metric-unit">{{ item.unit }}</span>
+          </div>
+        </div>
+      </div>
     </section>
 
     <el-dialog v-model="taskMoreVisible" title="任务待办" width="720px" class="task-more-dialog">
@@ -502,6 +517,43 @@ function submitApproval() {
 
 .eval-panel-full {
   width: 100%;
+}
+
+.activity-panel-full {
+  width: 100%;
+  background: #fafafa;
+  padding: 14px 18px;
+}
+
+.activity-metrics-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.activity-metric-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.activity-metric-label {
+  color: var(--ap-text-secondary);
+}
+
+.activity-metric-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ap-text);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.activity-metric-unit {
+  font-size: 12px;
+  color: var(--ap-text-muted);
 }
 
 .summary-card,
@@ -1135,6 +1187,15 @@ function submitApproval() {
 
   .eval-board-grid {
     grid-template-columns: repeat(4, 1fr);
+  }
+
+  .activity-metrics-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .activity-metric-item {
+    justify-content: flex-start;
   }
 
   .labor-body {

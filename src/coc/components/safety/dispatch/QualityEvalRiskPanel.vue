@@ -1,14 +1,20 @@
 <script setup>
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import { HQ_SELECTION_ID, getProjectQualityEvalRisks } from '../../../mock/data.js'
+import DispatchDraggablePanel from './DispatchDraggablePanel.vue'
 
 const props = defineProps({
   selectionId: { type: String, default: HQ_SELECTION_ID },
 })
 
+const moreOpen = ref(false)
+
 const isHq = computed(() => props.selectionId === HQ_SELECTION_ID)
 
+const panelTitle = computed(() => (isHq.value ? '质量验评风险项统计' : '质量验评风险项'))
+
 const riskList = computed(() => getProjectQualityEvalRisks(props.selectionId))
+const previewList = computed(() => riskList.value.slice(0, 8))
 
 const stats = computed(() => ({
   total: riskList.value.length,
@@ -19,8 +25,10 @@ const stats = computed(() => ({
 
 <template>
   <div class="panel-card quality-risk-panel">
-    <div class="panel-title compact title-left">
-      <span>{{ isHq ? '质量验评风险项统计' : '质量验评风险项' }}</span>
+    <div class="panel-title compact quality-title-row title-left">
+      <span class="quality-title-text">{{ panelTitle }}</span>
+      <span class="panel-v2-tip">V2版本上线</span>
+      <button type="button" class="title-more-btn" @click="moreOpen = true">更多</button>
     </div>
     <div class="panel-body panel-inner">
       <p class="panel-tip">仅展示验评资料与登记数据不一致项</p>
@@ -48,7 +56,7 @@ const stats = computed(() => ({
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in riskList" :key="row.id">
+            <tr v-for="row in previewList" :key="row.id">
               <td>
                 <div class="item-name" :title="row.item">{{ row.item }}</div>
                 <div class="item-meta">{{ row.evalType }} · {{ row.date.slice(5) }}</div>
@@ -61,13 +69,58 @@ const stats = computed(() => ({
                 <div class="inconsistency" :title="row.inconsistency">{{ row.inconsistency }}</div>
               </td>
             </tr>
-            <tr v-if="!riskList.length">
+            <tr v-if="!previewList.length">
               <td colspan="2" class="empty-row">暂无资料与登记不一致项</td>
             </tr>
           </tbody>
         </table>
       </div>
     </div>
+
+    <DispatchDraggablePanel
+      v-if="moreOpen"
+      :title="panelTitle"
+      :width="860"
+      placement="right"
+      @close="moreOpen = false"
+    >
+      <div class="more-dialog-toolbar">
+        <span class="more-count">共 {{ riskList.length }} 条风险项</span>
+      </div>
+      <div class="more-table-wrap">
+        <table class="data-table more-table">
+          <thead>
+            <tr>
+              <th>验收项</th>
+              <th>验评类型</th>
+              <th>部位</th>
+              <th>日期</th>
+              <th>登记状态</th>
+              <th>资料状态</th>
+              <th>不一致说明</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in riskList" :key="`more-${row.id}`">
+              <td>{{ row.item }}</td>
+              <td>{{ row.evalType }}</td>
+              <td>{{ row.location }}</td>
+              <td>{{ row.date.slice(5) }}</td>
+              <td>
+                <span class="tag register">{{ row.registerStatus }}</span>
+              </td>
+              <td>
+                <span class="tag doc">{{ row.docStatus }}</span>
+              </td>
+              <td class="inconsistency-full" :title="row.inconsistency">{{ row.inconsistency }}</td>
+            </tr>
+            <tr v-if="!riskList.length">
+              <td colspan="7" class="empty-row">暂无资料与登记不一致项</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </DispatchDraggablePanel>
   </div>
 </template>
 
@@ -82,6 +135,65 @@ const stats = computed(() => ({
   border-left: 4px solid #409eff;
 }
 
+.quality-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.quality-title-text {
+  flex-shrink: 0;
+}
+
+.quality-title-row .title-more-btn {
+  margin-left: auto;
+}
+
+.title-more-btn {
+  border: 1px solid var(--coc-border);
+  border-radius: 6px;
+  background: #fff;
+  padding: 4px 12px;
+  font-size: calc(12px + var(--coc-font-boost));
+  font-weight: 600;
+  color: var(--coc-accent);
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.title-more-btn:hover {
+  border-color: var(--coc-accent);
+  background: rgba(201, 123, 99, 0.08);
+}
+
+.more-dialog-toolbar {
+  padding: 0 4px 10px;
+}
+
+.more-count {
+  font-size: calc(12px + var(--coc-font-boost));
+  color: var(--coc-text-muted);
+}
+
+.more-table-wrap {
+  overflow: auto;
+  max-height: calc(100% - 36px);
+}
+
+.more-table th,
+.more-table td {
+  white-space: nowrap;
+}
+
+.more-table .inconsistency-full {
+  white-space: normal;
+  min-width: 200px;
+  max-width: 320px;
+  line-height: 1.45;
+  color: var(--coc-text-secondary);
+}
+
 .panel-inner {
   flex: 1;
   min-height: 0;
@@ -93,7 +205,7 @@ const stats = computed(() => ({
 
 .panel-tip {
   margin: 0;
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   color: var(--coc-text-muted);
   line-height: 1.4;
 }
@@ -114,7 +226,7 @@ const stats = computed(() => ({
 }
 
 .kpi-val {
-  font-size: 18px;
+  font-size: calc(18px + var(--coc-font-boost));
   font-weight: 700;
   color: var(--coc-text);
   line-height: 1.2;
@@ -130,7 +242,7 @@ const stats = computed(() => ({
 
 .kpi-lbl {
   margin-top: 2px;
-  font-size: 10px;
+  font-size: calc(10px + var(--coc-font-boost));
   color: var(--coc-text-muted);
 }
 
@@ -145,7 +257,7 @@ const stats = computed(() => ({
 .data-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
 }
 
 .data-table th,
@@ -175,7 +287,7 @@ const stats = computed(() => ({
 
 .item-meta {
   margin-top: 2px;
-  font-size: 10px;
+  font-size: calc(10px + var(--coc-font-boost));
   color: var(--coc-text-muted);
 }
 
@@ -190,7 +302,7 @@ const stats = computed(() => ({
   display: inline-block;
   padding: 1px 6px;
   border-radius: 4px;
-  font-size: 10px;
+  font-size: calc(10px + var(--coc-font-boost));
   font-weight: 600;
 }
 
@@ -205,7 +317,7 @@ const stats = computed(() => ({
 }
 
 .inconsistency {
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   color: var(--coc-text-secondary);
   line-height: 1.45;
   display: -webkit-box;

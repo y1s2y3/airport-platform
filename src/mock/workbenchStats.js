@@ -1,4 +1,4 @@
-export const summaryCards = [
+﻿export const summaryCards = [
   {
     title: '质量验评风险',
     value: '37',
@@ -100,6 +100,13 @@ export const projectEvalBoard = EVAL_SHORT_NAMES.map((projectName, i) => ({
   passRate: `${(85 + (i * 3) % 12).toFixed(1)}%`,
   color: EVAL_COLORS[i % EVAL_COLORS.length],
 }))
+
+/** 系统使用情况：月活 / 日活 / 当前在线 */
+export const systemActivityMetrics = [
+  { key: 'mau', label: '系统月活', value: 1286, unit: '人' },
+  { key: 'dau', label: '系统日活', value: 342, unit: '人' },
+  { key: 'online', label: '当前在线人数', value: 87, unit: '人' },
+]
 
 /** 各项目设备报警统计（按报警数降序） */
 export const deviceAlarmByProject = [
@@ -240,8 +247,8 @@ export const noticePenaltyList = [
   {
     id: 1,
     type: 'notice',
-    typeLabel: '告知单',
-    title: '临边防护整改告知',
+    typeLabel: '任务单',
+    title: '临边防护整改任务',
     project: 'T2空侧捷运线',
     date: '2026-06-15',
     status: '待阅',
@@ -258,8 +265,8 @@ export const noticePenaltyList = [
   {
     id: 3,
     type: 'notice',
-    typeLabel: '告知单',
-    title: '基坑监测数据异常告知',
+    typeLabel: '任务单',
+    title: '基坑监测数据异常任务',
     project: '三跑道扩建',
     date: '2026-06-13',
     status: '已阅',

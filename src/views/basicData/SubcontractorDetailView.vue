@@ -36,7 +36,7 @@ function handleGenerateReport() {
 <template>
   <div v-if="detail" class="detail-page page-card">
     <div class="page-header">
-      <div class="page-breadcrumb">基础数据管理 / 项目管理 / 分包单位管理 / 详情</div>
+      <div class="page-breadcrumb">基础数据管理 / 分包单位管理 / 详情</div>
       <div class="page-heading">
         <div class="title-block">
           <el-button :icon="ArrowLeft" @click="goBack">返回列表</el-button>

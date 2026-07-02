@@ -15,13 +15,12 @@ import {
 import ScreenshotMarkDialog from './ScreenshotMarkDialog.vue'
 import {
   videoPlaceholderColor,
-  getDispatchMeetingPlaybackNodes,
-  getMeetingPlaybackDates,
   formatMinutesToClock,
 } from '../mock/data.js'
 
 const SCRUB_MIN = 360
 const SCRUB_MAX = 1320
+const DEFAULT_PLAYBACK_DATE = '2026-06-16'
 
 const props = defineProps({
   source: { type: Object, default: null },
@@ -32,9 +31,6 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'issue-submit'])
 
-const PLAYBACK_DATES = getMeetingPlaybackDates()
-const DEFAULT_PLAYBACK_DATE = PLAYBACK_DATES[0] || '2026-06-16'
-
 const viewMode = ref('live')
 const zoomLevel = ref(1)
 const muted = ref(true)
@@ -42,8 +38,6 @@ const streamMode = ref('main')
 const markDialogVisible = ref(false)
 const playbackDate = ref(DEFAULT_PLAYBACK_DATE)
 const playbackMinutes = ref(570)
-const meetingMonth = ref(DEFAULT_PLAYBACK_DATE.slice(0, 7))
-const activeMeetingId = ref(null)
 
 const deviceName = computed(() => props.source?.name || '')
 const isOnline = computed(() => props.source?.online !== false)
@@ -53,16 +47,6 @@ const isPlayback = computed(() => viewMode.value === 'playback')
 const canOperateVideo = computed(() => isOnline.value || isPlayback.value)
 
 const playbackClock = computed(() => formatMinutesToClock(playbackMinutes.value))
-
-const meetingNodesAll = computed(() => getDispatchMeetingPlaybackNodes())
-
-const dateMeetingNodes = computed(() =>
-  meetingNodesAll.value.filter((node) => node.date === playbackDate.value),
-)
-
-const monthMeetingNodes = computed(() =>
-  meetingNodesAll.value.filter((node) => node.startTime.slice(0, 7) === meetingMonth.value),
-)
 
 const hourTicks = computed(() => {
   const ticks = []
@@ -122,61 +106,22 @@ function ptzMove(dir) {
   ElMessage.info(`云台${dir}`)
 }
 
-function isMeetingActive(node) {
-  if (activeMeetingId.value === node.id) return true
-  if (node.date !== playbackDate.value) return false
-  const end = node.minutesOfDay + node.durationMinutes
-  return playbackMinutes.value >= node.minutesOfDay && playbackMinutes.value <= end
-}
-
-function syncActiveMeetingByTime() {
-  const hit = dateMeetingNodes.value.find((node) => isMeetingActive(node))
-  activeMeetingId.value = hit?.id ?? null
-}
-
 function enterPlayback() {
   if (!canOperateVideo.value && !isOnline.value) {
     ElMessage.warning('该摄像头离线，暂无录像可回放')
     return
   }
   viewMode.value = 'playback'
-  meetingMonth.value = playbackDate.value.slice(0, 7)
-  const firstOnDate = dateMeetingNodes.value[0]
-  if (firstOnDate) {
-    playbackMinutes.value = firstOnDate.minutesOfDay
-    activeMeetingId.value = firstOnDate.id
-  } else {
-    playbackMinutes.value = 540
-    activeMeetingId.value = null
-  }
+  playbackMinutes.value = 540
   ElMessage.info('已进入录像回放')
 }
 
 function exitPlayback() {
   viewMode.value = 'live'
-  activeMeetingId.value = null
-}
-
-function selectMeetingNode(node) {
-  playbackDate.value = node.date
-  playbackMinutes.value = node.minutesOfDay
-  meetingMonth.value = node.date.slice(0, 7)
-  activeMeetingId.value = node.id
-}
-
-function onPlaybackDateChange() {
-  const nodes = dateMeetingNodes.value
-  if (nodes.length) {
-    playbackMinutes.value = nodes[0].minutesOfDay
-    activeMeetingId.value = nodes[0].id
-  } else {
-    activeMeetingId.value = null
-  }
 }
 
 function onScrubberInput(value) {
   playbackMinutes.value = value
-  syncActiveMeetingByTime()
 }
 
 function formatScrubTooltip(value) {
@@ -187,7 +132,6 @@ watch(
   () => props.source,
   () => {
     viewMode.value = 'live'
-    activeMeetingId.value = null
   },
 )
 </script>
@@ -211,7 +155,7 @@ watch(
         </button>
       </div>
 
-      <div class="expand-body" :class="{ 'has-playback-sidebar': isPlayback }">
+      <div class="expand-body">
         <div class="video-stage">
           <div class="video-viewport">
             <div class="video-canvas" :style="bgStyle">
@@ -319,42 +263,6 @@ watch(
             </div>
           </div>
         </div>
-
-        <aside v-if="isPlayback" class="playback-sidebar">
-          <div class="sidebar-head">调度会议录像</div>
-          <div class="month-filter">
-            <span class="filter-label">筛选月份</span>
-            <el-date-picker
-              v-model="meetingMonth"
-              type="month"
-              value-format="YYYY-MM"
-              placeholder="选择月份"
-              size="small"
-              :clearable="false"
-              class="month-picker"
-            />
-          </div>
-          <div class="timeline-head">会议时间轴（近→远）</div>
-          <div v-if="monthMeetingNodes.length" class="v-timeline">
-            <button
-              v-for="node in monthMeetingNodes"
-              :key="node.id"
-              type="button"
-              class="timeline-node"
-              :class="{ active: isMeetingActive(node) }"
-              @click="selectMeetingNode(node)"
-            >
-              <span class="node-line" />
-              <span class="node-dot" />
-              <span class="node-content">
-                <span class="node-time">{{ node.startTime.slice(0, 16) }}</span>
-                <span class="node-title">{{ node.title }}</span>
-                <span class="node-meta">{{ node.host }} · {{ node.duration }}</span>
-              </span>
-            </button>
-          </div>
-          <div v-else class="timeline-empty">所选月份暂无调度会议录像</div>
-        </aside>
       </div>
 
       <ScreenshotMarkDialog
@@ -391,17 +299,17 @@ watch(
 }
 
 .video-expand-overlay.is-contained .expand-title {
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
   gap: 8px;
 }
 
 .video-expand-overlay.is-contained .close-btn {
   padding: 6px 12px;
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
 }
 
 .video-expand-overlay.is-contained .video-canvas :deep(.el-icon) {
-  font-size: 28px !important;
+  font-size: calc(28px + var(--coc-font-boost)) !important;
 }
 
 .video-expand-overlay.is-contained .playback-scrubber {
@@ -423,7 +331,7 @@ watch(
   min-width: 32px;
   height: 32px;
   padding: 0 8px;
-  font-size: 10px;
+  font-size: calc(10px + var(--coc-font-boost));
 }
 
 .video-expand-overlay.is-contained .ctrl-btn-text {
@@ -433,11 +341,6 @@ watch(
 .video-expand-overlay.is-contained .ptz-grid {
   grid-template-columns: repeat(3, 28px);
   grid-template-rows: repeat(3, 28px);
-}
-
-.video-expand-overlay.is-contained .playback-sidebar {
-  width: 220px;
-  padding: 10px 8px;
 }
 
 .expand-header {
@@ -455,19 +358,19 @@ watch(
   align-items: center;
   gap: 14px;
   color: #fff;
-  font-size: 16px;
+  font-size: calc(16px + var(--coc-font-boost));
   font-weight: 700;
 }
 
 .key-badge {
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   background: var(--coc-accent);
   padding: 4px 10px;
   border-radius: 4px;
 }
 
 .mode-badge.playback {
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   padding: 4px 12px;
   border-radius: 6px;
   font-weight: 600;
@@ -476,7 +379,7 @@ watch(
 }
 
 .online-tag {
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   padding: 4px 12px;
   border-radius: 6px;
   font-weight: 600;
@@ -501,7 +404,7 @@ watch(
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.08);
   color: #fff;
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
   cursor: pointer;
 }
 
@@ -515,10 +418,6 @@ watch(
   min-height: 0;
   display: flex;
   padding: 0;
-}
-
-.expand-body.has-playback-sidebar {
-  gap: 0;
 }
 
 .video-stage {
@@ -552,7 +451,7 @@ watch(
 
 .offline-hint {
   color: rgba(255, 255, 255, 0.7);
-  font-size: 17px;
+  font-size: calc(17px + var(--coc-font-boost));
 }
 
 .playback-time-badge {
@@ -563,7 +462,7 @@ watch(
   border-radius: 6px;
   background: rgba(0, 0, 0, 0.55);
   color: #fff;
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -593,7 +492,7 @@ watch(
 }
 
 .scrub-date-label {
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   color: rgba(255, 255, 255, 0.55);
   white-space: nowrap;
 }
@@ -622,7 +521,7 @@ watch(
   color: #fff;
   padding: 4px 12px;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   font-weight: 700;
   animation: blink 1.2s infinite;
 }
@@ -647,7 +546,7 @@ watch(
 
 .scrub-label,
 .scrub-current {
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
   color: rgba(255, 255, 255, 0.85);
 }
 
@@ -682,7 +581,7 @@ watch(
 }
 
 .hour-label {
-  font-size: 10px;
+  font-size: calc(10px + var(--coc-font-boost));
   color: rgba(255, 255, 255, 0.5);
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
@@ -745,7 +644,7 @@ watch(
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.08);
   color: #fff;
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   cursor: pointer;
 }
 
@@ -804,7 +703,7 @@ watch(
 
 .record-time {
   color: #fff;
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   min-width: 48px;
@@ -819,7 +718,7 @@ watch(
 
 .ptz-label {
   color: rgba(255, 255, 255, 0.7);
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
 }
 
 .ptz-grid {
@@ -834,7 +733,7 @@ watch(
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.08);
   color: #fff;
-  font-size: 10px;
+  font-size: calc(10px + var(--coc-font-boost));
   cursor: pointer;
 }
 
@@ -851,146 +750,5 @@ watch(
 
 .ptz-btn:not(.center):hover {
   background: var(--coc-accent);
-}
-
-.playback-sidebar {
-  width: 300px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  background: rgba(0, 0, 0, 0.88);
-  border-left: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 16px 14px;
-}
-
-.sidebar-head {
-  font-size: 15px;
-  font-weight: 700;
-  color: #fff;
-  margin-bottom: 14px;
-}
-
-.month-filter {
-  margin-bottom: 14px;
-}
-
-.filter-label {
-  display: block;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.55);
-  margin-bottom: 6px;
-}
-
-.month-picker {
-  width: 100%;
-}
-
-.timeline-head {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.65);
-  margin-bottom: 10px;
-}
-
-.v-timeline {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  padding-left: 8px;
-}
-
-.timeline-node {
-  display: flex;
-  align-items: stretch;
-  gap: 10px;
-  position: relative;
-  border: none;
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-  padding: 10px 8px 10px 0;
-  color: inherit;
-}
-
-.timeline-node:hover .node-content {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.timeline-node.active .node-dot {
-  background: var(--coc-accent);
-  box-shadow: 0 0 0 4px rgba(201, 123, 99, 0.25);
-}
-
-.timeline-node.active .node-content {
-  border-color: rgba(201, 123, 99, 0.55);
-  background: rgba(201, 123, 99, 0.12);
-}
-
-.node-line {
-  position: absolute;
-  left: 11px;
-  top: 22px;
-  bottom: -10px;
-  width: 2px;
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.timeline-node:last-child .node-line {
-  display: none;
-}
-
-.node-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.35);
-  flex-shrink: 0;
-  margin-top: 4px;
-  z-index: 1;
-  transition: background 0.2s, box-shadow 0.2s;
-}
-
-.node-content {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: background 0.2s, border-color 0.2s;
-}
-
-.node-time {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.55);
-  font-variant-numeric: tabular-nums;
-}
-
-.node-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: #fff;
-  line-height: 1.35;
-}
-
-.node-meta {
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.45);
-}
-
-.timeline-empty {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.45);
-  text-align: center;
-  padding: 16px;
 }
 </style>

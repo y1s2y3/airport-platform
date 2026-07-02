@@ -50,7 +50,7 @@ const rows = computed(() => {
 }
 
 .panel-title.compact.title-left {
-  font-size: 18px;
+  font-size: calc(18px + var(--coc-font-boost));
   justify-content: flex-start;
 }
 
@@ -81,7 +81,7 @@ const rows = computed(() => {
 .compare-name {
   flex: 0 0 46%;
   max-width: 46%;
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
   font-weight: 700;
   line-height: 1.3;
   color: var(--coc-text);
@@ -110,7 +110,7 @@ const rows = computed(() => {
 
 .compare-value {
   flex: 0 0 auto;
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
   font-weight: 700;
   color: var(--coc-text);
   min-width: 34px;
@@ -123,6 +123,6 @@ const rows = computed(() => {
   align-items: center;
   justify-content: center;
   color: var(--coc-text-muted);
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
 }
 </style>

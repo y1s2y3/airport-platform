@@ -108,7 +108,7 @@ const checkItems = computed(() => detail.value.checkItems || [])
 .form-row {
   display: flex;
   gap: 10px;
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
   line-height: 1.45;
   align-items: flex-start;
 }
@@ -143,7 +143,7 @@ const checkItems = computed(() => detail.value.checkItems || [])
 }
 
 .section-label {
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
   font-weight: 600;
   color: var(--coc-text-secondary);
   margin-bottom: 10px;
@@ -166,7 +166,7 @@ const checkItems = computed(() => detail.value.checkItems || [])
   border-radius: 8px;
   background: #faf8f6;
   border: 1px solid var(--coc-border);
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
 }
 
 .check-list li.ok {
@@ -214,6 +214,6 @@ const checkItems = computed(() => detail.value.checkItems || [])
   justify-content: center;
   gap: 6px;
   color: rgba(255, 255, 255, 0.9);
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
 }
 </style>

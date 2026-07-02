@@ -4,22 +4,16 @@ export const basicDataMenuGroup = {
   icon: 'Collection',
   children: [
     {
-      key: 'bd-project',
-      label: '项目管理',
-      children: [
-        {
-          key: 'bd-project-info',
-          label: '项目基础信息',
-          path: '/basic-data/project/info',
-          description: '指挥部层级维护全部项目基础信息，支持按项目列表查看详情及参建单位信息。',
-        },
-        {
-          key: 'bd-subcontractor',
-          label: '分包单位管理',
-          path: '/basic-data/project/subcontractor',
-          description: '指挥部层级管理分包单位全生命周期：同步一期供应商库、履约台账、信用评分及退场联审。',
-        },
-      ],
+      key: 'bd-project-info',
+      label: '项目基础信息',
+      path: '/basic-data/project/info',
+      description: '指挥部层级维护全部项目基础信息，支持按项目列表查看详情及参建单位信息。',
+    },
+    {
+      key: 'bd-subcontractor',
+      label: '分包单位管理',
+      path: '/basic-data/project/subcontractor',
+      description: '按项目维护分包单位登记信息：安全生产许可、项目负责人、安全管理人员及资质证书。',
     },
     {
       key: 'bd-engineering-library',

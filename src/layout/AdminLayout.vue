@@ -157,8 +157,8 @@ function closeTab(tab, e) {
           COC调度大屏
         </a>
         <div class="user-block">
-          <el-avatar :size="32" class="user-avatar">刘</el-avatar>
-          <span class="user-name">刘文强</span>
+          <el-avatar :size="32" class="user-avatar">调</el-avatar>
+          <span class="user-name">COC调度室</span>
           <el-icon :size="12" color="#8f959e"><ArrowDown /></el-icon>
         </div>
         <button type="button" class="logout-btn">

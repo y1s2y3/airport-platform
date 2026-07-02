@@ -341,7 +341,7 @@ function rowTitle(row) {
   border: none;
   background: transparent;
   padding: 4px 12px;
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   border-radius: 6px;
   cursor: pointer;
   color: var(--coc-text-secondary);
@@ -359,7 +359,7 @@ function rowTitle(row) {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   padding: 4px 10px;
   border-radius: 6px;
   font-weight: 500;
@@ -368,7 +368,7 @@ function rowTitle(row) {
 }
 
 .status-chip b {
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
   font-weight: 700;
   color: var(--coc-text);
 }
@@ -402,7 +402,7 @@ function rowTitle(row) {
   display: flex;
   flex-wrap: wrap;
   gap: 14px;
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   color: var(--coc-text-muted);
   align-items: center;
 }
@@ -448,7 +448,7 @@ function rowTitle(row) {
   width: 300px;
   flex-shrink: 0;
   padding: 10px 14px;
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   font-weight: 600;
   color: var(--coc-text-secondary);
   border-right: 1px solid var(--coc-border);
@@ -469,7 +469,7 @@ function rowTitle(row) {
 .axis-tick {
   position: absolute;
   top: 0;
-  font-size: 10px;
+  font-size: calc(10px + var(--coc-font-boost));
   color: var(--coc-text-muted);
   padding: 10px 0;
   white-space: nowrap;
@@ -512,7 +512,7 @@ function rowTitle(row) {
 
 .level-tag {
   flex-shrink: 0;
-  font-size: 10px;
+  font-size: calc(10px + var(--coc-font-boost));
   padding: 2px 6px;
   border-radius: 4px;
   font-weight: 500;
@@ -535,7 +535,7 @@ function rowTitle(row) {
 
 .row-name {
   flex: 1;
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   color: var(--coc-text);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -543,7 +543,7 @@ function rowTitle(row) {
 }
 
 .row-level-0 .row-name {
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
   font-weight: 700;
 }
 
@@ -553,7 +553,7 @@ function rowTitle(row) {
 
 .row-status {
   flex-shrink: 0;
-  font-size: 10px;
+  font-size: calc(10px + var(--coc-font-boost));
   font-weight: 700;
   min-width: 42px;
   text-align: right;
@@ -637,7 +637,7 @@ function rowTitle(row) {
   align-items: center;
   justify-content: center;
   color: var(--coc-text-muted);
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
   min-height: 120px;
 }
 
@@ -656,7 +656,7 @@ function rowTitle(row) {
 }
 
 .plan-title {
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
   font-weight: 700;
   color: var(--coc-text);
 }
@@ -665,7 +665,7 @@ function rowTitle(row) {
   display: flex;
   flex-wrap: wrap;
   gap: 16px;
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   color: var(--coc-text-secondary);
 }
 
@@ -693,7 +693,7 @@ function rowTitle(row) {
 
 .plan-table {
   border-collapse: collapse;
-  font-size: 10px;
+  font-size: calc(10px + var(--coc-font-boost));
   min-width: max-content;
   table-layout: fixed;
 }
@@ -739,7 +739,7 @@ function rowTitle(row) {
   background: #f3f6fb;
   color: #409eff;
   font-weight: 700;
-  font-size: 10px;
+  font-size: calc(10px + var(--coc-font-boost));
 }
 
 .node-head {
@@ -753,7 +753,7 @@ function rowTitle(row) {
 }
 
 .plan-name-in-table {
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   font-weight: 700;
   color: var(--coc-text);
   line-height: 1.4;
@@ -775,7 +775,7 @@ function rowTitle(row) {
   max-width: 160px;
   white-space: normal;
   word-break: break-all;
-  font-size: 9px;
+  font-size: calc(9px + var(--coc-font-boost));
 }
 
 .status-cell {
@@ -784,7 +784,7 @@ function rowTitle(row) {
 
 .cell-progress {
   display: block;
-  font-size: 9px;
+  font-size: calc(9px + var(--coc-font-boost));
   font-weight: 500;
   opacity: 0.85;
 }

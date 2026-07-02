@@ -3,9 +3,21 @@ import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   DISPATCH_DOC_TICKET_LIST,
+  DISPATCH_CURRENT_USER,
   buildPenaltyDraft,
+  buildReminderDraft,
   buildSamplingNoticeDraft,
 } from '../../../mock/data.js'
+import {
+  saveDispatchNoticeRecord,
+  saveDispatchPenaltyRecord,
+  saveDispatchReminderRecord,
+} from '../../../utils/dispatchMeetingStorage.js'
+
+const ADMIN_MENU_ROOT = 'COC后台管理'
+const ADMIN_MENU_NOTICE = '任务单'
+const ADMIN_MENU_REMINDER = '提示函'
+const ADMIN_MENU_PENALTY = '处罚单'
 
 const props = defineProps({
   device: { type: Object, required: true },
@@ -16,34 +28,44 @@ const docTab = ref('notice')
 const listDialogOpen = ref(false)
 const dialogDocTab = ref('all')
 const docTabOptions = [
-  { value: 'notice', label: '告知单' },
+  { value: 'notice', label: '任务单' },
+  { value: 'reminder', label: '提示函' },
   { value: 'penalty', label: '处罚单' },
 ]
 const dialogTabOptions = [
   { value: 'all', label: '全部' },
-  { value: 'notice', label: '告知单' },
+  { value: 'notice', label: '任务单' },
+  { value: 'reminder', label: '提示函' },
   { value: 'penalty', label: '处罚单' },
 ]
 const noticeDraft = ref(buildSamplingNoticeDraft(props.device))
+const reminderDraft = ref(buildReminderDraft(props.device))
 const penaltyDraft = ref(buildPenaltyDraft(props.device))
-const editingNotice = ref(false)
-const editingPenalty = ref(false)
 
-const activeDraft = computed(() => (docTab.value === 'notice' ? noticeDraft.value : penaltyDraft.value))
-const isEditingDraft = computed(() => (docTab.value === 'notice' ? editingNotice.value : editingPenalty.value))
-const draftContent = computed({
-  get: () => activeDraft.value.content,
-  set: (val) => {
-    if (docTab.value === 'notice') noticeDraft.value.content = val
-    else penaltyDraft.value.content = val
-  },
-})
+const DOC_TYPE_LABELS = {
+  notice: '任务单',
+  reminder: '提示函',
+  penalty: '处罚单',
+}
 
 const dialogList = computed(() => {
   if (dialogDocTab.value === 'all') return DISPATCH_DOC_TICKET_LIST
-  const type = dialogDocTab.value === 'notice' ? '告知单' : '处罚单'
+  const type = DOC_TYPE_LABELS[dialogDocTab.value]
   return DISPATCH_DOC_TICKET_LIST.filter((t) => t.docType === type)
 })
+
+const docSubjectLabel = computed(() => {
+  if (dialogDocTab.value === 'notice') return '工作要求'
+  if (dialogDocTab.value === 'reminder') return '事项描述'
+  if (dialogDocTab.value === 'penalty') return '事由'
+  return '工作要求/事由'
+})
+
+function docSubjectText(row) {
+  if (row.docType === '任务单') return row.workRequirement || row.title || '—'
+  if (row.docType === '提示函') return row.matterDescription || row.title || '—'
+  return row.penaltyReason || row.title || '—'
+}
 
 const ticketStatusMap = {
   待确认: 'draft',
@@ -55,8 +77,6 @@ const ticketStatusMap = {
 
 function switchDocTab(tab) {
   if (docTab.value === tab) return
-  editingNotice.value = false
-  editingPenalty.value = false
   docTab.value = tab
 }
 
@@ -65,29 +85,144 @@ function openListDialog() {
   listDialogOpen.value = true
 }
 
-function startEditDraft() {
-  if (docTab.value === 'notice') editingNotice.value = true
-  else editingPenalty.value = true
+function buildNoticeSavePayload(draft) {
+  const workType = draft.workType.trim()
+  const workRequirement = draft.workRequirement.trim()
+  const titleBase = workRequirement.slice(0, 24) || draft.title || '任务单'
+  return {
+    id: draft.adminRecordId,
+    title: titleBase.length >= 24 ? `${titleBase}…` : titleBase,
+    project: draft.project || '',
+    type: workType,
+    workType,
+    workRequirement,
+    workSource: '远程调度',
+    executeDept: draft.executeDept || '',
+    deadline: draft.deadline || '',
+    ledgerHandling: draft.ledgerHandling || '纳入任务单台账',
+    source: '远程调度',
+    status: '待确认',
+    issuer: DISPATCH_CURRENT_USER,
+    issueTime: new Date().toLocaleString('zh-CN', { hour12: false }),
+  }
 }
 
-function saveDraft() {
-  if (docTab.value === 'notice') editingNotice.value = false
-  else editingPenalty.value = false
-  ElMessage.success('草稿已保存')
+function buildReminderSavePayload(draft) {
+  const matterDescription = draft.matterDescription.trim()
+  const titleBase = matterDescription.slice(0, 24) || draft.title || '提示函'
+  return {
+    id: draft.adminRecordId,
+    title: titleBase.length >= 24 ? `${titleBase}…` : titleBase,
+    project: draft.project || '',
+    matterDescription,
+    assignee: draft.assignee || draft.executor || '项目经理',
+    executor: draft.assignee || draft.executor || '项目经理',
+    deadline: draft.deadline || '',
+    status: '待确认',
+    issuer: DISPATCH_CURRENT_USER,
+    issueTime: new Date().toLocaleString('zh-CN', { hour12: false }),
+  }
 }
 
-function confirmDraft() {
-  activeDraft.value.status = 'sent'
-  if (docTab.value === 'notice') editingNotice.value = false
-  else editingPenalty.value = false
-  ElMessage.success(docTab.value === 'notice' ? '告知单已确认下发' : '处罚单已确认下发')
+function buildPenaltySavePayload(draft) {
+  const penaltyReason = draft.penaltyReason.trim()
+  const penaltyContent = draft.penaltyContent.trim()
+  const penaltyClause = draft.penaltyClause?.trim() || ''
+  const amount = draft.amount.trim()
+  const titleBase = penaltyReason.slice(0, 24) || draft.title || '处罚单'
+  return {
+    id: draft.adminRecordId,
+    title: titleBase.length >= 24 ? `${titleBase}…` : titleBase,
+    project: draft.project || '',
+    unit: draft.unit || '',
+    penaltyReason,
+    penaltyContent,
+    penaltyClause,
+    amount,
+    handler: DISPATCH_CURRENT_USER,
+    source: '远程调度',
+    status: '待确认',
+    issueTime: new Date().toLocaleString('zh-CN', { hour12: false }),
+  }
+}
+
+function validateDraft() {
+  if (docTab.value === 'notice') {
+    if (!noticeDraft.value.project?.trim()) {
+      ElMessage.warning('请填写项目名称')
+      return false
+    }
+    if (!noticeDraft.value.workType?.trim()) {
+      ElMessage.warning('请填写工作类型')
+      return false
+    }
+    if (!noticeDraft.value.workRequirement?.trim()) {
+      ElMessage.warning('请填写工作要求')
+      return false
+    }
+  } else if (docTab.value === 'reminder') {
+    if (!reminderDraft.value.matterDescription?.trim()) {
+      ElMessage.warning('请填写事项描述')
+      return false
+    }
+    if (!reminderDraft.value.executor?.trim()) {
+      ElMessage.warning('请填写指派人')
+      return false
+    }
+    if (!reminderDraft.value.deadline) {
+      ElMessage.warning('请选择完成时限')
+      return false
+    }
+  } else {
+    if (!penaltyDraft.value.project?.trim()) {
+      ElMessage.warning('请填写项目名称')
+      return false
+    }
+    if (!penaltyDraft.value.unit?.trim()) {
+      ElMessage.warning('请填写责任单位')
+      return false
+    }
+    if (!penaltyDraft.value.penaltyReason?.trim()) {
+      ElMessage.warning('请填写事由')
+      return false
+    }
+    if (!penaltyDraft.value.penaltyContent?.trim()) {
+      ElMessage.warning('请填写内容')
+      return false
+    }
+    if (!penaltyDraft.value.amount?.trim()) {
+      ElMessage.warning('请填写金额')
+      return false
+    }
+  }
+  return true
+}
+
+function handleSave() {
+  if (!validateDraft()) return
+  if (docTab.value === 'notice') {
+    const record = saveDispatchNoticeRecord(buildNoticeSavePayload(noticeDraft.value))
+    noticeDraft.value.adminRecordId = record.id
+    noticeDraft.value.status = 'draft'
+    ElMessage.success(`已保存至 ${ADMIN_MENU_ROOT} · ${ADMIN_MENU_NOTICE}`)
+  } else if (docTab.value === 'reminder') {
+    const record = saveDispatchReminderRecord(buildReminderSavePayload(reminderDraft.value))
+    reminderDraft.value.adminRecordId = record.id
+    reminderDraft.value.status = 'draft'
+    ElMessage.success(`已保存至 ${ADMIN_MENU_ROOT} · ${ADMIN_MENU_REMINDER}`)
+  } else {
+    const record = saveDispatchPenaltyRecord(buildPenaltySavePayload(penaltyDraft.value))
+    penaltyDraft.value.adminRecordId = record.id
+    penaltyDraft.value.status = 'draft'
+    ElMessage.success(`已保存至 ${ADMIN_MENU_ROOT} · ${ADMIN_MENU_PENALTY}`)
+  }
 }
 </script>
 
 <template>
   <div class="panel-card detail-panel doc-ticket-panel">
-    <div class="panel-title compact doc-title-row">
-      <span class="doc-title-text">告知单 &amp; 处罚单</span>
+    <div class="panel-title compact doc-title-row title-left">
+      <span class="doc-title-text">任务单</span>
       <button type="button" class="title-more-btn" @click="openListDialog">更多</button>
     </div>
     <div class="panel-body penalty-body">
@@ -98,25 +233,101 @@ function confirmDraft() {
               v-for="opt in docTabOptions"
               :key="opt.value"
               class="doc-tab-btn"
-              :class="{ active: docTab === opt.value, notice: opt.value === 'notice', penalty: opt.value === 'penalty' }"
+              :class="{ active: docTab === opt.value, notice: opt.value === 'notice', reminder: opt.value === 'reminder', penalty: opt.value === 'penalty' }"
               @click="switchDocTab(opt.value)"
             >
               {{ opt.label }}
             </button>
           </div>
-          <span class="ai-tag">AI 自动生成</span>
         </div>
-        <el-input v-if="isEditingDraft" v-model="draftContent" type="textarea" class="draft-textarea" resize="none" />
-        <pre v-else class="draft-content">{{ activeDraft.content }}</pre>
+
+        <div class="draft-fields">
+          <template v-if="docTab === 'notice'">
+            <div class="field-row">
+              <span class="field-label">项目名称</span>
+              <el-input v-model="noticeDraft.project" size="small" placeholder="如：捷运线延长段" />
+            </div>
+            <div class="field-row">
+              <span class="field-label">工作类型</span>
+              <el-input v-model="noticeDraft.workType" size="small" placeholder="如：质量复检" />
+            </div>
+            <div class="field-row field-row-block">
+              <span class="field-label">工作要求</span>
+              <el-input
+                v-model="noticeDraft.workRequirement"
+                type="textarea"
+                :rows="5"
+                resize="none"
+                placeholder="请描述工作要求"
+              />
+            </div>
+          </template>
+
+          <template v-else-if="docTab === 'reminder'">
+            <div class="field-row field-row-block">
+              <span class="field-label">事项描述</span>
+              <el-input
+                v-model="reminderDraft.matterDescription"
+                type="textarea"
+                :rows="5"
+                resize="none"
+                placeholder="请描述提示事项"
+              />
+            </div>
+            <div class="field-row">
+              <span class="field-label">指派人</span>
+              <el-input v-model="reminderDraft.executor" size="small" placeholder="默认：项目经理" />
+            </div>
+            <div class="field-row">
+              <span class="field-label">完成时限</span>
+              <el-date-picker
+                v-model="reminderDraft.deadline"
+                type="date"
+                value-format="YYYY-MM-DD"
+                placeholder="选择完成时限"
+                size="small"
+                style="width: 100%"
+              />
+            </div>
+          </template>
+
+          <template v-else>
+            <div class="field-row">
+              <span class="field-label">项目名称</span>
+              <el-input v-model="penaltyDraft.project" size="small" placeholder="如：捷运线延长段" />
+            </div>
+            <div class="field-row">
+              <span class="field-label">责任单位</span>
+              <el-input v-model="penaltyDraft.unit" size="small" placeholder="如：中建三局" />
+            </div>
+            <div class="field-row">
+              <span class="field-label">事由</span>
+              <el-input v-model="penaltyDraft.penaltyReason" size="small" placeholder="如：文明施工违规" />
+            </div>
+            <div class="field-row field-row-block">
+              <span class="field-label">内容</span>
+              <el-input
+                v-model="penaltyDraft.penaltyContent"
+                type="textarea"
+                :rows="4"
+                resize="none"
+                placeholder="请描述处罚内容"
+              />
+            </div>
+            <div class="field-row">
+              <span class="field-label">金额</span>
+              <el-input v-model="penaltyDraft.amount" size="small" placeholder="如 5000 元" />
+            </div>
+          </template>
+        </div>
+
         <div class="draft-actions">
-          <el-button v-if="!isEditingDraft" size="small" @click="startEditDraft">编辑</el-button>
-          <el-button v-else size="small" @click="saveDraft">保存</el-button>
-          <el-button type="primary" size="small" @click="confirmDraft">确认下发</el-button>
+          <el-button type="primary" size="small" @click="handleSave">保存</el-button>
         </div>
       </div>
     </div>
 
-    <el-dialog v-model="listDialogOpen" title="告知单 & 处罚单" width="760px" class="doc-list-dialog">
+    <el-dialog v-model="listDialogOpen" title="任务单" width="760px" class="doc-list-dialog">
       <div class="dialog-filter">
         <button
           v-for="opt in dialogTabOptions"
@@ -132,7 +343,9 @@ function confirmDraft() {
       </div>
       <el-table :data="dialogList" border stripe max-height="420" empty-text="暂无单据">
         <el-table-column prop="docType" label="类型" width="88" align="center" />
-        <el-table-column prop="title" label="标题" min-width="200" show-overflow-tooltip />
+        <el-table-column :label="docSubjectLabel" min-width="200" show-overflow-tooltip>
+          <template #default="{ row }">{{ docSubjectText(row) }}</template>
+        </el-table-column>
         <el-table-column label="状态" width="96" align="center">
           <template #default="{ row }">
             <span class="ticket-status" :class="ticketStatusMap[row.status]">{{ row.status }}</span>
@@ -162,7 +375,6 @@ function confirmDraft() {
 .doc-title-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
 }
 
@@ -170,19 +382,27 @@ function confirmDraft() {
   flex-shrink: 0;
 }
 
-.title-more-btn {
+.doc-title-row .title-more-btn {
   margin-left: auto;
-  border: none;
-  background: transparent;
-  padding: 0;
-  font-size: 13px;
-  color: #1677ff;
+}
+
+.title-more-btn {
+  border: 1px solid var(--coc-border);
+  border-radius: 6px;
+  background: #fff;
+  padding: 4px 12px;
+  font-size: calc(12px + var(--coc-font-boost));
+  font-weight: 600;
+  color: var(--coc-accent);
   cursor: pointer;
+  white-space: nowrap;
+  line-height: 1.4;
   font-family: inherit;
 }
 
 .title-more-btn:hover {
-  text-decoration: underline;
+  border-color: var(--coc-accent);
+  background: rgba(201, 123, 99, 0.08);
 }
 
 .penalty-body {
@@ -196,31 +416,14 @@ function confirmDraft() {
 .penalty-upper {
   flex: 1;
   min-height: 0;
-  gap: 6px;
-}
-
-.draft-content {
-  flex: 1;
-  min-height: 0;
-}
-
-.draft-textarea {
-  flex: 1;
-  min-height: 0;
   display: flex;
-}
-
-.draft-textarea :deep(.el-textarea__inner) {
-  flex: 1;
-  min-height: 140px;
-  height: 100% !important;
-  box-sizing: border-box;
-  font-size: 12px;
-  resize: none;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .draft-head {
   align-items: center;
+  flex-shrink: 0;
 }
 
 .doc-tabs {
@@ -232,7 +435,7 @@ function confirmDraft() {
   border: 1px solid var(--coc-border);
   border-radius: 6px;
   background: #faf8f6;
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
   padding: 4px 12px;
   cursor: pointer;
   font-weight: 500;
@@ -246,11 +449,64 @@ function confirmDraft() {
   font-weight: 600;
 }
 
+.doc-tab-btn.active.reminder {
+  border-color: #909399;
+  background: rgba(144, 147, 153, 0.12);
+  color: #606266;
+  font-weight: 600;
+}
+
 .doc-tab-btn.active.penalty {
   border-color: #f56c6c;
   background: rgba(245, 108, 108, 0.1);
   color: #f56c6c;
   font-weight: 600;
+}
+
+.draft-fields {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--coc-border);
+  border-radius: 8px;
+  background: #faf8f6;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.field-row-block {
+  align-items: stretch;
+}
+
+.field-label {
+  font-size: calc(12px + var(--coc-font-boost));
+  font-weight: 600;
+  color: var(--coc-text-secondary);
+  line-height: 32px;
+}
+
+.field-row-block .field-label {
+  line-height: 1.5;
+  padding-top: 6px;
+}
+
+.draft-fields :deep(.el-input),
+.draft-fields :deep(.el-textarea) {
+  width: 100%;
+}
+
+.draft-fields :deep(.el-textarea__inner) {
+  font-size: calc(12px + var(--coc-font-boost));
+  line-height: 1.55;
 }
 
 .draft-actions {
@@ -271,7 +527,7 @@ function confirmDraft() {
   border-radius: 999px;
   background: #fff;
   padding: 4px 12px;
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
   cursor: pointer;
   color: var(--coc-text-secondary);
 }
@@ -285,7 +541,7 @@ function confirmDraft() {
 
 .dialog-count {
   margin-left: auto;
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
   color: var(--coc-text-muted);
 }
 
@@ -293,7 +549,7 @@ function confirmDraft() {
   display: inline-block;
   padding: 2px 8px;
   border-radius: 4px;
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
   font-weight: 600;
 }
 

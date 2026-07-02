@@ -2,27 +2,24 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Edit, CircleClose } from '@element-plus/icons-vue'
+import { buildProjects } from '../mock/data.js'
 import {
-  TASK_WORK_SOURCES,
-  TASK_EXECUTE_DEPARTMENTS,
-  TASK_LEDGER_HANDLING_OPTIONS,
-  buildProjects,
-} from '../mock/data.js'
-import {
-  getDispatchNoticeRecords,
-  saveDispatchNoticeRecord,
-  voidDispatchNoticeRecord,
-  emptyNoticeRecord,
-  normalizeNoticeRecord,
+  getDispatchReminderRecords,
+  saveDispatchReminderRecord,
+  voidDispatchReminderRecord,
+  emptyReminderRecord,
+  normalizeReminderRecord,
 } from '../utils/dispatchMeetingStorage.js'
 
 defineProps({
-  title: { type: String, default: '任务单' },
+  title: { type: String, default: '提示函' },
   description: {
     type: String,
-    default: '管理远程调度产生的任务单：创建、下发、签收、整改反馈与闭环台账，支持从截图/会议一键生成。',
+    default: '管理远程调度产生的提示函：创建、下发、签收与闭环，支持从截图/调度会一键生成。',
   },
 })
+
+const DEFAULT_ASSIGNEE = '项目经理'
 
 const keyword = ref('')
 const statusFilter = ref('')
@@ -31,9 +28,17 @@ const detailVisible = ref(false)
 const formVisible = ref(false)
 const formMode = ref('create')
 const current = ref(null)
-const form = ref(emptyNoticeRecord())
+const form = ref(emptyReminderRecord())
 
 const projectOptions = buildProjects().map((p) => p.shortName || p.name)
+
+const assigneeOptions = computed(() => {
+  const names = new Set([DEFAULT_ASSIGNEE])
+  list.value.forEach((item) => {
+    if (item.assignee) names.add(item.assignee)
+  })
+  return [...names]
+})
 
 const filtered = computed(() => {
   let rows = list.value
@@ -41,20 +46,13 @@ const filtered = computed(() => {
   const q = keyword.value.trim()
   if (!q) return rows
   return rows.filter((r) =>
-    [
-      r.id,
-      r.project,
-      r.workType,
-      r.workRequirement,
-      r.workSource,
-      r.executeDept,
-      r.remark,
-    ].some((f) => String(f || '').includes(q)),
+    [r.id, r.project, r.matterDescription, r.assignee, r.title, r.source]
+      .some((f) => String(f || '').includes(q)),
   )
 })
 
 function load() {
-  list.value = getDispatchNoticeRecords()
+  list.value = getDispatchReminderRecords()
 }
 
 function openDetail(row) {
@@ -64,17 +62,17 @@ function openDetail(row) {
 
 function openCreate() {
   formMode.value = 'create'
-  form.value = emptyNoticeRecord()
+  form.value = emptyReminderRecord()
   formVisible.value = true
 }
 
 function openEdit(row) {
   if (row.status === '已作废') {
-    ElMessage.warning('已作废的任务单不可编辑')
+    ElMessage.warning('已作废的提示函不可编辑')
     return
   }
   formMode.value = 'edit'
-  form.value = normalizeNoticeRecord({ ...row })
+  form.value = normalizeReminderRecord({ ...row })
   formVisible.value = true
 }
 
@@ -83,28 +81,16 @@ function validateForm() {
     ElMessage.warning('请填写项目名称')
     return false
   }
-  if (!form.value.workType?.trim()) {
-    ElMessage.warning('请填写工作类型')
+  if (!form.value.matterDescription?.trim()) {
+    ElMessage.warning('请填写事项描述')
     return false
   }
-  if (!form.value.workRequirement?.trim()) {
-    ElMessage.warning('请填写工作要求')
-    return false
-  }
-  if (!form.value.workSource?.trim()) {
-    ElMessage.warning('请选择工作来源')
-    return false
-  }
-  if (!form.value.executeDept?.trim()) {
-    ElMessage.warning('请选择执行部门')
+  if (!form.value.assignee?.trim()) {
+    ElMessage.warning('请填写指派人')
     return false
   }
   if (!form.value.deadline) {
     ElMessage.warning('请选择完成时限')
-    return false
-  }
-  if (!form.value.ledgerHandling?.trim()) {
-    ElMessage.warning('请选择台账处理')
     return false
   }
   return true
@@ -112,20 +98,20 @@ function validateForm() {
 
 function submitForm() {
   if (!validateForm()) return
-  saveDispatchNoticeRecord(form.value)
+  saveDispatchReminderRecord(form.value)
   load()
   formVisible.value = false
-  ElMessage.success(formMode.value === 'create' ? '任务单已新增' : '任务单已更新')
+  ElMessage.success(formMode.value === 'create' ? '提示函已新增' : '提示函已更新')
 }
 
 function handleVoid(row) {
   if (row.status === '已作废') return
-  const label = row.workRequirement || row.title || row.id
-  ElMessageBox.confirm(`确定作废任务单「${label.slice(0, 24)}」？`, '作废确认', { type: 'warning' })
+  const label = row.matterDescription || row.title || row.id
+  ElMessageBox.confirm(`确定作废提示函「${label.slice(0, 24)}」？`, '作废确认', { type: 'warning' })
     .then(() => {
-      voidDispatchNoticeRecord(row.id)
+      voidDispatchReminderRecord(row.id)
       load()
-      ElMessage.success('任务单已作废')
+      ElMessage.success('提示函已作废')
     })
     .catch(() => {})
 }
@@ -148,25 +134,23 @@ onMounted(load)
         <el-select v-model="statusFilter" placeholder="状态" clearable style="width: 120px">
           <el-option label="已下发" value="已下发" />
           <el-option label="待签收" value="待签收" />
+          <el-option label="待确认" value="待确认" />
           <el-option label="已闭环" value="已闭环" />
           <el-option label="已作废" value="已作废" />
         </el-select>
-        <el-input v-model="keyword" placeholder="搜索编号、项目名称、工作要求…" clearable class="search-input" />
+        <el-input v-model="keyword" placeholder="搜索编号、项目名称、事项描述…" clearable class="search-input" />
         <el-button type="primary" :icon="Plus" @click="openCreate">新增</el-button>
       </div>
     </div>
     <div class="panel-body page-body">
       <p class="page-desc">{{ description }}</p>
-      <el-table :data="filtered" stripe border empty-text="暂无任务单记录">
+      <el-table :data="filtered" stripe border empty-text="暂无提示函记录">
         <el-table-column type="index" label="序号" width="56" />
         <el-table-column prop="id" label="编号" width="148" show-overflow-tooltip />
         <el-table-column prop="project" label="项目名称" min-width="120" show-overflow-tooltip />
-        <el-table-column prop="workType" label="工作类型" width="96" />
-        <el-table-column prop="workRequirement" label="工作要求" min-width="180" show-overflow-tooltip />
-        <el-table-column prop="workSource" label="工作来源" width="108" show-overflow-tooltip />
-        <el-table-column prop="executeDept" label="执行部门" min-width="120" show-overflow-tooltip />
+        <el-table-column prop="matterDescription" label="事项描述" min-width="220" show-overflow-tooltip />
+        <el-table-column prop="assignee" label="指派人" width="108" show-overflow-tooltip />
         <el-table-column prop="deadline" label="完成时限" width="108" />
-        <el-table-column prop="ledgerHandling" label="台账处理" min-width="130" show-overflow-tooltip />
         <el-table-column prop="issueTime" label="下发时间" width="148" />
         <el-table-column prop="status" label="状态" width="88">
           <template #default="{ row }">
@@ -193,7 +177,7 @@ onMounted(load)
       </el-table>
     </div>
 
-    <el-dialog v-model="formVisible" :title="formMode === 'create' ? '新增任务单' : '编辑任务单'" width="640px" destroy-on-close>
+    <el-dialog v-model="formVisible" :title="formMode === 'create' ? '新增提示函' : '编辑提示函'" width="640px" destroy-on-close>
       <el-form label-width="96px">
         <el-form-item label="项目名称" required>
           <el-select
@@ -207,42 +191,34 @@ onMounted(load)
             <el-option v-for="item in projectOptions" :key="item" :label="item" :value="item" />
           </el-select>
         </el-form-item>
-        <el-form-item label="工作类型" required>
-          <el-input v-model="form.workType" placeholder="如：安全检查、质量复检" />
-        </el-form-item>
-        <el-form-item label="工作要求" required>
+        <el-form-item label="事项描述" required>
           <el-input
-            v-model="form.workRequirement"
+            v-model="form.matterDescription"
             type="textarea"
             :rows="4"
-            placeholder="请描述工作要求，将作为任务单正文"
+            placeholder="请描述提示事项，将作为提示函正文"
           />
         </el-form-item>
-        <el-form-item label="工作来源" required>
-          <el-select v-model="form.workSource" placeholder="选择工作来源" style="width: 100%">
-            <el-option v-for="item in TASK_WORK_SOURCES" :key="item" :label="item" :value="item" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="执行部门" required>
-          <el-select v-model="form.executeDept" placeholder="选择执行部门" style="width: 100%">
-            <el-option v-for="item in TASK_EXECUTE_DEPARTMENTS" :key="item" :label="item" :value="item" />
+        <el-form-item label="指派人" required>
+          <el-select
+            v-model="form.assignee"
+            filterable
+            allow-create
+            default-first-option
+            placeholder="默认：项目经理"
+            style="width: 100%"
+          >
+            <el-option v-for="item in assigneeOptions" :key="item" :label="item" :value="item" />
           </el-select>
         </el-form-item>
         <el-form-item label="完成时限" required>
           <el-date-picker v-model="form.deadline" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
         </el-form-item>
-        <el-form-item label="台账处理" required>
-          <el-select v-model="form.ledgerHandling" placeholder="选择台账处理方式" style="width: 100%">
-            <el-option v-for="item in TASK_LEDGER_HANDLING_OPTIONS" :key="item" :label="item" :value="item" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="form.remark" type="textarea" :rows="2" placeholder="选填" />
-        </el-form-item>
         <el-form-item label="状态">
           <el-select v-model="form.status" style="width: 100%">
             <el-option label="已下发" value="已下发" />
             <el-option label="待签收" value="待签收" />
+            <el-option label="待确认" value="待确认" />
             <el-option label="已闭环" value="已闭环" />
           </el-select>
         </el-form-item>
@@ -253,7 +229,7 @@ onMounted(load)
       </template>
     </el-dialog>
 
-    <el-dialog v-model="detailVisible" title="任务单详情" width="720px" destroy-on-close>
+    <el-dialog v-model="detailVisible" title="提示函详情" width="720px" destroy-on-close>
       <template v-if="current">
         <el-descriptions :column="2" border size="small">
           <el-descriptions-item label="编号">{{ current.id }}</el-descriptions-item>
@@ -261,14 +237,12 @@ onMounted(load)
             <el-tag :type="statusTagType(current.status)" size="small">{{ current.status }}</el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="项目名称" :span="2">{{ current.project || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="工作类型">{{ current.workType || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="工作来源">{{ current.workSource || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="工作要求" :span="2">{{ current.workRequirement || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="执行部门">{{ current.executeDept || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="事项描述" :span="2">{{ current.matterDescription || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="指派人">{{ current.assignee || current.executor || '—' }}</el-descriptions-item>
           <el-descriptions-item label="完成时限">{{ current.deadline || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="台账处理" :span="2">{{ current.ledgerHandling || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="备注" :span="2">{{ current.remark || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="下发时间" :span="2">{{ current.issueTime }}</el-descriptions-item>
+          <el-descriptions-item label="来源">{{ current.source || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="下发人">{{ current.issuer || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="下发时间" :span="2">{{ current.issueTime || '—' }}</el-descriptions-item>
         </el-descriptions>
         <div v-if="current.snapshot" class="content-block">
           <div class="block-label">关联图片</div>
@@ -290,7 +264,7 @@ onMounted(load)
   flex-wrap: wrap;
   gap: 12px;
   font-size: 16px;
-  border-left: 4px solid #e6a23c;
+  border-left: 4px solid #909399;
   padding-left: 12px;
 }
 

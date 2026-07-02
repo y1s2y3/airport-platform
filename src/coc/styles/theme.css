@@ -1,5 +1,5 @@
 :root {
-  --coc-font-boost: 0px;
+  --coc-font-boost: 2.5px;
   --coc-ui-scale: 0.333333;
   --coc-accent: #c97b63;
   --coc-accent-light: #e8b4a0;
@@ -60,13 +60,14 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  --el-font-size-base: 14px;
-  --el-font-size-small: 12px;
-  --el-font-size-large: 16px;
-  --el-font-size-extra-large: 18px;
-  --el-component-size: 32px;
-  --el-component-size-small: 24px;
-  --el-component-size-large: 40px;
+  font-size: calc(14px + var(--coc-font-boost));
+  --el-font-size-base: calc(14px + var(--coc-font-boost));
+  --el-font-size-small: calc(12px + var(--coc-font-boost));
+  --el-font-size-large: calc(16px + var(--coc-font-boost));
+  --el-font-size-extra-large: calc(18px + var(--coc-font-boost));
+  --el-component-size: 34px;
+  --el-component-size-small: 26px;
+  --el-component-size-large: 42px;
 }
 
 .screen-canvas > .top-nav {
@@ -93,7 +94,7 @@
   color: #fff;
   padding: 6px 12px;
   border-radius: 6px;
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
   pointer-events: none;
 }
 
@@ -113,7 +114,7 @@
   align-items: center;
   gap: 8px;
   padding: 0.35em 16px;
-  font-size: 18px;
+  font-size: calc(18px + var(--coc-font-boost));
   line-height: 1.35;
   font-weight: 600;
   color: var(--coc-text);
@@ -134,17 +135,17 @@
 
 .panel-title.simple-title,
 .simple-title.panel-title {
-  font-size: 18px;
+  font-size: calc(18px + var(--coc-font-boost));
   padding: 0.4em 20px;
 }
 
 .panel-title.compact {
-  font-size: 15px;
+  font-size: calc(15px + var(--coc-font-boost));
   padding: 0.35em 14px;
 }
 
 .panel-title.compact.title-left {
-  font-size: 18px;
+  font-size: calc(18px + var(--coc-font-boost));
   padding: 0.4em 18px;
 }
 
@@ -205,7 +206,21 @@
 .key-badge {
   background: linear-gradient(135deg, var(--coc-accent), var(--coc-gold));
   color: #fff;
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
   padding: 2px 8px;
   border-radius: 4px;
+}
+
+.panel-v2-tip {
+  margin-left: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: calc(11px + var(--coc-font-boost));
+  font-weight: 500;
+  line-height: 1.4;
+  color: #b88230;
+  background: rgba(230, 162, 60, 0.12);
+  border: 1px solid rgba(230, 162, 60, 0.35);
+  white-space: nowrap;
+  flex-shrink: 0;
 }

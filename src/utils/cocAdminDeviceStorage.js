@@ -1,6 +1,7 @@
 const PATROL_KEY = 'coc-admin-patrol-devices'
 const HELMET_KEY = 'coc-admin-smart-helmets'
 const SUPERVISION_KEY = 'coc-admin-supervision-meetings'
+const SUPERVISION_HAZARD_KEY = 'coc-admin-supervision-hazards'
 
 const defaultPatrolDevices = [
   {
@@ -65,21 +66,52 @@ const defaultHelmets = [
 const defaultSupervisionMeetings = [
   {
     id: 'SM-001',
-    title: '三跑道项目监理例会（6月第3周）',
-    project: '三跑道',
+    projectDept: '三跑道项目部',
+    projectName: '三跑道扩建工程',
+    meetingDate: '2026-06-24',
+    pmAttendees: '张某（项目经理）、李某（项目负责人）',
+    directorAttendees: '王某（项目部长）',
+    minutesWord: '三跑道监理例会纪要_20260624.docx',
+    minutesPdf: '三跑道监理例会纪要_20260624.pdf',
+    signInPhoto: '三跑道监理例会签到表_20260624.jpg',
+    meetingPhoto: '三跑道监理例会现场_20260624.jpg',
+    remark: '',
     uploadTime: '2026-06-24 16:30',
-    hazardCount: 5,
-    status: '已归档',
-    fileName: '三跑道监理例会_20260624.pdf',
   },
   {
     id: 'SM-002',
-    title: 'T2 质量安全问题专题会议纪要',
-    project: 'T2',
-    uploadTime: '2026-06-23 11:05',
-    hazardCount: 3,
-    status: '识别中',
-    fileName: 'T2质量专题_20260623.docx',
+    projectDept: 'T2 项目部',
+    projectName: 'T2 航站区工程',
+    meetingDate: '2026-06-17',
+    pmAttendees: '赵某',
+    directorAttendees: '—',
+    minutesWord: '',
+    minutesPdf: '',
+    signInPhoto: '',
+    meetingPhoto: '',
+    remark: '因暴雨未召开，改期至 6 月 24 日',
+    uploadTime: '2026-06-17 09:00',
+  },
+]
+
+const defaultSupervisionHazards = [
+  {
+    id: 'SHZ-001',
+    hazardType: 'safety',
+    description: '塔吊作业区警戒标识不足，临边防护缺失',
+    hazardLevel: '较大',
+    rectifier: '张安全',
+    hazardDeadline: '2026-07-01',
+    uploadTime: '2026-06-24 17:10',
+  },
+  {
+    id: 'SHZ-002',
+    hazardType: 'quality',
+    description: '钢筋绑扎间距偏差，保护层厚度不足',
+    hazardLevel: '一般',
+    rectifier: '周质量',
+    hazardDeadline: '2026-07-05',
+    uploadTime: '2026-06-24 17:15',
   },
 ]
 
@@ -148,22 +180,74 @@ export function emptySmartHelmet(row = {}) {
   }
 }
 
+export function emptySupervisionMeeting(row = {}) {
+  return {
+    id: row.id || '',
+    projectDept: row.projectDept || '',
+    projectName: row.projectName || '',
+    meetingDate: row.meetingDate || '',
+    pmAttendees: row.pmAttendees || '',
+    directorAttendees: row.directorAttendees || '',
+    minutesWord: row.minutesWord || '',
+    minutesPdf: row.minutesPdf || '',
+    signInPhoto: row.signInPhoto || '',
+    meetingPhoto: row.meetingPhoto || '',
+    remark: row.remark || '',
+    uploadTime: row.uploadTime || '',
+  }
+}
+
 export function getSupervisionMeetings() {
   return readList(SUPERVISION_KEY, defaultSupervisionMeetings)
 }
 
-export function addSupervisionMeeting(record) {
+export function saveSupervisionMeeting(record) {
   const list = getSupervisionMeetings()
   const entry = {
-    id: `SM-${Date.now()}`,
-    title: record.title || record.fileName?.replace(/\.[^.]+$/, '') || '监理会议纪要',
-    project: record.project || '待识别',
-    uploadTime: new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-'),
-    hazardCount: 0,
-    status: '识别中',
-    fileName: record.fileName || '',
+    ...emptySupervisionMeeting(record),
+    id: record.id || `SM-${Date.now()}`,
+    uploadTime:
+      record.uploadTime || new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-'),
   }
-  list.unshift(entry)
+  const idx = list.findIndex((item) => item.id === entry.id)
+  if (idx >= 0) list[idx] = { ...list[idx], ...entry }
+  else list.unshift(entry)
   writeList(SUPERVISION_KEY, list)
+  return entry
+}
+
+/** @deprecated 使用 saveSupervisionMeeting */
+export function addSupervisionMeeting(record) {
+  return saveSupervisionMeeting(record)
+}
+
+export function emptySupervisionHazard(row = {}) {
+  return {
+    id: row.id || '',
+    hazardType: row.hazardType || 'safety',
+    description: row.description || '',
+    hazardLevel: row.hazardLevel || '一般',
+    rectifier: row.rectifier || '',
+    hazardDeadline: row.hazardDeadline || '',
+    uploadTime: row.uploadTime || '',
+  }
+}
+
+export function getSupervisionHazards() {
+  return readList(SUPERVISION_HAZARD_KEY, defaultSupervisionHazards)
+}
+
+export function saveSupervisionHazard(record) {
+  const list = getSupervisionHazards()
+  const entry = {
+    ...emptySupervisionHazard(record),
+    id: record.id || `SHZ-${Date.now()}`,
+    uploadTime:
+      record.uploadTime || new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-'),
+  }
+  const idx = list.findIndex((item) => item.id === entry.id)
+  if (idx >= 0) list[idx] = { ...list[idx], ...entry }
+  else list.unshift(entry)
+  writeList(SUPERVISION_HAZARD_KEY, list)
   return entry
 }

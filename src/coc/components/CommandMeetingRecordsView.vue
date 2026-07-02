@@ -66,7 +66,7 @@ const emit = defineEmits(['back'])
   background: #fff;
   border-radius: 8px;
   padding: 8px 14px;
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
   cursor: pointer;
   color: var(--coc-text-secondary);
 }
@@ -77,7 +77,7 @@ const emit = defineEmits(['back'])
 }
 
 .detail-heading {
-  font-size: 18px;
+  font-size: calc(18px + var(--coc-font-boost));
   font-weight: 700;
   color: var(--coc-text);
 }
@@ -90,7 +90,7 @@ const emit = defineEmits(['back'])
 }
 
 .panel-title.compact {
-  font-size: 16px;
+  font-size: calc(16px + var(--coc-font-boost));
 }
 
 .records-body {
@@ -117,13 +117,13 @@ const emit = defineEmits(['back'])
 }
 
 .record-title {
-  font-size: 15px;
+  font-size: calc(15px + var(--coc-font-boost));
   font-weight: 700;
   color: var(--coc-text);
 }
 
 .record-duration {
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
   color: var(--coc-accent);
   font-weight: 600;
   flex-shrink: 0;
@@ -133,14 +133,14 @@ const emit = defineEmits(['back'])
   display: flex;
   flex-wrap: wrap;
   gap: 12px 20px;
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
   color: var(--coc-text-secondary);
   margin-bottom: 8px;
 }
 
 .record-summary {
   margin: 0;
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
   line-height: 1.6;
   color: var(--coc-text);
 }

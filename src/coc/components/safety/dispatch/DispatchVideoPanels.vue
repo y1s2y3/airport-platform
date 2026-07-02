@@ -1,26 +1,38 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { VideoCamera, ZoomIn, Camera, Mute, Microphone, Phone } from '@element-plus/icons-vue'
+import {
+  VideoCamera,
+  ZoomIn,
+  Camera,
+  Mute,
+  Microphone,
+  Phone,
+  ArrowLeft,
+  ArrowRight,
+} from '@element-plus/icons-vue'
 import VideoExpandOverlay from '../../VideoExpandOverlay.vue'
-import { DISPATCH_DEVICES, videoPlaceholderColor } from '../../../mock/data.js'
+import ScreenshotMarkDialog from '../../ScreenshotMarkDialog.vue'
+import { getMonitorDispatchDevices, getDispatchDeviceTypeLabel, formatDispatchOperatorLabel, videoPlaceholderColor } from '../../../mock/data.js'
 
 const props = defineProps({
   device: { type: Object, required: true },
   videoProject: { type: Object, required: true },
-  /** 项目调度二级页：手持巡检画面工具栏切换设备 */
+  projectId: { type: String, default: '' },
+  /** 从巡检对讲设备点击进入：单设备 1 宫格 */
+  singleDeviceView: { type: Boolean, default: false },
+  /** 单设备模式下工具栏切换设备 */
   enableDeviceSwitch: { type: Boolean, default: false },
-  /** 嵌入演练页网格时，与手持/监控列对齐 */
   gridPlacement: { type: Boolean, default: false },
-  /** 关联监控网格：3x2（默认）| 3x3 | 3x4 */
   monitorGrid: {
     type: String,
     default: '3x2',
     validator: (v) => ['3x2', '3x3', '3x4'].includes(v),
   },
-  /** 纵向拉伸填满上级区域（COC 调度指挥对讲页） */
   verticalStretch: { type: Boolean, default: false },
 })
+
+const DEVICE_GRID_PAGE_SIZE = 4
 
 const slotCount = computed(() => {
   if (props.monitorGrid === '3x4') return 12
@@ -44,32 +56,107 @@ const DEMO_MONITOR_NAMES = [
 ]
 
 const monitorCameras = computed(() => {
+  const start = monitorPage.value * monitorPageSize.value
+  return allMonitorCameras.value.slice(start, start + monitorPageSize.value)
+})
+
+const emptySlotCount = computed(() => Math.max(0, monitorPageSize.value - monitorCameras.value.length))
+
+const expandedCamera = ref(null)
+const expandedDevice = ref(null)
+const markDialogVisible = ref(false)
+const deviceMuted = ref(true)
+const deviceStream = ref('main')
+const selectedDeviceId = ref(props.device.id)
+const devicePage = ref(0)
+const monitorPage = ref(0)
+
+const monitorPageSize = computed(() => slotCount.value)
+
+const allMonitorCameras = computed(() => {
   const list = props.videoProject?.cameras || []
-  const source = list.length
-    ? list
+  let source = list.length
+    ? [...list]
     : DEMO_MONITOR_NAMES.map((name, i) => ({
         id: `demo-cam-${i}`,
         name,
         online: i % 4 !== 0,
       }))
-  return source.slice(0, slotCount.value)
+  const minCount = monitorPageSize.value * 2
+  let seq = 0
+  while (source.length < minCount) {
+    const name = DEMO_MONITOR_NAMES[seq % DEMO_MONITOR_NAMES.length]
+    source.push({
+      id: `demo-cam-extra-${seq}`,
+      name: seq < DEMO_MONITOR_NAMES.length ? `${name}-辅` : `${name}-${seq + 1}`,
+      online: seq % 4 !== 0,
+    })
+    seq += 1
+  }
+  return source
 })
 
-const emptySlotCount = computed(() => Math.max(0, slotCount.value - monitorCameras.value.length))
+const monitorTotalPages = computed(() =>
+  Math.max(1, Math.ceil(allMonitorCameras.value.length / monitorPageSize.value)),
+)
 
-const expandedCamera = ref(null)
-const deviceMuted = ref(true)
-const deviceStream = ref('main')
-const selectedDeviceId = ref(props.device.id)
+const projectDevices = computed(() =>
+  getMonitorDispatchDevices(
+    props.projectId || props.videoProject?.id,
+    props.videoProject?.shortName || props.videoProject?.name || '',
+  ),
+)
 
 const handheldDevices = computed(() =>
-  DISPATCH_DEVICES.filter((item) => item.type === 'handheld'),
+  projectDevices.value.filter((item) => item.type === 'handheld'),
 )
 
 const activeDevice = computed(() => {
-  if (!props.enableDeviceSwitch) return props.device
-  return handheldDevices.value.find((item) => item.id === selectedDeviceId.value) || props.device
+  if (props.singleDeviceView && props.enableDeviceSwitch) {
+    return (
+      projectDevices.value.find((item) => item.id === selectedDeviceId.value)
+      || projectDevices.value.find((item) => item.id === props.device.id)
+      || props.device
+    )
+  }
+  if (props.singleDeviceView) return props.device
+  return props.device
 })
+
+const singleGridDevices = computed(() => [activeDevice.value])
+
+const deviceTotalPages = computed(() =>
+  Math.max(1, Math.ceil(projectDevices.value.length / DEVICE_GRID_PAGE_SIZE)),
+)
+
+const pagedProjectDevices = computed(() => {
+  const start = devicePage.value * DEVICE_GRID_PAGE_SIZE
+  return projectDevices.value.slice(start, start + DEVICE_GRID_PAGE_SIZE)
+})
+
+const displayDevices = computed(() =>
+  props.singleDeviceView ? singleGridDevices.value : pagedProjectDevices.value,
+)
+
+const deviceGridClass = computed(() => {
+  const count = displayDevices.value.length
+  if (count <= 1) return 'grid-1x1'
+  if (count === 2) return 'grid-2x1'
+  return 'grid-2x2'
+})
+
+const devicePanelTitle = computed(() => {
+  if (props.singleDeviceView) {
+    return activeDevice.value.type === 'handheld' ? '手持巡检实时画面' : 'App端对讲画面'
+  }
+  return '巡检对讲设备'
+})
+
+const snapshotCamera = computed(() => ({
+  ...activeDevice.value,
+  palette: 'cool',
+  location: props.videoProject?.shortName || props.videoProject?.name || '',
+}))
 
 watch(
   () => props.device.id,
@@ -78,8 +165,28 @@ watch(
   },
 )
 
+watch(
+  () => [props.projectId, props.singleDeviceView, props.videoProject?.id],
+  () => {
+    devicePage.value = 0
+    monitorPage.value = 0
+  },
+)
+
+watch(deviceTotalPages, (total) => {
+  if (devicePage.value > total - 1) {
+    devicePage.value = Math.max(0, total - 1)
+  }
+})
+
+watch(monitorTotalPages, (total) => {
+  if (monitorPage.value > total - 1) {
+    monitorPage.value = Math.max(0, total - 1)
+  }
+})
+
 function handleDeviceSwitch(id) {
-  const target = handheldDevices.value.find((item) => item.id === id)
+  const target = projectDevices.value.find((item) => item.id === id)
   if (!target) return
   if (!target.online) {
     ElMessage.warning(`${target.name} 当前离线`)
@@ -100,6 +207,14 @@ function openCameraExpand(cam) {
   expandedCamera.value = { ...cam, palette: 'warm' }
 }
 
+function openDeviceExpand(device, idx = 0) {
+  if (!device?.online) {
+    ElMessage.warning('设备离线，无法放大查看')
+    return
+  }
+  expandedDevice.value = { ...device, palette: 'cool', colorIndex: idx }
+}
+
 function toggleDeviceMute() {
   deviceMuted.value = !deviceMuted.value
   ElMessage.info(deviceMuted.value ? '已静音' : '已开启声音')
@@ -110,8 +225,12 @@ function toggleDeviceStream() {
   ElMessage.info(`已切换至${deviceStream.value === 'main' ? '主' : '子'}码流`)
 }
 
-function deviceSnapshot() {
-  ElMessage.success('巡检画面截图已保存')
+function openIssueSnapshot() {
+  if (!activeDevice.value.online) {
+    ElMessage.warning('设备离线，无法截图')
+    return
+  }
+  markDialogVisible.value = true
 }
 
 function deviceCall() {
@@ -121,6 +240,22 @@ function deviceCall() {
   }
   ElMessage.info(`正在呼叫 ${activeDevice.value.name}…`)
 }
+
+function prevDevicePage() {
+  if (devicePage.value > 0) devicePage.value -= 1
+}
+
+function nextDevicePage() {
+  if (devicePage.value < deviceTotalPages.value - 1) devicePage.value += 1
+}
+
+function prevMonitorPage() {
+  if (monitorPage.value > 0) monitorPage.value -= 1
+}
+
+function nextMonitorPage() {
+  if (monitorPage.value < monitorTotalPages.value - 1) monitorPage.value += 1
+}
 </script>
 
 <template>
@@ -128,22 +263,66 @@ function deviceCall() {
     class="panel-card detail-panel device-panel"
     :class="{ 'area-device': gridPlacement, 'stretch-panel': verticalStretch }"
   >
-    <div class="panel-title compact">
-      {{ activeDevice.type === 'handheld' ? '手持巡检实时画面' : 'Web端对讲画面' }}
+    <div class="panel-title compact title-with-page">
+      <span class="panel-title-text">{{ devicePanelTitle }}</span>
+      <div v-if="!singleDeviceView && deviceTotalPages > 1" class="page-nav">
+        <button
+          type="button"
+          class="arrow-btn"
+          :disabled="devicePage <= 0"
+          aria-label="上一页"
+          @click="prevDevicePage"
+        >
+          <el-icon><ArrowLeft /></el-icon>
+        </button>
+        <span class="page-info">{{ devicePage + 1 }}/{{ deviceTotalPages }}</span>
+        <button
+          type="button"
+          class="arrow-btn"
+          :disabled="devicePage >= deviceTotalPages - 1"
+          aria-label="下一页"
+          @click="nextDevicePage"
+        >
+          <el-icon><ArrowRight /></el-icon>
+        </button>
+      </div>
     </div>
     <div class="panel-body device-body">
-      <div
-        class="main-video"
-        :class="{ offline: !activeDevice.online }"
-        :style="{ background: videoPlaceholderColor(activeDevice.online, 0, 'cool') }"
-      >
-        <el-icon v-if="activeDevice.online" :size="29" color="rgba(255,255,255,0.5)"><VideoCamera /></el-icon>
-        <span v-if="activeDevice.online" class="demo-badge">演示画面</span>
-        <span v-if="!activeDevice.online" class="offline-tip">设备离线</span>
+      <div class="device-live-grid" :class="deviceGridClass">
+        <div
+          v-for="(dev, idx) in displayDevices"
+          :key="dev.id"
+          class="device-live-cell clickable"
+          :class="{ offline: !dev.online }"
+          @click="openDeviceExpand(dev, idx)"
+        >
+          <div
+            class="device-live-placeholder"
+            :style="{ background: videoPlaceholderColor(dev.online, idx, 'cool') }"
+          >
+            <el-icon v-if="dev.online" :size="29" color="rgba(255,255,255,0.5)"><VideoCamera /></el-icon>
+            <span v-if="dev.online" class="demo-badge">演示画面</span>
+            <span v-if="dev.online" class="expand-hint"><el-icon><ZoomIn /></el-icon></span>
+            <span v-if="!dev.online" class="offline-tip">设备离线</span>
+          </div>
+          <div class="device-live-label">
+            <span class="type-badge" :class="dev.type">{{ getDispatchDeviceTypeLabel(dev.type) }}</span>
+            <div class="device-live-info">
+              <span class="device-live-name" :title="dev.name">{{ dev.name }}</span>
+              <span v-if="dev.operator" class="device-live-operator" :title="formatDispatchOperatorLabel(dev)">
+                {{ formatDispatchOperatorLabel(dev) }}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="device-controls">
+
+      <div v-if="singleDeviceView" class="device-controls">
         <div class="device-controls-left">
-          <button class="ctrl-btn" title="截图" @click="deviceSnapshot"><el-icon><Camera /></el-icon></button>
+          <button class="ctrl-btn ctrl-btn-text" title="问题截图" @click="openIssueSnapshot">
+            <el-icon><Camera /></el-icon>
+            问题截图
+          </button>
           <button class="ctrl-btn" :title="deviceMuted ? '开启声音' : '静音'" @click="toggleDeviceMute">
             <el-icon><component :is="deviceMuted ? Mute : Microphone" /></el-icon>
           </button>
@@ -194,7 +373,30 @@ function deviceCall() {
     class="panel-card detail-panel monitor-panel"
     :class="{ 'area-monitor': gridPlacement, 'stretch-panel': verticalStretch }"
   >
-    <div class="panel-title compact">关联视频监控</div>
+    <div class="panel-title compact title-with-page">
+      <span class="panel-title-text">关联视频监控</span>
+      <div v-if="monitorTotalPages > 1" class="page-nav">
+        <button
+          type="button"
+          class="arrow-btn"
+          :disabled="monitorPage <= 0"
+          aria-label="上一页"
+          @click="prevMonitorPage"
+        >
+          <el-icon><ArrowLeft /></el-icon>
+        </button>
+        <span class="page-info">{{ monitorPage + 1 }}/{{ monitorTotalPages }}</span>
+        <button
+          type="button"
+          class="arrow-btn"
+          :disabled="monitorPage >= monitorTotalPages - 1"
+          aria-label="下一页"
+          @click="nextMonitorPage"
+        >
+          <el-icon><ArrowRight /></el-icon>
+        </button>
+      </div>
+    </div>
     <div class="panel-body monitor-wrap">
       <div
         class="monitor-grid"
@@ -230,6 +432,20 @@ function deviceCall() {
       @close="expandedCamera = null"
     />
   </div>
+
+  <VideoExpandOverlay
+    v-if="expandedDevice"
+    :source="expandedDevice"
+    :project="videoProject"
+    @close="expandedDevice = null"
+  />
+
+  <ScreenshotMarkDialog
+    v-model:visible="markDialogVisible"
+    :camera="snapshotCamera"
+    :project="videoProject"
+    source-type="live"
+  />
 </template>
 
 <style scoped>
@@ -238,7 +454,7 @@ function deviceCall() {
 
 <style>
 .dispatch-device-switch-popper .el-select-dropdown__item {
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
   padding-right: 12px;
 }
 

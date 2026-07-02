@@ -3,6 +3,7 @@ import { PROJECT_RED_BLACK_LIST } from '../mock/data.js'
 const STORAGE_KEY = 'coc-admin-red-black-board'
 const SEED_FLAG = 'coc-admin-red-black-board-v2'
 const PERIOD_MIGRATION_FLAG = 'coc-admin-red-black-board-period-v1'
+const RED_FOURTH_ITEM_FLAG = 'coc-admin-red-black-board-red4-v1'
 const CHANGE_EVENT = 'coc-red-black-board-change'
 
 function readList() {
@@ -166,6 +167,33 @@ function migrateRecordsToPeriod(list) {
   return list.map((item) => normalizeRecord(item))
 }
 
+function ensureRedFourthItem() {
+  if (localStorage.getItem(RED_FOURTH_ITEM_FLAG)) return
+  const seedItem = PROJECT_RED_BLACK_LIST.red.find((item) => item.id === 'red-4')
+  if (!seedItem) {
+    localStorage.setItem(RED_FOURTH_ITEM_FLAG, '1')
+    return
+  }
+  const list = readList().map((item) => normalizeRecord(item))
+  if (list.some((item) => item.id === 'red-4')) {
+    localStorage.setItem(RED_FOURTH_ITEM_FLAG, '1')
+    return
+  }
+  const periods = [...new Set(list.map((item) => item.period).filter(Boolean))].sort(comparePeriodKeys)
+  const period = periods[0] || '2026-6'
+  list.unshift(
+    normalizeRecord({
+      ...seedItem,
+      period,
+      boardType: 'red',
+      sortOrder: list.filter((item) => item.period === period && item.boardType === 'red').length,
+      image: buildPlaceholderImage(seedItem.imageHue || 150, '红榜'),
+    }),
+  )
+  writeList(list)
+  localStorage.setItem(RED_FOURTH_ITEM_FLAG, '1')
+}
+
 export function ensureRedBlackBoardSeed() {
   if (!localStorage.getItem(SEED_FLAG)) {
     writeList(buildSeedRecords())
@@ -175,6 +203,7 @@ export function ensureRedBlackBoardSeed() {
     writeList(migrateRecordsToPeriod(readList()))
     localStorage.setItem(PERIOD_MIGRATION_FLAG, '1')
   }
+  ensureRedFourthItem()
 }
 
 export function getRedBlackBoardRecords() {
@@ -258,10 +287,11 @@ export function removeRedBlackBoardRecord(id) {
 }
 
 export function importPenaltyToBlackBoard(penalty, period) {
-  const summary = penalty.content?.split('\n').find((line) => line.trim()) || penalty.title
+  const reason = penalty.penaltyReason || penalty.title || ''
+  const contentText = penalty.penaltyContent || penalty.content?.split('\n').find((line) => line.trim()) || ''
   const description = [
-    penalty.title,
-    summary,
+    reason,
+    contentText,
     penalty.amount && penalty.amount !== '—' ? `处罚金额：${penalty.amount}` : '',
   ]
     .filter(Boolean)
@@ -270,8 +300,8 @@ export function importPenaltyToBlackBoard(penalty, period) {
   return saveRedBlackBoardRecord({
     period: normalizePeriodKey(period),
     boardType: 'black',
-    shortName: penalty.project || '未知项目',
-    fullName: penalty.unit ? `${penalty.project}（${penalty.unit}）` : penalty.project || '',
+    shortName: penalty.project || penalty.executeDept || '未知项目',
+    fullName: penalty.unit ? `${penalty.project || penalty.executeDept}（${penalty.unit}）` : penalty.project || penalty.executeDept || '',
     description,
     image: penalty.snapshot || buildPlaceholderImage(8, '处罚关联'),
     imageHue: 8,

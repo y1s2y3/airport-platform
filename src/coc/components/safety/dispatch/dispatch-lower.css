@@ -13,7 +13,7 @@
 }
 
 .panel-title.compact {
-  font-size: 15px;
+  font-size: calc(15px + var(--coc-font-boost));
   padding: 6px 12px;
   line-height: 1.2;
   flex-shrink: 0;
@@ -43,7 +43,7 @@
 .mini-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
 }
 
 .mini-table th,
@@ -76,7 +76,7 @@
   display: inline-block;
   padding: 3px 10px;
   border-radius: 4px;
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
   font-weight: 600;
 }
 
@@ -101,23 +101,15 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
   font-weight: 600;
   color: var(--coc-text-secondary);
-}
-
-.ai-tag {
-  font-size: 12px;
-  padding: 2px 8px;
-  border-radius: 4px;
-  background: rgba(64,158,255,0.12);
-  color: #409eff;
 }
 
 .draft-content {
   flex: 1;
   overflow: auto;
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
   line-height: 1.55;
   white-space: pre-wrap;
   background: #faf8f6;
@@ -129,7 +121,7 @@
 .draft-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
 .draft-actions :deep(.el-button) {
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
 }
 
 .detail-overlay {
@@ -159,7 +151,7 @@
   border-bottom: 1px solid var(--coc-border);
 }
 
-.detail-title { font-size: 13px; font-weight: 700; }
+.detail-title { font-size: calc(13px + var(--coc-font-boost)); font-weight: 700; }
 
 .close-btn {
   display: flex;
@@ -181,8 +173,8 @@
   margin-bottom: 12px;
 }
 
-.detail-item { display: flex; gap: 10px; font-size: 13px; }
+.detail-item { display: flex; gap: 10px; font-size: calc(13px + var(--coc-font-boost)); }
 .dl { color: var(--coc-text-muted); min-width: 72px; flex-shrink: 0; }
 
-.block-label { font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--coc-text-secondary); }
-.block-content { font-size: 12px; line-height: 1.5; background: #faf8f6; padding: 10px 12px; border-radius: 8px; }
+.block-label { font-size: calc(13px + var(--coc-font-boost)); font-weight: 600; margin-bottom: 6px; color: var(--coc-text-secondary); }
+.block-content { font-size: calc(12px + var(--coc-font-boost)); line-height: 1.5; background: #faf8f6; padding: 10px 12px; border-radius: 8px; }

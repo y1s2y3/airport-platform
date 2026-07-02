@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ref, watch, onUnmounted } from 'vue'
 import {
   Close, Microphone, Document, Warning, VideoCamera,
@@ -116,7 +116,7 @@ onUnmounted(stopTranscription)
               @click="emit('open-notice')"
             >
               <el-icon><Warning /></el-icon>
-              开具告知单
+              开具任务单
             </el-button>
             <el-button size="large" @click="emit('close')">
               <el-icon><Close /></el-icon>
@@ -198,12 +198,12 @@ onUnmounted(stopTranscription)
 }
 
 .dispatch-title h2 {
-  font-size: 17px;
+  font-size: calc(17px + var(--coc-font-boost));
   color: #303133;
 }
 
 .dispatch-title p {
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
   color: #909399;
   margin-top: 4px;
 }
@@ -214,7 +214,7 @@ onUnmounted(stopTranscription)
 }
 
 .dispatch-actions .el-button {
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
   padding: 14px 28px;
   height: auto;
 }
@@ -245,7 +245,7 @@ onUnmounted(stopTranscription)
   justify-content: center;
   gap: 16px;
   color: rgba(255, 255, 255, 0.85);
-  font-size: 15px;
+  font-size: calc(15px + var(--coc-font-boost));
 }
 
 .sub-videos {
@@ -282,7 +282,7 @@ onUnmounted(stopTranscription)
 }
 
 .box-title {
-  font-size: 14px;
+  font-size: calc(14px + var(--coc-font-boost));
   font-weight: 600;
   color: #303133;
   margin-bottom: 12px;
@@ -292,7 +292,7 @@ onUnmounted(stopTranscription)
 }
 
 .live-dot {
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   color: #c97b63;
   font-weight: 400;
 }
@@ -314,7 +314,7 @@ onUnmounted(stopTranscription)
 }
 
 .transcription-text {
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
   line-height: 1.7;
   color: #606266;
   min-height: 200px;
@@ -334,7 +334,7 @@ onUnmounted(stopTranscription)
 }
 
 .minutes-preview {
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
   line-height: 1.8;
   color: #606266;
 }
@@ -354,13 +354,13 @@ onUnmounted(stopTranscription)
   color: #c97b63;
   padding: 8px 16px;
   border-radius: 20px;
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
   margin: 4px;
 }
 
 .no-data {
   color: #c0c4cc;
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
 }
 
 .dispatch-fade-enter-active,

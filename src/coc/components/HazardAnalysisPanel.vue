@@ -144,8 +144,9 @@ onUnmounted(() => {
   <div class="panel-card hazard-analysis-panel">
     <div class="panel-title compact title-left title-with-tip">
       <span>隐患分析</span>
+      <span class="panel-v2-tip">V2版本上线</span>
       <el-tooltip
-        content="包含安全巡检、质量巡检、随手拍、告知单、处罚单隐患统计"
+        content="包含安全巡检、质量巡检、随手拍隐患统计"
         placement="top"
         :show-after="200"
       >
@@ -228,7 +229,7 @@ onUnmounted(() => {
 }
 
 .panel-title.compact.title-left {
-  font-size: 18px;
+  font-size: calc(18px + var(--coc-font-boost));
   justify-content: flex-start;
   flex-shrink: 0;
 }
@@ -244,7 +245,7 @@ onUnmounted(() => {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
   font-weight: 600;
   color: var(--coc-text-secondary);
   background: #f0ebe6;
@@ -294,7 +295,7 @@ onUnmounted(() => {
   background: #faf8f6;
   border: 1px solid var(--coc-border);
   border-radius: 6px;
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
 }
 
 .level-dot {
@@ -332,7 +333,7 @@ onUnmounted(() => {
 }
 
 .top-title {
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
   font-weight: 600;
   color: var(--coc-text-secondary);
   margin-bottom: 16px;
@@ -400,7 +401,7 @@ onUnmounted(() => {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -412,7 +413,7 @@ onUnmounted(() => {
 .podium-card.rank-first .podium-rank {
   width: 26px;
   height: 26px;
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
   background: #b71c1c;
   color: #fff;
 }
@@ -429,7 +430,7 @@ onUnmounted(() => {
 
 .podium-name {
   width: 100%;
-  font-size: 10px;
+  font-size: calc(10px + var(--coc-font-boost));
   color: var(--coc-text);
   line-height: 1.35;
   white-space: normal;
@@ -450,7 +451,7 @@ onUnmounted(() => {
 }
 
 .podium-card.rank-first .podium-name {
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   font-weight: 600;
   -webkit-line-clamp: 4;
   color: #8b1a1a;
@@ -461,13 +462,13 @@ onUnmounted(() => {
 }
 
 .podium-count {
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   font-weight: 700;
   color: #666;
 }
 
 .podium-card.rank-first .podium-count {
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
   color: #b71c1c;
 }
 

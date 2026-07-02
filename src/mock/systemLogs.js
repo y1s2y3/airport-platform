@@ -1,4 +1,4 @@
-/** 登录结果选项 */
+﻿/** 登录结果选项 */
 export const loginResultOptions = ['全部', '成功', '失败']
 
 /** 操作类型选项 */
@@ -48,7 +48,7 @@ export const operationLogList = [
   { id: 'ol-009', module: '角色管理', type: '修改', content: '调整角色「项目经理」数据权限为「指定项目」', operator: '刘文强', operateTime: '2026-06-25 15:20:33', ip: '10.12.8.45', requestUrl: '/api/system/role/update', duration: 112, status: '成功' },
   { id: 'ol-010', module: '质量管理', type: '审批', content: '审批通过质量整改单「QC-20260625-003」', operator: '姚远东', operateTime: '2026-06-25 14:55:47', ip: '10.12.9.102', requestUrl: '/api/quality/rectify/approve', duration: 189, status: '成功' },
   { id: 'ol-011', module: '安全管理', type: '导出', content: '导出考勤明细（三跑道项目）', operator: '王建国', operateTime: '2026-06-25 11:30:15', ip: '58.248.112.66', requestUrl: '/api/safety/attendance/export', duration: 3120, status: '成功' },
-  { id: 'ol-012', module: 'COC调度', type: '新增', content: '发布调度告知单「DG-20260625-012」', operator: '陈静', operateTime: '2026-06-25 10:18:08', ip: '172.16.3.28', requestUrl: '/api/coc/notice/create', duration: 175, status: '成功' },
+  { id: 'ol-012', module: 'COC调度', type: '新增', content: '发布调度任务单「DG-20260625-012」', operator: '陈静', operateTime: '2026-06-25 10:18:08', ip: '172.16.3.28', requestUrl: '/api/coc/notice/create', duration: 175, status: '成功' },
   { id: 'ol-013', module: '档案系统', type: '修改', content: '更新档案元数据「北货站施工日志」', operator: '档案管理员', operateTime: '2026-06-24 16:42:51', ip: '10.12.8.88', requestUrl: '/api/archive/metadata/update', duration: 203, status: '失败' },
   { id: 'ol-014', module: '系统设置', type: '登录', content: '用户登录系统', operator: '林开发', operateTime: '2026-06-24 10:02:08', ip: '192.168.1.105', requestUrl: '/api/auth/login', duration: 45, status: '成功' },
   { id: 'ol-015', module: '用户管理', type: '修改', content: '重置用户「张设计」登录密码', operator: '刘文强', operateTime: '2026-06-24 09:15:36', ip: '10.12.8.45', requestUrl: '/api/system/user/reset-password', duration: 98, status: '成功' },

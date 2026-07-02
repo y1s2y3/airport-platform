@@ -5,6 +5,7 @@ import { useMeetingScreenRecorder } from './useMeetingScreenRecorder.js'
 import { MOCK_TRANSCRIPTION_LINES } from '../mock/data.js'
 
 const panelExpanded = ref(true)
+const signInPanelExpanded = ref(true)
 const meetingActive = ref(false)
 const transcriptLines = ref([])
 const phase = ref('idle')
@@ -257,5 +258,20 @@ export function useMeetingAiSession() {
     getMeetingMinutes,
     togglePanel,
     resetSession,
+  }
+}
+
+/** 收起会议签到、会议管控浮层 */
+export function collapseCocFloatingPanels() {
+  panelExpanded.value = false
+  signInPanelExpanded.value = false
+}
+
+export function useSignInFloatingPanel() {
+  return {
+    panelExpanded: signInPanelExpanded,
+    togglePanel: (force) => {
+      signInPanelExpanded.value = typeof force === 'boolean' ? force : !signInPanelExpanded.value
+    },
   }
 }

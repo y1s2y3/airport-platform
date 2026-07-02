@@ -58,6 +58,7 @@ function barColor(p) {
   <div class="panel-card progress-panel">
     <div class="panel-title" :class="{ 'title-with-tools': !isEnterprise && single }">
       <span>项目进度</span>
+      <span class="panel-v2-tip">V2版本上线</span>
       <span v-if="!isEnterprise && single" class="project-subtitle" :title="single.name">
         {{ single.shortName || single.name }}
       </span>
@@ -184,7 +185,7 @@ function barColor(p) {
 
 .project-subtitle {
   flex: 1;
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
   font-weight: 500;
   color: var(--coc-text-secondary);
   overflow: hidden;
@@ -224,7 +225,7 @@ function barColor(p) {
 }
 
 .stat-value {
-  font-size: 18px;
+  font-size: calc(18px + var(--coc-font-boost));
   font-weight: 700;
   color: var(--coc-text);
   line-height: 1.2;
@@ -239,7 +240,7 @@ function barColor(p) {
 }
 
 .stat-label {
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   color: var(--coc-text-muted);
   margin-top: 4px;
   white-space: nowrap;
@@ -314,14 +315,14 @@ function barColor(p) {
 }
 
 .bar-lag-label {
-  font-size: 8px;
+  font-size: calc(8px + var(--coc-font-boost));
   line-height: 1.15;
   color: var(--coc-text-secondary);
   white-space: nowrap;
 }
 
 .bar-lag-value {
-  font-size: 14px;
+  font-size: calc(14px + var(--coc-font-boost));
   font-weight: 700;
   color: var(--coc-danger);
   line-height: 1;
@@ -338,7 +339,7 @@ function barColor(p) {
 }
 
 .bar-pct {
-  font-size: 10px;
+  font-size: calc(10px + var(--coc-font-boost));
   font-weight: 700;
   color: var(--coc-text-secondary);
   line-height: 1;
@@ -366,7 +367,7 @@ function barColor(p) {
 }
 
 .bar-name {
-  font-size: 10px;
+  font-size: calc(10px + var(--coc-font-boost));
   color: var(--coc-text-secondary);
   text-align: center;
   line-height: 1.25;
@@ -396,7 +397,7 @@ function barColor(p) {
   align-items: center;
   justify-content: center;
   color: var(--coc-text-muted);
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
   background: #faf8f6;
   border: 1px dashed var(--coc-border);
   border-radius: 10px;

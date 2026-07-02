@@ -17,11 +17,16 @@ export function isMajorProjectRecord(record) {
 export function classifyDailyWorkRecord(record) {
   const danger = isDangerWorkRecord(record)
   const major = isMajorProjectRecord(record)
-  let bucket = 'normal'
-  if (danger && major) bucket = 'both'
-  else if (danger) bucket = 'danger'
-  else if (major) bucket = 'major'
-  return { danger, major, bucket }
+  return { danger, major }
+}
+
+/** 是否危险作业：是 / 否 */
+export function dangerWorkYesNoLabel(isDanger) {
+  return isDanger ? '是' : '否'
+}
+
+export function resolveDangerWork(record) {
+  return isDangerWorkRecord(record)
 }
 
 const CATEGORY_TYPE_MAP = {
@@ -59,13 +64,4 @@ export function formatTimeRange(start, end) {
   }
   if (s && e) return `${pickTime(s)}-${pickTime(e)}`
   return s || e
-}
-
-export function bucketLabel(bucket) {
-  return {
-    danger: '高风险作业',
-    major: '危大工程',
-    both: '危险作业+危大',
-    normal: '一般施工',
-  }[bucket] || '一般施工'
 }

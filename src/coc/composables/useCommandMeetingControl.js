@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useMeetingAiSession } from './useMeetingAiSession.js'
 import { saveDispatchMeetingRecord, buildSummaryMinutes } from '../utils/dispatchMeetingStorage.js'
+import { cocFeatureFlags } from '../config/featureFlags.js'
 
 const commandMeetingScreen = ref(null)
 
@@ -47,6 +48,7 @@ export function useCommandMeetingControl() {
   }
 
   function showRecords() {
+    if (!cocFeatureFlags.meetingRecordsEntry) return
     commandMeetingScreen.value = 'records'
     session.panelExpanded.value = true
   }

@@ -4,9 +4,9 @@ import { ArrowLeft } from '@element-plus/icons-vue'
 import DispatchVideoPanels from './safety/dispatch/DispatchVideoPanels.vue'
 import DispatchProjectDispatchLower from './safety/dispatch/DispatchProjectDispatchLower.vue'
 import DispatchDocTicketPanel from './safety/dispatch/DispatchDocTicketPanel.vue'
-import SpecialPersonnelPanel from './sampling/SpecialPersonnelPanel.vue'
+import DispatchHazardListPanel from './safety/dispatch/DispatchHazardListPanel.vue'
 import QualityEvalRiskPanel from './safety/dispatch/QualityEvalRiskPanel.vue'
-import { DISPATCH_DEVICES, findDispatchDevice } from '../mock/data.js'
+import { getMonitorDispatchDevices, findDispatchDevice, DISPATCH_DEVICES } from '../mock/data.js'
 
 const props = defineProps({
   videoProject: { type: Object, required: true },
@@ -18,7 +18,14 @@ const props = defineProps({
 
 defineEmits(['back'])
 
-const dispatchDevice = computed(() => findDispatchDevice(props.initialDeviceId || DISPATCH_DEVICES[0]?.id))
+const dispatchDevice = computed(() => {
+  if (props.initialDeviceId) return findDispatchDevice(props.initialDeviceId)
+  const list = getMonitorDispatchDevices(
+    props.selectedProjectId,
+    props.videoProject?.shortName || props.projectLabel,
+  )
+  return list[0] || findDispatchDevice(DISPATCH_DEVICES[0]?.id)
+})
 </script>
 
 <template>
@@ -41,9 +48,11 @@ const dispatchDevice = computed(() => findDispatchDevice(props.initialDeviceId |
           <DispatchVideoPanels
             :device="dispatchDevice"
             :video-project="videoProject"
+            :project-id="selectedProjectId"
+            :single-device-view="Boolean(initialDeviceId)"
+            :enable-device-switch="Boolean(initialDeviceId)"
             monitor-grid="3x2"
             vertical-stretch
-            enable-device-switch
           />
         </section>
 
@@ -52,7 +61,7 @@ const dispatchDevice = computed(() => findDispatchDevice(props.initialDeviceId |
 
       <aside class="dispatch-side">
         <DispatchDocTicketPanel :device="dispatchDevice" />
-        <SpecialPersonnelPanel :selection-id="selectedProjectId" />
+        <DispatchHazardListPanel />
         <QualityEvalRiskPanel :selection-id="selectedProjectId" />
       </aside>
     </div>
@@ -99,7 +108,7 @@ const dispatchDevice = computed(() => findDispatchDevice(props.initialDeviceId |
   border: 1px solid var(--coc-border);
   border-radius: 6px;
   background: #fff;
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
   font-weight: 600;
   cursor: pointer;
   color: var(--coc-text);
@@ -111,7 +120,7 @@ const dispatchDevice = computed(() => findDispatchDevice(props.initialDeviceId |
 }
 
 .back-title {
-  font-size: 16px;
+  font-size: calc(16px + var(--coc-font-boost));
   font-weight: 700;
   color: var(--coc-text);
   white-space: nowrap;
@@ -152,7 +161,8 @@ const dispatchDevice = computed(() => findDispatchDevice(props.initialDeviceId |
   min-height: 0;
 }
 
-.detail-upper :deep(.main-video) {
+.detail-upper :deep(.main-video),
+.detail-upper :deep(.device-live-grid) {
   flex: 1;
   min-height: 0;
 }
@@ -173,7 +183,7 @@ const dispatchDevice = computed(() => findDispatchDevice(props.initialDeviceId |
 }
 
 .dispatch-side :deep(.doc-ticket-panel),
-.dispatch-side :deep(.special-personnel-panel),
+.dispatch-side :deep(.hazard-side-panel),
 .dispatch-side :deep(.quality-risk-panel) {
   flex: 1 1 0;
   min-height: 0;

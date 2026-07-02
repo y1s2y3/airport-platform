@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { buildPersonPhotoUrl } from '../mock/data.js'
 
 const props = defineProps({
   personnel: { type: Array, default: () => [] },
@@ -10,6 +11,14 @@ const props = defineProps({
 
 function isAttendee(person) {
   return person.jobType === '管理'
+}
+
+function personPhoto(item) {
+  return item.photo || buildPersonPhotoUrl(item.name, item.id?.length || 0)
+}
+
+function personRole(item) {
+  return item.role || item.position || '—'
 }
 
 function formatTime() {
@@ -80,8 +89,7 @@ function markJoined(id) {
         <thead>
           <tr>
             <th class="col-idx">序号</th>
-            <th>姓名</th>
-            <th>岗位</th>
+            <th>人员</th>
             <th class="col-status">参会状态</th>
             <th class="col-action">操作</th>
           </tr>
@@ -93,8 +101,22 @@ function markJoined(id) {
             :class="{ 'row-absent': !item.joined }"
           >
             <td class="col-idx">{{ idx + 1 }}</td>
-            <td class="name-cell">{{ item.name }}</td>
-            <td class="role-cell">{{ item.role || item.position }}</td>
+            <td class="person-cell">
+              <div class="person-info">
+                <el-image
+                  :src="personPhoto(item)"
+                  fit="cover"
+                  class="person-thumb"
+                  :preview-src-list="[personPhoto(item)]"
+                  preview-teleported
+                  hide-on-click-modal
+                />
+                <div class="person-text">
+                  <div class="person-name">{{ item.name }}</div>
+                  <div class="person-role">{{ personRole(item) }}</div>
+                </div>
+              </div>
+            </td>
             <td class="col-status">
               <span class="status-tag" :class="item.joined ? 'joined' : 'absent'">
                 {{ item.joined ? '已参会' : '未参会' }}
@@ -153,18 +175,18 @@ function markJoined(id) {
 }
 
 .meeting-registration-root.compact .panel-title.compact.title-left {
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
   padding: 6px 10px;
   gap: 8px;
 }
 
 .meeting-registration-root.compact .count-tag {
-  font-size: 10px;
+  font-size: calc(10px + var(--coc-font-boost));
   padding: 2px 8px;
 }
 
 .meeting-registration-root.compact .attendee-table {
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
 }
 
 .meeting-registration-root.compact .attendee-table th,
@@ -184,17 +206,26 @@ function markJoined(id) {
   width: 44px;
 }
 
-.meeting-registration-root.compact .role-cell {
-  max-width: 64px;
+.meeting-registration-root.compact .person-thumb {
+  width: 28px;
+  height: 36px;
+}
+
+.meeting-registration-root.compact .person-name {
+  font-size: calc(11px + var(--coc-font-boost));
+}
+
+.meeting-registration-root.compact .person-role {
+  font-size: calc(10px + var(--coc-font-boost));
 }
 
 .meeting-registration-root.compact .empty-state {
   min-height: 80px;
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
 }
 
 .panel-title.compact.title-left {
-  font-size: 18px;
+  font-size: calc(18px + var(--coc-font-boost));
   justify-content: flex-start;
   gap: 12px;
 }
@@ -208,7 +239,7 @@ function markJoined(id) {
 }
 
 .count-tag {
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   font-weight: 600;
   color: var(--coc-accent);
   background: rgba(201, 123, 99, 0.1);
@@ -230,13 +261,13 @@ function markJoined(id) {
   height: 100%;
   min-height: 120px;
   color: var(--coc-text-muted);
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
 }
 
 .attendee-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
 }
 
 .attendee-table th,
@@ -252,7 +283,7 @@ function markJoined(id) {
   top: 0;
   z-index: 1;
   background: #faf8f6;
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   font-weight: 600;
   color: var(--coc-text-secondary);
 }
@@ -273,17 +304,55 @@ function markJoined(id) {
   white-space: nowrap;
 }
 
-.name-cell {
-  font-weight: 600;
-  white-space: nowrap;
+.person-cell {
+  min-width: 0;
 }
 
-.role-cell {
-  color: var(--coc-text-secondary);
-  max-width: 88px;
+.person-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.person-thumb {
+  width: 32px;
+  height: 42px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  border: 1px solid var(--coc-border);
+  cursor: zoom-in;
+  overflow: hidden;
+  background: #f5f5f5;
+}
+
+.person-thumb :deep(.el-image__inner) {
+  width: 100%;
+  height: 100%;
+}
+
+.person-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.person-name {
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.person-role {
+  font-size: calc(10px + var(--coc-font-boost));
+  color: var(--coc-text-muted);
+  line-height: 1.3;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .row-absent td {
@@ -294,7 +363,7 @@ function markJoined(id) {
   display: inline-block;
   padding: 2px 8px;
   border-radius: 4px;
-  font-size: 10px;
+  font-size: calc(10px + var(--coc-font-boost));
   font-weight: 600;
 }
 

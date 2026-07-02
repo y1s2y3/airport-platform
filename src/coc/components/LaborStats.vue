@@ -175,6 +175,7 @@ onUnmounted(() => {
   <div class="panel-card labor-panel">
     <div class="panel-title compact title-left">
       <span>劳务统计</span>
+      <span class="panel-v2-tip">V2版本上线</span>
       <span v-if="isEnterprise" class="scope-tag">企业级</span>
       <span v-else-if="focusProject" class="scope-tag project">{{ focusProject.shortName || focusProject.name }}</span>
     </div>
@@ -241,13 +242,13 @@ onUnmounted(() => {
 
 .panel-title.compact.title-left {
 
-  font-size: 18px;
+  font-size: calc(18px + var(--coc-font-boost));
   justify-content: flex-start;
   gap: 16px;
 }
 
 .scope-tag {
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   font-weight: 500;
   color: var(--coc-accent);
   background: rgba(201, 123, 99, 0.1);
@@ -292,7 +293,7 @@ onUnmounted(() => {
 }
 
 .stat-table-head {
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   color: var(--coc-text-muted);
   padding: 8px 0 10px;
   border-bottom: 1px solid var(--coc-border);
@@ -301,7 +302,7 @@ onUnmounted(() => {
 .stat-table-row {
   padding: 12px 0;
   border-bottom: 1px solid #f5f5f5;
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
 }
 
 .stat-table-row:last-child {
@@ -316,7 +317,7 @@ onUnmounted(() => {
 }
 
 .col-num {
-  font-size: 15px;
+  font-size: calc(15px + var(--coc-font-boost));
   font-weight: 700;
   color: var(--coc-text);
 }
@@ -326,7 +327,7 @@ onUnmounted(() => {
 }
 
 .col-rate {
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
   font-weight: 600;
   color: var(--coc-success);
 }
@@ -342,7 +343,7 @@ onUnmounted(() => {
 }
 
 .trend-title {
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
   font-weight: 600;
   color: var(--coc-text);
   margin-bottom: 8px;
@@ -368,7 +369,7 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   color: var(--coc-text-secondary);
   white-space: nowrap;
 }
@@ -424,7 +425,7 @@ onUnmounted(() => {
   padding: 5px 16px;
   border: none;
   background: #fff;
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   color: var(--coc-text-secondary);
   cursor: pointer;
 }

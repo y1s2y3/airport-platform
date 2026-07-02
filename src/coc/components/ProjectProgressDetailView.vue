@@ -63,7 +63,7 @@ const emit = defineEmits(['back'])
   background: #fff;
   border-radius: 8px;
   padding: 8px 14px;
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
   cursor: pointer;
   color: var(--coc-text-secondary);
 }
@@ -82,13 +82,13 @@ const emit = defineEmits(['back'])
 }
 
 .detail-heading {
-  font-size: 18px;
+  font-size: calc(18px + var(--coc-font-boost));
   font-weight: 700;
   color: var(--coc-text);
 }
 
 .detail-sub {
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
   color: var(--coc-text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;

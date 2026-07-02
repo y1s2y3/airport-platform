@@ -58,7 +58,7 @@ onMounted(() => {
   height: 100vh;
   gap: 16px;
   color: rgba(255, 255, 255, 0.85);
-  font-size: 14px;
+  font-size: calc(14px + var(--coc-font-boost, 2.5px));
 }
 
 .coc-screen-shell :deep(.coc-loading-spinner) {

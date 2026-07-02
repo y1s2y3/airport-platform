@@ -1,7 +1,12 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Upload, Delete, Edit } from '@element-plus/icons-vue'
+import { Plus, Upload, Delete, Edit, Setting } from '@element-plus/icons-vue'
+import { DAILY_WORK_RISK_RULES } from '../config/dailyWorkRiskRules.js'
+import {
+  getEnabledRiskRuleIds,
+  saveEnabledRiskRuleIds,
+} from '../utils/dailyWorkRiskRuleStorage.js'
 import {
   DANGER_WORK_FIELDS,
   MAJOR_PROJECT_FIELDS,
@@ -15,14 +20,15 @@ import {
   getDailyWorkRecords,
   saveDailyWorkRecord,
   removeDailyWorkRecord,
-  bucketLabel,
-  classifyDailyWorkRecord,
+  dangerWorkYesNoLabel,
+  resolveDangerWork,
 } from '../utils/dailyWorkStorage.js'
 
-defineProps({
-  title: { type: String, default: '每日作业填报' },
+const props = defineProps({
+  title: { type: String, default: '每日施工作业' },
   description: { type: String, default: '' },
 })
+
 const keyword = ref('')
 const dateFilter = ref('')
 const records = ref([])
@@ -38,13 +44,33 @@ function sourceLabel(source) {
 const formVisible = ref(false)
 const formMode = ref('create')
 const form = ref(emptyDailyWorkRecord())
-const includeDanger = ref(true)
-const includeMajor = ref(false)
 
 const importVisible = ref(false)
 const importSheet = ref(DAILY_WORK_SHEET_HINT)
 const importPreview = ref([])
 const importFile = ref(null)
+
+const ruleConfigVisible = ref(false)
+const enabledRuleIds = ref([])
+
+function loadRuleConfig() {
+  enabledRuleIds.value = getEnabledRiskRuleIds()
+}
+
+function openRuleConfig() {
+  loadRuleConfig()
+  ruleConfigVisible.value = true
+}
+
+function saveRuleConfig() {
+  saveEnabledRiskRuleIds(enabledRuleIds.value)
+  ruleConfigVisible.value = false
+  ElMessage.success('风险提醒规则已保存')
+}
+
+function resetRuleConfig() {
+  enabledRuleIds.value = DAILY_WORK_RISK_RULES.filter((rule) => rule.defaultEnabled).map((rule) => rule.id)
+}
 
 const filtered = computed(() => {
   let list = records.value
@@ -73,18 +99,21 @@ function load() {
 function openCreate() {
   formMode.value = 'create'
   form.value = emptyDailyWorkRecord(new Date().toISOString().slice(0, 10))
-  includeDanger.value = true
-  includeMajor.value = false
   formVisible.value = true
 }
 
 function openEdit(row) {
   formMode.value = 'edit'
   form.value = { ...emptyDailyWorkRecord(), ...row }
-  const cls = classifyDailyWorkRecord(row)
-  includeDanger.value = cls.danger || Boolean(row.dangerWorkCategory)
-  includeMajor.value = cls.major || Boolean(row.majorProjectCategory)
   formVisible.value = true
+}
+
+function fieldLabel(label) {
+  return String(label || '').replace(/^\*/, '')
+}
+
+function isFieldEmpty(key) {
+  return !String(form.value[key] ?? '').trim()
 }
 
 function validateForm() {
@@ -93,52 +122,26 @@ function validateForm() {
     ElMessage.warning('请填写施工日期')
     return false
   }
-  if (!f.leadUnit?.trim()) {
-    ElMessage.warning('请填写管理单位')
-    return false
-  }
-  if (!f.contractor?.trim()) {
-    ElMessage.warning('请填写施工单位')
-    return false
-  }
-  if (includeDanger.value) {
-    if (!f.workArea?.trim() || !f.dangerWorkCategory?.trim()) {
-      ElMessage.warning('危险作业侧：施工区域、作业类别为必填')
-      return false
-    }
-    if (!f.startTime || !f.endTime) {
-      ElMessage.warning('危险作业侧：作业时间为必填')
+  for (const field of DANGER_WORK_FIELDS) {
+    if (field.required && !String(f[field.key] ?? '').trim()) {
+      ElMessage.warning(`请填写${fieldLabel(field.label)}`)
       return false
     }
   }
-  if (includeMajor.value) {
-    if (!f.majorProjectCategory?.trim()) {
-      ElMessage.warning('危大工程侧：作业类别为必填')
-      return false
+  if (String(f.majorProjectCategory ?? '').trim()) {
+    for (const field of MAJOR_PROJECT_FIELDS) {
+      if (field.required && !String(f[field.key] ?? '').trim()) {
+        ElMessage.warning(`请填写${fieldLabel(field.label)}`)
+        return false
+      }
     }
-    if (!f.majorStartTime || !f.majorEndTime) {
-      ElMessage.warning('危大工程侧：作业时间为必填')
-      return false
-    }
-  }
-  if (!includeDanger.value && !includeMajor.value) {
-    ElMessage.warning('请至少勾选「危险作业」或「危大工程」其中一项')
-    return false
   }
   return true
 }
 
 function submitForm() {
   if (!validateForm()) return
-  const payload = { ...form.value }
-  if (!includeDanger.value) {
-    payload.dangerWorkCategory = ''
-    payload.workArea = payload.workArea || payload.majorWorkContent?.split('\n')[0] || '—'
-  }
-  if (!includeMajor.value) {
-    payload.majorProjectCategory = ''
-  }
-  saveDailyWorkRecord(payload)
+  saveDailyWorkRecord({ ...form.value })
   load()
   formVisible.value = false
   ElMessage.success(formMode.value === 'create' ? '已保存作业填报' : '已更新')
@@ -179,24 +182,27 @@ function confirmImport() {
   importVisible.value = false
   importPreview.value = []
   importFile.value = null
-  ElMessage.success('导入完成，已自动划分至高风险作业 / 危大工程清单')
+  ElMessage.success('导入完成')
 }
 
-function bucketTagType(bucket) {
-  return { danger: 'warning', major: 'primary', both: 'danger', normal: 'info' }[bucket] || 'info'
+function dangerTagType(isDanger) {
+  return isDanger ? 'warning' : 'info'
 }
 
 function indexMethod(index) {
   return (currentPage.value - 1) * pageSize + index + 1
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  loadRuleConfig()
+})
 </script>
 
 <template>
   <div class="panel-card admin-page">
     <div class="panel-title simple-title">
-      <span>每日作业填报</span>
+      <span class="title-text">{{ props.title }}</span>
       <div class="title-actions">
         <el-date-picker
           v-model="dateFilter"
@@ -210,6 +216,7 @@ onMounted(load)
         <el-button type="primary" :icon="Plus" @click="openCreate">手动添加</el-button>
         <el-button :icon="Upload" @click="importVisible = true">导入表格</el-button>
       </div>
+      <el-button class="config-btn" :icon="Setting" @click="openRuleConfig">配置</el-button>
     </div>
 
     <div class="panel-body page-body">
@@ -221,10 +228,10 @@ onMounted(load)
         <el-table-column prop="workArea" label="施工区域" min-width="120" show-overflow-tooltip />
         <el-table-column prop="dangerWorkCategory" label="危险作业类别" width="120" show-overflow-tooltip />
         <el-table-column prop="majorProjectCategory" label="危大工程类别" width="120" show-overflow-tooltip />
-        <el-table-column label="划分" width="110">
+        <el-table-column label="是否危险作业" width="108" align="center">
           <template #default="{ row }">
-            <el-tag size="small" :type="bucketTagType(row.classifyBucket)">
-              {{ bucketLabel(row.classifyBucket) }}
+            <el-tag size="small" :type="dangerTagType(resolveDangerWork(row))">
+              {{ dangerWorkYesNoLabel(resolveDangerWork(row)) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -253,148 +260,90 @@ onMounted(load)
     <!-- 手动添加/编辑 -->
     <el-dialog
       v-model="formVisible"
-      :title="formMode === 'create' ? '手动添加 · 每日作业填报' : '编辑作业填报'"
+      :title="formMode === 'create' ? '手动添加' : '编辑'"
       width="860px"
       destroy-on-close
       top="4vh"
     >
-      <el-form label-width="200px" label-position="right" class="entry-form">
+      <el-form label-width="280px" label-position="right" class="entry-form">
         <el-form-item label="施工日期" required>
           <el-date-picker v-model="form.reportDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
         </el-form-item>
 
-        <el-divider content-position="left">填报类型</el-divider>
-        <el-form-item label="">
-          <el-checkbox v-model="includeDanger">危险作业（左表）</el-checkbox>
-          <el-checkbox v-model="includeMajor">危大工程（右表）</el-checkbox>
-        </el-form-item>
-
-        <el-divider content-position="left">公共信息</el-divider>
-        <el-form-item label="管理单位" required>
-          <el-input v-model="form.leadUnit" placeholder="如：深圳机场集团/建设工程指挥部" />
-        </el-form-item>
-        <el-form-item label="施工项目名称">
-          <el-input v-model="form.projectName" />
-        </el-form-item>
-        <el-form-item label="施工单位" required>
-          <el-input v-model="form.contractor" />
-        </el-form-item>
-
-        <template v-if="includeDanger">
-          <el-divider content-position="left">危险作业统计（A-O 列标准）</el-divider>
-          <el-form-item label="施工区域" required>
-            <el-input v-model="form.workArea" />
-          </el-form-item>
-          <el-form-item label="当日施工具体内容">
-            <el-input v-model="form.workContent" type="textarea" :rows="2" />
-          </el-form-item>
-          <el-form-item label="危险作业作业类别" required>
-            <el-select v-model="form.dangerWorkCategory" filterable allow-create style="width: 100%">
-              <el-option v-for="opt in DANGER_WORK_CATEGORY_OPTIONS" :key="opt" :label="opt" :value="opt" />
-            </el-select>
-          </el-form-item>
-          <el-row :gutter="12">
-            <el-col :span="12">
-              <el-form-item label="作业开始时间" required label-width="200px">
-                <el-date-picker
-                  v-model="form.startTime"
-                  type="datetime"
-                  value-format="YYYY-MM-DD HH:mm"
-                  format="YYYY-MM-DD HH:mm"
-                  style="width: 100%"
-                />
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item label="作业结束时间" required label-width="120px">
-                <el-date-picker
-                  v-model="form.endTime"
-                  type="datetime"
-                  value-format="YYYY-MM-DD HH:mm"
-                  format="YYYY-MM-DD HH:mm"
-                  style="width: 100%"
-                />
-              </el-form-item>
-            </el-col>
-          </el-row>
-          <el-form-item
-            v-for="field in DANGER_WORK_FIELDS.filter((f) => f.key.includes('Manager') || f.key === 'dangerControlMeasures')"
-            :key="field.key"
-            :label="field.label.replace('*', '')"
-            :required="field.required"
+        <el-form-item
+          v-for="field in DANGER_WORK_FIELDS"
+          :key="'danger-' + field.key"
+          :label="field.label"
+          :required="field.required"
+        >
+          <el-select
+            v-if="field.key === 'dangerWorkCategory'"
+            v-model="form.dangerWorkCategory"
+            filterable
+            allow-create
+            style="width: 100%"
           >
-            <el-input
-              v-model="form[field.key]"
-              :type="field.type === 'textarea' ? 'textarea' : 'text'"
-              :rows="field.type === 'textarea' ? 4 : 1"
-              :placeholder="field.key.includes('Manager') ? '格式：姓名/手机号，多人用逗号分隔' : ''"
-            />
-          </el-form-item>
-        </template>
+            <el-option v-for="opt in DANGER_WORK_CATEGORY_OPTIONS" :key="opt" :label="opt" :value="opt" />
+          </el-select>
+          <el-date-picker
+            v-else-if="field.type === 'datetime'"
+            v-model="form[field.key]"
+            type="datetime"
+            value-format="YYYY-MM-DD HH:mm"
+            format="YYYY-MM-DD HH:mm"
+            style="width: 100%"
+          />
+          <el-input
+            v-else
+            v-model="form[field.key]"
+            :type="field.type === 'textarea' ? 'textarea' : 'text'"
+            :rows="field.type === 'textarea' ? 4 : 1"
+          />
+        </el-form-item>
 
-        <template v-if="includeMajor">
-          <el-divider content-position="left">危大工程统计（Q-X 列标准）</el-divider>
-          <el-form-item label="施工具体内容">
-            <el-input v-model="form.majorWorkContent" type="textarea" :rows="4" />
-          </el-form-item>
-          <el-form-item label="危大工程作业类别" required>
-            <el-select v-model="form.majorProjectCategory" filterable allow-create style="width: 100%">
-              <el-option v-for="opt in MAJOR_PROJECT_CATEGORY_OPTIONS" :key="opt" :label="opt" :value="opt" />
-            </el-select>
-          </el-form-item>
-          <el-row :gutter="12">
-            <el-col :span="12">
-              <el-form-item label="作业开始时间" required label-width="200px">
-                <el-date-picker
-                  v-model="form.majorStartTime"
-                  type="datetime"
-                  value-format="YYYY-MM-DD HH:mm"
-                  format="YYYY-MM-DD HH:mm"
-                  style="width: 100%"
-                />
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item label="作业结束时间" required label-width="120px">
-                <el-date-picker
-                  v-model="form.majorEndTime"
-                  type="datetime"
-                  value-format="YYYY-MM-DD HH:mm"
-                  format="YYYY-MM-DD HH:mm"
-                  style="width: 100%"
-                />
-              </el-form-item>
-            </el-col>
-          </el-row>
-          <el-form-item
-            v-for="field in MAJOR_PROJECT_FIELDS.filter((f) => f.key.includes('Manager') || f.key === 'majorControlMeasures')"
-            :key="field.key"
-            :label="field.label.replace('*', '')"
-            :required="field.required"
+        <el-form-item
+          v-for="field in MAJOR_PROJECT_FIELDS"
+          :key="'major-' + field.key"
+          :label="field.label"
+          :required="field.required && !isFieldEmpty('majorProjectCategory')"
+        >
+          <el-select
+            v-if="field.key === 'majorProjectCategory'"
+            v-model="form.majorProjectCategory"
+            filterable
+            allow-create
+            clearable
+            style="width: 100%"
           >
-            <el-input
-              v-model="form[field.key]"
-              :type="field.type === 'textarea' ? 'textarea' : 'text'"
-              :rows="field.type === 'textarea' ? 4 : 1"
-            />
-          </el-form-item>
-        </template>
+            <el-option v-for="opt in MAJOR_PROJECT_CATEGORY_OPTIONS" :key="opt" :label="opt" :value="opt" />
+          </el-select>
+          <el-date-picker
+            v-else-if="field.type === 'datetime'"
+            v-model="form[field.key]"
+            type="datetime"
+            value-format="YYYY-MM-DD HH:mm"
+            format="YYYY-MM-DD HH:mm"
+            style="width: 100%"
+          />
+          <el-input
+            v-else
+            v-model="form[field.key]"
+            :type="field.type === 'textarea' ? 'textarea' : 'text'"
+            :rows="field.type === 'textarea' ? 4 : 1"
+          />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="formVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitForm">保存并自动划分</el-button>
+        <el-button type="primary" @click="submitForm">保存</el-button>
       </template>
     </el-dialog>
 
     <!-- 导入 -->
     <el-dialog v-model="importVisible" title="导入施工作业统计表" width="720px" destroy-on-close>
-      <p class="import-tip">
-        支持上传与线下模板一致的 .xlsx 文件。默认解析 Sheet「{{ DAILY_WORK_SHEET_HINT }}」（或首个日期 Sheet），
-        表头第 5 行、数据从第 6 行起；合并单元格的项目信息会自动向下继承。
-      </p>
       <el-form inline class="import-form">
         <el-form-item label="指定 Sheet">
-          <el-input v-model="importSheet" placeholder="如 2026.6.14" style="width: 160px" />
+          <el-input v-model="importSheet" placeholder="如 2026.6.30" style="width: 160px" />
         </el-form-item>
       </el-form>
       <el-upload
@@ -406,17 +355,18 @@ onMounted(load)
       >
         <el-icon class="el-icon--upload"><Upload /></el-icon>
         <div class="el-upload__text">将 Excel 拖到此处，或<em>点击上传</em></div>
-        <template #tip>
-          <div class="el-upload__tip">文件：建设工程指挥部施工作业统计表.xlsx</div>
-        </template>
       </el-upload>
       <div v-if="importPreview.length" class="import-preview">
-        <div class="preview-head">预览（{{ importPreview.length }} 条，含自动划分）</div>
+        <div class="preview-head">预览（{{ importPreview.length }} 条）</div>
         <el-table :data="importPreview.slice(0, 8)" size="small" border max-height="240">
           <el-table-column prop="projectName" label="项目" min-width="120" show-overflow-tooltip />
           <el-table-column prop="workArea" label="区域" width="100" show-overflow-tooltip />
-          <el-table-column prop="dangerWorkCategory" label="危险作业" width="100" />
-          <el-table-column prop="majorProjectCategory" label="危大工程" width="100" />
+          <el-table-column prop="dangerWorkCategory" label="危险作业类别" width="110" show-overflow-tooltip />
+          <el-table-column label="是否危险作业" width="108" align="center">
+            <template #default="{ row }">
+              {{ dangerWorkYesNoLabel(resolveDangerWork(row)) }}
+            </template>
+          </el-table-column>
         </el-table>
         <p v-if="importPreview.length > 8" class="preview-more">… 另有 {{ importPreview.length - 8 }} 条</p>
       </div>
@@ -425,6 +375,21 @@ onMounted(load)
         <el-button type="primary" :disabled="!importPreview.length" @click="confirmImport">
           确认导入 {{ importPreview.length ? `(${importPreview.length} 条)` : '' }}
         </el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="ruleConfigVisible" title="风险提醒规则配置" width="760px" destroy-on-close>
+      <p class="rule-config-tip">勾选启用的规则。规则名称作为选项，风险描述供参考；具体计算逻辑见代码 `dailyWorkRiskRules.js`。</p>
+      <el-checkbox-group v-model="enabledRuleIds" class="rule-config-list">
+        <div v-for="rule in DAILY_WORK_RISK_RULES" :key="rule.id" class="rule-config-item">
+          <el-checkbox :label="rule.id">{{ rule.name }}</el-checkbox>
+          <p class="rule-config-desc">{{ rule.description }}</p>
+        </div>
+      </el-checkbox-group>
+      <template #footer>
+        <el-button @click="resetRuleConfig">恢复默认</el-button>
+        <el-button @click="ruleConfigVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveRuleConfig">保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -445,11 +410,21 @@ onMounted(load)
   padding-left: 12px;
 }
 
+.title-text {
+  flex-shrink: 0;
+}
+
 .title-actions {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+  flex: 1;
+}
+
+.config-btn {
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .search-input {
@@ -464,13 +439,6 @@ onMounted(load)
   padding: 16px 20px 24px !important;
 }
 
-.page-desc {
-  margin: 0 0 16px;
-  font-size: 13px;
-  color: var(--coc-text-secondary);
-  line-height: 1.6;
-}
-
 .table-pager {
   display: flex;
   justify-content: flex-end;
@@ -481,13 +449,6 @@ onMounted(load)
   max-height: 65vh;
   overflow-y: auto;
   padding-right: 8px;
-}
-
-.import-tip {
-  font-size: 13px;
-  color: var(--coc-text-secondary);
-  line-height: 1.6;
-  margin: 0 0 12px;
 }
 
 .import-form {
@@ -508,5 +469,43 @@ onMounted(load)
   font-size: 12px;
   color: var(--coc-text-muted);
   margin: 8px 0 0;
+}
+
+.rule-config-tip {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--coc-text-muted);
+  line-height: 1.6;
+}
+
+.rule-config-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 58vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.rule-config-item {
+  padding: 12px 14px;
+  border: 1px solid var(--coc-border, #e4e7ed);
+  border-radius: 8px;
+  background: #fafbfd;
+}
+
+.rule-config-item :deep(.el-checkbox__label) {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--coc-text, #303133);
+  white-space: normal;
+  line-height: 1.5;
+}
+
+.rule-config-desc {
+  margin: 6px 0 0 24px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--coc-text-muted, #606266);
 }
 </style>

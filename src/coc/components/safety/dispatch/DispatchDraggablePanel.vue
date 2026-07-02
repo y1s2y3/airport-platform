@@ -1,32 +1,84 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { Close } from '@element-plus/icons-vue'
 
 const props = defineProps({
   title: { type: String, required: true },
   width: { type: Number, default: 680 },
   zIndex: { type: Number, default: 120000 },
+  /** center：居中；right：默认居右，可自由拖动 */
+  placement: {
+    type: String,
+    default: 'center',
+    validator: (v) => ['center', 'right'].includes(v),
+  },
 })
 
 const emit = defineEmits(['close'])
 
+const PANEL_HEIGHT_CAP = 1440
+
 const x = ref(0)
 const y = ref(0)
+const panelWidth = ref(props.width)
+const panelMaxHeight = ref('min(94vh, 1440px)')
 let dragging = false
 let dragStart = null
 
+const isRight = computed(() => props.placement === 'right')
+
+function updatePanelMaxHeight() {
+  const margin = 12
+  const available = window.innerHeight - y.value - margin
+  const cap = Math.min(PANEL_HEIGHT_CAP, window.innerHeight - margin * 2)
+  panelMaxHeight.value = `${Math.max(480, Math.min(available, cap))}px`
+}
+
+function applyRightPlacement() {
+  const margin = 12
+  panelWidth.value = Math.min(props.width, window.innerWidth - margin * 2)
+  x.value = window.innerWidth - panelWidth.value - margin
+  y.value = margin
+  updatePanelMaxHeight()
+}
+
+function applyCenterPlacement() {
+  panelWidth.value = props.width
+  panelMaxHeight.value = 'min(94vh, 1440px)'
+  x.value = Math.max(24, (window.innerWidth - panelWidth.value) / 2)
+  y.value = Math.max(48, (window.innerHeight - 960) / 2)
+  updatePanelMaxHeight()
+}
+
 function clampPosition() {
   const margin = 12
-  const maxX = window.innerWidth - props.width - margin
-  const maxY = window.innerHeight - 120
+  const maxX = window.innerWidth - panelWidth.value - margin
   x.value = Math.min(Math.max(margin, x.value), Math.max(margin, maxX))
+
+  const maxY = window.innerHeight - 80
   y.value = Math.min(Math.max(margin, y.value), Math.max(margin, maxY))
+  updatePanelMaxHeight()
+}
+
+function initPlacement() {
+  if (isRight.value) applyRightPlacement()
+  else applyCenterPlacement()
+  clampPosition()
+}
+
+function onResize() {
+  panelWidth.value = Math.min(props.width, window.innerWidth - 24)
+  clampPosition()
 }
 
 onMounted(() => {
-  x.value = Math.max(24, (window.innerWidth - props.width) / 2)
-  y.value = Math.max(48, (window.innerHeight - 560) / 2)
-  clampPosition()
+  initPlacement()
+  window.addEventListener('resize', onResize)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', onResize)
+  onPointerUp()
 })
 
 function onHeaderPointerDown(e) {
@@ -56,16 +108,26 @@ function onPointerUp() {
   document.removeEventListener('pointerup', onPointerUp)
   clampPosition()
 }
-
-onUnmounted(onPointerUp)
 </script>
 
 <template>
   <Teleport to="body">
-    <div class="drag-panel-backdrop" :style="{ zIndex }" @click.self="emit('close')">
+    <div
+      class="drag-panel-backdrop"
+      :class="{ 'placement-right': isRight }"
+      :style="{ zIndex }"
+      @click.self="!isRight && emit('close')"
+    >
       <div
         class="drag-panel"
-        :style="{ left: `${x}px`, top: `${y}px`, width: `${width}px`, zIndex: zIndex + 1 }"
+        :class="{ 'placement-right': isRight }"
+        :style="{
+          left: `${x}px`,
+          top: `${y}px`,
+          width: `${panelWidth}px`,
+          maxHeight: panelMaxHeight,
+          zIndex: zIndex + 1,
+        }"
       >
         <div class="drag-panel-header" @pointerdown="onHeaderPointerDown">
           <span class="drag-panel-title">{{ title }}</span>
@@ -92,9 +154,15 @@ onUnmounted(onPointerUp)
   justify-content: center;
 }
 
+.drag-panel-backdrop.placement-right {
+  background: transparent;
+  pointer-events: none;
+  justify-content: flex-end;
+}
+
 .drag-panel {
   position: fixed;
-  max-height: min(82vh, 720px);
+  max-height: min(94vh, 1440px);
   background: #fff;
   border-radius: 12px;
   border: 1px solid var(--coc-border);
@@ -102,6 +170,11 @@ onUnmounted(onPointerUp)
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.drag-panel.placement-right {
+  pointer-events: auto;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.16);
 }
 
 .drag-panel-header {
@@ -117,13 +190,13 @@ onUnmounted(onPointerUp)
 }
 
 .drag-panel-title {
-  font-size: 15px;
+  font-size: calc(15px + var(--coc-font-boost));
   font-weight: 700;
   color: var(--coc-text);
 }
 
 .drag-hint {
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   color: var(--coc-text-muted);
   margin-left: auto;
 }

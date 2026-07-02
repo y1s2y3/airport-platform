@@ -5,7 +5,8 @@ import { VideoCamera, ArrowLeft, ArrowRight, ZoomIn } from '@element-plus/icons-
 import ProjectListPanel from '../ProjectListPanel.vue'
 import VideoExpandOverlay from '../VideoExpandOverlay.vue'
 import { useCameraOrder } from '../../composables/useCameraOrder.js'
-import { FOCUS_PROJECT_ID, HQ_SELECTION_ID, DISPATCH_DEVICES, PERSONNEL_DISPATCH_DEVICES, videoPlaceholderColor } from '../../mock/data.js'
+import { useDispatchOrder } from '../../composables/useDispatchOrder.js'
+import { FOCUS_PROJECT_ID, HQ_SELECTION_ID, DISPATCH_DEVICES, PERSONNEL_DISPATCH_DEVICES, getDispatchDeviceTypeLabel, formatDispatchOperatorLabel, videoPlaceholderColor } from '../../mock/data.js'
 
 const DISPATCH_PAGE_SIZE = 3
 const MONITOR_PAGE_SIZE = 6
@@ -25,11 +26,15 @@ const dispatchPage = ref(0)
 const expandedVideo = ref(null)
 const videoFilter = ref('all')
 
-const projectCameras = computed(() =>
-  props.project.id === FOCUS_PROJECT_ID ? props.project.cameras : [],
-)
+const listProjectCameras = computed(() => {
+  if (props.selectionId === HQ_SELECTION_ID) {
+    return props.project.id === FOCUS_PROJECT_ID ? (props.project.cameras || []) : []
+  }
+  const selected = props.projects.find((p) => p.id === props.selectionId)
+  return selected?.cameras || []
+})
 
-const { cameraOrder, orderedCameras, handleCameraReorder, setCameraAsKey } = useCameraOrder(projectCameras)
+const { cameraOrder, orderedCameras, handleCameraReorder, setCameraAsKey } = useCameraOrder(listProjectCameras)
 
 const displayCameras = computed(() => {
   let list = orderedCameras.value
@@ -56,6 +61,8 @@ const dispatchDeviceList = computed(() =>
   props.scene === 'personnel' ? PERSONNEL_DISPATCH_DEVICES : DISPATCH_DEVICES,
 )
 
+const { dispatchOrder, orderedDevices, handleDispatchReorder } = useDispatchOrder(dispatchDeviceList)
+
 const dispatchTitle = computed(() =>
   props.scene === 'personnel' ? '人员核验对讲' : '巡检对讲设备',
 )
@@ -67,18 +74,18 @@ const dispatchHint = computed(() =>
 )
 
 const dispatchStats = computed(() => {
-  const list = dispatchDeviceList.value
+  const list = orderedDevices.value
   const online = list.filter((d) => d.online).length
   return { total: list.length, online, offline: list.length - online }
 })
 
 const dispatchTotalPages = computed(() =>
-  Math.max(1, Math.ceil(dispatchDeviceList.value.length / DISPATCH_PAGE_SIZE)),
+  Math.max(1, Math.ceil(orderedDevices.value.length / DISPATCH_PAGE_SIZE)),
 )
 
 const pagedDispatch = computed(() => {
   const start = dispatchPage.value * DISPATCH_PAGE_SIZE
-  return dispatchDeviceList.value.slice(start, start + DISPATCH_PAGE_SIZE)
+  return orderedDevices.value.slice(start, start + DISPATCH_PAGE_SIZE)
 })
 
 const isConnected = computed(() => props.project.id === FOCUS_PROJECT_ID)
@@ -126,14 +133,17 @@ function openDispatch(device) {
         :projects="projects"
         :selection-id="selectionId"
         :status-filters="statusFilters"
-        :show-cameras="true"
         :video-filter="videoFilter"
         :camera-order="cameraOrder"
-        @project-change="onProjectChange"
+        :dispatch-order="dispatchOrder"
         @status-filter="emit('status-filter', $event)"
         @camera-click="onTreeCameraClick"
         @camera-reorder="handleCameraReorder"
         @camera-set-key="handleSetCameraKey"
+        @dispatch-click="openDispatch"
+        @dispatch-reorder="handleDispatchReorder"
+        @back-to-hq="onProjectChange(HQ_SELECTION_ID)"
+        @project-change="onProjectChange"
       />
 
       <div class="panel-card module-panel monitor-module">
@@ -283,11 +293,13 @@ function openDispatch(device) {
               </div>
               <div class="video-label dispatch-label">
                 <div class="label-top">
-                  <span class="type-badge" :class="dv.type">{{ dv.type === 'handheld' ? '手持' : 'Web' }}</span>
+                  <span class="type-badge" :class="dv.type">{{ getDispatchDeviceTypeLabel(dv.type) }}</span>
                   <span class="cam-name" :title="dv.name">{{ dv.name }}</span>
                 </div>
                 <div class="label-bottom">
-                  <span v-if="dv.operator" class="operator-tag">{{ dv.operator }}</span>
+                  <span v-if="dv.operator" class="operator-tag" :title="formatDispatchOperatorLabel(dv)">
+                    {{ formatDispatchOperatorLabel(dv) }}
+                  </span>
                   <span class="cam-status" :class="dv.online ? 'online' : 'offline'">
                     {{ dv.online ? '在线' : '离线' }}
                   </span>
@@ -338,7 +350,7 @@ function openDispatch(device) {
 }
 
 .simple-title {
-  font-size: 18px;
+  font-size: calc(18px + var(--coc-font-boost));
 }
 
 .module-title-bar {
@@ -384,7 +396,7 @@ function openDispatch(device) {
 }
 
 .module-title-text {
-  font-size: 16px;
+  font-size: calc(16px + var(--coc-font-boost));
   font-weight: 600;
   color: var(--coc-text);
   white-space: nowrap;
@@ -403,7 +415,7 @@ function openDispatch(device) {
   padding: 3px 8px;
   border: none;
   background: #fff;
-  font-size: 10px;
+  font-size: calc(10px + var(--coc-font-boost));
   line-height: 1.2;
   color: var(--coc-text-secondary);
   cursor: pointer;
@@ -430,14 +442,14 @@ function openDispatch(device) {
   display: flex;
   flex-wrap: wrap;
   gap: 6px 12px;
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   color: var(--coc-text-secondary);
   flex: 1;
   min-width: 0;
 }
 
 .title-stats b {
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
   color: var(--coc-text);
   margin-left: 3px;
 }
@@ -479,11 +491,11 @@ function openDispatch(device) {
 }
 
 .arrow-btn .el-icon {
-  font-size: 14px;
+  font-size: calc(14px + var(--coc-font-boost));
 }
 
 .page-info {
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   font-weight: 600;
   min-width: 28px;
   text-align: center;
@@ -559,12 +571,12 @@ function openDispatch(device) {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
 }
 
 .video-hint,
 .dispatch-hint {
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   color: var(--coc-text-muted);
   flex-shrink: 0;
   line-height: 1.4;
@@ -581,7 +593,7 @@ function openDispatch(device) {
   color: #fff;
   padding: 4px 10px;
   border-radius: 6px;
-  font-size: 10px;
+  font-size: calc(10px + var(--coc-font-boost));
   opacity: 0;
   transition: opacity 0.2s;
 }
@@ -599,7 +611,7 @@ function openDispatch(device) {
 }
 
 .type-badge {
-  font-size: 10px;
+  font-size: calc(10px + var(--coc-font-boost));
   padding: 2px 8px;
   border-radius: 4px;
   flex-shrink: 0;
@@ -611,9 +623,10 @@ function openDispatch(device) {
   color: var(--coc-accent);
 }
 
+.type-badge.app,
 .type-badge.web {
-  background: rgba(64, 158, 255, 0.12);
-  color: #409eff;
+  background: rgba(103, 194, 58, 0.12);
+  color: #67c23a;
 }
 
 .video-label {
@@ -649,7 +662,7 @@ function openDispatch(device) {
 }
 
 .cam-name {
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   font-weight: 600;
   line-height: 1.35;
   flex: 1;
@@ -673,7 +686,7 @@ function openDispatch(device) {
 }
 
 .key-badge {
-  font-size: 10px;
+  font-size: calc(10px + var(--coc-font-boost));
   padding: 1px 6px;
   border-radius: 4px;
   background: rgba(201, 123, 99, 0.15);
@@ -687,7 +700,7 @@ function openDispatch(device) {
 }
 
 .cam-status {
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   flex-shrink: 0;
   font-weight: 600;
 }
@@ -696,7 +709,7 @@ function openDispatch(device) {
 .cam-status.offline { color: var(--coc-danger); }
 
 .operator-tag {
-  font-size: 10px;
+  font-size: calc(10px + var(--coc-font-boost));
   color: var(--coc-text-muted);
   flex: 1;
   min-width: 0;
@@ -718,6 +731,6 @@ function openDispatch(device) {
   align-items: center;
   justify-content: center;
   color: var(--coc-text-muted);
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
 }
 </style>

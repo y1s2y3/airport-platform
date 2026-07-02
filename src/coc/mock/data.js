@@ -1,4 +1,4 @@
-export const DESIGN_WIDTH = 1920
+﻿export const DESIGN_WIDTH = 1920
 export const DESIGN_HEIGHT = 1080
 
 export const PROJECT_NAMES = [
@@ -145,13 +145,32 @@ export function getProjectFullName(source) {
 export const FOCUS_PROJECT_ID = 'p-011'
 export const HQ_SELECTION_ID = 'hq'
 
+/** 生成人员证件照风格占位图（会议签到缩略图/预览） */
+export function buildPersonPhotoUrl(name = '人员', seed = 0) {
+  const hue = (Math.abs(seed) * 47 + (name.charCodeAt(0) || 0) * 13) % 360
+  const initial = name.slice(0, 1) || '人'
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="160" viewBox="0 0 120 160">
+    <defs>
+      <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="hsl(${hue}, 24%, 92%)"/>
+        <stop offset="100%" stop-color="hsl(${hue}, 30%, 78%)"/>
+      </linearGradient>
+    </defs>
+    <rect width="120" height="160" rx="8" fill="url(#bg)"/>
+    <circle cx="60" cy="56" r="24" fill="hsl(${hue}, 18%, 58%)"/>
+    <ellipse cx="60" cy="124" rx="36" ry="28" fill="hsl(${hue}, 18%, 58%)"/>
+    <text x="60" y="150" text-anchor="middle" fill="rgba(255,255,255,0.75)" font-size="11" font-family="sans-serif">${initial}</text>
+  </svg>`
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`
+}
+
 /** 工程指挥部会议签到 · 各部门负责人 */
 export const HQ_DEPARTMENT_HEADS = [
-  { id: 'hq-dept-safety', name: '王建军', role: '安全部负责人', department: '安全部', jobType: '管理', category: '部门负责人' },
-  { id: 'hq-dept-quality', name: '陈志明', role: '质量部负责人', department: '质量部', jobType: '管理', category: '部门负责人' },
-  { id: 'hq-dept-engineering', name: '刘海峰', role: '工程部负责人', department: '工程部', jobType: '管理', category: '部门负责人' },
-  { id: 'hq-dept-schedule', name: '赵国强', role: '计划部负责人', department: '计划部', jobType: '管理', category: '部门负责人' },
-  { id: 'hq-dept-material', name: '孙立新', role: '物资部负责人', department: '物资部', jobType: '管理', category: '部门负责人' },
+  { id: 'hq-dept-safety', name: '王建军', role: '安全部负责人', department: '安全部', jobType: '管理', category: '部门负责人', photo: buildPersonPhotoUrl('王建军', 1) },
+  { id: 'hq-dept-quality', name: '陈志明', role: '质量部负责人', department: '质量部', jobType: '管理', category: '部门负责人', photo: buildPersonPhotoUrl('陈志明', 2) },
+  { id: 'hq-dept-engineering', name: '刘海峰', role: '工程部负责人', department: '工程部', jobType: '管理', category: '部门负责人', photo: buildPersonPhotoUrl('刘海峰', 3) },
+  { id: 'hq-dept-schedule', name: '赵国强', role: '计划部负责人', department: '计划部', jobType: '管理', category: '部门负责人', photo: buildPersonPhotoUrl('赵国强', 4) },
+  { id: 'hq-dept-material', name: '孙立新', role: '物资部负责人', department: '物资部', jobType: '管理', category: '部门负责人', photo: buildPersonPhotoUrl('孙立新', 5) },
 ]
 
 /** 指挥部层级会议签到名单：部门负责人 + 各在建项目项目经理 */
@@ -162,7 +181,7 @@ export function buildHqMeetingPersonnel(projects, statusFilters = ['在建']) {
     unit: head.department,
     position: head.role,
   }))
-  const projectManagers = building.map((project) => {
+  const projectManagers = building.map((project, index) => {
     const pm = project.personnel?.find((person) => person.role === '项目经理')
     const projectLabel = project.shortName || project.name
     return {
@@ -174,6 +193,7 @@ export function buildHqMeetingPersonnel(projects, statusFilters = ['在建']) {
       unit: projectLabel,
       jobType: '管理',
       category: '项目经理',
+      photo: pm?.photo || buildPersonPhotoUrl(pm?.name || projectLabel, index + 20),
     }
   })
   return [...deptHeads, ...projectManagers]
@@ -538,12 +558,14 @@ export function buildProjects() {
 
     const personnel = ROLES.map((item, ri) => {
       const punch = buildPunchRecords(rand, ri, isFocus)
+      const name = `${SURNAMES[(i + ri) % SURNAMES.length]}${['伟', '强', '磊', '洋', '勇', '军', '杰', '涛', '鹏', '超'][(i + ri) % 10]}`
       return {
         id: `${id}-person-${ri}`,
         role: item.role,
         position: item.role,
         jobType: item.jobType,
-        name: `${SURNAMES[(i + ri) % SURNAMES.length]}${['伟', '强', '磊', '洋', '勇', '军', '杰', '涛', '鹏', '超'][(i + ri) % 10]}`,
+        name,
+        photo: buildPersonPhotoUrl(name, i * 10 + ri),
         unit: UNITS[i % UNITS.length],
         clockIn: punch.clockIn,
         clockOut: punch.clockOut,
@@ -638,17 +660,17 @@ export const CONSTRUCTION_PARTS = [
   { id: 'part-5', name: '3号塔吊作业区' },
 ]
 
-/** 巡检对讲设备：现场手持巡检 + Web端视频对讲 */
+/** 巡检对讲设备：现场手持巡检 + App 端视频对讲 */
 export const DISPATCH_DEVICES = [
-  { id: 'dv-h1', name: '捷运线基坑巡检终端', type: 'handheld', category: '现场手持巡检设备', online: true, operator: '张安全' },
-  { id: 'dv-h2', name: '塔吊作业区巡检终端', type: 'handheld', category: '现场手持巡检设备', online: true, operator: '李巡检' },
-  { id: 'dv-h3', name: '飞行区通道巡检终端', type: 'handheld', category: '现场手持巡检设备', online: false, operator: '王强' },
-  { id: 'dv-h4', name: '钢筋加工场巡检终端', type: 'handheld', category: '现场手持巡检设备', online: true, operator: '赵军' },
-  { id: 'dv-h5', name: '航站区主体巡检终端', type: 'handheld', category: '现场手持巡检设备', online: true, operator: '陈磊' },
-  { id: 'dv-w1', name: '指挥部调度席', type: 'web', category: 'Web端视频对讲', online: true },
-  { id: 'dv-w2', name: '工程管理部对讲席', type: 'web', category: 'Web端视频对讲', online: true },
-  { id: 'dv-w3', name: '安监部对讲席', type: 'web', category: 'Web端视频对讲', online: false },
-  { id: 'dv-w4', name: '质量部对讲席', type: 'web', category: 'Web端视频对讲', online: true },
+  { id: 'dv-h1', name: '捷运线基坑巡检终端', type: 'handheld', category: '现场手持巡检设备', online: true, operator: '张安全', operatorRole: '安全员' },
+  { id: 'dv-h2', name: '塔吊作业区巡检终端', type: 'handheld', category: '现场手持巡检设备', online: true, operator: '李巡检', operatorRole: '巡检员' },
+  { id: 'dv-h3', name: '飞行区通道巡检终端', type: 'handheld', category: '现场手持巡检设备', online: false, operator: '王强', operatorRole: '施工员' },
+  { id: 'dv-h4', name: '钢筋加工场巡检终端', type: 'handheld', category: '现场手持巡检设备', online: true, operator: '赵军', operatorRole: '质量员' },
+  { id: 'dv-h5', name: '航站区主体巡检终端', type: 'handheld', category: '现场手持巡检设备', online: true, operator: '陈磊', operatorRole: '项目经理' },
+  { id: 'dv-w1', name: '指挥部调度席', type: 'app', category: 'App端视频对讲', online: true, operator: '陈静', operatorRole: '调度员' },
+  { id: 'dv-w2', name: '工程管理部对讲席', type: 'app', category: 'App端视频对讲', online: true, operator: '刘海峰', operatorRole: '工程部负责人' },
+  { id: 'dv-w3', name: '安监部对讲席', type: 'app', category: 'App端视频对讲', online: false, operator: '王建军', operatorRole: '安全部负责人' },
+  { id: 'dv-w4', name: '质量部对讲席', type: 'app', category: 'App端视频对讲', online: true, operator: '陈志明', operatorRole: '质量部负责人' },
 ]
 
 /** 人员抽检场景：管理人员 / 特种作业核验对讲设备 */
@@ -657,10 +679,23 @@ export const PERSONNEL_DISPATCH_DEVICES = [
   { id: 'pd-h2', name: '特种作业核验手持终端', type: 'handheld', category: '特种作业现场核验', online: true, operator: '安监员' },
   { id: 'pd-h3', name: '捷运线人员巡检终端', type: 'handheld', category: '管理人员现场核验', online: false, operator: '刘芳' },
   { id: 'pd-h4', name: '航站区特种核验终端', type: 'handheld', category: '特种作业现场核验', online: true, operator: '周强' },
-  { id: 'pd-w1', name: '人员管理调度席', type: 'web', category: 'Web端视频对讲', online: true },
-  { id: 'pd-w2', name: '劳务管理对讲席', type: 'web', category: 'Web端视频对讲', online: true },
-  { id: 'pd-w3', name: '安监部人员核验席', type: 'web', category: 'Web端视频对讲', online: true },
+  { id: 'pd-w1', name: '人员管理调度席', type: 'app', category: 'App端视频对讲', online: true },
+  { id: 'pd-w2', name: '劳务管理对讲席', type: 'app', category: 'App端视频对讲', online: true },
+  { id: 'pd-w3', name: '安监部人员核验席', type: 'app', category: 'App端视频对讲', online: true },
 ]
+
+export function normalizeDispatchDeviceType(type) {
+  return type === 'web' ? 'app' : type
+}
+
+export function getDispatchDeviceTypeLabel(type) {
+  return normalizeDispatchDeviceType(type) === 'handheld' ? '手持' : 'App'
+}
+
+export function isAppDispatchDevice(type) {
+  const normalized = normalizeDispatchDeviceType(type)
+  return normalized === 'app'
+}
 
 export const DISPATCH_MEETING_SUMMARY = {
   status: 'recognizing',
@@ -669,17 +704,17 @@ export const DISPATCH_MEETING_SUMMARY = {
 AI 累计识别安全隐患 2 项（临边防护缺失、塔吊警戒标识不足），质量问题 2 项（钢筋绑扎间距偏差、混凝土养护不足）。
 现场安全员已承诺今日 18:00 前完成基坑东侧防护加固，塔吊作业区 24 小时内补齐警戒标识并上传闭环照片。
 质量工程师反馈钢筋绑扎复检将于明日完成，养护措施已按规范补充落实。
-综合判定：建议生成限期整改处罚单 2 份、复检通知 1 份，待调度值班确认后下发项目签收执行。`,
+综合判定：建议生成限期整改处罚单 2 份、复检通知 1 份，待COC调度室确认后下发项目签收执行。`,
 }
 
 export const AI_INTERCOM_RECORDS = [
   { time: '09:58', speaker: '系统', role: 'ai', content: 'Web端视频对讲请求已发出，正在连接捷运线基坑手持巡检终端…' },
   { time: '09:59', speaker: '张安全', role: 'handheld', content: '手持终端已接通，当前位于捷运线延长段基坑东侧，正在进行安全巡检。' },
   { time: '10:01', speaker: 'AI识别', role: 'ai', content: '基于手持终端实时画面，识别临边防护缺失（较大隐患）1项。' },
-  { time: '10:03', speaker: '调度值班', role: 'web', content: '请现场展示基坑周边防护情况，并说明今日整改计划。' },
+  { time: '10:03', speaker: 'COC调度室', role: 'web', content: '请现场展示基坑周边防护情况，并说明今日整改计划。' },
   { time: '10:05', speaker: '张安全', role: 'handheld', content: '东侧防护栏部分缺失，下午完成加固，已拍照留存。' },
   { time: '10:07', speaker: 'AI识别', role: 'ai', content: '对讲过程中补充识别：塔吊作业区警戒标识不足（重大隐患）。' },
-  { time: '10:09', speaker: '调度值班', role: 'web', content: '同意记录，请质量工程师同步说明钢筋绑扎复检进展。' },
+  { time: '10:09', speaker: 'COC调度室', role: 'web', content: '同意记录，请质量工程师同步说明钢筋绑扎复检进展。' },
   { time: '10:11', speaker: 'AI识别', role: 'ai', content: '对讲记录已归档，正在生成处罚单草稿…' },
 ]
 
@@ -699,10 +734,91 @@ export const COMMAND_MEETING_DEVICES = [
   { ...DISPATCH_DEVICES[8], projectId: 'hq', projectShortName: '指挥部' },
 ]
 
+const DISPATCH_AREA_SUFFIXES = ['基坑', '通道', '塔吊区', '加工区', '东门', '西门', '主体区']
+const DISPATCH_OPERATOR_PROFILES = [
+  { name: '张安全', role: '安全员' },
+  { name: '李巡检', role: '巡检员' },
+  { name: '王强', role: '施工员' },
+  { name: '赵军', role: '质量员' },
+  { name: '陈磊', role: '项目经理' },
+  { name: '刘芳', role: '人事专员' },
+  { name: '周强', role: '安监员' },
+  { name: '吴刚', role: '技术员' },
+]
+const DISPATCH_OPERATORS = DISPATCH_OPERATOR_PROFILES.map((item) => item.name)
+
+export function resolveDispatchOperatorRole(operator = '') {
+  return DISPATCH_OPERATOR_PROFILES.find((item) => item.name === operator)?.role || ''
+}
+
+export function formatDispatchOperatorLabel(device = {}) {
+  if (!device.operator) return ''
+  const role = device.operatorRole || resolveDispatchOperatorRole(device.operator)
+  return role ? `${device.operator} · ${role}` : device.operator
+}
+
+/** 监控列表 · 各项目巡检对讲设备（预设 + 按项目生成假数据） */
+export function getMonitorDispatchDevices(projectId, projectShortName = '') {
+  const preset = COMMAND_MEETING_DEVICES.filter((d) => d.projectId === projectId)
+  const seedNum = Number.parseInt(String(projectId).replace(/\D/g, ''), 10) || 0
+  const rand = seededRandom(seedNum + 317)
+  const label = projectShortName || getProjectShortName(projectId) || '项目'
+  const result = preset.map((item) => ({
+    ...item,
+    type: normalizeDispatchDeviceType(item.type),
+  }))
+
+  const handheldTarget = 5 + (seedNum % 4)
+  const appTarget = 2 + (seedNum % 2)
+  let mockIdx = 0
+
+  while (result.filter((d) => d.type === 'handheld').length < handheldTarget) {
+    const suffix = DISPATCH_AREA_SUFFIXES[(seedNum + mockIdx) % DISPATCH_AREA_SUFFIXES.length]
+    const id = `${projectId}-mock-dvh-${mockIdx}`
+    if (!result.some((d) => d.id === id)) {
+      const operator = DISPATCH_OPERATORS[(seedNum + mockIdx) % DISPATCH_OPERATORS.length]
+      result.push({
+        id,
+        name: `${label}${suffix}巡检终端`,
+        type: 'handheld',
+        category: '现场手持巡检设备',
+        online: rand() > 0.22,
+        operator,
+        operatorRole: resolveDispatchOperatorRole(operator),
+        projectId,
+        projectShortName: label,
+      })
+    }
+    mockIdx += 1
+  }
+
+  mockIdx = 0
+  while (result.filter((d) => isAppDispatchDevice(d.type)).length < appTarget) {
+    const id = `${projectId}-mock-dva-${mockIdx}`
+    if (!result.some((d) => d.id === id)) {
+      result.push({
+        id,
+        name: `${label}App对讲席${mockIdx + 1}`,
+        type: 'app',
+        category: 'App端视频对讲',
+        online: rand() > 0.15,
+        projectId,
+        projectShortName: label,
+      })
+    }
+    mockIdx += 1
+  }
+
+  return result
+}
+
 /** 根据巡检对讲设备与当前选中项目，解析项目调度页应展示的项目 */
 export function resolveDispatchProjectId(device, selectedProjectId = HQ_SELECTION_ID) {
   if (selectedProjectId && selectedProjectId !== HQ_SELECTION_ID) {
     return selectedProjectId
+  }
+  if (device?.projectId && device.projectId !== HQ_SELECTION_ID) {
+    return device.projectId
   }
   const mapped = COMMAND_MEETING_DEVICES.find((item) => item.id === device?.id)
   if (mapped?.projectId && mapped.projectId !== HQ_SELECTION_ID) {
@@ -733,7 +849,7 @@ export const COMMAND_MEETING_HISTORY = [
     title: 'COC每日调度指挥会议',
     startTime: '2026-06-16 09:30',
     duration: '35分钟',
-    host: '调度值班',
+    host: 'COC调度室',
     joinedCount: 6,
     pendingCount: 3,
     summary: '围绕捷运线延长段、塔吊作业区等重点部位开展视频调度，确认隐患整改节点。',
@@ -763,7 +879,7 @@ export const COMMAND_MEETING_HISTORY = [
     title: '捷运线延长段周调度会',
     startTime: '2026-06-13 09:00',
     duration: '32分钟',
-    host: '调度值班',
+    host: 'COC调度室',
     joinedCount: 8,
     pendingCount: 2,
     summary: '通报捷运线延长段本周施工进度及临边防护整改情况。',
@@ -783,7 +899,7 @@ export const COMMAND_MEETING_HISTORY = [
     title: 'COC每日调度指挥会议',
     startTime: '2026-06-11 09:30',
     duration: '38分钟',
-    host: '调度值班',
+    host: 'COC调度室',
     joinedCount: 6,
     pendingCount: 3,
     summary: '汇总各标段隐患整改进度，明确当日重点盯控部位。',
@@ -813,7 +929,7 @@ export const COMMAND_MEETING_HISTORY = [
     title: 'COC每日调度指挥会议',
     startTime: '2026-06-06 09:30',
     duration: '36分钟',
-    host: '调度值班',
+    host: 'COC调度室',
     joinedCount: 7,
     pendingCount: 2,
     summary: '端午节前后施工安排及值班值守情况视频核查。',
@@ -843,7 +959,7 @@ export const COMMAND_MEETING_HISTORY = [
     title: 'COC每日调度指挥会议',
     startTime: '2026-05-28 09:30',
     duration: '33分钟',
-    host: '调度值班',
+    host: 'COC调度室',
     joinedCount: 6,
     pendingCount: 3,
     summary: '五月末各标段隐患清零情况汇总及六月部署。',
@@ -883,7 +999,7 @@ export const COMMAND_MEETING_HISTORY = [
     title: 'COC每日调度指挥会议',
     startTime: '2026-05-15 09:30',
     duration: '34分钟',
-    host: '调度值班',
+    host: 'COC调度室',
     joinedCount: 6,
     pendingCount: 4,
     summary: '五月半月各项目安全质量态势分析及重点督办。',
@@ -961,18 +1077,30 @@ export function buildPenaltyDraft(device) {
     date: new Date().toISOString().slice(0, 10),
     status: 'draft',
     aiGenerated: true,
-    content: `根据 ${label} 视频对讲及 AI 识别记录，汇总如下问题：
+    penaltyReason: `${label} 现场文明施工违规`,
+    penaltyContent:
+      '基坑周边临边防护缺失，塔吊作业区警戒标识不足；钢筋绑扎间距偏差超标，混凝土养护时间不足。请责任单位限期整改并上传闭环材料。',
+    amount: '5000 元',
+    unit: '中建三局（捷运线施工总承包）',
+  }
+}
 
-一、安全隐患
-1. 基坑周边临边防护缺失（较大），要求今日内完成加固；
-2. 塔吊作业区警戒标识不足（重大），限期 24 小时内整改并上传闭环照片。
-
-二、质量问题
-1. 钢筋绑扎间距偏差超标，须组织复检并提交复检报告；
-2. 混凝土养护时间不足，按规范补足养护措施。
-
-三、处理要求
-请责任单位中建三局于 2026-06-18 前完成整改。调度值班确认内容后下发至项目。`,
+export function buildReminderDraft(device) {
+  const name = typeof device === 'string' ? device : device.name
+  const category = typeof device === 'string' ? '' : (device.category || '')
+  const label = category ? `${name}（${category}）` : name
+  const d = new Date()
+  d.setDate(d.getDate() + 7)
+  return {
+    id: `reminder-${Date.now()}`,
+    title: '巡检对讲提示函（草稿）',
+    project: getProjectShortName('T2航站区及配套设施工程空侧捷运线(延长段)项目'),
+    status: 'draft',
+    aiGenerated: true,
+    matterDescription: `根据 ${label} 现场巡检情况，请限期落实临边防护与警示标识复查，并反馈闭环情况。`,
+    assignee: '项目经理',
+    executor: '项目经理',
+    deadline: d.toISOString().slice(0, 10),
   }
 }
 
@@ -982,21 +1110,12 @@ export function buildSamplingNoticeDraft(device) {
   const label = category ? `${name}（${category}）` : name
   return {
     id: `notice-${Date.now()}`,
-    title: '现场抽检告知单（AI草稿）',
+    title: '现场抽检任务单（AI草稿）',
+    project: getProjectShortName('T2航站区及配套设施工程空侧捷运线(延长段)项目'),
     status: 'draft',
     aiGenerated: true,
-    content: `根据 ${label} 现场抽检视频对讲记录，AI 汇总如下告知事项：
-
-一、质量验评
-1 项分部分项验收未通过，须组织复检并提交复检报告。
-
-二、特种人员
-2 名特种作业人员证件即将过期，须于 7 日内完成换证并上传凭证。
-
-三、特种设备
-1 台塔吊未接入安全监测，须 3 日内完成接入并反馈联调结果。
-
-请责任单位签收告知单，按要求整改并于 2026-06-18 前反馈闭环情况。`,
+    workType: '质量复检',
+    workRequirement: `根据 ${label} 现场抽检视频对讲记录，1 项分部分项验收未通过须组织复检；2 名特种作业人员证件即将过期须 7 日内换证；1 台塔吊未接入安全监测须 3 日内完成接入。`,
   }
 }
 
@@ -1046,6 +1165,13 @@ export const PROJECT_RED_BLACK_LIST = {
       fullName: 'T2航站区及配套设施工程飞行区5、6号下穿通道工程',
       description: '隐患排查闭环及时，周检整改率连续四周达100%。',
       imageHue: 130,
+    },
+    {
+      id: 'red-4',
+      shortName: '东北站坪软基',
+      fullName: '深圳机场东北站坪软基处理工程',
+      description: '软基处理工序衔接顺畅，监测数据均在控制范围内。',
+      imageHue: 150,
     },
   ],
   black: [
@@ -1208,21 +1334,43 @@ export function getProjectInspectionStats(projectId) {
   }
 }
 
-export const DISPATCH_CURRENT_USER = '调度值班'
+export const DISPATCH_CURRENT_USER = 'COC调度室'
 
 const DISPATCH_DOC_PENDING_STATUSES = ['待确认', '处理中', '待签收']
 
 export const DISPATCH_DOC_TICKET_LIST = [
-  { id: 'pt-01', title: '临边防护缺失限期整改通知', status: '待确认', handler: '调度值班', issuer: '安监部', time: '2026-06-12 10:12', docType: '告知单' },
-  { id: 'pt-02', title: '塔吊警戒标识不足处罚单', status: '已下发', handler: '工程管理部', issuer: '调度值班', time: '2026-06-12 10:15', docType: '处罚单' },
-  { id: 'pt-03', title: '钢筋绑扎复检通知', status: '处理中', handler: '调度值班', issuer: '质量部', time: '2026-06-12 10:18', docType: '告知单' },
-  { id: 'pt-04', title: '混凝土养护措施补充通知', status: '待确认', handler: '质量部', issuer: '调度值班', time: '2026-06-12 10:20', docType: '告知单' },
-  { id: 'pt-05', title: '文明施工违规处罚单', status: '处理中', handler: '调度值班', issuer: '工程管理部', time: '2026-06-11 16:40', docType: '处罚单' },
-  { id: 'pt-06', title: '高处作业违规处罚单', status: '已下发', handler: '安监部', issuer: '调度值班', time: '2026-06-10 11:05', docType: '处罚单' },
-  { id: 'pt-07', title: '现场抽检告知单', status: '待签收', handler: '调度值班', issuer: '质量部', time: '2026-06-15 10:20', docType: '告知单', ccUsers: ['工程管理部'] },
-  { id: 'pt-08', title: '复检通知告知单', status: '已下发', handler: '工程管理部', issuer: '安监部', time: '2026-06-14 14:00', docType: '告知单', ccUsers: ['调度值班'] },
-  { id: 'pt-09', title: '临边防护整改告知单', status: '已闭环', handler: '质量部', issuer: '调度值班', time: '2026-06-12 10:18', docType: '告知单' },
-  { id: 'pt-10', title: '动火作业许可处罚单', status: '待确认', handler: '调度值班', issuer: '调度值班', time: '2026-06-13 09:30', docType: '处罚单' },
+  { id: 'pt-01', title: '临边防护缺失限期整改通知', status: '待确认', handler: 'COC调度室', issuer: '安监部', time: '2026-06-12 10:12', docType: '任务单' },
+  { id: 'pt-02', title: '塔吊警戒标识不足处罚单', status: '已下发', handler: '工程管理部', issuer: 'COC调度室', time: '2026-06-12 10:15', docType: '处罚单' },
+  { id: 'pt-03', title: '钢筋绑扎复检通知', status: '处理中', handler: 'COC调度室', issuer: '质量部', time: '2026-06-12 10:18', docType: '任务单' },
+  { id: 'pt-04', title: '混凝土养护措施补充通知', status: '待确认', handler: '质量部', issuer: 'COC调度室', time: '2026-06-12 10:20', docType: '任务单' },
+  { id: 'pt-05', title: '文明施工违规处罚单', status: '处理中', handler: 'COC调度室', issuer: '工程管理部', time: '2026-06-11 16:40', docType: '处罚单' },
+  { id: 'pt-06', title: '高处作业违规处罚单', status: '已下发', handler: '安监部', issuer: 'COC调度室', time: '2026-06-10 11:05', docType: '处罚单' },
+  { id: 'pt-07', title: '现场抽检任务单', status: '待签收', handler: 'COC调度室', issuer: '质量部', time: '2026-06-15 10:20', docType: '任务单', ccUsers: ['工程管理部'] },
+  { id: 'pt-08', title: '复检通知任务单', status: '已下发', handler: '工程管理部', issuer: '安监部', time: '2026-06-14 14:00', docType: '任务单', ccUsers: ['COC调度室'] },
+  { id: 'pt-09', title: '临边防护整改任务单', status: '已闭环', handler: '质量部', issuer: 'COC调度室', time: '2026-06-12 10:18', docType: '任务单' },
+  {
+    id: 'pt-10a',
+    title: '临边防护复查提示函',
+    matterDescription: '塔吊作业区临边防护与警示标识需限期复查，请项目经理组织落实并反馈。',
+    status: '待确认',
+    handler: '项目经理',
+    issuer: 'COC调度室',
+    time: '2026-06-13 09:10',
+    docType: '提示函',
+    executor: '项目经理',
+  },
+  { id: 'pt-10', title: '动火作业许可处罚单', status: '待确认', handler: 'COC调度室', issuer: 'COC调度室', time: '2026-06-13 09:30', docType: '处罚单' },
+  {
+    id: 'pt-11',
+    title: '特种作业证件换证提示函',
+    matterDescription: '2 名特种作业人员证件即将过期，请 7 日内完成换证并上传闭环材料。',
+    status: '已下发',
+    handler: '项目经理',
+    issuer: '质量部',
+    time: '2026-06-14 15:20',
+    docType: '提示函',
+    executor: '项目经理',
+  },
 ]
 
 /** @deprecated 使用 DISPATCH_DOC_TICKET_LIST */
@@ -1272,9 +1420,21 @@ function withHazardDetail(item, type) {
   }
 }
 
-const HAZARD_LEVELS = ['一般', '较大', '重大']
+export const HAZARD_LEVELS = ['一般', '较大', '重大']
 const HAZARD_STATUSES = ['待整改', '整改中', '已闭合']
 export const HAZARD_REPORTERS = ['张安全', '李巡检', '王强', '赵军', '陈磊', '刘洋', '周质量', '吴检', '郑伟', '孙涛', '钱鹏', '马检']
+
+export const TASK_WORK_TYPES = ['安全', '质量', '综合']
+export const TASK_WORK_SOURCES = ['实时监控', '视频回放', '调度会议', '视频截屏']
+export const TASK_EXECUTE_DEPARTMENTS = ['安监部', '质量部', '工程管理部', 'COC调度室', '责任单位']
+export const TASK_LEDGER_HANDLING_OPTIONS = ['纳入任务单台账', '同步隐患台账', '仅问题截图存档']
+
+export const PENALTY_CLAUSE_OPTIONS = [
+  '《建设工程施工合同》违约处罚条款',
+  '《安全生产责任制》考核条款',
+  '《文明施工管理办法》处罚条款',
+  '指挥部调度会决议处罚条款',
+]
 
 const SAFETY_DESC_TEMPLATES = [
   '基坑周边临边防护缺失', '塔吊作业区警戒标识不足', '加工场消防器材过期', '高处作业未系安全带',
@@ -1689,7 +1849,7 @@ export const MAJOR_PROJECT_RING_SEGMENTS = [
 
 export const WORK_PERMIT_LIST = [
   { id: 'wp-01', title: '捷运线延长段一级动火作业许可', status: '已许可', handler: '工程管理部', time: '2026-06-12 08:15' },
-  { id: 'wp-02', title: '深基坑开挖作业电子许可', status: '已许可', handler: '调度值班', time: '2026-06-12 07:40' },
+  { id: 'wp-02', title: '深基坑开挖作业电子许可', status: '已许可', handler: 'COC调度室', time: '2026-06-12 07:40' },
   { id: 'wp-03', title: '夜间混凝土浇筑作业许可', status: '待确认', handler: '安监部', time: '2026-06-12 16:20' },
   { id: 'wp-04', title: '3号塔吊安拆条件确认许可', status: '已许可', handler: '工程管理部', time: '2026-06-11 17:00' },
   { id: 'wp-05', title: '飞行区通道暗挖开工许可', status: '处理中', handler: '质量部', time: '2026-06-12 09:30' },
@@ -1934,6 +2094,103 @@ export function getProjectManagementPersonnel(projectId) {
 
 export function getProjectQualityEvalRisks(projectId) {
   return filterByProjectId(QUALITY_EVAL_RISK_LIST, projectId)
+}
+
+const PERSONNEL_RISK_LEVELS = { 高: 0, 中: 1, 低: 2 }
+
+/** 人员风险核验：基于实名制、安全教育、特种作业等数据分析风险项 */
+export function getProjectPersonnelRiskItems(projectId) {
+  const people = filterByProjectId(SPECIAL_PERSONNEL_LIST, projectId)
+  const risks = []
+
+  people.forEach((person) => {
+    const seq = person.seq ?? 0
+    if (person.certStatus === '已过期') {
+      risks.push({
+        id: `prk-${person.id}-expired`,
+        projectId,
+        personName: person.name,
+        workType: person.workType,
+        riskType: '特种作业',
+        level: '高',
+        date: hazardDate(seq % 14),
+        source: '实名制·证件核验',
+        desc: `${person.workType}操作证已过期，系统判定禁止上岗`,
+      })
+    } else if (person.certStatus === '即将过期') {
+      risks.push({
+        id: `prk-${person.id}-warn`,
+        projectId,
+        personName: person.name,
+        workType: person.workType,
+        riskType: '特种作业',
+        level: '中',
+        date: hazardDate(seq % 14),
+        source: '实名制·证件核验',
+        desc: `${person.workType}操作证 30 日内到期，需完成续证`,
+      })
+    }
+
+    if (seq % 9 === 0) {
+      risks.push({
+        id: `prk-${person.id}-train`,
+        projectId,
+        personName: person.name,
+        workType: person.workType,
+        riskType: '安全教育',
+        level: seq % 18 === 0 ? '高' : '中',
+        date: hazardDate((seq + 3) % 14),
+        source: '实名制·培训记录',
+        desc: '未参加本月入场/专项安全教育，培训记录缺失',
+      })
+    }
+
+    if (seq % 11 === 0) {
+      risks.push({
+        id: `prk-${person.id}-work`,
+        projectId,
+        personName: person.name,
+        workType: person.workType,
+        riskType: '特种作业',
+        level: '中',
+        date: hazardDate((seq + 1) % 14),
+        source: '实名制·作业登记',
+        desc: '现场作业类型与实名制登记工种不一致',
+      })
+    }
+
+    if (!person.onDuty && seq % 7 === 0) {
+      risks.push({
+        id: `prk-${person.id}-duty`,
+        projectId,
+        personName: person.name,
+        workType: person.workType,
+        riskType: '在岗核验',
+        level: '低',
+        date: hazardDate((seq + 2) % 14),
+        source: '实名制·考勤数据',
+        desc: '考勤显示离岗，但视频监控识别到同区域作业',
+      })
+    }
+
+    if (seq % 15 === 0) {
+      risks.push({
+        id: `prk-${person.id}-realname`,
+        projectId,
+        personName: person.name,
+        workType: person.workType,
+        riskType: '实名制',
+        level: '高',
+        date: hazardDate((seq + 4) % 14),
+        source: '实名制·人证比对',
+        desc: '人脸识别与实名制登记信息不一致，需复核',
+      })
+    }
+  })
+
+  return risks.sort(
+    (a, b) => (PERSONNEL_RISK_LEVELS[a.level] ?? 9) - (PERSONNEL_RISK_LEVELS[b.level] ?? 9),
+  )
 }
 
 export function getProjectBrandSupplierStats(projectId) {

@@ -1,122 +1,169 @@
 <script setup>
-import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
-import { Search, Refresh } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ref, computed, watch } from 'vue'
+import { Search, Refresh, Plus } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { getProjectSelectOptions } from '../../mock/projectBasicInfo'
 import {
   subcontractorList,
-  subcontractorStatusOptions,
-  creditLevelOptions,
-  entryStatusTagClass,
-  creditLevelTagClass,
+  createEmptyParticipantUnit,
+  cloneParticipantUnit,
 } from '../../mock/subcontractorManagement'
 
-const router = useRouter()
+const projectOptions = computed(() => getProjectSelectOptions())
 
 const filters = ref({
+  projectId: projectOptions.value[0]?.id || '',
   name: '',
-  projectName: '',
-  entryStatus: '',
-  creditLevel: '',
 })
 
-const syncing = ref(false)
+watch(
+  projectOptions,
+  (options) => {
+    if (!options.length) {
+      filters.value.projectId = ''
+      return
+    }
+    if (!options.some((item) => item.id === filters.value.projectId)) {
+      filters.value.projectId = options[0].id
+    }
+  },
+  { immediate: true },
+)
+
+const dialogVisible = ref(false)
+const formMode = ref('create')
+const formModel = ref(null)
 
 const filteredList = computed(() => {
   return subcontractorList.filter((row) => {
+    if (filters.value.projectId && row.projectId !== filters.value.projectId) return false
     if (filters.value.name) {
       const kw = filters.value.name.trim()
       if (!row.name.includes(kw) && !row.shortName.includes(kw)) return false
     }
-    if (filters.value.projectName && !row.projectName.includes(filters.value.projectName.trim())) {
-      return false
-    }
-    if (filters.value.entryStatus && row.entryStatus !== filters.value.entryStatus) return false
-    if (filters.value.creditLevel && row.creditLevel !== filters.value.creditLevel) return false
     return true
   })
 })
 
-const stats = computed(() => ({
-  total: subcontractorList.length,
-  onSite: subcontractorList.filter((r) => r.entryStatus === '在场').length,
-  exiting: subcontractorList.filter((r) => r.entryStatus === '退场中').length,
-  avgScore: Math.round(
-    subcontractorList.reduce((sum, r) => sum + r.creditScore, 0) / subcontractorList.length,
-  ),
-}))
+const currentProjectName = computed(
+  () => projectOptions.value.find((p) => p.id === filters.value.projectId)?.name || '—',
+)
+
+const dialogTitle = computed(() => {
+  if (formMode.value === 'create') return '新增分包单位'
+  return formModel.value?.name ? `编辑 · ${formModel.value.name}` : '编辑分包单位'
+})
 
 function handleReset() {
-  filters.value = { name: '', projectName: '', entryStatus: '', creditLevel: '' }
+  filters.value = {
+    projectId: projectOptions.value[0]?.id || '',
+    name: '',
+  }
 }
 
-async function handleSync() {
-  syncing.value = true
-  await new Promise((resolve) => setTimeout(resolve, 800))
-  syncing.value = false
-  ElMessage.success('已同步一期供应商库基础信息')
+function resolveProjectName(projectId) {
+  return projectOptions.value.find((item) => item.id === projectId)?.name || ''
 }
 
-function openDetail(row) {
-  router.push({ name: 'SubcontractorDetail', params: { id: row.id } })
+function openCreate() {
+  const projectId = filters.value.projectId || projectOptions.value[0]?.id || ''
+  formMode.value = 'create'
+  formModel.value = createEmptyParticipantUnit(projectId, resolveProjectName(projectId))
+  dialogVisible.value = true
+}
+
+function openEdit(row) {
+  const source = subcontractorList.find((item) => item.id === row.id)
+  if (!source) return
+  formMode.value = 'edit'
+  formModel.value = cloneParticipantUnit(source)
+  dialogVisible.value = true
+}
+
+function onFormProjectChange(projectId) {
+  if (!formModel.value) return
+  formModel.value.projectId = projectId
+  formModel.value.projectName = resolveProjectName(projectId)
+}
+
+function handleSave() {
+  const data = formModel.value
+  if (!data?.projectId) {
+    ElMessage.warning('请选择所属项目')
+    return
+  }
+  if (!data.name?.trim()) {
+    ElMessage.warning('请填写分包单位名称')
+    return
+  }
+
+  data.name = data.name.trim()
+  data.shortName = data.shortName?.trim() || data.name.slice(0, 8)
+  data.projectName = resolveProjectName(data.projectId)
+
+  if (formMode.value === 'create') {
+    subcontractorList.unshift({ ...data })
+    ElMessage.success('新增成功')
+  } else {
+    const index = subcontractorList.findIndex((item) => item.id === data.id)
+    if (index === -1) {
+      ElMessage.error('未找到要编辑的记录')
+      return
+    }
+    Object.assign(subcontractorList[index], data)
+    ElMessage.success('保存成功')
+  }
+
+  dialogVisible.value = false
+  formModel.value = null
+}
+
+async function handleDelete(row) {
+  try {
+    await ElMessageBox.confirm(`确定删除「${row.name}」吗？`, '删除确认', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+    })
+    const index = subcontractorList.findIndex((item) => item.id === row.id)
+    if (index === -1) return
+    subcontractorList.splice(index, 1)
+    ElMessage.success('已删除')
+  } catch {
+    /* cancelled */
+  }
 }
 </script>
 
 <template>
   <div class="sub-page page-card">
     <div class="page-header">
-      <div class="page-breadcrumb">基础数据管理 / 项目管理 / 分包单位管理</div>
+      <div class="page-breadcrumb">基础数据管理 / 分包单位管理</div>
       <div class="page-heading">
         <div class="title-block">
           <h1 class="page-title">分包单位管理</h1>
-          <span class="level-tag">指挥部层级</span>
+          <span class="level-tag">按项目登记</span>
         </div>
-        <div class="page-actions">
-          <el-button :icon="Refresh" :loading="syncing" @click="handleSync">同步一期供应商库</el-button>
-        </div>
-      </div>
-    </div>
-
-    <div class="stats-row">
-      <div class="stat-card">
-        <span class="stat-label">分包单位总数</span>
-        <span class="stat-value">{{ stats.total }}</span>
-      </div>
-      <div class="stat-card">
-        <span class="stat-label">在场单位</span>
-        <span class="stat-value">{{ stats.onSite }}</span>
-      </div>
-      <div class="stat-card">
-        <span class="stat-label">退场中</span>
-        <span class="stat-value">{{ stats.exiting }}</span>
-      </div>
-      <div class="stat-card">
-        <span class="stat-label">平均信用分</span>
-        <span class="stat-value">{{ stats.avgScore }}</span>
+        <el-button class="ap-btn-primary" type="primary" :icon="Plus" @click="openCreate">新增</el-button>
       </div>
     </div>
 
     <div class="filter-bar">
       <div class="filter-row">
         <div class="filter-item">
-          <label>分包单位</label>
-          <el-input v-model="filters.name" placeholder="单位名称/简称" clearable style="width: 180px" />
-        </div>
-        <div class="filter-item">
           <label>所属项目</label>
-          <el-input v-model="filters.projectName" placeholder="项目名称" clearable style="width: 200px" />
-        </div>
-        <div class="filter-item">
-          <label>进场状态</label>
-          <el-select v-model="filters.entryStatus" placeholder="全部" clearable style="width: 120px">
-            <el-option v-for="opt in subcontractorStatusOptions" :key="opt" :label="opt" :value="opt" />
+          <el-select v-model="filters.projectId" filterable style="width: 320px">
+            <el-option
+              v-for="opt in projectOptions"
+              :key="opt.id"
+              :label="opt.name"
+              :value="opt.id"
+            />
           </el-select>
         </div>
         <div class="filter-item">
-          <label>信用等级</label>
-          <el-select v-model="filters.creditLevel" placeholder="全部" clearable style="width: 100px">
-            <el-option v-for="opt in creditLevelOptions" :key="opt" :label="opt" :value="opt" />
-          </el-select>
+          <label>分包单位</label>
+          <el-input v-model="filters.name" placeholder="单位名称/简称" clearable style="width: 200px" />
         </div>
         <div class="filter-actions">
           <el-button class="ap-btn-primary" type="primary" :icon="Search">查询</el-button>
@@ -126,37 +173,142 @@ function openDetail(row) {
     </div>
 
     <div class="table-section">
-      <div class="table-summary">共 {{ filteredList.length }} 家分包单位</div>
+      <div class="table-summary">
+        {{ currentProjectName }} · 共 {{ filteredList.length }} 家分包单位
+      </div>
       <el-table :data="filteredList" border stripe class="ap-table">
-        <el-table-column type="index" label="序号" width="60" align="center" />
-        <el-table-column prop="shortName" label="单位简称" width="100" show-overflow-tooltip />
+        <el-table-column type="index" label="序号" width="56" align="center" />
         <el-table-column prop="name" label="分包单位名称" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="projectName" label="所属项目" min-width="180" show-overflow-tooltip />
-        <el-table-column prop="contractScope" label="合同范围" min-width="180" show-overflow-tooltip />
-        <el-table-column label="进场状态" width="90" align="center">
+        <el-table-column prop="safetyLicenseNo" label="安全生产许可证编号" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="safetyLicenseExpiry" label="许可证有效期" width="120" />
+        <el-table-column prop="projectManagerContact" label="项目负责人" min-width="160" show-overflow-tooltip />
+        <el-table-column prop="safetyManagerContact" label="安全管理人员" min-width="160" show-overflow-tooltip />
+        <el-table-column label="操作" width="120" fixed="right" align="center">
           <template #default="{ row }">
-            <span class="ap-status-tag" :class="entryStatusTagClass(row.entryStatus)">{{ row.entryStatus }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="violationCount" label="违规单" width="80" align="center" />
-        <el-table-column prop="rectificationCount" label="整改单" width="80" align="center" />
-        <el-table-column label="进度完成率" width="110" align="center">
-          <template #default="{ row }">{{ row.progressRate }}%</template>
-        </el-table-column>
-        <el-table-column label="信用评分" width="100" align="center">
-          <template #default="{ row }">
-            <span>{{ row.creditScore }}</span>
-            <span class="ap-status-tag credit-tag" :class="creditLevelTagClass(row.creditLevel)">{{ row.creditLevel }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="syncTime" label="最近同步" width="150" />
-        <el-table-column label="操作" width="100" fixed="right" align="center">
-          <template #default="{ row }">
-            <el-button link type="primary" @click="openDetail(row)">查看详情</el-button>
+            <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
+            <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
     </div>
+
+    <el-dialog
+      v-model="dialogVisible"
+      :title="dialogTitle"
+      width="1080px"
+      destroy-on-close
+      class="participant-dialog"
+    >
+      <el-form v-if="formModel" :model="formModel" label-width="168px" class="register-form">
+        <el-row :gutter="16">
+          <el-col :span="24">
+            <el-form-item label="所属项目" required>
+              <el-select
+                :model-value="formModel.projectId"
+                filterable
+                style="width: 100%"
+                @update:model-value="onFormProjectChange"
+              >
+                <el-option
+                  v-for="opt in projectOptions"
+                  :key="opt.id"
+                  :label="opt.name"
+                  :value="opt.id"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="分包单位名称" required>
+              <el-input v-model="formModel.name" placeholder="单位全称" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="单位简称">
+              <el-input v-model="formModel.shortName" placeholder="可选" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <div class="section-title">安全生产许可</div>
+
+        <el-row :gutter="16">
+          <el-col :span="8">
+            <el-form-item label="单位安全生产许可证编号">
+              <el-input v-model="formModel.safetyLicenseNo" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="安全生产许可证有效期">
+              <el-date-picker
+                v-model="formModel.safetyLicenseExpiry"
+                type="date"
+                value-format="YYYY-MM-DD"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="安全生产许可证照片">
+              <el-input v-model="formModel.safetyLicensePhoto" placeholder="附件名称" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <div class="section-title">现场管理人员</div>
+
+        <el-row :gutter="16">
+          <el-col :span="8">
+            <el-form-item label="项目负责人姓名及电话">
+              <el-input v-model="formModel.projectManagerContact" placeholder="姓名 / 电话" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="安全管理人员姓名及电话">
+              <el-input v-model="formModel.safetyManagerContact" placeholder="姓名 / 电话" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="安全管理人员姓名及电话">
+              <el-input v-model="formModel.safetyManagerContact2" placeholder="姓名 / 电话" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <div
+          v-for="idx in 3"
+          :key="`qual-${idx}`"
+          class="qual-block"
+        >
+          <div class="section-title">资质证书 {{ idx }}</div>
+          <el-row :gutter="16">
+            <el-col :span="8">
+              <el-form-item label="资质证书">
+                <el-input v-model="formModel.qualifications[idx - 1].name" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="8">
+              <el-form-item label="证书编号">
+                <el-input v-model="formModel.qualifications[idx - 1].certNo" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="8">
+              <el-form-item label="资质证书照片">
+                <el-input v-model="formModel.qualifications[idx - 1].photo" placeholder="附件名称" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+        </div>
+      </el-form>
+
+      <template #footer>
+        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button class="ap-btn-primary" type="primary" @click="handleSave">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -204,34 +356,6 @@ function openDetail(row) {
   border: 1px solid rgba(143, 0, 69, 0.15);
 }
 
-.stats-row {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.stat-card {
-  border: 1px solid var(--ap-border);
-  border-radius: 8px;
-  background: #fff;
-  padding: 14px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.stat-label {
-  font-size: 13px;
-  color: var(--ap-text-muted);
-}
-
-.stat-value {
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--ap-primary);
-}
-
 .filter-bar {
   border: 1px solid var(--ap-border);
   border-radius: 8px;
@@ -269,6 +393,7 @@ function openDetail(row) {
   border-radius: 8px;
   background: #fff;
   padding: 16px 20px 20px;
+  overflow: auto;
 }
 
 .table-summary {
@@ -277,9 +402,20 @@ function openDetail(row) {
   color: var(--ap-text-secondary);
 }
 
-.credit-tag {
-  margin-left: 4px;
-  padding: 0 6px;
-  font-size: 11px;
+.register-form :deep(.el-form-item) {
+  margin-bottom: 14px;
+}
+
+.section-title {
+  margin: 8px 0 14px;
+  padding-left: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ap-text);
+  border-left: 3px solid var(--ap-primary);
+}
+
+.qual-block + .qual-block {
+  margin-top: 4px;
 }
 </style>

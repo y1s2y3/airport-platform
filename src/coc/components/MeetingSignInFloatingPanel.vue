@@ -1,7 +1,8 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { UserFilled } from '@element-plus/icons-vue'
-import { HQ_SELECTION_ID, getProjectShortName, buildHqMeetingPersonnel } from '../mock/data.js'
+import { useSignInFloatingPanel } from '../composables/useMeetingAiSession.js'
+import { HQ_SELECTION_ID, getProjectShortName } from '../mock/data.js'
 import MeetingRegistration from './MeetingRegistration.vue'
 
 const props = defineProps({
@@ -12,21 +13,43 @@ const props = defineProps({
 
 const emit = defineEmits(['project-change'])
 
-const panelExpanded = ref(true)
+const { panelExpanded, togglePanel } = useSignInFloatingPanel()
 
 const isHqMode = computed(() => props.selectedProjectId === HQ_SELECTION_ID)
+const signInProjectId = ref('')
 
 /** 与项目列表一致：按状态筛选，当前选中项目始终保留在下拉中 */
 const selectableProjects = computed(() => {
   let list = props.projects.filter((p) => props.statusFilters.includes(p.status))
-  if (!isHqMode.value) {
-    const selected = props.projects.find((p) => p.id === props.selectedProjectId)
+  const activeId = isHqMode.value ? signInProjectId.value : props.selectedProjectId
+  if (activeId) {
+    const selected = props.projects.find((p) => p.id === activeId)
     if (selected && !list.some((p) => p.id === selected.id)) {
       list = [selected, ...list]
     }
   }
   return list
 })
+
+watch(
+  [() => props.projects, () => props.statusFilters, isHqMode],
+  () => {
+    if (!isHqMode.value) return
+    const list = selectableProjects.value
+    if (!list.length) {
+      signInProjectId.value = ''
+      return
+    }
+    if (!list.some((p) => p.id === signInProjectId.value)) {
+      signInProjectId.value = list[0].id
+    }
+  },
+  { immediate: true },
+)
+
+const activeSignInProjectId = computed(() =>
+  isHqMode.value ? signInProjectId.value : props.selectedProjectId,
+)
 
 const projectOptions = computed(() =>
   selectableProjects.value.map((p) => ({
@@ -36,20 +59,17 @@ const projectOptions = computed(() =>
 )
 
 const meetingPersonnel = computed(() => {
-  if (isHqMode.value) {
-    return buildHqMeetingPersonnel(props.projects, props.statusFilters)
-  }
-  const project = props.projects.find((p) => p.id === props.selectedProjectId)
+  const project = props.projects.find((p) => p.id === activeSignInProjectId.value)
   return project?.personnel || []
 })
 
 function handleScopeSelect(id) {
-  if (!id || id === props.selectedProjectId) return
+  if (!id || id === activeSignInProjectId.value) return
+  if (isHqMode.value) {
+    signInProjectId.value = id
+    return
+  }
   emit('project-change', id)
-}
-
-function togglePanel(force) {
-  panelExpanded.value = typeof force === 'boolean' ? force : !panelExpanded.value
 }
 
 defineExpose({ togglePanel, panelExpanded })
@@ -78,27 +98,19 @@ defineExpose({ togglePanel, panelExpanded })
 
       <div class="panel-body sign-in-body">
         <el-select
-          :model-value="selectedProjectId"
+          :model-value="activeSignInProjectId"
           class="scope-select"
-          placeholder="请选择工程指挥部或项目"
+          placeholder="请选择项目"
           size="small"
           filterable
           @update:model-value="handleScopeSelect"
         >
-          <el-option :label="'工程指挥部'" :value="HQ_SELECTION_ID">
-            <div class="scope-option">
-              <span class="scope-option-label scope-option-hq">工程指挥部</span>
-              <span class="scope-option-sub">部门负责人 · 项目经理</span>
-            </div>
-          </el-option>
-          <el-option-group label="项目">
-            <el-option
-              v-for="opt in projectOptions"
-              :key="opt.value"
-              :label="opt.label"
-              :value="opt.value"
-            />
-          </el-option-group>
+          <el-option
+            v-for="opt in projectOptions"
+            :key="opt.value"
+            :label="opt.label"
+            :value="opt.value"
+          />
         </el-select>
 
         <MeetingRegistration embedded compact :personnel="meetingPersonnel" />
@@ -135,7 +147,7 @@ defineExpose({ togglePanel, panelExpanded })
 }
 
 .fab-label {
-  font-size: 9px;
+  font-size: calc(9px + var(--coc-font-boost));
   font-weight: 700;
   line-height: 1;
   transform: scale(0.92);
@@ -155,7 +167,7 @@ defineExpose({ togglePanel, panelExpanded })
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
   padding: 6px 12px;
   line-height: 1.2;
   flex-shrink: 0;
@@ -164,7 +176,7 @@ defineExpose({ togglePanel, panelExpanded })
 .collapse-btn {
   border: none;
   background: transparent;
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   font-weight: 600;
   color: var(--coc-text-secondary);
   cursor: pointer;
@@ -189,27 +201,6 @@ defineExpose({ togglePanel, panelExpanded })
 .scope-select {
   width: 100%;
   flex-shrink: 0;
-}
-
-.scope-option {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  width: 100%;
-}
-
-.scope-option-label {
-  font-weight: 600;
-}
-
-.scope-option-hq {
-  color: var(--coc-accent);
-}
-
-.scope-option-sub {
-  font-size: 11px;
-  color: var(--coc-text-muted);
 }
 
 .sign-in-body :deep(.meeting-registration-root) {

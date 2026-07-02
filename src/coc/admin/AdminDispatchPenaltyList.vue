@@ -1,14 +1,19 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Edit, CircleClose, Upload } from '@element-plus/icons-vue'
-import { buildProjects } from '../mock/data.js'
+import { Plus, Edit, CircleClose, Upload, Promotion, ChatLineRound } from '@element-plus/icons-vue'
+import {
+  buildProjects,
+} from '../mock/data.js'
 import {
   getDispatchPenaltyRecords,
   saveDispatchPenaltyRecord,
   voidDispatchPenaltyRecord,
+  issueDispatchPenaltyRecord,
+  submitPenaltyAppeal,
   markPenaltyBlackBoardSync,
   emptyPenaltyRecord,
+  normalizePenaltyRecord,
 } from '../utils/dispatchMeetingStorage.js'
 import {
   importPenaltyToBlackBoard,
@@ -33,17 +38,20 @@ const list = ref([])
 const detailVisible = ref(false)
 const formVisible = ref(false)
 const blackBoardVisible = ref(false)
+const appealVisible = ref(false)
 const formMode = ref('create')
 const current = ref(null)
+const appealTarget = ref(null)
+const appealForm = ref({
+  reason: '',
+  attachments: [],
+})
 const blackBoardTarget = ref(null)
 const blackBoardPeriodYear = ref(new Date().getFullYear())
 const blackBoardPeriodNo = ref(new Date().getMonth() + 1)
 const form = ref(emptyPenaltyRecord())
 
-const projectOptions = buildProjects().map((p) => ({
-  shortName: p.shortName || p.name,
-  fullName: p.name,
-}))
+const projectOptions = buildProjects().map((p) => p.shortName || p.name)
 
 const filtered = computed(() => {
   let rows = list.value
@@ -51,10 +59,14 @@ const filtered = computed(() => {
   const q = keyword.value.trim()
   if (!q) return rows
   return rows.filter((r) =>
-    [r.id, r.title, r.project, r.unit, r.handler, r.content]
+    [r.id, r.project, r.unit, r.penaltyReason, r.penaltyContent, r.penaltyClause, r.amount]
       .some((f) => String(f || '').includes(q)),
   )
 })
+
+function penaltyLabel(row) {
+  return row?.penaltyReason || row?.title || row?.id || '处罚单'
+}
 
 function load() {
   list.value = getDispatchPenaltyRecords()
@@ -76,22 +88,38 @@ function openEdit(row) {
     ElMessage.warning('已作废的处罚单不可编辑')
     return
   }
+  if (row.status === '申诉中') {
+    ElMessage.warning('申诉中的处罚单不可编辑')
+    return
+  }
   formMode.value = 'edit'
-  form.value = { ...emptyPenaltyRecord(), ...row }
+  form.value = normalizePenaltyRecord({ ...row })
   formVisible.value = true
 }
 
 function validateForm() {
-  if (!form.value.title?.trim()) {
-    ElMessage.warning('请填写标题')
-    return false
-  }
   if (!form.value.project?.trim()) {
-    ElMessage.warning('请填写项目')
+    ElMessage.warning('请填写项目名称')
     return false
   }
-  if (!form.value.content?.trim()) {
-    ElMessage.warning('请填写处罚内容')
+  if (!form.value.unit?.trim()) {
+    ElMessage.warning('请填写责任单位')
+    return false
+  }
+  if (!form.value.penaltyReason?.trim()) {
+    ElMessage.warning('请填写事由')
+    return false
+  }
+  if (!form.value.penaltyContent?.trim()) {
+    ElMessage.warning('请填写内容')
+    return false
+  }
+  if (!form.value.penaltyClause?.trim()) {
+    ElMessage.warning('请填写条款')
+    return false
+  }
+  if (!form.value.amount?.trim()) {
+    ElMessage.warning('请填写金额')
     return false
   }
   return true
@@ -107,7 +135,7 @@ function submitForm() {
 
 function handleVoid(row) {
   if (row.status === '已作废') return
-  ElMessageBox.confirm(`确定作废处罚单「${row.title}」？`, '作废确认', { type: 'warning' })
+  ElMessageBox.confirm(`确定作废处罚单「${penaltyLabel(row)}」？`, '作废确认', { type: 'warning' })
     .then(() => {
       voidDispatchPenaltyRecord(row.id)
       load()
@@ -116,9 +144,59 @@ function handleVoid(row) {
     .catch(() => {})
 }
 
+function handleIssue(row) {
+  if (row.status !== '待下发') return
+  ElMessageBox.confirm(`确定下发处罚单「${penaltyLabel(row)}」至责任单位？`, '下发确认', { type: 'info' })
+    .then(() => {
+      issueDispatchPenaltyRecord(row.id)
+      load()
+      ElMessage.success('处罚单已下发')
+    })
+    .catch(() => {})
+}
+
+function openAppeal(row) {
+  if (row.status !== '已下发') return
+  appealTarget.value = row
+  appealForm.value = { reason: '', attachments: [] }
+  appealVisible.value = true
+}
+
+function handleAppealUpload(uploadFile) {
+  appealForm.value.attachments.push({ name: uploadFile.name })
+  return false
+}
+
+function removeAppealAttachment(index) {
+  appealForm.value.attachments.splice(index, 1)
+}
+
+function submitAppeal() {
+  if (!appealForm.value.reason?.trim()) {
+    ElMessage.warning('请填写申诉理由')
+    return
+  }
+  if (!appealTarget.value) return
+  submitPenaltyAppeal(appealTarget.value.id, {
+    appealReason: appealForm.value.reason.trim(),
+    appealAttachments: appealForm.value.attachments.map((item) => ({ name: item.name })),
+  })
+  load()
+  appealVisible.value = false
+  ElMessage.success('申诉已提交，状态更新为申诉中')
+}
+
 function openBlackBoard(row) {
   if (row.status === '已作废') {
     ElMessage.warning('已作废的处罚单不可纳入黑榜')
+    return
+  }
+  if (row.status === '待下发') {
+    ElMessage.warning('请先下发处罚单后再纳入黑榜')
+    return
+  }
+  if (row.status === '申诉中') {
+    ElMessage.warning('申诉中的处罚单暂不可纳入黑榜')
     return
   }
   blackBoardTarget.value = row
@@ -144,6 +222,8 @@ function confirmBlackBoard() {
 function statusTagType(status) {
   if (status === '已作废') return 'info'
   if (status === '已下发') return 'success'
+  if (status === '待下发') return 'warning'
+  if (status === '申诉中') return 'warning'
   if (status === '处理中') return 'warning'
   if (status === '待确认') return 'info'
   return 'info'
@@ -158,12 +238,14 @@ onMounted(load)
       <span>{{ title }}</span>
       <div class="title-actions">
         <el-select v-model="statusFilter" placeholder="状态" clearable style="width: 120px">
+          <el-option label="待下发" value="待下发" />
           <el-option label="已下发" value="已下发" />
+          <el-option label="申诉中" value="申诉中" />
           <el-option label="处理中" value="处理中" />
           <el-option label="待确认" value="待确认" />
           <el-option label="已作废" value="已作废" />
         </el-select>
-        <el-input v-model="keyword" placeholder="搜索编号、项目、处理人…" clearable class="search-input" />
+        <el-input v-model="keyword" placeholder="搜索编号、项目、事由…" clearable class="search-input" />
         <el-button type="primary" :icon="Plus" @click="openCreate">新增</el-button>
       </div>
     </div>
@@ -172,11 +254,12 @@ onMounted(load)
       <el-table :data="filtered" stripe border empty-text="暂无处罚单记录">
         <el-table-column type="index" label="序号" width="56" />
         <el-table-column prop="id" label="编号" width="148" show-overflow-tooltip />
-        <el-table-column prop="title" label="标题" min-width="160" show-overflow-tooltip />
-        <el-table-column prop="project" label="项目" min-width="120" show-overflow-tooltip />
-        <el-table-column prop="unit" label="责任单位" min-width="160" show-overflow-tooltip />
-        <el-table-column prop="handler" label="处理人" width="108" />
-        <el-table-column prop="amount" label="处罚金额" width="96" />
+        <el-table-column prop="project" label="项目名称" min-width="120" show-overflow-tooltip />
+        <el-table-column prop="unit" label="责任单位" min-width="140" show-overflow-tooltip />
+        <el-table-column prop="penaltyReason" label="事由" min-width="140" show-overflow-tooltip />
+        <el-table-column prop="penaltyContent" label="内容" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="penaltyClause" label="条款" min-width="160" show-overflow-tooltip />
+        <el-table-column prop="amount" label="金额" width="96" />
         <el-table-column prop="issueTime" label="下发时间" width="148" />
         <el-table-column prop="status" label="状态" width="88">
           <template #default="{ row }">
@@ -191,17 +274,41 @@ onMounted(load)
             <span v-else class="muted">—</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="240" fixed="right">
+        <el-table-column label="操作" width="340" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openDetail(row)">详情</el-button>
-            <el-button link type="primary" :icon="Edit" :disabled="row.status === '已作废'" @click="openEdit(row)">
+            <el-button
+              v-if="row.status === '待下发'"
+              link
+              type="success"
+              :icon="Promotion"
+              @click="handleIssue(row)"
+            >
+              下发
+            </el-button>
+            <el-button
+              v-if="row.status === '已下发'"
+              link
+              type="warning"
+              :icon="ChatLineRound"
+              @click="openAppeal(row)"
+            >
+              申诉
+            </el-button>
+            <el-button
+              link
+              type="primary"
+              :icon="Edit"
+              :disabled="row.status === '已作废' || row.status === '申诉中'"
+              @click="openEdit(row)"
+            >
               编辑
             </el-button>
             <el-button
               link
               type="warning"
               :icon="Upload"
-              :disabled="row.status === '已作废'"
+              :disabled="row.status === '已作废' || row.status === '待下发' || row.status === '申诉中'"
               @click="openBlackBoard(row)"
             >
               纳入黑榜
@@ -222,42 +329,49 @@ onMounted(load)
 
     <el-dialog v-model="formVisible" :title="formMode === 'create' ? '新增处罚单' : '编辑处罚单'" width="640px" destroy-on-close>
       <el-form label-width="96px">
-        <el-form-item label="标题" required>
-          <el-input v-model="form.title" placeholder="如：文明施工违规处罚单" />
-        </el-form-item>
-        <el-form-item label="项目" required>
+        <el-form-item label="项目名称" required>
           <el-select
             v-model="form.project"
             filterable
             allow-create
             default-first-option
-            placeholder="选择或输入项目"
+            placeholder="选择或输入项目名称"
             style="width: 100%"
           >
-            <el-option v-for="item in projectOptions" :key="item.shortName" :label="item.shortName" :value="item.shortName" />
+            <el-option v-for="item in projectOptions" :key="item" :label="item" :value="item" />
           </el-select>
         </el-form-item>
-        <el-form-item label="责任单位">
-          <el-input v-model="form.unit" />
+        <el-form-item label="责任单位" required>
+          <el-input v-model="form.unit" placeholder="如：中建三局（施工总承包）" />
         </el-form-item>
-        <el-form-item label="处理人">
-          <el-input v-model="form.handler" />
+        <el-form-item label="事由" required>
+          <el-input v-model="form.penaltyReason" placeholder="如：塔吊作业区警戒标识不足" />
         </el-form-item>
-        <el-form-item label="处罚金额">
-          <el-input v-model="form.amount" placeholder="如 5000元 或 —" />
+        <el-form-item label="内容" required>
+          <el-input
+            v-model="form.penaltyContent"
+            type="textarea"
+            :rows="4"
+            placeholder="请描述处罚内容，将作为处罚单正文"
+          />
+        </el-form-item>
+        <el-form-item label="条款" required>
+          <el-input
+            v-model="form.penaltyClause"
+            placeholder="请输入处罚条款"
+          />
+        </el-form-item>
+        <el-form-item label="金额" required>
+          <el-input v-model="form.amount" placeholder="如 5000 元" />
         </el-form-item>
         <el-form-item label="状态">
           <el-select v-model="form.status" style="width: 100%">
+            <el-option label="待下发" value="待下发" />
             <el-option label="已下发" value="已下发" />
+            <el-option label="申诉中" value="申诉中" />
             <el-option label="处理中" value="处理中" />
             <el-option label="待确认" value="待确认" />
           </el-select>
-        </el-form-item>
-        <el-form-item label="来源">
-          <el-input v-model="form.source" />
-        </el-form-item>
-        <el-form-item label="处罚内容" required>
-          <el-input v-model="form.content" type="textarea" :rows="5" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -266,9 +380,41 @@ onMounted(load)
       </template>
     </el-dialog>
 
+    <el-dialog v-model="appealVisible" title="提交申诉" width="560px" destroy-on-close>
+      <p class="dialog-tip">
+        对处罚单「{{ penaltyLabel(appealTarget) }}」提出申诉，提交后状态将变为「申诉中」。
+      </p>
+      <el-form label-width="96px">
+        <el-form-item label="申诉理由" required>
+          <el-input
+            v-model="appealForm.reason"
+            type="textarea"
+            :rows="4"
+            placeholder="请说明申诉理由"
+          />
+        </el-form-item>
+        <el-form-item label="附件">
+          <el-upload :show-file-list="false" :before-upload="handleAppealUpload">
+            <el-button :icon="Upload">上传附件</el-button>
+          </el-upload>
+          <ul v-if="appealForm.attachments.length" class="attachment-list">
+            <li v-for="(file, index) in appealForm.attachments" :key="`${file.name}-${index}`">
+              <span>{{ file.name }}</span>
+              <el-button link type="danger" @click="removeAppealAttachment(index)">删除</el-button>
+            </li>
+          </ul>
+          <p v-else class="attachment-empty">可上传说明材料、整改照片等</p>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="appealVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitAppeal">提交申诉</el-button>
+      </template>
+    </el-dialog>
+
     <el-dialog v-model="blackBoardVisible" title="纳入黑榜" width="480px" destroy-on-close>
       <p class="dialog-tip">
-        将处罚单「{{ blackBoardTarget?.title }}」同步至黑红榜单，请选择纳入期数。
+        将处罚单「{{ penaltyLabel(blackBoardTarget) }}」同步至黑红榜单，请选择纳入期数。
       </p>
       <el-form label-width="96px">
         <el-form-item label="纳入期数" required>
@@ -281,9 +427,12 @@ onMounted(load)
         </el-form-item>
         <el-form-item label="同步说明">
           <div class="sync-preview">
-            <div>项目：{{ blackBoardTarget?.project }}</div>
-            <div>说明：{{ blackBoardTarget?.title }}</div>
-            <div v-if="blackBoardTarget?.snapshot">将携带视频截屏作为黑榜图片</div>
+            <div>项目：{{ blackBoardTarget?.project || '—' }}</div>
+            <div>责任单位：{{ blackBoardTarget?.unit || '—' }}</div>
+            <div>事由：{{ blackBoardTarget?.penaltyReason || blackBoardTarget?.title || '—' }}</div>
+            <div>内容：{{ blackBoardTarget?.penaltyContent || '—' }}</div>
+            <div>金额：{{ blackBoardTarget?.amount || '—' }}</div>
+            <div v-if="blackBoardTarget?.snapshot">将携带关联图片作为黑榜图片</div>
           </div>
         </el-form-item>
       </el-form>
@@ -300,13 +449,13 @@ onMounted(load)
           <el-descriptions-item label="状态">
             <el-tag :type="statusTagType(current.status)" size="small">{{ current.status }}</el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="标题" :span="2">{{ current.title }}</el-descriptions-item>
-          <el-descriptions-item label="项目">{{ current.project }}</el-descriptions-item>
-          <el-descriptions-item label="处罚金额">{{ current.amount || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="责任单位" :span="2">{{ current.unit }}</el-descriptions-item>
-          <el-descriptions-item label="处理人">{{ current.handler }}</el-descriptions-item>
+          <el-descriptions-item label="项目名称">{{ current.project || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="责任单位">{{ current.unit || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="事由" :span="2">{{ current.penaltyReason || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="内容" :span="2">{{ current.penaltyContent || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="条款" :span="2">{{ current.penaltyClause || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="金额">{{ current.amount || '—' }}</el-descriptions-item>
           <el-descriptions-item label="下发时间">{{ current.issueTime }}</el-descriptions-item>
-          <el-descriptions-item label="来源" :span="2">{{ current.source || '—' }}</el-descriptions-item>
           <el-descriptions-item v-if="current.blackBoardSynced" label="黑榜期数" :span="2">
             {{ formatRedBlackPeriod(current.blackBoardMonth) }}
           </el-descriptions-item>
@@ -315,9 +464,20 @@ onMounted(load)
           <div class="block-label">关联图片</div>
           <img :src="current.snapshot" alt="关联图片" class="snapshot-img" />
         </div>
-        <div class="content-block">
-          <div class="block-label">处罚内容</div>
-          <pre class="content-pre">{{ current.content }}</pre>
+        <div v-if="current.status === '申诉中' || current.appealReason" class="content-block appeal-block">
+          <div class="block-label">申诉信息</div>
+          <el-descriptions :column="1" border size="small">
+            <el-descriptions-item label="申诉时间">{{ current.appealTime || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="申诉理由">{{ current.appealReason || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="附件">
+              <template v-if="current.appealAttachments?.length">
+                <div v-for="file in current.appealAttachments" :key="file.name" class="attachment-item">
+                  {{ file.name }}
+                </div>
+              </template>
+              <span v-else>—</span>
+            </el-descriptions-item>
+          </el-descriptions>
         </div>
       </template>
     </el-dialog>
@@ -407,18 +567,6 @@ onMounted(load)
   margin-bottom: 8px;
 }
 
-.content-pre {
-  margin: 0;
-  padding: 12px 14px;
-  border: 1px solid var(--coc-border);
-  border-radius: 8px;
-  background: #faf8f6;
-  font-size: 13px;
-  line-height: 1.7;
-  white-space: pre-wrap;
-  font-family: inherit;
-}
-
 .snapshot-img {
   max-width: 100%;
   max-height: 320px;
@@ -426,5 +574,42 @@ onMounted(load)
   border-radius: 8px;
   border: 1px solid var(--coc-border);
   background: #1a1a1a;
+}
+
+.appeal-block {
+  padding-top: 4px;
+}
+
+.attachment-list {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.attachment-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  font-size: 13px;
+  color: var(--coc-text-secondary);
+  border-bottom: 1px dashed var(--coc-border);
+}
+
+.attachment-list li:last-child {
+  border-bottom: none;
+}
+
+.attachment-empty {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--coc-text-muted);
+}
+
+.attachment-item {
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--coc-text-secondary);
 }
 </style>

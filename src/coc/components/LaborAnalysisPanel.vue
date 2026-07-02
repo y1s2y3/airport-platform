@@ -34,6 +34,7 @@ const kpis = computed(() => [
   <div class="panel-card labor-analysis-panel">
     <div class="panel-title compact title-left">
       <span>劳务分析</span>
+      <span class="panel-v2-tip">V2版本上线</span>
     </div>
     <div class="panel-body analysis-body">
       <div class="kpi-grid">
@@ -54,7 +55,7 @@ const kpis = computed(() => [
 }
 
 .panel-title.compact.title-left {
-  font-size: 18px;
+  font-size: calc(18px + var(--coc-font-boost));
   justify-content: flex-start;
 }
 
@@ -77,7 +78,7 @@ const kpis = computed(() => [
 }
 
 .kpi-val {
-  font-size: 18px;
+  font-size: calc(18px + var(--coc-font-boost));
   font-weight: 700;
   color: var(--coc-text);
   line-height: 1.1;
@@ -89,7 +90,7 @@ const kpis = computed(() => [
 
 .kpi-lbl {
   margin-top: 4px;
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   color: var(--coc-text-secondary);
 }
 </style>

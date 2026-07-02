@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { VideoCamera } from '@element-plus/icons-vue'
 import { useCommandMeetingControl } from '../composables/useCommandMeetingControl.js'
+import { cocFeatureFlags } from '../config/featureFlags.js'
 
 defineProps({
   embedded: { type: Boolean, default: false },
@@ -83,7 +84,11 @@ const recordBarText = computed(() => {
             >
               结束会议
             </el-button>
-            <el-button class="action-btn secondary-btn" @click="showRecords()">
+            <el-button
+              v-if="cocFeatureFlags.meetingRecordsEntry"
+              class="action-btn secondary-btn"
+              @click="showRecords()"
+            >
               会议记录
             </el-button>
           </div>
@@ -106,12 +111,12 @@ const recordBarText = computed(() => {
             </p>
           </div>
 
-          <div class="ai-status-bar" :class="statusBarClass">
+          <div v-if="cocFeatureFlags.meetingAiUi" class="ai-status-bar" :class="statusBarClass">
             <span v-if="screenRecording || isSpeechActive" class="pulse-dot" />
             <span class="status-text">{{ statusText }}</span>
           </div>
 
-          <div class="dialogue-block">
+          <div v-if="cocFeatureFlags.meetingAiUi" class="dialogue-block">
             <div class="block-label">对话明细</div>
             <div class="dialogue-scroll">
               <div v-if="!transcriptLines.length" class="dialogue-empty">
@@ -208,7 +213,7 @@ const recordBarText = computed(() => {
 }
 
 .fab-label {
-  font-size: 9px;
+  font-size: calc(9px + var(--coc-font-boost));
   font-weight: 700;
   line-height: 1;
   transform: scale(0.92);
@@ -239,7 +244,7 @@ const recordBarText = computed(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
   padding: 6px 12px;
   line-height: 1.2;
   flex-shrink: 0;
@@ -248,7 +253,7 @@ const recordBarText = computed(() => {
 .collapse-btn {
   border: none;
   background: transparent;
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   font-weight: 600;
   color: var(--coc-text-secondary);
   cursor: pointer;
@@ -280,7 +285,7 @@ const recordBarText = computed(() => {
   flex: 1;
   height: 30px !important;
   padding: 0 4px !important;
-  font-size: 11px !important;
+  font-size: calc(11px + var(--coc-font-boost)) !important;
   font-weight: 600;
 }
 
@@ -308,7 +313,7 @@ const recordBarText = computed(() => {
   flex-shrink: 0;
   padding: 8px 10px;
   border-radius: 8px;
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   font-weight: 600;
   color: var(--coc-text-secondary);
   background: #faf8f6;
@@ -354,7 +359,7 @@ const recordBarText = computed(() => {
   border: 1px solid rgba(245, 108, 108, 0.45);
   background: #fff;
   color: #f56c6c;
-  font-size: 10px;
+  font-size: calc(10px + var(--coc-font-boost));
   font-weight: 600;
   cursor: pointer;
   padding: 2px 8px;
@@ -370,7 +375,7 @@ const recordBarText = computed(() => {
 .record-local-path {
   margin: 0;
   padding: 0 2px;
-  font-size: 10px;
+  font-size: calc(10px + var(--coc-font-boost));
   line-height: 1.45;
   color: var(--coc-text-secondary);
   word-break: break-all;
@@ -383,7 +388,7 @@ const recordBarText = computed(() => {
   gap: 8px;
   padding: 7px 10px;
   border-radius: 8px;
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   font-weight: 600;
   background: #faf8f6;
   color: var(--coc-text-secondary);
@@ -425,7 +430,7 @@ const recordBarText = computed(() => {
 }
 
 .block-label {
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   font-weight: 600;
   color: var(--coc-text-secondary);
   margin-bottom: 4px;
@@ -453,7 +458,7 @@ const recordBarText = computed(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   color: var(--coc-text-muted);
   text-align: center;
   padding: 12px;
@@ -465,7 +470,7 @@ const recordBarText = computed(() => {
   gap: 6px;
   padding: 6px 8px;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   background: #faf8f6;
   border: 1px solid var(--coc-border);
 }

@@ -12,7 +12,7 @@
 }
 
 .panel-title.compact {
-  font-size: 15px;
+  font-size: calc(15px + var(--coc-font-boost));
   padding: 6px 12px;
   line-height: 1.2;
   flex-shrink: 0;
@@ -28,6 +28,173 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.panel-title.compact.title-with-page {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.panel-title.compact.title-with-page .panel-title-text {
+  flex-shrink: 0;
+}
+
+.panel-title.compact.title-with-page .page-nav {
+  margin-left: auto;
+}
+
+.page-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.arrow-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--coc-border);
+  border-radius: 50%;
+  background: #fff;
+  color: var(--coc-text-secondary);
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
+}
+
+.arrow-btn:hover:not(:disabled) {
+  border-color: var(--coc-accent);
+  color: var(--coc-accent);
+  background: rgba(201, 123, 99, 0.06);
+}
+
+.arrow-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.page-info {
+  font-size: calc(11px + var(--coc-font-boost));
+  font-weight: 600;
+  min-width: 28px;
+  text-align: center;
+  color: var(--coc-text-secondary);
+}
+
+.device-live-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.device-live-grid.grid-1x1 {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+}
+
+.device-live-grid.grid-2x1 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: 1fr;
+}
+
+.device-live-grid.grid-2x2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+
+.device-live-cell {
+  min-height: 0;
+  min-width: 0;
+  border: 1px solid var(--coc-border);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+}
+
+.device-live-cell.clickable {
+  cursor: pointer;
+}
+
+.device-live-cell.clickable:hover {
+  border-color: var(--coc-accent);
+}
+
+.device-live-cell.offline {
+  opacity: 0.88;
+}
+
+.device-live-placeholder {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.device-live-label {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  background: #faf8f6;
+  min-width: 0;
+  text-align: left;
+}
+
+.device-live-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.device-live-name {
+  width: 100%;
+  font-size: calc(12px + var(--coc-font-boost));
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.device-live-operator {
+  flex-shrink: 0;
+  font-size: calc(10px + var(--coc-font-boost));
+  color: var(--coc-text-muted);
+  text-align: left;
+}
+
+.type-badge {
+  flex-shrink: 0;
+  font-size: calc(9px + var(--coc-font-boost));
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #fff;
+}
+
+.type-badge.handheld {
+  background: #409eff;
+}
+
+.type-badge.app,
+.type-badge.web {
+  background: #67c23a;
 }
 
 .main-video {
@@ -51,7 +218,7 @@
   left: 10px;
   padding: 3px 10px;
   border-radius: 4px;
-  font-size: 10px;
+  font-size: calc(10px + var(--coc-font-boost));
   font-weight: 600;
   color: #fff;
   background: rgba(0, 0, 0, 0.45);
@@ -62,13 +229,13 @@
   top: 4px;
   left: 4px;
   padding: 2px 6px;
-  font-size: 9px;
+  font-size: calc(9px + var(--coc-font-boost));
 }
 
 .offline-tip {
   position: absolute;
   color: #fff;
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
   background: rgba(0, 0, 0, 0.45);
   padding: 8px 20px;
   border-radius: 6px;
@@ -89,7 +256,7 @@
 .device-switch-select :deep(.el-select__wrapper) {
   min-height: 32px;
   padding: 0 8px;
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
   background: #fff;
   border-radius: 8px;
   box-shadow: 0 0 0 1px var(--coc-border) inset;
@@ -113,7 +280,7 @@
 }
 
 .device-switch-select :deep(.el-select__placeholder) {
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
 }
 
 .rec-badge {
@@ -124,7 +291,7 @@
   color: #fff;
   padding: 4px 12px;
   border-radius: 4px;
-  font-size: 10px;
+  font-size: calc(10px + var(--coc-font-boost));
   font-weight: 700;
 }
 
@@ -155,7 +322,7 @@
   border: 1px solid var(--coc-border);
   border-radius: 8px;
   background: #faf8f6;
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
   cursor: pointer;
   color: var(--coc-text-secondary);
 }
@@ -170,7 +337,7 @@
 .ctrl-btn-call {
   min-width: 52px;
   gap: 4px;
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
   font-weight: 600;
   color: var(--coc-accent);
 }
@@ -179,6 +346,12 @@
   background: #67c23a;
   border-color: #67c23a;
   color: #fff;
+}
+
+.ctrl-btn-text {
+  gap: 4px;
+  padding: 0 12px;
+  font-weight: 600;
 }
 
 .monitor-wrap {
@@ -210,7 +383,7 @@
 .monitor-grid.grid-3x3 .mini-label,
 .monitor-grid.grid-3x4 .mini-label {
   padding: 3px 6px;
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
 }
 
 .stretch-panel {
@@ -230,7 +403,8 @@
   min-height: 0;
 }
 
-.stretch-panel .main-video {
+.stretch-panel .main-video,
+.stretch-panel .device-live-grid {
   flex: 1;
   min-height: 0;
 }
@@ -279,7 +453,7 @@
   justify-content: center;
   background: rgba(0, 0, 0, 0.35);
   color: #fff;
-  font-size: 10px;
+  font-size: calc(10px + var(--coc-font-boost));
   font-weight: 600;
 }
 
@@ -291,17 +465,18 @@
   color: #fff;
   padding: 4px 6px;
   border-radius: 4px;
-  font-size: 10px;
+  font-size: calc(10px + var(--coc-font-boost));
 }
 
 .mini-label {
   padding: 6px 8px;
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
   font-weight: 500;
   background: #faf8f6;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: left;
 }
 
 .mini-cell.empty {

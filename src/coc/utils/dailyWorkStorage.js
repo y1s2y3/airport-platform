@@ -4,7 +4,8 @@ import {
   classifyDailyWorkRecord,
   mapDangerCategoryToType,
   formatTimeRange,
-  bucketLabel,
+  dangerWorkYesNoLabel,
+  resolveDangerWork,
 } from './dailyWorkClassifier.js'
 
 const STORAGE_KEY = 'coc-admin-daily-work'
@@ -29,8 +30,17 @@ function createId() {
   return `dwe-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
+function enrichRecord(record) {
+  const cls = classifyDailyWorkRecord(record)
+  return {
+    ...record,
+    classifyDanger: cls.danger,
+    classifyMajor: cls.major,
+  }
+}
+
 export function getDailyWorkRecords() {
-  return readList().sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+  return readList().map(enrichRecord).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
 }
 
 /** 合并线下 Excel 模板种子数据（版本变更时覆盖旧 seed 记录） */
@@ -72,7 +82,6 @@ export function saveDailyWorkRecord(payload) {
     source: payload.source || 'manual',
   }
   const cls = classifyDailyWorkRecord(record)
-  record.classifyBucket = cls.bucket
   record.classifyDanger = cls.danger
   record.classifyMajor = cls.major
 
@@ -241,4 +250,4 @@ export function getDerivedMajorProjectList() {
   return mergeUniqueById(fromDaily, mock)
 }
 
-export { bucketLabel, classifyDailyWorkRecord }
+export { dangerWorkYesNoLabel, resolveDangerWork, classifyDailyWorkRecord }

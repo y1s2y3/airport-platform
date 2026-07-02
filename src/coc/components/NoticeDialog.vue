@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ref } from 'vue'
 import { Document, Check, Connection } from '@element-plus/icons-vue'
 
@@ -25,7 +25,7 @@ function handleSubmit() {
 <template>
   <el-dialog
     :model-value="visible"
-    title="安全质量告知单"
+    title="安全质量任务单"
     width="720px"
     :close-on-click-modal="false"
     class="notice-dialog"
@@ -38,7 +38,7 @@ function handleSubmit() {
           <el-icon :size="19" color="#c97b63"><Document /></el-icon>
         </div>
         <div>
-          <h3>深圳机场扩建工程 · 安全质量告知单</h3>
+          <h3>深圳机场扩建工程 · 安全质量任务单</h3>
           <p>Shenzhen Airport Expansion Project · Notice Form</p>
         </div>
         <div class="notice-no">{{ notice.id }}</div>
@@ -79,7 +79,7 @@ function handleSubmit() {
 
       <div v-if="submitted" class="success-banner">
         <el-icon :size="13" color="#67c23a"><Check /></el-icon>
-        告知单已下发，问题已进入安全质量风险闭环流程
+        任务单已下发，问题已进入安全质量风险闭环流程
       </div>
     </div>
 
@@ -107,19 +107,19 @@ function handleSubmit() {
 }
 
 .notice-header h3 {
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
   color: #303133;
 }
 
 .notice-header p {
-  font-size: 10px;
+  font-size: calc(10px + var(--coc-font-boost));
   color: #909399;
   margin-top: 4px;
 }
 
 .notice-no {
   margin-left: auto;
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   color: #c97b63;
   font-weight: 600;
   background: rgba(201, 123, 99, 0.1);
@@ -139,13 +139,13 @@ function handleSubmit() {
 
 .form-item label {
   display: block;
-  font-size: 10px;
+  font-size: calc(10px + var(--coc-font-boost));
   color: #909399;
   margin-bottom: 8px;
 }
 
 .form-item .value {
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   color: #303133;
   padding: 12px 16px;
   background: #faf8f6;
@@ -169,7 +169,7 @@ function handleSubmit() {
   border: 1px solid rgba(103, 194, 58, 0.3);
   border-radius: 8px;
   color: #67c23a;
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   display: flex;
   align-items: center;
   gap: 8px;

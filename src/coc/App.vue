@@ -14,6 +14,8 @@ import CommandMeetingLiveView from './components/CommandMeetingLiveView.vue'
 import CommandMeetingRecordsView from './components/CommandMeetingRecordsView.vue'
 import ProjectHazardListPanel from './components/ProjectHazardListPanel.vue'
 import ProjectDispatchView from './components/ProjectDispatchView.vue'
+import { cocFeatureFlags } from './config/featureFlags.js'
+import { collapseCocFloatingPanels } from './composables/useMeetingAiSession.js'
 import { DESIGN_WIDTH, DESIGN_HEIGHT, FOCUS_PROJECT_ID, HQ_SELECTION_ID, buildProjects, getProjectShortName, resolveDispatchProjectId } from './mock/data.js'
 
 const projects = ref(buildProjects())
@@ -37,6 +39,7 @@ function closeHomeProjectDispatch() {
 }
 
 function openHomeProjectDispatch(projectId, label, deviceId = null) {
+  collapseCocFloatingPanels()
   commandMeetingScreen.value = null
   homeProjectDispatchId.value = projectId
   homeProjectDispatchLabel.value = label
@@ -54,6 +57,7 @@ function handleOpenDispatchFromHome(device) {
 }
 
 function handleLeaderSpeech() {
+  collapseCocFloatingPanels()
   closeHomeProjectDispatch()
   commandMeetingScreen.value = 'live'
 }
@@ -131,7 +135,12 @@ onUnmounted(() => {
       class="screen-canvas"
       :style="{ transform: `scale(${scale})` }"
     >
-      <TopNav />
+      <TopNav
+        :projects="projects"
+        :selection-id="selectedProjectId"
+        :status-filters="statusFilters"
+        @project-change="handleProjectChange"
+      />
 
       <CommandMeetingLiveView
         v-if="commandMeetingScreen === 'live'"
@@ -149,7 +158,7 @@ onUnmounted(() => {
       />
 
       <CommandMeetingRecordsView
-        v-else-if="commandMeetingScreen === 'records'"
+        v-else-if="cocFeatureFlags.meetingRecordsEntry && commandMeetingScreen === 'records'"
         @back="closeMeetingScreen"
       />
 
@@ -304,7 +313,7 @@ onUnmounted(() => {
   width: 100%;
   height: 32px;
   margin: 0;
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
   font-weight: 600;
   color: var(--coc-accent);
   border-color: rgba(201, 123, 99, 0.45);

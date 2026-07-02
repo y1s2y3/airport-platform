@@ -55,7 +55,8 @@ function closeDetail() {
 <template>
   <div class="panel-card project-hazard-panel">
     <div class="panel-title compact title-left hazard-title-row">
-      <span class="hazard-title-text">安质隐患清单</span>
+      <span class="hazard-title-text">隐患清单</span>
+      <span class="panel-v2-tip">V2版本上线</span>
       <span class="head-meta">
         <el-select
           v-model="hazardStatusFilter"
@@ -159,7 +160,7 @@ function closeDetail() {
 }
 
 .panel-title.compact.title-left {
-  font-size: 17px;
+  font-size: calc(17px + var(--coc-font-boost));
   justify-content: flex-start;
   gap: 8px;
   border-left: 4px solid #e6a23c;
@@ -189,7 +190,7 @@ function closeDetail() {
 .hazard-status-select :deep(.el-select__wrapper) {
   min-height: 24px;
   padding: 0 8px;
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
 }
 
 .list-body {
@@ -208,7 +209,7 @@ function closeDetail() {
 .hazard-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
 }
 
 .hazard-table th,
@@ -226,7 +227,7 @@ function closeDetail() {
   background: #faf8f6;
   font-weight: 600;
   color: var(--coc-text-secondary);
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
 }
 
 .desc-cell {
@@ -248,7 +249,7 @@ function closeDetail() {
   display: inline-block;
   padding: 2px 6px;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   font-weight: 600;
   white-space: nowrap;
 }
@@ -267,7 +268,7 @@ function closeDetail() {
   display: inline-block;
   padding: 2px 7px;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   font-weight: 600;
   white-space: nowrap;
 }
@@ -291,7 +292,7 @@ function closeDetail() {
   display: inline-block;
   padding: 2px 7px;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   font-weight: 600;
   white-space: nowrap;
 }
@@ -314,7 +315,7 @@ function closeDetail() {
 .empty-row {
   text-align: center;
   color: var(--coc-text-muted);
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
   padding: 16px 8px !important;
 }
 
@@ -348,7 +349,7 @@ function closeDetail() {
 }
 
 .detail-title {
-  font-size: 14px;
+  font-size: calc(14px + var(--coc-font-boost));
   font-weight: 700;
 }
 
@@ -361,7 +362,7 @@ function closeDetail() {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
 }
 
 .detail-body {
@@ -377,7 +378,7 @@ function closeDetail() {
 .detail-item {
   display: flex;
   gap: 6px;
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
 }
 
 .dl {
@@ -391,14 +392,14 @@ function closeDetail() {
 }
 
 .block-label {
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
   font-weight: 600;
   color: var(--coc-text-secondary);
   margin-bottom: 4px;
 }
 
 .block-content {
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
   line-height: 1.5;
   padding: 8px 10px;
   background: #faf8f6;
@@ -421,6 +422,6 @@ function closeDetail() {
   justify-content: center;
   gap: 3px;
   color: rgba(255, 255, 255, 0.85);
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
 }
 </style>

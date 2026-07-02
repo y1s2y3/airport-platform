@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, reactive, watch } from 'vue'
+import { ref, computed, reactive, watch, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
 import {
@@ -19,6 +19,7 @@ import ScreenshotMarkDialog from './ScreenshotMarkDialog.vue'
 import VideoExpandOverlay from './VideoExpandOverlay.vue'
 import {
   COMMAND_MEETING_DEVICES,
+  COMMAND_MEETING_LIVE_RECORDS,
   videoPlaceholderColor,
 } from '../mock/data.js'
 
@@ -34,6 +35,7 @@ const callingId = ref(null)
 const callingAll = ref(false)
 const searchKeyword = ref('')
 const cellStates = reactive({})
+const speakingIds = ref(new Set())
 const markDialogVisible = ref(false)
 const markTarget = ref(null)
 const expandedDevice = ref(null)
@@ -75,6 +77,10 @@ const joinedDevices = computed(() => {
   return [...list].sort((a, b) => {
     if (a.id === MEETING_HOST_DEVICE_ID) return -1
     if (b.id === MEETING_HOST_DEVICE_ID) return 1
+    const aSpeaking = isDeviceSpeaking(a.id)
+    const bSpeaking = isDeviceSpeaking(b.id)
+    if (aSpeaking && !bSpeaking) return -1
+    if (!aSpeaking && bSpeaking) return 1
     const ai = COMMAND_MEETING_DEVICES.findIndex((d) => d.id === a.id)
     const bi = COMMAND_MEETING_DEVICES.findIndex((d) => d.id === b.id)
     return ai - bi
@@ -186,16 +192,81 @@ function isMeetingHost(device) {
   return device?.id === MEETING_HOST_DEVICE_ID
 }
 
-function createCellState(deviceId) {
+function createCellState() {
   return {
-    muted: deviceId !== MEETING_HOST_DEVICE_ID,
+    muted: false,
     videoOn: true,
   }
 }
 
+function isDeviceSpeaking(deviceId) {
+  return speakingIds.value.has(deviceId) && !getCellState(deviceId).muted
+}
+
+function resolveSpeakerDeviceId(speaker) {
+  if (!speaker) return null
+  if (speaker === '指挥部调度席') return MEETING_HOST_DEVICE_ID
+  const byOperator = COMMAND_MEETING_DEVICES.find((d) => d.operator === speaker)
+  if (byOperator) return byOperator.id
+  const byName = COMMAND_MEETING_DEVICES.find(
+    (d) => d.name.includes(speaker) || speaker.includes(d.name.replace(/终端|对讲席|调度席/g, '')),
+  )
+  return byName?.id || null
+}
+
+function setActiveSpeaker(deviceId) {
+  if (!deviceId || !joinedIds.value.has(deviceId)) return
+  if (getCellState(deviceId).muted) return
+  speakingIds.value = new Set([deviceId])
+}
+
+function initJoinedCellStates() {
+  joinedIds.value.forEach((deviceId) => {
+    if (!cellStates[deviceId]) {
+      cellStates[deviceId] = createCellState()
+    }
+  })
+}
+
+let speakingDemoTimer = null
+let speakingDemoIndex = 0
+
+function startSpeakingDemo() {
+  const speechRecords = COMMAND_MEETING_LIVE_RECORDS.filter(
+    (item) => item.role === 'web' || item.role === 'handheld',
+  )
+  if (!speechRecords.length) return
+
+  speakingDemoTimer = window.setInterval(() => {
+    const record = speechRecords[speakingDemoIndex % speechRecords.length]
+    speakingDemoIndex += 1
+    const deviceId = resolveSpeakerDeviceId(record.speaker)
+    setActiveSpeaker(deviceId)
+  }, 3200)
+
+  const initial = resolveSpeakerDeviceId(speechRecords[0]?.speaker)
+  setActiveSpeaker(initial)
+}
+
+function stopSpeakingDemo() {
+  if (speakingDemoTimer) {
+    window.clearInterval(speakingDemoTimer)
+    speakingDemoTimer = null
+  }
+}
+
+onMounted(() => {
+  initJoinedCellStates()
+  startSpeakingDemo()
+})
+
+onUnmounted(() => {
+  stopSpeakingDemo()
+})
+
 function getCellState(deviceId) {
   if (!cellStates[deviceId]) {
-    cellStates[deviceId] = createCellState(deviceId)
+    cellStates[deviceId] = createCellState()
   }
   return cellStates[deviceId]
 }
@@ -225,9 +296,7 @@ function isBusy() {
 
 function joinDevice(device) {
   joinedIds.value = new Set([...joinedIds.value, device.id])
-  if (!cellStates[device.id]) {
-    cellStates[device.id] = createCellState(device.id)
-  }
+  getCellState(device.id)
 }
 
 function callDevice(device) {
@@ -288,7 +357,43 @@ function callProjectPending(group) {
 function toggleCellMute(deviceId) {
   const state = getCellState(deviceId)
   state.muted = !state.muted
+  if (state.muted) {
+    const next = new Set(speakingIds.value)
+    next.delete(deviceId)
+    speakingIds.value = next
+  } else {
+    setActiveSpeaker(deviceId)
+  }
   ElMessage.info(state.muted ? '已静音' : '已开启声音')
+}
+
+function muteAllJoined() {
+  if (!joinedDevices.value.length) {
+    ElMessage.info('暂无已入会设备')
+    return
+  }
+  joinedIds.value.forEach((deviceId) => {
+    getCellState(deviceId).muted = true
+  })
+  speakingIds.value = new Set()
+  ElMessage.success('已全员静音')
+}
+
+function unmuteAllJoined() {
+  if (!joinedDevices.value.length) {
+    ElMessage.info('暂无已入会设备')
+    return
+  }
+  joinedIds.value.forEach((deviceId) => {
+    getCellState(deviceId).muted = false
+  })
+  const preferredSpeaker = joinedIds.value.has(MEETING_HOST_DEVICE_ID)
+    ? MEETING_HOST_DEVICE_ID
+    : joinedDevices.value[0]?.id
+  if (preferredSpeaker) {
+    setActiveSpeaker(preferredSpeaker)
+  }
+  ElMessage.success('已取消全员静音')
 }
 
 function toggleCellVideo(deviceId) {
@@ -319,8 +424,30 @@ function openCellFullscreen(device) {
           <el-icon :size="16"><ArrowLeft /></el-icon>
           返回
         </button>
-        <span class="detail-heading">领导训话</span>
-        <span class="meeting-meta">已入会 {{ joinedDevices.length }} / {{ COMMAND_MEETING_DEVICES.length }}</span>
+        <span class="detail-heading">领导讲话</span>
+        <div class="topbar-actions">
+          <span class="meeting-meta">已入会 {{ joinedDevices.length }} / {{ COMMAND_MEETING_DEVICES.length }}</span>
+          <div class="meeting-mute-actions">
+            <button
+              type="button"
+              class="meeting-action-btn"
+              :disabled="!joinedDevices.length"
+              @click="muteAllJoined"
+            >
+              <el-icon :size="14"><Mute /></el-icon>
+              全员静音
+            </button>
+            <button
+              type="button"
+              class="meeting-action-btn primary"
+              :disabled="!joinedDevices.length"
+              @click="unmuteAllJoined"
+            >
+              <el-icon :size="14"><Microphone /></el-icon>
+              取消静音
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -360,6 +487,7 @@ function openCellFullscreen(device) {
                 joined: device,
                 empty: !device,
                 'host-cell': device && isMeetingHost(device),
+                speaking: device && isDeviceSpeaking(device.id),
               }"
             >
               <template v-if="device">
@@ -581,7 +709,7 @@ function openCellFullscreen(device) {
   background: #fff;
   border-radius: 8px;
   padding: 8px 14px;
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
   cursor: pointer;
   color: var(--coc-text-secondary);
 }
@@ -592,15 +720,65 @@ function openCellFullscreen(device) {
 }
 
 .detail-heading {
-  font-size: 18px;
+  font-size: calc(18px + var(--coc-font-boost));
   font-weight: 700;
   color: var(--coc-text);
 }
 
-.meeting-meta {
+.topbar-actions {
   margin-left: auto;
-  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.meeting-meta {
+  font-size: calc(13px + var(--coc-font-boost));
   color: var(--coc-text-secondary);
+}
+
+.meeting-mute-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.meeting-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--coc-border);
+  background: #fff;
+  color: var(--coc-text-secondary);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: calc(12px + var(--coc-font-boost));
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
+}
+
+.meeting-action-btn.primary {
+  border-color: var(--coc-accent);
+  background: rgba(201, 123, 99, 0.1);
+  color: var(--coc-accent);
+}
+
+.meeting-action-btn:hover:not(:disabled) {
+  border-color: var(--coc-accent);
+  color: var(--coc-accent);
+  background: rgba(201, 123, 99, 0.08);
+}
+
+.meeting-action-btn.primary:hover:not(:disabled) {
+  background: rgba(201, 123, 99, 0.16);
+}
+
+.meeting-action-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .meeting-body {
@@ -620,7 +798,7 @@ function openCellFullscreen(device) {
 }
 
 .panel-title.compact {
-  font-size: 16px;
+  font-size: calc(16px + var(--coc-font-boost));
   flex-shrink: 0;
 }
 
@@ -685,11 +863,11 @@ function openCellFullscreen(device) {
 }
 
 .arrow-btn .el-icon {
-  font-size: 14px;
+  font-size: calc(14px + var(--coc-font-boost));
 }
 
 .page-info {
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   font-weight: 600;
   min-width: 28px;
   text-align: center;
@@ -711,7 +889,7 @@ function openCellFullscreen(device) {
   color: #fff;
   border-radius: 6px;
   padding: 5px 12px;
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   font-weight: 600;
   cursor: pointer;
   flex-shrink: 0;
@@ -721,7 +899,7 @@ function openCellFullscreen(device) {
 
 .call-group-btn {
   padding: 3px 8px;
-  font-size: 10px;
+  font-size: calc(10px + var(--coc-font-boost));
   margin-left: auto;
   pointer-events: auto;
   z-index: 3;
@@ -792,6 +970,11 @@ function openCellFullscreen(device) {
   box-shadow: 0 0 0 1px rgba(201, 123, 99, 0.15);
 }
 
+.grid-cell.speaking:not(.host-cell) {
+  border-color: rgba(64, 158, 255, 0.75);
+  box-shadow: 0 0 0 1px rgba(64, 158, 255, 0.18);
+}
+
 .host-director-badge {
   position: absolute;
   top: 8px;
@@ -804,7 +987,7 @@ function openCellFullscreen(device) {
   border-radius: 4px;
   background: linear-gradient(135deg, var(--coc-accent), var(--coc-gold));
   color: #fff;
-  font-size: 10px;
+  font-size: calc(10px + var(--coc-font-boost));
   font-weight: 700;
   line-height: 1;
 }
@@ -819,7 +1002,7 @@ function openCellFullscreen(device) {
 }
 
 .video-off-tip {
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   color: rgba(255, 255, 255, 0.65);
 }
 
@@ -831,7 +1014,7 @@ function openCellFullscreen(device) {
   color: #fff;
   padding: 2px 8px;
   border-radius: 4px;
-  font-size: 10px;
+  font-size: calc(10px + var(--coc-font-boost));
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
@@ -894,7 +1077,7 @@ function openCellFullscreen(device) {
 }
 
 .cell-name {
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   font-weight: 600;
   color: var(--coc-text);
   overflow: hidden;
@@ -904,7 +1087,7 @@ function openCellFullscreen(device) {
 }
 
 .cell-project {
-  font-size: 10px;
+  font-size: calc(10px + var(--coc-font-boost));
   font-weight: 600;
   color: var(--coc-accent);
   overflow: hidden;
@@ -947,7 +1130,7 @@ function openCellFullscreen(device) {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
   color: var(--coc-text-muted);
 }
 
@@ -988,14 +1171,14 @@ function openCellFullscreen(device) {
 }
 
 .tree-project-name {
-  font-size: 13px;
+  font-size: calc(13px + var(--coc-font-boost));
   font-weight: 700;
   color: var(--coc-text);
   text-align: left;
 }
 
 .tree-project-stats {
-  font-size: 11px;
+  font-size: calc(11px + var(--coc-font-boost));
   color: var(--coc-text-secondary);
   white-space: nowrap;
 }
@@ -1035,7 +1218,7 @@ function openCellFullscreen(device) {
 .tree-device-name {
   flex: 1;
   min-width: 0;
-  font-size: 12px;
+  font-size: calc(12px + var(--coc-font-boost));
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1043,7 +1226,7 @@ function openCellFullscreen(device) {
 }
 
 .status-tag {
-  font-size: 10px;
+  font-size: calc(10px + var(--coc-font-boost));
   font-weight: 600;
   padding: 2px 6px;
   border-radius: 4px;
@@ -1080,7 +1263,7 @@ function openCellFullscreen(device) {
   color: var(--coc-accent);
   border-radius: 6px;
   padding: 4px 8px;
-  font-size: 10px;
+  font-size: calc(10px + var(--coc-font-boost));
   cursor: pointer;
   flex-shrink: 0;
 }
