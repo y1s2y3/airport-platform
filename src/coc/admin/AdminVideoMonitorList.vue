@@ -1,7 +1,8 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Search, VideoCamera, Edit, ArrowUp, ArrowDown } from '@element-plus/icons-vue'
+import { Search, Refresh, Edit, ArrowUp, ArrowDown } from '@element-plus/icons-vue'
+import { useLaborProjectScope } from '../../composables/useCurrentProject'
 import {
   getMonitorProjects,
   getProjectCameras,
@@ -17,28 +18,35 @@ defineProps({
   description: { type: String, default: '' },
 })
 
+const { isHqSelected, treeProjectId, scopeProjectId, scopeProjectLabel, onTreeNodeClick } = useLaborProjectScope()
 const keyword = ref('')
-const projectKeyword = ref('')
-const selectedProjectId = ref('')
 const cameraList = ref([])
 const formVisible = ref(false)
 const form = ref(emptyCameraForm())
 
-const projects = computed(() => getMonitorProjects())
+const monitorProjects = computed(() => getMonitorProjects())
 
-const filteredProjects = computed(() => {
-  const q = projectKeyword.value.trim().toLowerCase()
-  if (!q) return projects.value
-  return projects.value.filter(
-    (p) =>
-      p.name.toLowerCase().includes(q) ||
-      (p.shortName && p.shortName.toLowerCase().includes(q)),
-  )
-})
+const treeData = computed(() => [
+  {
+    id: 'hq',
+    label: '工程指挥部',
+    children: monitorProjects.value.map((project) => ({
+      id: project.id,
+      label: `${project.shortName || project.name}(${project.onlineCount}/${project.cameraCount})`,
+    })),
+  },
+])
 
 const selectedProject = computed(() =>
-  projects.value.find((p) => p.id === selectedProjectId.value),
+  monitorProjects.value.find((p) => p.id === scopeProjectId.value) || null,
 )
+
+const panelProjectLabel = computed(() => {
+  if (selectedProject.value) {
+    return selectedProject.value.shortName || selectedProject.value.name
+  }
+  return scopeProjectLabel.value
+})
 
 const cameras = computed(() => {
   let list = cameraList.value
@@ -49,16 +57,26 @@ const cameras = computed(() => {
   )
 })
 
+const stats = computed(() => {
+  const project = selectedProject.value
+  if (!project) {
+    return { total: 0, online: 0, offline: 0, key: 0 }
+  }
+  const list = cameraList.value
+  return {
+    total: list.length,
+    online: list.filter((c) => c.online).length,
+    offline: list.filter((c) => !c.online).length,
+    key: list.filter((c) => c.key).length,
+  }
+})
+
 function loadCameras() {
-  if (!selectedProjectId.value) {
+  if (!scopeProjectId.value) {
     cameraList.value = []
     return
   }
-  cameraList.value = getProjectCameras(selectedProjectId.value)
-}
-
-function selectProject(project) {
-  selectedProjectId.value = project.id
+  cameraList.value = getProjectCameras(scopeProjectId.value)
 }
 
 function openEdit(row) {
@@ -79,8 +97,8 @@ function validateForm() {
 }
 
 function submitForm() {
-  if (!validateForm() || !selectedProjectId.value) return
-  saveProjectCamera(selectedProjectId.value, form.value.id, {
+  if (!validateForm() || !scopeProjectId.value) return
+  saveProjectCamera(scopeProjectId.value, form.value.id, {
     name: form.value.name.trim(),
     location: form.value.location.trim(),
     type: form.value.type,
@@ -93,23 +111,30 @@ function submitForm() {
 }
 
 function moveCamera(cameraId, direction) {
-  moveProjectCamera(selectedProjectId.value, cameraId, direction)
+  moveProjectCamera(scopeProjectId.value, cameraId, direction)
   loadCameras()
 }
 
-function initSelection() {
-  if (!selectedProjectId.value && filteredProjects.value.length) {
-    selectedProjectId.value = filteredProjects.value[0].id
+function handleReset() {
+  keyword.value = ''
+}
+
+function ensureValidProjectSelection() {
+  const ids = monitorProjects.value.map((p) => p.id)
+  if (!ids.length) return
+  if (!ids.includes(scopeProjectId.value)) {
+    treeProjectId.value = ids[0]
   }
 }
 
-watch(selectedProjectId, () => {
+watch(monitorProjects, ensureValidProjectSelection, { immediate: true })
+
+watch(scopeProjectId, () => {
   keyword.value = ''
   loadCameras()
 })
 
 onMounted(() => {
-  initSelection()
   loadCameras()
   window.addEventListener(MONITOR_CAMERAS_CHANGE_EVENT, loadCameras)
 })
@@ -120,80 +145,78 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="panel-card admin-page admin-video-page">
-    <div class="panel-title simple-title">
-      <span>监控列表</span>
-      <el-input
-        v-if="selectedProject"
-        v-model="keyword"
-        placeholder="搜索摄像头名称、位置…"
-        clearable
-        class="search-input"
-      >
-        <template #prefix><el-icon><Search /></el-icon></template>
-      </el-input>
+  <div class="monitor-list-page page-card">
+    <div class="page-header">
+      <div class="page-breadcrumb">视频监控 / 监控列表</div>
+      <div class="page-heading">
+        <h1 class="page-title">监控列表</h1>
+      </div>
+      <p v-if="!isHqSelected" class="page-scope">当前项目：{{ panelProjectLabel }}</p>
+      <p v-if="description" class="page-tip">{{ description }}</p>
     </div>
 
-    <div class="panel-body video-split-body">
-      <aside class="project-sidebar">
-        <div class="sidebar-head">项目列表</div>
-        <el-input
-          v-model="projectKeyword"
-          placeholder="搜索项目"
-          clearable
-          size="small"
-          class="sidebar-search"
+    <div class="page-layout" :class="{ 'with-tree': isHqSelected }">
+      <aside v-if="isHqSelected" class="project-tree-panel">
+        <div class="panel-title">项目列表</div>
+        <el-tree
+          :data="treeData"
+          node-key="id"
+          highlight-current
+          default-expand-all
+          :current-node-key="treeProjectId"
+          :expand-on-click-node="false"
+          class="project-tree"
+          @node-click="onTreeNodeClick"
         />
-        <div class="project-scroll">
-          <button
-            v-for="project in filteredProjects"
-            :key="project.id"
-            type="button"
-            class="project-item"
-            :class="{ active: project.id === selectedProjectId }"
-            @click="selectProject(project)"
-          >
-            <span class="project-name" :title="project.name">{{ project.shortName || project.name }}</span>
-            <span class="project-meta">
-              <el-icon><VideoCamera /></el-icon>
-              {{ project.onlineCount }}/{{ project.cameraCount }}
-            </span>
-          </button>
-          <div v-if="!filteredProjects.length" class="sidebar-empty">无匹配项目</div>
-        </div>
       </aside>
 
-      <section class="camera-panel">
+      <div class="monitor-panel page-panel">
+        <div v-if="isHqSelected" class="panel-title">{{ panelProjectLabel }}</div>
+
         <template v-if="selectedProject">
-          <div class="camera-panel-head">
-            <div>
-              <div class="camera-panel-title">{{ selectedProject.shortName || selectedProject.name }}</div>
-              <div class="camera-panel-sub">{{ selectedProject.name }}</div>
+          <div class="panel-head">
+            <div class="panel-stats">
+              <span>通道 {{ stats.total }} 路</span>
+              <span>在线 {{ stats.online }}</span>
+              <span>离线 {{ stats.offline }}</span>
+              <span>重点 {{ stats.key }}</span>
             </div>
-            <span class="camera-count">共 {{ cameras.length }} 路摄像头</span>
           </div>
-          <el-table :data="cameras" stripe border empty-text="该项目暂无摄像头" height="100%">
-            <el-table-column type="index" label="序号" width="56" />
-            <el-table-column prop="name" label="摄像头名称" min-width="150" show-overflow-tooltip />
-            <el-table-column label="类型" width="72">
+
+          <div class="filter-bar">
+            <el-input
+              v-model="keyword"
+              placeholder="搜索摄像头名称、位置、类型"
+              clearable
+              :prefix-icon="Search"
+              class="search-input"
+            />
+            <el-button class="ap-btn-primary" type="primary" :icon="Search">查询</el-button>
+            <el-button :icon="Refresh" @click="handleReset">重置</el-button>
+          </div>
+
+          <el-table :data="cameras" border stripe class="ap-table" empty-text="该项目暂无摄像头">
+            <el-table-column type="index" label="序号" width="60" align="center" />
+            <el-table-column prop="name" label="通道名称" min-width="150" show-overflow-tooltip />
+            <el-table-column label="类型" width="80" align="center">
               <template #default="{ row }">{{ cameraTypeLabel(row.type) }}</template>
             </el-table-column>
-            <el-table-column prop="location" label="位置" min-width="120" show-overflow-tooltip />
-            <el-table-column label="状态" width="80">
+            <el-table-column prop="location" label="位置" min-width="140" show-overflow-tooltip />
+            <el-table-column label="状态" width="88" align="center">
               <template #default="{ row }">
-                <el-tag :type="row.online ? 'success' : 'info'" size="small">
+                <span class="ap-status-tag" :class="row.online ? 'ap-tag-enabled' : 'ap-tag-disabled'">
                   {{ row.online ? '在线' : '离线' }}
-                </el-tag>
+                </span>
               </template>
             </el-table-column>
-            <el-table-column label="重点" width="72">
+            <el-table-column label="重点" width="80" align="center">
               <template #default="{ row }">
-                <el-tag v-if="row.key" type="warning" size="small">重点</el-tag>
+                <span v-if="row.key" class="ap-status-tag ap-tag-high">重点</span>
                 <span v-else class="muted">—</span>
               </template>
             </el-table-column>
-            <el-table-column prop="id" label="设备ID" width="100" show-overflow-tooltip />
-            <el-table-column label="排序" width="88" align="center">
+            <el-table-column prop="id" label="设备ID" width="120" show-overflow-tooltip />
+            <el-table-column label="排序" width="72" align="center">
               <template #default="{ row }">
                 <div class="sort-btns">
                   <el-button size="small" link :icon="ArrowUp" @click="moveCamera(row.id, 'up')" />
@@ -201,15 +224,18 @@ onUnmounted(() => {
                 </div>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="72" fixed="right">
+            <el-table-column label="操作" width="80" fixed="right" align="center">
               <template #default="{ row }">
-                <el-button link type="primary" :icon="Edit" @click="openEdit(row)">编辑</el-button>
+                <el-button link type="primary" size="small" :icon="Edit" @click="openEdit(row)">编辑</el-button>
               </template>
             </el-table-column>
           </el-table>
         </template>
-        <div v-else class="panel-empty">请从左侧选择项目</div>
-      </section>
+
+        <div v-else class="panel-empty">
+          {{ isHqSelected ? '当前项目暂无监控数据，请从左侧选择其他项目' : '当前项目暂无监控数据' }}
+        </div>
+      </div>
     </div>
 
     <el-dialog v-model="formVisible" title="编辑摄像头" width="520px" destroy-on-close>
@@ -238,14 +264,125 @@ onUnmounted(() => {
       </el-form>
       <template #footer>
         <el-button @click="formVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitForm">保存</el-button>
+        <el-button type="primary" class="ap-btn-primary" @click="submitForm">保存</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <style scoped>
-@import './admin-video.css';
+.monitor-list-page {
+  padding: 0;
+}
+
+.page-header {
+  margin-bottom: 16px;
+}
+
+.page-breadcrumb {
+  font-size: 13px;
+  color: var(--ap-text-muted);
+  margin-bottom: 8px;
+}
+
+.page-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.page-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--ap-text);
+}
+
+.page-scope {
+  margin: 4px 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ap-text);
+}
+
+.page-tip {
+  margin-top: 0;
+  font-size: 12px;
+  color: var(--ap-text-muted);
+  line-height: 1.5;
+}
+
+.page-panel {
+  border: 1px solid var(--ap-border);
+  border-radius: 8px;
+  background: #fff;
+  padding: 16px;
+}
+
+.page-layout.with-tree {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 16px;
+  min-height: 560px;
+}
+
+.project-tree-panel {
+  border: 1px solid var(--ap-border);
+  border-radius: 8px;
+  background: #fff;
+  padding: 16px;
+}
+
+.panel-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ap-text);
+  margin-bottom: 12px;
+}
+
+.project-tree :deep(.el-tree-node__content) {
+  height: 34px;
+  border-radius: 4px;
+}
+
+.project-tree :deep(.el-tree-node.is-current > .el-tree-node__content) {
+  background: var(--ap-primary-light);
+  color: var(--ap-primary);
+  font-weight: 600;
+}
+
+.panel-head {
+  margin-bottom: 12px;
+}
+
+.panel-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  font-size: 13px;
+  color: var(--ap-text-secondary);
+}
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.search-input {
+  width: 300px;
+}
+
+.panel-empty {
+  padding: 48px 16px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--ap-text-muted);
+}
+
+.muted {
+  color: var(--ap-text-muted);
+}
 
 .sort-btns {
   display: inline-flex;

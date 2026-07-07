@@ -27,13 +27,14 @@ defineEmits(['project-change'])
 .coc-floating-stack {
   position: fixed;
   top: 50%;
-  right: 16px;
+  right: calc(16px * var(--coc-viewport-scale, 1));
   z-index: 100000;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 10px;
-  transform: translateY(-50%);
+  transform: translateY(-50%) scale(var(--coc-viewport-scale, 1));
+  transform-origin: right center;
   pointer-events: none;
 }
 

@@ -8,7 +8,7 @@ export default defineConfig({
   base: './',
   plugins: [vue(), viteSingleFile()],
   build: {
-    outDir: 'release',
+    outDir: process.env.STANDALONE_OUT_DIR || 'release',
     emptyOutDir: true,
     assetsInlineLimit: 100000000,
     cssCodeSplit: false,

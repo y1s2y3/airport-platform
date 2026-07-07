@@ -52,7 +52,7 @@ const recordBarText = computed(() => {
         title="会议管控"
         @click="togglePanel()"
       >
-        <el-icon :size="20"><VideoCamera /></el-icon>
+        <el-icon :size="22"><VideoCamera /></el-icon>
         <span class="fab-label">会议管控</span>
         <span v-if="meetingActive || screenRecording" class="fab-dot" />
       </button>
@@ -190,9 +190,9 @@ const recordBarText = computed(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  width: 52px;
-  height: 52px;
+  gap: 4px;
+  width: var(--coc-float-fab-size, 56px);
+  height: var(--coc-float-fab-size, 56px);
   padding: 0;
   border: 1px solid rgba(201, 123, 99, 0.35);
   border-radius: 12px;
@@ -213,10 +213,9 @@ const recordBarText = computed(() => {
 }
 
 .fab-label {
-  font-size: calc(9px + var(--coc-font-boost));
+  font-size: calc(10px + var(--coc-font-boost));
   font-weight: 700;
   line-height: 1;
-  transform: scale(0.92);
 }
 
 .fab-dot {
@@ -231,10 +230,10 @@ const recordBarText = computed(() => {
 }
 
 .meeting-panel {
-  width: 320px;
-  height: calc((100vh - 120px) / 2);
-  max-height: 380px;
-  min-height: 260px;
+  width: var(--coc-float-panel-width, 340px);
+  height: var(--coc-float-panel-height, 400px);
+  max-height: var(--coc-float-panel-height, 400px);
+  min-height: var(--coc-float-panel-min-height, 280px);
   display: flex;
   flex-direction: column;
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.14);
@@ -283,9 +282,9 @@ const recordBarText = computed(() => {
 
 .action-btn {
   flex: 1;
-  height: 30px !important;
-  padding: 0 4px !important;
-  font-size: calc(11px + var(--coc-font-boost)) !important;
+  height: 34px !important;
+  padding: 0 6px !important;
+  font-size: calc(12px + var(--coc-font-boost)) !important;
   font-weight: 600;
 }
 
@@ -466,11 +465,11 @@ const recordBarText = computed(() => {
 
 .dialogue-item {
   display: grid;
-  grid-template-columns: 44px 72px 1fr;
-  gap: 6px;
-  padding: 6px 8px;
+  grid-template-columns: 48px 80px 1fr;
+  gap: 8px;
+  padding: 8px 10px;
   border-radius: 6px;
-  font-size: calc(11px + var(--coc-font-boost));
+  font-size: calc(12px + var(--coc-font-boost));
   background: #faf8f6;
   border: 1px solid var(--coc-border);
 }

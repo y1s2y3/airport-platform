@@ -191,24 +191,24 @@ function markJoined(id) {
 
 .meeting-registration-root.compact .attendee-table th,
 .meeting-registration-root.compact .attendee-table td {
-  padding: 7px 6px;
+  padding: 8px 8px;
 }
 
 .meeting-registration-root.compact .col-idx {
-  width: 36px;
+  width: 40px;
 }
 
 .meeting-registration-root.compact .col-status {
-  width: 64px;
+  width: 72px;
 }
 
 .meeting-registration-root.compact .col-action {
-  width: 44px;
+  width: 52px;
 }
 
 .meeting-registration-root.compact .person-thumb {
-  width: 28px;
-  height: 36px;
+  width: 32px;
+  height: 40px;
 }
 
 .meeting-registration-root.compact .person-name {

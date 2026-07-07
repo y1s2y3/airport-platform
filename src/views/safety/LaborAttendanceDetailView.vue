@@ -1,12 +1,9 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { Search, Refresh, Download } from '@element-plus/icons-vue'
-import {
-  projectTree,
-  getAttendanceDetails,
-  getDefaultProjectId,
-  getProjectLabel,
-} from '../../mock/laborAttendanceDetail'
+import { useLaborProjectScope } from '../../composables/useCurrentProject'
+import { projectTree, getProjectPersonCount } from '../../mock/laborAttendanceStats'
+import { getAttendanceDetails } from '../../mock/laborAttendanceDetail'
 import {
   ATTENDANCE_ENTRY_STATUS,
   ATTENDANCE_ENTRY_STATUS_OPTIONS,
@@ -15,10 +12,24 @@ import {
   attendanceEntryStatusTagClass,
   onSiteStatusTagClass,
 } from '../../constants/laborPersonStatus'
-import { workTypeOptions } from '../../mock/laborRealName'
+import { workTypeOptions, maskIdCard } from '../../mock/laborRealName'
 
-const selectedProjectId = ref(getDefaultProjectId())
+const { isHqSelected, treeProjectId, scopeProjectId, scopeProjectLabel, onTreeNodeClick } = useLaborProjectScope()
 const keyword = ref('')
+const visibleIdCardIds = ref(new Set())
+
+function isIdCardVisible(rowId) {
+  return visibleIdCardIds.value.has(rowId)
+}
+
+function viewIdCard(row) {
+  visibleIdCardIds.value = new Set([...visibleIdCardIds.value, row.id])
+}
+
+function displayIdCard(row) {
+  const raw = row.idCardRaw || row.idCard
+  return isIdCardVisible(row.id) ? raw : maskIdCard(raw)
+}
 const filters = ref({
   date: '2026-06-29',
   entryStatus: '',
@@ -32,13 +43,12 @@ const treeData = computed(() =>
     label: group.label,
     children: group.children?.map((item) => ({
       id: item.id,
-      label: `${item.label}(${item.count})`,
+      label: `${item.label.replace(/\(\d+\)$/, '')}(${getProjectPersonCount(item.id)})`,
     })),
   })),
 )
 
-const selectedProjectLabel = computed(() => getProjectLabel(selectedProjectId.value))
-const allRecords = computed(() => getAttendanceDetails(selectedProjectId.value))
+const allRecords = computed(() => getAttendanceDetails(scopeProjectId.value))
 
 const filteredRecords = computed(() => {
   const kw = keyword.value.trim()
@@ -48,7 +58,7 @@ const filteredRecords = computed(() => {
     if (filters.value.onSiteStatus && row.onSiteStatus !== filters.value.onSiteStatus) return false
     if (filters.value.workType && row.workType !== filters.value.workType) return false
     if (kw) {
-      const hay = `${row.name}${row.idCard}${row.team}${row.subcontractor}${row.gateIn}`
+      const hay = `${row.name}${row.idCardRaw || row.idCard}${row.team}${row.subcontractor}${row.gateIn}`
       if (!hay.includes(kw)) return false
     }
     return true
@@ -63,15 +73,11 @@ const stats = computed(() => ({
   offSite: filteredRecords.value.filter((r) => r.onSiteStatus === '不在场').length,
 }))
 
-watch(selectedProjectId, () => {
+watch(scopeProjectId, () => {
   keyword.value = ''
+  visibleIdCardIds.value = new Set()
   filters.value = { date: '2026-06-29', entryStatus: '', onSiteStatus: '', workType: '' }
 })
-
-function handleNodeClick(data) {
-  if (data.id === 'hq') return
-  selectedProjectId.value = data.id
-}
 
 function handleReset() {
   keyword.value = ''
@@ -82,45 +88,42 @@ function handleReset() {
 <template>
   <div class="attendance-detail-page page-card">
     <div class="page-header">
-      <div class="page-breadcrumb">劳务管理 / 考勤明细</div>
+      <div class="page-breadcrumb">人员实名制管理 / 考勤明细</div>
       <div class="page-heading">
         <h1 class="page-title">考勤明细</h1>
         <div class="page-actions">
           <el-button :icon="Download">导出</el-button>
         </div>
       </div>
+      <p v-if="!isHqSelected" class="page-scope">当前项目：{{ scopeProjectLabel }}</p>
       <p class="page-tip">
         进出场：当日进入工地为「已进场」，离开工地为「已出场」；在场：当日已打上班卡且未打下班卡视为「在场」。
       </p>
     </div>
 
-    <div class="detail-layout">
-      <aside class="project-tree-panel">
+    <div class="page-layout" :class="{ 'with-tree': isHqSelected }">
+      <aside v-if="isHqSelected" class="project-tree-panel">
         <div class="panel-title">项目列表</div>
         <el-tree
           :data="treeData"
           node-key="id"
           highlight-current
           default-expand-all
-          :current-node-key="selectedProjectId"
+          :current-node-key="treeProjectId"
           :expand-on-click-node="false"
           class="project-tree"
-          @node-click="handleNodeClick"
+          @node-click="onTreeNodeClick"
         />
       </aside>
 
       <section class="detail-panel">
-        <div class="panel-head">
-          <div>
-            <div class="panel-title">{{ selectedProjectLabel || '请选择项目' }}</div>
-            <div class="panel-stats">
-              <span>记录 {{ stats.total }} 条</span>
-              <span>已进场 {{ stats.entered }}</span>
-              <span>已出场 {{ stats.exited }}</span>
-              <span>在场 {{ stats.onSite }}</span>
-              <span>不在场 {{ stats.offSite }}</span>
-            </div>
-          </div>
+        <div v-if="isHqSelected" class="panel-title">{{ scopeProjectLabel }}</div>
+        <div class="panel-stats">
+          <span>记录 {{ stats.total }} 条</span>
+          <span>已进场 {{ stats.entered }}</span>
+          <span>已出场 {{ stats.exited }}</span>
+          <span>在场 {{ stats.onSite }}</span>
+          <span>不在场 {{ stats.offSite }}</span>
         </div>
 
         <div class="filter-bar">
@@ -155,7 +158,22 @@ function handleReset() {
           <el-table-column type="index" label="序号" width="60" align="center" />
           <el-table-column prop="date" label="考勤日期" width="110" />
           <el-table-column prop="name" label="姓名" width="90" />
-          <el-table-column prop="idCard" label="身份证号" min-width="170" />
+          <el-table-column label="身份证号" min-width="200">
+            <template #default="{ row }">
+              <div class="id-card-cell">
+                <span>{{ displayIdCard(row) }}</span>
+                <el-button
+                  v-if="!isIdCardVisible(row.id)"
+                  link
+                  type="primary"
+                  size="small"
+                  @click="viewIdCard(row)"
+                >
+                  查看
+                </el-button>
+              </div>
+            </template>
+          </el-table-column>
           <el-table-column prop="workType" label="工种" width="90" />
           <el-table-column prop="team" label="班组" min-width="110" show-overflow-tooltip />
           <el-table-column prop="subcontractor" label="分包单位" min-width="120" show-overflow-tooltip />
@@ -212,6 +230,13 @@ function handleReset() {
   color: var(--ap-text);
 }
 
+.page-scope {
+  margin: 8px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ap-text);
+}
+
 .page-tip {
   margin-top: 8px;
   font-size: 12px;
@@ -219,7 +244,7 @@ function handleReset() {
   line-height: 1.5;
 }
 
-.detail-layout {
+.page-layout.with-tree {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
   gap: 16px;
@@ -241,15 +266,12 @@ function handleReset() {
   margin-bottom: 12px;
 }
 
-.panel-head {
-  margin-bottom: 12px;
-}
-
 .panel-stats {
   display: flex;
   flex-wrap: wrap;
   gap: 12px 20px;
   margin-top: 6px;
+  margin-bottom: 12px;
   font-size: 13px;
   color: var(--ap-text-secondary);
 }
@@ -278,5 +300,11 @@ function handleReset() {
 
 .text-muted {
   color: var(--ap-text-muted);
+}
+
+.id-card-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 </style>

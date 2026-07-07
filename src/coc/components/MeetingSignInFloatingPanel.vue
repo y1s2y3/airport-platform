@@ -84,7 +84,7 @@ defineExpose({ togglePanel, panelExpanded })
       title="会议签到"
       @click="togglePanel(true)"
     >
-      <el-icon :size="20"><UserFilled /></el-icon>
+      <el-icon :size="22"><UserFilled /></el-icon>
       <span class="fab-label">会议签到</span>
     </button>
 
@@ -101,7 +101,7 @@ defineExpose({ togglePanel, panelExpanded })
           :model-value="activeSignInProjectId"
           class="scope-select"
           placeholder="请选择项目"
-          size="small"
+          size="default"
           filterable
           @update:model-value="handleScopeSelect"
         >
@@ -129,9 +129,9 @@ defineExpose({ togglePanel, panelExpanded })
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  width: 52px;
-  height: 52px;
+  gap: 4px;
+  width: var(--coc-float-fab-size, 56px);
+  height: var(--coc-float-fab-size, 56px);
   padding: 0;
   border: 1px solid rgba(201, 123, 99, 0.35);
   border-radius: 12px;
@@ -147,17 +147,16 @@ defineExpose({ togglePanel, panelExpanded })
 }
 
 .fab-label {
-  font-size: calc(9px + var(--coc-font-boost));
+  font-size: calc(10px + var(--coc-font-boost));
   font-weight: 700;
   line-height: 1;
-  transform: scale(0.92);
 }
 
 .sign-in-panel {
-  width: 320px;
-  height: calc((100vh - 120px) / 2);
-  max-height: 380px;
-  min-height: 260px;
+  width: var(--coc-float-panel-width, 340px);
+  height: var(--coc-float-panel-height, 400px);
+  max-height: var(--coc-float-panel-height, 400px);
+  min-height: var(--coc-float-panel-min-height, 280px);
   display: flex;
   flex-direction: column;
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.14);

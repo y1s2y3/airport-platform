@@ -3,12 +3,14 @@ import { ref, computed } from 'vue'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { laborBlacklist as initialList, maskIdCard } from '../../mock/laborBlacklist'
+import { useCurrentProject } from '../../composables/useCurrentProject'
 
+const { isHqSelected, projectLabel } = useCurrentProject()
 const list = ref(initialList.map((row) => ({ ...row })))
 const filters = ref({ name: '', idCard: '' })
 const formVisible = ref(false)
 const formRef = ref(null)
-const formData = ref({ name: '', idCard: '', phone: '', reason: '' })
+const formData = ref({ name: '', idCard: '', reason: '' })
 
 const formRules = {
   name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
@@ -32,7 +34,7 @@ function handleReset() {
 }
 
 function openForm() {
-  formData.value = { name: '', idCard: '', phone: '', reason: '' }
+  formData.value = { name: '', idCard: '', reason: '' }
   formVisible.value = true
 }
 
@@ -47,7 +49,6 @@ async function handleSubmit() {
     id: `bl-${Date.now()}`,
     name: formData.value.name.trim(),
     idCard: formData.value.idCard.trim(),
-    phone: formData.value.phone.trim(),
     reason: formData.value.reason.trim(),
     createdBy: '当前用户',
     createdAt: new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-'),
@@ -66,11 +67,12 @@ async function handleRemove(row) {
 <template>
   <div class="blacklist-page page-card">
     <div class="page-header">
-      <div class="page-breadcrumb">劳务管理 / 劳务黑名单</div>
+      <div class="page-breadcrumb">人员实名制管理 / 劳务黑名单</div>
       <div class="page-heading">
         <h1 class="page-title">劳务黑名单</h1>
         <el-button class="ap-btn-primary" type="primary" :icon="Plus" @click="openForm">新增</el-button>
       </div>
+      <p v-if="!isHqSelected" class="page-scope">当前项目：{{ projectLabel }}</p>
     </div>
 
     <div class="filter-bar">
@@ -88,13 +90,10 @@ async function handleRemove(row) {
         <el-table-column label="身份证号" min-width="170">
           <template #default="{ row }">{{ maskIdCard(row.idCard) }}</template>
         </el-table-column>
-        <el-table-column label="手机号" width="130">
-          <template #default="{ row }">{{ row.phone || '-' }}</template>
-        </el-table-column>
         <el-table-column prop="reason" label="拉黑原因" min-width="200" show-overflow-tooltip />
         <el-table-column prop="createdBy" label="登记人" width="100" />
         <el-table-column prop="createdAt" label="登记时间" width="160" />
-        <el-table-column label="操作" width="90" fixed="right" align="center">
+        <el-table-column v-if="isHqSelected" label="操作" width="90" fixed="right" align="center">
           <template #default="{ row }">
             <el-button link type="danger" @click="handleRemove(row)">移出</el-button>
           </template>
@@ -109,9 +108,6 @@ async function handleRemove(row) {
         </el-form-item>
         <el-form-item label="身份证号" prop="idCard">
           <el-input v-model="formData.idCard" placeholder="请输入身份证号" maxlength="18" />
-        </el-form-item>
-        <el-form-item label="手机号">
-          <el-input v-model="formData.phone" placeholder="选填" maxlength="11" />
         </el-form-item>
         <el-form-item label="拉黑原因" prop="reason">
           <el-input
@@ -151,6 +147,13 @@ async function handleRemove(row) {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.page-scope {
+  margin: 8px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ap-text);
 }
 
 .page-title {

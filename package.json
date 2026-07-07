@@ -1,12 +1,13 @@
 {
   "name": "airport-expansion-project-informatization",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.3.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "build:html": "node scripts/build-standalone.mjs",
+    "build:coc-html": "node scripts/build-coc-standalone.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -19,6 +20,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.7",
+    "playwright": "^1.61.1",
     "vite": "^8.1.0",
     "vite-plugin-singlefile": "^2.3.0"
   }

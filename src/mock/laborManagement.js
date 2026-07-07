@@ -1,4 +1,7 @@
-import { projectTree } from './laborRealName.js'
+import { projectTree, getRealNameStats, getProjectPersonnel, getProjectLabel } from './laborRealName.js'
+import { getProjectWarnings, getWarningStats } from './laborWarningList.js'
+import { getPersonStats, getTeamStats } from './laborAttendanceStats.js'
+import { REALNAME_ENTRY_STATUS } from '../constants/laborPersonStatus.js'
 
 export { projectTree }
 
@@ -8,35 +11,164 @@ export const projectList = projectTree[0].children.map((item) => ({
   count: item.count,
 }))
 
-export const laborDashboardData = {
-  summary: {
-    total: 2998,
-    manager: 186,
-    special: 412,
-    worker: 2400,
-    onSite: 2654,
-    todayPresent: 2486,
-    attendanceRate: '93.6%',
-  },
-  accessAbnormalList: [
-    { name: '赵某', company: '中建三局', blockType: '未培训', time: '08:12' },
-    { name: '钱某', company: '广东建工', blockType: '证件过期', time: '09:35' },
-    { name: '孙某', company: '深圳市政', blockType: '黑名单', time: '10:08' },
-    { name: '李某', company: '中铁建工', blockType: '未培训', time: '11:22' },
-  ],
-  trainingAbnormalList: [
-    { name: '周某', company: '中建三局', abnormalType: '证书过期', expireDate: '2026-05-30' },
-    { name: '吴某', company: '广东建工', abnormalType: '未完成教育', expireDate: '-' },
-    { name: '郑某', company: '深圳市政', abnormalType: '证书过期', expireDate: '2026-06-15' },
-  ],
-  projectRanking: [
-    { projectName: 'T2航站区及配套工程', onSite: 1286, present: 1208, rate: '93.9%' },
-    { projectName: '三跑道扩建工程', onSite: 856, present: 798, rate: '93.2%' },
-    { projectName: 'T1航站区配套工程', onSite: 432, present: 386, rate: '89.4%' },
-    { projectName: '综合配套区市政工程', onSite: 268, present: 252, rate: '94.0%' },
-    { projectName: '捷运线延长段工程', onSite: 156, present: 142, rate: '91.0%' },
-  ],
+const ALL_LABOR_PROJECT_IDS = projectList.map((item) => item.id)
+
+export const HQ_AGE_SEGMENTS = [
+  { name: '18-30岁', color: '#4285f4' },
+  { name: '31-40岁', color: '#00bcd4' },
+  { name: '41-50岁', color: '#43a047' },
+  { name: '51-60岁', color: '#ff9800' },
+  { name: '60岁以上', color: '#e53935' },
+]
+
+export const HQ_CATEGORY_SEGMENTS = [
+  { name: '劳务人员', color: '#4285f4' },
+  { name: '管理人员', color: '#43a047' },
+  { name: '特种作业人员', color: '#ff9800' },
+]
+
+function getAgeBucket(age) {
+  if (age <= 30) return '18-30岁'
+  if (age <= 40) return '31-40岁'
+  if (age <= 50) return '41-50岁'
+  if (age <= 60) return '51-60岁'
+  return '60岁以上'
 }
+
+function getAllEnteredPersonnel() {
+  return ALL_LABOR_PROJECT_IDS.flatMap((id) => getProjectPersonnel(id)).filter(
+    (item) => item.entryStatus === REALNAME_ENTRY_STATUS.ENTERED,
+  )
+}
+
+function aggregateAgeAnalysis() {
+  const counts = Object.fromEntries(HQ_AGE_SEGMENTS.map((seg) => [seg.name, 0]))
+  getAllEnteredPersonnel().forEach((person) => {
+    const bucket = getAgeBucket(person.basic.age)
+    if (counts[bucket] !== undefined) counts[bucket] += 1
+  })
+  return HQ_AGE_SEGMENTS.map((seg) => ({ ...seg, value: counts[seg.name] }))
+}
+
+function aggregateCategoryAnalysis() {
+  const counts = Object.fromEntries(HQ_CATEGORY_SEGMENTS.map((seg) => [seg.name, 0]))
+  getAllEnteredPersonnel().forEach((person) => {
+    const category = person.unit.personnelCategory
+    if (counts[category] !== undefined) counts[category] += 1
+  })
+  return HQ_CATEGORY_SEGMENTS.map((seg) => ({ ...seg, value: counts[seg.name] }))
+}
+
+function buildHqAttendanceTrend(enteredTotal) {
+  const end = new Date('2026-06-29')
+  const trend = []
+  for (let i = 29; i >= 0; i -= 1) {
+    const date = new Date(end)
+    date.setDate(end.getDate() - i)
+    const dateStr = date.toISOString().slice(0, 10)
+    const seed = Number(dateStr.replace(/-/g, '')) % 97
+    const rate = 86 + (seed % 10) + ((29 - i) % 5) * 0.4
+    const presentCount = Math.round(enteredTotal * rate / 100)
+    trend.push({
+      date: dateStr,
+      label: dateStr.slice(5),
+      presentCount,
+      attendanceRate: Number(rate.toFixed(1)),
+    })
+  }
+  return trend
+}
+
+function aggregateRealNameStats() {
+  return ALL_LABOR_PROJECT_IDS.reduce(
+    (acc, id) => {
+      const stats = getRealNameStats(id)
+      acc.total += stats.total
+      acc.entered += stats.entered
+      acc.exited += stats.exited
+      acc.onSite += stats.onSite
+      acc.special += stats.special
+      return acc
+    },
+    { total: 0, entered: 0, exited: 0, onSite: 0, special: 0 },
+  )
+}
+
+function buildDashboardPayload({ realname, warningStats, warnings, personStats, teamStats }) {
+  const avgAttendanceRate = personStats.length
+    ? `${(personStats.reduce((sum, row) => sum + parseFloat(row.attendanceRate), 0) / personStats.length).toFixed(1)}%`
+    : '-'
+  const todayPresent = personStats.reduce((sum, row) => sum + Math.round(row.attendanceDays * 0.95), 0)
+  const openWarnings = warnings
+    .filter((item) => item.status !== '已关闭')
+    .sort((a, b) => (b.triggeredAt || '').localeCompare(a.triggeredAt || ''))
+
+  return {
+    summary: {
+      total: realname.total,
+      entered: realname.entered,
+      onSite: realname.onSite,
+      special: realname.special,
+      pendingWarnings: warningStats.pending,
+      processingWarnings: warningStats.processing,
+      todayPresent,
+      attendanceRate: avgAttendanceRate,
+    },
+    pendingWarningList: openWarnings.slice(0, 6).map((item) => ({
+      warningNo: item.warningNo,
+      projectId: item.projectId,
+      projectName: getProjectLabel(item.projectId),
+      name: item.name,
+      ruleLabel: item.ruleLabel,
+      status: item.status,
+      time: item.triggeredAt?.slice(11, 16) || '-',
+    })),
+    trainingAbnormalList: openWarnings
+      .filter((item) => ['noLevel3Education', 'specialCertMissing'].includes(item.ruleKey))
+      .slice(0, 6)
+      .map((item) => ({
+        name: item.name,
+        company: item.unitName,
+        abnormalType: item.ruleLabel,
+        expireDate: item.status,
+      })),
+    teamRanking: teamStats.map((item) => ({
+      team: item.team,
+      company: item.company,
+      headcount: item.headcount,
+      presentDays: item.presentDays,
+      rate: item.avgRate,
+    })),
+  }
+}
+
+export function getLaborDashboardData(projectId) {
+  if (!projectId || projectId === 'hq') {
+    const realname = aggregateRealNameStats()
+    return {
+      ...buildDashboardPayload({
+        realname,
+        warningStats: getWarningStats('hq'),
+        warnings: getProjectWarnings('hq'),
+        personStats: ALL_LABOR_PROJECT_IDS.flatMap((id) => getPersonStats(id)),
+        teamStats: ALL_LABOR_PROJECT_IDS.flatMap((id) => getTeamStats(id)),
+      }),
+      ageAnalysis: aggregateAgeAnalysis(),
+      categoryAnalysis: aggregateCategoryAnalysis(),
+      attendanceTrend: buildHqAttendanceTrend(realname.entered),
+    }
+  }
+
+  return buildDashboardPayload({
+    realname: getRealNameStats(projectId),
+    warningStats: getWarningStats(projectId),
+    warnings: getProjectWarnings(projectId),
+    personStats: getPersonStats(projectId),
+    teamStats: getTeamStats(projectId),
+  })
+}
+
+export const laborDashboardData = getLaborDashboardData('p-000')
 
 export const accessStatsSummary = {
   projectCount: 5,

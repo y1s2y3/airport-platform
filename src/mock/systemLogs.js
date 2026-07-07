@@ -1,4 +1,4 @@
-﻿/** 登录结果选项 */
+/** 登录结果选项 */
 export const loginResultOptions = ['全部', '成功', '失败']
 
 /** 操作类型选项 */
@@ -53,3 +53,30 @@ export const operationLogList = [
   { id: 'ol-014', module: '系统设置', type: '登录', content: '用户登录系统', operator: '林开发', operateTime: '2026-06-24 10:02:08', ip: '192.168.1.105', requestUrl: '/api/auth/login', duration: 45, status: '成功' },
   { id: 'ol-015', module: '用户管理', type: '修改', content: '重置用户「张设计」登录密码', operator: '刘文强', operateTime: '2026-06-24 09:15:36', ip: '10.12.8.45', requestUrl: '/api/system/user/reset-password', duration: 98, status: '成功' },
 ]
+
+const CURRENT_OPERATOR = '刘文强'
+
+export function appendOperationLog({
+  module,
+  type,
+  content,
+  operator = CURRENT_OPERATOR,
+  ip = '10.12.8.45',
+  requestUrl = '',
+  duration = 15,
+  status = '成功',
+}) {
+  const operateTime = new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-')
+  operationLogList.unshift({
+    id: `ol-${Date.now()}`,
+    module,
+    type,
+    content,
+    operator,
+    operateTime,
+    ip,
+    requestUrl,
+    duration,
+    status,
+  })
+}

@@ -58,6 +58,7 @@ function buildPunchRecord(projectId, projectName, index, tpl, date) {
     projectId,
     projectName,
     name: tpl.name,
+    idCardRaw,
     idCard: maskIdCard(idCardRaw),
     workType: tpl.workType,
     team: tpl.team,
@@ -94,6 +95,21 @@ export const attendanceDetailByProject = Object.fromEntries(
 
 export function getAttendanceDetails(projectId) {
   return attendanceDetailByProject[projectId] || []
+}
+
+export function getAttendanceDetailsByMonth(projectId, month) {
+  const projectName = getProjectLabel(projectId)
+  const node = projectTree[0].children.find((item) => item.id === projectId)
+  const count = node ? Math.min(node.count > 100 ? 12 : 8, 12) : 8
+  const [y, m] = month.split('-').map(Number)
+  const daysInMonth = new Date(y, m, 0).getDate()
+  const sampleDays = [1, 5, 10, 15, 20, 25].filter((d) => d <= daysInMonth)
+  const list = []
+  sampleDays.forEach((day) => {
+    const date = `${month}-${String(day).padStart(2, '0')}`
+    list.push(...buildProjectDetails(projectId, projectName, count, date))
+  })
+  return list
 }
 
 export function getDefaultProjectId() {

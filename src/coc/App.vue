@@ -17,15 +17,21 @@ import ProjectDispatchView from './components/ProjectDispatchView.vue'
 import { cocFeatureFlags } from './config/featureFlags.js'
 import { collapseCocFloatingPanels } from './composables/useMeetingAiSession.js'
 import { DESIGN_WIDTH, DESIGN_HEIGHT, FOCUS_PROJECT_ID, HQ_SELECTION_ID, buildProjects, getProjectShortName, resolveDispatchProjectId } from './mock/data.js'
+import { createCocInitialState } from './utils/cocBoot.js'
 
+const cocInitialState = createCocInitialState()
 const projects = ref(buildProjects())
-const selectedProjectId = ref(HQ_SELECTION_ID)
+const selectedProjectId = ref(cocInitialState.selectedProjectId)
 const statusFilters = ref(['在建'])
-const homeProjectDispatchId = ref(null)
-const homeProjectDispatchLabel = ref('')
-const homeProjectDispatchDeviceId = ref(null)
+const homeProjectDispatchId = ref(cocInitialState.homeProjectDispatchId)
+const homeProjectDispatchLabel = ref(cocInitialState.homeProjectDispatchLabel)
+const homeProjectDispatchDeviceId = ref(cocInitialState.homeProjectDispatchDeviceId)
 const progressDetailScreen = ref(false)
 const scale = ref(1)
+const viewportStyle = computed(() => ({
+  '--coc-viewport-scale': String(scale.value),
+  '--coc-font-boost': `${Math.round(2.5 * scale.value * 10) / 10}px`,
+}))
 const { commandMeetingScreen } = useCommandMeetingControl()
 
 function closeMeetingScreen() {
@@ -118,7 +124,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="screen-viewport">
+  <div class="screen-viewport" :style="viewportStyle">
     <CocFloatingPanels
       :projects="projects"
       :selected-project-id="selectedProjectId"

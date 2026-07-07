@@ -17,19 +17,20 @@ import {
   Connection,
   Notebook,
   Collection,
+  VideoCamera,
+  Van,
 } from '@element-plus/icons-vue'
 import { sidebarMenu } from '../config/menu'
 import {
   HQ_PROJECT_OPTION,
   COC_PROJECT_OPTIONS,
-  DEFAULT_PROJECT_ID,
 } from '../config/projectOptions'
+import { selectedProjectId } from '../composables/useCurrentProject'
 
 const route = useRoute()
 const router = useRouter()
 const collapsed = ref(false)
 const expandedKeys = ref([])
-const selectedProjectId = ref(DEFAULT_PROJECT_ID)
 
 const projectOptions = COC_PROJECT_OPTIONS
 
@@ -45,6 +46,8 @@ const iconMap = {
   Connection,
   Notebook,
   Collection,
+  VideoCamera,
+  Van,
 }
 
 const activeMenu = computed(() => route.meta.sidebarKey || 'workbench')
@@ -83,7 +86,23 @@ function ensureExpandedForRoute() {
   }
 }
 
-watch(() => route.path, ensureExpandedForRoute, { immediate: true })
+watch(
+  () => route.fullPath,
+  () => {
+    ensureExpandedForRoute()
+    const key = route.meta?.tabKey || route.name || route.path
+    const label = route.meta?.title || '页面'
+    const path = route.path
+    const existing = openTabs.value.find((t) => t.key === key)
+    if (existing) {
+      existing.label = label
+      existing.path = path
+    } else {
+      openTabs.value.push({ key, label, path })
+    }
+  },
+  { immediate: true },
+)
 
 function toggleGroup(key) {
   if (expandedKeys.value.includes(key)) {

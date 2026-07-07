@@ -47,6 +47,9 @@ export const ONSITE_STATUS = {
 
 export const ONSITE_STATUS_OPTIONS = [ONSITE_STATUS.ON_SITE, ONSITE_STATUS.OFF_SITE]
 
+/** 已退场人员不适用在场状态 */
+export const REALNAME_ONSITE_NOT_APPLICABLE = '—'
+
 export function isPersonOnSiteByPunch(clockIn, clockOut) {
   return Boolean(clockIn) && !clockOut
 }
@@ -55,6 +58,25 @@ export function getOnSiteStatus(clockIn, clockOut) {
   return isPersonOnSiteByPunch(clockIn, clockOut)
     ? ONSITE_STATUS.ON_SITE
     : ONSITE_STATUS.OFF_SITE
+}
+
+/** 实名制 · 在场状态（已退场不适用） */
+export function getRealNameOnSiteStatus(entryStatus, clockIn, clockOut) {
+  if (entryStatus === REALNAME_ENTRY_STATUS.EXITED) {
+    return REALNAME_ONSITE_NOT_APPLICABLE
+  }
+  return getOnSiteStatus(clockIn, clockOut)
+}
+
+export function isRealNameActive(entryStatus) {
+  return entryStatus === REALNAME_ENTRY_STATUS.ENTERED
+}
+
+export function isRealNamePersonOnSite(person) {
+  return (
+    isRealNameActive(person.entryStatus) &&
+    person.onSiteStatus === ONSITE_STATUS.ON_SITE
+  )
 }
 
 export function realNameEntryStatusTagClass(status) {

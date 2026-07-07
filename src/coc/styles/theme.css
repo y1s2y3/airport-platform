@@ -1,6 +1,11 @@
 :root {
   --coc-font-boost: 2.5px;
-  --coc-ui-scale: 0.333333;
+  --coc-ui-scale: 1;
+  --coc-viewport-scale: 1;
+  --coc-float-fab-size: 56px;
+  --coc-float-panel-width: 340px;
+  --coc-float-panel-height: 400px;
+  --coc-float-panel-min-height: 280px;
   --coc-accent: #c97b63;
   --coc-accent-light: #e8b4a0;
   --coc-accent-dark: #a85d48;

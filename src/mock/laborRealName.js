@@ -1,11 +1,13 @@
 import {
   REALNAME_ENTRY_STATUS,
   REALNAME_ENTRY_STATUS_OPTIONS,
+  ONSITE_STATUS,
   ONSITE_STATUS_OPTIONS,
-  getOnSiteStatus,
+  getRealNameOnSiteStatus,
   realNameEntryStatusTagClass,
   onSiteStatusTagClass,
 } from '../constants/laborPersonStatus.js'
+import { appendOperationLog } from './systemLogs.js'
 
 export {
   REALNAME_ENTRY_STATUS_OPTIONS as entryStatusOptions,
@@ -16,89 +18,189 @@ export {
   realNameEntryStatusTagClass as statusTagClass,
 }
 
-export const projectTree = [
-  {
-    id: 'hq',
-    label: '工程指挥部',
-    children: [
-      { id: 'p-000', label: 'T2航站区及配套工程', count: 1286 },
-      { id: 'p-001', label: 'T1航站区配套工程', count: 432 },
-      { id: 'p-003', label: '三跑道扩建工程', count: 856 },
-      { id: 'p-004', label: '综合配套区市政工程', count: 268 },
-      { id: 'p-005', label: '捷运线延长段工程', count: 156 },
-    ],
-  },
-]
-
 export const workTypeOptions = ['钢筋工', '木工', '混凝土工', '架子工', '电工', '焊工', '起重工', '普工', '安全员', '测量员']
 export const genderOptions = ['男', '女']
+export const salaryTypeOptions = ['计时', '计件', '计量', '月薪', '其他']
+export const personnelCategoryOptions = ['管理人员', '劳务人员', '特种作业人员']
+export const unitTypeOptions = ['建设单位', '勘察单位', '设计单位', '监理单位', '总包单位', '劳务分包', '单位分包']
+export const educationTypeOptions = ['三级教育', '岗前培训']
+export const idTypeOptions = ['居民身份证', '护照', '港澳居民来往内地通行证', '台湾居民来往大陆通行证']
 
-const personnelTemplates = [
-  { name: '张强', gender: '男', workType: '钢筋工', team: '钢筋一班', subcontractor: '中建三局', special: false },
-  { name: '李华', gender: '男', workType: '木工', team: '木工二班', subcontractor: '中建三局', special: false },
-  { name: '王芳', gender: '女', workType: '普工', team: '综合班组', subcontractor: '深圳市政', special: false },
-  { name: '赵磊', gender: '男', workType: '电工', team: '机电班组', subcontractor: '中建三局', special: true, certNo: 'T4403002023001234' },
-  { name: '刘洋', gender: '男', workType: '焊工', team: '钢结构班', subcontractor: '广东建工', special: true, certNo: 'T4403002023005678' },
-  { name: '陈静', gender: '女', workType: '安全员', team: '安全管理组', subcontractor: '中建三局', special: false },
-  { name: '周杰', gender: '男', workType: '架子工', team: '脚手架班', subcontractor: '中铁建工', special: true, certNo: 'T4403002023009012' },
-  { name: '吴敏', gender: '女', workType: '测量员', team: '测量组', subcontractor: '深圳市政', special: false },
-  { name: '郑伟', gender: '男', workType: '混凝土工', team: '混凝土班', subcontractor: '中建三局', special: false },
-  { name: '孙涛', gender: '男', workType: '起重工', team: '塔吊班', subcontractor: '广东建工', special: true, certNo: 'T4403002023003456' },
-  { name: '马超', gender: '男', workType: '普工', team: '杂工班', subcontractor: '中铁建工', special: false, entryStatus: REALNAME_ENTRY_STATUS.EXITED },
-  { name: '黄丽', gender: '女', workType: '钢筋工', team: '钢筋二班', subcontractor: '深圳市政', special: false },
+const projectNodes = [
+  { id: 'p-000', label: 'T2航站区及配套工程' },
+  { id: 'p-001', label: 'T1航站区配套工程' },
+  { id: 'p-003', label: '三跑道扩建工程' },
+  { id: 'p-004', label: '综合配套区市政工程' },
+  { id: 'p-005', label: '捷运线延长段工程' },
 ]
 
-function maskIdCard(id) {
+const unitTypeByKey = {
+  中建三局: '总包单位',
+  深圳市政: '劳务分包',
+  广东建工: '单位分包',
+  中铁建工: '劳务分包',
+}
+
+const unitProfiles = {
+  中建三局: { fullName: '中建三局第一建设工程有限责任公司', creditCode: '91420000123456789X' },
+  深圳市政: { fullName: '深圳市政集团有限公司', creditCode: '91440300123456789A' },
+  广东建工: { fullName: '广东省建筑工程集团有限公司', creditCode: '91440000123456789B' },
+  中铁建工: { fullName: '中铁建工集团有限公司', creditCode: '91110000123456789C' },
+}
+
+const personnelTemplates = [
+  { name: '张强', gender: '男', workType: '钢筋工', team: '钢筋一班', unitKey: '中建三局', category: '劳务人员', special: false, isTeamLeader: true },
+  { name: '李华', gender: '男', workType: '木工', team: '木工二班', unitKey: '中建三局', category: '劳务人员', special: false, isTeamLeader: false },
+  { name: '王芳', gender: '女', workType: '普工', team: '综合班组', unitKey: '深圳市政', category: '劳务人员', special: false, isTeamLeader: false },
+  { name: '赵磊', gender: '男', workType: '电工', team: '机电班组', unitKey: '中建三局', category: '特种作业人员', special: true, certNo: 'T4403002023001234', isTeamLeader: false },
+  { name: '刘洋', gender: '男', workType: '焊工', team: '钢结构班', unitKey: '广东建工', category: '特种作业人员', special: true, certNo: 'T4403002023005678', isTeamLeader: false },
+  { name: '陈静', gender: '女', workType: '安全员', team: '安全管理组', unitKey: '中建三局', category: '管理人员', special: false, isTeamLeader: false },
+  { name: '周杰', gender: '男', workType: '架子工', team: '脚手架班', unitKey: '中铁建工', category: '特种作业人员', special: true, certNo: 'T4403002023009012', isTeamLeader: false },
+  { name: '吴敏', gender: '女', workType: '测量员', team: '测量组', unitKey: '深圳市政', category: '管理人员', special: false, isTeamLeader: false },
+  { name: '郑伟', gender: '男', workType: '混凝土工', team: '混凝土班', unitKey: '中建三局', category: '劳务人员', special: false, isTeamLeader: false },
+  { name: '孙涛', gender: '男', workType: '起重工', team: '塔吊班', unitKey: '广东建工', category: '特种作业人员', special: true, certNo: 'T4403002023003456', isTeamLeader: true },
+  { name: '马超', gender: '男', workType: '普工', team: '杂工班', unitKey: '中铁建工', category: '劳务人员', special: false, isTeamLeader: false, entryStatus: REALNAME_ENTRY_STATUS.EXITED },
+  { name: '黄丽', gender: '女', workType: '钢筋工', team: '钢筋二班', unitKey: '深圳市政', category: '劳务人员', special: false, isTeamLeader: false },
+]
+
+const nativePlaces = ['湖北省武汉市', '湖南省长沙市', '广东省深圳市', '四川省成都市', '河南省郑州市', '江西省南昌市']
+const educations = ['小学', '初中', '高中', '中专', '大专', '本科']
+const politicalStatuses = ['群众', '共青团员', '中共党员']
+const salaryTypes = ['计时', '计件', '计量', '月薪', '其他']
+const salaryUnits = { 计时: '元/天', 计件: '元/件', 计量: '元/m³', 月薪: '元/月', 其他: '元/天' }
+
+export const educationLevelOptions = ['小学', '初中', '高中', '中专', '大专', '本科', '硕士', '博士']
+export const politicalStatusOptions = ['群众', '共青团员', '中共党员', '民主党派']
+export const healthStatusOptions = ['健康', '一般', '需关注']
+
+export const unitNameOptions = Object.values(unitProfiles).map((item) => item.fullName)
+
+export function getProjectOptions() {
+  return projectNodes.map((item) => ({ id: item.id, label: item.label }))
+}
+
+export function maskIdCard(id) {
+  if (!id || id.length < 8) return id
   return `${id.slice(0, 6)}********${id.slice(-4)}`
+}
+
+export function maskPhone(phone) {
+  if (!phone || phone.length < 7) return phone || '—'
+  if (phone.length === 11) return `${phone.slice(0, 3)}****${phone.slice(-4)}`
+  return `${phone.slice(0, 3)}****${phone.slice(-2)}`
 }
 
 function buildTodayPunch(seq, entryStatus) {
   if (entryStatus === REALNAME_ENTRY_STATUS.EXITED) {
-    return { clockIn: '', clockOut: '', onSiteStatus: '—' }
+    return { clockIn: '', clockOut: '' }
   }
   const pattern = seq % 5
   if (pattern <= 2) {
     const time = `07:${String(30 + (seq % 25)).padStart(2, '0')}:00`
-    return { clockIn: time, clockOut: '', onSiteStatus: getOnSiteStatus(time, '') }
+    return { clockIn: time, clockOut: '' }
   }
   if (pattern === 3) {
     const clockIn = '07:45:00'
     const clockOut = `17:${String(20 + (seq % 30)).padStart(2, '0')}:00`
-    return { clockIn, clockOut, onSiteStatus: getOnSiteStatus(clockIn, clockOut) }
+    return { clockIn, clockOut }
   }
-  return { clockIn: '', clockOut: '', onSiteStatus: getOnSiteStatus('', '') }
+  return { clockIn: '', clockOut: '' }
+}
+
+function buildSafetyEducation(seq, entryStatus) {
+  if (entryStatus === REALNAME_ENTRY_STATUS.EXITED && seq % 3 === 0) {
+    return [
+      {
+        type: '三级教育',
+        trainDate: '2024-08-12',
+        duration: '8小时',
+        qualified: true,
+        certificate: '三级教育合格证.pdf',
+      },
+    ]
+  }
+  return [
+    {
+      type: '三级教育',
+      trainDate: `2025-${String((seq % 6) + 1).padStart(2, '0')}-06`,
+      duration: '8小时',
+      qualified: true,
+      certificate: '三级教育合格证.pdf',
+    },
+    {
+      type: '岗前培训',
+      trainDate: `2025-${String((seq % 6) + 1).padStart(2, '0')}-07`,
+      duration: '4小时',
+      qualified: seq % 7 !== 0,
+      certificate: seq % 7 !== 0 ? '岗前培训证书.pdf' : '',
+    },
+  ]
 }
 
 function buildPersonnel(projectId, index, tpl, offset = 0) {
   const seq = index + offset + 1
   const idBase = 440300199001010000 + seq * 137
-  const idCard = String(idBase).padStart(18, '0')
+  const idNumberRaw = String(idBase).padStart(18, '0')
   const entryStatus = tpl.entryStatus || REALNAME_ENTRY_STATUS.ENTERED
   const punch = buildTodayPunch(seq, entryStatus)
+  const onSiteStatus = getRealNameOnSiteStatus(entryStatus, punch.clockIn, punch.clockOut)
+  const unitProfile = unitProfiles[tpl.unitKey] || { fullName: tpl.unitKey, creditCode: '91440000000000000X' }
+  const salaryType = salaryTypes[seq % salaryTypes.length]
+  const entryDate = `2025-${String((seq % 12) + 1).padStart(2, '0')}-${String((seq % 28) + 1).padStart(2, '0')}`
+  const personnelNo = `RN-${projectId.toUpperCase()}-${String(seq).padStart(4, '0')}`
+
+  const basic = {
+    personnelNo,
+    photo: '',
+    name: tpl.name,
+    phone: `138${String(10000000 + seq * 12345).slice(0, 8)}`,
+    gender: tpl.gender,
+    age: 25 + (seq % 20),
+    idType: '居民身份证',
+    idNumber: maskIdCard(idNumberRaw),
+    idNumberRaw,
+    idValidFrom: '2015-01-01',
+    idValidTo: '2035-01-01',
+    nativePlace: nativePlaces[seq % nativePlaces.length],
+    address: `广东省深圳市宝安区航城街道机场扩建项目生活区${seq}栋`,
+    education: educations[seq % educations.length],
+    politicalStatus: politicalStatuses[seq % politicalStatuses.length],
+    healthStatus: seq % 9 === 0 ? '一般' : '健康',
+    medicalHistory: seq % 9 === 0 ? '高血压（可控）' : '无',
+  }
+
+  const unit = {
+    unitName: unitProfile.fullName,
+    creditCode: unitProfile.creditCode,
+    unitType: unitTypeByKey[tpl.unitKey] || '劳务分包',
+    personnelCategory: tpl.category,
+    workType: tpl.workType,
+    team: tpl.team,
+    isTeamLeader: tpl.isTeamLeader,
+    specialCertAttachment: tpl.special ? `${tpl.workType}操作证.pdf` : '',
+    certValidTo: tpl.special ? '2027-06-30' : '',
+    contractAttachment: '劳动合同.pdf',
+    contractStartDate: entryDate,
+    contractEndDate: entryStatus === REALNAME_ENTRY_STATUS.EXITED ? '2026-05-30' : '2026-12-31',
+    salaryType,
+    unitPrice: `${220 + (seq % 8) * 20}${salaryUnits[salaryType]}`,
+  }
+
+  const safetyEducation = buildSafetyEducation(seq, entryStatus)
 
   return {
     id: `${projectId}-${seq}`,
     projectId,
-    name: tpl.name,
-    idCard: maskIdCard(idCard),
-    idCardRaw: idCard,
-    gender: tpl.gender,
-    age: 25 + (seq % 20),
-    workType: tpl.workType,
-    team: tpl.team,
-    subcontractor: tpl.subcontractor,
-    phone: `138${String(10000000 + seq * 12345).slice(0, 8)}`,
-    entryDate: `2025-${String((seq % 12) + 1).padStart(2, '0')}-${String((seq % 28) + 1).padStart(2, '0')}`,
-    exitDate: entryStatus === REALNAME_ENTRY_STATUS.EXITED ? '2026-05-30' : '',
     entryStatus,
-    status: entryStatus,
+    onSiteStatus,
     clockIn: punch.clockIn,
     clockOut: punch.clockOut,
-    onSiteStatus: punch.onSiteStatus,
     isSpecial: tpl.special,
     certNo: tpl.certNo || '',
-    safetyTraining: '已完成',
     accessStatus: entryStatus === REALNAME_ENTRY_STATUS.ENTERED ? '正常通行' : '已注销',
+    basic,
+    unit,
+    safetyEducation,
   }
 }
 
@@ -119,8 +221,27 @@ export const personnelByProject = {
   'p-005': buildProjectPersonnel('p-005', 5),
 }
 
+export const projectTree = [
+  {
+    id: 'hq',
+    label: '工程指挥部',
+    children: projectNodes.map((node) => ({
+      ...node,
+      count: (personnelByProject[node.id] || []).length,
+    })),
+  },
+]
+
 export function getProjectPersonnel(projectId) {
   return personnelByProject[projectId] || []
+}
+
+export function getPersonnelDetail(id) {
+  for (const list of Object.values(personnelByProject)) {
+    const found = list.find((item) => item.id === id)
+    if (found) return found
+  }
+  return null
 }
 
 export function getDefaultProjectId() {
@@ -133,4 +254,182 @@ export function getProjectLabel(projectId) {
     if (node) return node.label
   }
   return ''
+}
+
+export function getRealNameStats(projectId) {
+  const list = getProjectPersonnel(projectId)
+  return {
+    total: list.length,
+    entered: list.filter((r) => r.entryStatus === REALNAME_ENTRY_STATUS.ENTERED).length,
+    exited: list.filter((r) => r.entryStatus === REALNAME_ENTRY_STATUS.EXITED).length,
+    onSite: list.filter(
+      (r) => r.entryStatus === REALNAME_ENTRY_STATUS.ENTERED && r.onSiteStatus === ONSITE_STATUS.ON_SITE,
+    ).length,
+    special: list.filter((r) => r.isSpecial && r.entryStatus === REALNAME_ENTRY_STATUS.ENTERED).length,
+  }
+}
+
+export function isSafetyEducationComplete(records) {
+  return records?.every((item) => item.qualified) ?? false
+}
+
+export function createEmptySafetyEducation() {
+  return {
+    type: '三级教育',
+    trainDate: '',
+    duration: '',
+    qualified: true,
+    certificate: '',
+  }
+}
+
+export function createEmptyPersonnel(projectId) {
+  const seq = (personnelByProject[projectId]?.length || 0) + 1
+  const personnelNo = `RN-${projectId.toUpperCase()}-${String(seq).padStart(4, '0')}`
+  return {
+    id: '',
+    projectId,
+    entryStatus: REALNAME_ENTRY_STATUS.ENTERED,
+    onSiteStatus: ONSITE_STATUS.OFF_SITE,
+    clockIn: '',
+    clockOut: '',
+    isSpecial: false,
+    certNo: '',
+    accessStatus: '正常通行',
+    basic: {
+      personnelNo,
+      photo: '',
+      name: '',
+      phone: '',
+      gender: '男',
+      age: null,
+      idType: '居民身份证',
+      idNumber: '',
+      idNumberRaw: '',
+      idValidFrom: '',
+      idValidTo: '',
+      nativePlace: '',
+      address: '',
+      education: '',
+      politicalStatus: '群众',
+      healthStatus: '健康',
+      medicalHistory: '无',
+    },
+    unit: {
+      unitName: '',
+      creditCode: '',
+      unitType: '劳务分包',
+      personnelCategory: '劳务人员',
+      workType: '',
+      team: '',
+      isTeamLeader: false,
+      specialCertAttachment: '',
+      certValidTo: '',
+      contractAttachment: '',
+      contractStartDate: '',
+      contractEndDate: '',
+      salaryType: '计时',
+      unitPrice: '',
+    },
+    safetyEducation: [createEmptySafetyEducation()],
+  }
+}
+
+export function clonePersonnel(source) {
+  const cloned = JSON.parse(JSON.stringify(source))
+  if (cloned.basic.idNumberRaw) {
+    cloned.basic.idNumber = cloned.basic.idNumberRaw
+  }
+  return cloned
+}
+
+function normalizePersonnel(data) {
+  const idNumberRaw = data.basic.idNumberRaw || data.basic.idNumber
+  const entryStatus = data.entryStatus || REALNAME_ENTRY_STATUS.ENTERED
+  const isSpecial = data.unit.personnelCategory === '特种作业人员'
+  const onSiteStatus = getRealNameOnSiteStatus(entryStatus, data.clockIn || '', data.clockOut || '')
+
+  return {
+    ...data,
+    entryStatus,
+    isSpecial,
+    onSiteStatus,
+    accessStatus: entryStatus === REALNAME_ENTRY_STATUS.ENTERED ? '正常通行' : '已注销',
+    basic: {
+      ...data.basic,
+      idNumberRaw,
+      idNumber: maskIdCard(idNumberRaw),
+      age: data.basic.age ? Number(data.basic.age) : null,
+    },
+    unit: { ...data.unit },
+  }
+}
+
+export function savePersonnel(data, mode) {
+  const normalized = normalizePersonnel(data)
+  const { projectId } = normalized
+
+  if (!personnelByProject[projectId]) {
+    personnelByProject[projectId] = []
+  }
+
+  if (mode === 'create') {
+    normalized.id = `${projectId}-${Date.now()}`
+    personnelByProject[projectId].unshift(normalized)
+  } else {
+    const list = personnelByProject[projectId]
+    const index = list.findIndex((item) => item.id === normalized.id)
+    if (index === -1) {
+      for (const pid of Object.keys(personnelByProject)) {
+        const idx = personnelByProject[pid].findIndex((item) => item.id === normalized.id)
+        if (idx !== -1) {
+          personnelByProject[pid].splice(idx, 1)
+          break
+        }
+      }
+      personnelByProject[projectId].unshift(normalized)
+    } else {
+      list.splice(index, 1, normalized)
+    }
+  }
+
+  syncProjectTreeCounts()
+  return normalized
+}
+
+export function syncProjectTreeCounts() {
+  projectTree[0].children.forEach((node) => {
+    node.count = (personnelByProject[node.id] || []).length
+  })
+}
+
+export function lookupCreditCode(unitName) {
+  const found = Object.values(unitProfiles).find((item) => item.fullName === unitName)
+  return found?.creditCode || ''
+}
+
+export function lookupUnitType(unitName) {
+  const entry = Object.entries(unitProfiles).find(([, item]) => item.fullName === unitName)
+  if (!entry) return '劳务分包'
+  return unitTypeByKey[entry[0]] || '劳务分包'
+}
+
+/** 查看手机号并写入操作日志 */
+export function logPhoneView({ personnelId, personnelNo, name, scene = '列表' }) {
+  appendOperationLog({
+    module: '安全管理',
+    type: '查询',
+    content: `查看人员实名制手机号：${name}（${personnelNo}）· ${scene}`,
+    requestUrl: `/api/safety/labor/realname/${personnelId}/phone/view`,
+  })
+}
+
+/** 查看证件号码并写入操作日志 */
+export function logIdCardView({ personnelId, personnelNo, name, scene = '列表' }) {
+  appendOperationLog({
+    module: '安全管理',
+    type: '查询',
+    content: `查看人员实名制证件号码：${name}（${personnelNo}）· ${scene}`,
+    requestUrl: `/api/safety/labor/realname/${personnelId}/id-number/view`,
+  })
 }
