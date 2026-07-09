@@ -15,6 +15,7 @@ const props = defineProps({
   videoFilter: { type: String, default: 'all' },
   cameraOrder: { type: Array, default: () => [] },
   dispatchOrder: { type: Array, default: () => [] },
+  hqLayout: { type: Boolean, default: false },
 })
 
 const emit = defineEmits([
@@ -22,6 +23,7 @@ const emit = defineEmits([
   'camera-click',
   'camera-reorder',
   'camera-set-key',
+  'camera-unset-key',
   'dispatch-click',
   'dispatch-reorder',
   'back-to-hq',
@@ -34,6 +36,30 @@ const treeRef = ref(null)
 const draggingItem = ref(null)
 const draggingProjectId = ref(null)
 const dropSlot = ref(null)
+const keyUnsetPopoverId = ref('')
+
+function openKeyUnsetPopover(cameraId) {
+  keyUnsetPopoverId.value = cameraId
+}
+
+function closeKeyUnsetPopover() {
+  keyUnsetPopoverId.value = ''
+}
+
+function onKeyPopoverVisible(cameraId, visible) {
+  if (visible) {
+    keyUnsetPopoverId.value = cameraId
+    return
+  }
+  if (keyUnsetPopoverId.value === cameraId) {
+    keyUnsetPopoverId.value = ''
+  }
+}
+
+function confirmUnsetKey(camera) {
+  emit('camera-unset-key', camera)
+  closeKeyUnsetPopover()
+}
 
 const isHqView = computed(() => props.selectionId === HQ_SELECTION_ID)
 
@@ -362,7 +388,7 @@ onUnmounted(() => {
         :default-expanded-keys="defaultExpandedKeys"
         :expand-on-click-node="false"
         class="project-tree"
-        :class="{ 'is-dragging': !!draggingItem }"
+        :class="{ 'is-dragging': !!draggingItem, 'hq-scrollbar': isHqView || hqLayout }"
         @node-click="onTreeClick"
       >
         <template #default="{ node, data }">
@@ -446,7 +472,46 @@ onUnmounted(() => {
                 </span>
                 <span class="cam-row-meta">
                   <template v-if="isInteractiveCamera(data)">
-                    <span v-if="data.camera.key" class="tree-key">重点</span>
+                    <el-popover
+                      v-if="data.camera.key"
+                      :visible="keyUnsetPopoverId === data.id"
+                      placement="top"
+                      :width="200"
+                      trigger="click"
+                      :show-arrow="true"
+                      popper-class="key-unset-popover"
+                      @update:visible="(visible) => onKeyPopoverVisible(data.id, visible)"
+                    >
+                      <template #reference>
+                        <span
+                          class="tree-key tree-key--clickable"
+                          role="button"
+                          tabindex="0"
+                          @click.stop="openKeyUnsetPopover(data.id)"
+                          @keydown.enter.stop.prevent="openKeyUnsetPopover(data.id)"
+                          @keydown.space.stop.prevent="openKeyUnsetPopover(data.id)"
+                        >重点</span>
+                      </template>
+                      <div class="key-unset-bubble">
+                        <p class="key-unset-bubble__text">是否取消重点标记？</p>
+                        <div class="key-unset-bubble__actions">
+                          <button
+                            type="button"
+                            class="key-unset-bubble__btn"
+                            @click.stop="closeKeyUnsetPopover"
+                          >
+                            取消
+                          </button>
+                          <button
+                            type="button"
+                            class="key-unset-bubble__btn key-unset-bubble__btn--primary"
+                            @click.stop="confirmUnsetKey(data.camera)"
+                          >
+                            确定
+                          </button>
+                        </div>
+                      </div>
+                    </el-popover>
                     <el-tooltip v-else content="设置为重点" placement="top" :show-after="200">
                       <button
                         type="button"
@@ -534,7 +599,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .tree-toolbar {
@@ -654,22 +719,30 @@ onUnmounted(() => {
 
 .back-hq-btn {
   flex-shrink: 0;
-  border: 1px solid var(--coc-border);
-  border-radius: 6px;
-  background: #fff;
-  padding: 3px 10px;
+  margin: 0;
+  padding: 4px 12px;
+  border-radius: 4px;
+  border: 1px solid rgba(94, 238, 255, 0.45);
+  background: rgba(64, 158, 255, 0.12);
   font-size: calc(11px + var(--coc-font-boost));
   font-weight: 600;
-  color: var(--coc-accent);
+  color: #5eeeff;
   cursor: pointer;
   white-space: nowrap;
   line-height: 1.4;
-  transition: border-color 0.2s, background 0.2s;
+  box-shadow: 0 0 10px rgba(94, 238, 255, 0.12);
+  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s, color 0.2s;
 }
 
 .back-hq-btn:hover {
-  border-color: var(--coc-accent);
-  background: rgba(201, 123, 99, 0.08);
+  border-color: rgba(94, 238, 255, 0.7);
+  background: rgba(64, 158, 255, 0.24);
+  color: #fff;
+  box-shadow: 0 0 14px rgba(94, 238, 255, 0.22);
+}
+
+.back-hq-btn:active {
+  transform: scale(0.98);
 }
 
 .tree-node.is-project .tree-label {
@@ -912,6 +985,19 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
+.tree-key--clickable {
+  cursor: pointer;
+  transition: filter 0.2s, transform 0.15s;
+}
+
+.tree-key--clickable:hover {
+  filter: brightness(1.08);
+}
+
+.tree-key--clickable:active {
+  transform: scale(0.97);
+}
+
 .fav-btn {
   display: inline-flex;
   align-items: center;
@@ -1002,5 +1088,61 @@ onUnmounted(() => {
 
 :deep(.el-tree-node__content:hover) {
   background: rgba(201, 123, 99, 0.06);
+}
+</style>
+
+<style>
+.key-unset-popover.el-popper {
+  padding: 10px 12px !important;
+  border-radius: 8px !important;
+  border: 1px solid rgba(94, 238, 255, 0.35) !important;
+  background: rgba(16, 29, 55, 0.96) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28) !important;
+}
+
+.key-unset-popover .el-popper__arrow::before {
+  background: rgba(16, 29, 55, 0.96) !important;
+  border: 1px solid rgba(94, 238, 255, 0.35) !important;
+}
+
+.key-unset-bubble__text {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.92);
+  white-space: nowrap;
+}
+
+.key-unset-bubble__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.key-unset-bubble__btn {
+  margin: 0;
+  padding: 4px 12px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 12px;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.key-unset-bubble__btn:hover {
+  border-color: rgba(94, 238, 255, 0.45);
+  color: #fff;
+}
+
+.key-unset-bubble__btn--primary {
+  border-color: rgba(94, 238, 255, 0.55);
+  background: rgba(64, 158, 255, 0.35);
+  color: #fff;
+}
+
+.key-unset-bubble__btn--primary:hover {
+  background: rgba(64, 158, 255, 0.5);
 }
 </style>

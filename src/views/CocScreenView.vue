@@ -24,15 +24,7 @@ onMounted(() => {
 
 <template>
   <div class="coc-screen-shell">
-    <Suspense>
-      <CocApp />
-      <template #fallback>
-        <div class="coc-loading">
-          <div class="coc-loading-spinner" />
-          <p>正在加载 COC 调度大屏…</p>
-        </div>
-      </template>
-    </Suspense>
+    <CocApp />
   </div>
 </template>
 

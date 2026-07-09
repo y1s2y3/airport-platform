@@ -4,8 +4,8 @@ import { isAliyunNlsConfigured } from '../utils/aliyunNlsConfig.js'
 import { useMeetingScreenRecorder } from './useMeetingScreenRecorder.js'
 import { MOCK_TRANSCRIPTION_LINES } from '../mock/data.js'
 
-const panelExpanded = ref(true)
-const signInPanelExpanded = ref(true)
+const panelExpanded = ref(false)
+const signInPanelExpanded = ref(false)
 const meetingActive = ref(false)
 const transcriptLines = ref([])
 const phase = ref('idle')

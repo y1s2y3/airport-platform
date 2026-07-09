@@ -73,8 +73,8 @@ const dispatchDevice = computed(() => {
   display: flex;
   flex: 1;
   min-height: 0;
-  padding: 16px 28px 20px;
-  gap: 12px;
+  padding: 8px 28px 20px;
+  gap: 6px;
   flex-direction: column;
 }
 
@@ -88,7 +88,7 @@ const dispatchDevice = computed(() => {
 .dispatch-backbar {
   flex-shrink: 0;
   flex-direction: row;
-  padding: 12px 20px;
+  padding: 6px 20px;
 }
 
 .topbar-row {

@@ -194,22 +194,22 @@ const recordBarText = computed(() => {
   width: var(--coc-float-fab-size, 56px);
   height: var(--coc-float-fab-size, 56px);
   padding: 0;
-  border: 1px solid rgba(201, 123, 99, 0.35);
+  border: 1px solid var(--coc-fab-border, rgba(201, 123, 99, 0.35));
   border-radius: 12px;
-  background: linear-gradient(180deg, #fff, #faf6f3);
+  background: var(--coc-fab-bg, linear-gradient(180deg, #fff, #faf6f3));
   color: var(--coc-accent);
   cursor: pointer;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--coc-fab-shadow, 0 4px 16px rgba(0, 0, 0, 0.12));
 }
 
 .ai-fab-btn:hover {
   border-color: var(--coc-accent);
-  box-shadow: 0 6px 20px rgba(201, 123, 99, 0.18);
+  box-shadow: var(--coc-fab-hover-shadow, 0 6px 20px rgba(201, 123, 99, 0.18));
 }
 
 .ai-fab-btn.recording {
-  border-color: rgba(245, 108, 108, 0.45);
-  color: #f56c6c;
+  border-color: var(--coc-fab-recording-border, rgba(245, 108, 108, 0.45));
+  color: var(--coc-fab-recording-color, #f56c6c);
 }
 
 .fab-label {
@@ -225,7 +225,7 @@ const recordBarText = computed(() => {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #f56c6c;
+  background: var(--coc-fab-recording-color, #f56c6c);
   animation: pulse 1.2s infinite;
 }
 
@@ -262,7 +262,7 @@ const recordBarText = computed(() => {
 
 .collapse-btn:hover {
   color: var(--coc-accent);
-  background: rgba(201, 123, 99, 0.08);
+  background: var(--coc-collapse-hover-bg, rgba(201, 123, 99, 0.08));
 }
 
 .meeting-body {
@@ -315,20 +315,20 @@ const recordBarText = computed(() => {
   font-size: calc(11px + var(--coc-font-boost));
   font-weight: 600;
   color: var(--coc-text-secondary);
-  background: #faf8f6;
+  background: var(--coc-surface-muted, #faf8f6);
   border: 1px solid var(--coc-border);
 }
 
 .screen-record-bar.active {
-  color: #f56c6c;
-  background: rgba(245, 108, 108, 0.08);
-  border-color: rgba(245, 108, 108, 0.3);
+  color: var(--coc-record-active-color, #f56c6c);
+  background: var(--coc-record-active-bg, rgba(245, 108, 108, 0.08));
+  border-color: var(--coc-record-active-border, rgba(245, 108, 108, 0.3));
 }
 
 .screen-record-bar.done {
-  color: #67c23a;
-  background: rgba(103, 194, 58, 0.08);
-  border-color: rgba(103, 194, 58, 0.25);
+  color: var(--coc-record-done-color, #67c23a);
+  background: var(--coc-record-done-bg, rgba(103, 194, 58, 0.08));
+  border-color: var(--coc-record-done-border, rgba(103, 194, 58, 0.25));
 }
 
 .record-dot {
@@ -340,12 +340,12 @@ const recordBarText = computed(() => {
 }
 
 .screen-record-bar.active .record-dot {
-  background: #f56c6c;
+  background: var(--coc-record-active-color, #f56c6c);
   animation: pulse 1.2s infinite;
 }
 
 .screen-record-bar.done .record-dot {
-  background: #67c23a;
+  background: var(--coc-record-done-color, #67c23a);
 }
 
 .record-text {
@@ -355,9 +355,9 @@ const recordBarText = computed(() => {
 
 .stop-record-link {
   flex-shrink: 0;
-  border: 1px solid rgba(245, 108, 108, 0.45);
-  background: #fff;
-  color: #f56c6c;
+  border: 1px solid var(--coc-stop-record-border, rgba(245, 108, 108, 0.45));
+  background: var(--coc-stop-record-bg, #fff);
+  color: var(--coc-stop-record-color, #f56c6c);
   font-size: calc(10px + var(--coc-font-boost));
   font-weight: 600;
   cursor: pointer;
@@ -367,8 +367,8 @@ const recordBarText = computed(() => {
 }
 
 .stop-record-link:hover {
-  background: #fef0f0;
-  border-color: #f56c6c;
+  background: var(--coc-stop-record-hover-bg, #fef0f0);
+  border-color: var(--coc-stop-record-color, #f56c6c);
 }
 
 .record-local-path {
@@ -389,21 +389,21 @@ const recordBarText = computed(() => {
   border-radius: 8px;
   font-size: calc(11px + var(--coc-font-boost));
   font-weight: 600;
-  background: #faf8f6;
+  background: var(--coc-surface-muted, #faf8f6);
   color: var(--coc-text-secondary);
   border: 1px solid var(--coc-border);
 }
 
 .ai-status-bar.active {
-  background: linear-gradient(90deg, rgba(64, 158, 255, 0.18), rgba(64, 158, 255, 0.06));
-  color: #409eff;
-  border-color: rgba(64, 158, 255, 0.35);
+  background: var(--coc-ai-status-active-bg, linear-gradient(90deg, rgba(64, 158, 255, 0.18), rgba(64, 158, 255, 0.06)));
+  color: var(--coc-ai-status-active-color, #409eff);
+  border-color: var(--coc-ai-status-active-border, rgba(64, 158, 255, 0.35));
 }
 
 .ai-status-bar.done {
-  background: rgba(103, 194, 58, 0.1);
-  color: #67c23a;
-  border-color: rgba(103, 194, 58, 0.3);
+  background: var(--coc-ai-status-done-bg, rgba(103, 194, 58, 0.1));
+  color: var(--coc-ai-status-done-color, #67c23a);
+  border-color: var(--coc-ai-status-done-border, rgba(103, 194, 58, 0.3));
 }
 
 .status-text {
@@ -470,14 +470,14 @@ const recordBarText = computed(() => {
   padding: 8px 10px;
   border-radius: 6px;
   font-size: calc(12px + var(--coc-font-boost));
-  background: #faf8f6;
+  background: var(--coc-surface-muted, #faf8f6);
   border: 1px solid var(--coc-border);
 }
 
 .dialogue-item.ai,
 .dialogue-item.speech {
-  background: rgba(64, 158, 255, 0.06);
-  border-color: rgba(64, 158, 255, 0.25);
+  background: var(--coc-dialogue-highlight-bg, rgba(64, 158, 255, 0.06));
+  border-color: var(--coc-dialogue-highlight-border, rgba(64, 158, 255, 0.25));
 }
 
 .dlg-time {

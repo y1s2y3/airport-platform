@@ -6,6 +6,12 @@ import {
   formatRedBlackPeriod,
   RED_BLACK_BOARD_CHANGE_EVENT,
 } from '../utils/redBlackBoardStorage.js'
+import HqRedBlackItem from './hq/HqRedBlackItem.vue'
+import HqLeaderSpeechButton from './hq/HqLeaderSpeechButton.vue'
+
+defineProps({
+  darkTheme: { type: Boolean, default: false },
+})
 
 const emit = defineEmits(['leader-speech'])
 
@@ -44,7 +50,17 @@ onUnmounted(() => {
 <template>
   <div class="red-black-wrap">
     <div class="rb-actions">
-      <el-button type="primary" class="action-btn leader-btn" @click="handleLeaderSpeech">
+      <HqLeaderSpeechButton
+        v-if="darkTheme"
+        class="leader-btn leader-btn--hq"
+        @click="handleLeaderSpeech"
+      />
+      <el-button
+        v-else
+        type="primary"
+        class="action-btn leader-btn"
+        @click="handleLeaderSpeech"
+      >
         领导讲话
       </el-button>
     </div>
@@ -56,37 +72,61 @@ onUnmounted(() => {
       </div>
       <div class="panel-body rb-body">
         <div class="rb-stack">
-          <section class="rb-row red-row">
+          <section class="rb-row red-row" :class="{ 'rb-row--hq': darkTheme }">
             <div class="rb-vertical-label red">红榜</div>
-            <div class="rb-grid rb-grid-red">
-              <div
-                v-for="item in redGridItems"
-                :key="item.id"
-                class="rb-cell"
-              >
-                <div class="rb-project-name" :title="item.fullName">{{ item.shortName }}</div>
-                <div class="rb-thumb red-thumb">
-                  <img v-if="item.image" :src="item.image" alt="" class="thumb-img" />
-                  <div v-else class="thumb-fallback" :style="thumbStyle(item.imageHue)" />
+            <div class="rb-grid rb-grid-red" :class="{ 'rb-grid-red--hq': darkTheme }">
+              <template v-if="darkTheme">
+                <HqRedBlackItem
+                  v-for="item in redGridItems"
+                  :key="item.id"
+                  type="red"
+                  :name="item.shortName"
+                  :image="item.image"
+                  :image-hue="item.imageHue"
+                />
+              </template>
+              <template v-else>
+                <div
+                  v-for="item in redGridItems"
+                  :key="item.id"
+                  class="rb-cell"
+                >
+                  <div class="rb-project-name" :title="item.fullName">{{ item.shortName }}</div>
+                  <div class="rb-thumb red-thumb">
+                    <img v-if="item.image" :src="item.image" alt="" class="thumb-img" />
+                    <div v-else class="thumb-fallback" :style="thumbStyle(item.imageHue)" />
+                  </div>
                 </div>
-              </div>
+              </template>
             </div>
           </section>
 
-          <section class="rb-row black-row">
+          <section class="rb-row black-row" :class="{ 'rb-row--hq': darkTheme }">
             <div class="rb-vertical-label black">黑榜</div>
-            <div class="rb-grid rb-grid-black">
-              <div
-                v-for="item in blackGridItems"
-                :key="item.id"
-                class="rb-cell"
-              >
-                <div class="rb-project-name" :title="item.fullName">{{ item.shortName }}</div>
-                <div class="rb-thumb black-thumb">
-                  <img v-if="item.image" :src="item.image" alt="" class="thumb-img" />
-                  <div v-else class="thumb-fallback" :style="thumbStyle(item.imageHue)" />
+            <div class="rb-grid rb-grid-black" :class="{ 'rb-grid-black--hq': darkTheme }">
+              <template v-if="darkTheme">
+                <HqRedBlackItem
+                  v-for="item in blackGridItems"
+                  :key="item.id"
+                  type="black"
+                  :name="item.shortName"
+                  :image="item.image"
+                  :image-hue="item.imageHue"
+                />
+              </template>
+              <template v-else>
+                <div
+                  v-for="item in blackGridItems"
+                  :key="item.id"
+                  class="rb-cell"
+                >
+                  <div class="rb-project-name" :title="item.fullName">{{ item.shortName }}</div>
+                  <div class="rb-thumb black-thumb">
+                    <img v-if="item.image" :src="item.image" alt="" class="thumb-img" />
+                    <div v-else class="thumb-fallback" :style="thumbStyle(item.imageHue)" />
+                  </div>
                 </div>
-              </div>
+              </template>
             </div>
           </section>
         </div>
@@ -122,6 +162,12 @@ onUnmounted(() => {
   width: 100%;
   border: none;
   background: linear-gradient(135deg, var(--coc-accent), var(--coc-gold));
+}
+
+.leader-btn--hq {
+  flex: 1;
+  height: auto;
+  background: transparent;
 }
 
 .red-black-panel {
@@ -292,5 +338,25 @@ onUnmounted(() => {
 
 .black-thumb {
   box-shadow: inset 0 0 0 1px rgba(48, 49, 51, 0.08);
+}
+
+.rb-row--hq {
+  padding: 6px 8px 6px 4px;
+  gap: 6px;
+}
+
+.rb-grid-red--hq {
+  gap: 6px;
+}
+
+.rb-grid-black--hq {
+  gap: 6px;
+  justify-content: flex-start;
+}
+
+.rb-grid-black--hq .hq-rb-item {
+  flex: 1;
+  max-width: calc((100% - 18px) / 4);
+  min-width: 0;
 }
 </style>

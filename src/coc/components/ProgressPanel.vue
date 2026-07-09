@@ -262,15 +262,27 @@ function barColor(p) {
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--coc-progress-scrollbar-thumb, rgba(201, 123, 99, 0.35))
+    var(--coc-progress-scrollbar-track, transparent);
 }
 
 .hq-chart-scroll::-webkit-scrollbar {
   height: 6px;
 }
 
-.hq-chart-scroll::-webkit-scrollbar-thumb {
-  background: rgba(201, 123, 99, 0.35);
+.hq-chart-scroll::-webkit-scrollbar-track {
+  background: var(--coc-progress-scrollbar-track, transparent);
   border-radius: 3px;
+}
+
+.hq-chart-scroll::-webkit-scrollbar-thumb {
+  background: var(--coc-progress-scrollbar-thumb, rgba(201, 123, 99, 0.35));
+  border-radius: 3px;
+}
+
+.hq-chart-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--coc-progress-scrollbar-thumb-hover, rgba(201, 123, 99, 0.5));
 }
 
 .bar-chart {

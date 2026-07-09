@@ -1,9 +1,11 @@
 <script setup>
 import { computed } from 'vue'
+import HqLaborKpiCard from './hq/HqLaborKpiCard.vue'
 import { calcLaborBreakdown, calcHqCertWarningCount } from '../mock/data.js'
 
 const props = defineProps({
   projects: { type: Array, required: true },
+  darkTheme: { type: Boolean, default: false },
 })
 
 const buildingProjects = computed(() =>
@@ -23,10 +25,10 @@ const stats = computed(() => {
 })
 
 const kpis = computed(() => [
-  { label: '总人数', value: stats.value.total.toLocaleString(), cls: '' },
-  { label: '今日出勤', value: stats.value.today.toLocaleString(), cls: 'accent' },
-  { label: '出勤率', value: stats.value.rate, cls: 'ok' },
-  { label: '持证预警人数', value: stats.value.certWarning.toLocaleString(), cls: 'warn' },
+  { label: '总人数', value: stats.value.total.toLocaleString(), cls: '', unit: '人' },
+  { label: '今日出勤', value: stats.value.today.toLocaleString(), cls: '', unit: '人' },
+  { label: '出勤率', value: stats.value.rate, cls: 'ok', unit: '' },
+  { label: '持证预警', value: stats.value.certWarning.toLocaleString(), cls: 'warn', unit: '人' },
 ])
 </script>
 
@@ -37,11 +39,23 @@ const kpis = computed(() => [
       <span class="panel-v2-tip">V2版本上线</span>
     </div>
     <div class="panel-body analysis-body">
-      <div class="kpi-grid">
-        <div v-for="item in kpis" :key="item.label" class="kpi-item">
-          <div class="kpi-val" :class="item.cls">{{ item.value }}</div>
-          <div class="kpi-lbl">{{ item.label }}</div>
-        </div>
+      <div class="kpi-grid" :class="{ 'kpi-grid--hq': darkTheme }">
+        <template v-if="darkTheme">
+          <HqLaborKpiCard
+            v-for="item in kpis"
+            :key="item.label"
+            :label="item.label"
+            :value="item.value"
+            :unit="item.unit"
+            :tone="item.cls"
+          />
+        </template>
+        <template v-else>
+          <div v-for="item in kpis" :key="item.label" class="kpi-item">
+            <div class="kpi-val" :class="item.cls">{{ item.value }}</div>
+            <div class="kpi-lbl">{{ item.label }}</div>
+          </div>
+        </template>
       </div>
     </div>
   </div>
@@ -67,6 +81,10 @@ const kpis = computed(() => [
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 8px;
+}
+
+.kpi-grid--hq {
+  gap: 6px;
 }
 
 .kpi-item {

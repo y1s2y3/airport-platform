@@ -53,10 +53,17 @@ export function useCameraOrder(camerasRef) {
     return true
   }
 
+  function unsetCameraAsKey(camera) {
+    if (!camera?.key) return false
+    camera.key = false
+    return true
+  }
+
   return {
     cameraOrder,
     orderedCameras,
     handleCameraReorder,
     setCameraAsKey,
+    unsetCameraAsKey,
   }
 }

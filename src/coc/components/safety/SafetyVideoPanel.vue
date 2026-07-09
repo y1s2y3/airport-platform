@@ -17,14 +17,21 @@ const props = defineProps({
   selectionId: { type: String, default: HQ_SELECTION_ID },
   statusFilters: { type: Array, default: () => ['在建'] },
   scene: { type: String, default: 'default', validator: (v) => ['default', 'personnel'].includes(v) },
+  hqLayout: { type: Boolean, default: false },
+  videoFilter: { type: String, default: undefined },
+  cameraOrder: { type: Array, default: undefined },
 })
 
-const emit = defineEmits(['status-filter', 'project-change', 'open-dispatch'])
+const emit = defineEmits(['status-filter', 'project-change', 'open-dispatch', 'video-filter-change'])
 
 const monitorPage = ref(0)
 const dispatchPage = ref(0)
 const expandedVideo = ref(null)
-const videoFilter = ref('all')
+const internalVideoFilter = ref('all')
+
+const videoFilterMode = computed(() =>
+  props.videoFilter !== undefined ? props.videoFilter : internalVideoFilter.value,
+)
 
 const listProjectCameras = computed(() => {
   if (props.selectionId === HQ_SELECTION_ID) {
@@ -34,11 +41,27 @@ const listProjectCameras = computed(() => {
   return selected?.cameras || []
 })
 
-const { cameraOrder, orderedCameras, handleCameraReorder, setCameraAsKey } = useCameraOrder(listProjectCameras)
+const internalCameraOrder = useCameraOrder(listProjectCameras)
+const cameraOrderRef = computed(() =>
+  props.cameraOrder !== undefined ? props.cameraOrder : internalCameraOrder.cameraOrder.value,
+)
+
+function handleCameraReorder(payload) {
+  internalCameraOrder.handleCameraReorder(payload)
+}
+const orderedCameras = computed(() => {
+  const order = cameraOrderRef.value
+  let list = [...listProjectCameras.value]
+  if (order?.length) {
+    const rank = new Map(order.map((id, i) => [id, i]))
+    list.sort((a, b) => (rank.get(a.id) ?? 999) - (rank.get(b.id) ?? 999))
+  }
+  return list
+})
 
 const displayCameras = computed(() => {
   let list = orderedCameras.value
-  if (videoFilter.value === 'key') list = list.filter((camera) => camera.key)
+  if (videoFilterMode.value === 'key') list = list.filter((camera) => camera.key)
   return list
 })
 
@@ -98,7 +121,11 @@ function onProjectChange(id) {
 }
 
 function setVideoFilter(mode) {
-  videoFilter.value = mode
+  if (props.videoFilter !== undefined) {
+    emit('video-filter-change', mode)
+  } else {
+    internalVideoFilter.value = mode
+  }
   monitorPage.value = 0
 }
 
@@ -115,8 +142,14 @@ function onTreeCameraClick(camera) {
 }
 
 function handleSetCameraKey(camera) {
-  if (setCameraAsKey(camera)) {
+  if (internalCameraOrder.setCameraAsKey(camera)) {
     ElMessage.success(`已将「${camera.name}」设为重点视频`)
+  }
+}
+
+function handleUnsetCameraKey(camera) {
+  if (internalCameraOrder.unsetCameraAsKey(camera)) {
+    ElMessage.success(`已取消「${camera.name}」的重点标记`)
   }
 }
 
@@ -127,19 +160,21 @@ function openDispatch(device) {
 </script>
 
 <template>
-  <div class="safety-video-wrap">
+  <div class="safety-video-wrap" :class="{ 'is-hq-layout': hqLayout }">
     <div class="safety-video-modules">
       <ProjectListPanel
         :projects="projects"
         :selection-id="selectionId"
         :status-filters="statusFilters"
-        :video-filter="videoFilter"
-        :camera-order="cameraOrder"
+        :video-filter="videoFilterMode"
+        :camera-order="cameraOrderRef"
         :dispatch-order="dispatchOrder"
+        :hq-layout="hqLayout"
         @status-filter="emit('status-filter', $event)"
         @camera-click="onTreeCameraClick"
         @camera-reorder="handleCameraReorder"
         @camera-set-key="handleSetCameraKey"
+        @camera-unset-key="handleUnsetCameraKey"
         @dispatch-click="openDispatch"
         @dispatch-reorder="handleDispatchReorder"
         @back-to-hq="onProjectChange(HQ_SELECTION_ID)"
@@ -156,7 +191,7 @@ function openDispatch(device) {
                   <button
                     type="button"
                     class="filter-btn"
-                    :class="{ active: videoFilter === 'all' }"
+                    :class="{ active: videoFilterMode === 'all' }"
                     @click="setVideoFilter('all')"
                   >
                     全部
@@ -164,7 +199,7 @@ function openDispatch(device) {
                   <button
                     type="button"
                     class="filter-btn"
-                    :class="{ active: videoFilter === 'key' }"
+                    :class="{ active: videoFilterMode === 'key' }"
                     @click="setVideoFilter('key')"
                   >
                     重点视频
@@ -340,6 +375,10 @@ function openDispatch(device) {
   width: 100%;
   height: 100%;
   min-height: 0;
+}
+
+.safety-video-wrap.is-hq-layout .safety-video-modules {
+  gap: 12px;
 }
 
 .module-panel {

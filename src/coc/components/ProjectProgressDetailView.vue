@@ -40,13 +40,13 @@ const emit = defineEmits(['back'])
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  padding: 16px 28px 20px;
-  gap: 14px;
+  padding: 8px 28px 20px;
+  gap: 7px;
 }
 
 .detail-topbar {
   flex-shrink: 0;
-  padding: 16px 24px;
+  padding: 8px 24px;
 }
 
 .topbar-row {

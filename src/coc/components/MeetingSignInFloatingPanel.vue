@@ -133,17 +133,17 @@ defineExpose({ togglePanel, panelExpanded })
   width: var(--coc-float-fab-size, 56px);
   height: var(--coc-float-fab-size, 56px);
   padding: 0;
-  border: 1px solid rgba(201, 123, 99, 0.35);
+  border: 1px solid var(--coc-fab-border, rgba(201, 123, 99, 0.35));
   border-radius: 12px;
-  background: linear-gradient(180deg, #fff, #faf6f3);
+  background: var(--coc-fab-bg, linear-gradient(180deg, #fff, #faf6f3));
   color: var(--coc-accent);
   cursor: pointer;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--coc-fab-shadow, 0 4px 16px rgba(0, 0, 0, 0.12));
 }
 
 .sign-fab-btn:hover {
   border-color: var(--coc-accent);
-  box-shadow: 0 6px 20px rgba(201, 123, 99, 0.18);
+  box-shadow: var(--coc-fab-hover-shadow, 0 6px 20px rgba(201, 123, 99, 0.18));
 }
 
 .fab-label {
@@ -185,7 +185,7 @@ defineExpose({ togglePanel, panelExpanded })
 
 .collapse-btn:hover {
   color: var(--coc-accent);
-  background: rgba(201, 123, 99, 0.08);
+  background: var(--coc-collapse-hover-bg, rgba(201, 123, 99, 0.08));
 }
 
 .sign-in-body {

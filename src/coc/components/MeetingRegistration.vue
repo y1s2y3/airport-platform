@@ -171,7 +171,7 @@ function markJoined(id) {
   border: 1px solid var(--coc-border);
   border-radius: 8px;
   box-shadow: none;
-  background: #fff;
+  background: var(--coc-embedded-panel-bg, #fff);
 }
 
 .meeting-registration-root.compact .panel-title.compact.title-left {
@@ -242,7 +242,7 @@ function markJoined(id) {
   font-size: calc(11px + var(--coc-font-boost));
   font-weight: 600;
   color: var(--coc-accent);
-  background: rgba(201, 123, 99, 0.1);
+  background: var(--coc-count-tag-bg, rgba(201, 123, 99, 0.1));
   padding: 3px 10px;
   border-radius: 20px;
 }
@@ -282,7 +282,7 @@ function markJoined(id) {
   position: sticky;
   top: 0;
   z-index: 1;
-  background: #faf8f6;
+  background: var(--coc-table-head-bg, #faf8f6);
   font-size: calc(11px + var(--coc-font-boost));
   font-weight: 600;
   color: var(--coc-text-secondary);
@@ -323,7 +323,7 @@ function markJoined(id) {
   border: 1px solid var(--coc-border);
   cursor: zoom-in;
   overflow: hidden;
-  background: #f5f5f5;
+  background: var(--coc-thumb-bg, #f5f5f5);
 }
 
 .person-thumb :deep(.el-image__inner) {
@@ -356,7 +356,7 @@ function markJoined(id) {
 }
 
 .row-absent td {
-  background: rgba(144, 147, 153, 0.04);
+  background: var(--coc-row-absent-bg, rgba(144, 147, 153, 0.04));
 }
 
 .status-tag {
@@ -368,12 +368,12 @@ function markJoined(id) {
 }
 
 .status-tag.joined {
-  background: rgba(103, 194, 58, 0.12);
-  color: #67c23a;
+  background: var(--coc-status-joined-bg, rgba(103, 194, 58, 0.12));
+  color: var(--coc-status-joined-color, #67c23a);
 }
 
 .status-tag.absent {
-  background: rgba(144, 147, 153, 0.12);
-  color: #909399;
+  background: var(--coc-status-absent-bg, rgba(144, 147, 153, 0.12));
+  color: var(--coc-status-absent-color, #909399);
 }
 </style>

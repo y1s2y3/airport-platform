@@ -1,12 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
-import {
-  CONTROL_PLAN_NODE_COUNT,
-  CONTROL_PLAN_PHASES,
-  CONTROL_PLAN_NODES,
-  CONTROL_PLAN_ROW_TYPES,
-  getControlNodeKindLabel,
-} from '../mock/controlPlanSchema.js'
+import { computed } from 'vue'
 import {
   barPos,
   buildProjectControlPlanGanttRows,
@@ -27,8 +20,6 @@ const props = defineProps({
   expanded: { type: Boolean, default: false },
 })
 
-const viewMode = ref('gantt')
-
 const plans = computed(() => getControlPlansForProject(props.project.id).map(enrichControlPlan))
 
 const ganttRows = computed(() => buildProjectControlPlanGanttRows(plans.value))
@@ -47,32 +38,9 @@ const statusSummary = computed(() => [
   { key: 'lag', label: '滞后', count: statusStats.value.lag },
 ])
 
-const visibleRowTypes = computed(() => {
-  const base = CONTROL_PLAN_ROW_TYPES.filter((row) =>
-    ['planStart', 'planEnd', 'owner', 'status'].includes(row.key),
-  )
-  const optional = CONTROL_PLAN_ROW_TYPES.filter(
-    (row) =>
-      ['workProgress', 'remark'].includes(row.key) &&
-      plans.value.some((plan) =>
-        plan[row.key]?.some((cell) => cell && cell !== '-' && cell !== '/'),
-      ),
-  )
-  return [...base, ...optional]
-})
-
 function summaryChipClass(kind) {
   if (kind === 'total') return 'status-total'
   return statusClass(kind)
-}
-
-function cellStatusClass(kind) {
-  return `cell-${kind}`
-}
-
-function formatCell(value) {
-  if (!value || value === '-') return '—'
-  return value
 }
 
 function taskBarStyle(row) {
@@ -123,24 +91,6 @@ function rowTitle(row) {
         </span>
       </div>
       <div class="summary-actions">
-        <div class="view-toggle">
-          <button
-            type="button"
-            class="toggle-btn"
-            :class="{ active: viewMode === 'gantt' }"
-            @click="viewMode = 'gantt'"
-          >
-            甘特图
-          </button>
-          <button
-            type="button"
-            class="toggle-btn"
-            :class="{ active: viewMode === 'table' }"
-            @click="viewMode = 'table'"
-          >
-            台账
-          </button>
-        </div>
         <div class="gantt-legend">
           <span><i class="dot pending" />未开始</span>
           <span><i class="dot active" />进行中</span>
@@ -150,8 +100,7 @@ function rowTitle(row) {
       </div>
     </div>
 
-    <!-- 甘特图：工作项=阶段，节点=甘特条 -->
-    <div v-if="viewMode === 'gantt'" class="gantt-chart">
+    <div class="gantt-chart">
       <div v-if="!ganttRows.length" class="plan-empty">暂无控制性计划数据</div>
       <template v-else>
         <div class="gantt-head">
@@ -202,99 +151,6 @@ function rowTitle(row) {
         </div>
       </template>
     </div>
-
-    <!-- 台账表格 -->
-    <div v-else class="control-plan-scroll">
-      <div v-if="!plans.length" class="plan-empty">暂无控制性计划数据</div>
-
-      <div v-for="plan in plans" :key="plan.id" class="plan-block">
-        <div class="plan-head">
-          <div class="plan-title">{{ plan.name }}</div>
-          <div class="plan-meta">
-            <span v-if="plan.currentStages?.length">
-              当前阶段：
-              <template v-for="(stage, idx) in plan.currentStages" :key="stage">
-                <em>{{ stage }}</em><span v-if="idx < plan.currentStages.length - 1">，</span>
-              </template>
-            </span>
-            <span>总体完成比例：<b>{{ plan.completionRate }}%</b></span>
-            <span>滞后节点数：<b class="lag-num">{{ plan.lagCount }}</b></span>
-          </div>
-        </div>
-
-        <div class="plan-table-wrap">
-          <table class="plan-table">
-            <thead>
-              <tr class="phase-row">
-                <th class="corner sticky-left" rowspan="2">
-                  计划名称（{{ CONTROL_PLAN_NODE_COUNT }}）
-                </th>
-                <th class="type-col sticky-type" rowspan="2">类型</th>
-                <th
-                  v-for="phase in CONTROL_PLAN_PHASES"
-                  :key="phase.id"
-                  class="phase-head"
-                  :colspan="phase.nodes.length"
-                >
-                  {{ phase.label }}
-                </th>
-              </tr>
-              <tr class="node-row">
-                <th
-                  v-for="(node, nodeIndex) in CONTROL_PLAN_NODES"
-                  :key="nodeIndex"
-                  class="node-head"
-                  :title="`${node.phaseLabel} · ${node.name}`"
-                >
-                  {{ node.name }}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="rowType in visibleRowTypes" :key="rowType.key">
-                <td
-                  v-if="rowType.key === 'planStart'"
-                  class="plan-name-cell sticky-left"
-                  :rowspan="visibleRowTypes.length"
-                >
-                  <span class="plan-name-in-table">{{ plan.name }}</span>
-                </td>
-                <td class="type-cell sticky-type">{{ rowType.label }}</td>
-                <template v-if="rowType.key === 'status'">
-                  <td
-                    v-for="(node, nodeIndex) in plan.nodes"
-                    :key="nodeIndex"
-                    class="data-cell status-cell"
-                    :class="cellStatusClass(node.statusKind)"
-                    :title="node.remark && node.remark !== '-' ? node.remark : undefined"
-                  >
-                    {{ getControlNodeKindLabel(node.statusKind) }}
-                    <span
-                      v-if="node.progress != null && (node.statusKind === 'active' || node.statusKind === 'lag')"
-                      class="cell-progress"
-                    >{{ node.progress }}%</span>
-                  </td>
-                </template>
-                <template v-else>
-                  <td
-                    v-for="(cell, nodeIndex) in plan[rowType.key]"
-                    :key="nodeIndex"
-                    class="data-cell"
-                    :class="{
-                      'is-empty': !cell || cell === '-' || cell === '/',
-                      'is-wide': rowType.key === 'workProgress' || rowType.key === 'remark',
-                    }"
-                    :title="cell && cell.length > 12 ? cell : undefined"
-                  >
-                    {{ formatCell(cell) }}
-                  </td>
-                </template>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -329,32 +185,6 @@ function rowTitle(row) {
   gap: 12px;
 }
 
-.view-toggle {
-  display: inline-flex;
-  padding: 2px;
-  background: #f5f5f5;
-  border-radius: 8px;
-  border: 1px solid var(--coc-border);
-}
-
-.toggle-btn {
-  border: none;
-  background: transparent;
-  padding: 4px 12px;
-  font-size: calc(11px + var(--coc-font-boost));
-  border-radius: 6px;
-  cursor: pointer;
-  color: var(--coc-text-secondary);
-  font-family: inherit;
-}
-
-.toggle-btn.active {
-  background: #fff;
-  color: var(--coc-accent);
-  font-weight: 600;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-}
-
 .status-chip {
   display: inline-flex;
   align-items: center;
@@ -363,39 +193,45 @@ function rowTitle(row) {
   padding: 4px 10px;
   border-radius: 6px;
   font-weight: 500;
-  background: #f5f7fa;
-  color: var(--coc-text-secondary);
+  background: rgba(64, 158, 255, 0.08);
+  color: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(94, 238, 255, 0.12);
 }
 
 .status-chip b {
   font-size: calc(13px + var(--coc-font-boost));
   font-weight: 700;
-  color: var(--coc-text);
+  color: #fff;
 }
 
 .status-chip.status-total {
-  background: rgba(64, 158, 255, 0.1);
-  color: #409eff;
+  background: rgba(64, 158, 255, 0.18);
+  color: #5eeeff;
+  border-color: rgba(94, 238, 255, 0.35);
 }
 
 .status-chip.status-pending {
-  background: rgba(144, 147, 153, 0.12);
-  color: #606266;
+  background: rgba(255, 255, 255, 0.06);
+  color: #a8abb2;
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 .status-chip.status-active {
-  background: rgba(64, 158, 255, 0.12);
-  color: #409eff;
+  background: rgba(64, 158, 255, 0.15);
+  color: #5eeeff;
+  border-color: rgba(94, 238, 255, 0.28);
 }
 
 .status-chip.status-done {
-  background: rgba(103, 194, 58, 0.12);
+  background: rgba(94, 238, 255, 0.1);
   color: #67c23a;
+  border-color: rgba(103, 194, 58, 0.25);
 }
 
 .status-chip.status-lag {
-  background: rgba(245, 108, 108, 0.12);
-  color: #f56c6c;
+  background: rgba(246, 197, 117, 0.12);
+  color: #f6c575;
+  border-color: rgba(246, 197, 117, 0.28);
 }
 
 .gantt-legend {
@@ -403,7 +239,7 @@ function rowTitle(row) {
   flex-wrap: wrap;
   gap: 14px;
   font-size: calc(11px + var(--coc-font-boost));
-  color: var(--coc-text-muted);
+  color: #a8abb2;
   align-items: center;
 }
 
@@ -420,27 +256,27 @@ function rowTitle(row) {
   display: inline-block;
 }
 
-.dot.pending { background: #c0c4cc; }
-.dot.active { background: #409eff; }
+.dot.pending { background: #6b7a8f; }
+.dot.active { background: linear-gradient(90deg, #409eff, #5eeeff); }
 .dot.done { background: #67c23a; }
-.dot.lag { background: #f56c6c; }
+.dot.lag { background: #f6c575; }
 
-/* —— 甘特图 —— */
 .gantt-chart {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--coc-border);
+  border: 1px solid rgba(94, 238, 255, 0.22);
   border-radius: 10px;
   overflow: hidden;
-  background: #fff;
+  background: rgba(0, 53, 108, 0.22);
+  box-shadow: inset 0 0 24px rgba(94, 238, 255, 0.04);
 }
 
 .gantt-head {
   display: flex;
-  background: #faf8f6;
-  border-bottom: 1px solid var(--coc-border);
+  background: rgba(64, 158, 255, 0.1);
+  border-bottom: 1px solid rgba(94, 238, 255, 0.18);
   flex-shrink: 0;
 }
 
@@ -450,8 +286,8 @@ function rowTitle(row) {
   padding: 10px 14px;
   font-size: calc(11px + var(--coc-font-boost));
   font-weight: 600;
-  color: var(--coc-text-secondary);
-  border-right: 1px solid var(--coc-border);
+  color: rgba(255, 255, 255, 0.85);
+  border-right: 1px solid rgba(94, 238, 255, 0.15);
 }
 
 .control-plan-view.is-expanded .head-label,
@@ -470,7 +306,7 @@ function rowTitle(row) {
   position: absolute;
   top: 0;
   font-size: calc(10px + var(--coc-font-boost));
-  color: var(--coc-text-muted);
+  color: #a8abb2;
   padding: 10px 0;
   white-space: nowrap;
   line-height: 1.2;
@@ -483,20 +319,20 @@ function rowTitle(row) {
 
 .gantt-row {
   display: flex;
-  border-bottom: 1px solid #f5f5f5;
+  border-bottom: 1px solid rgba(94, 238, 255, 0.08);
   min-height: 38px;
 }
 
 .gantt-row:hover {
-  background: rgba(201, 123, 99, 0.03);
+  background: rgba(94, 238, 255, 0.06);
 }
 
 .gantt-row.is-group.row-level-0 {
-  background: rgba(201, 123, 99, 0.08);
+  background: rgba(64, 158, 255, 0.14);
 }
 
 .gantt-row.is-group.row-level-1 {
-  background: rgba(64, 158, 255, 0.05);
+  background: rgba(64, 158, 255, 0.08);
 }
 
 .row-label {
@@ -506,7 +342,7 @@ function rowTitle(row) {
   align-items: center;
   gap: 8px;
   padding: 6px 10px 6px 0;
-  border-right: 1px solid #f0f2f5;
+  border-right: 1px solid rgba(94, 238, 255, 0.1);
   min-width: 0;
 }
 
@@ -519,24 +355,24 @@ function rowTitle(row) {
 }
 
 .tag-l0 {
-  background: rgba(201, 123, 99, 0.18);
-  color: var(--coc-accent);
+  background: rgba(94, 238, 255, 0.18);
+  color: #5eeeff;
 }
 
 .tag-l1 {
-  background: rgba(64, 158, 255, 0.12);
-  color: #409eff;
+  background: rgba(64, 158, 255, 0.2);
+  color: #79bbff;
 }
 
 .tag-l2 {
-  background: rgba(103, 194, 58, 0.12);
-  color: #67c23a;
+  background: rgba(94, 238, 255, 0.1);
+  color: #a7cfe9;
 }
 
 .row-name {
   flex: 1;
   font-size: calc(11px + var(--coc-font-boost));
-  color: var(--coc-text);
+  color: rgba(255, 255, 255, 0.92);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -577,7 +413,7 @@ function rowTitle(row) {
   top: 0;
   bottom: 0;
   width: 0;
-  border-right: 1px dashed #eef0f3;
+  border-right: 1px dashed rgba(94, 238, 255, 0.12);
   transform: translateX(-0.5px);
 }
 
@@ -589,227 +425,46 @@ function rowTitle(row) {
   transform: translateY(-50%);
   min-width: 4px;
   z-index: 1;
+  box-shadow: 0 0 8px rgba(94, 238, 255, 0.2);
 }
 
 .bar-group {
   height: 8px;
-  opacity: 0.55;
+  opacity: 0.65;
 }
 
 .task-bar.status-done {
-  background: linear-gradient(90deg, #95d475, #67c23a);
+  background: linear-gradient(90deg, #67c23a, #95d475);
+  box-shadow: 0 0 8px rgba(103, 194, 58, 0.35);
 }
 
 .task-bar.status-active {
-  background: linear-gradient(90deg, #79bbff, #409eff);
+  background: linear-gradient(90deg, #409eff, #5eeeff);
+  box-shadow: 0 0 10px rgba(94, 238, 255, 0.45);
 }
 
 .task-bar.status-lag {
-  background: linear-gradient(90deg, #ff9a9a, #f56c6c);
+  background: linear-gradient(90deg, #e6a23c, #f6c575);
+  box-shadow: 0 0 8px rgba(246, 197, 117, 0.35);
 }
 
 .task-bar.status-pending {
-  background: linear-gradient(90deg, #e4e7ed, #c0c4cc);
+  background: linear-gradient(90deg, #4a5568, #6b7a8f);
+  box-shadow: none;
 }
 
 .row-status.status-done { color: #67c23a; }
-.row-status.status-active { color: #409eff; }
-.row-status.status-lag { color: #f56c6c; }
-.row-status.status-pending { color: #909399; }
-
-/* —— 台账 —— */
-.control-plan-scroll {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  border: 1px solid var(--coc-border);
-  border-radius: 10px;
-  background: #fff;
-  padding: 12px;
-}
+.row-status.status-active { color: #5eeeff; }
+.row-status.status-lag { color: #f6c575; }
+.row-status.status-pending { color: #a8abb2; }
 
 .plan-empty {
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--coc-text-muted);
+  color: #a8abb2;
   font-size: calc(13px + var(--coc-font-boost));
   min-height: 120px;
-}
-
-.plan-block {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: min-content;
-}
-
-.plan-head {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 0 2px;
-}
-
-.plan-title {
-  font-size: calc(13px + var(--coc-font-boost));
-  font-weight: 700;
-  color: var(--coc-text);
-}
-
-.plan-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  font-size: calc(11px + var(--coc-font-boost));
-  color: var(--coc-text-secondary);
-}
-
-.plan-meta b {
-  color: var(--coc-text);
-  font-weight: 700;
-}
-
-.plan-meta em {
-  font-style: normal;
-  color: var(--coc-accent);
-  font-weight: 600;
-}
-
-.lag-num {
-  color: var(--coc-danger) !important;
-}
-
-.plan-table-wrap {
-  overflow: auto;
-  border: 1px solid var(--coc-border);
-  border-radius: 8px;
-  max-width: 100%;
-}
-
-.plan-table {
-  border-collapse: collapse;
-  font-size: calc(10px + var(--coc-font-boost));
-  min-width: max-content;
-  table-layout: fixed;
-}
-
-.plan-table th,
-.plan-table td {
-  border: 1px solid #eef0f3;
-  padding: 6px 8px;
-  text-align: center;
-  vertical-align: middle;
-  line-height: 1.35;
-  white-space: nowrap;
-}
-
-.corner,
-.plan-name-cell,
-.sticky-left {
-  position: sticky;
-  left: 0;
-  z-index: 3;
-  background: #faf8f6;
-  min-width: 180px;
-  max-width: 220px;
-  text-align: left;
-  font-weight: 600;
-  color: var(--coc-text-secondary);
-}
-
-.type-col,
-.type-cell,
-.sticky-type {
-  position: sticky;
-  left: 180px;
-  z-index: 2;
-  background: #fcfbfa;
-  min-width: 88px;
-  max-width: 96px;
-  font-weight: 600;
-  color: var(--coc-text-secondary);
-}
-
-.phase-head {
-  background: #f3f6fb;
-  color: #409eff;
-  font-weight: 700;
-  font-size: calc(10px + var(--coc-font-boost));
-}
-
-.node-head {
-  background: #fafafa;
-  color: var(--coc-text);
-  font-weight: 600;
-  min-width: 72px;
-  max-width: 96px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.plan-name-in-table {
-  font-size: calc(11px + var(--coc-font-boost));
-  font-weight: 700;
-  color: var(--coc-text);
-  line-height: 1.4;
-}
-
-.data-cell {
-  color: var(--coc-text);
-  min-width: 72px;
-  max-width: 120px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.data-cell.is-empty {
-  color: var(--coc-text-muted);
-}
-
-.data-cell.is-wide {
-  max-width: 160px;
-  white-space: normal;
-  word-break: break-all;
-  font-size: calc(9px + var(--coc-font-boost));
-}
-
-.status-cell {
-  font-weight: 600;
-}
-
-.cell-progress {
-  display: block;
-  font-size: calc(9px + var(--coc-font-boost));
-  font-weight: 500;
-  opacity: 0.85;
-}
-
-.status-cell.cell-done { color: #67c23a; background: rgba(103, 194, 58, 0.06); }
-.status-cell.cell-active { color: var(--coc-accent); background: rgba(201, 123, 99, 0.06); }
-.status-cell.cell-pending { color: #909399; background: rgba(144, 147, 153, 0.06); }
-.status-cell.cell-lag { color: #f56c6c; background: rgba(245, 108, 108, 0.08); }
-.status-cell.cell-na { color: #c0c4cc; background: #fafafa; }
-.status-cell.cell-empty { color: var(--coc-text-muted); }
-
-thead th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-}
-
-.phase-row .corner,
-.phase-row .type-col {
-  z-index: 4;
-  top: 0;
-}
-
-.node-row th {
-  top: 32px;
-  z-index: 1;
 }
 </style>
