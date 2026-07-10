@@ -1,47 +1,33 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { Search, Refresh, Plus } from '@element-plus/icons-vue'
-import { sysUserList } from '../../mock/rbac'
+import { useRouter } from 'vue-router'
+import { Plus } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  unifiedOrgTree,
-  getDefaultNodeId,
-  getUsersByNodeId,
-  findTreeNode,
-} from '../../mock/orgStructure'
+  sysUserRecords,
+  userStatusOptions,
+  deleteSysUser,
+  toggleSysUserStatus,
+} from '../../mock/sysUsers'
+const router = useRouter()
 
-const selectedNodeId = ref(getDefaultNodeId())
+const statusFilter = ref('')
 const keyword = ref('')
 const currentPage = ref(1)
 const pageSize = ref(10)
 
-const roleByEmail = Object.fromEntries(sysUserList.map((u) => [u.email, u]))
-
-const selectedNode = computed(() => findTreeNode(unifiedOrgTree.value, selectedNodeId.value))
-
-const selectedNodeLabel = computed(() => selectedNode.value?.rawLabel || '')
-
-const userList = computed(() => {
-  unifiedOrgTree.value
-  return getUsersByNodeId(selectedNodeId.value, selectedNode.value).map((row) => {
-    const extra = roleByEmail[row.email]
-    return {
-      ...row,
-      roles: extra?.roles ?? ['普通用户'],
-      status: extra?.status ?? '启用',
-    }
-  })
-})
-
 const filteredList = computed(() => {
-  const kw = keyword.value.trim()
-  if (!kw) return userList.value
-  return userList.value.filter(
-    (row) =>
-      row.name.includes(kw) ||
-      row.dept.includes(kw) ||
-      row.phone.includes(kw) ||
-      row.email.includes(kw),
-  )
+  const kw = keyword.value.trim().toLowerCase()
+  return sysUserRecords.value.filter((row) => {
+    if (statusFilter.value === 'enabled' && !row.status) return false
+    if (statusFilter.value === 'disabled' && row.status) return false
+    if (!kw) return true
+    return (
+      row.name.toLowerCase().includes(kw) ||
+      row.loginAccount.toLowerCase().includes(kw) ||
+      row.phone.includes(kw)
+    )
+  })
 })
 
 const pagedList = computed(() => {
@@ -49,223 +35,145 @@ const pagedList = computed(() => {
   return filteredList.value.slice(start, start + pageSize.value)
 })
 
-function handleNodeClick(data) {
-  selectedNodeId.value = data.id
-  currentPage.value = 1
-}
-
 function handleSearch() {
   currentPage.value = 1
 }
 
 function handleReset() {
+  statusFilter.value = ''
   keyword.value = ''
   currentPage.value = 1
+}
+
+function goCreate() {
+  router.push({ name: 'SysUserCreate' })
+}
+
+function goDetail(row) {
+  router.push({ name: 'SysUserDetail', params: { id: row.id } })
+}
+
+function goEdit(row) {
+  router.push({ name: 'SysUserEdit', params: { id: row.id } })
+}
+
+async function handleDelete(row) {
+  try {
+    await ElMessageBox.confirm(`确定删除用户「${row.name}」？`, '删除确认', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+    })
+    if (deleteSysUser(row.id)) {
+      ElMessage.success('已删除')
+    }
+  } catch {
+    /* cancelled */
+  }
+}
+
+function handleStatusChange(row, status) {
+  toggleSysUserStatus(row.id, status)
+  ElMessage.success(status ? '已启用' : '已停用')
 }
 </script>
 
 <template>
-  <div class="settings-page page-card">
-    <div class="page-header">
-      <div class="page-breadcrumb">系统设置 / 用户管理</div>
-      <div class="page-heading">
-        <h1 class="page-title">用户管理</h1>
-        <div class="page-actions">
-          <el-button class="ap-btn-primary" type="primary" :icon="Plus">新增用户</el-button>
-        </div>
+  <div class="user-page page-card">
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <span class="field-label">用户状态</span>
+        <el-select v-model="statusFilter" placeholder="请选择" clearable class="status-select">
+          <el-option
+            v-for="opt in userStatusOptions"
+            :key="opt.value || 'all'"
+            :label="opt.label"
+            :value="opt.value"
+          />
+        </el-select>
+        <el-input
+          v-model="keyword"
+          class="keyword-input"
+          placeholder="姓名、账号、手机号"
+          clearable
+          @keyup.enter="handleSearch"
+        />
+        <el-button type="primary" class="ap-btn-primary" @click="handleSearch">搜索</el-button>
+        <el-button @click="handleReset">重置</el-button>
       </div>
+      <el-button type="primary" class="ap-btn-primary" :icon="Plus" @click="goCreate">新增</el-button>
     </div>
 
-    <div class="user-layout">
-      <aside class="org-tree-panel">
-        <div class="panel-head">
-          <span class="panel-title">组织结构</span>
-          <span class="panel-tip">按节点筛选用户</span>
-        </div>
-        <el-tree
-          :data="unifiedOrgTree"
-          node-key="id"
-          highlight-current
-          default-expand-all
-          :current-node-key="selectedNodeId"
-          :expand-on-click-node="false"
-          class="org-tree"
-          @node-click="handleNodeClick"
-        />
-      </aside>
+    <el-table :data="pagedList" border stripe class="ap-table" empty-text="暂无用户数据">
+      <el-table-column prop="name" label="姓名" min-width="110" />
+      <el-table-column prop="loginAccount" label="登录账号" min-width="120" />
+      <el-table-column prop="phone" label="手机号" min-width="130" />
+      <el-table-column label="状态" width="88" align="center">
+        <template #default="{ row }">
+          <el-switch :model-value="row.status" @change="(val) => handleStatusChange(row, val)" />
+        </template>
+      </el-table-column>
+      <el-table-column prop="email" label="邮件" min-width="220" show-overflow-tooltip />
+      <el-table-column label="操作" width="180" fixed="right" align="center">
+        <template #default="{ row }">
+          <el-button link type="primary" @click="goDetail(row)">详情</el-button>
+          <span class="op-divider">|</span>
+          <el-button link type="primary" @click="goEdit(row)">编辑</el-button>
+          <span class="op-divider">|</span>
+          <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
+        </template>
+      </el-table-column>
+    </el-table>
 
-      <section class="user-panel">
-        <div class="panel-head user-head">
-          <div>
-            <span class="panel-title">{{ selectedNodeLabel || '请选择组织节点' }}</span>
-            <span class="user-count">共 {{ filteredList.length }} 人</span>
-          </div>
-          <div class="user-toolbar">
-            <el-input
-              v-model="keyword"
-              class="user-search"
-              placeholder="姓名 / 部门 / 手机 / 邮箱"
-              clearable
-              :prefix-icon="Search"
-              @keyup.enter="handleSearch"
-            />
-            <el-button :icon="Search" @click="handleSearch">查询</el-button>
-            <el-button :icon="Refresh" @click="handleReset">重置</el-button>
-          </div>
-        </div>
-
-        <el-table :data="pagedList" border stripe class="ap-table" empty-text="暂无用户数据">
-          <el-table-column type="index" label="序号" width="60" align="center" />
-          <el-table-column prop="name" label="姓名" min-width="100" />
-          <el-table-column prop="gender" label="性别" width="72" align="center" />
-          <el-table-column prop="dept" label="部门" min-width="160" />
-          <el-table-column prop="phone" label="手机" min-width="130" />
-          <el-table-column prop="email" label="邮箱" min-width="220" show-overflow-tooltip />
-          <el-table-column label="角色" min-width="140">
-            <template #default="{ row }">
-              <el-tag v-for="r in row.roles" :key="r" size="small" effect="plain" class="role-tag">{{ r }}</el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="status" label="状态" width="80" align="center">
-            <template #default="{ row }">
-              <el-tag size="small" :type="row.status === '启用' ? 'success' : 'info'" effect="light">
-                {{ row.status }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="120" fixed="right" align="center">
-            <template #default>
-              <el-button link type="primary">编辑</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-
-        <div class="table-footer">
-          <el-pagination
-            v-model:current-page="currentPage"
-            v-model:page-size="pageSize"
-            :total="filteredList.length"
-            layout="total, prev, pager, next"
-            background
-          />
-        </div>
-      </section>
+    <div class="table-footer">
+      <el-pagination
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :total="filteredList.length"
+        :page-sizes="[10, 20, 50]"
+        layout="total, sizes, prev, pager, next, jumper"
+        background
+      />
     </div>
   </div>
 </template>
 
 <style scoped>
-.settings-page {
-  padding: 20px 24px 24px;
-}
-
-.page-header {
-  margin-bottom: 16px;
-}
-
-.page-breadcrumb {
-  font-size: 13px;
-  color: var(--ap-text-muted);
-  margin-bottom: 8px;
-}
-
-.page-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.page-title {
-  font-size: 20px;
-  font-weight: 600;
-}
-
-.page-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.user-layout {
-  display: grid;
-  grid-template-columns: 300px minmax(0, 1fr);
-  gap: 16px;
-  min-height: 520px;
-}
-
-.org-tree-panel,
-.user-panel {
-  border: 1px solid var(--ap-border);
-  border-radius: 8px;
-  background: #fff;
-  padding: 16px;
-}
-
-.user-panel {
+.user-page {
+  padding: 16px 20px 20px;
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  min-height: calc(100vh - 120px);
 }
 
-.panel-head {
+.toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
-  gap: 8px;
-}
-
-.user-head {
-  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
   flex-wrap: wrap;
 }
 
-.panel-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--ap-text);
-}
-
-.panel-tip {
-  font-size: 12px;
-  color: var(--ap-text-muted);
-}
-
-.user-count {
-  margin-left: 10px;
-  font-size: 13px;
-  color: var(--ap-text-muted);
-  font-weight: 400;
-}
-
-.user-toolbar {
+.toolbar-left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
-.user-search {
-  width: 260px;
+.field-label {
+  font-size: 14px;
+  color: var(--ap-text-secondary);
+  white-space: nowrap;
 }
 
-.org-tree :deep(.el-tree-node__content) {
-  height: 34px;
-  border-radius: 4px;
+.status-select {
+  width: 120px;
 }
 
-.org-tree :deep(.el-tree-node.is-current > .el-tree-node__content) {
-  background: var(--ap-primary-light);
-  color: var(--ap-primary);
-  font-weight: 600;
-}
-
-.org-tree :deep(.el-tree > .el-tree-node > .el-tree-node__content) {
-  font-weight: 600;
-}
-
-.role-tag {
-  margin-right: 4px;
+.keyword-input {
+  width: 220px;
 }
 
 .ap-table {
@@ -273,8 +181,13 @@ function handleReset() {
 }
 
 .table-footer {
-  margin-top: 16px;
+  margin-top: 14px;
   display: flex;
   justify-content: flex-end;
+}
+
+.op-divider {
+  color: var(--ap-border);
+  margin: 0 2px;
 }
 </style>

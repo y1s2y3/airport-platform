@@ -113,8 +113,11 @@ const settingsRouteComponents = {
   '/settings/org': () => import('../views/settings/OrgStructureView.vue'),
   '/settings/user': () => import('../views/settings/UserManageView.vue'),
   '/settings/role': () => import('../views/settings/RoleManageView.vue'),
-  '/settings/permission': () => import('../views/settings/PermissionManageView.vue'),
+  '/settings/position': () => import('../views/settings/PositionManageView.vue'),
   '/settings/menu': () => import('../views/settings/MenuManageView.vue'),
+  '/logs/system': () => import('../views/logs/SystemLogView.vue'),
+  '/logs/login': () => import('../views/logs/LoginLogView.vue'),
+  '/logs/operation': () => import('../views/logs/OperationLogView.vue'),
 }
 
 const settingsRoutes = settingsMenuGroups.flatMap((group) =>
@@ -185,6 +188,36 @@ const routes = [
       })),
       ...basicDataRouteEntries,
       ...settingsRoutes,
+      {
+        path: 'settings/user/form',
+        name: 'SysUserCreate',
+        component: () => import('../views/settings/UserManageFormView.vue'),
+        meta: { sidebarKey: 'sys-user', tabKey: 'sys-user', title: '新增用户' },
+      },
+      {
+        path: 'settings/user/form/:id',
+        name: 'SysUserEdit',
+        component: () => import('../views/settings/UserManageFormView.vue'),
+        meta: { sidebarKey: 'sys-user', tabKey: 'sys-user', title: '编辑用户' },
+      },
+      {
+        path: 'settings/user/:id',
+        name: 'SysUserDetail',
+        component: () => import('../views/settings/UserManageDetailView.vue'),
+        meta: { sidebarKey: 'sys-user', tabKey: 'sys-user', title: '用户详情' },
+      },
+      {
+        path: 'settings/role/form',
+        name: 'SysRoleCreate',
+        component: () => import('../views/settings/RoleManageFormView.vue'),
+        meta: { sidebarKey: 'sys-role', tabKey: 'sys-role', title: '角色新增' },
+      },
+      {
+        path: 'settings/role/form/:id',
+        name: 'SysRoleEdit',
+        component: () => import('../views/settings/RoleManageFormView.vue'),
+        meta: { sidebarKey: 'sys-role', tabKey: 'sys-role', title: '角色编辑' },
+      },
     ],
   },
 ]

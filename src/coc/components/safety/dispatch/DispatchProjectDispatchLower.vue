@@ -1,9 +1,12 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, inject } from 'vue'
 import { DANGER_WORK_LIST, getProjectManagementPersonnel } from '../../../mock/data.js'
 import DispatchDraggablePanel from './DispatchDraggablePanel.vue'
 import DispatchRecordDetailBody from './DispatchRecordDetailBody.vue'
+import DispatchHqPanelTitle from './DispatchHqPanelTitle.vue'
 import PersonnelRiskVerifyPanel from './PersonnelRiskVerifyPanel.vue'
+
+const dispatchHqUi = inject('dispatchHqUi', false)
 
 const props = defineProps({
   projectId: { type: String, required: true },
@@ -35,8 +38,13 @@ function closeDetail() {
 
 <template>
   <section class="detail-lower project-dispatch-lower">
-    <div class="panel-card detail-panel list-panel danger-panel">
-      <div class="panel-title compact danger-title-row title-left">
+    <div class="panel-card detail-panel list-panel danger-panel" :class="{ 'dispatch-hq-list-panel': dispatchHqUi }">
+      <DispatchHqPanelTitle v-if="dispatchHqUi" title="危险作业清单">
+        <template #actions>
+          <button type="button" class="title-more-btn" @click="dangerMoreOpen = true">更多</button>
+        </template>
+      </DispatchHqPanelTitle>
+      <div v-else class="panel-title compact danger-title-row title-left">
         <span class="danger-title-text">危险作业清单</span>
         <button type="button" class="title-more-btn" @click="dangerMoreOpen = true">
           更多
@@ -63,8 +71,13 @@ function closeDetail() {
       </div>
     </div>
 
-    <div class="panel-card detail-panel list-panel mgmt-panel">
-      <div class="panel-title compact mgmt-title-row title-left">
+    <div class="panel-card detail-panel list-panel mgmt-panel" :class="{ 'dispatch-hq-list-panel': dispatchHqUi }">
+      <DispatchHqPanelTitle v-if="dispatchHqUi" title="管理人员清单">
+        <template #actions>
+          <span class="mgmt-count">共 {{ managementList.length }} 人</span>
+        </template>
+      </DispatchHqPanelTitle>
+      <div v-else class="panel-title compact mgmt-title-row title-left">
         <span class="mgmt-title-text">管理人员清单</span>
         <span class="panel-v2-tip">V2版本上线</span>
         <span class="mgmt-count">共 {{ managementList.length }} 人</span>
@@ -105,7 +118,7 @@ function closeDetail() {
     <DispatchDraggablePanel
       v-if="dangerMoreOpen"
       title="危险作业清单"
-      :width="720"
+      :width="880"
       placement="right"
       @close="dangerMoreOpen = false"
     >
@@ -136,7 +149,7 @@ function closeDetail() {
               <td>{{ row.subType }}</td>
               <td>{{ row.date }}</td>
               <td>{{ row.time }}</td>
-              <td class="desc" :title="row.location">{{ row.location }}</td>
+              <td class="desc col-desc" :title="row.location">{{ row.location }}</td>
               <td>{{ row.permitStatus }}</td>
               <td><span class="status-tag" :class="workStatusMap[row.status]">{{ row.status }}</span></td>
             </tr>
@@ -204,31 +217,6 @@ function closeDetail() {
   background: rgba(201, 123, 99, 0.08);
 }
 
-.more-dialog-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
-}
-
-.more-count {
-  font-size: calc(13px + var(--coc-font-boost));
-  color: var(--coc-text-secondary);
-  font-weight: 600;
-}
-
-.more-table-wrap {
-  max-height: min(86vh, 1040px);
-  overflow: auto;
-  border: 1px solid var(--coc-border);
-  border-radius: 8px;
-}
-
-.more-table .desc {
-  max-width: 200px;
-}
-
 .empty-row {
   text-align: center;
   color: var(--coc-text-muted);
@@ -239,9 +227,13 @@ function closeDetail() {
 .danger-panel .panel-title { border-left: 4px solid #f56c6c; }
 .mgmt-panel .panel-title { border-left: 4px solid #67c23a; }
 
+.dispatch-hq-list-panel .panel-title {
+  border-left: none;
+}
+
 .status-tag.cancelled { background: rgba(144, 147, 153, 0.12); color: #909399; }
 
-.project-dispatch-lower :deep(.desc) {
+.project-dispatch-lower :deep(.table-scroll .desc) {
   max-width: none;
 }
 

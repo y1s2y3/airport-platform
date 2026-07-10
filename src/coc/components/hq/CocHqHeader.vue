@@ -1,10 +1,17 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import { Close } from '@element-plus/icons-vue'
-import HqNavTabsLeft from './HqNavTabsLeft.vue'
-import HqNavTabsRight from './HqNavTabsRight.vue'
+import HqHeaderToolbar from './HqHeaderToolbar.vue'
 import headerBg from '../../assets/hq/header/header-bg.png'
 import weatherIcon from '../../assets/hq/header/weather-icon.svg?url'
+
+defineProps({
+  projects: { type: Array, default: () => [] },
+  selectionId: { type: String, default: 'hq' },
+  statusFilters: { type: Array, default: () => ['在建'] },
+})
+
+defineEmits(['project-change'])
 
 const now = ref(new Date())
 let timer = null
@@ -64,18 +71,19 @@ onUnmounted(() => {
       aria-hidden="true"
       draggable="false"
     />
-    <h1 class="hq-header__title">智慧工程建设管控一体化平台</h1>
+    <h1 class="hq-header__title">COC调度指挥中心</h1>
 
     <div class="hq-header__overlay">
-      <nav class="hq-header__nav hq-header__nav--left" aria-label="主导航">
-        <HqNavTabsLeft />
-      </nav>
+      <div class="hq-header__left">
+        <HqHeaderToolbar
+          :projects="projects"
+          :selection-id="selectionId"
+          :status-filters="statusFilters"
+          @project-change="$emit('project-change', $event)"
+        />
+      </div>
 
       <div class="hq-header__right">
-        <nav class="hq-header__nav hq-header__nav--right" aria-label="副导航">
-          <HqNavTabsRight />
-        </nav>
-
         <div class="hq-header__status">
           <div class="hq-header__clock">
             <span class="hq-header__time">{{ clockText }}</span>
@@ -136,7 +144,7 @@ onUnmounted(() => {
   position: absolute;
   left: 0;
   right: 0;
-  top: -2px;
+  top: 3px;
   width: 100%;
   margin: 0;
   height: 67px;
@@ -167,18 +175,12 @@ onUnmounted(() => {
   box-sizing: border-box;
 }
 
-.hq-header__nav {
+.hq-header__left {
+  grid-column: 1;
+  justify-self: start;
   display: flex;
   align-items: center;
-  gap: 12px;
-}
-
-.hq-header__nav--left {
-  grid-column: 1;
-  justify-self: center;
-  transform: translateX(-160px);
-  padding-left: 0;
-  gap: 0;
+  min-width: 0;
 }
 
 .hq-header__right {
@@ -186,13 +188,7 @@ onUnmounted(() => {
   justify-self: end;
   display: flex;
   align-items: center;
-  gap: 16px;
   min-width: 0;
-}
-
-.hq-header__nav--right {
-  padding-right: 0;
-  gap: 0;
 }
 
 .hq-header__status {

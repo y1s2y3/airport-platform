@@ -1,7 +1,10 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, inject } from 'vue'
 import { getProjectPersonnelRiskItems } from '../../../mock/data.js'
 import DispatchDraggablePanel from './DispatchDraggablePanel.vue'
+import DispatchHqPanelTitle from './DispatchHqPanelTitle.vue'
+
+const dispatchHqUi = inject('dispatchHqUi', false)
 
 const props = defineProps({
   projectId: { type: String, required: true },
@@ -27,8 +30,13 @@ function riskTypeClass(type) {
 </script>
 
 <template>
-  <div class="panel-card detail-panel list-panel risk-panel">
-    <div class="panel-title compact risk-title-row title-left">
+  <div class="panel-card detail-panel list-panel risk-panel" :class="{ 'dispatch-hq-list-panel': dispatchHqUi }">
+    <DispatchHqPanelTitle v-if="dispatchHqUi" title="人员风险核验">
+      <template #actions>
+        <button type="button" class="title-more-btn" @click="moreOpen = true">更多</button>
+      </template>
+    </DispatchHqPanelTitle>
+    <div v-else class="panel-title compact risk-title-row title-left">
       <span class="risk-title-text">人员风险核验</span>
       <span class="panel-v2-tip">V2版本上线</span>
       <button type="button" class="title-more-btn" @click="moreOpen = true">
@@ -71,7 +79,7 @@ function riskTypeClass(type) {
     <DispatchDraggablePanel
       v-if="moreOpen"
       title="人员风险核验"
-      :width="780"
+      :width="880"
       placement="right"
       @close="moreOpen = false"
     >
@@ -100,7 +108,7 @@ function riskTypeClass(type) {
               </td>
               <td>{{ row.source }}</td>
               <td>{{ row.date.slice(5) }}</td>
-              <td class="desc" :title="row.desc">{{ row.desc }}</td>
+              <td class="desc col-desc" :title="row.desc">{{ row.desc }}</td>
               <td>
                 <span class="level-tag" :class="levelClass(row.level)">{{ row.level }}</span>
               </td>
@@ -225,30 +233,5 @@ function riskTypeClass(type) {
   color: var(--coc-text-muted);
   font-size: calc(13px + var(--coc-font-boost));
   padding: 16px 8px !important;
-}
-
-.more-dialog-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
-}
-
-.more-count {
-  font-size: calc(13px + var(--coc-font-boost));
-  color: var(--coc-text-secondary);
-  font-weight: 600;
-}
-
-.more-table-wrap {
-  max-height: min(86vh, 1040px);
-  overflow: auto;
-  border: 1px solid var(--coc-border);
-  border-radius: 8px;
-}
-
-.more-table .desc {
-  max-width: 220px;
 }
 </style>

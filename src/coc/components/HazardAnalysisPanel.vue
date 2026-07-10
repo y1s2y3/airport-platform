@@ -8,9 +8,6 @@ import {
   HQ_HAZARD_LEVEL_SEGMENTS,
 } from '../mock/data.js'
 
-/** Figma 环图色块 · 一般 / 较大 / 重大 */
-const HQ_PIE_COLORS = ['#1498F6', '#C29D53', '#A4A7B0']
-
 const chartRef = ref(null)
 let chart = null
 
@@ -39,11 +36,11 @@ const total = computed(() => hazardItems.length)
 
 const levelStats = computed(() => {
   const sum = total.value || 1
-  return pieData.value.map((d, index) => ({
+  return pieData.value.map((d) => ({
     name: d.name,
-    color: props.darkTheme ? HQ_PIE_COLORS[index] : d.color,
+    color: d.color,
     value: d.value,
-    percent: total.value ? `${((d.value / sum) * 100).toFixed(1)}%` : '0%',
+    percent: total.value ? `${Math.round((d.value / sum) * 100)}%` : '0%',
   }))
 })
 
@@ -195,11 +192,14 @@ onUnmounted(() => {
           </template>
           <div v-else ref="chartRef" class="level-ring__chart" />
         </div>
-        <ul class="level-stats">
+        <ul class="level-stats" :class="{ 'level-stats--hq': darkTheme }">
           <li v-for="item in levelStats" :key="item.name" class="level-stat-item">
-            <span class="level-dot" :style="{ background: item.color }" />
+            <span class="level-ring-icon" :style="{ borderColor: item.color }" />
             <span class="level-name">{{ item.name }}</span>
-            <span class="level-count">{{ item.value }} 项</span>
+            <span class="level-count">
+              <strong class="level-count-num">{{ item.value }}</strong>
+              <span class="level-count-unit"> 项</span>
+            </span>
             <span class="level-pct">{{ item.percent }}</span>
           </li>
         </ul>
@@ -370,6 +370,12 @@ onUnmounted(() => {
   gap: 8px;
 }
 
+.level-stats--hq {
+  gap: 14px;
+  padding: 4px 0 4px 4px;
+  justify-content: center;
+}
+
 .level-stat-item {
   display: grid;
   grid-template-columns: 8px 1fr auto auto;
@@ -382,11 +388,37 @@ onUnmounted(() => {
   font-size: calc(11px + var(--coc-font-boost));
 }
 
+.level-stats--hq .level-stat-item {
+  grid-template-columns: 12px minmax(0, 1fr) auto auto;
+  column-gap: 10px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  font-size: calc(12px + var(--coc-font-boost));
+}
+
 .level-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
+}
+
+.level-ring-icon {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  background: transparent;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.level-stats--hq .level-ring-icon {
+  width: 11px;
+  height: 11px;
+  border-width: 2px;
 }
 
 .level-name {
@@ -398,15 +430,47 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
+.level-stats--hq .level-name {
+  color: rgba(255, 255, 255, 0.78);
+  font-weight: 400;
+}
+
 .level-count {
   color: var(--coc-text-secondary);
   white-space: nowrap;
+}
+
+.level-count-num {
+  font-weight: inherit;
+}
+
+.level-stats--hq .level-count-num {
+  font-size: calc(17px + var(--coc-font-boost));
+  font-weight: 700;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.level-stats--hq .level-count-unit {
+  font-size: calc(12px + var(--coc-font-boost));
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.78);
 }
 
 .level-pct {
   font-weight: 700;
   color: var(--coc-accent);
   white-space: nowrap;
+}
+
+.level-stats--hq .level-pct {
+  min-width: 38px;
+  text-align: right;
+  font-weight: 400;
+  font-size: calc(12px + var(--coc-font-boost));
+  color: rgba(255, 255, 255, 0.52);
+  font-variant-numeric: tabular-nums;
 }
 
 .top-section {
@@ -465,26 +529,30 @@ onUnmounted(() => {
 }
 
 .podium-card.rank-first {
-  border-color: var(--coc-podium-first-border, #c62828);
+  border-color: var(--coc-podium-first-border, #c0392b);
   background: var(
     --coc-podium-first-bg,
-    linear-gradient(180deg, rgba(198, 40, 40, 0.22) 0%, rgba(198, 40, 40, 0.08) 100%)
+    linear-gradient(180deg, #a82525 0%, #6e1818 48%, #3a0d0d 100%)
   );
-  box-shadow: var(--coc-podium-first-shadow, 0 2px 8px rgba(183, 28, 28, 0.18));
+  box-shadow: var(--coc-podium-first-shadow, 0 4px 14px rgba(160, 28, 28, 0.28));
 }
 
 .podium-card.rank-second {
-  border-color: var(--coc-podium-second-border, rgba(230, 162, 60, 0.75));
+  border-color: var(--coc-podium-second-border, #d4af37);
   background: var(
     --coc-podium-second-bg,
-    linear-gradient(180deg, rgba(230, 162, 60, 0.2) 0%, rgba(230, 162, 60, 0.06) 100%)
+    linear-gradient(180deg, #a8842e 0%, #6b5220 50%, #3d2e12 100%)
   );
-  box-shadow: var(--coc-podium-second-shadow, 0 2px 6px rgba(230, 162, 60, 0.18));
+  box-shadow: var(--coc-podium-second-shadow, 0 4px 12px rgba(168, 132, 46, 0.24));
 }
 
 .podium-card.rank-third {
-  border-color: var(--coc-podium-third-border, var(--coc-border));
-  background: var(--coc-podium-third-bg, var(--coc-podium-base-bg, #faf8f6));
+  border-color: var(--coc-podium-third-border, #9ca3af);
+  background: var(
+    --coc-podium-third-bg,
+    linear-gradient(180deg, #5c6573 0%, #3a4049 52%, #252830 100%)
+  );
+  box-shadow: var(--coc-podium-third-shadow, 0 4px 10px rgba(0, 0, 0, 0.18));
 }
 
 .podium-rank {
@@ -504,18 +572,18 @@ onUnmounted(() => {
   width: 26px;
   height: 26px;
   font-size: calc(13px + var(--coc-font-boost));
-  background: var(--coc-podium-first-rank-bg, #b71c1c);
-  color: var(--coc-podium-first-rank-color, #fff);
+  background: var(--coc-podium-first-rank-bg, #ffffff);
+  color: var(--coc-podium-first-rank-color, #c62828);
 }
 
 .podium-card.rank-second .podium-rank {
-  background: var(--coc-podium-second-rank-bg, #e6a23c);
-  color: var(--coc-podium-second-rank-color, #fff);
+  background: var(--coc-podium-second-rank-bg, #d4af37);
+  color: var(--coc-podium-second-rank-color, #ffffff);
 }
 
 .podium-card.rank-third .podium-rank {
-  background: var(--coc-podium-third-rank-bg, #e0e0e0);
-  color: var(--coc-podium-third-rank-color, #666);
+  background: var(--coc-podium-third-rank-bg, #9ca3af);
+  color: var(--coc-podium-third-rank-color, #ffffff);
 }
 
 .podium-name {
@@ -544,15 +612,15 @@ onUnmounted(() => {
   font-size: calc(11px + var(--coc-font-boost));
   font-weight: 600;
   -webkit-line-clamp: 4;
-  color: var(--coc-podium-first-name-color, #8b1a1a);
+  color: var(--coc-podium-first-name-color, #ffffff);
 }
 
 .podium-card.rank-second .podium-name {
-  color: var(--coc-podium-second-name-color, #9a6b00);
+  color: var(--coc-podium-second-name-color, #ffffff);
 }
 
 .podium-card.rank-third .podium-name {
-  color: var(--coc-podium-third-name-color, var(--coc-text));
+  color: var(--coc-podium-third-name-color, #ffffff);
 }
 
 .podium-count {
@@ -563,14 +631,14 @@ onUnmounted(() => {
 
 .podium-card.rank-first .podium-count {
   font-size: calc(12px + var(--coc-font-boost));
-  color: var(--coc-podium-first-count-color, #b71c1c);
+  color: var(--coc-podium-first-count-color, #ef5350);
 }
 
 .podium-card.rank-second .podium-count {
-  color: var(--coc-podium-second-count-color, #d48806);
+  color: var(--coc-podium-second-count-color, #f6c575);
 }
 
 .podium-card.rank-third .podium-count {
-  color: var(--coc-podium-third-count-color, var(--coc-podium-count-color, #666));
+  color: var(--coc-podium-third-count-color, #e5e7eb);
 }
 </style>

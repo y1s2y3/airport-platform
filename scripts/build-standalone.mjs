@@ -42,7 +42,6 @@ mkdirSync(buildTmpDir, { recursive: true })
 
 const outputName = resolveUniqueOutputName(releaseDir, baseOutputName)
 const releaseOutput = resolve(releaseDir, outputName)
-const desktopCopy = resolve(root, '..', outputName)
 
 console.log(`\n>>> 打包一体化平台 → ${outputName}`)
 if (outputName !== baseOutputName) {
@@ -66,11 +65,8 @@ for (const name of readdirSync(buildTmpDir)) {
 }
 rmSync(buildTmpDir, { recursive: true, force: true })
 
-copyFileSync(releaseOutput, desktopCopy)
-
 console.log(`\n✓ 单文件 HTML 已输出：`)
 console.log(`  ${releaseOutput}`)
-console.log(`  ${desktopCopy}`)
 console.log('  使用 hash 路由，可直接双击用浏览器打开，无需启动服务器。')
 if (outputName !== baseOutputName) {
   console.log(`  历史文件已保留，未覆盖 ${baseOutputName}`)

@@ -1,12 +1,15 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { VideoCamera, ArrowLeft, ArrowRight, ZoomIn } from '@element-plus/icons-vue'
 import ProjectListPanel from '../ProjectListPanel.vue'
 import VideoExpandOverlay from '../VideoExpandOverlay.vue'
+import HqVideoFilterToggle from '../hq/HqVideoFilterToggle.vue'
 import { useCameraOrder } from '../../composables/useCameraOrder.js'
 import { useDispatchOrder } from '../../composables/useDispatchOrder.js'
-import { FOCUS_PROJECT_ID, HQ_SELECTION_ID, DISPATCH_DEVICES, PERSONNEL_DISPATCH_DEVICES, getDispatchDeviceTypeLabel, formatDispatchOperatorLabel, videoPlaceholderColor } from '../../mock/data.js'
+import { FOCUS_PROJECT_ID, HQ_SELECTION_ID, PERSONNEL_DISPATCH_DEVICES, getDispatchDeviceTypeLabel, formatDispatchOperatorLabel, getMonitorDispatchDevices, videoPlaceholderColor, videoPlaceholderClass } from '../../mock/data.js'
+import { PANEL_TITLE_ICON_URL } from '../../config/panelTitleAssets.js'
+import HqPanelTitleLine from '../hq/HqPanelTitleLine.vue'
 
 const DISPATCH_PAGE_SIZE = 3
 const MONITOR_PAGE_SIZE = 6
@@ -28,18 +31,32 @@ const monitorPage = ref(0)
 const dispatchPage = ref(0)
 const expandedVideo = ref(null)
 const internalVideoFilter = ref('all')
+const monitorFocusProjectId = ref(FOCUS_PROJECT_ID)
 
 const videoFilterMode = computed(() =>
   props.videoFilter !== undefined ? props.videoFilter : internalVideoFilter.value,
 )
 
-const listProjectCameras = computed(() => {
-  if (props.selectionId === HQ_SELECTION_ID) {
-    return props.project.id === FOCUS_PROJECT_ID ? (props.project.cameras || []) : []
-  }
-  const selected = props.projects.find((p) => p.id === props.selectionId)
-  return selected?.cameras || []
-})
+const activeMonitorProjectId = computed(() =>
+  props.selectionId !== HQ_SELECTION_ID ? props.selectionId : monitorFocusProjectId.value,
+)
+
+watch(
+  () => props.selectionId,
+  (id) => {
+    if (id !== HQ_SELECTION_ID) {
+      monitorFocusProjectId.value = id
+    }
+  },
+)
+
+const activeMonitorProject = computed(() =>
+  props.projects.find((p) => p.id === activeMonitorProjectId.value) || props.project,
+)
+
+const listProjectCameras = computed(() => activeMonitorProject.value?.cameras || [])
+
+const isConnected = computed(() => listProjectCameras.value.length > 0)
 
 const internalCameraOrder = useCameraOrder(listProjectCameras)
 const cameraOrderRef = computed(() =>
@@ -80,9 +97,12 @@ const pagedCameras = computed(() => {
   return displayCameras.value.slice(start, start + MONITOR_PAGE_SIZE)
 })
 
-const dispatchDeviceList = computed(() =>
-  props.scene === 'personnel' ? PERSONNEL_DISPATCH_DEVICES : DISPATCH_DEVICES,
-)
+const dispatchDeviceList = computed(() => {
+  if (props.scene === 'personnel') return PERSONNEL_DISPATCH_DEVICES
+  const project = activeMonitorProject.value
+  if (!project) return []
+  return getMonitorDispatchDevices(project.id, project.shortName || project.name)
+})
 
 const { dispatchOrder, orderedDevices, handleDispatchReorder } = useDispatchOrder(dispatchDeviceList)
 
@@ -111,13 +131,21 @@ const pagedDispatch = computed(() => {
   return orderedDevices.value.slice(start, start + DISPATCH_PAGE_SIZE)
 })
 
-const isConnected = computed(() => props.project.id === FOCUS_PROJECT_ID)
-
 function onProjectChange(id) {
   monitorPage.value = 0
   dispatchPage.value = 0
   expandedVideo.value = null
+  if (id === HQ_SELECTION_ID) {
+    monitorFocusProjectId.value = FOCUS_PROJECT_ID
+  }
   emit('project-change', id)
+}
+
+function handleMonitorFocusChange(projectId) {
+  if (!projectId || projectId === monitorFocusProjectId.value) return
+  monitorFocusProjectId.value = projectId
+  monitorPage.value = 0
+  dispatchPage.value = 0
 }
 
 function setVideoFilter(mode) {
@@ -165,6 +193,7 @@ function openDispatch(device) {
       <ProjectListPanel
         :projects="projects"
         :selection-id="selectionId"
+        :focus-project-id="activeMonitorProjectId"
         :status-filters="statusFilters"
         :video-filter="videoFilterMode"
         :camera-order="cameraOrderRef"
@@ -172,6 +201,7 @@ function openDispatch(device) {
         :hq-layout="hqLayout"
         @status-filter="emit('status-filter', $event)"
         @camera-click="onTreeCameraClick"
+        @monitor-focus-change="handleMonitorFocusChange"
         @camera-reorder="handleCameraReorder"
         @camera-set-key="handleSetCameraKey"
         @camera-unset-key="handleUnsetCameraKey"
@@ -183,61 +213,73 @@ function openDispatch(device) {
 
       <div class="panel-card module-panel monitor-module">
         <div class="panel-title simple-title module-title-bar">
-          <div class="title-bar-inner">
-            <div class="header-row">
-              <div class="header-left">
-                <span class="module-title-text">视频监控</span>
-                <div class="video-filter-toggle">
-                  <button
-                    type="button"
-                    class="filter-btn"
-                    :class="{ active: videoFilterMode === 'all' }"
-                    @click="setVideoFilter('all')"
-                  >
-                    全部
-                  </button>
-                  <button
-                    type="button"
-                    class="filter-btn"
-                    :class="{ active: videoFilterMode === 'key' }"
-                    @click="setVideoFilter('key')"
-                  >
-                    重点视频
-                  </button>
-                </div>
-              </div>
+          <img
+            class="hq-panel-title-icon"
+            :src="PANEL_TITLE_ICON_URL"
+            width="11"
+            height="11"
+            alt=""
+            aria-hidden="true"
+            draggable="false"
+          />
+          <div class="header-row header-row--monitor">
+            <span class="module-title-text">视频监控</span>
+            <HqVideoFilterToggle
+              v-if="hqLayout"
+              class="header-video-filter"
+              :model-value="videoFilterMode"
+              @update:model-value="setVideoFilter"
+            />
+            <div v-else class="video-filter-toggle header-video-filter">
+              <button
+                type="button"
+                class="filter-btn"
+                :class="{ active: videoFilterMode === 'all' }"
+                @click="setVideoFilter('all')"
+              >
+                全部
+              </button>
+              <button
+                type="button"
+                class="filter-btn"
+                :class="{ active: videoFilterMode === 'key' }"
+                @click="setVideoFilter('key')"
+              >
+                重点视频
+              </button>
             </div>
-            <div class="header-sub-row">
-              <div class="title-stats">
-                <span class="stat-item">总数 <b>{{ monitorStats.total }}</b></span>
-                <span class="stat-item online">
-                  <i class="status-dot online" /> 在线 <b>{{ monitorStats.online }}</b>
-                </span>
-                <span class="stat-item offline">
-                  <i class="status-dot offline" /> 离线 <b>{{ monitorStats.offline }}</b>
-                </span>
-              </div>
-              <div class="page-nav">
-                <button
-                  type="button"
-                  class="arrow-btn"
-                  :disabled="monitorPage <= 0 || !isConnected"
-                  aria-label="上一页"
-                  @click="monitorPage--"
-                >
-                  <el-icon><ArrowLeft /></el-icon>
-                </button>
-                <span class="page-info">{{ monitorPage + 1 }}/{{ monitorTotalPages }}</span>
-                <button
-                  type="button"
-                  class="arrow-btn"
-                  :disabled="monitorPage >= monitorTotalPages - 1 || !isConnected"
-                  aria-label="下一页"
-                  @click="monitorPage++"
-                >
-                  <el-icon><ArrowRight /></el-icon>
-                </button>
-              </div>
+          </div>
+          <HqPanelTitleLine />
+          <div class="header-sub-row">
+            <div class="title-stats">
+              <span class="stat-item">总数 <b>{{ monitorStats.total }}</b></span>
+              <span class="stat-item online">
+                <i class="status-dot online" /> 在线 <b>{{ monitorStats.online }}</b>
+              </span>
+              <span class="stat-item offline">
+                <i class="status-dot offline" /> 离线 <b>{{ monitorStats.offline }}</b>
+              </span>
+            </div>
+            <div class="page-nav">
+              <button
+                type="button"
+                class="arrow-btn"
+                :disabled="monitorPage <= 0 || !isConnected"
+                aria-label="上一页"
+                @click="monitorPage--"
+              >
+                <el-icon><ArrowLeft /></el-icon>
+              </button>
+              <span class="page-info">{{ monitorPage + 1 }}/{{ monitorTotalPages }}</span>
+              <button
+                type="button"
+                class="arrow-btn"
+                :disabled="monitorPage >= monitorTotalPages - 1 || !isConnected"
+                aria-label="下一页"
+                @click="monitorPage++"
+              >
+                <el-icon><ArrowRight /></el-icon>
+              </button>
             </div>
           </div>
         </div>
@@ -252,7 +294,11 @@ function openDispatch(device) {
                 :class="{ offline: !cam.online, key: cam.key }"
                 @click="openCameraExpand(cam)"
               >
-                <div class="video-placeholder" :style="{ background: videoPlaceholderColor(cam.online, idx) }">
+                <div
+                  class="video-placeholder"
+                  :class="videoPlaceholderClass(cam.online)"
+                  :style="{ background: videoPlaceholderColor(cam.online, idx) }"
+                >
                   <el-icon :size="19" color="rgba(255,255,255,0.6)"><VideoCamera /></el-icon>
                   <span v-if="cam.online" class="expand-hint"><el-icon><ZoomIn /></el-icon> 放大</span>
                   <span v-if="!cam.online" class="offline-mask">信号中断</span>
@@ -274,41 +320,49 @@ function openDispatch(device) {
 
       <div class="panel-card module-panel dispatch-module">
         <div class="panel-title simple-title module-title-bar">
-          <div class="title-bar-inner">
-            <div class="header-row">
-              <span class="module-title-text">{{ dispatchTitle }}</span>
+          <img
+            class="hq-panel-title-icon"
+            :src="PANEL_TITLE_ICON_URL"
+            width="11"
+            height="11"
+            alt=""
+            aria-hidden="true"
+            draggable="false"
+          />
+          <div class="header-row">
+            <span class="module-title-text">{{ dispatchTitle }}</span>
+          </div>
+          <HqPanelTitleLine />
+          <div class="header-sub-row header-sub-row--compact">
+            <div class="title-stats title-stats--compact">
+              <span class="stat-item">总数<b>{{ dispatchStats.total }}</b></span>
+              <span class="stat-item online">
+                <i class="status-dot online" />在线<b>{{ dispatchStats.online }}</b>
+              </span>
+              <span class="stat-item offline">
+                <i class="status-dot offline" />离线<b>{{ dispatchStats.offline }}</b>
+              </span>
             </div>
-            <div class="header-sub-row">
-              <div class="title-stats">
-                <span class="stat-item">总数 <b>{{ dispatchStats.total }}</b></span>
-                <span class="stat-item online">
-                  <i class="status-dot online" /> 在线 <b>{{ dispatchStats.online }}</b>
-                </span>
-                <span class="stat-item offline">
-                  <i class="status-dot offline" /> 离线 <b>{{ dispatchStats.offline }}</b>
-                </span>
-              </div>
-              <div class="page-nav">
-                <button
-                  type="button"
-                  class="arrow-btn"
-                  :disabled="dispatchPage <= 0"
-                  aria-label="上一页"
-                  @click="dispatchPage--"
-                >
-                  <el-icon><ArrowLeft /></el-icon>
-                </button>
-                <span class="page-info">{{ dispatchPage + 1 }}/{{ dispatchTotalPages }}</span>
-                <button
-                  type="button"
-                  class="arrow-btn"
-                  :disabled="dispatchPage >= dispatchTotalPages - 1"
-                  aria-label="下一页"
-                  @click="dispatchPage++"
-                >
-                  <el-icon><ArrowRight /></el-icon>
-                </button>
-              </div>
+            <div class="page-nav">
+              <button
+                type="button"
+                class="arrow-btn"
+                :disabled="dispatchPage <= 0"
+                aria-label="上一页"
+                @click="dispatchPage--"
+              >
+                <el-icon><ArrowLeft /></el-icon>
+              </button>
+              <span class="page-info">{{ dispatchPage + 1 }}/{{ dispatchTotalPages }}</span>
+              <button
+                type="button"
+                class="arrow-btn"
+                :disabled="dispatchPage >= dispatchTotalPages - 1"
+                aria-label="下一页"
+                @click="dispatchPage++"
+              >
+                <el-icon><ArrowRight /></el-icon>
+              </button>
             </div>
           </div>
         </div>
@@ -322,8 +376,12 @@ function openDispatch(device) {
               :class="{ offline: !dv.online }"
               @click="openDispatch(dv)"
             >
-              <div class="video-placeholder" :style="{ background: videoPlaceholderColor(dv.online, idx, 'cool') }">
-                <el-icon :size="19" color="rgba(255,255,255,0.6)"><VideoCamera /></el-icon>
+              <div
+                class="video-placeholder"
+                :class="videoPlaceholderClass(dv.online, 'cool', dv.type)"
+                :style="{ background: videoPlaceholderColor(dv.online, idx, 'cool', dv.type) }"
+              >
+                <el-icon v-if="dv.online && dv.type !== 'handheld'" :size="19" color="rgba(255,255,255,0.6)"><VideoCamera /></el-icon>
                 <span v-if="!dv.online" class="offline-mask">离线</span>
               </div>
               <div class="video-label dispatch-label">
@@ -354,7 +412,7 @@ function openDispatch(device) {
     <VideoExpandOverlay
       v-if="expandedVideo"
       :source="expandedVideo"
-      :project="project"
+      :project="activeMonitorProject"
       @close="expandedVideo = null"
     />
   </div>
@@ -392,30 +450,57 @@ function openDispatch(device) {
   font-size: calc(18px + var(--coc-font-boost));
 }
 
-.module-title-bar {
-  align-items: flex-start;
-  padding-top: 0.45em;
-  padding-bottom: 0.45em;
-}
-
-.module-title-bar::before {
-  align-self: stretch;
-  height: auto;
-  min-height: 1.6em;
-}
-
-.title-bar-inner {
-  flex: 1;
-  min-width: 0;
+.title-stats--compact {
   display: flex;
-  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: center;
   gap: 6px;
+  font-size: calc(9px + var(--coc-font-boost));
+  color: var(--coc-text-secondary);
+  flex: 0 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.title-stats--compact b {
+  font-size: calc(10px + var(--coc-font-boost));
+  color: var(--coc-text);
+  margin-left: 2px;
+  font-weight: 700;
+}
+
+.title-stats--compact .online b { color: var(--coc-success); }
+.title-stats--compact .offline b { color: var(--coc-danger); }
+
+.title-stats--compact .stat-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.title-stats--compact .status-dot {
+  width: 5px;
+  height: 5px;
+  flex-shrink: 0;
 }
 
 .header-row {
   display: flex;
   align-items: center;
   min-width: 0;
+}
+
+.header-row--monitor {
+  justify-content: space-between;
+  width: 100%;
+  gap: 20px;
+}
+
+.header-video-filter {
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .header-sub-row {

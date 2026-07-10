@@ -81,8 +81,7 @@ function handleOrgChange(id) {
         <img :src="logoUrl" alt="深圳机场" class="logo-img" />
       </div>
       <div class="brand-text">
-        <div class="brand-title">智慧工程建设管控一体化平台</div>
-        <div class="brand-sub">深圳机场扩建工程 · COC调度指挥中心</div>
+        <div class="brand-title">COC调度指挥中心</div>
       </div>
     </div>
 

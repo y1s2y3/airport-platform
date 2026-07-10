@@ -52,11 +52,13 @@ const emit = defineEmits([
 
     <!-- 右侧 3×1：领导讲话 / 红黑榜 / 劳务 / 隐患 -->
     <aside class="hq-zone hq-zone--right">
-      <ProjectRedBlackBoard
-        class="hq-rb-board hq-hide-inner-title"
-        dark-theme
-        @leader-speech="emit('leader-speech')"
-      />
+      <div class="hq-analysis-block hq-analysis-block--rb">
+        <ProjectRedBlackBoard
+          class="hq-rb-board hq-hide-inner-title"
+          dark-theme
+          @leader-speech="emit('leader-speech')"
+        />
+      </div>
       <div class="hq-analysis-block">
         <CocPanelHeading title="劳务分析" />
         <LaborAnalysisPanel
@@ -131,7 +133,14 @@ const emit = defineEmits([
   gap: 10px;
 }
 
-.hq-rb-board {
+.hq-analysis-block--rb {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.hq-analysis-block--rb .hq-rb-board {
   flex: 1;
   min-height: 0;
 }

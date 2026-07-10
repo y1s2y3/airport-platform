@@ -1,8 +1,11 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, inject } from 'vue'
 import { SAFETY_HAZARDS, QUALITY_HAZARDS } from '../../../mock/data.js'
 import DispatchDraggablePanel from './DispatchDraggablePanel.vue'
 import DispatchRecordDetailBody from './DispatchRecordDetailBody.vue'
+import DispatchHqPanelTitle from './DispatchHqPanelTitle.vue'
+
+const dispatchHqUi = inject('dispatchHqUi', false)
 
 const hazardList = [
   ...SAFETY_HAZARDS.map((h) => ({ ...h, hazardCategory: '安全' })),
@@ -73,8 +76,29 @@ function closeDetail() {
 </script>
 
 <template>
-  <div class="panel-card hazard-side-panel">
-    <div class="panel-title compact hazard-title-row title-left">
+  <div class="panel-card hazard-side-panel" :class="{ 'dispatch-hq-list-panel': dispatchHqUi }">
+    <DispatchHqPanelTitle v-if="dispatchHqUi" title="隐患清单">
+      <template #actions>
+        <div class="title-actions">
+          <el-select
+            v-model="hazardStatusFilter"
+            size="small"
+            class="hazard-status-select"
+          >
+            <el-option
+              v-for="opt in hazardStatusOptions"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+            />
+          </el-select>
+          <button type="button" class="title-more-btn" @click="hazardMoreOpen = true">
+            更多
+          </button>
+        </div>
+      </template>
+    </DispatchHqPanelTitle>
+    <div v-else class="panel-title compact hazard-title-row title-left">
       <span class="hazard-title-text">隐患清单</span>
       <span class="panel-v2-tip">V2版本上线</span>
       <div class="title-actions">
@@ -137,7 +161,7 @@ function closeDetail() {
     <DispatchDraggablePanel
       v-if="hazardMoreOpen"
       title="隐患清单"
-      :width="760"
+      :width="880"
       placement="right"
       @close="hazardMoreOpen = false"
     >
@@ -190,8 +214,8 @@ function closeDetail() {
                 </span>
               </td>
               <td>{{ row.date }}</td>
-              <td class="desc" :title="row.desc">{{ row.desc }}</td>
-              <td>{{ row.location }}</td>
+              <td class="desc col-desc" :title="row.desc">{{ row.desc }}</td>
+              <td class="col-desc">{{ row.location }}</td>
               <td>
                 <span class="level-tag" :class="levelClass(row.level)">{{ row.level }}</span>
               </td>
@@ -219,6 +243,8 @@ function closeDetail() {
 </template>
 
 <style scoped>
+@import './dispatch-lower.css';
+
 .hazard-side-panel {
   flex: 1;
   min-height: 0;
@@ -309,7 +335,7 @@ function closeDetail() {
   color: var(--coc-text-secondary);
 }
 
-.desc {
+.data-table .desc {
   max-width: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -397,23 +423,6 @@ function closeDetail() {
   padding: 16px 8px !important;
 }
 
-.more-dialog-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
-  flex-wrap: wrap;
-}
-
-.more-filters {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-left: auto;
-}
-
 .hazard-date-filter {
   width: 240px;
 }
@@ -422,45 +431,7 @@ function closeDetail() {
   font-size: calc(12px + var(--coc-font-boost));
 }
 
-.more-count {
-  font-size: calc(13px + var(--coc-font-boost));
-  color: var(--coc-text-secondary);
-  font-weight: 600;
-}
-
 .more-filter {
   width: 108px;
-}
-
-.more-table-wrap {
-  max-height: min(86vh, 1040px);
-  overflow: auto;
-  border: 1px solid var(--coc-border);
-  border-radius: 8px;
-}
-
-.more-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: calc(13px + var(--coc-font-boost));
-}
-
-.more-table th,
-.more-table td {
-  padding: 14px 12px;
-  border-bottom: 1px solid var(--coc-border);
-  text-align: left;
-}
-
-.more-table th {
-  background: #faf8f6;
-  font-weight: 600;
-  position: sticky;
-  top: 0;
-  z-index: 1;
-}
-
-.more-table .desc {
-  max-width: 200px;
 }
 </style>

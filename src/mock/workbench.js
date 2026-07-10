@@ -16,7 +16,7 @@ export const sidebarMenu = [
   { key: 'material', label: '物资管理', icon: 'Box', path: '/material' },
   { key: 'labor', label: '劳务实名制', icon: 'User', path: '/labor' },
   { key: 'document', label: '资料管理', icon: 'FolderOpened', path: '/document' },
-  { key: 'settings', label: '系统设置', icon: 'Setting', path: '/settings' },
+  { key: 'settings', label: '组织管理', icon: 'OfficeBuilding', path: '/settings' },
 ]
 
 export const kpiCards = [

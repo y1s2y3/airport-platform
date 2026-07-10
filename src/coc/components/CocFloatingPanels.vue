@@ -1,6 +1,5 @@
 <script setup>
 import MeetingSignInFloatingPanel from './MeetingSignInFloatingPanel.vue'
-import AiMeetingFloatingPanel from './AiMeetingFloatingPanel.vue'
 
 defineProps({
   projects: { type: Array, default: () => [] },
@@ -19,7 +18,6 @@ defineEmits(['project-change'])
       :status-filters="statusFilters"
       @project-change="$emit('project-change', $event)"
     />
-    <AiMeetingFloatingPanel embedded />
   </div>
 </template>
 

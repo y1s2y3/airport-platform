@@ -1,82 +1,264 @@
-/** 登录结果选项 */
+/** 登录终端类型 */
+export const loginTerminalOptions = [
+  { label: '全部', value: '' },
+  { label: 'Web端', value: 'Web端' },
+  { label: 'App端', value: 'App端' },
+]
+
+/** 登录日志所属组织（筛选用） */
+export const loginOrgOptions = [
+  { label: '全部', value: '' },
+  { label: '研究院', value: '研究院' },
+  { label: '深圳机场集团/职能部门/规划建设部', value: '规划建设部' },
+  { label: '深圳机场集团/职能部门/办公室', value: '办公室' },
+  { label: '深圳机场集团/公司领导', value: '公司领导' },
+]
+
+const sampleUsers = [
+  { name: '韦工', phone: '18111113333', loginAccount: 'weizong', orgName: '研究院' },
+  { name: '杨光', phone: '13761838134', loginAccount: '202401', orgName: '研究院' },
+  { name: '郭超', phone: '13666666666', loginAccount: 'admin', orgName: '研究院' },
+  { name: '刘付生', phone: '13899999999', loginAccount: 'liufs', orgName: '规划建设部' },
+  { name: '李畅', phone: '14469074474', loginAccount: 'qianglong', orgName: '规划建设部' },
+  { name: '刘文强', phone: '13800131201', loginAccount: 'liuwenqiang', orgName: '公司领导' },
+  { name: '姚远东', phone: '13900133302', loginAccount: 'yaoyuandong', orgName: '规划建设部' },
+  { name: '陈静', phone: '13600138890', loginAccount: 'chenjing', orgName: '办公室' },
+  { name: '视频中心用户', phone: '13888888888', loginAccount: 'videoAdmin', orgName: '规划建设部' },
+]
+
+const ipPool = [
+  '183.14.133.38',
+  '183.14.133.201',
+  '183.14.133.56',
+  '10.12.8.45',
+  '10.12.9.102',
+  '172.16.3.28',
+  '58.248.112.66',
+]
+
+const terminalPool = ['Web端', 'Web端', 'Web端', 'App端']
+
+function pad(n) {
+  return String(n).padStart(2, '0')
+}
+
+function buildLoginTime(dayOffset, hour, minute, second) {
+  const base = new Date(2024, 9, 24)
+  base.setDate(base.getDate() - dayOffset)
+  return `${base.getFullYear()}-${pad(base.getMonth() + 1)}-${pad(base.getDate())} ${pad(hour)}:${pad(minute)}:${pad(second)}`
+}
+
+function generateLoginLogs() {
+  const rows = []
+  let seq = 1
+  for (let day = 0; day < 27; day += 1) {
+    for (let i = 0; i < 10; i += 1) {
+      const user = sampleUsers[(day + i) % sampleUsers.length]
+      const hour = 8 + ((i * 2 + day) % 10)
+      const minute = (i * 7 + day * 3) % 60
+      const second = (i * 11 + day * 5) % 60
+      rows.push({
+        id: `ll-${String(seq++).padStart(3, '0')}`,
+        name: user.name,
+        phone: user.phone,
+        loginAccount: user.loginAccount,
+        orgName: user.orgName,
+        terminalType: terminalPool[(day + i) % terminalPool.length],
+        ip: ipPool[(day + i) % ipPool.length],
+        loginTime: buildLoginTime(day, hour, minute, second),
+      })
+    }
+  }
+  return rows.sort((a, b) => (a.loginTime < b.loginTime ? 1 : -1))
+}
+
+/** 登录日志 */
+export const loginLogList = generateLoginLogs()
+
+/** @deprecated 保留兼容 */
 export const loginResultOptions = ['全部', '成功', '失败']
 
 /** 操作类型选项 */
-export const operationTypeOptions = ['全部', '新增', '修改', '删除', '查询', '导出', '审批', '登录']
+export const operationTypeOptions = ['全部', '数据字典列表', '用户登录信息', '项目结构返回树', '菜单列表', '角色授权', '用户查询', '新增', '修改', '删除', '导出']
 
 /** 操作模块选项 */
 export const operationModuleOptions = [
   '全部',
-  '系统设置',
+  '系统管理',
+  '企业管理',
   '用户管理',
   '角色管理',
-  '质量管理',
-  '安全管理',
   'COC调度',
   '档案系统',
 ]
 
-/** 登录日志 */
-export const loginLogList = [
-  { id: 'll-001', username: 'liuwenqiang', name: '刘文强', loginTime: '2026-06-26 08:32:15', ip: '10.12.8.45', location: '广东省深圳市', browser: 'Chrome 125 / Windows 10', result: '成功', failReason: '' },
-  { id: 'll-002', username: 'yaoyuandong', name: '姚远东', loginTime: '2026-06-26 08:45:02', ip: '10.12.9.102', location: '广东省深圳市', browser: 'Edge 124 / Windows 11', result: '成功', failReason: '' },
-  { id: 'll-003', username: 'chenjing', name: '陈静', loginTime: '2026-06-26 09:01:33', ip: '172.16.3.28', location: '广东省深圳市', browser: 'Chrome 125 / macOS', result: '成功', failReason: '' },
-  { id: 'll-004', username: 'wangjianguo', name: '王建国', loginTime: '2026-06-26 09:18:47', ip: '58.248.112.66', location: '广东省深圳市', browser: 'Chrome 124 / Android', result: '成功', failReason: '' },
-  { id: 'll-005', username: 'unknown_user', name: '-', loginTime: '2026-06-26 09:22:11', ip: '203.195.88.19', location: '未知', browser: 'Firefox 126 / Windows 10', result: '失败', failReason: '用户名或密码错误' },
-  { id: 'll-006', username: 'archive_admin', name: '档案管理员', loginTime: '2026-06-26 09:35:20', ip: '10.12.8.88', location: '广东省深圳市', browser: 'Chrome 125 / Windows 10', result: '成功', failReason: '' },
-  { id: 'll-007', username: 'lindev', name: '林开发', loginTime: '2026-06-26 10:02:08', ip: '192.168.1.105', location: '广东省广州市', browser: 'Chrome 125 / Windows 10', result: '成功', failReason: '' },
-  { id: 'll-008', username: 'zhangsj', name: '张设计', loginTime: '2026-06-26 10:15:44', ip: '10.12.11.56', location: '广东省深圳市', browser: 'Safari 17 / macOS', result: '失败', failReason: '账号已停用' },
-  { id: 'll-009', username: 'liuwenqiang', name: '刘文强', loginTime: '2026-06-25 17:48:30', ip: '10.12.8.45', location: '广东省深圳市', browser: 'Chrome 125 / Windows 10', result: '成功', failReason: '' },
-  { id: 'll-010', username: 'yaoyuandong', name: '姚远东', loginTime: '2026-06-25 16:22:05', ip: '10.12.9.102', location: '广东省深圳市', browser: 'Edge 124 / Windows 11', result: '成功', failReason: '' },
-  { id: 'll-011', username: 'chenjing', name: '陈静', loginTime: '2026-06-25 14:10:18', ip: '172.16.3.28', location: '广东省深圳市', browser: 'Chrome 125 / macOS', result: '成功', failReason: '' },
-  { id: 'll-012', username: 'test001', name: '-', loginTime: '2026-06-25 11:33:52', ip: '45.77.128.200', location: '未知', browser: 'Chrome 120 / Linux', result: '失败', failReason: '验证码错误' },
-  { id: 'll-013', username: 'wangjianguo', name: '王建国', loginTime: '2026-06-24 08:55:41', ip: '58.248.112.66', location: '广东省深圳市', browser: 'Chrome 124 / Android', result: '成功', failReason: '' },
-  { id: 'll-014', username: 'archive_admin', name: '档案管理员', loginTime: '2026-06-24 09:12:09', ip: '10.12.8.88', location: '广东省深圳市', browser: 'Chrome 125 / Windows 10', result: '成功', failReason: '' },
-  { id: 'll-015', username: 'liuwenqiang', name: '刘文强', loginTime: '2026-06-24 18:05:22', ip: '10.12.8.45', location: '广东省深圳市', browser: 'Chrome 125 / Windows 10', result: '成功', failReason: '' },
+const operationModules = ['系统管理', '企业管理', '用户管理', '角色管理', 'COC调度']
+const operationTypes = [
+  '数据字典列表',
+  '用户登录信息',
+  '项目结构返回树',
+  '菜单列表',
+  '角色授权',
+  '用户查询',
+  '组织树查询',
+  '岗位列表',
 ]
+
+const operationIpPool = [
+  '120.244.34.149',
+  '183.14.133.38',
+  '183.14.133.201',
+  '10.12.8.45',
+  '10.12.9.102',
+  '172.16.3.28',
+]
+
+function buildOperationContent(orgName, operator, operateTime, type) {
+  return `${orgName}下的${operator}于${operateTime}${type}`
+}
+
+function generateOperationLogs() {
+  const rows = []
+  let seq = 1
+  for (let day = 0; day < 471; day += 1) {
+    for (let i = 0; i < 10; i += 1) {
+      const user = sampleUsers[(day + i) % sampleUsers.length]
+      const module = operationModules[(day + i) % operationModules.length]
+      const type = operationTypes[(day + i * 2) % operationTypes.length]
+      const hour = 8 + ((i * 2 + day) % 10)
+      const minute = (i * 7 + day * 3) % 60
+      const second = (i * 11 + day * 5) % 60
+      const operateTime = buildLoginTime(day % 90, hour, minute, second)
+      rows.push({
+        id: `ol-${String(seq++).padStart(5, '0')}`,
+        operator: user.name === '刘文强' ? '系统管理员' : user.name,
+        loginAccount: user.loginAccount,
+        orgName: user.orgName === '规划建设部' ? '研究院' : user.orgName,
+        operateTime,
+        module,
+        type,
+        terminalType: terminalPool[(day + i) % terminalPool.length],
+        ip: operationIpPool[(day + i) % operationIpPool.length],
+        content: buildOperationContent(
+          user.orgName === '规划建设部' ? '研究院' : user.orgName,
+          user.name === '刘文强' ? '系统管理员' : user.name,
+          operateTime,
+          type,
+        ),
+      })
+    }
+  }
+  return rows.sort((a, b) => (a.operateTime < b.operateTime ? 1 : -1))
+}
 
 /** 操作日志 */
-export const operationLogList = [
-  { id: 'ol-001', module: '用户管理', type: '修改', content: '修改用户「陈静」所属角色为「普通用户」', operator: '刘文强', operateTime: '2026-06-26 10:28:33', ip: '10.12.8.45', requestUrl: '/api/system/user/update', duration: 128, status: '成功' },
-  { id: 'ol-002', module: '角色管理', type: '新增', content: '新增角色「监理单位」', operator: '刘文强', operateTime: '2026-06-26 10:15:02', ip: '10.12.8.45', requestUrl: '/api/system/role/create', duration: 95, status: '成功' },
-  { id: 'ol-003', module: '质量管理', type: '导出', content: '导出质量检查记录（2026-06-01 ~ 2026-06-26）', operator: '姚远东', operateTime: '2026-06-26 09:52:18', ip: '10.12.9.102', requestUrl: '/api/quality/inspect/export', duration: 2340, status: '成功' },
-  { id: 'ol-004', module: '安全管理', type: '新增', content: '新增劳务黑名单人员「李某」', operator: '姚远东', operateTime: '2026-06-26 09:40:55', ip: '10.12.9.102', requestUrl: '/api/safety/blacklist/create', duration: 156, status: '成功' },
-  { id: 'ol-005', module: 'COC调度', type: '修改', content: '更新调度会议「6月26日晨会」参会人员', operator: '陈静', operateTime: '2026-06-26 09:22:41', ip: '172.16.3.28', requestUrl: '/api/coc/meeting/update', duration: 210, status: '成功' },
-  { id: 'ol-006', module: '档案系统', type: '查询', content: '查询项目档案「T2航站楼扩建」目录', operator: '档案管理员', operateTime: '2026-06-26 09:08:17', ip: '10.12.8.88', requestUrl: '/api/archive/catalog/list', duration: 68, status: '成功' },
-  { id: 'ol-007', module: '系统设置', type: '删除', content: '删除菜单「测试菜单」', operator: '刘文强', operateTime: '2026-06-25 17:35:09', ip: '10.12.8.45', requestUrl: '/api/system/menu/delete', duration: 82, status: '成功' },
-  { id: 'ol-008', module: '用户管理', type: '新增', content: '新增外部单位用户「林开发」', operator: '刘文强', operateTime: '2026-06-25 16:48:22', ip: '10.12.8.45', requestUrl: '/api/system/user/create', duration: 145, status: '成功' },
-  { id: 'ol-009', module: '角色管理', type: '修改', content: '调整角色「项目经理」数据权限为「指定项目」', operator: '刘文强', operateTime: '2026-06-25 15:20:33', ip: '10.12.8.45', requestUrl: '/api/system/role/update', duration: 112, status: '成功' },
-  { id: 'ol-010', module: '质量管理', type: '审批', content: '审批通过质量整改单「QC-20260625-003」', operator: '姚远东', operateTime: '2026-06-25 14:55:47', ip: '10.12.9.102', requestUrl: '/api/quality/rectify/approve', duration: 189, status: '成功' },
-  { id: 'ol-011', module: '安全管理', type: '导出', content: '导出考勤明细（三跑道项目）', operator: '王建国', operateTime: '2026-06-25 11:30:15', ip: '58.248.112.66', requestUrl: '/api/safety/attendance/export', duration: 3120, status: '成功' },
-  { id: 'ol-012', module: 'COC调度', type: '新增', content: '发布调度任务单「DG-20260625-012」', operator: '陈静', operateTime: '2026-06-25 10:18:08', ip: '172.16.3.28', requestUrl: '/api/coc/notice/create', duration: 175, status: '成功' },
-  { id: 'ol-013', module: '档案系统', type: '修改', content: '更新档案元数据「北货站施工日志」', operator: '档案管理员', operateTime: '2026-06-24 16:42:51', ip: '10.12.8.88', requestUrl: '/api/archive/metadata/update', duration: 203, status: '失败' },
-  { id: 'ol-014', module: '系统设置', type: '登录', content: '用户登录系统', operator: '林开发', operateTime: '2026-06-24 10:02:08', ip: '192.168.1.105', requestUrl: '/api/auth/login', duration: 45, status: '成功' },
-  { id: 'ol-015', module: '用户管理', type: '修改', content: '重置用户「张设计」登录密码', operator: '刘文强', operateTime: '2026-06-24 09:15:36', ip: '10.12.8.45', requestUrl: '/api/system/user/reset-password', duration: 98, status: '成功' },
-]
+export const operationLogList = generateOperationLogs()
 
-const CURRENT_OPERATOR = '刘文强'
+const CURRENT_OPERATOR = '系统管理员'
 
 export function appendOperationLog({
   module,
   type,
   content,
   operator = CURRENT_OPERATOR,
+  loginAccount = 'liuwenqiang',
+  orgName = '研究院',
   ip = '10.12.8.45',
-  requestUrl = '',
-  duration = 15,
-  status = '成功',
+  terminalType = 'Web端',
+  requestUrl: _requestUrl,
+  duration: _duration,
+  status: _status,
 }) {
-  const operateTime = new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-')
+  const operateTime = new Date()
+    .toLocaleString('zh-CN', { hour12: false })
+    .replace(/\//g, '-')
+    .replace(',', '')
   operationLogList.unshift({
     id: `ol-${Date.now()}`,
+    operator,
+    loginAccount,
+    orgName,
+    operateTime,
     module,
     type,
-    content,
-    operator,
-    operateTime,
+    terminalType,
     ip,
-    requestUrl,
-    duration,
-    status,
+    content: content || buildOperationContent(orgName, operator, operateTime, type),
   })
 }
+
+/** 系统日志级别 */
+export const systemLogLevelOptions = [
+  { label: '全部', value: '' },
+  { label: 'INFO', value: 'INFO' },
+  { label: 'WARN', value: 'WARN' },
+  { label: 'ERROR', value: 'ERROR' },
+]
+
+const systemServices = [
+  'ibuilds-consumer-adm-system',
+  'ibuilds-gateway',
+  'ibuilds-auth-service',
+  'ibuilds-file-service',
+  'ibuilds-job-service',
+]
+
+const infoMessages = [
+  'Started ConsumerAdmSystemApplication in 134.74 seconds (process running for 150.344)',
+  'No active profile set, falling back to 1 default profile: "default"',
+  'Tomcat started on port(s): 8080 (http) with context path \'\'',
+  'Initializing Spring embedded WebApplicationContext',
+  'Completed initialization in 2847 ms',
+  'HikariPool-1 - Start completed.',
+]
+
+const errorMessages = [
+  '请求异常',
+  'Connection refused: connect to redis://10.12.8.21:6379',
+  'java.lang.NullPointerException: Cannot invoke method on null object',
+  'Failed to execute SQL statement: duplicate key value violates unique constraint',
+]
+
+const warnMessages = [
+  'Slow query detected: execution time 3200ms',
+  'Retry attempt 2 for remote service call',
+]
+
+function buildSystemLogTime(dayOffset, hour, minute, second) {
+  const base = new Date(2024, 9, 22)
+  base.setDate(base.getDate() - dayOffset)
+  return `${base.getFullYear()}-${pad(base.getMonth() + 1)}-${pad(base.getDate())} ${pad(hour)}:${pad(minute)}:${pad(second)}`
+}
+
+function generateSystemLogs() {
+  const rows = []
+  const levels = ['INFO', 'INFO', 'INFO', 'WARN', 'ERROR']
+  for (let i = 0; i < 27; i += 1) {
+    const level = levels[i % levels.length]
+    const service = systemServices[i % systemServices.length]
+    const hour = 14 - (i % 5)
+    const minute = (48 - i) % 60
+    const second = (22 + i * 3) % 60
+    let content = infoMessages[i % infoMessages.length]
+    let stackTrace = '--'
+    if (level === 'ERROR') {
+      content = errorMessages[i % errorMessages.length]
+      stackTrace =
+        'java.lang.RuntimeException: 请求异常\n\tat com.ibuilds.system.controller.BaseController.handle(BaseController.java:86)\n\tat sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)'
+    } else if (level === 'WARN') {
+      content = warnMessages[i % warnMessages.length]
+    }
+    rows.push({
+      id: `sl-${String(i + 1).padStart(3, '0')}`,
+      serviceName: service,
+      level,
+      content,
+      logTime: buildSystemLogTime(i % 7, hour < 0 ? hour + 24 : hour, minute < 0 ? minute + 60 : minute, second),
+      stackTrace,
+    })
+  }
+  return rows.sort((a, b) => (a.logTime < b.logTime ? 1 : -1))
+}
+
+/** 系统日志 */
+export const systemLogList = generateSystemLogs()

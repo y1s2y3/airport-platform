@@ -1,10 +1,28 @@
 import { ref } from 'vue'
 
-export const orgCategories = [
-  { key: 'oa', label: 'OA系统用户', syncable: true },
-  { key: 'external', label: '外部单位用户', syncable: false },
-  { key: 'other', label: '其他用户', syncable: false },
+export const ORG_LEVEL_OPTIONS = ['公司', '项目', '部门']
+export const ORG_TYPE_OPTIONS = ['公司', '项目', '部门']
+
+export const orgRoleOptions = [
+  { key: 'role-company', label: '公司角色' },
+  { key: 'role-default', label: '公司默认角色' },
+  { key: 'role-video', label: '视频角色' },
 ]
+
+export const dataPermissionLevelOptions = [
+  { value: 'hq', label: '指挥部层级' },
+  { value: 'project', label: '项目层级' },
+]
+
+export const dataPermissionHqScopeOptions = ['本组织', '指定组织']
+
+export const dataPermissionProjectScopeOptions = [
+  { value: 'all', label: '全部项目' },
+  { value: 'specific', label: '指定项目' },
+]
+
+/** @deprecated 兼容旧引用 */
+export const dataPermissionTypeOptions = dataPermissionHqScopeOptions
 
 function cloneNodes(nodes) {
   return nodes.map((n) => ({
@@ -13,133 +31,236 @@ function cloneNodes(nodes) {
   }))
 }
 
-const initialOaOrgTree = [
-  { id: 'oa-root', label: '深圳机场集团', count: 349 },
-]
-
-const initialExternalOrgTree = [
-  { id: 'oa-construction', label: '施工单位', count: 12 },
-  { id: 'oa-design', label: '设计单位', count: 10 },
-  { id: 'oa-consult', label: '咨询单位', count: 4 },
-  { id: 'oa-supervision', label: '监理单位', count: 1 },
-  { id: 'oa-survey', label: '勘察单位', count: 6 },
-  { id: 'oa-planning', label: '规划单位', count: 0 },
-  { id: 'oa-other', label: '其他单位', count: 7 },
-  { id: 'ext-yunhan', label: '云汉数科', count: 28 },
-  { id: 'ext-huadong', label: '华东院', count: 45 },
-  { id: 'ext-archive', label: '档案系统', count: 6 },
-]
-
-const initialOtherOrgTree = [
-  { id: 'other-temp', label: '临时账号', count: 3 },
-  { id: 'other-guest', label: '访客账号', count: 2 },
-]
-
-export const orgUserMap = {
-  'oa-root': [
-    { id: 1, name: '刘文强', gender: '男', dept: '集团总部', phone: '13800131201', email: 'liuwenqiang@szairport.com' },
-    { id: 2, name: '姚远东', gender: '男', dept: '工程管理部', phone: '13900133302', email: 'yaoyuandong@szairport.com' },
-    { id: 3, name: '陈静', gender: '女', dept: '综合办公室', phone: '13600138890', email: 'chenjing@szairport.com' },
-  ],
-  'oa-construction': [
-    { id: 11, name: '王建国', gender: '男', dept: '中建三局', phone: '13700132210', email: 'wangjianguo@cscec.com' },
-    { id: 12, name: '李明', gender: '男', dept: '中铁建工', phone: '13500136678', email: 'liming@crcc.com' },
-  ],
-  'oa-design': [
-    { id: 21, name: '张设计', gender: '女', dept: '华东建筑设计院', phone: '13300134455', email: 'zhangsj@ecadi.com' },
-    { id: 22, name: '赵工', gender: '男', dept: '深圳市政设计院', phone: '13200137788', email: 'zhaogong@szdesign.com' },
-  ],
-  'oa-consult': [
-    { id: 31, name: '周咨询', gender: '男', dept: '造价咨询中心', phone: '13100139900', email: 'zhouzx@consult.com' },
-  ],
-  'oa-supervision': [
-    { id: 41, name: '孙监理', gender: '男', dept: '深圳监理公司', phone: '13000131122', email: 'sunjl@jl.com' },
-  ],
-  'oa-survey': [
-    { id: 51, name: '吴勘察', gender: '男', dept: '地质勘察院', phone: '18800133344', email: 'wukc@survey.com' },
-  ],
-  'oa-planning': [],
-  'oa-other': [
-    { id: 61, name: '郑其他', gender: '女', dept: '协作单位', phone: '18900135566', email: 'zhengqt@partner.com' },
-  ],
-  'ext-yunhan': [
-    { id: 101, name: '林开发', gender: '男', dept: '云汉数科', phone: '18600137788', email: 'lindev@yunhan.com' },
-    { id: 102, name: '黄产品', gender: '女', dept: '云汉数科', phone: '18500139900', email: 'huangcp@yunhan.com' },
-  ],
-  'ext-huadong': [
-    { id: 111, name: '钱华东', gender: '男', dept: '华东院', phone: '18400131122', email: 'qianhd@hd.com' },
-    { id: 112, name: '冯结构', gender: '男', dept: '华东院结构所', phone: '18300133344', email: 'fengjg@hd.com' },
-  ],
-  'ext-archive': [
-    { id: 121, name: '档案管理员', gender: '女', dept: '档案系统', phone: '18200135566', email: 'archive_admin@szairport.com' },
-  ],
-  'other-temp': [
-    { id: 201, name: '临时用户A', gender: '男', dept: '临时账号', phone: '-', email: 'temp_a@temp.local' },
-  ],
-  'other-guest': [
-    { id: 211, name: '访客01', gender: '女', dept: '访客账号', phone: '-', email: 'guest_01@temp.local' },
-  ],
+function orgNode(id, label, headcount, level, sortOrder, children = []) {
+  const shortName = label.includes('(') ? label.slice(0, label.indexOf('(')) : label
+  return {
+    id,
+    label,
+    headcount,
+    orgLevel: level,
+    orgType: level,
+    shortName: shortName.slice(0, 12),
+    orgCode: id.replace(/^org-/, 'SZAIR-').toUpperCase(),
+    sortOrder,
+    enabled: true,
+    remark: '',
+    children,
+  }
 }
 
+const initialOrgTree = [
+  orgNode('org-root', '深圳机场集团', 386, '公司', 0, [
+    orgNode('org-hkc', '航空城公司', 1, '公司', 1),
+    orgNode('org-leaders', '公司领导', 5, '部门', 2),
+    orgNode('org-func', '职能部门', 0, '部门', 3, [
+      orgNode('org-office', '办公室', 2, '部门', 1),
+      orgNode('org-party', '党群工作部(新闻中心、工会办公室)', 0, '部门', 2),
+      orgNode('org-hr', '人力资源部', 1, '部门', 3),
+      orgNode('org-discipline', '纪检监察室(监事会办公室)', 1, '部门', 4),
+      orgNode('org-quality', '安全与质量管理部(安委会办公室)', 1, '部门', 5),
+      orgNode('org-safety-supervise', '安全监管(集团、股份安委办)', 0, '部门', 6),
+      orgNode('org-board', '董事会办公室(战略发展部)', 1, '部门', 7),
+      orgNode('org-plan', '规划建设部(重大项目推进办公室)', 24, '部门', 8),
+      orgNode('org-operation', '经营管理部', 1, '部门', 9),
+      orgNode('org-finance', '财务部', 11, '部门', 10),
+      orgNode('org-audit', '审计法务部', 4, '部门', 11),
+    ]),
+    orgNode('org-biz', '业务单位', 0, '部门', 4, [
+      orgNode('org-public', '公共区管理部(三防应急协调办)', 2, '部门', 1),
+      orgNode('org-logistics', '后勤服务中心', 0, '部门', 2),
+    ]),
+  ]),
+  orgNode('org-external', '外部单位', 0, '公司', 1),
+  orgNode('org-construction', '施工项目', 0, '项目', 2),
+  orgNode('org-other-users', '其他组织', 0, '部门', 3),
+]
+
 const orgState = {
-  oaOrgTree: cloneNodes(initialOaOrgTree),
-  externalOrgTree: cloneNodes(initialExternalOrgTree),
-  otherOrgTree: cloneNodes(initialOtherOrgTree),
+  orgTree: cloneNodes(initialOrgTree),
 }
 
 let nodeIdSeq = 9000
+let memberIdSeq = 100
+let positionIdSeq = 200
+let dataPermIdSeq = 300
 
-function getTreeByCategoryKey(categoryKey) {
-  if (categoryKey === 'oa') return orgState.oaOrgTree
-  if (categoryKey === 'external') return orgState.externalOrgTree
-  return orgState.otherOrgTree
+/** @type {Record<string, Array>} */
+export const orgMembersMap = {
+  'org-office': [
+    {
+      id: 'mem-1',
+      name: '陈静',
+      loginAccount: 'chenjing',
+      phone: '13600138890',
+      position: '办公室主任',
+      orgPath: '深圳机场集团/职能部门/办公室',
+      status: true,
+      roleIds: ['role-default'],
+    },
+    {
+      id: 'mem-2',
+      name: '周秘书',
+      loginAccount: 'zhousm',
+      phone: '13600138891',
+      position: '综合文秘',
+      orgPath: '深圳机场集团/职能部门/办公室',
+      status: true,
+      roleIds: ['role-default'],
+    },
+  ],
+  'org-plan': [
+    {
+      id: 'mem-3',
+      name: '姚远东',
+      loginAccount: 'yaoyuandong',
+      phone: '13900133302',
+      position: '规划建设部经理',
+      orgPath: '深圳机场集团/职能部门/规划建设部(重大项目推进办公室)',
+      status: true,
+      roleIds: ['role-company'],
+    },
+    {
+      id: 'mem-4',
+      name: '视频中心用户',
+      loginAccount: 'videoAdmin',
+      phone: '13888888888',
+      position: '项目推进岗',
+      orgPath: '深圳机场集团/职能部门/规划建设部(重大项目推进办公室)',
+      status: true,
+      roleIds: ['role-video'],
+    },
+  ],
+  'org-finance': [
+    {
+      id: 'mem-5',
+      name: '刘文强',
+      loginAccount: 'liuwenqiang',
+      phone: '13800131201',
+      position: '财务主管',
+      orgPath: '深圳机场集团/职能部门/财务部',
+      status: true,
+      roleIds: ['role-company', 'role-default'],
+    },
+  ],
+  'org-public': [
+    {
+      id: 'mem-6',
+      name: '王强',
+      loginAccount: 'wangqiang',
+      phone: '13700132210',
+      position: '公共区管理岗',
+      orgPath: '深圳机场集团/业务单位/公共区管理部(三防应急协调办)',
+      status: true,
+      roleIds: ['role-default'],
+    },
+  ],
 }
 
-function getCategoryNodeIds(categoryKey) {
-  return getTreeByCategoryKey(categoryKey).map((n) => n.id)
+/** @type {Record<string, Array>} */
+export const orgPositionsMap = {
+  'org-office': [
+    { id: 'pos-1', name: '办公室主任', headcount: 1, duty: '统筹办公室日常事务', roleIds: ['role-default'] },
+    { id: 'pos-2', name: '综合文秘', headcount: 1, duty: '文稿起草与会议组织', roleIds: ['role-default'] },
+  ],
+  'org-plan': [
+    { id: 'pos-3', name: '规划建设部经理', headcount: 1, duty: '重大项目推进统筹', roleIds: ['role-company'] },
+    { id: 'pos-4', name: '项目推进岗', headcount: 1, duty: '重大项目日常推进', roleIds: ['role-video'] },
+  ],
+  'org-quality': [
+    { id: 'pos-5', name: '安全质量管理员', headcount: 1, duty: '安全与质量监督管理', roleIds: ['role-company'] },
+  ],
 }
+
+/** @type {Record<string, string[]>} */
+export const orgRoleIdsMap = {
+  'org-plan': ['role-video', 'role-default'],
+  'org-root': ['role-company', 'role-default'],
+  'org-finance': ['role-company'],
+}
+
+/** @type {Record<string, Array>} */
+export const orgDataPermissionsMap = {
+  'org-plan': [
+    {
+      id: 'dp-1',
+      levelScope: 'hq',
+      type: '本组织',
+      orgId: 'org-plan',
+      content: '深圳机场集团/职能部门/规划建设部(重大项目推进办公室)',
+      includeSub: false,
+    },
+    {
+      id: 'dp-1b',
+      levelScope: 'project',
+      projectScope: 'specific',
+      projectIds: ['p-001', 'p-002'],
+      content: 'T2空侧捷运线、三跑道扩建',
+    },
+  ],
+  'org-root': [
+    {
+      id: 'dp-2',
+      levelScope: 'hq',
+      type: '本组织',
+      orgId: 'org-root',
+      content: '深圳机场集团',
+      includeSub: true,
+    },
+    {
+      id: 'dp-2b',
+      levelScope: 'project',
+      projectScope: 'all',
+      projectIds: [],
+      content: '全部项目',
+    },
+  ],
+}
+
+/** 兼容用户管理页 */
+export const orgUserMap = Object.fromEntries(
+  Object.entries(orgMembersMap).map(([orgId, members]) => [
+    orgId,
+    members.map((m) => ({
+      id: m.id,
+      name: m.name,
+      gender: '—',
+      dept: m.orgPath.split('/').pop() || m.orgPath,
+      phone: m.phone,
+      email: `${m.loginAccount}@szairport.com`,
+    })),
+  ]),
+)
 
 function sumNodeUsers(node) {
-  const direct = orgUserMap[node.id]?.length ?? node.count ?? 0
+  if (node.headcount != null) return node.headcount
+  const direct = orgMembersMap[node.id]?.length ?? 0
   const childSum = (node.children || []).reduce((s, c) => s + sumNodeUsers(c), 0)
-  return Math.max(direct, childSum, node.count ?? 0)
+  return direct + childSum
 }
 
-function toTreeNodes(items, meta = {}) {
-  return items.map((item) => {
-    const count = sumNodeUsers(item)
-    return {
-      id: item.id,
-      label: `${item.label}(${count})`,
-      rawLabel: item.label,
-      count,
-      categoryKey: meta.categoryKey,
-      syncable: meta.syncable,
-      isCategory: false,
-      children:
-        item.children?.length > 0
-          ? toTreeNodes(item.children, meta)
-          : undefined,
-    }
-  })
-}
-
-function buildCategoryNode(category) {
-  const trees = getTreeByCategoryKey(category.key)
-  const childCount = trees.reduce((sum, n) => sum + sumNodeUsers(n), 0)
+function toTreeNode(item, parentPath = '') {
+  const path = parentPath ? `${parentPath}/${item.label}` : item.label
+  const count = sumNodeUsers(item)
   return {
-    id: `cat-${category.key}`,
-    rawLabel: category.label,
-    label: `${category.label}(${childCount})`,
-    isCategory: true,
-    categoryKey: category.key,
-    syncable: category.syncable,
-    children: toTreeNodes(trees, { categoryKey: category.key, syncable: category.syncable }),
+    id: item.id,
+    label: item.headcount != null || count > 0 ? `${item.label}(${count})` : item.label,
+    rawLabel: item.label,
+    orgPath: path,
+    count,
+    orgLevel: item.orgLevel,
+    orgType: item.orgType,
+    shortName: item.shortName,
+    orgCode: item.orgCode,
+    sortOrder: item.sortOrder,
+    enabled: item.enabled,
+    children: item.children?.length
+      ? item.children.map((c) => toTreeNode(c, path))
+      : undefined,
   }
 }
 
 function rebuildUnifiedTree() {
-  return orgCategories.map(buildCategoryNode)
+  return orgState.orgTree.map((n) => toTreeNode(n))
 }
 
 export const unifiedOrgTree = ref(rebuildUnifiedTree())
@@ -148,48 +269,8 @@ export function refreshOrgTree() {
   unifiedOrgTree.value = rebuildUnifiedTree()
 }
 
-export function getOrgTreeByCategory(categoryKey) {
-  const trees = getTreeByCategoryKey(categoryKey)
-  const category = orgCategories.find((c) => c.key === categoryKey)
-  return toTreeNodes(trees, { categoryKey, syncable: category?.syncable })
-}
-
 export function getDefaultNodeId() {
-  return 'cat-oa'
-}
-
-export function getUsersByNodeId(nodeId, treeNode) {
-  if (treeNode?.isCategory && treeNode.categoryKey) {
-    const ids = getCategoryNodeIds(treeNode.categoryKey)
-    return collectUsersUnderNodes(ids)
-  }
-  return collectUsersUnderNode(nodeId)
-}
-
-function collectUsersUnderNode(nodeId) {
-  const raw = findRawNode(nodeId)
-  if (!raw) return orgUserMap[nodeId] || []
-  const ids = collectNodeIds(raw.node)
-  return collectUsersUnderNodes(ids)
-}
-
-function collectNodeIds(node) {
-  const ids = [node.id]
-  ;(node.children || []).forEach((c) => ids.push(...collectNodeIds(c)))
-  return ids
-}
-
-function collectUsersUnderNodes(ids) {
-  const seen = new Set()
-  const list = []
-  ids.forEach((id) => {
-    ;(orgUserMap[id] || []).forEach((u) => {
-      if (seen.has(u.id)) return
-      seen.add(u.id)
-      list.push(u)
-    })
-  })
-  return list
+  return 'org-plan'
 }
 
 export function findTreeNode(nodes, nodeId) {
@@ -203,78 +284,201 @@ export function findTreeNode(nodes, nodeId) {
   return null
 }
 
-function findRawNode(nodeId, nodes = null, categoryKey = null) {
-  const searchIn = (list, cat) => {
-    for (const node of list) {
-      if (node.id === nodeId) return { node, parentList: list, categoryKey: cat }
-      if (node.children?.length) {
-        const found = findRawNode(nodeId, node.children, cat)
-        if (found) return found
-      }
+function findRawNode(nodeId, nodes = orgState.orgTree, parent = null) {
+  for (let i = 0; i < nodes.length; i += 1) {
+    const node = nodes[i]
+    if (node.id === nodeId) return { node, parentList: nodes, index: i, parent }
+    if (node.children?.length) {
+      const found = findRawNode(nodeId, node.children, node)
+      if (found) return found
     }
-    return null
-  }
-  if (nodes) return searchIn(nodes, categoryKey)
-  for (const cat of orgCategories) {
-    const found = searchIn(getTreeByCategoryKey(cat.key), cat.key)
-    if (found) return found
   }
   return null
 }
 
-function findParentContext(nodeId) {
-  if (nodeId.startsWith('cat-')) {
-    const categoryKey = nodeId.replace('cat-', '')
-    return { type: 'category', categoryKey, children: getTreeByCategoryKey(categoryKey) }
-  }
-  const raw = findRawNode(nodeId)
-  if (!raw) return null
-  if (!raw.node.children) raw.node.children = []
-  return { type: 'node', node: raw.node, children: raw.node.children }
+function collectNodeIds(node) {
+  const ids = [node.id]
+  ;(node.children || []).forEach((c) => ids.push(...collectNodeIds(c)))
+  return ids
 }
 
-/** 当前节点的直接子节点（用于组织结构管理右侧列表） */
-export function getDirectChildNodes(nodeId, treeNode) {
-  const current = treeNode || findTreeNode(unifiedOrgTree.value, nodeId)
-  if (!current) return []
+function collectUsersUnderNodes(ids) {
+  const seen = new Set()
+  const list = []
+  ids.forEach((id) => {
+    ;(orgMembersMap[id] || []).forEach((u) => {
+      if (seen.has(u.id)) return
+      seen.add(u.id)
+      list.push(u)
+    })
+  })
+  return list
+}
 
-  if (current.isCategory && current.categoryKey) {
-    return getTreeByCategoryKey(current.categoryKey).map((item) => toChildRow(item, current))
-  }
+export function getUsersByNodeId(nodeId, treeNode) {
+  const raw = findRawNode(nodeId)
+  if (!raw) return orgMembersMap[nodeId] || []
+  const ids = collectNodeIds(raw.node)
+  return collectUsersUnderNodes(ids).map((m) => ({
+    id: m.id,
+    name: m.name,
+    gender: '—',
+    dept: m.orgPath.split('/').pop() || m.orgPath,
+    phone: m.phone,
+    email: `${m.loginAccount}@szairport.com`,
+  }))
+}
 
+export function getOrgMembers(nodeId, includeSubordinates = false) {
+  if (!includeSubordinates) return [...(orgMembersMap[nodeId] || [])]
   const raw = findRawNode(nodeId)
   if (!raw) return []
-  return (raw.node.children || []).map((item) => toChildRow(item, current))
+  return collectUsersUnderNodes(collectNodeIds(raw.node))
 }
 
-function toChildRow(item, parentNode) {
-  const userCount = sumNodeUsers(item)
+export function getOrgPositions(nodeId) {
+  return [...(orgPositionsMap[nodeId] || [])]
+}
+
+export function getOrgInfo(nodeId) {
+  const raw = findRawNode(nodeId)
+  if (!raw) return null
+  const parentLabel = raw.parent?.label || '—'
   return {
-    id: item.id,
-    label: item.label,
-    userCount,
-    childCount: (item.children || []).length,
-    parentId: parentNode.id,
-    syncable: parentNode.syncable ?? false,
-    remark: item.remark || '',
+    parentOrg: parentLabel,
+    orgName: raw.node.label,
+    orgType: raw.node.orgType || '—',
+    shortName: raw.node.shortName || '—',
+    sortOrder: raw.node.sortOrder ?? 0,
+    orgCode: raw.node.orgCode || '—',
+    enabled: raw.node.enabled !== false,
+    orgPath: findTreeNode(unifiedOrgTree.value, nodeId)?.orgPath || raw.node.label,
   }
+}
+
+export function getOrgRoles(nodeId) {
+  return [...(orgRoleIdsMap[nodeId] || [])]
+}
+
+export function setOrgRoles(nodeId, roleIds) {
+  orgRoleIdsMap[nodeId] = [...roleIds]
+  return true
+}
+
+export function getOrgDataPermissions(nodeId) {
+  return [...(orgDataPermissionsMap[nodeId] || [])].map(normalizeDataPermRow)
+}
+
+function normalizeDataPermRow(row) {
+  if (row.levelScope === 'project') {
+    return {
+      ...row,
+      projectScope: row.projectScope || 'all',
+      projectIds: row.projectIds ? [...row.projectIds] : [],
+    }
+  }
+  if (row.levelScope === 'hq') {
+    return {
+      ...row,
+      type: row.type || '本组织',
+      includeSub: row.includeSub ?? false,
+    }
+  }
+  return {
+    ...row,
+    levelScope: 'hq',
+    type: row.type || '本组织',
+    includeSub: row.includeSub ?? false,
+    projectScope: 'all',
+    projectIds: [],
+  }
+}
+
+export function getDataPermLevelLabel(row) {
+  return row.levelScope === 'project' ? '项目层级' : '指挥部层级'
+}
+
+export function getDataPermScopeLabel(row) {
+  if (row.levelScope === 'project') {
+    return row.projectScope === 'specific' ? '指定项目' : '全部项目'
+  }
+  return row.type || '本组织'
+}
+
+export function getOrgNodeOptions() {
+  const options = []
+  function walk(nodes, prefix = '') {
+    nodes.forEach((node) => {
+      const label = prefix ? `${prefix}/${node.rawLabel}` : node.rawLabel
+      options.push({ value: node.id, label })
+      if (node.children?.length) walk(node.children, label)
+    })
+  }
+  walk(unifiedOrgTree.value)
+  return options
+}
+
+export function filterOrgTree(keyword) {
+  const kw = keyword.trim().toLowerCase()
+  if (!kw) return unifiedOrgTree.value
+  function filterNodes(nodes) {
+    return nodes
+      .map((node) => {
+        const children = node.children ? filterNodes(node.children) : []
+        const match = node.rawLabel.toLowerCase().includes(kw)
+        if (match || children.length) {
+          return { ...node, children: children.length ? children : node.children }
+        }
+        return null
+      })
+      .filter(Boolean)
+  }
+  return filterNodes(unifiedOrgTree.value)
+}
+
+export function getParentOrgOptions(excludeId = '') {
+  const options = [{ value: '', label: '根节点' }]
+  function walk(nodes) {
+    nodes.forEach((node) => {
+      if (node.id !== excludeId) {
+        options.push({ value: node.id, label: node.rawLabel })
+        if (node.children?.length) walk(node.children)
+      }
+    })
+  }
+  walk(unifiedOrgTree.value)
+  return options
 }
 
 export function addOrgNode(parentId, payload) {
-  const ctx = findParentContext(parentId)
-  if (!ctx) return null
-
-  const id = `org-${++nodeIdSeq}`
   const newNode = {
-    id,
+    id: `org-${++nodeIdSeq}`,
     label: payload.label.trim(),
-    count: 0,
+    headcount: 0,
+    orgLevel: payload.orgLevel,
+    orgType: payload.orgType || payload.orgLevel,
+    shortName: payload.shortName?.trim() || payload.label.trim(),
+    orgCode: payload.orgCode?.trim() || '',
+    sortOrder: payload.sortOrder ?? 0,
+    enabled: payload.enabled !== false,
     remark: payload.remark?.trim() || '',
     children: [],
   }
 
-  ctx.children.push(newNode)
-  orgUserMap[id] = []
+  if (!parentId) {
+    orgState.orgTree.push(newNode)
+  } else {
+    const ctx = findRawNode(parentId)
+    if (!ctx) return null
+    if (!ctx.node.children) ctx.node.children = []
+    ctx.node.children.push(newNode)
+  }
+
+  orgMembersMap[newNode.id] = []
+  orgPositionsMap[newNode.id] = []
+  orgDataPermissionsMap[newNode.id] = []
+  orgRoleIdsMap[newNode.id] = []
+  orgUserMap[newNode.id] = []
   refreshOrgTree()
   return newNode
 }
@@ -283,19 +487,153 @@ export function updateOrgNode(nodeId, payload) {
   const raw = findRawNode(nodeId)
   if (!raw) return false
   if (payload.label != null) raw.node.label = payload.label.trim()
+  if (payload.orgLevel != null) raw.node.orgLevel = payload.orgLevel
+  if (payload.orgType != null) raw.node.orgType = payload.orgType
+  if (payload.shortName != null) raw.node.shortName = payload.shortName.trim()
+  if (payload.orgCode != null) raw.node.orgCode = payload.orgCode.trim()
+  if (payload.sortOrder != null) raw.node.sortOrder = payload.sortOrder
+  if (payload.enabled != null) raw.node.enabled = payload.enabled
   if (payload.remark != null) raw.node.remark = payload.remark.trim()
   refreshOrgTree()
   return true
 }
 
 export function deleteOrgNode(nodeId) {
-  if (nodeId.startsWith('cat-')) return false
+  if (nodeId === 'org-root') return false
   const raw = findRawNode(nodeId)
   if (!raw) return false
-  const idx = raw.parentList.findIndex((n) => n.id === nodeId)
-  if (idx < 0) return false
-  raw.parentList.splice(idx, 1)
+  raw.parentList.splice(raw.index, 1)
+  delete orgMembersMap[nodeId]
+  delete orgPositionsMap[nodeId]
+  delete orgDataPermissionsMap[nodeId]
+  delete orgRoleIdsMap[nodeId]
   delete orgUserMap[nodeId]
   refreshOrgTree()
   return true
 }
+
+export function removeOrgMembers(orgId, memberIds) {
+  const list = orgMembersMap[orgId]
+  if (!list) return false
+  orgMembersMap[orgId] = list.filter((m) => !memberIds.includes(m.id))
+  orgUserMap[orgId] = (orgUserMap[orgId] || []).filter((u) => !memberIds.includes(u.id))
+  refreshOrgTree()
+  return true
+}
+
+export function toggleMemberStatus(orgId, memberId, status) {
+  const member = orgMembersMap[orgId]?.find((m) => m.id === memberId)
+  if (!member) return false
+  member.status = status
+  return true
+}
+
+export function setMemberRoles(orgId, memberId, roleIds) {
+  const member = orgMembersMap[orgId]?.find((m) => m.id === memberId)
+  if (!member) return false
+  member.roleIds = [...roleIds]
+  return true
+}
+
+export function setPositionRoles(orgId, positionId, roleIds) {
+  const pos = orgPositionsMap[orgId]?.find((p) => p.id === positionId)
+  if (!pos) return false
+  pos.roleIds = [...roleIds]
+  return true
+}
+
+export function saveDataPermission(orgId, payload) {
+  if (!orgDataPermissionsMap[orgId]) orgDataPermissionsMap[orgId] = []
+
+  const record = {
+    levelScope: payload.levelScope || 'hq',
+    content: payload.content || '',
+  }
+
+  if (record.levelScope === 'project') {
+    record.projectScope = payload.projectScope || 'all'
+    record.projectIds =
+      record.projectScope === 'specific' ? [...(payload.projectIds || [])] : []
+  } else {
+    record.type = payload.type || '本组织'
+    record.orgId = payload.orgId || orgId
+    record.includeSub = payload.includeSub ?? false
+  }
+
+  if (payload.id) {
+    const idx = orgDataPermissionsMap[orgId].findIndex((d) => d.id === payload.id)
+    if (idx >= 0) {
+      orgDataPermissionsMap[orgId][idx] = { ...orgDataPermissionsMap[orgId][idx], ...record }
+      return true
+    }
+  }
+
+  orgDataPermissionsMap[orgId].push({
+    id: `dp-${++dataPermIdSeq}`,
+    ...record,
+  })
+  return true
+}
+
+export function addOrgMember(orgId, payload) {
+  if (!orgMembersMap[orgId]) orgMembersMap[orgId] = []
+  const member = {
+    id: `mem-${++memberIdSeq}`,
+    name: payload.name,
+    loginAccount: payload.loginAccount,
+    phone: payload.phone,
+    position: payload.position,
+    orgPath: payload.orgPath,
+    status: true,
+    roleIds: payload.roleIds || [],
+  }
+  orgMembersMap[orgId].push(member)
+  if (!orgUserMap[orgId]) orgUserMap[orgId] = []
+  orgUserMap[orgId].push({
+    id: member.id,
+    name: member.name,
+    gender: '—',
+    dept: member.orgPath.split('/').pop(),
+    phone: member.phone,
+    email: `${member.loginAccount}@szairport.com`,
+  })
+  refreshOrgTree()
+  return member
+}
+
+export function addOrgPosition(orgId, payload) {
+  if (!orgPositionsMap[orgId]) orgPositionsMap[orgId] = []
+  const pos = {
+    id: `pos-${++positionIdSeq}`,
+    name: payload.name,
+    headcount: payload.headcount ?? 0,
+    duty: payload.duty || payload.name,
+    roleIds: payload.roleIds || [],
+  }
+  orgPositionsMap[orgId].push(pos)
+  return pos
+}
+
+export function getParentOrgId(nodeId) {
+  const raw = findRawNode(nodeId)
+  return raw?.parent?.id || ''
+}
+
+/** @deprecated 保留兼容 */
+export function getDirectChildNodes(nodeId) {
+  const raw = findRawNode(nodeId)
+  if (!raw) return []
+  return (raw.node.children || []).map((item) => ({
+    id: item.id,
+    label: item.label,
+    orgType: item.orgType || '',
+    userCount: sumNodeUsers(item),
+    childCount: (item.children || []).length,
+    parentId: nodeId,
+    syncable: false,
+    remark: item.remark || '',
+  }))
+}
+
+/** @deprecated */
+export const orgCategories = []

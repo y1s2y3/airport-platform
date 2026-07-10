@@ -1,140 +1,429 @@
 <script setup>
-import { ref, computed, reactive } from 'vue'
-import { Refresh, Plus, Edit, Delete } from '@element-plus/icons-vue'
+import { ref, computed, reactive, watch } from 'vue'
+import { Search, Plus, Edit, Delete, DArrowLeft, DArrowRight } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   unifiedOrgTree,
   getDefaultNodeId,
-  getDirectChildNodes,
   findTreeNode,
+  filterOrgTree,
+  getOrgMembers,
+  getOrgPositions,
+  getOrgInfo,
+  getOrgDataPermissions,
+  getParentOrgOptions,
+  getOrgNodeOptions,
+  getParentOrgId,
   addOrgNode,
   updateOrgNode,
   deleteOrgNode,
+  removeOrgMembers,
+  toggleMemberStatus,
+  setMemberRoles,
+  setPositionRoles,
+  setOrgRoles,
+  getOrgRoles,
+  saveDataPermission,
+  ORG_LEVEL_OPTIONS,
+  orgRoleOptions,
+  dataPermissionLevelOptions,
+  dataPermissionHqScopeOptions,
+  dataPermissionProjectScopeOptions,
+  getDataPermLevelLabel,
+  getDataPermScopeLabel,
 } from '../../mock/orgStructure'
+import { projectOptions } from '../../mock/rbac'
 
 const selectedNodeId = ref(getDefaultNodeId())
-const treeRef = ref(null)
-const syncing = ref(false)
-const dialogVisible = ref(false)
-const dialogMode = ref('add')
-const formRef = ref(null)
+const treeKeyword = ref('')
+const sidebarCollapsed = ref(false)
+const activeTab = ref('members')
 
-const form = reactive({
+const memberKeyword = ref('')
+const showSubordinates = ref(false)
+const memberPage = ref(1)
+const memberPageSize = ref(10)
+const selectedMemberIds = ref([])
+
+const positionKeyword = ref('')
+
+const orgDialogVisible = ref(false)
+const orgDialogMode = ref('add')
+const orgFormRef = ref(null)
+const orgForm = reactive({
   id: '',
+  parentId: '',
+  orgLevel: '',
   label: '',
-  remark: '',
+  shortName: '',
+  orgCode: '',
+  sortOrder: 0,
+  enabled: true,
 })
 
-const formRules = {
-  label: [{ required: true, message: '请输入节点名称', trigger: 'blur' }],
-}
+const orgFormRules = computed(() => ({
+  parentId: orgDialogMode.value === 'add'
+    ? [{ required: true, message: '请选择父节点', trigger: 'change' }]
+    : [],
+  orgLevel: [{ required: true, message: '请选择组织级别', trigger: 'change' }],
+  label: [{ required: true, message: '请输入组织名称', trigger: 'blur' }],
+  orgCode: [{ required: true, message: '请输入组织编码', trigger: 'blur' }],
+  sortOrder: [{ required: true, message: '请输入排序', trigger: 'change' }],
+}))
+
+const roleDialogVisible = ref(false)
+const roleDialogTarget = ref(null)
+const roleTransferValue = ref([])
+
+const dataPermDialogVisible = ref(false)
+const dataPermEditRow = ref(null)
+const dataPermForm = reactive({
+  id: '',
+  levelScope: 'hq',
+  type: '本组织',
+  orgId: '',
+  includeSub: false,
+  projectScope: 'all',
+  projectIds: [],
+})
 
 const selectedNode = computed(() => findTreeNode(unifiedOrgTree.value, selectedNodeId.value))
-
 const selectedNodeLabel = computed(() => selectedNode.value?.rawLabel || '')
+const selectedOrgPath = computed(() => selectedNode.value?.orgPath || selectedNodeLabel.value)
 
-const childNodeList = computed(() => {
+const filteredTree = computed(() => filterOrgTree(treeKeyword.value))
+
+const memberList = computed(() => {
   unifiedOrgTree.value
-  return getDirectChildNodes(selectedNodeId.value, selectedNode.value)
+  return getOrgMembers(selectedNodeId.value, showSubordinates.value)
 })
 
-const showSyncButton = computed(() => {
-  const node = selectedNode.value
-  if (!node) return false
-  if (node.syncable) return true
-  if (node.categoryKey === 'oa') return true
-  return selectedNodeId.value.startsWith('oa-') || selectedNodeId.value === 'cat-oa'
+const filteredMembers = computed(() => {
+  const kw = memberKeyword.value.trim().toLowerCase()
+  if (!kw) return memberList.value
+  return memberList.value.filter(
+    (row) =>
+      row.name.toLowerCase().includes(kw) ||
+      row.loginAccount.toLowerCase().includes(kw) ||
+      row.phone.includes(kw),
+  )
 })
+
+const pagedMembers = computed(() => {
+  const start = (memberPage.value - 1) * memberPageSize.value
+  return filteredMembers.value.slice(start, start + memberPageSize.value)
+})
+
+const positionList = computed(() => {
+  unifiedOrgTree.value
+  const kw = positionKeyword.value.trim().toLowerCase()
+  const list = getOrgPositions(selectedNodeId.value)
+  if (!kw) return list
+  return list.filter((row) => row.name.toLowerCase().includes(kw) || row.duty.toLowerCase().includes(kw))
+})
+
+const orgInfo = computed(() => {
+  unifiedOrgTree.value
+  return getOrgInfo(selectedNodeId.value)
+})
+
+const dataPermissions = computed(() => {
+  unifiedOrgTree.value
+  return getOrgDataPermissions(selectedNodeId.value)
+})
+
+const dataPermTableRows = computed(() => {
+  if (dataPermEditRow.value !== '__new__') return dataPermissions.value
+  return [
+    {
+      id: '__draft__',
+      levelScope: dataPermForm.levelScope,
+      type: dataPermForm.type,
+      projectScope: dataPermForm.projectScope,
+      content: '',
+      includeSub: dataPermForm.includeSub,
+      projectIds: [...dataPermForm.projectIds],
+    },
+    ...dataPermissions.value,
+  ]
+})
+
+const parentOrgOptions = computed(() => getParentOrgOptions(orgForm.id))
+const orgNodeOptions = computed(() => getOrgNodeOptions())
+
+const roleTransferData = computed(() =>
+  orgRoleOptions.map((item) => ({ key: item.key, label: item.label })),
+)
+
+const roleDialogTitle = computed(() => {
+  const kind = roleDialogTarget.value?.kind
+  return kind === 'position' ? '添加权限' : '设置角色'
+})
+
+watch(selectedNodeId, () => {
+  memberPage.value = 1
+  selectedMemberIds.value = []
+  memberKeyword.value = ''
+  positionKeyword.value = ''
+})
+
+watch(
+  () => dataPermForm.levelScope,
+  (level) => {
+    if (level === 'project') {
+      dataPermForm.projectScope = dataPermForm.projectScope || 'all'
+      dataPermForm.projectIds = dataPermForm.projectIds || []
+    } else {
+      dataPermForm.type = dataPermForm.type || '本组织'
+      dataPermForm.orgId = dataPermForm.orgId || selectedNodeId.value
+    }
+  },
+)
 
 function handleNodeClick(data) {
   selectedNodeId.value = data.id
 }
 
-async function handleSyncOa() {
-  syncing.value = true
-  await new Promise((resolve) => setTimeout(resolve, 800))
-  syncing.value = false
-  ElMessage.success('OA组织数据同步完成')
+function resetOrgForm(parentId = selectedNodeId.value) {
+  orgForm.id = ''
+  orgForm.parentId = parentId
+  orgForm.orgLevel = ''
+  orgForm.label = ''
+  orgForm.shortName = ''
+  orgForm.orgCode = ''
+  orgForm.sortOrder = 0
+  orgForm.enabled = true
 }
 
-function openAddDialog() {
-  dialogMode.value = 'add'
-  form.id = ''
-  form.label = ''
-  form.remark = ''
-  dialogVisible.value = true
+function openAddOrgDialog(parentId = selectedNodeId.value) {
+  orgDialogMode.value = 'add'
+  resetOrgForm(parentId)
+  orgDialogVisible.value = true
 }
 
-function openEditDialog(row) {
-  dialogMode.value = 'edit'
-  form.id = row.id
-  form.label = row.label
-  form.remark = row.remark || ''
-  dialogVisible.value = true
+function openEditOrgDialog(node) {
+  orgDialogMode.value = 'edit'
+  const raw = findTreeNode(unifiedOrgTree.value, node.id)
+  orgForm.id = node.id
+  orgForm.parentId = getParentOrgId(node.id) || 'org-root'
+  orgForm.orgLevel = raw?.orgLevel || ''
+  orgForm.label = raw?.rawLabel || node.rawLabel
+  orgForm.shortName = raw?.shortName || ''
+  orgForm.orgCode = raw?.orgCode || ''
+  orgForm.sortOrder = raw?.sortOrder ?? 0
+  orgForm.enabled = raw?.enabled !== false
+  orgDialogVisible.value = true
 }
 
-async function handleDelete(row) {
+async function handleDeleteOrg(node) {
   try {
-    await ElMessageBox.confirm(`确定删除组织节点「${row.label}」？`, '删除确认', {
+    await ElMessageBox.confirm(`确定删除组织「${node.rawLabel}」？`, '删除确认', {
       type: 'warning',
       confirmButtonText: '删除',
       cancelButtonText: '取消',
     })
-    if (deleteOrgNode(row.id)) {
+    if (deleteOrgNode(node.id)) {
+      if (selectedNodeId.value === node.id) selectedNodeId.value = getDefaultNodeId()
       ElMessage.success('已删除')
     } else {
-      ElMessage.error('删除失败')
+      ElMessage.error('无法删除该组织')
     }
   } catch {
     /* cancelled */
   }
 }
 
-async function submitForm() {
-  const valid = await formRef.value?.validate().catch(() => false)
+async function submitOrgForm() {
+  const valid = await orgFormRef.value?.validate().catch(() => false)
   if (!valid) return
 
-  if (dialogMode.value === 'add') {
-    addOrgNode(selectedNodeId.value, { label: form.label, remark: form.remark })
-    ElMessage.success('子节点已新增')
+  if (orgDialogMode.value === 'add') {
+    addOrgNode(orgForm.parentId, {
+      label: orgForm.label,
+      orgLevel: orgForm.orgLevel,
+      orgType: orgForm.orgLevel,
+      shortName: orgForm.shortName,
+      orgCode: orgForm.orgCode,
+      sortOrder: orgForm.sortOrder,
+      enabled: orgForm.enabled,
+    })
+    ElMessage.success('组织已新增')
   } else {
-    updateOrgNode(form.id, { label: form.label, remark: form.remark })
-    ElMessage.success('节点已更新')
+    updateOrgNode(orgForm.id, {
+      label: orgForm.label,
+      orgLevel: orgForm.orgLevel,
+      orgType: orgForm.orgLevel,
+      shortName: orgForm.shortName,
+      orgCode: orgForm.orgCode,
+      sortOrder: orgForm.sortOrder,
+      enabled: orgForm.enabled,
+    })
+    ElMessage.success('组织已更新')
   }
-  dialogVisible.value = false
+  orgDialogVisible.value = false
+}
+
+function handleMemberSelection(rows) {
+  selectedMemberIds.value = rows.map((row) => row.id)
+}
+
+async function handleRemoveMembers(singleId) {
+  const ids = singleId ? [singleId] : selectedMemberIds.value
+  if (!ids.length) {
+    ElMessage.warning('请选择要移除的人员')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(`确定移除选中的 ${ids.length} 名人员？`, '移除确认', {
+      type: 'warning',
+    })
+    removeOrgMembers(selectedNodeId.value, ids)
+    selectedMemberIds.value = []
+    ElMessage.success('已移除')
+  } catch {
+    /* cancelled */
+  }
+}
+
+function handleMemberStatusChange(row, status) {
+  toggleMemberStatus(selectedNodeId.value, row.id, status)
+  ElMessage.success(status ? '已启用' : '已停用')
+}
+
+function openMemberRoleDialog(row) {
+  roleDialogTarget.value = { kind: 'member', orgId: selectedNodeId.value, id: row.id, title: row.name }
+  roleTransferValue.value = [...(row.roleIds || [])]
+  roleDialogVisible.value = true
+}
+
+function openPositionRoleDialog(row) {
+  roleDialogTarget.value = { kind: 'position', orgId: selectedNodeId.value, id: row.id, title: row.name }
+  roleTransferValue.value = [...(row.roleIds || [])]
+  roleDialogVisible.value = true
+}
+
+function openOrgRoleDialog() {
+  roleDialogTarget.value = {
+    kind: 'org',
+    orgId: selectedNodeId.value,
+    id: selectedNodeId.value,
+    title: selectedNodeLabel.value,
+  }
+  roleTransferValue.value = getOrgRoles(selectedNodeId.value)
+  roleDialogVisible.value = true
+}
+
+function submitRoleDialog() {
+  const target = roleDialogTarget.value
+  if (!target) return
+  if (target.kind === 'member') {
+    setMemberRoles(target.orgId, target.id, roleTransferValue.value)
+  } else if (target.kind === 'org') {
+    setOrgRoles(target.orgId, roleTransferValue.value)
+  } else {
+    setPositionRoles(target.orgId, target.id, roleTransferValue.value)
+  }
+  roleDialogVisible.value = false
+  ElMessage.success(target.kind === 'position' ? '权限已保存' : '角色已设置')
+}
+
+function resetDataPermForm() {
+  dataPermForm.id = ''
+  dataPermForm.levelScope = 'hq'
+  dataPermForm.type = '本组织'
+  dataPermForm.orgId = selectedNodeId.value
+  dataPermForm.includeSub = false
+  dataPermForm.projectScope = 'all'
+  dataPermForm.projectIds = []
+}
+
+function openDataPermDialog() {
+  dataPermEditRow.value = null
+  dataPermDialogVisible.value = true
+}
+
+function addDataPermRow() {
+  resetDataPermForm()
+  dataPermEditRow.value = '__new__'
+}
+
+function startEditDataPerm(row) {
+  dataPermEditRow.value = row.id
+  dataPermForm.id = row.id
+  dataPermForm.levelScope = row.levelScope === 'project' ? 'project' : 'hq'
+  dataPermForm.type = row.type || '本组织'
+  dataPermForm.orgId = row.orgId || selectedNodeId.value
+  dataPermForm.includeSub = row.includeSub ?? false
+  dataPermForm.projectScope = row.projectScope || 'all'
+  dataPermForm.projectIds = row.projectIds ? [...row.projectIds] : []
+}
+
+function cancelEditDataPerm() {
+  dataPermEditRow.value = null
+}
+
+function buildDataPermContent() {
+  if (dataPermForm.levelScope === 'project') {
+    if (dataPermForm.projectScope === 'all') return '全部项目'
+    const names = dataPermForm.projectIds
+      .map((id) => projectOptions.find((p) => p.id === id)?.name)
+      .filter(Boolean)
+    return names.length ? names.join('、') : '—'
+  }
+  if (dataPermForm.type === '本组织') return selectedOrgPath.value
+  const label = orgNodeOptions.value.find((o) => o.value === dataPermForm.orgId)?.label || ''
+  return dataPermForm.includeSub ? `${label}（含下级）` : label
+}
+
+function saveDataPermRow() {
+  if (dataPermForm.levelScope === 'project' && dataPermForm.projectScope === 'specific' && !dataPermForm.projectIds.length) {
+    ElMessage.warning('请选择至少一个项目')
+    return
+  }
+  if (dataPermForm.levelScope === 'hq' && dataPermForm.type === '指定组织' && !dataPermForm.orgId) {
+    ElMessage.warning('请选择组织')
+    return
+  }
+
+  const isNew = dataPermEditRow.value === '__new__'
+  saveDataPermission(selectedNodeId.value, {
+    id: isNew ? '' : dataPermForm.id,
+    levelScope: dataPermForm.levelScope,
+    type: dataPermForm.type,
+    orgId: dataPermForm.orgId,
+    content: buildDataPermContent(),
+    includeSub: dataPermForm.includeSub,
+    projectScope: dataPermForm.projectScope,
+    projectIds: [...dataPermForm.projectIds],
+  })
+  dataPermEditRow.value = null
+  ElMessage.success('数据权限已保存')
+}
+
+function handleSetDataPermFromInfo() {
+  openDataPermDialog()
 }
 </script>
 
 <template>
   <div class="org-page page-card">
-    <div class="page-header">
-      <div class="page-breadcrumb">系统设置 / 组织结构</div>
-      <div class="page-heading">
-        <h1 class="page-title">组织结构管理</h1>
-        <div class="page-actions">
-          <el-button
-            v-if="showSyncButton"
-            class="ap-btn-primary"
-            type="primary"
-            :icon="Refresh"
-            :loading="syncing"
-            @click="handleSyncOa"
-          >
-            同步OA数据
+    <div class="org-layout" :class="{ collapsed: sidebarCollapsed }">
+      <aside class="org-sidebar">
+        <div class="sidebar-head">
+          <span class="sidebar-title">组织架构</span>
+          <el-button type="primary" :icon="Plus" @click="openAddOrgDialog(selectedNodeId)">
+            新增
           </el-button>
         </div>
-      </div>
-    </div>
-
-    <div class="org-layout">
-      <aside class="org-tree-panel">
-        <div class="panel-head">
-          <span class="panel-title">组织节点</span>
-          <span class="panel-tip">含 OA / 外部 / 其他用户</span>
-        </div>
+        <el-input
+          v-model="treeKeyword"
+          class="tree-search"
+          placeholder="关键字搜索"
+          clearable
+          :prefix-icon="Search"
+        />
         <el-tree
-          ref="treeRef"
-          :data="unifiedOrgTree"
+          :data="filteredTree"
           node-key="id"
           highlight-current
           default-expand-all
@@ -142,63 +431,357 @@ async function submitForm() {
           :expand-on-click-node="false"
           class="org-tree"
           @node-click="handleNodeClick"
-        />
+        >
+          <template #default="{ data }">
+            <div class="tree-node-row">
+              <span class="tree-node-label" :title="data.rawLabel">{{ data.rawLabel }}</span>
+              <span class="tree-node-actions" @click.stop>
+                <el-button link type="primary" :icon="Edit" title="编辑" @click="openEditOrgDialog(data)" />
+                <el-button link type="primary" :icon="Plus" title="新增子组织" @click="openAddOrgDialog(data.id)" />
+                <el-button
+                  v-if="data.id !== 'org-root'"
+                  link
+                  type="danger"
+                  :icon="Delete"
+                  title="删除"
+                  @click="handleDeleteOrg(data)"
+                />
+              </span>
+            </div>
+          </template>
+        </el-tree>
       </aside>
 
-      <section class="org-child-panel">
-        <div class="panel-head child-head">
-          <div>
-            <span class="panel-title">{{ selectedNodeLabel || '请选择组织节点' }}</span>
-            <span class="child-count">子节点 {{ childNodeList.length }} 个</span>
-          </div>
-          <el-button class="ap-btn-primary" type="primary" :icon="Plus" @click="openAddDialog">
-            新增子节点
-          </el-button>
-        </div>
+      <button type="button" class="collapse-toggle" @click="sidebarCollapsed = !sidebarCollapsed">
+        <el-icon><component :is="sidebarCollapsed ? DArrowRight : DArrowLeft" /></el-icon>
+      </button>
 
-        <el-table :data="childNodeList" border stripe class="ap-table" empty-text="当前节点暂无子节点">
-          <el-table-column type="index" label="序号" width="60" align="center" />
-          <el-table-column prop="label" label="节点名称" min-width="180" show-overflow-tooltip />
-          <el-table-column prop="userCount" label="用户数" width="88" align="center" />
-          <el-table-column prop="childCount" label="下级节点" width="96" align="center" />
-          <el-table-column label="数据来源" width="100" align="center">
-            <template #default="{ row }">
-              <el-tag size="small" :type="row.syncable ? 'success' : 'info'" effect="plain">
-                {{ row.syncable ? 'OA' : '本地' }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="remark" label="备注" min-width="140" show-overflow-tooltip />
-          <el-table-column label="操作" width="140" fixed="right" align="center">
-            <template #default="{ row }">
-              <el-button link type="primary" :icon="Edit" @click="openEditDialog(row)">编辑</el-button>
-              <el-button link type="danger" :icon="Delete" @click="handleDelete(row)">删除</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
+      <section class="org-main">
+        <el-tabs v-model="activeTab" class="org-tabs">
+          <el-tab-pane label="组织成员" name="members">
+            <div class="tab-toolbar">
+              <div class="toolbar-left">
+                <span class="field-label">姓名</span>
+                <el-input
+                  v-model="memberKeyword"
+                  placeholder="姓名、账号、手机号"
+                  clearable
+                  class="member-search"
+                  @keyup.enter="memberPage = 1"
+                />
+                <el-checkbox v-model="showSubordinates">展示下级人员</el-checkbox>
+              </div>
+              <el-button type="danger" plain @click="handleRemoveMembers()">移除人员</el-button>
+            </div>
+
+            <el-table
+              :data="pagedMembers"
+              border
+              stripe
+              class="ap-table"
+              empty-text="暂无组织成员"
+              @selection-change="handleMemberSelection"
+            >
+              <el-table-column type="selection" width="48" align="center" />
+              <el-table-column prop="name" label="姓名" min-width="120" />
+              <el-table-column prop="loginAccount" label="登录账号" min-width="120" />
+              <el-table-column prop="phone" label="手机号" width="130" />
+              <el-table-column prop="position" label="任职岗位" min-width="160" show-overflow-tooltip />
+              <el-table-column prop="orgPath" label="所属组织" min-width="180" show-overflow-tooltip />
+              <el-table-column label="状态" width="88" align="center">
+                <template #default="{ row }">
+                  <el-switch
+                    :model-value="row.status"
+                    @change="(val) => handleMemberStatusChange(row, val)"
+                  />
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="240" fixed="right" align="center">
+                <template #default="{ row }">
+                  <el-button link type="danger" @click="handleRemoveMembers(row.id)">移除</el-button>
+                  <el-button link type="primary" @click="openMemberRoleDialog(row)">设置角色</el-button>
+                  <el-button link type="primary" @click="openDataPermDialog">设置数据权限</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+
+            <div class="table-footer">
+              <span class="total-text">共 {{ filteredMembers.length }} 条</span>
+              <el-pagination
+                v-model:current-page="memberPage"
+                v-model:page-size="memberPageSize"
+                :total="filteredMembers.length"
+                :page-sizes="[10, 20, 50]"
+                layout="sizes, prev, pager, next, jumper"
+                background
+              />
+            </div>
+          </el-tab-pane>
+
+          <el-tab-pane label="组织岗位" name="positions">
+            <div class="tab-toolbar">
+              <div class="toolbar-left">
+                <span class="field-label">岗位名称</span>
+                <el-input v-model="positionKeyword" placeholder="请输入" clearable class="member-search" />
+              </div>
+            </div>
+
+            <el-table :data="positionList" border stripe class="ap-table" empty-text="暂无岗位">
+              <el-table-column prop="name" label="岗位名称" min-width="180" />
+              <el-table-column prop="headcount" label="岗位人数" width="100" align="center" />
+              <el-table-column prop="duty" label="岗位职责" min-width="220" show-overflow-tooltip />
+              <el-table-column label="操作" width="120" align="center">
+                <template #default="{ row }">
+                  <el-button link type="primary" @click="openPositionRoleDialog(row)">添加权限</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </el-tab-pane>
+
+          <el-tab-pane label="组织信息" name="info">
+            <div class="info-actions">
+              <el-button @click="openOrgRoleDialog">设置角色</el-button>
+              <el-button @click="handleSetDataPermFromInfo">设置数据权限</el-button>
+            </div>
+
+            <div v-if="orgInfo" class="info-grid">
+              <div class="info-item">
+                <span class="info-label">上级组织</span>
+                <span class="info-value">{{ orgInfo.parentOrg }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">组织类型</span>
+                <span class="info-value">{{ orgInfo.orgType }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">组织名称</span>
+                <span class="info-value">{{ orgInfo.orgName }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">组织简称</span>
+                <span class="info-value">{{ orgInfo.shortName }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">排序</span>
+                <span class="info-value">{{ orgInfo.sortOrder }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">状态</span>
+                <span class="info-value">{{ orgInfo.enabled ? '启用' : '停用' }}</span>
+              </div>
+            </div>
+          </el-tab-pane>
+        </el-tabs>
       </section>
     </div>
 
+    <!-- 新增/编辑组织 -->
     <el-dialog
-      v-model="dialogVisible"
-      :title="dialogMode === 'add' ? '新增子节点' : '编辑节点'"
-      width="480px"
+      v-model="orgDialogVisible"
+      :title="orgDialogMode === 'add' ? '新增组织' : '编辑组织'"
+      width="640px"
       destroy-on-close
     >
-      <el-form ref="formRef" :model="form" :rules="formRules" label-width="88px">
-        <el-form-item v-if="dialogMode === 'add'" label="上级节点">
-          <el-input :model-value="selectedNodeLabel" disabled />
-        </el-form-item>
-        <el-form-item label="节点名称" prop="label">
-          <el-input v-model="form.label" placeholder="请输入节点名称" maxlength="50" show-word-limit />
-        </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="form.remark" type="textarea" :rows="3" placeholder="选填" maxlength="200" show-word-limit />
-        </el-form-item>
+      <el-form ref="orgFormRef" :model="orgForm" :rules="orgFormRules" label-width="96px">
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="父节点" prop="parentId">
+              <el-select
+                v-model="orgForm.parentId"
+                placeholder="选择组织"
+                style="width: 100%"
+                :disabled="orgDialogMode === 'edit'"
+              >
+                <el-option
+                  v-for="opt in parentOrgOptions"
+                  :key="opt.value || 'root'"
+                  :label="opt.label"
+                  :value="opt.value || selectedNodeId"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="组织级别" prop="orgLevel">
+              <el-select v-model="orgForm.orgLevel" placeholder="请选择组织级别" style="width: 100%">
+                <el-option v-for="item in ORG_LEVEL_OPTIONS" :key="item" :label="item" :value="item" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="组织名称" prop="label">
+              <el-input v-model="orgForm.label" placeholder="请输入组织名称" maxlength="50" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="组织简称">
+              <el-input v-model="orgForm.shortName" placeholder="请输入组织简称" maxlength="20" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="组织编码" prop="orgCode">
+              <el-input v-model="orgForm.orgCode" placeholder="请输入组织编码" maxlength="32" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="排序" prop="sortOrder">
+              <el-input-number v-model="orgForm.sortOrder" :min="0" :max="9999" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="是否启用">
+              <el-radio-group v-model="orgForm.enabled">
+                <el-radio :value="true">是</el-radio>
+                <el-radio :value="false">否</el-radio>
+              </el-radio-group>
+            </el-form-item>
+          </el-col>
+        </el-row>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitForm">确定</el-button>
+        <el-button @click="orgDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitOrgForm">提交</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 添加权限 / 设置角色 -->
+    <el-dialog
+      v-model="roleDialogVisible"
+      :title="roleDialogTitle"
+      width="720px"
+      destroy-on-close
+    >
+      <el-transfer
+        v-model="roleTransferValue"
+        :data="roleTransferData"
+        :titles="['角色列表', '已选角色']"
+        filterable
+        filter-placeholder="角色名称"
+      />
+      <template #footer>
+        <el-button @click="roleDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitRoleDialog">提交</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 设置数据权限 -->
+    <el-dialog v-model="dataPermDialogVisible" title="设置数据权限" width="860px" destroy-on-close>
+      <div class="perm-dialog-toolbar">
+        <el-button type="primary" :icon="Plus" :disabled="Boolean(dataPermEditRow)" @click="addDataPermRow">
+          新增
+        </el-button>
+      </div>
+
+      <el-table :data="dataPermTableRows" border stripe class="ap-table" empty-text="暂无数据权限，请点击新增">
+        <el-table-column label="层级" width="120">
+          <template #default="{ row }">
+            <template v-if="dataPermEditRow === row.id || (dataPermEditRow === '__new__' && row.id === '__draft__')">
+              <el-select v-model="dataPermForm.levelScope" style="width: 100%">
+                <el-option
+                  v-for="item in dataPermissionLevelOptions"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                />
+              </el-select>
+            </template>
+            <span v-else>{{ getDataPermLevelLabel(row) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="范围" width="140">
+          <template #default="{ row }">
+            <template v-if="dataPermEditRow === row.id || (dataPermEditRow === '__new__' && row.id === '__draft__')">
+              <el-select
+                v-if="dataPermForm.levelScope === 'hq'"
+                v-model="dataPermForm.type"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="item in dataPermissionHqScopeOptions"
+                  :key="item"
+                  :label="item"
+                  :value="item"
+                />
+              </el-select>
+              <el-select
+                v-else
+                v-model="dataPermForm.projectScope"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="item in dataPermissionProjectScopeOptions"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                />
+              </el-select>
+            </template>
+            <span v-else>{{ getDataPermScopeLabel(row) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="内容" min-width="300">
+          <template #default="{ row }">
+            <template v-if="dataPermEditRow === row.id || (dataPermEditRow === '__new__' && row.id === '__draft__')">
+              <div class="perm-content-edit">
+                <template v-if="dataPermForm.levelScope === 'hq'">
+                  <el-select
+                    v-if="dataPermForm.type === '指定组织'"
+                    v-model="dataPermForm.orgId"
+                    placeholder="选择组织"
+                    style="width: 100%"
+                  >
+                    <el-option v-for="opt in orgNodeOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
+                  </el-select>
+                  <span v-else>{{ selectedOrgPath }}</span>
+                  <el-checkbox v-model="dataPermForm.includeSub">包含下级</el-checkbox>
+                </template>
+                <template v-else>
+                  <span v-if="dataPermForm.projectScope === 'all'">全部项目</span>
+                  <el-select
+                    v-else
+                    v-model="dataPermForm.projectIds"
+                    multiple
+                    collapse-tags
+                    collapse-tags-tooltip
+                    placeholder="选择项目"
+                    style="width: 100%"
+                  >
+                    <el-option
+                      v-for="project in projectOptions"
+                      :key="project.id"
+                      :label="project.name"
+                      :value="project.id"
+                    />
+                  </el-select>
+                </template>
+              </div>
+            </template>
+            <div v-else class="perm-content-view">
+              <span>{{ row.content }}</span>
+              <el-checkbox
+                v-if="row.levelScope !== 'project'"
+                :model-value="row.includeSub"
+                disabled
+              >
+                包含下级
+              </el-checkbox>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="120" align="center">
+          <template #default="{ row }">
+            <template v-if="dataPermEditRow === row.id || (dataPermEditRow === '__new__' && row.id === '__draft__')">
+              <el-button link type="primary" @click="saveDataPermRow">保存</el-button>
+              <el-button link @click="cancelEditDataPerm">取消</el-button>
+            </template>
+            <el-button v-else link type="primary" :disabled="Boolean(dataPermEditRow)" @click="startEditDataPerm(row)">
+              编辑
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <template #footer>
+        <el-button @click="dataPermDialogVisible = false">关闭</el-button>
       </template>
     </el-dialog>
   </div>
@@ -206,99 +789,227 @@ async function submitForm() {
 
 <style scoped>
 .org-page {
-  padding: 20px 24px 24px;
-}
-
-.page-header {
-  margin-bottom: 16px;
-}
-
-.page-breadcrumb {
-  font-size: 13px;
-  color: var(--ap-text-muted);
-  margin-bottom: 8px;
-}
-
-.page-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.page-title {
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--ap-text);
+  padding: 0;
+  min-height: calc(100vh - 120px);
 }
 
 .org-layout {
   display: grid;
-  grid-template-columns: 300px minmax(0, 1fr);
-  gap: 16px;
-  min-height: 520px;
-}
-
-.org-tree-panel,
-.org-child-panel {
+  grid-template-columns: 280px 12px minmax(0, 1fr);
+  min-height: calc(100vh - 120px);
+  background: #fff;
   border: 1px solid var(--ap-border);
   border-radius: 8px;
-  background: #fff;
-  padding: 16px;
-  min-height: 0;
+  overflow: hidden;
 }
 
-.org-child-panel {
+.org-layout.collapsed {
+  grid-template-columns: 0 12px minmax(0, 1fr);
+}
+
+.org-sidebar {
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--ap-border);
+  padding: 16px 12px;
+  overflow: hidden;
 }
 
-.panel-head {
+.org-layout.collapsed .org-sidebar {
+  padding: 0;
+  border-right: none;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sidebar-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
   gap: 8px;
+  margin-bottom: 12px;
 }
 
-.child-head {
-  align-items: flex-start;
-}
-
-.panel-title {
-  font-size: 15px;
+.sidebar-title {
+  font-size: 16px;
   font-weight: 600;
   color: var(--ap-text);
 }
 
-.panel-tip {
-  font-size: 12px;
-  color: var(--ap-text-muted);
+.tree-search {
+  margin-bottom: 12px;
 }
 
-.child-count {
-  margin-left: 10px;
-  font-size: 13px;
-  color: var(--ap-text-muted);
-  font-weight: 400;
+.org-tree {
+  flex: 1;
+  overflow: auto;
 }
 
 .org-tree :deep(.el-tree-node__content) {
-  height: 34px;
+  height: 36px;
   border-radius: 4px;
 }
 
 .org-tree :deep(.el-tree-node.is-current > .el-tree-node__content) {
   background: var(--ap-primary-light);
-  color: var(--ap-primary);
-  font-weight: 600;
 }
 
-.org-tree :deep(.el-tree > .el-tree-node > .el-tree-node__content) {
-  font-weight: 600;
+.tree-node-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  padding-right: 4px;
+}
+
+.tree-node-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-node-actions {
+  display: none;
+  align-items: center;
+  gap: 0;
+  flex-shrink: 0;
+}
+
+.org-tree :deep(.el-tree-node__content:hover) .tree-node-actions,
+.org-tree :deep(.el-tree-node.is-current > .el-tree-node__content) .tree-node-actions {
+  display: inline-flex;
+}
+
+.collapse-toggle {
+  border: none;
+  background: #f5f7fa;
+  color: var(--ap-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.collapse-toggle:hover {
+  background: #eef2f6;
+  color: var(--ap-primary);
+}
+
+.org-main {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 16px 16px;
+}
+
+.org-tabs {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.org-tabs :deep(.el-tabs__content) {
+  flex: 1;
+  min-height: 0;
+}
+
+.org-tabs :deep(.el-tab-pane) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.tab-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.field-label {
+  font-size: 14px;
+  color: var(--ap-text-secondary);
+  white-space: nowrap;
+}
+
+.member-search {
+  width: 220px;
 }
 
 .ap-table {
   flex: 1;
+}
+
+.table-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+  gap: 12px;
+}
+
+.total-text {
+  font-size: 13px;
+  color: var(--ap-text-muted);
+}
+
+.info-actions {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px 32px;
+  max-width: 720px;
+}
+
+.info-item {
+  display: flex;
+  gap: 12px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.info-label {
+  width: 72px;
+  flex-shrink: 0;
+  color: var(--ap-text-muted);
+}
+
+.info-value {
+  color: var(--ap-text);
+  font-weight: 500;
+}
+
+.perm-dialog-toolbar {
+  margin-bottom: 12px;
+}
+
+.perm-content-view,
+.perm-content-edit {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 </style>

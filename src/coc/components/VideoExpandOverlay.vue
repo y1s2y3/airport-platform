@@ -15,6 +15,7 @@ import {
 import ScreenshotMarkDialog from './ScreenshotMarkDialog.vue'
 import {
   videoPlaceholderColor,
+  videoPlaceholderClass,
   formatMinutesToClock,
 } from '../mock/data.js'
 
@@ -61,15 +62,26 @@ const hourTicks = computed(() => {
 
 const playbackTimeLabel = computed(() => `${playbackDate.value} ${playbackClock.value}`)
 
+const expandPalette = computed(() => props.source?.palette || 'warm')
+const expandDeviceType = computed(() => props.source?.type)
+
 const bgStyle = computed(() => {
-  const palette = props.source?.palette || 'warm'
+  const palette = expandPalette.value
   const online = canOperateVideo.value
   const colorIndex = isPlayback.value ? Math.floor(playbackMinutes.value / 15) : 0
   return {
-    background: videoPlaceholderColor(online, colorIndex, palette),
+    background: videoPlaceholderColor(online, colorIndex, palette, expandDeviceType.value),
     transform: `scale(${zoomLevel.value})`,
   }
 })
+
+const canvasClass = computed(() =>
+  videoPlaceholderClass(canOperateVideo.value, expandPalette.value, expandDeviceType.value),
+)
+
+const showFeedIcon = computed(() =>
+  canOperateVideo.value && expandDeviceType.value !== 'handheld' && !canvasClass.value.includes('is-video-monitor'),
+)
 
 function close() {
   emit('close')
@@ -158,8 +170,8 @@ watch(
       <div class="expand-body">
         <div class="video-stage">
           <div class="video-viewport">
-            <div class="video-canvas" :style="bgStyle">
-              <el-icon v-if="canOperateVideo" :size="45" color="rgba(255,255,255,0.45)">
+            <div class="video-canvas" :class="canvasClass" :style="bgStyle">
+              <el-icon v-if="showFeedIcon" :size="45" color="rgba(255,255,255,0.45)">
                 <VideoCamera />
               </el-icon>
               <span v-else class="offline-hint">信号中断</span>

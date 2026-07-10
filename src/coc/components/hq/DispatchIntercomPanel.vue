@@ -8,7 +8,10 @@ import {
   getDispatchDeviceTypeLabel,
   formatDispatchOperatorLabel,
   videoPlaceholderColor,
+  videoPlaceholderClass,
 } from '../../mock/data.js'
+import { PANEL_TITLE_ICON_URL } from '../../config/panelTitleAssets.js'
+import HqPanelTitleLine from './HqPanelTitleLine.vue'
 
 const DISPATCH_PAGE_SIZE = 3
 
@@ -61,41 +64,49 @@ defineExpose({ dispatchOrder, handleDispatchReorder })
 <template>
   <div class="panel-card module-panel dispatch-module">
     <div class="panel-title simple-title module-title-bar">
-      <div class="title-bar-inner">
-        <div class="header-row">
-          <span class="module-title-text">{{ dispatchTitle }}</span>
+      <img
+        class="hq-panel-title-icon"
+        :src="PANEL_TITLE_ICON_URL"
+        width="11"
+        height="11"
+        alt=""
+        aria-hidden="true"
+        draggable="false"
+      />
+      <div class="header-row">
+        <span class="module-title-text">{{ dispatchTitle }}</span>
+      </div>
+      <HqPanelTitleLine />
+      <div class="header-sub-row header-sub-row--compact">
+        <div class="title-stats title-stats--compact">
+          <span class="stat-item">总数<b>{{ dispatchStats.total }}</b></span>
+          <span class="stat-item online">
+            <i class="status-dot online" />在线<b>{{ dispatchStats.online }}</b>
+          </span>
+          <span class="stat-item offline">
+            <i class="status-dot offline" />离线<b>{{ dispatchStats.offline }}</b>
+          </span>
         </div>
-        <div class="header-sub-row">
-          <div class="title-stats">
-            <span class="stat-item">总数 <b>{{ dispatchStats.total }}</b></span>
-            <span class="stat-item online">
-              <i class="status-dot online" /> 在线 <b>{{ dispatchStats.online }}</b>
-            </span>
-            <span class="stat-item offline">
-              <i class="status-dot offline" /> 离线 <b>{{ dispatchStats.offline }}</b>
-            </span>
-          </div>
-          <div class="page-nav">
-            <button
-              type="button"
-              class="arrow-btn"
-              :disabled="dispatchPage <= 0"
-              aria-label="上一页"
-              @click="dispatchPage--"
-            >
-              <el-icon><ArrowLeft /></el-icon>
-            </button>
-            <span class="page-info">{{ dispatchPage + 1 }}/{{ dispatchTotalPages }}</span>
-            <button
-              type="button"
-              class="arrow-btn"
-              :disabled="dispatchPage >= dispatchTotalPages - 1"
-              aria-label="下一页"
-              @click="dispatchPage++"
-            >
-              <el-icon><ArrowRight /></el-icon>
-            </button>
-          </div>
+        <div class="page-nav">
+          <button
+            type="button"
+            class="arrow-btn"
+            :disabled="dispatchPage <= 0"
+            aria-label="上一页"
+            @click="dispatchPage--"
+          >
+            <el-icon><ArrowLeft /></el-icon>
+          </button>
+          <span class="page-info">{{ dispatchPage + 1 }}/{{ dispatchTotalPages }}</span>
+          <button
+            type="button"
+            class="arrow-btn"
+            :disabled="dispatchPage >= dispatchTotalPages - 1"
+            aria-label="下一页"
+            @click="dispatchPage++"
+          >
+            <el-icon><ArrowRight /></el-icon>
+          </button>
         </div>
       </div>
     </div>
@@ -109,8 +120,12 @@ defineExpose({ dispatchOrder, handleDispatchReorder })
           :class="{ offline: !dv.online }"
           @click="openDispatch(dv)"
         >
-          <div class="video-placeholder" :style="{ background: videoPlaceholderColor(dv.online, idx, 'cool') }">
-            <el-icon :size="19" color="rgba(255,255,255,0.6)"><VideoCamera /></el-icon>
+          <div
+            class="video-placeholder"
+            :class="videoPlaceholderClass(dv.online, 'cool', dv.type)"
+            :style="{ background: videoPlaceholderColor(dv.online, idx, 'cool', dv.type) }"
+          >
+            <el-icon v-if="dv.online && dv.type !== 'handheld'" :size="19" color="rgba(255,255,255,0.6)"><VideoCamera /></el-icon>
             <span v-if="!dv.online" class="offline-mask">离线</span>
           </div>
           <div class="video-label dispatch-label">
@@ -150,24 +165,40 @@ defineExpose({ dispatchOrder, handleDispatchReorder })
   font-size: calc(18px + var(--coc-font-boost));
 }
 
-.module-title-bar {
-  align-items: flex-start;
-  padding-top: 0.45em;
-  padding-bottom: 0.45em;
-}
-
-.module-title-bar::before {
-  align-self: stretch;
-  height: auto;
-  min-height: 1.6em;
-}
-
-.title-bar-inner {
-  flex: 1;
-  min-width: 0;
+.title-stats--compact {
   display: flex;
-  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: center;
   gap: 6px;
+  font-size: calc(9px + var(--coc-font-boost));
+  color: var(--coc-text-secondary);
+  flex: 0 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.title-stats--compact b {
+  font-size: calc(10px + var(--coc-font-boost));
+  color: var(--coc-text);
+  margin-left: 2px;
+  font-weight: 700;
+}
+
+.title-stats--compact .online b { color: var(--coc-success); }
+.title-stats--compact .offline b { color: var(--coc-danger); }
+
+.title-stats--compact .stat-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.title-stats--compact .status-dot {
+  width: 5px;
+  height: 5px;
+  flex-shrink: 0;
 }
 
 .header-row {

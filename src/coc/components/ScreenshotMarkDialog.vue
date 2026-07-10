@@ -1,9 +1,12 @@
-﻿<script setup>
+<script setup>
 import { ref, reactive, watch, nextTick, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { EditPen, Delete, VideoCamera } from '@element-plus/icons-vue'
 import {
-  videoPlaceholderColor,
+  loadVideoMonitorThumbImage,
+  loadHandheldDeviceThumbImage,
+  isVideoMonitorFeed,
+  isHandheldDeviceFeed,
   HAZARD_REPORTERS,
   HAZARD_LEVELS,
   MOCK_NOTICE,
@@ -130,14 +133,35 @@ function switchDocType(type) {
   form.docType = type
 }
 
-function paintBackground(ctx, w, h) {
-  const online = props.camera?.online !== false
-  const base = videoPlaceholderColor(online, 0, props.camera?.palette || 'warm')
+function paintGradientBackground(ctx, w, h, online, palette) {
+  let start = '#e8e8e8'
+  let end = '#d0d0d0'
+  if (online) {
+    if (palette === 'cool') {
+      start = 'hsl(200, 35%, 88%)'
+      end = 'hsl(210, 40%, 78%)'
+    } else {
+      start = '#6b7280'
+      end = '#374151'
+    }
+  }
   const grd = ctx.createLinearGradient(0, 0, w, h)
-  grd.addColorStop(0, base)
-  grd.addColorStop(1, '#1a1a1a')
+  grd.addColorStop(0, start)
+  grd.addColorStop(1, end)
   ctx.fillStyle = grd
   ctx.fillRect(0, 0, w, h)
+}
+
+function paintMonitorOverlay(ctx, w, h) {
+  const deviceType = props.camera?.type
+  const palette = props.camera?.palette || 'warm'
+  const online = props.camera?.online !== false
+
+  if (isHandheldDeviceFeed(online, deviceType) || isVideoMonitorFeed(online, palette, deviceType)) {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.25)'
+    ctx.fillRect(0, 0, w, h)
+    return
+  }
 
   ctx.fillStyle = 'rgba(255,255,255,0.12)'
   ctx.font = 'bold 48px sans-serif'
@@ -148,7 +172,9 @@ function paintBackground(ctx, w, h) {
   ctx.fillStyle = 'rgba(255,255,255,0.55)'
   ctx.font = '13px sans-serif'
   ctx.fillText(props.camera?.name || '', w / 2, h / 2 + 24)
+}
 
+function paintTimestamp(ctx, w, h) {
   const stamp = new Date().toLocaleString('zh-CN')
   ctx.textAlign = 'left'
   ctx.textBaseline = 'bottom'
@@ -157,7 +183,40 @@ function paintBackground(ctx, w, h) {
   ctx.fillText(stamp, 12, h - 12)
 }
 
-function setupCanvas() {
+async function paintBackground(ctx, w, h) {
+  const online = props.camera?.online !== false
+  const palette = props.camera?.palette || 'warm'
+  const deviceType = props.camera?.type
+
+  if (isHandheldDeviceFeed(online, deviceType)) {
+    try {
+      const img = await loadHandheldDeviceThumbImage()
+      const scale = Math.max(w / img.width, h / img.height)
+      const drawW = img.width * scale
+      const drawH = img.height * scale
+      ctx.drawImage(img, (w - drawW) / 2, (h - drawH) / 2, drawW, drawH)
+    } catch {
+      paintGradientBackground(ctx, w, h, online, palette)
+    }
+  } else if (isVideoMonitorFeed(online, palette, deviceType)) {
+    try {
+      const img = await loadVideoMonitorThumbImage()
+      const scale = Math.max(w / img.width, h / img.height)
+      const drawW = img.width * scale
+      const drawH = img.height * scale
+      ctx.drawImage(img, (w - drawW) / 2, (h - drawH) / 2, drawW, drawH)
+    } catch {
+      paintGradientBackground(ctx, w, h, online, palette)
+    }
+  } else {
+    paintGradientBackground(ctx, w, h, online, palette)
+  }
+
+  paintMonitorOverlay(ctx, w, h)
+  paintTimestamp(ctx, w, h)
+}
+
+async function setupCanvas() {
   const wrap = bgCanvasRef.value?.parentElement
   if (!wrap || !bgCanvasRef.value || !drawCanvasRef.value) return
 
@@ -175,7 +234,7 @@ function setupCanvas() {
   })
 
   const bgCtx = bgCanvasRef.value.getContext('2d')
-  paintBackground(bgCtx, w, h)
+  await paintBackground(bgCtx, w, h)
 
   const drawCtx = drawCanvasRef.value.getContext('2d')
   drawCtx.clearRect(0, 0, w, h)

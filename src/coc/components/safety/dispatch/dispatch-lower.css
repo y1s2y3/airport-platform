@@ -1,7 +1,7 @@
 .detail-lower {
   min-height: 0;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
   flex: 1;
 }
@@ -62,7 +62,7 @@
   z-index: 1;
 }
 
-.desc {
+.table-scroll .desc {
   max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -178,3 +178,5 @@
 
 .block-label { font-size: calc(13px + var(--coc-font-boost)); font-weight: 600; margin-bottom: 6px; color: var(--coc-text-secondary); }
 .block-content { font-size: calc(12px + var(--coc-font-boost)); line-height: 1.5; background: #faf8f6; padding: 10px 12px; border-radius: 8px; }
+
+/* 更多弹窗样式见 dispatch-more-dialog.css（DispatchDraggablePanel 全局引入） */

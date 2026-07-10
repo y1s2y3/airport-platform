@@ -1,4 +1,4 @@
-﻿export const DESIGN_WIDTH = 1920
+export const DESIGN_WIDTH = 1920
 export const DESIGN_HEIGHT = 1080
 
 export const PROJECT_NAMES = [
@@ -599,9 +599,9 @@ export function buildProjects() {
         ? FOCUS_CAMERAS
         : Array.from({ length: cameraCount }, (_, ci) => ({
             id: `${id}-cam-${ci}`,
-            name: `${['东门', '西门', '塔吊', '加工区', '通道', '基坑'][ci % 6]}-枪机-${ci + 1}`,
+            name: `${PROJECT_SHORT_NAMES[i] || name}-${['东门', '西门', '塔吊', '加工区', '通道', '基坑'][ci % 6]}-枪机-${ci + 1}`,
             type: ci % 4 === 0 ? 'ptz' : 'gun',
-            key: ci === 0,
+            key: ci === 0 || ci % 5 === 0,
             online: ci < onlineCount,
           })),
       personnel,
@@ -1119,14 +1119,17 @@ export function buildSamplingNoticeDraft(device) {
   }
 }
 
-export function videoPlaceholderColor(online, index = 0, palette = 'warm') {
-  if (!online) return 'linear-gradient(135deg, #e8e8e8, #d0d0d0)'
-  const warm = [15, 25, 35, 10, 20, 30]
-  const cool = [200, 210, 220]
-  const hues = palette === 'cool' ? cool : warm
-  const h = hues[index % hues.length]
-  return `linear-gradient(135deg, hsl(${h}, 35%, 88%), hsl(${h + 10}, 40%, 78%))`
-}
+export {
+  VIDEO_MONITOR_THUMB_URL,
+  HANDHELD_DEVICE_THUMB_URL,
+  isVideoMonitorFeed,
+  isHandheldDeviceFeed,
+  videoPlaceholderColor,
+  videoPlaceholderClass,
+  loadVideoMonitorThumbImage,
+  loadHandheldDeviceThumbImage,
+  resolveThumbImageLoader,
+} from '../config/videoAssets.js'
 
 /** @deprecated use DISPATCH_DEVICES */
 export const DISPATCH_VIDEOS = DISPATCH_DEVICES
@@ -1177,27 +1180,30 @@ export const PROJECT_RED_BLACK_LIST = {
   black: [
     {
       id: 'black-1',
-      shortName: '3号塔吊区',
+      shortName: '某某某工程项目',
       fullName: 'T2捷运线项目3号塔吊作业区',
       description: '3号塔吊作业区警戒标识不足，存在人员误入风险，已下发整改通知。',
       imageHue: 8,
     },
     {
       id: 'black-2',
-      shortName: '钢筋加工场',
+      shortName: '某某某工程项目',
       fullName: '捷运线钢筋加工场',
       description: '料区物料堆放超高，消防通道临时占用，需立即腾挪。',
       imageHue: 18,
     },
     {
       id: 'black-3',
-      shortName: '东北站坪',
+      shortName: '某某某工程项目',
       fullName: '深圳机场东北站坪项目',
       description: '夜间施工照明不足，特种作业旁站记录不完整。',
       imageHue: 5,
     },
   ],
 }
+
+/** 黑榜卡片展示用项目名（演示数据） */
+export const BLACK_LIST_PROJECT_DISPLAY_NAME = '某某某工程项目'
 
 export const PENDING_RANK_QUALITY = [
   { name: '捷运线延长段', value: 4, projectId: 'p-011' },
@@ -1468,7 +1474,7 @@ function buildIssuesForType(type, projectsCount = 36) {
   const prefix = type === 'safety' ? 'sh' : 'qh'
   const templates = type === 'safety' ? SAFETY_DESC_TEMPLATES : QUALITY_DESC_TEMPLATES
   const parts = CONSTRUCTION_PARTS.filter((p) => p.id !== 'all')
-  const levelWeights = ['一般', '一般', '一般', '较大', '较大', '重大']
+  const levelWeights = ['一般', '一般', '一般', '较大', '较大', '严重', '重大']
   const statusWeights = ['待整改', '待整改', '整改中', '整改中', '已闭合', '已闭合', '已闭合']
   const issues = []
   let seq = 1
@@ -1556,21 +1562,25 @@ export function getPendingProjectIssues(type, projectId) {
 
 /** 指挥部 · 隐患分析环图分段（质量+安全巡检） */
 export const HQ_HAZARD_LEVEL_SEGMENTS = [
-  { name: '一般', filter: '一般', color: '#409eff' },
-  { name: '较大', filter: '较大', color: '#e6a23c' },
-  { name: '重大', filter: '重大', color: '#f56c6c' },
+  { name: '一般', filter: '一般', color: '#1498F6' },
+  { name: '较大', filter: '较大', color: '#E5E5E5' },
+  { name: '严重', filter: '严重', color: '#47D391' },
+  { name: '重大', filter: '重大', color: '#F6C575' },
 ]
 
 export function getHqOpenHazards() {
   return [...SAFETY_HAZARDS, ...QUALITY_HAZARDS].filter((h) => h.status !== '已闭合')
 }
 
+/** 指挥部 · 隐患分析 Top 项目展示名（演示数据） */
+export const HQ_HAZARD_TOP_PROJECT_DISPLAY_NAME = '机场扩建项目指挥部某某某施工工程项目'
+
 export function getHqPendingTopProjects(limit = 3) {
   return [...PROJECT_HAZARD_SUMMARY]
     .map((r) => ({
       projectId: r.projectId,
-      shortName: r.projectShortName || getProjectShortName(r),
-      fullName: r.projectName,
+      shortName: HQ_HAZARD_TOP_PROJECT_DISPLAY_NAME,
+      fullName: HQ_HAZARD_TOP_PROJECT_DISPLAY_NAME,
       value: r.safetyPending + r.qualityPending,
     }))
     .filter((r) => r.value > 0)

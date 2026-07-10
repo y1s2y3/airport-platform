@@ -4,6 +4,8 @@ import { ElMessage } from 'element-plus'
 import { VideoCamera, Search, Rank, Star, Microphone } from '@element-plus/icons-vue'
 import { FOCUS_PROJECT_ID, HQ_SELECTION_ID, getMonitorDispatchDevices, getDispatchDeviceTypeLabel } from '../mock/data.js'
 import { sortCamerasByOrder } from '../utils/cameraOrder.js'
+import { PANEL_TITLE_ICON_URL } from '../config/panelTitleAssets.js'
+import HqPanelTitleLine from './hq/HqPanelTitleLine.vue'
 
 const STATUS_OPTIONS = ['在建', '前期', '历史']
 
@@ -21,6 +23,7 @@ const props = defineProps({
 const emit = defineEmits([
   'status-filter',
   'camera-click',
+  'monitor-focus-change',
   'camera-reorder',
   'camera-set-key',
   'camera-unset-key',
@@ -93,8 +96,15 @@ function projectMatchesKeyword(project, kw) {
 }
 
 function isOrderedProject(projectId) {
-  if (isHqView.value) return projectId === props.focusProjectId
+  if (isHqView.value) return true
   return projectId === props.selectionId
+}
+
+function projectHasMonitorData(project) {
+  if (!project) return false
+  const shortName = project.shortName || project.name || ''
+  return (project.cameras?.length || 0) > 0
+    || getMonitorDispatchDevices(project.id, shortName).length > 0
 }
 
 function buildVideoChildren(project) {
@@ -161,7 +171,7 @@ function buildProjectMonitorNode(project) {
     label: project.shortName || project.name,
     fullName: project.name,
     status: project.status,
-    connected: project.id === props.focusProjectId,
+    connected: projectHasMonitorData(project),
     nodeType: 'project',
     children: buildCategoryNodes(project),
   }
@@ -192,11 +202,14 @@ const treeData = computed(() => {
 
 const defaultExpandedKeys = computed(() => {
   if (isHqView.value) {
+    const projectId = props.selectionId !== HQ_SELECTION_ID
+      ? props.selectionId
+      : props.focusProjectId
     return [
       HQ_SELECTION_ID,
-      props.focusProjectId,
-      `${props.focusProjectId}-video`,
-      `${props.focusProjectId}-dispatch`,
+      projectId,
+      `${projectId}-video`,
+      `${projectId}-dispatch`,
     ]
   }
   if (!activeProject.value) return []
@@ -229,6 +242,13 @@ function toggleStatusFilter(status) {
   emit('status-filter', current)
 }
 
+function ensureHqProjectContext(projectId) {
+  if (!isHqView.value || !projectId) return
+  if (props.focusProjectId !== projectId) {
+    emit('monitor-focus-change', projectId)
+  }
+}
+
 function onTreeClick(data) {
   if (data.nodeType === 'project' && isHqView.value) {
     currentNodeKey.value = data.id
@@ -236,6 +256,7 @@ function onTreeClick(data) {
     return
   }
   if (data.nodeType === 'camera') {
+    ensureHqProjectContext(data.projectId)
     currentNodeKey.value = data.id
     if (isInteractiveCamera(data)) {
       emit('camera-click', data.camera)
@@ -243,6 +264,7 @@ function onTreeClick(data) {
     return
   }
   if (data.nodeType === 'dispatch') {
+    ensureHqProjectContext(data.projectId)
     currentNodeKey.value = data.id
     emit('dispatch-click', data.device)
   }
@@ -250,7 +272,7 @@ function onTreeClick(data) {
 
 function isInteractiveCamera(data) {
   if (data.nodeType !== 'camera') return false
-  if (isHqView.value) return data.projectId === props.focusProjectId
+  if (isHqView.value) return true
   return data.projectId === props.selectionId
 }
 
@@ -353,8 +375,26 @@ onUnmounted(() => {
 
 <template>
   <div class="panel-card module-panel project-module">
-    <div class="panel-title simple-title">
-      <span>监控列表</span>
+    <div
+      class="panel-title simple-title"
+      :class="{ 'module-title-bar hq-panel-list-title': hqLayout }"
+    >
+      <template v-if="hqLayout">
+        <img
+          class="hq-panel-title-icon"
+          :src="PANEL_TITLE_ICON_URL"
+          width="11"
+          height="11"
+          alt=""
+          aria-hidden="true"
+          draggable="false"
+        />
+        <div class="header-row">
+          <span>监控列表</span>
+        </div>
+        <HqPanelTitleLine />
+      </template>
+      <span v-else>监控列表</span>
     </div>
     <div class="panel-body module-body">
       <div class="tree-toolbar">

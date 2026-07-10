@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, inject } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   DISPATCH_DOC_TICKET_LIST,
@@ -13,6 +13,10 @@ import {
   saveDispatchPenaltyRecord,
   saveDispatchReminderRecord,
 } from '../../../utils/dispatchMeetingStorage.js'
+import DispatchDraggablePanel from './DispatchDraggablePanel.vue'
+import DispatchHqPanelTitle from './DispatchHqPanelTitle.vue'
+
+const dispatchHqUi = inject('dispatchHqUi', false)
 
 const ADMIN_MENU_ROOT = 'COC后台管理'
 const ADMIN_MENU_NOTICE = '任务单'
@@ -220,8 +224,13 @@ function handleSave() {
 </script>
 
 <template>
-  <div class="panel-card detail-panel doc-ticket-panel">
-    <div class="panel-title compact doc-title-row title-left">
+  <div class="panel-card detail-panel doc-ticket-panel" :class="{ 'dispatch-hq-doc-panel': dispatchHqUi }">
+    <DispatchHqPanelTitle v-if="dispatchHqUi" title="任务单">
+      <template #actions>
+        <button type="button" class="title-more-btn" @click="openListDialog">详情</button>
+      </template>
+    </DispatchHqPanelTitle>
+    <div v-else class="panel-title compact doc-title-row title-left">
       <span class="doc-title-text">任务单</span>
       <button type="button" class="title-more-btn" @click="openListDialog">更多</button>
     </div>
@@ -322,40 +331,63 @@ function handleSave() {
         </div>
 
         <div class="draft-actions">
-          <el-button type="primary" size="small" @click="handleSave">保存</el-button>
+          <el-button type="primary" size="small" @click="handleSave">{{ dispatchHqUi ? '提交' : '保存' }}</el-button>
         </div>
       </div>
     </div>
 
-    <el-dialog v-model="listDialogOpen" title="任务单" width="760px" class="doc-list-dialog">
-      <div class="dialog-filter">
-        <button
-          v-for="opt in dialogTabOptions"
-          :key="opt.value"
-          type="button"
-          class="dialog-tab-btn"
-          :class="{ active: dialogDocTab === opt.value }"
-          @click="dialogDocTab = opt.value"
-        >
-          {{ opt.label }}
-        </button>
-        <span class="dialog-count">共 {{ dialogList.length }} 条</span>
+    <DispatchDraggablePanel
+      v-if="listDialogOpen"
+      title="任务单"
+      :width="820"
+      placement="right"
+      @close="listDialogOpen = false"
+    >
+      <div class="dialog-filter more-dialog-toolbar">
+        <div class="dialog-tabs">
+          <button
+            v-for="opt in dialogTabOptions"
+            :key="opt.value"
+            type="button"
+            class="dialog-tab-btn"
+            :class="{ active: dialogDocTab === opt.value }"
+            @click="dialogDocTab = opt.value"
+          >
+            {{ opt.label }}
+          </button>
+        </div>
+        <span class="dialog-count more-count">共 {{ dialogList.length }} 条</span>
       </div>
-      <el-table :data="dialogList" border stripe max-height="420" empty-text="暂无单据">
-        <el-table-column prop="docType" label="类型" width="88" align="center" />
-        <el-table-column :label="docSubjectLabel" min-width="200" show-overflow-tooltip>
-          <template #default="{ row }">{{ docSubjectText(row) }}</template>
-        </el-table-column>
-        <el-table-column label="状态" width="96" align="center">
-          <template #default="{ row }">
-            <span class="ticket-status" :class="ticketStatusMap[row.status]">{{ row.status }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="handler" label="处理人" width="110" />
-        <el-table-column prop="issuer" label="发起人" width="110" />
-        <el-table-column prop="time" label="时间" width="148" />
-      </el-table>
-    </el-dialog>
+      <div class="more-table-wrap">
+        <table class="mini-table more-table">
+          <thead>
+            <tr>
+              <th>类型</th>
+              <th>{{ docSubjectLabel }}</th>
+              <th>状态</th>
+              <th>处理人</th>
+              <th>发起人</th>
+              <th>时间</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in dialogList" :key="row.id">
+              <td>{{ row.docType }}</td>
+              <td class="cell-subject col-subject" :title="docSubjectText(row)">{{ docSubjectText(row) }}</td>
+              <td>
+                <span class="ticket-status" :class="ticketStatusMap[row.status]">{{ row.status }}</span>
+              </td>
+              <td>{{ row.handler || '—' }}</td>
+              <td>{{ row.issuer || '—' }}</td>
+              <td>{{ row.time || '—' }}</td>
+            </tr>
+            <tr v-if="!dialogList.length">
+              <td colspan="6" class="empty-row">暂无单据</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </DispatchDraggablePanel>
   </div>
 </template>
 
@@ -370,6 +402,10 @@ function handleSave() {
 
 .doc-ticket-panel .panel-title {
   border-left: 4px solid #909399;
+}
+
+.dispatch-hq-doc-panel .panel-title {
+  border-left: none;
 }
 
 .doc-title-row {
@@ -514,62 +550,10 @@ function handleSave() {
   margin-top: 2px;
 }
 
-.dialog-filter {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-  flex-wrap: wrap;
-}
-
-.dialog-tab-btn {
-  border: 1px solid var(--coc-border);
-  border-radius: 999px;
-  background: #fff;
-  padding: 4px 12px;
-  font-size: calc(12px + var(--coc-font-boost));
-  cursor: pointer;
-  color: var(--coc-text-secondary);
-}
-
-.dialog-tab-btn.active {
-  border-color: var(--coc-accent);
-  background: rgba(201, 123, 99, 0.1);
-  color: var(--coc-accent);
-  font-weight: 600;
-}
-
-.dialog-count {
-  margin-left: auto;
-  font-size: calc(12px + var(--coc-font-boost));
+.empty-row {
+  text-align: center;
   color: var(--coc-text-muted);
-}
-
-.doc-list-dialog :deep(.ticket-status) {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: calc(12px + var(--coc-font-boost));
-  font-weight: 600;
-}
-
-.doc-list-dialog :deep(.ticket-status.draft) {
-  background: rgba(230, 162, 60, 0.15);
-  color: #e6a23c;
-}
-
-.doc-list-dialog :deep(.ticket-status.sent) {
-  background: rgba(64, 158, 255, 0.12);
-  color: #409eff;
-}
-
-.doc-list-dialog :deep(.ticket-status.doing) {
-  background: rgba(201, 123, 99, 0.12);
-  color: var(--coc-accent);
-}
-
-.doc-list-dialog :deep(.ticket-status.closed) {
-  background: rgba(103, 194, 58, 0.12);
-  color: #67c23a;
+  font-size: calc(13px + var(--coc-font-boost));
+  padding: 16px 8px !important;
 }
 </style>

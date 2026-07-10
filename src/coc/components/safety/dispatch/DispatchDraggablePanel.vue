@@ -130,7 +130,10 @@ function onPointerUp() {
         }"
       >
         <div class="drag-panel-header" @pointerdown="onHeaderPointerDown">
-          <span class="drag-panel-title">{{ title }}</span>
+          <span class="drag-panel-title">
+            <span class="drag-panel-title-mark" aria-hidden="true" />
+            {{ title }}
+          </span>
           <span class="drag-hint">拖动标题栏移动</span>
           <button type="button" class="drag-panel-close" title="关闭" @click="emit('close')">
             <el-icon :size="16"><Close /></el-icon>
@@ -163,18 +166,20 @@ function onPointerUp() {
 .drag-panel {
   position: fixed;
   max-height: min(94vh, 1440px);
-  background: #fff;
+  background: var(--coc-drag-panel-bg);
   border-radius: 12px;
-  border: 1px solid var(--coc-border);
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--coc-drag-panel-border);
+  box-shadow: var(--coc-drag-panel-shadow);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  color: var(--coc-text);
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
 }
 
 .drag-panel.placement-right {
   pointer-events: auto;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.16);
 }
 
 .drag-panel-header {
@@ -182,28 +187,31 @@ function onPointerUp() {
   align-items: center;
   gap: 10px;
   padding: 12px 14px;
-  border-bottom: 1px solid var(--coc-border);
-  background: linear-gradient(180deg, #fff, #faf8f6);
+  border-bottom: 1px solid var(--coc-drag-panel-header-border);
+  background: var(--coc-drag-panel-header-bg);
   cursor: move;
   user-select: none;
   flex-shrink: 0;
 }
 
 .drag-panel-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-size: calc(15px + var(--coc-font-boost));
   font-weight: 700;
-  color: var(--coc-text);
+  color: var(--coc-drag-panel-title-color);
 }
 
 .drag-hint {
   font-size: calc(11px + var(--coc-font-boost));
-  color: var(--coc-text-muted);
+  color: var(--coc-drag-panel-hint-color);
   margin-left: auto;
 }
 
 .drag-panel-close {
-  border: 1px solid var(--coc-border);
-  background: #fff;
+  border: 1px solid var(--coc-drag-panel-close-border);
+  background: var(--coc-drag-panel-close-bg);
   border-radius: 6px;
   width: 32px;
   height: 32px;
@@ -211,7 +219,7 @@ function onPointerUp() {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: var(--coc-text-secondary);
+  color: var(--coc-drag-panel-close-color);
   flex-shrink: 0;
 }
 
@@ -225,5 +233,18 @@ function onPointerUp() {
   min-height: 0;
   overflow: auto;
   padding: 14px 16px 16px;
+  background: var(--coc-drag-panel-body-bg, transparent);
+}
+</style>
+
+<style>
+@import './dispatch-more-dialog.css';
+
+.drag-panel-title-mark {
+  display: none;
+}
+
+.coc-hq-shell .drag-panel-title-mark {
+  display: inline-block;
 }
 </style>

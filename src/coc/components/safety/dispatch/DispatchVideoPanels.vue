@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, inject } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   VideoCamera,
@@ -13,7 +13,11 @@ import {
 } from '@element-plus/icons-vue'
 import VideoExpandOverlay from '../../VideoExpandOverlay.vue'
 import ScreenshotMarkDialog from '../../ScreenshotMarkDialog.vue'
-import { getMonitorDispatchDevices, getDispatchDeviceTypeLabel, formatDispatchOperatorLabel, videoPlaceholderColor } from '../../../mock/data.js'
+import { getMonitorDispatchDevices, getDispatchDeviceTypeLabel, formatDispatchOperatorLabel, videoPlaceholderColor, videoPlaceholderClass } from '../../../mock/data.js'
+import { sortCamerasByOrder } from '../../../utils/cameraOrder.js'
+import DispatchHqPanelTitle from './DispatchHqPanelTitle.vue'
+
+const dispatchHqUi = inject('dispatchHqUi', false)
 
 const props = defineProps({
   device: { type: Object, required: true },
@@ -100,12 +104,13 @@ const monitorTotalPages = computed(() =>
   Math.max(1, Math.ceil(allMonitorCameras.value.length / monitorPageSize.value)),
 )
 
-const projectDevices = computed(() =>
-  getMonitorDispatchDevices(
+const projectDevices = computed(() => {
+  const list = getMonitorDispatchDevices(
     props.projectId || props.videoProject?.id,
     props.videoProject?.shortName || props.videoProject?.name || '',
-  ),
-)
+  )
+  return sortCamerasByOrder(list, [])
+})
 
 const handheldDevices = computed(() =>
   projectDevices.value.filter((item) => item.type === 'handheld'),
@@ -261,9 +266,34 @@ function nextMonitorPage() {
 <template>
   <div
     class="panel-card detail-panel device-panel"
-    :class="{ 'area-device': gridPlacement, 'stretch-panel': verticalStretch }"
+    :class="{ 'area-device': gridPlacement, 'stretch-panel': verticalStretch, 'dispatch-hq-video-panel': dispatchHqUi }"
   >
-    <div class="panel-title compact title-with-page">
+    <DispatchHqPanelTitle v-if="dispatchHqUi" :title="devicePanelTitle">
+      <template v-if="!singleDeviceView && deviceTotalPages > 1" #actions>
+        <div class="page-nav">
+          <button
+            type="button"
+            class="arrow-btn"
+            :disabled="devicePage <= 0"
+            aria-label="上一页"
+            @click="prevDevicePage"
+          >
+            <el-icon><ArrowLeft /></el-icon>
+          </button>
+          <span class="page-info">{{ devicePage + 1 }}/{{ deviceTotalPages }}</span>
+          <button
+            type="button"
+            class="arrow-btn"
+            :disabled="devicePage >= deviceTotalPages - 1"
+            aria-label="下一页"
+            @click="nextDevicePage"
+          >
+            <el-icon><ArrowRight /></el-icon>
+          </button>
+        </div>
+      </template>
+    </DispatchHqPanelTitle>
+    <div v-else class="panel-title compact title-left title-with-page">
       <span class="panel-title-text">{{ devicePanelTitle }}</span>
       <div v-if="!singleDeviceView && deviceTotalPages > 1" class="page-nav">
         <button
@@ -298,14 +328,24 @@ function nextMonitorPage() {
         >
           <div
             class="device-live-placeholder"
-            :style="{ background: videoPlaceholderColor(dev.online, idx, 'cool') }"
+            :class="videoPlaceholderClass(dev.online, 'cool', dev.type)"
+            :style="{ background: videoPlaceholderColor(dev.online, idx, 'cool', dev.type) }"
           >
-            <el-icon v-if="dev.online" :size="29" color="rgba(255,255,255,0.5)"><VideoCamera /></el-icon>
-            <span v-if="dev.online" class="demo-badge">演示画面</span>
-            <span v-if="dev.online" class="expand-hint"><el-icon><ZoomIn /></el-icon></span>
+            <el-icon v-if="dev.online && dev.type !== 'handheld'" :size="29" color="rgba(255,255,255,0.5)"><VideoCamera /></el-icon>
+            <span v-if="dev.online && dev.type !== 'handheld' && !dispatchHqUi" class="demo-badge">演示画面</span>
+            <span v-if="dev.online && !dispatchHqUi" class="expand-hint"><el-icon><ZoomIn /></el-icon></span>
             <span v-if="!dev.online" class="offline-tip">设备离线</span>
+            <div v-if="dispatchHqUi" class="device-live-label device-live-label--overlay">
+              <span class="type-badge" :class="dev.type">{{ getDispatchDeviceTypeLabel(dev.type) }}</span>
+              <div class="device-live-info">
+                <span class="device-live-name" :title="dev.name">{{ dev.name }}</span>
+                <span v-if="dev.operator" class="device-live-operator" :title="formatDispatchOperatorLabel(dev)">
+                  {{ formatDispatchOperatorLabel(dev) }}
+                </span>
+              </div>
+            </div>
           </div>
-          <div class="device-live-label">
+          <div v-if="!dispatchHqUi" class="device-live-label">
             <span class="type-badge" :class="dev.type">{{ getDispatchDeviceTypeLabel(dev.type) }}</span>
             <div class="device-live-info">
               <span class="device-live-name" :title="dev.name">{{ dev.name }}</span>
@@ -367,13 +407,45 @@ function nextMonitorPage() {
         </div>
       </div>
     </div>
+    <VideoExpandOverlay
+      v-if="expandedDevice"
+      contained
+      :source="expandedDevice"
+      :project="videoProject"
+      @close="expandedDevice = null"
+    />
   </div>
 
   <div
     class="panel-card detail-panel monitor-panel"
-    :class="{ 'area-monitor': gridPlacement, 'stretch-panel': verticalStretch }"
+    :class="{ 'area-monitor': gridPlacement, 'stretch-panel': verticalStretch, 'dispatch-hq-video-panel': dispatchHqUi }"
   >
-    <div class="panel-title compact title-with-page">
+    <DispatchHqPanelTitle v-if="dispatchHqUi" title="关联视频监控">
+      <template v-if="monitorTotalPages > 1" #actions>
+        <div class="page-nav">
+          <button
+            type="button"
+            class="arrow-btn"
+            :disabled="monitorPage <= 0"
+            aria-label="上一页"
+            @click="prevMonitorPage"
+          >
+            <el-icon><ArrowLeft /></el-icon>
+          </button>
+          <span class="page-info">{{ monitorPage + 1 }}/{{ monitorTotalPages }}</span>
+          <button
+            type="button"
+            class="arrow-btn"
+            :disabled="monitorPage >= monitorTotalPages - 1"
+            aria-label="下一页"
+            @click="nextMonitorPage"
+          >
+            <el-icon><ArrowRight /></el-icon>
+          </button>
+        </div>
+      </template>
+    </DispatchHqPanelTitle>
+    <div v-else class="panel-title compact title-left title-with-page">
       <span class="panel-title-text">关联视频监控</span>
       <div v-if="monitorTotalPages > 1" class="page-nav">
         <button
@@ -413,13 +485,18 @@ function nextMonitorPage() {
           :class="{ offline: !cam.online }"
           @click="openCameraExpand(cam)"
         >
-          <div class="mini-placeholder" :style="{ background: videoPlaceholderColor(cam.online, idx) }">
+          <div
+            class="mini-placeholder"
+            :class="videoPlaceholderClass(cam.online)"
+            :style="{ background: videoPlaceholderColor(cam.online, idx) }"
+          >
             <el-icon v-if="cam.online" :size="monitorGrid === '3x2' ? 15 : 13" color="rgba(255,255,255,0.55)"><VideoCamera /></el-icon>
             <span v-if="cam.online" class="demo-badge mini">演示</span>
-            <span v-if="cam.online" class="expand-hint"><el-icon><ZoomIn /></el-icon></span>
+            <span v-if="cam.online && !dispatchHqUi" class="expand-hint"><el-icon><ZoomIn /></el-icon></span>
             <span v-if="!cam.online" class="offline-mask">离线</span>
+            <div v-if="dispatchHqUi" class="mini-label mini-label--overlay">{{ cam.name }}</div>
           </div>
-          <div class="mini-label">{{ cam.name }}</div>
+          <div v-if="!dispatchHqUi" class="mini-label">{{ cam.name }}</div>
         </div>
         <div v-for="n in emptySlotCount" :key="'e' + n" class="mini-cell empty" />
       </div>
@@ -432,13 +509,6 @@ function nextMonitorPage() {
       @close="expandedCamera = null"
     />
   </div>
-
-  <VideoExpandOverlay
-    v-if="expandedDevice"
-    :source="expandedDevice"
-    :project="videoProject"
-    @close="expandedDevice = null"
-  />
 
   <ScreenshotMarkDialog
     v-model:visible="markDialogVisible"

@@ -1,6 +1,8 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, provide } from 'vue'
 import { ArrowLeft } from '@element-plus/icons-vue'
+
+provide('dispatchHqUi', true)
 import DispatchVideoPanels from './safety/dispatch/DispatchVideoPanels.vue'
 import DispatchProjectDispatchLower from './safety/dispatch/DispatchProjectDispatchLower.vue'
 import DispatchDocTicketPanel from './safety/dispatch/DispatchDocTicketPanel.vue'
@@ -82,13 +84,14 @@ const dispatchDevice = computed(() => {
   flex: 1;
   min-height: 0;
   display: flex;
-  gap: 20px;
+  gap: 14px;
 }
 
 .dispatch-backbar {
   flex-shrink: 0;
   flex-direction: row;
-  padding: 6px 20px;
+  min-height: 47px;
+  padding: 7px 21px;
 }
 
 .topbar-row {
@@ -128,7 +131,7 @@ const dispatchDevice = computed(() => {
 }
 
 .dispatch-main {
-  flex: 0 0 73%;
+  flex: 0 0 72.9%;
   min-width: 0;
   min-height: 0;
   display: flex;
@@ -137,15 +140,15 @@ const dispatchDevice = computed(() => {
 }
 
 .detail-upper {
-  flex: 2 1 0;
+  flex: 67 1 0;
   min-height: 0;
   display: grid;
-  grid-template-columns: 1fr 2fr;
+  grid-template-columns: minmax(0, 0.336fr) minmax(0, 0.664fr);
   gap: 14px;
 }
 
 .dispatch-main :deep(.project-dispatch-lower) {
-  flex: 1 1 0;
+  flex: 33 1 0;
   min-height: 0;
 }
 

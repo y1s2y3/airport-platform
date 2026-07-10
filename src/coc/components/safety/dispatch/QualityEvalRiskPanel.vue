@@ -1,7 +1,10 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, inject } from 'vue'
 import { HQ_SELECTION_ID, getProjectQualityEvalRisks } from '../../../mock/data.js'
 import DispatchDraggablePanel from './DispatchDraggablePanel.vue'
+import DispatchHqPanelTitle from './DispatchHqPanelTitle.vue'
+
+const dispatchHqUi = inject('dispatchHqUi', false)
 
 const props = defineProps({
   selectionId: { type: String, default: HQ_SELECTION_ID },
@@ -24,14 +27,19 @@ const stats = computed(() => ({
 </script>
 
 <template>
-  <div class="panel-card quality-risk-panel">
-    <div class="panel-title compact quality-title-row title-left">
+  <div class="panel-card quality-risk-panel" :class="{ 'dispatch-hq-list-panel': dispatchHqUi }">
+    <DispatchHqPanelTitle v-if="dispatchHqUi" title="质量验评风险项">
+      <template #actions>
+        <button type="button" class="title-more-btn" @click="moreOpen = true">更多</button>
+      </template>
+    </DispatchHqPanelTitle>
+    <div v-else class="panel-title compact quality-title-row title-left">
       <span class="quality-title-text">{{ panelTitle }}</span>
       <span class="panel-v2-tip">V2版本上线</span>
       <button type="button" class="title-more-btn" @click="moreOpen = true">更多</button>
     </div>
     <div class="panel-body panel-inner">
-      <p class="panel-tip">仅展示验评资料与登记数据不一致项</p>
+      <p v-if="!dispatchHqUi" class="panel-tip">仅展示验评资料与登记数据不一致项</p>
       <div class="kpi-blocks">
         <div class="kpi-block total">
           <div class="kpi-val">{{ stats.total }}</div>
@@ -80,7 +88,7 @@ const stats = computed(() => ({
     <DispatchDraggablePanel
       v-if="moreOpen"
       :title="panelTitle"
-      :width="860"
+      :width="920"
       placement="right"
       @close="moreOpen = false"
     >
@@ -88,7 +96,7 @@ const stats = computed(() => ({
         <span class="more-count">共 {{ riskList.length }} 条风险项</span>
       </div>
       <div class="more-table-wrap">
-        <table class="data-table more-table">
+        <table class="mini-table more-table">
           <thead>
             <tr>
               <th>验收项</th>
@@ -102,9 +110,9 @@ const stats = computed(() => ({
           </thead>
           <tbody>
             <tr v-for="row in riskList" :key="`more-${row.id}`">
-              <td>{{ row.item }}</td>
+              <td class="col-desc">{{ row.item }}</td>
               <td>{{ row.evalType }}</td>
-              <td>{{ row.location }}</td>
+              <td class="col-desc">{{ row.location }}</td>
               <td>{{ row.date.slice(5) }}</td>
               <td>
                 <span class="tag register">{{ row.registerStatus }}</span>
@@ -112,7 +120,7 @@ const stats = computed(() => ({
               <td>
                 <span class="tag doc">{{ row.docStatus }}</span>
               </td>
-              <td class="inconsistency-full" :title="row.inconsistency">{{ row.inconsistency }}</td>
+              <td class="inconsistency-full col-desc" :title="row.inconsistency">{{ row.inconsistency }}</td>
             </tr>
             <tr v-if="!riskList.length">
               <td colspan="7" class="empty-row">暂无资料与登记不一致项</td>
@@ -125,6 +133,8 @@ const stats = computed(() => ({
 </template>
 
 <style scoped>
+@import './dispatch-lower.css';
+
 .quality-risk-panel {
   min-height: 0;
   display: flex;
@@ -133,6 +143,10 @@ const stats = computed(() => ({
 
 .quality-risk-panel .panel-title {
   border-left: 4px solid #409eff;
+}
+
+.dispatch-hq-list-panel .panel-title {
+  border-left: none;
 }
 
 .quality-title-row {
@@ -165,33 +179,6 @@ const stats = computed(() => ({
 .title-more-btn:hover {
   border-color: var(--coc-accent);
   background: rgba(201, 123, 99, 0.08);
-}
-
-.more-dialog-toolbar {
-  padding: 0 4px 10px;
-}
-
-.more-count {
-  font-size: calc(12px + var(--coc-font-boost));
-  color: var(--coc-text-muted);
-}
-
-.more-table-wrap {
-  overflow: auto;
-  max-height: calc(100% - 36px);
-}
-
-.more-table th,
-.more-table td {
-  white-space: nowrap;
-}
-
-.more-table .inconsistency-full {
-  white-space: normal;
-  min-width: 200px;
-  max-width: 320px;
-  line-height: 1.45;
-  color: var(--coc-text-secondary);
 }
 
 .panel-inner {

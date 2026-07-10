@@ -1,203 +1,219 @@
 <script setup>
 import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { Plus } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  roleList,
-  dataScopeOptions,
-  businessMenuTree,
-  projectOptions,
-} from '../../mock/rbac'
+  roleRecords,
+  roleLevelOptions,
+  roleStatusOptions,
+  deleteRole,
+  toggleRoleStatus,
+} from '../../mock/roles'
 
-const dialogVisible = ref(false)
-const editingRole = ref(null)
+const router = useRouter()
 
-const form = ref({
-  code: '',
-  name: '',
-  description: '',
-  dataScope: 'dept',
-  projectIds: [],
-  menuIds: [],
-  status: '启用',
+const nameFilter = ref('')
+const levelFilter = ref('')
+const statusFilter = ref('')
+const currentPage = ref(1)
+const pageSize = ref(10)
+
+const filteredList = computed(() => {
+  const kw = nameFilter.value.trim().toLowerCase()
+  return roleRecords.value.filter((row) => {
+    if (levelFilter.value && row.level !== levelFilter.value) return false
+    if (statusFilter.value && row.status !== statusFilter.value) return false
+    if (!kw) return true
+    return row.name.toLowerCase().includes(kw)
+  })
 })
 
-const projectNameMap = Object.fromEntries(projectOptions.map((p) => [p.id, p.name]))
+const pagedList = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  return filteredList.value.slice(start, start + pageSize.value)
+})
 
-function openEdit(row) {
-  editingRole.value = row
-  form.value = {
-    code: row.code,
-    name: row.name,
-    description: row.description,
-    dataScope: row.dataScope,
-    projectIds: [...(row.projectIds || [])],
-    menuIds: [...(row.menuIds || [])],
-    status: row.status,
-  }
-  dialogVisible.value = true
+function handleSearch() {
+  currentPage.value = 1
 }
 
-function handleSave() {
-  if (editingRole.value) {
-    Object.assign(editingRole.value, {
-      ...form.value,
-      dataScopeLabel: dataScopeOptions.find((o) => o.value === form.value.dataScope)?.label || '',
+function handleReset() {
+  nameFilter.value = ''
+  levelFilter.value = ''
+  statusFilter.value = ''
+  currentPage.value = 1
+}
+
+function goCreate() {
+  router.push({ name: 'SysRoleCreate' })
+}
+
+function goEdit(row) {
+  router.push({ name: 'SysRoleEdit', params: { id: row.id } })
+}
+
+async function handleDelete(row) {
+  try {
+    await ElMessageBox.confirm(`确定删除角色「${row.name}」？`, '删除确认', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
     })
+    const result = deleteRole(row.id)
+    if (!result.ok) {
+      ElMessage.warning(result.message)
+      return
+    }
+    ElMessage.success('已删除')
+  } catch {
+    /* cancelled */
   }
-  dialogVisible.value = false
-  ElMessage.success('角色权限配置已保存')
 }
 
-const dataScopeLabel = computed(() =>
-  dataScopeOptions.find((o) => o.value === form.value.dataScope)?.label || '',
-)
+function handleToggleStatus(row) {
+  toggleRoleStatus(row.id)
+  ElMessage.success(row.status === '启用' ? '已启用' : '已禁用')
+}
 </script>
 
 <template>
-  <div class="settings-page page-card">
-    <div class="page-header">
-      <div class="page-breadcrumb">系统设置 / 角色管理</div>
-      <div class="page-heading">
-        <h1 class="page-title">角色管理</h1>
-        <div class="page-actions">
-          <el-button class="ap-btn-primary" type="primary" :icon="Plus">新增角色</el-button>
-        </div>
+  <div class="role-page page-card">
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <span class="field-label">角色名称</span>
+        <el-input
+          v-model="nameFilter"
+          class="filter-input"
+          placeholder="请输入"
+          clearable
+          @keyup.enter="handleSearch"
+        />
+        <span class="field-label">角色级别</span>
+        <el-select v-model="levelFilter" placeholder="请选择" clearable class="filter-select">
+          <el-option
+            v-for="opt in roleLevelOptions.filter((o) => o.value)"
+            :key="opt.value"
+            :label="opt.label"
+            :value="opt.value"
+          />
+        </el-select>
+        <span class="field-label">角色状态</span>
+        <el-select v-model="statusFilter" placeholder="请选择" clearable class="filter-select">
+          <el-option
+            v-for="opt in roleStatusOptions.filter((o) => o.value)"
+            :key="opt.value"
+            :label="opt.label"
+            :value="opt.value"
+          />
+        </el-select>
+        <el-button type="primary" class="ap-btn-primary" @click="handleSearch">搜索</el-button>
+        <el-button @click="handleReset">重置</el-button>
       </div>
-      <p class="page-desc">基于 RBAC 模型，为角色配置数据权限（可访问哪些数据）与业务权限（可访问哪些菜单）。</p>
     </div>
 
-    <el-table :data="roleList" border stripe class="ap-table">
-      <el-table-column type="index" label="序号" width="60" align="center" />
-      <el-table-column prop="code" label="角色编码" min-width="140" />
-      <el-table-column prop="name" label="角色名称" min-width="120" />
-      <el-table-column prop="description" label="描述" min-width="220" show-overflow-tooltip />
-      <el-table-column prop="dataScopeLabel" label="数据权限" min-width="120" />
-      <el-table-column label="业务权限（菜单）" min-width="200">
-        <template #default="{ row }">
-          <span class="perm-summary">已授权 {{ row.menuIds?.length || 0 }} 项菜单</span>
-        </template>
+    <div class="table-head">
+      <span class="total-text">共 {{ filteredList.length }} 条</span>
+      <el-button type="primary" class="ap-btn-primary" :icon="Plus" @click="goCreate">新增</el-button>
+    </div>
+
+    <el-table :data="pagedList" border stripe class="ap-table" empty-text="暂无角色数据">
+      <el-table-column prop="name" label="角色名称" min-width="140" />
+      <el-table-column prop="level" label="角色级别" width="100" align="center" />
+      <el-table-column prop="status" label="角色状态" width="100" align="center" />
+      <el-table-column prop="source" label="角色来源" width="120" align="center" />
+      <el-table-column label="备注" min-width="140" show-overflow-tooltip>
+        <template #default="{ row }">{{ row.remark || '—' }}</template>
       </el-table-column>
-      <el-table-column prop="userCount" label="用户数" width="80" align="center" />
-      <el-table-column prop="status" label="状态" width="80" align="center" />
-      <el-table-column label="操作" width="100" fixed="right" align="center">
+      <el-table-column prop="updatedBy" label="更新人" width="120" align="center" />
+      <el-table-column prop="updatedAt" label="更新时间" width="170" align="center" />
+      <el-table-column label="操作" width="200" fixed="right" align="center">
         <template #default="{ row }">
-          <el-button link type="primary" @click="openEdit(row)">配置权限</el-button>
+          <el-button link type="primary" @click="goEdit(row)">编辑</el-button>
+          <span class="op-divider">|</span>
+          <el-button
+            link
+            :type="row.status === '启用' ? 'warning' : 'primary'"
+            @click="handleToggleStatus(row)"
+          >
+            {{ row.status === '启用' ? '禁用' : '启用' }}
+          </el-button>
+          <span class="op-divider">|</span>
+          <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
 
-    <el-dialog
-      v-model="dialogVisible"
-      :title="`配置角色权限 · ${form.name}`"
-      width="720px"
-      destroy-on-close
-    >
-      <el-form label-width="100px" class="role-form">
-        <el-form-item label="角色编码">
-          <el-input v-model="form.code" disabled />
-        </el-form-item>
-        <el-form-item label="角色名称">
-          <el-input v-model="form.name" />
-        </el-form-item>
-        <el-form-item label="描述">
-          <el-input v-model="form.description" type="textarea" :rows="2" />
-        </el-form-item>
-
-        <div class="perm-section-title">数据权限</div>
-        <el-form-item label="数据范围">
-          <el-select v-model="form.dataScope" style="width: 100%">
-            <el-option v-for="opt in dataScopeOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
-          </el-select>
-        </el-form-item>
-        <el-form-item v-if="form.dataScope === 'project'" label="指定项目">
-          <el-select v-model="form.projectIds" multiple style="width: 100%" placeholder="选择可访问项目">
-            <el-option v-for="p in projectOptions" :key="p.id" :label="p.name" :value="p.id" />
-          </el-select>
-        </el-form-item>
-        <div v-else class="scope-hint">当前范围：{{ dataScopeLabel }}</div>
-
-        <div class="perm-section-title">业务权限（菜单）</div>
-        <el-form-item label="菜单授权">
-          <el-tree
-            :data="businessMenuTree"
-            show-checkbox
-            node-key="id"
-            default-expand-all
-            :default-checked-keys="form.menuIds"
-            :props="{ label: 'label', children: 'children' }"
-            class="menu-tree"
-            @check="(_, { checkedKeys }) => { form.menuIds = checkedKeys }"
-          />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSave">保存</el-button>
-      </template>
-    </el-dialog>
+    <div class="table-footer">
+      <el-pagination
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :total="filteredList.length"
+        :page-sizes="[10, 20, 50]"
+        layout="total, sizes, prev, pager, next, jumper"
+        background
+      />
+    </div>
   </div>
 </template>
 
 <style scoped>
-.settings-page {
-  padding: 20px 24px 24px;
+.role-page {
+  padding: 16px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 120px);
 }
 
-.page-header {
-  margin-bottom: 16px;
+.toolbar {
+  margin-bottom: 12px;
 }
 
-.page-breadcrumb {
-  font-size: 13px;
-  color: var(--ap-text-muted);
-  margin-bottom: 8px;
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
-.page-heading {
+.field-label {
+  font-size: 14px;
+  color: var(--ap-text-secondary);
+  white-space: nowrap;
+}
+
+.filter-input {
+  width: 160px;
+}
+
+.filter-select {
+  width: 120px;
+}
+
+.table-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  margin-bottom: 10px;
 }
 
-.page-title {
-  font-size: 20px;
-  font-weight: 600;
-}
-
-.page-desc {
-  margin-top: 8px;
-  font-size: 13px;
-  color: var(--ap-text-muted);
-}
-
-.perm-summary {
-  font-size: 13px;
+.total-text {
+  font-size: 14px;
   color: var(--ap-text-secondary);
 }
 
-.perm-section-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ap-text);
-  margin: 16px 0 12px;
-  padding-left: 8px;
-  border-left: 3px solid var(--ap-primary);
+.ap-table {
+  flex: 1;
 }
 
-.scope-hint {
-  margin: 0 0 8px 100px;
-  font-size: 13px;
-  color: var(--ap-text-muted);
+.table-footer {
+  margin-top: 14px;
+  display: flex;
+  justify-content: flex-end;
 }
 
-.menu-tree {
-  width: 100%;
-  border: 1px solid var(--ap-border);
-  border-radius: 6px;
-  padding: 8px;
-  max-height: 260px;
-  overflow: auto;
+.op-divider {
+  color: var(--ap-border);
+  margin: 0 2px;
 }
 </style>

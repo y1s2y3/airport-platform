@@ -24,6 +24,24 @@
   --coc-video-label-h: 26px;
   --coc-radius: 8px;
   --coc-shadow: 0 2px 12px rgba(201, 123, 99, 0.08);
+  --coc-table-head-bg: #faf8f6;
+  --coc-drag-panel-bg: #ffffff;
+  --coc-drag-panel-border: var(--coc-border);
+  --coc-drag-panel-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
+  --coc-drag-panel-header-bg: linear-gradient(180deg, #fff, #faf8f6);
+  --coc-drag-panel-header-border: var(--coc-border);
+  --coc-drag-panel-title-color: var(--coc-text);
+  --coc-drag-panel-hint-color: var(--coc-text-muted);
+  --coc-drag-panel-close-bg: #fff;
+  --coc-drag-panel-close-border: var(--coc-border);
+  --coc-drag-panel-close-color: var(--coc-text-secondary);
+  --coc-drag-panel-row-hover: rgba(201, 123, 99, 0.05);
+  --coc-drag-panel-table-wrap-border: var(--coc-border);
+  --coc-drag-panel-cell-border: var(--coc-border);
+  --coc-drag-panel-body-bg: transparent;
+  --coc-drag-panel-table-wrap-bg: rgba(0, 0, 0, 0.02);
+  --coc-drag-panel-table-head-bg: var(--coc-table-head-bg);
+  --coc-drag-panel-detail-bg: #fff;
 }
 
 * {

@@ -47,7 +47,7 @@ function handleReset() {
 <template>
   <div class="settings-page page-card">
     <div class="page-header">
-      <div class="page-breadcrumb">系统设置 / 权限管理</div>
+      <div class="page-breadcrumb">组织管理 / 权限管理</div>
       <div class="page-heading">
         <h1 class="page-title">权限管理</h1>
         <div class="page-actions">

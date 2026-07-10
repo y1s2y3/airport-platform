@@ -168,7 +168,13 @@ onUnmounted(() => {
       :style="{ transform: `scale(${scale})` }"
     >
       <HqEdgeLights v-if="isHqDarkShell" />
-      <CocHqHeader v-if="isHqDarkShell" />
+      <CocHqHeader
+        v-if="isHqDarkShell"
+        :projects="projects"
+        :selection-id="selectedProjectId"
+        :status-filters="statusFilters"
+        @project-change="handleProjectChange"
+      />
       <TopNav
         v-else
         :projects="projects"

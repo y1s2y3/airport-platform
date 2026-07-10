@@ -21,6 +21,7 @@ import {
   COMMAND_MEETING_DEVICES,
   COMMAND_MEETING_LIVE_RECORDS,
   videoPlaceholderColor,
+  videoPlaceholderClass,
 } from '../mock/data.js'
 
 const emit = defineEmits(['back'])
@@ -493,9 +494,10 @@ function openCellFullscreen(device) {
               <template v-if="device">
                 <div
                   class="cell-video"
+                  :class="videoPlaceholderClass(device.online, 'cool', device.type)"
                   :style="{
                     background: getCellState(device.id).videoOn
-                      ? videoPlaceholderColor(device.online, cellColorIndex(idx), 'cool')
+                      ? videoPlaceholderColor(device.online, cellColorIndex(idx), 'cool', device.type)
                       : '#2a2a2a',
                   }"
                 >
@@ -504,7 +506,7 @@ function openCellFullscreen(device) {
                     <span>主持人</span>
                   </span>
                   <el-icon
-                    v-if="getCellState(device.id).videoOn"
+                    v-if="getCellState(device.id).videoOn && device.type !== 'handheld'"
                     :size="22"
                     color="rgba(255,255,255,0.55)"
                   >

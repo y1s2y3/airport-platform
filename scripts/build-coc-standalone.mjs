@@ -10,7 +10,6 @@ import { resolve } from 'node:path'
 
 const root = resolve(import.meta.dirname, '..')
 const releaseDir = resolve(root, 'release')
-const desktopDir = resolve(root, '..')
 
 const variants = [
   {
@@ -67,7 +66,6 @@ for (const variant of variants) {
   const buildTmpDir = resolve(releaseDir, `.build-tmp-${variant.view}`)
   const outputName = resolveUniqueOutputName(releaseDir, variant.fileName)
   const releaseOutput = resolve(releaseDir, outputName)
-  const desktopCopy = resolve(desktopDir, outputName)
 
   rmSync(buildTmpDir, { recursive: true, force: true })
   mkdirSync(buildTmpDir, { recursive: true })
@@ -90,18 +88,16 @@ for (const variant of variants) {
   }
 
   copyFileSync(builtIndex, releaseOutput)
-  copyFileSync(releaseOutput, desktopCopy)
 
   cleanDir(buildTmpDir)
   rmSync(buildTmpDir, { recursive: true, force: true })
 
-  outputs.push({ ...variant, outputName, releaseOutput, desktopCopy })
+  outputs.push({ ...variant, outputName, releaseOutput })
 }
 
 console.log('\n✓ COC 调度大屏单文件 HTML 已输出：')
 for (const item of outputs) {
   console.log(`  [${item.title}]`)
   console.log(`    ${item.releaseOutput}`)
-  console.log(`    ${item.desktopCopy}`)
 }
 console.log('  可直接双击用浏览器打开，无需启动服务器。')
