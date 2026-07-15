@@ -1,9 +1,10 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { Close, Camera } from '@element-plus/icons-vue'
 import {
   getProjectIssuesByType,
 } from '../mock/data.js'
+import DispatchDraggablePanel from './safety/dispatch/DispatchDraggablePanel.vue'
+import DispatchRecordDetailBody from './safety/dispatch/DispatchRecordDetailBody.vue'
 
 const props = defineProps({
   projectId: { type: String, required: true },
@@ -35,7 +36,13 @@ const filteredHazardList = computed(() => {
   )
 })
 
-const detailItem = ref(null)
+const detailView = ref(null)
+
+const detailTitle = computed(() => {
+  if (!detailView.value) return ''
+  const cat = detailView.value.data.hazardCategory || '安质'
+  return `${cat}隐患详情`
+})
 
 function levelClass(level) {
   if (level === '重大') return 'major'
@@ -44,11 +51,11 @@ function levelClass(level) {
 }
 
 function openDetail(row) {
-  detailItem.value = row
+  detailView.value = { kind: 'hazard', data: { ...row } }
 }
 
 function closeDetail() {
-  detailItem.value = null
+  detailView.value = null
 }
 </script>
 
@@ -56,7 +63,6 @@ function closeDetail() {
   <div class="panel-card project-hazard-panel">
     <div class="panel-title compact title-left hazard-title-row">
       <span class="hazard-title-text">隐患清单</span>
-      <span class="panel-v2-tip">V2版本上线</span>
       <span class="head-meta">
         <el-select
           v-model="hazardStatusFilter"
@@ -109,45 +115,19 @@ function closeDetail() {
           </tbody>
         </table>
       </div>
-
-      <div v-if="detailItem" class="detail-overlay">
-        <div class="detail-card">
-          <div class="detail-header">
-            <span class="detail-title">{{ detailItem.hazardCategory }}隐患详情</span>
-            <button type="button" class="close-btn" @click="closeDetail">
-              <el-icon :size="13"><Close /></el-icon>
-              关闭
-            </button>
-          </div>
-          <div class="detail-body">
-            <div class="detail-grid">
-              <div class="detail-item"><span class="dl">发现日期</span><span>{{ detailItem.date }}</span></div>
-              <div class="detail-item"><span class="dl">施工部位</span><span>{{ detailItem.location }}</span></div>
-              <div class="detail-item"><span class="dl">隐患等级</span><span>{{ detailItem.level }}</span></div>
-              <div class="detail-item"><span class="dl">整改状态</span><span>{{ detailItem.status }}</span></div>
-            </div>
-            <div v-if="detailItem.detail?.images?.length" class="detail-block">
-              <div class="block-label">隐患图片</div>
-              <div class="hazard-images">
-                <div
-                  v-for="img in detailItem.detail.images"
-                  :key="img.id"
-                  class="hazard-img"
-                  :style="{ background: img.background }"
-                >
-                  <el-icon :size="15" color="rgba(255,255,255,0.5)"><Camera /></el-icon>
-                  <span>{{ img.label }}</span>
-                </div>
-              </div>
-            </div>
-            <div class="detail-block">
-              <div class="block-label">隐患描述</div>
-              <div class="block-content">{{ detailItem.desc }}</div>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
+
+    <DispatchDraggablePanel
+      v-if="detailView"
+      :title="detailTitle"
+      :width="560"
+      :z-index="120010"
+      placement="right"
+      right-backdrop
+      @close="closeDetail"
+    >
+      <DispatchRecordDetailBody :kind="detailView.kind" :record="detailView.data" />
+    </DispatchDraggablePanel>
   </div>
 </template>
 
@@ -197,7 +177,6 @@ function closeDetail() {
   flex: 1;
   min-height: 0;
   padding: 0 !important;
-  position: relative;
   overflow: hidden;
 }
 
@@ -317,111 +296,5 @@ function closeDetail() {
   color: var(--coc-text-muted);
   font-size: calc(13px + var(--coc-font-boost));
   padding: 16px 8px !important;
-}
-
-.detail-overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.35);
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 10px;
-}
-
-.detail-card {
-  background: #fff;
-  border-radius: 10px;
-  width: 100%;
-  max-height: 100%;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-}
-
-.detail-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--coc-border);
-}
-
-.detail-title {
-  font-size: calc(14px + var(--coc-font-boost));
-  font-weight: 700;
-}
-
-.close-btn {
-  border: 1px solid var(--coc-border);
-  background: #fff;
-  border-radius: 6px;
-  padding: 4px 8px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: calc(12px + var(--coc-font-boost));
-}
-
-.detail-body {
-  padding: 10px 12px;
-}
-
-.detail-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px 10px;
-}
-
-.detail-item {
-  display: flex;
-  gap: 6px;
-  font-size: calc(12px + var(--coc-font-boost));
-}
-
-.dl {
-  color: var(--coc-text-muted);
-  min-width: 52px;
-  flex-shrink: 0;
-}
-
-.detail-block {
-  margin-top: 8px;
-}
-
-.block-label {
-  font-size: calc(12px + var(--coc-font-boost));
-  font-weight: 600;
-  color: var(--coc-text-secondary);
-  margin-bottom: 4px;
-}
-
-.block-content {
-  font-size: calc(12px + var(--coc-font-boost));
-  line-height: 1.5;
-  padding: 8px 10px;
-  background: #faf8f6;
-  border-radius: 6px;
-  border: 1px solid var(--coc-border);
-}
-
-.hazard-images {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-}
-
-.hazard-img {
-  height: 64px;
-  border-radius: 6px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  color: rgba(255, 255, 255, 0.85);
-  font-size: calc(11px + var(--coc-font-boost));
 }
 </style>

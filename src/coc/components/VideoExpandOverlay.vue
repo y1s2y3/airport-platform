@@ -7,16 +7,16 @@ import {
   ZoomIn,
   ZoomOut,
   Camera,
-  Mute,
-  Microphone,
   VideoPlay,
   VideoPause,
 } from '@element-plus/icons-vue'
 import ScreenshotMarkDialog from './ScreenshotMarkDialog.vue'
+import SpeakerVolumeIcon from './SpeakerVolumeIcon.vue'
 import {
   videoPlaceholderColor,
   videoPlaceholderClass,
   formatMinutesToClock,
+  resolveCameraVendor,
 } from '../mock/data.js'
 
 const SCRUB_MIN = 360
@@ -41,6 +41,11 @@ const playbackDate = ref(DEFAULT_PLAYBACK_DATE)
 const playbackMinutes = ref(570)
 
 const deviceName = computed(() => props.source?.name || '')
+const vendorLabel = computed(() => {
+  const type = props.source?.type
+  if (!props.source || type === 'handheld' || type === 'app' || type === 'web') return ''
+  return resolveCameraVendor(props.source)
+})
 const isOnline = computed(() => props.source?.online !== false)
 const isPtz = computed(() => props.source?.type === 'ptz')
 const isKey = computed(() => !!props.source?.key)
@@ -155,6 +160,13 @@ watch(
         <div class="expand-title">
           <el-icon :size="15"><VideoCamera /></el-icon>
           <span>{{ deviceName }}</span>
+          <span
+            v-if="vendorLabel"
+            class="vendor-badge"
+            :class="vendorLabel === '海康' ? 'vendor-hikvision' : 'vendor-ezviz'"
+          >
+            {{ vendorLabel }}
+          </span>
           <span v-if="isKey" class="key-badge">重点</span>
           <span v-if="isPlayback" class="mode-badge playback">回放</span>
           <span v-else class="online-tag" :class="isOnline ? 'online' : 'offline'">
@@ -231,7 +243,7 @@ watch(
                   <el-icon><ZoomOut /></el-icon>
                 </button>
                 <button class="ctrl-btn" :title="muted ? '开启声音' : '静音'" @click="toggleMute">
-                  <el-icon><component :is="muted ? Mute : Microphone" /></el-icon>
+                  <el-icon><SpeakerVolumeIcon :muted="muted" /></el-icon>
                 </button>
                 <button class="ctrl-btn" @click="toggleStream">
                   {{ streamMode === 'main' ? '主码流' : '子码流' }}
@@ -243,7 +255,7 @@ watch(
                   返回实时
                 </button>
                 <button class="ctrl-btn" :title="muted ? '开启声音' : '静音'" @click="toggleMute">
-                  <el-icon><component :is="muted ? Mute : Microphone" /></el-icon>
+                  <el-icon><SpeakerVolumeIcon :muted="muted" /></el-icon>
                 </button>
               </template>
 
@@ -379,6 +391,32 @@ watch(
   background: var(--coc-accent);
   padding: 4px 10px;
   border-radius: 4px;
+}
+
+.vendor-badge {
+  font-size: calc(11px + var(--coc-font-boost));
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-weight: 600;
+  line-height: 1.2;
+  flex-shrink: 0;
+}
+
+.vendor-badge.vendor-hikvision {
+  color: #a7cfe9;
+  background: rgba(0, 53, 108, 0.55);
+  border: 1px solid rgba(64, 158, 255, 0.45);
+}
+
+.vendor-badge.vendor-ezviz {
+  color: #5eeeff;
+  background: rgba(64, 158, 255, 0.18);
+  border: 1px solid rgba(94, 238, 255, 0.45);
+}
+
+.video-expand-overlay.is-contained .vendor-badge {
+  font-size: calc(10px + var(--coc-font-boost));
+  padding: 2px 8px;
 }
 
 .mode-badge.playback {

@@ -1,4 +1,5 @@
 ﻿import { COMMAND_MEETING_HISTORY, MOCK_NOTICE, AI_INTERCOM_RECORDS, DISPATCH_CURRENT_USER } from '../mock/data.js'
+import { resolveExecutorDisplay } from './executorDisplay.js'
 
 const NOTICE_KEY = 'coc-admin-dispatch-notices'
 const PENALTY_KEY = 'coc-admin-dispatch-penalties'
@@ -10,8 +11,41 @@ const MEETING_DETAIL_PATCH_FLAG = 'coc-admin-dispatch-meeting-detail-v1'
 const DOC_FIELDS_PATCH_FLAG = 'coc-admin-dispatch-doc-fields-v2'
 const PENALTY_PENDING_PATCH_FLAG = 'coc-admin-penalty-pending-v1'
 const PENALTY_APPEAL_PATCH_FLAG = 'coc-admin-penalty-appeal-v1'
+const PENALTY_STATUS_PATCH_FLAG = 'coc-admin-penalty-status-v2'
 const REMINDER_SEED_FLAG = 'coc-admin-dispatch-reminder-v1'
+const REMINDER_STATUS_PATCH_FLAG = 'coc-admin-reminder-status-v1'
+const NOTICE_STATUS_PATCH_FLAG = 'coc-admin-notice-status-v1'
 const CHANGE_EVENT = 'coc-dispatch-meeting-change'
+
+export const NOTICE_STATUSES = {
+  PENDING: '待下发',
+  ISSUED: '已下发',
+  RECEIVED: '已接收',
+  VOID: '已作废',
+}
+
+function migrateNoticeStatus(status) {
+  if (status === '待签收' || status === '待确认') return NOTICE_STATUSES.PENDING
+  if (status === '已闭环') return NOTICE_STATUSES.RECEIVED
+  return status
+}
+
+const migrateReminderStatus = migrateNoticeStatus
+
+export const PENALTY_STATUSES = {
+  PENDING: '待下发',
+  PROCESSING: '处理中',
+  PENDING_ACCEPTANCE: '待验收',
+  CLOSED: '已关闭',
+  APPEALING: '申诉中',
+}
+
+function migratePenaltyStatus(status) {
+  if (status === '已下发') return PENALTY_STATUSES.PROCESSING
+  if (status === '待确认') return PENALTY_STATUSES.PENDING_ACCEPTANCE
+  if (status === '已作废' || status === '已闭环') return PENALTY_STATUSES.CLOSED
+  return status
+}
 
 function buildMonitorSnapshotMock({
   cameraName = '监控摄像头',
@@ -140,7 +174,7 @@ function buildNoticeContentText(fields) {
     `项目名称：${fields.project || '—'}`,
     `工作类型：${fields.workType || '—'}`,
     `工作要求：${fields.workRequirement || '—'}`,
-    `执行人：${fields.executor || fields.executeDept || '—'}`,
+    `执行人：${resolveExecutorDisplay(fields.executor || fields.executeDept)}`,
     `完成时限：${fields.deadline || '—'}`,
     fields.remark ? `备注：${fields.remark}` : '',
   ]
@@ -169,9 +203,16 @@ function buildPenaltyContentText(fields) {
 }
 
 export function normalizeNoticeRecord(record = {}) {
-  const workType = record.workType || record.type || '安全'
+  const workType =
+    record.workType !== undefined && record.workType !== null
+      ? record.workType
+      : (record.type || '安全')
   const workRequirement = record.workRequirement || record.content || ''
-  const executor = record.executor || record.executeDept || record.unit || '项目经理'
+  const rawExecutor =
+    record.executor !== undefined && record.executor !== null
+      ? record.executor
+      : (record.executeDept || record.unit || '')
+  const executor = rawExecutor ? resolveExecutorDisplay(rawExecutor) : ''
   const deadline = record.deadline || defaultDeadline()
   const remark = record.remark || ''
   const titleBase = workRequirement.trim().slice(0, 24) || record.title || '任务单'
@@ -202,12 +243,19 @@ export function normalizeNoticeRecord(record = {}) {
       record.content?.includes('工作类型：') && record.content?.includes('项目名称：')
         ? record.content
         : buildNoticeContentText(contentFields),
+    status: migrateNoticeStatus(record.status || NOTICE_STATUSES.PENDING),
+    issueTime: record.issueTime ?? '—',
+    issuer: record.issuer || DISPATCH_CURRENT_USER,
   }
 }
 
 export function normalizeReminderRecord(record = {}) {
   const matterDescription = record.matterDescription || record.content || ''
-  const assignee = record.assignee || record.executor || record.rectifier || '项目经理'
+  const rawAssignee =
+    record.assignee !== undefined && record.assignee !== null
+      ? record.assignee
+      : (record.executor || record.rectifier || '')
+  const assignee = rawAssignee ? resolveExecutorDisplay(rawAssignee) : ''
   const deadline = record.deadline || defaultDeadline()
   const titleBase = matterDescription.trim().slice(0, 24) || record.title || '提示函'
   const contentFields = {
@@ -229,8 +277,8 @@ export function normalizeReminderRecord(record = {}) {
     project: record.project || '',
     docType: 'reminder',
     source: record.source || '后台录入',
-    status: record.status || '已下发',
-    issueTime: record.issueTime || new Date().toLocaleString('zh-CN', { hour12: false }),
+    status: migrateReminderStatus(record.status || NOTICE_STATUSES.PENDING),
+    issueTime: record.issueTime ?? '—',
     issuer: record.issuer || DISPATCH_CURRENT_USER,
     content:
       record.content?.includes('事项描述：') && record.content?.includes('项目名称：')
@@ -243,15 +291,13 @@ export function normalizePenaltyRecord(record = {}) {
   const penaltyReason = record.penaltyReason || record.title || ''
   const penaltyContent = record.penaltyContent || record.content || ''
   const penaltyClause = record.penaltyClause || ''
-  const amount = record.amount || '—'
+  const amount = record.amount || ''
   const titleBase = penaltyReason.trim().slice(0, 24) || '处罚单'
   const contentFields = {
     project: record.project || '',
     unit: record.unit || record.executeDept || '',
     penaltyReason,
     penaltyContent,
-    penaltyClause,
-    amount,
     cameraName: record.cameraName,
     cameraLocation: record.cameraLocation,
   }
@@ -266,6 +312,8 @@ export function normalizePenaltyRecord(record = {}) {
     unit: record.unit || record.executeDept || '',
     handler: record.handler || DISPATCH_CURRENT_USER,
     source: record.source || '后台录入',
+    status: migratePenaltyStatus(record.status || PENALTY_STATUSES.PENDING),
+    issueTime: record.issueTime ?? '—',
     content:
       record.content?.includes('事由：') && record.content?.includes('项目名称：')
         ? record.content
@@ -273,21 +321,28 @@ export function normalizePenaltyRecord(record = {}) {
     appealReason: record.appealReason || '',
     appealAttachments: Array.isArray(record.appealAttachments) ? record.appealAttachments : [],
     appealTime: record.appealTime || '',
+    reportResult: record.reportResult || '',
+    reportTime: record.reportTime || '',
+    acceptedTime: record.acceptedTime || '',
+    acceptedBy: record.acceptedBy || '',
+    closedTime: record.closedTime || record.voidedAt || '',
+    closedBy: record.closedBy || '',
+    appealResolution: record.appealResolution || '',
   }
 }
 
 export function emptyNoticeRecord() {
   return normalizeNoticeRecord({
     id: '',
-    workType: '安全',
+    workType: '',
     workRequirement: '',
     workSource: '后台录入',
+    executor: '',
     executeDept: '',
     deadline: defaultDeadline(),
-    ledgerHandling: '纳入任务单台账',
     remark: '',
-    issueTime: new Date().toLocaleString('zh-CN', { hour12: false }),
-    status: '已下发',
+    status: NOTICE_STATUSES.PENDING,
+    issueTime: '—',
     snapshot: '',
   })
 }
@@ -297,10 +352,10 @@ export function emptyReminderRecord() {
     id: '',
     project: '',
     matterDescription: '',
-    assignee: '项目经理',
+    assignee: '',
     deadline: defaultDeadline(),
-    issueTime: new Date().toLocaleString('zh-CN', { hour12: false }),
-    status: '已下发',
+    issueTime: '—',
+    status: NOTICE_STATUSES.PENDING,
     source: '后台录入',
     snapshot: '',
   })
@@ -309,12 +364,14 @@ export function emptyReminderRecord() {
 export function emptyPenaltyRecord() {
   return normalizePenaltyRecord({
     id: '',
+    project: '',
+    unit: '',
     penaltyReason: '',
     penaltyContent: '',
     penaltyClause: '',
     amount: '',
-    issueTime: new Date().toLocaleString('zh-CN', { hour12: false }),
-    status: '已下发',
+    issueTime: '—',
+    status: PENALTY_STATUSES.PENDING,
     source: '后台录入',
     snapshot: '',
     blackBoardSynced: false,
@@ -323,6 +380,8 @@ export function emptyPenaltyRecord() {
     appealReason: '',
     appealAttachments: [],
     appealTime: '',
+    reportResult: '',
+    reportTime: '',
   })
 }
 
@@ -340,7 +399,7 @@ function buildNoticeSeed() {
       remark: '',
       issueTime: MOCK_NOTICE.issueTime,
       issuer: MOCK_NOTICE.issuer,
-      status: '已下发',
+      status: NOTICE_STATUSES.ISSUED,
     }),
     normalizeNoticeRecord({
       id: 'GZ-20260615-002',
@@ -349,11 +408,12 @@ function buildNoticeSeed() {
       workRequirement:
         '根据现场抽检视频对讲记录，告知：1 项分部分项验收未通过，须组织复检；2 名特种作业人员证件即将过期，须 7 日内换证。',
       workSource: '现场抽检对讲',
-      executeDept: '中建三局（捷运线施工总承包）',
+      executor: '王强（项目经理）',
+      executeDept: '王强（项目经理）',
       deadline: '2026-06-18',
-      issueTime: '2026-06-15 10:20',
+      issueTime: '—',
       issuer: '质量部',
-      status: '已下发',
+      status: NOTICE_STATUSES.PENDING,
     }),
     normalizeNoticeRecord({
       id: 'GZ-20260614-003',
@@ -361,11 +421,12 @@ function buildNoticeSeed() {
       workType: '质量',
       workRequirement: '飞行区通道混凝土浇筑前须完成质量交底及样板确认，请责任单位签收并反馈执行计划。',
       workSource: '调度指挥会议',
-      executeDept: '中建八局',
+      executor: '张安全（安监专员）',
+      executeDept: '张安全（安监专员）',
       deadline: '2026-06-17',
       issueTime: '2026-06-14 14:00',
       issuer: DISPATCH_CURRENT_USER,
-      status: '待签收',
+      status: NOTICE_STATUSES.ISSUED,
     }),
     normalizeNoticeRecord({
       id: 'GZ-20260612-004',
@@ -373,11 +434,14 @@ function buildNoticeSeed() {
       workType: '安全',
       workRequirement: '基坑周边临边防护缺失，要求今日内完成加固并上传整改照片。',
       workSource: '安质管控对讲',
-      executeDept: '中建三局（捷运线施工总承包）',
+      executor: '李巡检（巡检工程师）',
+      executeDept: '李巡检（巡检工程师）',
       deadline: '2026-06-13',
       issueTime: '2026-06-12 10:18',
       issuer: '安监部',
-      status: '已闭环',
+      status: NOTICE_STATUSES.RECEIVED,
+      receivedTime: '2026-06-12 14:30',
+      receivedBy: '李巡检（巡检工程师）',
     }),
   ])
 }
@@ -390,11 +454,9 @@ function buildPenaltyPendingRecords() {
       unit: '中建三局（捷运线施工总承包）',
       penaltyReason: '临边防护缺失限期整改',
       penaltyContent: '基坑周边临边防护缺失（较大隐患），要求今日内完成加固并提交闭环材料。',
-      penaltyClause: '指挥部调度会决议处罚条款',
-      amount: '3000元',
       handler: DISPATCH_CURRENT_USER,
       issueTime: '—',
-      status: '待下发',
+      status: PENALTY_STATUSES.PENDING,
       source: '监理隐患清单',
     }),
     normalizePenaltyRecord({
@@ -403,11 +465,9 @@ function buildPenaltyPendingRecords() {
       unit: '中建二局',
       penaltyReason: '动火作业手续不全',
       penaltyContent: '现场动火作业未办理完整审批手续，责令停工整改并处以违约金。',
-      penaltyClause: '《安全生产责任制》考核条款',
-      amount: '5000元',
       handler: '安监部',
       issueTime: '—',
-      status: '待下发',
+      status: PENALTY_STATUSES.PENDING,
       source: '调度指挥会议',
     }),
   ]
@@ -423,11 +483,9 @@ function buildPenaltySeed() {
       penaltyReason: '塔吊警戒标识不足',
       penaltyContent:
         '3号塔吊作业区警戒标识不足，存在人员误入风险。限期 24 小时内整改，逾期将按合同条款追加处罚并通报。',
-      penaltyClause: '《安全生产责任制》考核条款',
-      amount: '—',
       handler: '工程管理部',
       issueTime: '2026-06-12 10:15',
-      status: '已下发',
+      status: PENALTY_STATUSES.PROCESSING,
       source: '调度指挥会议',
     }),
     normalizePenaltyRecord({
@@ -440,7 +498,9 @@ function buildPenaltySeed() {
       amount: '2000元',
       handler: '质量部',
       issueTime: '2026-06-12 10:12',
-      status: '待确认',
+      status: PENALTY_STATUSES.PENDING_ACCEPTANCE,
+      reportResult: '已完成覆盖养护整改，提交现场照片及养护记录。',
+      reportTime: '2026-06-12 16:30',
       source: '巡检对讲',
     }),
     normalizePenaltyRecord({
@@ -453,7 +513,7 @@ function buildPenaltySeed() {
       amount: '5000元',
       handler: '工程管理部',
       issueTime: '2026-06-11 16:40',
-      status: '申诉中',
+      status: PENALTY_STATUSES.APPEALING,
       source: '调度指挥会议',
       appealReason: '现场已按要求完成清场，处罚依据与事实不符，申请复核减免。',
       appealAttachments: [
@@ -472,7 +532,11 @@ function buildPenaltySeed() {
       amount: '3000元',
       handler: '安监部',
       issueTime: '2026-06-10 11:05',
-      status: '已下发',
+      status: PENALTY_STATUSES.CLOSED,
+      reportResult: '已停工整改并完成安全带佩戴专项交底。',
+      reportTime: '2026-06-10 15:20',
+      acceptedTime: '2026-06-10 17:00',
+      acceptedBy: '安监部',
       source: '安质管控对讲',
     }),
   ])
@@ -643,39 +707,66 @@ function ensurePenaltyAppealPatch() {
   localStorage.setItem(PENALTY_APPEAL_PATCH_FLAG, '1')
 }
 
+function ensurePenaltyStatusPatch() {
+  if (localStorage.getItem(PENALTY_STATUS_PATCH_FLAG)) return
+  const list = readList(PENALTY_KEY)
+  if (!list.length) {
+    localStorage.setItem(PENALTY_STATUS_PATCH_FLAG, '1')
+    return
+  }
+  writeList(
+    PENALTY_KEY,
+    list.map((item) => normalizePenaltyRecord(item)),
+  )
+  localStorage.setItem(PENALTY_STATUS_PATCH_FLAG, '1')
+}
+
 function buildReminderSeed() {
   return [
     normalizeReminderRecord({
       id: 'TS-20260613-001',
       project: '捷运线延长段',
       matterDescription: '塔吊作业区临边防护与警示标识需限期复查，请组织落实并反馈闭环情况。',
-      assignee: '项目经理',
+      assignee: '王强（项目经理）',
       deadline: '2026-06-20',
       issueTime: '2026-06-13 09:10',
       issuer: DISPATCH_CURRENT_USER,
-      status: '已下发',
+      status: NOTICE_STATUSES.ISSUED,
       source: '远程调度',
     }),
     normalizeReminderRecord({
-      id: 'TS-20260614-002',
+      id: 'TS-20260615-002',
       project: 'T2主体结构',
       matterDescription: '2 名特种作业人员证件即将过期，请 7 日内完成换证并上传闭环材料。',
-      assignee: '项目经理',
+      assignee: '王强（项目经理）',
       deadline: '2026-06-21',
-      issueTime: '2026-06-14 15:20',
+      issueTime: '—',
       issuer: '质量部',
-      status: '待签收',
-      source: '视频截屏',
+      status: NOTICE_STATUSES.PENDING,
+      source: '后台录入',
     }),
     normalizeReminderRecord({
-      id: 'TS-20260612-003',
+      id: 'TS-20260614-003',
       project: '飞行区5号通道',
       matterDescription: '通道口建材堆放占用消防通道，请立即清场并设置警示标识。',
-      assignee: '项目经理',
+      assignee: '张安全（安监专员）',
       deadline: '2026-06-15',
       issueTime: '2026-06-12 11:08',
       issuer: DISPATCH_CURRENT_USER,
-      status: '已闭环',
+      status: NOTICE_STATUSES.ISSUED,
+      source: '远程调度',
+    }),
+    normalizeReminderRecord({
+      id: 'TS-20260612-004',
+      project: '捷运线延长段',
+      matterDescription: '基坑周边警示标识需补充完善，请 3 日内完成整改反馈。',
+      assignee: '李巡检（巡检工程师）',
+      deadline: '2026-06-13',
+      issueTime: '2026-06-12 10:18',
+      issuer: '安监部',
+      status: NOTICE_STATUSES.RECEIVED,
+      receivedTime: '2026-06-12 14:30',
+      receivedBy: '李巡检（巡检工程师）',
       source: '远程调度',
     }),
   ]
@@ -688,6 +779,52 @@ function ensureReminderSeedPatch() {
   localStorage.setItem(REMINDER_SEED_FLAG, '1')
 }
 
+function ensureReminderStatusPatch() {
+  if (localStorage.getItem(REMINDER_STATUS_PATCH_FLAG)) return
+  const list = readList(REMINDER_KEY)
+  if (list.length) {
+    writeList(
+      REMINDER_KEY,
+      list.map((item) => {
+        const normalized = normalizeReminderRecord(item)
+        const status = migrateReminderStatus(item.status)
+        return {
+          ...normalized,
+          status,
+          issueTime:
+            status === NOTICE_STATUSES.PENDING && (!item.issueTime || item.issueTime === '—')
+              ? '—'
+              : normalized.issueTime,
+        }
+      }),
+    )
+  }
+  localStorage.setItem(REMINDER_STATUS_PATCH_FLAG, '1')
+}
+
+function ensureNoticeStatusPatch() {
+  if (localStorage.getItem(NOTICE_STATUS_PATCH_FLAG)) return
+  const list = readList(NOTICE_KEY)
+  if (list.length) {
+    writeList(
+      NOTICE_KEY,
+      list.map((item) => {
+        const normalized = normalizeNoticeRecord(item)
+        const status = migrateNoticeStatus(item.status)
+        return {
+          ...normalized,
+          status,
+          issueTime:
+            status === NOTICE_STATUSES.PENDING && (!item.issueTime || item.issueTime === '—')
+              ? '—'
+              : normalized.issueTime,
+        }
+      }),
+    )
+  }
+  localStorage.setItem(NOTICE_STATUS_PATCH_FLAG, '1')
+}
+
 export function ensureDispatchMeetingSeed() {
   if (localStorage.getItem(SEED_FLAG)) {
     ensureDispatchDocSnapshots()
@@ -695,7 +832,10 @@ export function ensureDispatchMeetingSeed() {
     ensureDispatchDocFieldsPatch()
     ensurePenaltyPendingPatch()
     ensurePenaltyAppealPatch()
+    ensurePenaltyStatusPatch()
     ensureReminderSeedPatch()
+    ensureNoticeStatusPatch()
+    ensureReminderStatusPatch()
     return
   }
   writeList(NOTICE_KEY, buildNoticeSeed())
@@ -783,14 +923,14 @@ function buildScreenshotNoticeRecord(payload) {
   return normalizeNoticeRecord({
     id: createDocId('GZ'),
     project: payload.projectName || '',
-    workType: payload.workType || '安全',
+    workType: payload.workType || '',
     workRequirement: payload.workRequirement || payload.description || '',
-    executor: payload.executor || payload.executeDept || payload.rectifier || '项目经理',
+    executor: payload.executor || payload.executeDept || payload.rectifier || '',
     deadline: payload.deadline || defaultDeadline(),
     remark: payload.remark || '',
-    issueTime: payload.createdAt || new Date().toLocaleString('zh-CN', { hour12: false }),
+    issueTime: '—',
     issuer: payload.issuer || DISPATCH_CURRENT_USER,
-    status: '已下发',
+    status: NOTICE_STATUSES.PENDING,
     snapshot: payload.snapshot || '',
     cameraName: payload.cameraName || '',
     cameraLocation: payload.cameraLocation || '',
@@ -802,11 +942,11 @@ function buildScreenshotReminderRecord(payload) {
     id: createDocId('TS'),
     project: payload.projectName || '',
     matterDescription: payload.matterDescription || payload.description || '',
-    assignee: payload.assignee || payload.executor || payload.rectifier || '项目经理',
+    assignee: payload.assignee || payload.executor || payload.rectifier || '',
     deadline: payload.deadline || defaultDeadline(),
-    issueTime: payload.createdAt || new Date().toLocaleString('zh-CN', { hour12: false }),
+    issueTime: '—',
     issuer: payload.issuer || DISPATCH_CURRENT_USER,
-    status: '已下发',
+    status: NOTICE_STATUSES.PENDING,
     snapshot: payload.snapshot || '',
     cameraName: payload.cameraName || '',
     cameraLocation: payload.cameraLocation || '',
@@ -817,11 +957,12 @@ function buildScreenshotPenaltyRecord(payload) {
   return normalizePenaltyRecord({
     id: createDocId('CF'),
     project: payload.projectName || '',
+    unit: payload.unit || '',
     penaltyReason: payload.penaltyReason || '',
     penaltyContent: payload.penaltyContent || payload.description || '',
     handler: DISPATCH_CURRENT_USER,
-    issueTime: payload.createdAt || new Date().toLocaleString('zh-CN', { hour12: false }),
-    status: '已下发',
+    issueTime: '—',
+    status: PENALTY_STATUSES.PENDING,
     source: '视频截屏',
     snapshot: payload.snapshot || '',
     cameraName: payload.cameraName || '',
@@ -887,6 +1028,39 @@ export function saveDispatchReminderRecord(payload) {
   return record
 }
 
+export function issueDispatchNoticeRecord(id) {
+  const list = readList(NOTICE_KEY)
+  const index = list.findIndex((item) => item.id === id)
+  if (index < 0) return null
+  if (list[index].status !== NOTICE_STATUSES.PENDING) return list[index]
+  list[index] = {
+    ...list[index],
+    status: NOTICE_STATUSES.ISSUED,
+    issueTime: new Date().toLocaleString('zh-CN', { hour12: false }),
+    issuer: list[index].issuer || DISPATCH_CURRENT_USER,
+  }
+  writeList(NOTICE_KEY, list)
+  window.dispatchEvent(new CustomEvent(CHANGE_EVENT, { detail: { type: 'notice', record: list[index] } }))
+  return list[index]
+}
+
+export function receiveDispatchNoticeRecord(id, receivedBy = '') {
+  const list = readList(NOTICE_KEY)
+  const index = list.findIndex((item) => item.id === id)
+  if (index < 0) return null
+  if (list[index].status !== NOTICE_STATUSES.ISSUED) return list[index]
+  const executor = list[index].executor || list[index].executeDept || ''
+  list[index] = {
+    ...list[index],
+    status: NOTICE_STATUSES.RECEIVED,
+    receivedTime: new Date().toLocaleString('zh-CN', { hour12: false }),
+    receivedBy: receivedBy || executor,
+  }
+  writeList(NOTICE_KEY, list)
+  window.dispatchEvent(new CustomEvent(CHANGE_EVENT, { detail: { type: 'notice', record: list[index] } }))
+  return list[index]
+}
+
 export function voidDispatchNoticeRecord(id) {
   const list = readList(NOTICE_KEY)
   const index = list.findIndex((item) => item.id === id)
@@ -901,15 +1075,55 @@ export function voidDispatchNoticeRecord(id) {
 }
 
 export function voidDispatchPenaltyRecord(id) {
+  return closeDispatchPenaltyRecord(id)
+}
+
+export function closeDispatchPenaltyRecord(id, closedBy = DISPATCH_CURRENT_USER) {
   const list = readList(PENALTY_KEY)
   const index = list.findIndex((item) => item.id === id)
   if (index < 0) return null
+  if (list[index].status === PENALTY_STATUSES.CLOSED) return list[index]
+  const now = new Date().toLocaleString('zh-CN', { hour12: false })
   list[index] = {
     ...list[index],
-    status: '已作废',
-    voidedAt: new Date().toLocaleString('zh-CN', { hour12: false }),
+    status: PENALTY_STATUSES.CLOSED,
+    closedTime: now,
+    closedBy,
   }
   writeList(PENALTY_KEY, list)
+  return list[index]
+}
+
+export function issueDispatchReminderRecord(id) {
+  const list = readList(REMINDER_KEY)
+  const index = list.findIndex((item) => item.id === id)
+  if (index < 0) return null
+  if (list[index].status !== NOTICE_STATUSES.PENDING) return list[index]
+  list[index] = {
+    ...list[index],
+    status: NOTICE_STATUSES.ISSUED,
+    issueTime: new Date().toLocaleString('zh-CN', { hour12: false }),
+    issuer: list[index].issuer || DISPATCH_CURRENT_USER,
+  }
+  writeList(REMINDER_KEY, list)
+  window.dispatchEvent(new CustomEvent(CHANGE_EVENT, { detail: { type: 'reminder', record: list[index] } }))
+  return list[index]
+}
+
+export function receiveDispatchReminderRecord(id, receivedBy = '') {
+  const list = readList(REMINDER_KEY)
+  const index = list.findIndex((item) => item.id === id)
+  if (index < 0) return null
+  if (list[index].status !== NOTICE_STATUSES.ISSUED) return list[index]
+  const assignee = list[index].assignee || list[index].executor || ''
+  list[index] = {
+    ...list[index],
+    status: NOTICE_STATUSES.RECEIVED,
+    receivedTime: new Date().toLocaleString('zh-CN', { hour12: false }),
+    receivedBy: receivedBy || assignee,
+  }
+  writeList(REMINDER_KEY, list)
+  window.dispatchEvent(new CustomEvent(CHANGE_EVENT, { detail: { type: 'reminder', record: list[index] } }))
   return list[index]
 }
 
@@ -919,7 +1133,7 @@ export function voidDispatchReminderRecord(id) {
   if (index < 0) return null
   list[index] = {
     ...list[index],
-    status: '已作废',
+    status: NOTICE_STATUSES.VOID,
     voidedAt: new Date().toLocaleString('zh-CN', { hour12: false }),
   }
   writeList(REMINDER_KEY, list)
@@ -930,11 +1144,46 @@ export function issueDispatchPenaltyRecord(id) {
   const list = readList(PENALTY_KEY)
   const index = list.findIndex((item) => item.id === id)
   if (index < 0) return null
-  if (list[index].status !== '待下发') return list[index]
+  if (list[index].status !== PENALTY_STATUSES.PENDING) return list[index]
   list[index] = {
     ...list[index],
-    status: '已下发',
+    status: PENALTY_STATUSES.PROCESSING,
     issueTime: new Date().toLocaleString('zh-CN', { hour12: false }),
+  }
+  writeList(PENALTY_KEY, list)
+  return list[index]
+}
+
+export function submitPenaltyRecipientReport(id, payload = {}) {
+  const list = readList(PENALTY_KEY)
+  const index = list.findIndex((item) => item.id === id)
+  if (index < 0) return null
+  if (list[index].status !== PENALTY_STATUSES.PROCESSING) return list[index]
+  list[index] = {
+    ...list[index],
+    status: PENALTY_STATUSES.PENDING_ACCEPTANCE,
+    penaltyClause: payload.penaltyClause || list[index].penaltyClause || '',
+    amount: payload.amount || list[index].amount || '',
+    reportResult: payload.reportResult || '',
+    reportTime: new Date().toLocaleString('zh-CN', { hour12: false }),
+  }
+  writeList(PENALTY_KEY, list)
+  return list[index]
+}
+
+export function acceptPenaltyRecord(id, acceptedBy = DISPATCH_CURRENT_USER) {
+  const list = readList(PENALTY_KEY)
+  const index = list.findIndex((item) => item.id === id)
+  if (index < 0) return null
+  if (list[index].status !== PENALTY_STATUSES.PENDING_ACCEPTANCE) return list[index]
+  const now = new Date().toLocaleString('zh-CN', { hour12: false })
+  list[index] = {
+    ...list[index],
+    status: PENALTY_STATUSES.CLOSED,
+    acceptedTime: now,
+    acceptedBy,
+    closedTime: now,
+    closedBy: acceptedBy,
   }
   writeList(PENALTY_KEY, list)
   return list[index]
@@ -944,13 +1193,39 @@ export function submitPenaltyAppeal(id, payload = {}) {
   const list = readList(PENALTY_KEY)
   const index = list.findIndex((item) => item.id === id)
   if (index < 0) return null
-  if (list[index].status !== '已下发') return list[index]
+  if (list[index].status !== PENALTY_STATUSES.PROCESSING) return list[index]
   list[index] = {
     ...list[index],
-    status: '申诉中',
+    status: PENALTY_STATUSES.APPEALING,
     appealReason: payload.appealReason || '',
     appealAttachments: Array.isArray(payload.appealAttachments) ? payload.appealAttachments : [],
     appealTime: new Date().toLocaleString('zh-CN', { hour12: false }),
+    appealResolution: '',
+  }
+  writeList(PENALTY_KEY, list)
+  return list[index]
+}
+
+export function resolvePenaltyAppeal(id, approved, resolvedBy = DISPATCH_CURRENT_USER) {
+  const list = readList(PENALTY_KEY)
+  const index = list.findIndex((item) => item.id === id)
+  if (index < 0) return null
+  if (list[index].status !== PENALTY_STATUSES.APPEALING) return list[index]
+  const now = new Date().toLocaleString('zh-CN', { hour12: false })
+  if (approved) {
+    list[index] = {
+      ...list[index],
+      status: PENALTY_STATUSES.CLOSED,
+      appealResolution: '通过',
+      closedTime: now,
+      closedBy: resolvedBy,
+    }
+  } else {
+    list[index] = {
+      ...list[index],
+      status: PENALTY_STATUSES.PROCESSING,
+      appealResolution: '驳回',
+    }
   }
   writeList(PENALTY_KEY, list)
   return list[index]

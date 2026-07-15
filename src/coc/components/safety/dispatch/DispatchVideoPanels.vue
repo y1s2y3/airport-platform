@@ -5,13 +5,12 @@ import {
   VideoCamera,
   ZoomIn,
   Camera,
-  Mute,
-  Microphone,
   Phone,
   ArrowLeft,
   ArrowRight,
 } from '@element-plus/icons-vue'
 import VideoExpandOverlay from '../../VideoExpandOverlay.vue'
+import SpeakerVolumeIcon from '../../SpeakerVolumeIcon.vue'
 import ScreenshotMarkDialog from '../../ScreenshotMarkDialog.vue'
 import { getMonitorDispatchDevices, getDispatchDeviceTypeLabel, formatDispatchOperatorLabel, videoPlaceholderColor, videoPlaceholderClass } from '../../../mock/data.js'
 import { sortCamerasByOrder } from '../../../utils/cameraOrder.js'
@@ -74,6 +73,8 @@ const deviceStream = ref('main')
 const selectedDeviceId = ref(props.device.id)
 const devicePage = ref(0)
 const monitorPage = ref(0)
+/** 宫格内点击设备后，切换为单设备视图（非从外部带 initialDeviceId 进入） */
+const gridFocusedDeviceId = ref(null)
 
 const monitorPageSize = computed(() => slotCount.value)
 
@@ -116,15 +117,27 @@ const handheldDevices = computed(() =>
   projectDevices.value.filter((item) => item.type === 'handheld'),
 )
 
+const effectiveSingleDeviceView = computed(
+  () => props.singleDeviceView || Boolean(gridFocusedDeviceId.value),
+)
+
+const showDeviceSwitch = computed(
+  () => (props.enableDeviceSwitch || Boolean(gridFocusedDeviceId.value)) && projectDevices.value.length > 1,
+)
+
+const switchableDevices = computed(() =>
+  props.enableDeviceSwitch && !gridFocusedDeviceId.value ? handheldDevices.value : projectDevices.value,
+)
+
 const activeDevice = computed(() => {
-  if (props.singleDeviceView && props.enableDeviceSwitch) {
+  if (effectiveSingleDeviceView.value) {
     return (
       projectDevices.value.find((item) => item.id === selectedDeviceId.value)
+      || projectDevices.value.find((item) => item.id === gridFocusedDeviceId.value)
       || projectDevices.value.find((item) => item.id === props.device.id)
       || props.device
     )
   }
-  if (props.singleDeviceView) return props.device
   return props.device
 })
 
@@ -140,7 +153,7 @@ const pagedProjectDevices = computed(() => {
 })
 
 const displayDevices = computed(() =>
-  props.singleDeviceView ? singleGridDevices.value : pagedProjectDevices.value,
+  effectiveSingleDeviceView.value ? singleGridDevices.value : pagedProjectDevices.value,
 )
 
 const deviceGridClass = computed(() => {
@@ -151,7 +164,7 @@ const deviceGridClass = computed(() => {
 })
 
 const devicePanelTitle = computed(() => {
-  if (props.singleDeviceView) {
+  if (effectiveSingleDeviceView.value) {
     return activeDevice.value.type === 'handheld' ? '手持巡检实时画面' : 'App端对讲画面'
   }
   return '巡检对讲设备'
@@ -175,6 +188,14 @@ watch(
   () => {
     devicePage.value = 0
     monitorPage.value = 0
+    gridFocusedDeviceId.value = null
+  },
+)
+
+watch(
+  () => props.singleDeviceView,
+  (single) => {
+    if (single) gridFocusedDeviceId.value = null
   },
 )
 
@@ -197,11 +218,35 @@ function handleDeviceSwitch(id) {
     ElMessage.warning(`${target.name} 当前离线`)
     return
   }
+  if (gridFocusedDeviceId.value) {
+    gridFocusedDeviceId.value = id
+  }
   ElMessage.info(`已切换至 ${target.name}`)
 }
 
-function getHandheldDevice(id) {
-  return handheldDevices.value.find((item) => item.id === id) || null
+function getSwitchableDevice(id) {
+  return switchableDevices.value.find((item) => item.id === id) || null
+}
+
+function focusDeviceFromGrid(device) {
+  if (!device?.online) {
+    ElMessage.warning('设备离线，无法查看')
+    return
+  }
+  gridFocusedDeviceId.value = device.id
+  selectedDeviceId.value = device.id
+}
+
+function backToDeviceGrid() {
+  gridFocusedDeviceId.value = null
+}
+
+function handleDeviceCellClick(device, idx) {
+  if (!props.singleDeviceView) {
+    focusDeviceFromGrid(device)
+    return
+  }
+  openDeviceExpand(device, idx)
 }
 
 function openCameraExpand(cam) {
@@ -269,7 +314,7 @@ function nextMonitorPage() {
     :class="{ 'area-device': gridPlacement, 'stretch-panel': verticalStretch, 'dispatch-hq-video-panel': dispatchHqUi }"
   >
     <DispatchHqPanelTitle v-if="dispatchHqUi" :title="devicePanelTitle">
-      <template v-if="!singleDeviceView && deviceTotalPages > 1" #actions>
+      <template v-if="!effectiveSingleDeviceView && deviceTotalPages > 1" #actions>
         <div class="page-nav">
           <button
             type="button"
@@ -295,7 +340,7 @@ function nextMonitorPage() {
     </DispatchHqPanelTitle>
     <div v-else class="panel-title compact title-left title-with-page">
       <span class="panel-title-text">{{ devicePanelTitle }}</span>
-      <div v-if="!singleDeviceView && deviceTotalPages > 1" class="page-nav">
+      <div v-if="!effectiveSingleDeviceView && deviceTotalPages > 1" class="page-nav">
         <button
           type="button"
           class="arrow-btn"
@@ -324,7 +369,7 @@ function nextMonitorPage() {
           :key="dev.id"
           class="device-live-cell clickable"
           :class="{ offline: !dev.online }"
-          @click="openDeviceExpand(dev, idx)"
+          @click="handleDeviceCellClick(dev, idx)"
         >
           <div
             class="device-live-placeholder"
@@ -357,14 +402,24 @@ function nextMonitorPage() {
         </div>
       </div>
 
-      <div v-if="singleDeviceView" class="device-controls">
+      <div v-if="effectiveSingleDeviceView" class="device-controls">
         <div class="device-controls-left">
+          <button
+            v-if="gridFocusedDeviceId"
+            type="button"
+            class="ctrl-btn ctrl-btn-text"
+            title="返回宫格"
+            @click="backToDeviceGrid"
+          >
+            <el-icon><ArrowLeft /></el-icon>
+            返回宫格
+          </button>
           <button class="ctrl-btn ctrl-btn-text" title="问题截图" @click="openIssueSnapshot">
             <el-icon><Camera /></el-icon>
             问题截图
           </button>
           <button class="ctrl-btn" :title="deviceMuted ? '开启声音' : '静音'" @click="toggleDeviceMute">
-            <el-icon><component :is="deviceMuted ? Mute : Microphone" /></el-icon>
+            <el-icon><SpeakerVolumeIcon :muted="deviceMuted" /></el-icon>
           </button>
           <button class="ctrl-btn" @click="toggleDeviceStream">
             {{ deviceStream === 'main' ? '主码流' : '子码流' }}
@@ -374,7 +429,7 @@ function nextMonitorPage() {
             呼叫
           </button>
         </div>
-        <div v-if="enableDeviceSwitch && handheldDevices.length" class="device-switch-form">
+        <div v-if="showDeviceSwitch" class="device-switch-form">
           <el-select
             v-model="selectedDeviceId"
             class="device-switch-select"
@@ -388,12 +443,12 @@ function nextMonitorPage() {
                 <span class="device-selected-name">{{ label }}</span>
                 <i
                   class="status-dot"
-                  :class="getHandheldDevice(value)?.online ? 'online' : 'offline'"
+                  :class="getSwitchableDevice(value)?.online ? 'online' : 'offline'"
                 />
               </span>
             </template>
             <el-option
-              v-for="dev in handheldDevices"
+              v-for="dev in switchableDevices"
               :key="dev.id"
               :label="dev.name"
               :value="dev.id"
@@ -420,7 +475,7 @@ function nextMonitorPage() {
     class="panel-card detail-panel monitor-panel"
     :class="{ 'area-monitor': gridPlacement, 'stretch-panel': verticalStretch, 'dispatch-hq-video-panel': dispatchHqUi }"
   >
-    <DispatchHqPanelTitle v-if="dispatchHqUi" title="关联视频监控">
+    <DispatchHqPanelTitle v-if="dispatchHqUi" title="视频监控">
       <template v-if="monitorTotalPages > 1" #actions>
         <div class="page-nav">
           <button
@@ -446,7 +501,7 @@ function nextMonitorPage() {
       </template>
     </DispatchHqPanelTitle>
     <div v-else class="panel-title compact title-left title-with-page">
-      <span class="panel-title-text">关联视频监控</span>
+      <span class="panel-title-text">视频监控</span>
       <div v-if="monitorTotalPages > 1" class="page-nav">
         <button
           type="button"
@@ -492,7 +547,10 @@ function nextMonitorPage() {
           >
             <el-icon v-if="cam.online" :size="monitorGrid === '3x2' ? 15 : 13" color="rgba(255,255,255,0.55)"><VideoCamera /></el-icon>
             <span v-if="cam.online" class="demo-badge mini">演示</span>
-            <span v-if="cam.online && !dispatchHqUi" class="expand-hint"><el-icon><ZoomIn /></el-icon></span>
+            <span v-if="cam.online" class="expand-hint" :class="{ 'expand-hint--hq': dispatchHqUi }">
+              <el-icon><ZoomIn /></el-icon>
+              <span v-if="dispatchHqUi" class="expand-hint-text">放大</span>
+            </span>
             <span v-if="!cam.online" class="offline-mask">离线</span>
             <div v-if="dispatchHqUi" class="mini-label mini-label--overlay">{{ cam.name }}</div>
           </div>

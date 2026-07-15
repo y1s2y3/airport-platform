@@ -173,6 +173,8 @@ const routes = [
           videoMonitorKey: item.key,
         },
       })),
+      { path: 'video-monitor/list', redirect: '/video-monitor/preview' },
+      { path: 'video-monitor/device', redirect: '/video-monitor/device-ledger' },
       ...cocAdminRoutes.map((item) => ({
         path: item.path.replace(/^\//, ''),
         name: item.name,

@@ -31,7 +31,7 @@ function riskTypeClass(type) {
 
 <template>
   <div class="panel-card detail-panel list-panel risk-panel" :class="{ 'dispatch-hq-list-panel': dispatchHqUi }">
-    <DispatchHqPanelTitle v-if="dispatchHqUi" title="人员风险核验">
+    <DispatchHqPanelTitle v-if="dispatchHqUi" title="人员风险核验" show-v2-tag>
       <template #actions>
         <button type="button" class="title-more-btn" @click="moreOpen = true">更多</button>
       </template>

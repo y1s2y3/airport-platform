@@ -4,6 +4,7 @@ import { PANEL_TITLE_ICON_URL } from '../../../config/panelTitleAssets.js'
 
 defineProps({
   title: { type: String, required: true },
+  showV2Tag: { type: Boolean, default: false },
 })
 </script>
 
@@ -20,6 +21,7 @@ defineProps({
     />
     <div class="dispatch-hq-title-main">
       <span class="dispatch-hq-title-text">{{ title }}</span>
+      <span v-if="showV2Tag" class="panel-v2-tip">V2版本上线</span>
       <div v-if="$slots.actions" class="dispatch-hq-title-actions">
         <slot name="actions" />
       </div>

@@ -28,7 +28,7 @@ const stats = computed(() => ({
 
 <template>
   <div class="panel-card quality-risk-panel" :class="{ 'dispatch-hq-list-panel': dispatchHqUi }">
-    <DispatchHqPanelTitle v-if="dispatchHqUi" title="质量验评风险项">
+    <DispatchHqPanelTitle v-if="dispatchHqUi" title="质量验评风险项" show-v2-tag>
       <template #actions>
         <button type="button" class="title-more-btn" @click="moreOpen = true">更多</button>
       </template>

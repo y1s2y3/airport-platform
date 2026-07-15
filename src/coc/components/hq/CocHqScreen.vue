@@ -40,7 +40,7 @@ const emit = defineEmits([
 
     <!-- 左下 1×2：项目进度 -->
     <section class="hq-zone hq-zone--progress">
-      <CocPanelHeading title="项目进度" />
+      <CocPanelHeading title="项目进度" show-v2-tag />
       <ProgressPanel
         class="hq-panel hq-hide-inner-title"
         :projects="projects"
@@ -60,7 +60,7 @@ const emit = defineEmits([
         />
       </div>
       <div class="hq-analysis-block">
-        <CocPanelHeading title="劳务分析" />
+        <CocPanelHeading title="劳务分析" show-v2-tag />
         <LaborAnalysisPanel
           class="hq-labor-panel hq-hide-inner-title"
           dark-theme
@@ -68,7 +68,7 @@ const emit = defineEmits([
         />
       </div>
       <div class="hq-analysis-block hq-analysis-block--hazard">
-        <CocPanelHeading title="隐患分析" />
+        <CocPanelHeading title="隐患分析" show-v2-tag />
         <HazardAnalysisPanel
           class="hq-hazard-panel hq-hide-inner-title"
           dark-theme

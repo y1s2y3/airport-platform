@@ -300,7 +300,9 @@ function openDispatch(device) {
                   :style="{ background: videoPlaceholderColor(cam.online, idx) }"
                 >
                   <el-icon :size="19" color="rgba(255,255,255,0.6)"><VideoCamera /></el-icon>
-                  <span v-if="cam.online" class="expand-hint"><el-icon><ZoomIn /></el-icon> 放大</span>
+                  <span v-if="cam.online" class="expand-hint" :class="{ 'expand-hint--hq': hqLayout }">
+                    <el-icon><ZoomIn /></el-icon> 放大
+                  </span>
                   <span v-if="!cam.online" class="offline-mask">信号中断</span>
                 </div>
                 <div class="video-label">
@@ -437,6 +439,10 @@ function openDispatch(device) {
 
 .safety-video-wrap.is-hq-layout .safety-video-modules {
   gap: 12px;
+}
+
+.monitor-module {
+  position: relative;
 }
 
 .module-panel {
@@ -724,6 +730,10 @@ function openDispatch(device) {
 
 .video-cell.clickable:hover .expand-hint {
   opacity: 1;
+}
+
+.expand-hint--hq {
+  opacity: 0.88;
 }
 
 .label-left {

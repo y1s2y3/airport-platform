@@ -10,9 +10,8 @@ import {
   getOrgMembers,
   getOrgPositions,
   getOrgInfo,
-  getOrgDataPermissions,
+  getOrgDataPermissionConfig,
   getParentOrgOptions,
-  getOrgNodeOptions,
   getParentOrgId,
   addOrgNode,
   updateOrgNode,
@@ -23,16 +22,12 @@ import {
   setPositionRoles,
   setOrgRoles,
   getOrgRoles,
-  saveDataPermission,
+  saveOrgDataPermissionConfig,
   ORG_LEVEL_OPTIONS,
   orgRoleOptions,
-  dataPermissionLevelOptions,
-  dataPermissionHqScopeOptions,
   dataPermissionProjectScopeOptions,
-  getDataPermLevelLabel,
-  getDataPermScopeLabel,
 } from '../../mock/orgStructure'
-import { projectOptions } from '../../mock/rbac'
+import { COC_PROJECT_OPTIONS } from '../../config/projectOptions'
 
 const selectedNodeId = ref(getDefaultNodeId())
 const treeKeyword = ref('')
@@ -76,20 +71,17 @@ const roleDialogTarget = ref(null)
 const roleTransferValue = ref([])
 
 const dataPermDialogVisible = ref(false)
-const dataPermEditRow = ref(null)
 const dataPermForm = reactive({
-  id: '',
-  levelScope: 'hq',
-  type: '本组织',
-  orgId: '',
-  includeSub: false,
+  hqEnabled: false,
+  projectEnabled: false,
   projectScope: 'all',
   projectIds: [],
 })
 
+const projectSelectOptions = COC_PROJECT_OPTIONS
+
 const selectedNode = computed(() => findTreeNode(unifiedOrgTree.value, selectedNodeId.value))
 const selectedNodeLabel = computed(() => selectedNode.value?.rawLabel || '')
-const selectedOrgPath = computed(() => selectedNode.value?.orgPath || selectedNodeLabel.value)
 
 const filteredTree = computed(() => filterOrgTree(treeKeyword.value))
 
@@ -127,29 +119,7 @@ const orgInfo = computed(() => {
   return getOrgInfo(selectedNodeId.value)
 })
 
-const dataPermissions = computed(() => {
-  unifiedOrgTree.value
-  return getOrgDataPermissions(selectedNodeId.value)
-})
-
-const dataPermTableRows = computed(() => {
-  if (dataPermEditRow.value !== '__new__') return dataPermissions.value
-  return [
-    {
-      id: '__draft__',
-      levelScope: dataPermForm.levelScope,
-      type: dataPermForm.type,
-      projectScope: dataPermForm.projectScope,
-      content: '',
-      includeSub: dataPermForm.includeSub,
-      projectIds: [...dataPermForm.projectIds],
-    },
-    ...dataPermissions.value,
-  ]
-})
-
 const parentOrgOptions = computed(() => getParentOrgOptions(orgForm.id))
-const orgNodeOptions = computed(() => getOrgNodeOptions())
 
 const roleTransferData = computed(() =>
   orgRoleOptions.map((item) => ({ key: item.key, label: item.label })),
@@ -168,15 +138,19 @@ watch(selectedNodeId, () => {
 })
 
 watch(
-  () => dataPermForm.levelScope,
-  (level) => {
-    if (level === 'project') {
-      dataPermForm.projectScope = dataPermForm.projectScope || 'all'
-      dataPermForm.projectIds = dataPermForm.projectIds || []
-    } else {
-      dataPermForm.type = dataPermForm.type || '本组织'
-      dataPermForm.orgId = dataPermForm.orgId || selectedNodeId.value
+  () => dataPermForm.projectEnabled,
+  (enabled) => {
+    if (!enabled) {
+      dataPermForm.projectScope = 'all'
+      dataPermForm.projectIds = []
     }
+  },
+)
+
+watch(
+  () => dataPermForm.projectScope,
+  (scope) => {
+    if (scope !== 'specific') dataPermForm.projectIds = []
   },
 )
 
@@ -327,76 +301,27 @@ function submitRoleDialog() {
   ElMessage.success(target.kind === 'position' ? '权限已保存' : '角色已设置')
 }
 
-function resetDataPermForm() {
-  dataPermForm.id = ''
-  dataPermForm.levelScope = 'hq'
-  dataPermForm.type = '本组织'
-  dataPermForm.orgId = selectedNodeId.value
-  dataPermForm.includeSub = false
-  dataPermForm.projectScope = 'all'
-  dataPermForm.projectIds = []
-}
-
 function openDataPermDialog() {
-  dataPermEditRow.value = null
+  const config = getOrgDataPermissionConfig(selectedNodeId.value)
+  dataPermForm.hqEnabled = config.hqEnabled
+  dataPermForm.projectEnabled = config.projectEnabled
+  dataPermForm.projectScope = config.projectScope || 'all'
+  dataPermForm.projectIds = [...(config.projectIds || [])]
   dataPermDialogVisible.value = true
 }
 
-function addDataPermRow() {
-  resetDataPermForm()
-  dataPermEditRow.value = '__new__'
-}
-
-function startEditDataPerm(row) {
-  dataPermEditRow.value = row.id
-  dataPermForm.id = row.id
-  dataPermForm.levelScope = row.levelScope === 'project' ? 'project' : 'hq'
-  dataPermForm.type = row.type || '本组织'
-  dataPermForm.orgId = row.orgId || selectedNodeId.value
-  dataPermForm.includeSub = row.includeSub ?? false
-  dataPermForm.projectScope = row.projectScope || 'all'
-  dataPermForm.projectIds = row.projectIds ? [...row.projectIds] : []
-}
-
-function cancelEditDataPerm() {
-  dataPermEditRow.value = null
-}
-
-function buildDataPermContent() {
-  if (dataPermForm.levelScope === 'project') {
-    if (dataPermForm.projectScope === 'all') return '全部项目'
-    const names = dataPermForm.projectIds
-      .map((id) => projectOptions.find((p) => p.id === id)?.name)
-      .filter(Boolean)
-    return names.length ? names.join('、') : '—'
-  }
-  if (dataPermForm.type === '本组织') return selectedOrgPath.value
-  const label = orgNodeOptions.value.find((o) => o.value === dataPermForm.orgId)?.label || ''
-  return dataPermForm.includeSub ? `${label}（含下级）` : label
-}
-
-function saveDataPermRow() {
-  if (dataPermForm.levelScope === 'project' && dataPermForm.projectScope === 'specific' && !dataPermForm.projectIds.length) {
+function submitDataPermForm() {
+  if (dataPermForm.projectEnabled && dataPermForm.projectScope === 'specific' && !dataPermForm.projectIds.length) {
     ElMessage.warning('请选择至少一个项目')
     return
   }
-  if (dataPermForm.levelScope === 'hq' && dataPermForm.type === '指定组织' && !dataPermForm.orgId) {
-    ElMessage.warning('请选择组织')
-    return
-  }
-
-  const isNew = dataPermEditRow.value === '__new__'
-  saveDataPermission(selectedNodeId.value, {
-    id: isNew ? '' : dataPermForm.id,
-    levelScope: dataPermForm.levelScope,
-    type: dataPermForm.type,
-    orgId: dataPermForm.orgId,
-    content: buildDataPermContent(),
-    includeSub: dataPermForm.includeSub,
+  saveOrgDataPermissionConfig(selectedNodeId.value, {
+    hqEnabled: dataPermForm.hqEnabled,
+    projectEnabled: dataPermForm.projectEnabled,
     projectScope: dataPermForm.projectScope,
     projectIds: [...dataPermForm.projectIds],
   })
-  dataPermEditRow.value = null
+  dataPermDialogVisible.value = false
   ElMessage.success('数据权限已保存')
 }
 
@@ -665,123 +590,45 @@ function handleSetDataPermFromInfo() {
     </el-dialog>
 
     <!-- 设置数据权限 -->
-    <el-dialog v-model="dataPermDialogVisible" title="设置数据权限" width="860px" destroy-on-close>
-      <div class="perm-dialog-toolbar">
-        <el-button type="primary" :icon="Plus" :disabled="Boolean(dataPermEditRow)" @click="addDataPermRow">
-          新增
-        </el-button>
-      </div>
+    <el-dialog v-model="dataPermDialogVisible" title="设置数据权限" width="560px" destroy-on-close>
+      <div class="data-perm-form">
+        <el-checkbox v-model="dataPermForm.hqEnabled">指挥部层级</el-checkbox>
 
-      <el-table :data="dataPermTableRows" border stripe class="ap-table" empty-text="暂无数据权限，请点击新增">
-        <el-table-column label="层级" width="120">
-          <template #default="{ row }">
-            <template v-if="dataPermEditRow === row.id || (dataPermEditRow === '__new__' && row.id === '__draft__')">
-              <el-select v-model="dataPermForm.levelScope" style="width: 100%">
-                <el-option
-                  v-for="item in dataPermissionLevelOptions"
-                  :key="item.value"
-                  :label="item.label"
-                  :value="item.value"
-                />
-              </el-select>
-            </template>
-            <span v-else>{{ getDataPermLevelLabel(row) }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="范围" width="140">
-          <template #default="{ row }">
-            <template v-if="dataPermEditRow === row.id || (dataPermEditRow === '__new__' && row.id === '__draft__')">
-              <el-select
-                v-if="dataPermForm.levelScope === 'hq'"
-                v-model="dataPermForm.type"
-                style="width: 100%"
+        <div class="data-perm-project-block">
+          <el-checkbox v-model="dataPermForm.projectEnabled">项目层级</el-checkbox>
+          <div v-if="dataPermForm.projectEnabled" class="data-perm-project-options">
+            <el-radio-group v-model="dataPermForm.projectScope">
+              <el-radio
+                v-for="item in dataPermissionProjectScopeOptions"
+                :key="item.value"
+                :value="item.value"
               >
-                <el-option
-                  v-for="item in dataPermissionHqScopeOptions"
-                  :key="item"
-                  :label="item"
-                  :value="item"
-                />
-              </el-select>
-              <el-select
-                v-else
-                v-model="dataPermForm.projectScope"
-                style="width: 100%"
-              >
-                <el-option
-                  v-for="item in dataPermissionProjectScopeOptions"
-                  :key="item.value"
-                  :label="item.label"
-                  :value="item.value"
-                />
-              </el-select>
-            </template>
-            <span v-else>{{ getDataPermScopeLabel(row) }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="内容" min-width="300">
-          <template #default="{ row }">
-            <template v-if="dataPermEditRow === row.id || (dataPermEditRow === '__new__' && row.id === '__draft__')">
-              <div class="perm-content-edit">
-                <template v-if="dataPermForm.levelScope === 'hq'">
-                  <el-select
-                    v-if="dataPermForm.type === '指定组织'"
-                    v-model="dataPermForm.orgId"
-                    placeholder="选择组织"
-                    style="width: 100%"
-                  >
-                    <el-option v-for="opt in orgNodeOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
-                  </el-select>
-                  <span v-else>{{ selectedOrgPath }}</span>
-                  <el-checkbox v-model="dataPermForm.includeSub">包含下级</el-checkbox>
-                </template>
-                <template v-else>
-                  <span v-if="dataPermForm.projectScope === 'all'">全部项目</span>
-                  <el-select
-                    v-else
-                    v-model="dataPermForm.projectIds"
-                    multiple
-                    collapse-tags
-                    collapse-tags-tooltip
-                    placeholder="选择项目"
-                    style="width: 100%"
-                  >
-                    <el-option
-                      v-for="project in projectOptions"
-                      :key="project.id"
-                      :label="project.name"
-                      :value="project.id"
-                    />
-                  </el-select>
-                </template>
-              </div>
-            </template>
-            <div v-else class="perm-content-view">
-              <span>{{ row.content }}</span>
-              <el-checkbox
-                v-if="row.levelScope !== 'project'"
-                :model-value="row.includeSub"
-                disabled
-              >
-                包含下级
-              </el-checkbox>
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="120" align="center">
-          <template #default="{ row }">
-            <template v-if="dataPermEditRow === row.id || (dataPermEditRow === '__new__' && row.id === '__draft__')">
-              <el-button link type="primary" @click="saveDataPermRow">保存</el-button>
-              <el-button link @click="cancelEditDataPerm">取消</el-button>
-            </template>
-            <el-button v-else link type="primary" :disabled="Boolean(dataPermEditRow)" @click="startEditDataPerm(row)">
-              编辑
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+                {{ item.label }}
+              </el-radio>
+            </el-radio-group>
+            <el-select
+              v-if="dataPermForm.projectScope === 'specific'"
+              v-model="dataPermForm.projectIds"
+              multiple
+              filterable
+              collapse-tags
+              collapse-tags-tooltip
+              placeholder="请选择项目"
+              style="width: 100%; margin-top: 12px"
+            >
+              <el-option
+                v-for="project in projectSelectOptions"
+                :key="project.id"
+                :label="project.label"
+                :value="project.id"
+              />
+            </el-select>
+          </div>
+        </div>
+      </div>
       <template #footer>
-        <el-button @click="dataPermDialogVisible = false">关闭</el-button>
+        <el-button @click="dataPermDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitDataPermForm">保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -1005,11 +852,24 @@ function handleSetDataPermFromInfo() {
   margin-bottom: 12px;
 }
 
-.perm-content-view,
-.perm-content-edit {
+.data-perm-form {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 16px;
+  padding: 4px 0 8px;
+}
+
+.data-perm-project-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.data-perm-project-options {
+  margin-left: 22px;
+  padding: 12px;
+  border: 1px solid var(--ap-border);
+  border-radius: 6px;
+  background: var(--ap-bg-muted, #f5f7fa);
 }
 </style>

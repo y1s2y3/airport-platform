@@ -1,9 +1,10 @@
 <script setup>
-import { ref, computed, inject } from 'vue'
+import { ref, computed, inject, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   DISPATCH_DOC_TICKET_LIST,
   DISPATCH_CURRENT_USER,
+  buildProjects,
   buildPenaltyDraft,
   buildReminderDraft,
   buildSamplingNoticeDraft,
@@ -13,6 +14,7 @@ import {
   saveDispatchPenaltyRecord,
   saveDispatchReminderRecord,
 } from '../../../utils/dispatchMeetingStorage.js'
+import { buildExecutorOptions } from '../../../utils/executorDisplay.js'
 import DispatchDraggablePanel from './DispatchDraggablePanel.vue'
 import DispatchHqPanelTitle from './DispatchHqPanelTitle.vue'
 
@@ -25,8 +27,48 @@ const ADMIN_MENU_PENALTY = '处罚单'
 
 const props = defineProps({
   device: { type: Object, required: true },
+  videoProject: { type: Object, default: null },
   compact: { type: Boolean, default: true },
 })
+
+const DOC_POPPER_CLASS = 'screenshot-mark-popper'
+
+const projectOptions = computed(() =>
+  buildProjects().map((p) => p.shortName || p.name),
+)
+
+const executorOptions = computed(() => buildExecutorOptions())
+
+function defaultDeadline() {
+  const d = new Date()
+  d.setDate(d.getDate() + 7)
+  return d.toISOString().slice(0, 10)
+}
+
+function resolveProjectName() {
+  return props.videoProject?.shortName || props.videoProject?.name || ''
+}
+
+function createNoticeDraft() {
+  const draft = buildSamplingNoticeDraft(props.device)
+  const projectName = resolveProjectName()
+  if (projectName) draft.project = projectName
+  return draft
+}
+
+function createReminderDraft() {
+  const draft = buildReminderDraft(props.device)
+  const projectName = resolveProjectName()
+  if (projectName) draft.project = projectName
+  return draft
+}
+
+function createPenaltyDraft() {
+  const draft = buildPenaltyDraft(props.device)
+  const projectName = resolveProjectName()
+  if (projectName) draft.project = projectName
+  return draft
+}
 
 const docTab = ref('notice')
 const listDialogOpen = ref(false)
@@ -42,9 +84,18 @@ const dialogTabOptions = [
   { value: 'reminder', label: '提示函' },
   { value: 'penalty', label: '处罚单' },
 ]
-const noticeDraft = ref(buildSamplingNoticeDraft(props.device))
-const reminderDraft = ref(buildReminderDraft(props.device))
-const penaltyDraft = ref(buildPenaltyDraft(props.device))
+const noticeDraft = ref(createNoticeDraft())
+const reminderDraft = ref(createReminderDraft())
+const penaltyDraft = ref(createPenaltyDraft())
+
+watch(
+  () => [props.device?.id, props.videoProject?.id],
+  () => {
+    noticeDraft.value = createNoticeDraft()
+    reminderDraft.value = createReminderDraft()
+    penaltyDraft.value = createPenaltyDraft()
+  },
+)
 
 const DOC_TYPE_LABELS = {
   notice: '任务单',
@@ -72,10 +123,15 @@ function docSubjectText(row) {
 }
 
 const ticketStatusMap = {
+  待下发: 'draft',
   待确认: 'draft',
   待签收: 'draft',
   已下发: 'sent',
+  已接收: 'closed',
   处理中: 'doing',
+  待验收: 'doing',
+  申诉中: 'doing',
+  已关闭: 'closed',
   已闭环: 'closed',
 }
 
@@ -92,6 +148,7 @@ function openListDialog() {
 function buildNoticeSavePayload(draft) {
   const workType = draft.workType.trim()
   const workRequirement = draft.workRequirement.trim()
+  const executor = (draft.executor || draft.executeDept || '').trim()
   const titleBase = workRequirement.slice(0, 24) || draft.title || '任务单'
   return {
     id: draft.adminRecordId,
@@ -101,52 +158,50 @@ function buildNoticeSavePayload(draft) {
     workType,
     workRequirement,
     workSource: '远程调度',
-    executeDept: draft.executeDept || '',
-    deadline: draft.deadline || '',
-    ledgerHandling: draft.ledgerHandling || '纳入任务单台账',
+    executor,
+    executeDept: executor,
+    deadline: draft.deadline || defaultDeadline(),
+    remark: draft.remark?.trim() || '',
     source: '远程调度',
-    status: '待确认',
+    status: '待下发',
     issuer: DISPATCH_CURRENT_USER,
-    issueTime: new Date().toLocaleString('zh-CN', { hour12: false }),
+    issueTime: '—',
   }
 }
 
 function buildReminderSavePayload(draft) {
   const matterDescription = draft.matterDescription.trim()
+  const executor = (draft.executor || draft.assignee || '').trim()
   const titleBase = matterDescription.slice(0, 24) || draft.title || '提示函'
   return {
     id: draft.adminRecordId,
     title: titleBase.length >= 24 ? `${titleBase}…` : titleBase,
     project: draft.project || '',
     matterDescription,
-    assignee: draft.assignee || draft.executor || '项目经理',
-    executor: draft.assignee || draft.executor || '项目经理',
-    deadline: draft.deadline || '',
-    status: '待确认',
+    assignee: executor,
+    executor,
+    deadline: draft.deadline || defaultDeadline(),
+    status: '待下发',
     issuer: DISPATCH_CURRENT_USER,
-    issueTime: new Date().toLocaleString('zh-CN', { hour12: false }),
+    issueTime: '—',
   }
 }
 
 function buildPenaltySavePayload(draft) {
   const penaltyReason = draft.penaltyReason.trim()
   const penaltyContent = draft.penaltyContent.trim()
-  const penaltyClause = draft.penaltyClause?.trim() || ''
-  const amount = draft.amount.trim()
   const titleBase = penaltyReason.slice(0, 24) || draft.title || '处罚单'
   return {
     id: draft.adminRecordId,
     title: titleBase.length >= 24 ? `${titleBase}…` : titleBase,
     project: draft.project || '',
-    unit: draft.unit || '',
+    unit: draft.unit?.trim() || '',
     penaltyReason,
     penaltyContent,
-    penaltyClause,
-    amount,
     handler: DISPATCH_CURRENT_USER,
     source: '远程调度',
-    status: '待确认',
-    issueTime: new Date().toLocaleString('zh-CN', { hour12: false }),
+    status: '待下发',
+    issueTime: '—',
   }
 }
 
@@ -164,7 +219,19 @@ function validateDraft() {
       ElMessage.warning('请填写工作要求')
       return false
     }
+    if (!noticeDraft.value.executor?.trim()) {
+      ElMessage.warning('请填写执行人')
+      return false
+    }
+    if (!noticeDraft.value.deadline) {
+      ElMessage.warning('请选择完成时限')
+      return false
+    }
   } else if (docTab.value === 'reminder') {
+    if (!reminderDraft.value.project?.trim()) {
+      ElMessage.warning('请填写项目名称')
+      return false
+    }
     if (!reminderDraft.value.matterDescription?.trim()) {
       ElMessage.warning('请填写事项描述')
       return false
@@ -182,10 +249,6 @@ function validateDraft() {
       ElMessage.warning('请填写项目名称')
       return false
     }
-    if (!penaltyDraft.value.unit?.trim()) {
-      ElMessage.warning('请填写责任单位')
-      return false
-    }
     if (!penaltyDraft.value.penaltyReason?.trim()) {
       ElMessage.warning('请填写事由')
       return false
@@ -194,8 +257,8 @@ function validateDraft() {
       ElMessage.warning('请填写内容')
       return false
     }
-    if (!penaltyDraft.value.amount?.trim()) {
-      ElMessage.warning('请填写金额')
+    if (!penaltyDraft.value.unit?.trim()) {
+      ElMessage.warning('请填写责任单位')
       return false
     }
   }
@@ -208,17 +271,17 @@ function handleSave() {
     const record = saveDispatchNoticeRecord(buildNoticeSavePayload(noticeDraft.value))
     noticeDraft.value.adminRecordId = record.id
     noticeDraft.value.status = 'draft'
-    ElMessage.success(`已保存至 ${ADMIN_MENU_ROOT} · ${ADMIN_MENU_NOTICE}`)
+    ElMessage.success(`已保存至 ${ADMIN_MENU_ROOT} · ${ADMIN_MENU_NOTICE}（待指挥部下发）`)
   } else if (docTab.value === 'reminder') {
     const record = saveDispatchReminderRecord(buildReminderSavePayload(reminderDraft.value))
     reminderDraft.value.adminRecordId = record.id
     reminderDraft.value.status = 'draft'
-    ElMessage.success(`已保存至 ${ADMIN_MENU_ROOT} · ${ADMIN_MENU_REMINDER}`)
+    ElMessage.success(`已保存至 ${ADMIN_MENU_ROOT} · ${ADMIN_MENU_REMINDER}（待指挥部下发）`)
   } else {
     const record = saveDispatchPenaltyRecord(buildPenaltySavePayload(penaltyDraft.value))
     penaltyDraft.value.adminRecordId = record.id
     penaltyDraft.value.status = 'draft'
-    ElMessage.success(`已保存至 ${ADMIN_MENU_ROOT} · ${ADMIN_MENU_PENALTY}`)
+    ElMessage.success(`已保存至 ${ADMIN_MENU_ROOT} · ${ADMIN_MENU_PENALTY}（待指挥部下发）`)
   }
 }
 </script>
@@ -254,38 +317,118 @@ function handleSave() {
           <template v-if="docTab === 'notice'">
             <div class="field-row">
               <span class="field-label">项目名称</span>
-              <el-input v-model="noticeDraft.project" size="small" placeholder="如：捷运线延长段" />
+              <el-select
+                v-model="noticeDraft.project"
+                filterable
+                allow-create
+                default-first-option
+                size="small"
+                :popper-class="DOC_POPPER_CLASS"
+                placeholder="选择或输入项目名称"
+              >
+                <el-option v-for="item in projectOptions" :key="item" :label="item" :value="item" />
+              </el-select>
             </div>
             <div class="field-row">
               <span class="field-label">工作类型</span>
-              <el-input v-model="noticeDraft.workType" size="small" placeholder="如：质量复检" />
+              <el-input v-model="noticeDraft.workType" size="small" placeholder="如：安全检查、质量复检" />
             </div>
             <div class="field-row field-row-block">
               <span class="field-label">工作要求</span>
               <el-input
                 v-model="noticeDraft.workRequirement"
                 type="textarea"
-                :rows="5"
+                :rows="4"
                 resize="none"
-                placeholder="请描述工作要求"
+                placeholder="请描述工作要求，将作为任务单正文"
+              />
+            </div>
+            <div class="field-row">
+              <span class="field-label">执行人</span>
+              <el-select
+                v-model="noticeDraft.executor"
+                filterable
+                allow-create
+                default-first-option
+                size="small"
+                :popper-class="DOC_POPPER_CLASS"
+                placeholder="选择或输入执行人"
+              >
+                <el-option
+                  v-for="item in executorOptions"
+                  :key="item.value"
+                  :label="item.value"
+                  :value="item.value"
+                />
+              </el-select>
+            </div>
+            <div class="field-row">
+              <span class="field-label">完成时限</span>
+              <el-date-picker
+                v-model="noticeDraft.deadline"
+                type="date"
+                value-format="YYYY-MM-DD"
+                :popper-class="DOC_POPPER_CLASS"
+                placeholder="选择完成时限"
+                size="small"
+                style="width: 100%"
+              />
+            </div>
+            <div class="field-row field-row-block">
+              <span class="field-label">备注</span>
+              <el-input
+                v-model="noticeDraft.remark"
+                type="textarea"
+                :rows="2"
+                resize="none"
+                placeholder="选填"
               />
             </div>
           </template>
 
           <template v-else-if="docTab === 'reminder'">
+            <div class="field-row">
+              <span class="field-label">项目名称</span>
+              <el-select
+                v-model="reminderDraft.project"
+                filterable
+                allow-create
+                default-first-option
+                size="small"
+                :popper-class="DOC_POPPER_CLASS"
+                placeholder="选择或输入项目名称"
+              >
+                <el-option v-for="item in projectOptions" :key="item" :label="item" :value="item" />
+              </el-select>
+            </div>
             <div class="field-row field-row-block">
               <span class="field-label">事项描述</span>
               <el-input
                 v-model="reminderDraft.matterDescription"
                 type="textarea"
-                :rows="5"
+                :rows="4"
                 resize="none"
-                placeholder="请描述提示事项"
+                placeholder="请描述提示事项，将作为提示函正文"
               />
             </div>
             <div class="field-row">
               <span class="field-label">指派人</span>
-              <el-input v-model="reminderDraft.executor" size="small" placeholder="默认：项目经理" />
+              <el-select
+                v-model="reminderDraft.executor"
+                filterable
+                allow-create
+                default-first-option
+                size="small"
+                :popper-class="DOC_POPPER_CLASS"
+                placeholder="选择或输入指派人"
+              >
+                <el-option
+                  v-for="item in executorOptions"
+                  :key="item.value"
+                  :label="item.value"
+                  :value="item.value"
+                />
+              </el-select>
             </div>
             <div class="field-row">
               <span class="field-label">完成时限</span>
@@ -293,6 +436,7 @@ function handleSave() {
                 v-model="reminderDraft.deadline"
                 type="date"
                 value-format="YYYY-MM-DD"
+                :popper-class="DOC_POPPER_CLASS"
                 placeholder="选择完成时限"
                 size="small"
                 style="width: 100%"
@@ -303,11 +447,21 @@ function handleSave() {
           <template v-else>
             <div class="field-row">
               <span class="field-label">项目名称</span>
-              <el-input v-model="penaltyDraft.project" size="small" placeholder="如：捷运线延长段" />
+              <el-select
+                v-model="penaltyDraft.project"
+                filterable
+                allow-create
+                default-first-option
+                size="small"
+                :popper-class="DOC_POPPER_CLASS"
+                placeholder="选择或输入项目名称"
+              >
+                <el-option v-for="item in projectOptions" :key="item" :label="item" :value="item" />
+              </el-select>
             </div>
             <div class="field-row">
               <span class="field-label">责任单位</span>
-              <el-input v-model="penaltyDraft.unit" size="small" placeholder="如：中建三局" />
+              <el-input v-model="penaltyDraft.unit" size="small" placeholder="如：中建三局（施工总承包）" />
             </div>
             <div class="field-row">
               <span class="field-label">事由</span>
@@ -322,10 +476,6 @@ function handleSave() {
                 resize="none"
                 placeholder="请描述处罚内容"
               />
-            </div>
-            <div class="field-row">
-              <span class="field-label">金额</span>
-              <el-input v-model="penaltyDraft.amount" size="small" placeholder="如 5000 元" />
             </div>
           </template>
         </div>
@@ -514,7 +664,7 @@ function handleSave() {
 
 .field-row {
   display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
+  grid-template-columns: 88px minmax(0, 1fr);
   gap: 10px;
   align-items: start;
 }
@@ -536,7 +686,9 @@ function handleSave() {
 }
 
 .draft-fields :deep(.el-input),
-.draft-fields :deep(.el-textarea) {
+.draft-fields :deep(.el-textarea),
+.draft-fields :deep(.el-select),
+.draft-fields :deep(.el-date-editor) {
   width: 100%;
 }
 

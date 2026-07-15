@@ -1,8 +1,8 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Edit, Delete } from '@element-plus/icons-vue'
-import { buildProjects } from '../../coc/mock/data.js'
+import { useCurrentProject } from '../../composables/useCurrentProject'
 import {
   getNvrDevices,
   saveNvrDevice,
@@ -16,31 +16,36 @@ defineProps({
   description: { type: String, default: '' },
 })
 
+const { selectedProjectId, headerProjectLabel } = useCurrentProject()
 const keyword = ref('')
 const list = ref([])
 const formVisible = ref(false)
 const form = ref(emptyNvrDevice())
 
-const projectOptions = computed(() =>
-  buildProjects()
-    .filter((p) => p.status === '在建')
-    .map((p) => ({ id: p.id, label: p.shortName || p.name })),
+const scopedList = computed(() =>
+  list.value.filter((row) => row.projectId === selectedProjectId.value),
 )
 
 const filtered = computed(() => {
   const q = keyword.value.trim()
-  if (!q) return list.value
-  return list.value.filter((row) =>
+  if (!q) return scopedList.value
+  return scopedList.value.filter((row) =>
     [row.id, row.name, row.project, row.ip, row.remark].some((f) => String(f || '').includes(q)),
   )
 })
+
+const onlineCount = computed(() => scopedList.value.filter((row) => row.online).length)
+const offlineCount = computed(() => scopedList.value.length - onlineCount.value)
 
 function load() {
   list.value = getNvrDevices()
 }
 
 function openCreate() {
-  form.value = emptyNvrDevice()
+  form.value = emptyNvrDevice({
+    projectId: selectedProjectId.value,
+    project: headerProjectLabel.value,
+  })
   formVisible.value = true
 }
 
@@ -49,20 +54,13 @@ function openEdit(row) {
   formVisible.value = true
 }
 
-function onProjectChange(projectId) {
-  const project = projectOptions.value.find((p) => p.id === projectId)
-  if (project) {
-    form.value.project = project.label
-  }
-}
-
 function validateForm() {
   if (!form.value.name?.trim()) {
     ElMessage.warning('请填写 NVR 名称')
     return false
   }
-  if (!form.value.projectId) {
-    ElMessage.warning('请选择绑定项目')
+  if (!selectedProjectId.value) {
+    ElMessage.warning('请先在顶部选择项目')
     return false
   }
   if (!form.value.ip?.trim()) {
@@ -77,6 +75,8 @@ function submitForm() {
   saveNvrDevice({
     ...form.value,
     name: form.value.name.trim(),
+    projectId: selectedProjectId.value,
+    project: headerProjectLabel.value,
     ip: form.value.ip.trim(),
     lastSync: form.value.online
       ? new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-')
@@ -98,6 +98,10 @@ async function handleDelete(row) {
   }
 }
 
+watch(selectedProjectId, () => {
+  keyword.value = ''
+})
+
 onMounted(() => {
   load()
   window.addEventListener(NVR_DEVICES_CHANGE_EVENT, load)
@@ -109,17 +113,25 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="panel-card admin-page">
+  <div class="panel-card admin-page video-monitor-page">
     <div class="panel-title simple-title">
-      <span>{{ title }}</span>
+      <div class="title-main">
+        <span class="title-text">{{ title }}</span>
+        <el-tag size="small" effect="plain" class="project-tag">{{ headerProjectLabel }}</el-tag>
+      </div>
+      <div class="title-meta">
+        <span class="stat-chip">设备 {{ filtered.length }}</span>
+        <span class="stat-chip is-online">在线 {{ onlineCount }}</span>
+        <span class="stat-chip is-offline">离线 {{ offlineCount }}</span>
+      </div>
       <div class="title-actions">
-        <el-input v-model="keyword" placeholder="搜索名称、项目、IP…" clearable class="search-input" />
-        <el-button type="primary" :icon="Plus" @click="openCreate">注册 NVR</el-button>
+        <el-input v-model="keyword" placeholder="搜索名称、IP…" clearable class="search-input" />
+        <el-button type="primary" class="ap-btn-primary" :icon="Plus" @click="openCreate">注册 NVR</el-button>
       </div>
     </div>
     <div class="panel-body page-body">
       <p v-if="description" class="page-desc">{{ description }}</p>
-      <el-table :data="filtered" stripe border empty-text="暂无 NVR 设备">
+      <el-table :data="filtered" stripe border empty-text="当前项目暂无 NVR 设备">
         <el-table-column type="index" label="序号" width="56" />
         <el-table-column prop="id" label="设备编号" width="108" />
         <el-table-column prop="name" label="NVR 名称" min-width="160" show-overflow-tooltip />
@@ -152,16 +164,8 @@ onUnmounted(() => {
         <el-form-item label="NVR 名称" required>
           <el-input v-model="form.name" placeholder="如：三跑道 NVR-01" />
         </el-form-item>
-        <el-form-item label="绑定项目" required>
-          <el-select
-            v-model="form.projectId"
-            placeholder="选择项目"
-            filterable
-            style="width: 100%"
-            @change="onProjectChange"
-          >
-            <el-option v-for="p in projectOptions" :key="p.id" :label="p.label" :value="p.id" />
-          </el-select>
+        <el-form-item label="绑定项目">
+          <el-input :model-value="headerProjectLabel" readonly />
         </el-form-item>
         <el-form-item label="IP 地址" required>
           <el-input v-model="form.ip" placeholder="192.168.1.100" />
@@ -194,14 +198,67 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.admin-page {
+  min-height: calc(100vh - 120px);
+}
+
 .simple-title {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 12px 16px;
   font-size: 16px;
-  border-left: 4px solid #409eff;
-  padding-left: 12px;
+  font-weight: 600;
+  color: var(--ap-text, #303133);
+  border-left: 4px solid var(--ap-primary, #8f0045);
+  padding: 4px 0 4px 12px;
+}
+
+.title-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.title-text {
+  line-height: 1.3;
+}
+
+.project-tag {
+  font-weight: 500;
+  border-color: rgba(143, 0, 69, 0.28);
+  color: var(--ap-primary, #8f0045);
+  background: rgba(143, 0, 69, 0.06);
+}
+
+.title-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.stat-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 13px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ap-text-secondary, #606266);
+  background: #f4f5f7;
+}
+
+.stat-chip.is-online {
+  color: #067647;
+  background: #ecfdf3;
+}
+
+.stat-chip.is-offline {
+  color: #475467;
+  background: #f2f4f7;
 }
 
 .title-actions {
@@ -221,9 +278,9 @@ onUnmounted(() => {
 }
 
 .page-desc {
-  margin: 0 0 16px;
+  margin: 0 0 14px;
   font-size: 13px;
-  line-height: 1.7;
-  color: #606266;
+  line-height: 1.6;
+  color: var(--ap-text-muted, #909399);
 }
 </style>

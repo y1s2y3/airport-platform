@@ -1,8 +1,9 @@
 import { ref } from 'vue'
+import { migrateMenuIdsByLevel } from '../utils/menuPermissionTree'
 
 export const roleLevelOptions = [
   { label: '全部', value: '' },
-  { label: '公司', value: '公司' },
+  { label: '指挥部', value: '指挥部' },
   { label: '项目', value: '项目' },
 ]
 
@@ -31,7 +32,7 @@ const initialRoles = [
   {
     id: 'role-company',
     name: '公司角色',
-    level: '公司',
+    level: '指挥部',
     status: '禁用',
     source: '自定义角色',
     remark: '',
@@ -44,7 +45,7 @@ const initialRoles = [
   {
     id: 'role-default',
     name: '公司默认角色',
-    level: '公司',
+    level: '指挥部',
     status: '启用',
     source: '系统角色',
     remark: '',
@@ -70,7 +71,7 @@ const initialRoles = [
   {
     id: 'role-admin',
     name: '系统管理员',
-    level: '公司',
+    level: '指挥部',
     status: '启用',
     source: '系统角色',
     remark: '平台全量管理权限',
@@ -135,7 +136,7 @@ const initialRoles = [
   {
     id: 'role-bd',
     name: '基础数据维护员',
-    level: '公司',
+    level: '指挥部',
     status: '启用',
     source: '自定义角色',
     remark: '',
@@ -148,7 +149,7 @@ const initialRoles = [
   {
     id: 'role-audit',
     name: '审计查看角色',
-    level: '公司',
+    level: '指挥部',
     status: '禁用',
     source: '自定义角色',
     remark: '只读审计',
@@ -174,7 +175,7 @@ const initialRoles = [
   {
     id: 'role-integration',
     name: '对接管理员',
-    level: '公司',
+    level: '指挥部',
     status: '启用',
     source: '系统角色',
     remark: '',
@@ -189,8 +190,8 @@ const initialRoles = [
 function cloneRole(role) {
   return {
     ...role,
-    webMenuIds: [...(role.webMenuIds || [])],
-    appMenuIds: [...(role.appMenuIds || [])],
+    webMenuIds: migrateMenuIdsByLevel(role.webMenuIds || [], role.level),
+    appMenuIds: migrateMenuIdsByLevel(role.appMenuIds || [], role.level),
   }
 }
 
@@ -234,8 +235,8 @@ export function cloneRoleRecord(role) {
 export function saveRole(payload, id) {
   const data = {
     ...payload,
-    webMenuIds: [...(payload.webMenuIds || [])],
-    appMenuIds: [...(payload.appMenuIds || [])],
+    webMenuIds: migrateMenuIdsByLevel(payload.webMenuIds || [], payload.level),
+    appMenuIds: migrateMenuIdsByLevel(payload.appMenuIds || [], payload.level),
     updatedAt: nowText(),
     updatedBy: '系统管理员',
   }

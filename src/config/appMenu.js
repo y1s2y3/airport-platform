@@ -24,8 +24,9 @@ export const appMenu = [
     key: 'app-video',
     label: '视频监控',
     children: [
-      { key: 'app-video-list', label: '监控列表' },
-      { key: 'app-video-device', label: '设备管理' },
+      { key: 'app-video-list', label: '视频预览' },
+      { key: 'app-video-device', label: '设备台账' },
+      { key: 'app-video-group', label: '分组管理' },
     ],
   },
   {

@@ -207,22 +207,83 @@ const MILESTONE_TEMPLATES = [
   { name: '竣工验收', weight: 0.1 },
 ]
 
+/** 监控摄像头接入平台：海康 / 萤石 */
+export const CAMERA_VENDOR_HIKVISION = 'hikvision'
+export const CAMERA_VENDOR_EZVIZ = 'ezviz'
+
+export function resolveCameraVendor(camera) {
+  if (!camera) return ''
+  const raw = camera.vendor || camera.platform || camera.brand || ''
+  if (raw === CAMERA_VENDOR_HIKVISION || raw === '海康' || raw === '海康威视') return '海康'
+  if (raw === CAMERA_VENDOR_EZVIZ || raw === '萤石' || raw === '萤石云') return '萤石'
+  const key = String(camera.id || camera.name || '')
+  let hash = 0
+  for (let i = 0; i < key.length; i += 1) hash += key.charCodeAt(i)
+  return hash % 2 === 0 ? '海康' : '萤石'
+}
+
 export const FOCUS_CAMERAS = [
-  { id: 'c01', name: '地磅-枪机-1三', type: 'gun', key: false, online: true, location: '地磅站' },
-  { id: 'c02', name: '4号塔吊驾驶室', type: 'gun', key: false, online: true, location: '4号塔吊作业区' },
-  { id: 'c03', name: '1号门-枪机-1', type: 'gun', key: false, online: true, location: '1号出入口' },
-  { id: 'c04', name: '钢筋加工厂-枪机-2', type: 'gun', key: false, online: true, location: '钢筋加工场' },
-  { id: 'c05', name: '3号塔-球机-1', type: 'ptz', key: true, online: true, location: '3号塔吊作业区' },
-  { id: 'c06', name: '车辆通道-枪机-1', type: 'gun', key: false, online: true, location: '车辆通道' },
-  { id: 'c07', name: '钢筋加工场-枪机-1', type: 'gun', key: false, online: false, location: '钢筋加工场' },
-  { id: 'c08', name: '施工活跃区-枪机-1', type: 'gun', key: false, online: true, location: '施工活跃区' },
-  { id: 'c09', name: '4号机-球机-1 三', type: 'ptz', key: true, online: true, location: '4号塔吊作业区' },
-  { id: 'c10', name: '2号梯笼-球机-1', type: 'ptz', key: false, online: true, location: '2号梯笼' },
-  { id: 'c11', name: '1号梯笼-球机-1', type: 'ptz', key: false, online: true, location: '1号梯笼' },
-  { id: 'c12', name: '工人讲评-枪机-1', type: 'gun', key: false, online: true, location: '工人讲评区' },
-  { id: 'c13', name: '现场会议室-枪机-1', type: 'gun', key: false, online: true, location: '现场会议室' },
-  { id: 'c14', name: '3号塔吊驾驶室', type: 'gun', key: false, online: true, location: '3号塔吊作业区' },
+  { id: 'c01', name: '地磅-枪机-1三', type: 'gun', vendor: CAMERA_VENDOR_HIKVISION, key: false, online: true, location: '地磅站' },
+  { id: 'c02', name: '4号塔吊驾驶室', type: 'gun', vendor: CAMERA_VENDOR_EZVIZ, key: false, online: true, location: '4号塔吊作业区' },
+  { id: 'c03', name: '1号门-枪机-1', type: 'gun', vendor: CAMERA_VENDOR_HIKVISION, key: false, online: true, location: '1号出入口' },
+  { id: 'c04', name: '钢筋加工厂-枪机-2', type: 'gun', vendor: CAMERA_VENDOR_EZVIZ, key: false, online: true, location: '钢筋加工场' },
+  { id: 'c05', name: '3号塔-球机-1', type: 'ptz', vendor: CAMERA_VENDOR_HIKVISION, key: true, online: true, location: '3号塔吊作业区' },
+  { id: 'c06', name: '车辆通道-枪机-1', type: 'gun', vendor: CAMERA_VENDOR_EZVIZ, key: false, online: true, location: '车辆通道' },
+  { id: 'c07', name: '钢筋加工场-枪机-1', type: 'gun', vendor: CAMERA_VENDOR_HIKVISION, key: false, online: false, location: '钢筋加工场' },
+  { id: 'c08', name: '施工活跃区-枪机-1', type: 'gun', vendor: CAMERA_VENDOR_EZVIZ, key: false, online: true, location: '施工活跃区' },
+  { id: 'c09', name: '4号机-球机-1 三', type: 'ptz', vendor: CAMERA_VENDOR_HIKVISION, key: true, online: true, location: '4号塔吊作业区' },
+  { id: 'c10', name: '2号梯笼-球机-1', type: 'ptz', vendor: CAMERA_VENDOR_EZVIZ, key: false, online: true, location: '2号梯笼' },
+  { id: 'c11', name: '1号梯笼-球机-1', type: 'ptz', vendor: CAMERA_VENDOR_HIKVISION, key: false, online: true, location: '1号梯笼' },
+  { id: 'c12', name: '工人讲评-枪机-1', type: 'gun', vendor: CAMERA_VENDOR_EZVIZ, key: false, online: true, location: '工人讲评区' },
+  { id: 'c13', name: '现场会议室-枪机-1', type: 'gun', vendor: CAMERA_VENDOR_HIKVISION, key: false, online: true, location: '现场会议室' },
+  { id: 'c14', name: '3号塔吊驾驶室', type: 'gun', vendor: CAMERA_VENDOR_EZVIZ, key: false, online: true, location: '3号塔吊作业区' },
 ]
+
+/** 各项目通用监控点位模版（用于生成全量假数据） */
+const CAMERA_LOCATION_POOL = [
+  '1号出入口',
+  '2号出入口',
+  '车辆通道',
+  '地磅站',
+  '钢筋加工场',
+  '材料堆场',
+  '基坑临边',
+  '塔吊作业区',
+  '施工活跃区',
+  '工人讲评区',
+  '现场会议室',
+  '配电房',
+  '生活区大门',
+  '消防通道',
+  '围墙转角',
+  '梯笼作业区',
+]
+
+/**
+ * 为单个项目生成监控摄像头假数据（含位置、在线状态、重点标记）
+ */
+export function buildProjectCameras(projectId, shortName, projectIndex = 0, rand = Math.random) {
+  if (projectId === FOCUS_PROJECT_ID) {
+    return FOCUS_CAMERAS.map((cam) => ({ ...cam }))
+  }
+  const count = 8 + (projectIndex % 5) // 8–12 路，覆盖全部项目
+  const onlineCount = Math.max(1, Math.round(count * (0.78 + (projectIndex % 4) * 0.04)))
+  return Array.from({ length: count }, (_, ci) => {
+    const location = CAMERA_LOCATION_POOL[(projectIndex + ci) % CAMERA_LOCATION_POOL.length]
+    const isPtz = ci % 4 === 0
+    const typeLabel = isPtz ? '球机' : '枪机'
+    const seq = ci + 1
+    return {
+      id: `${projectId}-cam-${String(seq).padStart(2, '0')}`,
+      name: `${shortName}-${location}-${typeLabel}-${seq}`,
+      type: isPtz ? 'ptz' : 'gun',
+      vendor: ci % 2 === 0 ? CAMERA_VENDOR_HIKVISION : CAMERA_VENDOR_EZVIZ,
+      key: ci === 0 || ci % 5 === 0,
+      online: ci < onlineCount,
+      location,
+    }
+  })
+}
 
 const ROLES = [
   { role: '项目经理', jobType: '管理' },
@@ -551,10 +612,9 @@ export function buildProjects() {
     const actualRate = Math.round(planRate - rand() * 18)
     const deviation = Math.max(0, planRate - actualRate)
     const lagDays = deviation > 8 ? Math.round(deviation * 0.6) : 0
-    const cameraCount = isFocus ? FOCUS_CAMERAS.length : Math.round(6 + rand() * 10)
-    const onlineCount = isFocus
-      ? FOCUS_CAMERAS.filter((c) => c.online).length
-      : Math.round(cameraCount * (0.85 + rand() * 0.12))
+    const cameras = buildProjectCameras(id, PROJECT_SHORT_NAMES[i] || name, i, rand)
+    const cameraCount = cameras.length
+    const onlineCount = cameras.filter((c) => c.online).length
 
     const personnel = ROLES.map((item, ri) => {
       const punch = buildPunchRecords(rand, ri, isFocus)
@@ -595,15 +655,7 @@ export function buildProjects() {
       onSiteWorkers: Math.round(120 + rand() * 380),
       milestones: buildMilestones(planRate, actualRate, rand),
       ganttWbs,
-      cameras: isFocus
-        ? FOCUS_CAMERAS
-        : Array.from({ length: cameraCount }, (_, ci) => ({
-            id: `${id}-cam-${ci}`,
-            name: `${PROJECT_SHORT_NAMES[i] || name}-${['东门', '西门', '塔吊', '加工区', '通道', '基坑'][ci % 6]}-枪机-${ci + 1}`,
-            type: ci % 4 === 0 ? 'ptz' : 'gun',
-            key: ci === 0 || ci % 5 === 0,
-            online: ci < onlineCount,
-          })),
+      cameras,
       personnel,
     }
   })
@@ -1108,14 +1160,20 @@ export function buildSamplingNoticeDraft(device) {
   const name = typeof device === 'string' ? device : device.name
   const category = typeof device === 'string' ? '' : (device.category || '')
   const label = category ? `${name}（${category}）` : name
+  const d = new Date()
+  d.setDate(d.getDate() + 7)
   return {
     id: `notice-${Date.now()}`,
     title: '现场抽检任务单（AI草稿）',
     project: getProjectShortName('T2航站区及配套设施工程空侧捷运线(延长段)项目'),
     status: 'draft',
     aiGenerated: true,
-    workType: '质量复检',
+    workType: '',
     workRequirement: `根据 ${label} 现场抽检视频对讲记录，1 项分部分项验收未通过须组织复检；2 名特种作业人员证件即将过期须 7 日内换证；1 台塔吊未接入安全监测须 3 日内完成接入。`,
+    executor: '',
+    executeDept: '',
+    deadline: d.toISOString().slice(0, 10),
+    remark: '',
   }
 }
 
@@ -1346,11 +1404,11 @@ const DISPATCH_DOC_PENDING_STATUSES = ['待确认', '处理中', '待签收']
 
 export const DISPATCH_DOC_TICKET_LIST = [
   { id: 'pt-01', title: '临边防护缺失限期整改通知', status: '待确认', handler: 'COC调度室', issuer: '安监部', time: '2026-06-12 10:12', docType: '任务单' },
-  { id: 'pt-02', title: '塔吊警戒标识不足处罚单', status: '已下发', handler: '工程管理部', issuer: 'COC调度室', time: '2026-06-12 10:15', docType: '处罚单' },
+  { id: 'pt-02', title: '塔吊警戒标识不足处罚单', status: '处理中', handler: '工程管理部', issuer: 'COC调度室', time: '2026-06-12 10:15', docType: '处罚单' },
   { id: 'pt-03', title: '钢筋绑扎复检通知', status: '处理中', handler: 'COC调度室', issuer: '质量部', time: '2026-06-12 10:18', docType: '任务单' },
   { id: 'pt-04', title: '混凝土养护措施补充通知', status: '待确认', handler: '质量部', issuer: 'COC调度室', time: '2026-06-12 10:20', docType: '任务单' },
   { id: 'pt-05', title: '文明施工违规处罚单', status: '处理中', handler: 'COC调度室', issuer: '工程管理部', time: '2026-06-11 16:40', docType: '处罚单' },
-  { id: 'pt-06', title: '高处作业违规处罚单', status: '已下发', handler: '安监部', issuer: 'COC调度室', time: '2026-06-10 11:05', docType: '处罚单' },
+  { id: 'pt-06', title: '高处作业违规处罚单', status: '已关闭', handler: '安监部', issuer: 'COC调度室', time: '2026-06-10 11:05', docType: '处罚单' },
   { id: 'pt-07', title: '现场抽检任务单', status: '待签收', handler: 'COC调度室', issuer: '质量部', time: '2026-06-15 10:20', docType: '任务单', ccUsers: ['工程管理部'] },
   { id: 'pt-08', title: '复检通知任务单', status: '已下发', handler: '工程管理部', issuer: '安监部', time: '2026-06-14 14:00', docType: '任务单', ccUsers: ['COC调度室'] },
   { id: 'pt-09', title: '临边防护整改任务单', status: '已闭环', handler: '质量部', issuer: 'COC调度室', time: '2026-06-12 10:18', docType: '任务单' },
@@ -1365,7 +1423,7 @@ export const DISPATCH_DOC_TICKET_LIST = [
     docType: '提示函',
     executor: '项目经理',
   },
-  { id: 'pt-10', title: '动火作业许可处罚单', status: '待确认', handler: 'COC调度室', issuer: 'COC调度室', time: '2026-06-13 09:30', docType: '处罚单' },
+  { id: 'pt-10', title: '动火作业许可处罚单', status: '待下发', handler: 'COC调度室', issuer: 'COC调度室', time: '2026-06-13 09:30', docType: '处罚单' },
   {
     id: 'pt-11',
     title: '特种作业证件换证提示函',
@@ -1429,6 +1487,23 @@ function withHazardDetail(item, type) {
 export const HAZARD_LEVELS = ['一般', '较大', '重大']
 const HAZARD_STATUSES = ['待整改', '整改中', '已闭合']
 export const HAZARD_REPORTERS = ['张安全', '李巡检', '王强', '赵军', '陈磊', '刘洋', '周质量', '吴检', '郑伟', '孙涛', '钱鹏', '马检']
+
+/** 任务单/提示函 · 执行人候选（姓名 + 岗位） */
+export const TASK_EXECUTOR_OPTIONS = [
+  { name: '陈静', position: 'COC调度员' },
+  { name: '张安全', position: '安监专员' },
+  { name: '李巡检', position: '巡检工程师' },
+  { name: '王强', position: '项目经理' },
+  { name: '赵军', position: '质量工程师' },
+  { name: '陈磊', position: '安全员' },
+  { name: '刘洋', position: '施工员' },
+  { name: '周质量', position: '质量员' },
+  { name: '吴检', position: '监理工程师' },
+  { name: '郑伟', position: '技术负责人' },
+  { name: '孙涛', position: '项目副经理' },
+  { name: '钱鹏', position: '机电工程师' },
+  { name: '马检', position: '试验员' },
+]
 
 export const TASK_WORK_TYPES = ['安全', '质量', '综合']
 export const TASK_WORK_SOURCES = ['实时监控', '视频回放', '调度会议', '视频截屏']
@@ -1554,6 +1629,20 @@ export function getProjectIssuesByType(type, projectId) {
   return list.filter((item) => item.projectId === projectId)
 }
 
+/** 隐患来源分类（待整改顶栏统计用） */
+export const HAZARD_CHANNEL_OPTIONS = [
+  { key: 'safety', label: '安全隐患', color: '#E6A23C' },
+  { key: 'quality', label: '质量隐患', color: '#409EFF' },
+  { key: 'snapshot', label: '随手拍', color: '#67C23A' },
+  { key: 'supervision', label: '监理例会登记', color: '#B37FEB' },
+]
+
+export const HAZARD_STATUS_SEGMENTS = [
+  { name: '待整改', color: '#F56C6C' },
+  { name: '整改中', color: '#409EFF' },
+  { name: '已闭合', color: '#67C23A' },
+]
+
 export function getPendingProjectIssues(type, projectId) {
   return sortIssuesByLevel(
     getProjectIssuesByType(type, projectId).filter((item) => item.status !== '已闭合'),
@@ -1567,6 +1656,56 @@ export const HQ_HAZARD_LEVEL_SEGMENTS = [
   { name: '严重', filter: '严重', color: '#47D391' },
   { name: '重大', filter: '重大', color: '#F6C575' },
 ]
+
+/**
+ * 项目级「隐患统计」：待整改总量 + 分类 + 整改状态环 + 等级环
+ */
+export function getProjectHazardStats(projectId) {
+  const all = [
+    ...getProjectIssuesByType('safety', projectId).map((item, index) => ({
+      ...item,
+      channel: index % 7 === 0 ? 'snapshot' : 'safety',
+    })),
+    ...getProjectIssuesByType('quality', projectId).map((item, index) => ({
+      ...item,
+      channel: index % 6 === 0 ? 'supervision' : 'quality',
+    })),
+  ]
+
+  const pending = all.filter((item) => item.status === '待整改')
+  const byChannel = Object.fromEntries(HAZARD_CHANNEL_OPTIONS.map((c) => [c.key, 0]))
+  pending.forEach((item) => {
+    if (byChannel[item.channel] != null) byChannel[item.channel] += 1
+  })
+
+  const byStatus = Object.fromEntries(HAZARD_STATUS_SEGMENTS.map((s) => [s.name, 0]))
+  all.forEach((item) => {
+    if (byStatus[item.status] != null) byStatus[item.status] += 1
+  })
+
+  const byLevel = Object.fromEntries(HQ_HAZARD_LEVEL_SEGMENTS.map((s) => [s.filter, 0]))
+  all.forEach((item) => {
+    if (byLevel[item.level] != null) byLevel[item.level] += 1
+  })
+
+  return {
+    pendingTotal: pending.length,
+    total: all.length,
+    channels: HAZARD_CHANNEL_OPTIONS.map((c) => ({
+      ...c,
+      value: byChannel[c.key] || 0,
+    })),
+    statusSegments: HAZARD_STATUS_SEGMENTS.map((s) => ({
+      ...s,
+      value: byStatus[s.name] || 0,
+    })),
+    levelSegments: HQ_HAZARD_LEVEL_SEGMENTS.map((s) => ({
+      name: s.name,
+      color: s.color,
+      value: byLevel[s.filter] || 0,
+    })),
+  }
+}
 
 export function getHqOpenHazards() {
   return [...SAFETY_HAZARDS, ...QUALITY_HAZARDS].filter((h) => h.status !== '已闭合')

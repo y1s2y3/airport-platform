@@ -104,6 +104,12 @@
   pointer-events: none;
 }
 
+/* 须高于 .coc-hq-mode.screen-canvas > * 的 position:relative，否则全屏浮层容器高度塌陷 */
+.coc-hq-mode.screen-canvas > .coc-overlay-root {
+  position: absolute;
+  inset: 0;
+}
+
 .coc-overlay-root:not(:empty) {
   pointer-events: auto;
 }

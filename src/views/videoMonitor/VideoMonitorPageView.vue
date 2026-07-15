@@ -2,14 +2,14 @@
 import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { getVideoMonitorItem } from '../../config/videoMonitorMenu.js'
-import { ensureMonitorGroupSeed } from '../../coc/utils/monitorAdminStorage.js'
-import { ensureNvrDeviceSeed } from '../../coc/utils/nvrDeviceStorage.js'
+import { ensureVideoDeviceLedgerSeed } from '../../coc/utils/videoDeviceLedgerStorage.js'
+import { ensureVideoDeviceGroupSeed } from '../../coc/utils/videoDeviceGroupStorage.js'
 import '../../coc/admin/admin.css'
 import '../../coc/admin/admin-video.css'
 
 onMounted(() => {
-  ensureMonitorGroupSeed()
-  ensureNvrDeviceSeed()
+  ensureVideoDeviceLedgerSeed()
+  ensureVideoDeviceGroupSeed()
 })
 
 const route = useRoute()

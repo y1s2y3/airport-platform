@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getScreenshotRecords, removeScreenshotRecord } from '../utils/videoStorage.js'
+import { resolveExecutorDisplay } from '../utils/executorDisplay.js'
 
 const records = ref([])
 const keyword = ref('')
@@ -172,13 +173,17 @@ onMounted(load)
           <template v-if="isNoticeRow(current)">
             <el-descriptions-item label="工作类型">{{ current.workType || '—' }}</el-descriptions-item>
             <el-descriptions-item label="工作要求">{{ current.workRequirement || current.description || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="执行人">{{ current.executor || current.executeDept || current.rectifier || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="执行人">
+              {{ resolveExecutorDisplay(current.executor || current.executeDept || current.rectifier) }}
+            </el-descriptions-item>
             <el-descriptions-item label="完成时限">{{ current.deadline || '—' }}</el-descriptions-item>
             <el-descriptions-item label="备注">{{ current.remark || '—' }}</el-descriptions-item>
           </template>
           <template v-else-if="isReminderRow(current)">
             <el-descriptions-item label="事项描述">{{ current.matterDescription || current.description || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="指派人">{{ current.assignee || current.executor || current.rectifier || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="指派人">
+              {{ resolveExecutorDisplay(current.assignee || current.executor || current.rectifier) }}
+            </el-descriptions-item>
             <el-descriptions-item label="完成时限">{{ current.deadline || '—' }}</el-descriptions-item>
           </template>
           <template v-else-if="isPenaltyRow(current)">

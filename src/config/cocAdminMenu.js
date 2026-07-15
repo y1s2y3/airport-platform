@@ -88,7 +88,7 @@ const cocAdminItems = [
     path: '/coc-admin/patrol-device',
     roles: ['COC调度室'],
     description:
-      '管理巡检仪设备注册、绑定项目/人员、在线状态及与调度对讲的关联配置。',
+      '管理巡检仪设备注册、绑定项目及项目下人员；在线状态由设备自动上报。',
     component: PatrolDeviceManageView,
   },
   {
@@ -106,9 +106,9 @@ const cocAdminItems = [
     name: 'CocAdminSupervisionMeeting',
     label: '监理会议管理',
     path: '/coc-admin/supervision-meeting',
-    roles: ['COC调度室'],
+    roles: ['COC调度室', '监理', '施工'],
     description:
-      '登记监理例会信息及监理隐患清单；上传监理例会纪要（Word/PDF）、签到表及会议照片，管理安全/质量隐患。',
+      '项目层级按模版上传监理例会纪要并解析隐患；施工方提交整改、监理验收；企业级只读查看。',
     component: SupervisionMeetingMinutesView,
   },
 ]

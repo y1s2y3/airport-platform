@@ -85,12 +85,18 @@ defineExpose({ togglePanel, panelExpanded })
       @click="togglePanel(true)"
     >
       <el-icon :size="22"><UserFilled /></el-icon>
-      <span class="fab-label">会议签到</span>
+      <div class="fab-label-wrap">
+        <span class="fab-label">会议签到</span>
+        <span class="panel-v2-tip panel-v2-tip--fab">V2版本上线</span>
+      </div>
     </button>
 
     <div v-else class="panel-card sign-in-panel">
       <div class="panel-title compact title-row">
-        <span>会议签到</span>
+        <div class="title-main">
+          <span>会议签到</span>
+          <span class="panel-v2-tip">V2版本上线</span>
+        </div>
         <button type="button" class="collapse-btn" title="收起" @click="togglePanel(false)">
           收起
         </button>
@@ -129,10 +135,11 @@ defineExpose({ togglePanel, panelExpanded })
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 3px;
   width: var(--coc-float-fab-size, 56px);
-  height: var(--coc-float-fab-size, 56px);
-  padding: 0;
+  min-height: var(--coc-float-fab-size, 56px);
+  height: auto;
+  padding: 6px 4px;
   border: 1px solid var(--coc-fab-border, rgba(201, 123, 99, 0.35));
   border-radius: 12px;
   background: var(--coc-fab-bg, linear-gradient(180deg, #fff, #faf6f3));
@@ -146,10 +153,36 @@ defineExpose({ togglePanel, panelExpanded })
   box-shadow: var(--coc-fab-hover-shadow, 0 6px 20px rgba(201, 123, 99, 0.18));
 }
 
+.fab-label-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+}
+
 .fab-label {
   font-size: calc(10px + var(--coc-font-boost));
   font-weight: 700;
   line-height: 1;
+}
+
+.panel-v2-tip--fab {
+  margin-left: 0;
+  font-size: calc(7px + var(--coc-font-boost));
+  padding: 0 3px;
+  line-height: 1.2;
+  max-width: 48px;
+  white-space: normal;
+  text-align: center;
+}
+
+.title-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
 }
 
 .sign-in-panel {

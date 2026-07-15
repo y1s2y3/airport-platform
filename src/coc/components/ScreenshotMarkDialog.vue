@@ -14,6 +14,7 @@ import {
 } from '../mock/data.js'
 import { saveScreenshotRecord } from '../utils/videoStorage.js'
 import { saveDispatchDocFromScreenshot } from '../utils/dispatchMeetingStorage.js'
+import { buildExecutorOptions } from '../utils/executorDisplay.js'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -31,12 +32,7 @@ const previewUrl = ref('')
 const brushColor = ref('#f56c6c')
 const brushSize = ref(4)
 
-const DEFAULT_EXECUTOR = '项目经理'
-
-const executorOptions = computed(() => {
-  const names = new Set([DEFAULT_EXECUTOR, ...HAZARD_REPORTERS])
-  return [...names]
-})
+const executorOptions = computed(() => buildExecutorOptions())
 
 const form = reactive({
   docType: 'notice',
@@ -49,12 +45,13 @@ const form = reactive({
   hazardDeadline: '',
   workType: '',
   workRequirement: '',
-  executor: DEFAULT_EXECUTOR,
+  executor: '',
   deadline: '',
   remark: '',
   matterDescription: '',
   penaltyReason: '',
   penaltyContent: '',
+  unit: '',
 })
 
 const projectOptions = computed(() =>
@@ -67,6 +64,8 @@ function defaultDeadline() {
   return d.toISOString().slice(0, 10)
 }
 
+const MARK_POPPER_CLASS = 'screenshot-mark-popper'
+
 const docTypeOptions = [
   { value: 'notice', label: '任务单' },
   { value: 'reminder', label: '提示函' },
@@ -77,9 +76,9 @@ const docTypeOptions = [
 
 function docTypeMeta(type) {
   const map = {
-    notice: { submitText: '提交任务单', successText: '任务单已登记并下发' },
-    reminder: { submitText: '提交提示函', successText: '提示函已登记并下发' },
-    penalty: { submitText: '提交处罚单', successText: '处罚单已登记并下发' },
+    notice: { submitText: '提交任务单', successText: '任务单已登记，待指挥部下发' },
+    reminder: { submitText: '提交提示函', successText: '提示函已登记，待指挥部下发' },
+    penalty: { submitText: '提交处罚单', successText: '处罚单已登记，待指挥部下发' },
     safety: { submitText: '提交安全隐患', successText: '安全隐患已登记' },
     quality: { submitText: '提交质量隐患', successText: '质量隐患已登记' },
   }
@@ -121,12 +120,13 @@ function resetForm() {
   form.hazardDeadline = defaultDeadline()
   form.workType = ''
   form.workRequirement = ''
-  form.executor = DEFAULT_EXECUTOR
+  form.executor = ''
   form.deadline = defaultDeadline()
   form.remark = ''
   form.matterDescription = ''
   form.penaltyReason = ''
   form.penaltyContent = ''
+  form.unit = ''
 }
 
 function switchDocType(type) {
@@ -374,6 +374,10 @@ function handleSubmit() {
       ElMessage.warning('请填写项目名称')
       return
     }
+    if (!form.unit?.trim()) {
+      ElMessage.warning('请填写责任单位')
+      return
+    }
     if (!form.penaltyReason.trim()) {
       ElMessage.warning('请填写事由')
       return
@@ -416,7 +420,7 @@ function handleSubmit() {
     snapshot: exportMergedImage(),
     cameraId: props.camera?.id,
     sourceType: props.sourceType,
-    unit: MOCK_NOTICE.unit,
+    unit: form.docType === 'penalty' ? (form.unit?.trim() || '') : MOCK_NOTICE.unit,
   }
   saveScreenshotRecord(payload)
   if (form.docType === 'notice' || form.docType === 'penalty' || form.docType === 'reminder') {
@@ -446,7 +450,9 @@ watch(
     width="920px"
     top="5vh"
     destroy-on-close
+    append-to-body
     class="screenshot-mark-dialog"
+    modal-class="screenshot-mark-modal"
     @update:model-value="emit('update:visible', $event)"
     @close="handleClose"
   >
@@ -531,6 +537,7 @@ watch(
                     filterable
                     allow-create
                     default-first-option
+                    :popper-class="MARK_POPPER_CLASS"
                     placeholder="选择或输入项目名称"
                     style="width: 100%"
                   >
@@ -554,10 +561,16 @@ watch(
                     filterable
                     allow-create
                     default-first-option
+                    :popper-class="MARK_POPPER_CLASS"
                     placeholder="选择或输入执行人"
                     style="width: 100%"
                   >
-                    <el-option v-for="item in executorOptions" :key="item" :label="item" :value="item" />
+                    <el-option
+                      v-for="item in executorOptions"
+                      :key="item.value"
+                      :label="item.value"
+                      :value="item.value"
+                    />
                   </el-select>
                 </el-form-item>
                 <el-form-item label="完成时限" required>
@@ -565,6 +578,7 @@ watch(
                     v-model="form.deadline"
                     type="date"
                     value-format="YYYY-MM-DD"
+                    :popper-class="MARK_POPPER_CLASS"
                     placeholder="选择完成时限"
                     style="width: 100%"
                   />
@@ -581,6 +595,7 @@ watch(
                     filterable
                     allow-create
                     default-first-option
+                    :popper-class="MARK_POPPER_CLASS"
                     placeholder="选择或输入项目名称"
                     style="width: 100%"
                   >
@@ -601,10 +616,16 @@ watch(
                     filterable
                     allow-create
                     default-first-option
+                    :popper-class="MARK_POPPER_CLASS"
                     placeholder="默认：项目经理"
                     style="width: 100%"
                   >
-                    <el-option v-for="item in executorOptions" :key="item" :label="item" :value="item" />
+                    <el-option
+                      v-for="item in executorOptions"
+                      :key="item.value"
+                      :label="item.value"
+                      :value="item.value"
+                    />
                   </el-select>
                 </el-form-item>
                 <el-form-item label="完成时限" required>
@@ -612,6 +633,7 @@ watch(
                     v-model="form.deadline"
                     type="date"
                     value-format="YYYY-MM-DD"
+                    :popper-class="MARK_POPPER_CLASS"
                     placeholder="选择完成时限"
                     style="width: 100%"
                   />
@@ -625,11 +647,15 @@ watch(
                     filterable
                     allow-create
                     default-first-option
+                    :popper-class="MARK_POPPER_CLASS"
                     placeholder="选择或输入项目名称"
                     style="width: 100%"
                   >
                     <el-option v-for="item in projectOptions" :key="item" :label="item" :value="item" />
                   </el-select>
+                </el-form-item>
+                <el-form-item label="责任单位" required>
+                  <el-input v-model="form.unit" placeholder="如：中建三局（施工总承包）" />
                 </el-form-item>
                 <el-form-item label="事由" required>
                   <el-input v-model="form.penaltyReason" placeholder="如：塔吊作业区警戒标识不足" />
@@ -659,7 +685,12 @@ watch(
                   </el-radio-group>
                 </el-form-item>
                 <el-form-item label="整改人" required>
-                  <el-select v-model="form.rectifier" placeholder="选择整改人" style="width: 100%">
+                  <el-select
+                    v-model="form.rectifier"
+                    :popper-class="MARK_POPPER_CLASS"
+                    placeholder="选择整改人"
+                    style="width: 100%"
+                  >
                     <el-option v-for="name in HAZARD_REPORTERS" :key="name" :label="name" :value="name" />
                   </el-select>
                 </el-form-item>
@@ -668,6 +699,7 @@ watch(
                     v-model="form.hazardDeadline"
                     type="date"
                     value-format="YYYY-MM-DD"
+                    :popper-class="MARK_POPPER_CLASS"
                     placeholder="选择整改期限"
                     style="width: 100%"
                   />

@@ -3,7 +3,7 @@ import CocPanelHeading from './CocPanelHeading.vue'
 import SafetyVideoPanel from '../safety/SafetyVideoPanel.vue'
 import ProgressPanel from '../ProgressPanel.vue'
 import LaborStats from '../LaborStats.vue'
-import ProjectHazardListPanel from '../ProjectHazardListPanel.vue'
+import ProjectHazardStatsPanel from '../ProjectHazardStatsPanel.vue'
 
 defineProps({
   projects: { type: Array, required: true },
@@ -39,7 +39,7 @@ const emit = defineEmits([
     </section>
 
     <section class="hq-zone hq-zone--progress">
-      <CocPanelHeading title="项目进度" />
+      <CocPanelHeading title="项目进度" show-v2-tag />
       <ProgressPanel
         class="hq-panel hq-hide-inner-title"
         :projects="projects"
@@ -59,7 +59,7 @@ const emit = defineEmits([
         项目调度
       </button>
       <div class="hq-analysis-block">
-        <CocPanelHeading title="劳务分析" />
+        <CocPanelHeading title="劳务分析" show-v2-tag />
         <LaborStats
           class="hq-labor-panel hq-hide-inner-title"
           :projects="projects"
@@ -68,9 +68,9 @@ const emit = defineEmits([
         />
       </div>
       <div class="hq-analysis-block hq-analysis-block--hazard">
-        <CocPanelHeading title="隐患清单" />
-        <ProjectHazardListPanel
-          class="hq-hazard-panel hq-hide-inner-title"
+        <CocPanelHeading title="隐患统计" show-v2-tag />
+        <ProjectHazardStatsPanel
+          class="hq-hazard-panel"
           :project-id="selectedProject.id"
         />
       </div>

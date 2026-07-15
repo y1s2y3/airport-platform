@@ -494,11 +494,30 @@
   position: absolute;
   bottom: 6px;
   right: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   background: rgba(0, 0, 0, 0.5);
   color: #fff;
   padding: 4px 6px;
   border-radius: 4px;
   font-size: calc(10px + var(--coc-font-boost));
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.mini-cell.clickable:hover .expand-hint,
+.device-live-cell.clickable:hover .expand-hint {
+  opacity: 1;
+}
+
+.expand-hint--hq {
+  opacity: 0.9;
+}
+
+.expand-hint-text {
+  font-size: calc(10px + var(--coc-font-boost));
+  line-height: 1;
 }
 
 .mini-label {

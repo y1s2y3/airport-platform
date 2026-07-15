@@ -158,6 +158,19 @@
   max-width: 100%;
 }
 
+.coc-hq-mode.screen-canvas > .coc-overlay-root {
+  position: absolute;
+  inset: 0;
+  z-index: 100001;
+}
+
+.coc-hq-mode.screen-canvas > .coc-overlay-root .video-expand-overlay:not(.is-contained) {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
 .coc-hq-mode.coc-secondary-screen {
   --coc-hq-header-bottom-gap: var(--coc-secondary-header-bottom-gap);
 }
@@ -364,6 +377,12 @@
 }
 
 .coc-hq-mode .panel-v2-tip {
+  color: #f6c575;
+  background: rgba(246, 197, 117, 0.12);
+  border-color: rgba(246, 197, 117, 0.35);
+}
+
+.coc-hq-mode .sign-fab-btn .panel-v2-tip--fab {
   color: #f6c575;
   background: rgba(246, 197, 117, 0.12);
   border-color: rgba(246, 197, 117, 0.35);
@@ -1049,7 +1068,7 @@
   background: #5eeeff;
 }
 
-/* 项目层级 · 劳务分析 / 隐患清单 */
+/* 项目层级 · 劳务分析 / 隐患统计 */
 .coc-hq-mode .labor-panel .scope-tag.project {
   color: rgba(255, 255, 255, 0.88);
   background: rgba(94, 238, 255, 0.12);
@@ -1102,28 +1121,35 @@
   color: #fff;
 }
 
-.coc-hq-mode .project-hazard-panel .detail-card {
-  background: rgba(16, 29, 55, 0.96);
-  border: 1px solid rgba(94, 238, 255, 0.28);
-  color: #fff;
-}
-
-.coc-hq-mode .project-hazard-panel .detail-header {
-  border-bottom-color: rgba(255, 255, 255, 0.1);
-}
-
-.coc-hq-mode .project-hazard-panel .close-btn {
+.coc-hq-mode .project-hazard-stats {
   background: transparent;
-  border-color: rgba(255, 255, 255, 0.22);
-  color: rgba(255, 255, 255, 0.85);
+  border: none;
+  box-shadow: none;
 }
 
-.coc-hq-mode .project-hazard-panel .detail-item .label {
-  color: rgba(255, 255, 255, 0.65);
+.coc-hq-mode .project-hazard-stats .kpi-label,
+.coc-hq-mode .project-hazard-stats .chart-title {
+  color: rgba(255, 255, 255, 0.72);
 }
 
-.coc-hq-mode .project-hazard-panel .detail-item .value {
+.coc-hq-mode .project-hazard-stats .kpi-value,
+.coc-hq-mode .project-hazard-stats .chart-legend b {
   color: #fff;
+}
+
+.coc-hq-mode .project-hazard-stats .kpi-value--pending {
+  color: #f56c6c;
+}
+
+.coc-hq-mode .project-hazard-stats .kpi-card,
+.coc-hq-mode .project-hazard-stats .chart-block {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(94, 238, 255, 0.14);
+}
+
+.coc-hq-mode .project-hazard-stats .kpi-card--pending {
+  background: rgba(245, 108, 108, 0.12);
+  border-color: rgba(245, 108, 108, 0.28);
 }
 
 /* 领导讲话 · 会议直播页 */
@@ -1365,10 +1391,6 @@
   border-bottom: none;
 }
 
-.coc-hq-mode .project-dispatch-layout .panel-v2-tip {
-  display: none;
-}
-
 .coc-hq-mode .project-dispatch-layout .device-live-placeholder,
 .coc-hq-mode .project-dispatch-layout .mini-placeholder {
   flex: 1;
@@ -1448,6 +1470,11 @@
 
 .coc-hq-mode .project-dispatch-layout .mini-cell.clickable:hover {
   border-color: rgba(94, 238, 255, 0.55);
+}
+
+.coc-hq-mode .video-cell.clickable:hover,
+.coc-hq-mode .mini-cell.clickable:hover {
+  cursor: pointer;
 }
 
 .coc-hq-mode .project-dispatch-layout .mini-cell.empty {
@@ -1565,6 +1592,17 @@
 .coc-hq-mode .project-dispatch-layout .draft-fields .el-textarea__inner {
   background: rgba(255, 255, 255, 0.06);
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.15) inset;
+  color: #fff;
+}
+
+.coc-hq-mode .project-dispatch-layout .draft-fields .el-select__wrapper,
+.coc-hq-mode .project-dispatch-layout .draft-fields .el-date-editor .el-input__wrapper {
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.15) inset;
+}
+
+.coc-hq-mode .project-dispatch-layout .draft-fields .el-select__selected-item,
+.coc-hq-mode .project-dispatch-layout .draft-fields .el-date-editor .el-input__inner {
   color: #fff;
 }
 
@@ -1719,6 +1757,7 @@
 .coc-hq-mode .project-dispatch-layout .device-panel .video-expand-overlay.is-contained,
 .coc-hq-mode .project-dispatch-layout .monitor-panel .video-expand-overlay.is-contained {
   background: rgba(10, 18, 36, 0.98);
+  z-index: 30;
 }
 
 /* 项目调度 · 浮层（Teleport 到 body） */
@@ -1882,6 +1921,27 @@
   color: rgba(255, 255, 255, 0.92);
 }
 
+.coc-hq-shell .drag-panel .form-label {
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.coc-hq-shell .drag-panel .form-row.full .form-label,
+.coc-hq-shell .drag-panel .section-label {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.coc-hq-shell .drag-panel .form-value {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.coc-hq-shell .drag-panel .detail-section {
+  border-top-color: rgba(255, 255, 255, 0.1);
+}
+
+.coc-hq-shell .drag-panel-backdrop.placement-right-dim {
+  background: rgba(0, 12, 28, 0.48);
+}
+
 .coc-hq-shell .doc-list-dialog {
   background: rgba(16, 29, 55, 0.98);
   border: 1px solid rgba(94, 238, 255, 0.28);
@@ -1925,4 +1985,260 @@
 .coc-hq-shell .doc-list-dialog .data-table td {
   border-bottom-color: rgba(255, 255, 255, 0.08);
   color: rgba(255, 255, 255, 0.92);
+}
+
+/* 问题截图弹窗 · 科技蓝 */
+.coc-hq-shell .screenshot-mark-modal {
+  background: rgba(4, 12, 28, 0.72);
+}
+
+.coc-hq-shell .screenshot-mark-dialog {
+  background: rgba(16, 29, 55, 0.98);
+  border: 1px solid rgba(94, 238, 255, 0.28);
+  border-radius: 10px;
+  box-shadow:
+    0 16px 48px rgba(0, 0, 0, 0.48),
+    0 0 24px rgba(94, 238, 255, 0.1);
+}
+
+.coc-hq-shell .screenshot-mark-dialog .el-dialog__header {
+  margin-right: 0;
+  padding: 16px 20px 14px;
+  border-bottom: 1px solid rgba(94, 238, 255, 0.18);
+}
+
+.coc-hq-shell .screenshot-mark-dialog .el-dialog__title {
+  color: #fff;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.coc-hq-shell .screenshot-mark-dialog .el-dialog__headerbtn .el-dialog__close {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.coc-hq-shell .screenshot-mark-dialog .el-dialog__headerbtn:hover .el-dialog__close {
+  color: #5eeeff;
+}
+
+.coc-hq-shell .screenshot-mark-dialog .el-dialog__body {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.coc-hq-shell .screenshot-mark-dialog .el-dialog__footer {
+  padding: 12px 20px 16px;
+  border-top: 1px solid rgba(94, 238, 255, 0.18);
+}
+
+.coc-hq-shell .screenshot-mark-dialog .el-button {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.coc-hq-shell .screenshot-mark-dialog .el-button:hover {
+  border-color: rgba(94, 238, 255, 0.55);
+  color: #5eeeff;
+  background: rgba(94, 238, 255, 0.1);
+}
+
+.coc-hq-shell .screenshot-mark-dialog .el-button--primary {
+  background: linear-gradient(135deg, rgba(64, 158, 255, 0.92) 0%, rgba(0, 53, 108, 0.95) 100%);
+  border-color: rgba(94, 238, 255, 0.55);
+  color: #fff;
+  box-shadow: 0 0 12px rgba(94, 238, 255, 0.2);
+}
+
+.coc-hq-shell .screenshot-mark-dialog .el-button--primary:hover {
+  background: linear-gradient(135deg, rgba(94, 238, 255, 0.85) 0%, rgba(0, 83, 138, 0.95) 100%);
+  border-color: #5eeeff;
+  color: #fff;
+}
+
+.coc-hq-shell .screenshot-mark-dialog .canvas-wrap {
+  border: 1px solid rgba(94, 238, 255, 0.22);
+  box-shadow: inset 0 0 24px rgba(0, 53, 108, 0.35);
+}
+
+.coc-hq-shell .screenshot-mark-dialog .tool-label {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.coc-hq-shell .screenshot-mark-dialog .color-dot.active {
+  box-shadow: 0 0 0 2px rgba(16, 29, 55, 0.98), 0 0 0 4px #5eeeff;
+}
+
+.coc-hq-shell .screenshot-mark-dialog .size-slider .el-slider__runway {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.coc-hq-shell .screenshot-mark-dialog .size-slider .el-slider__bar {
+  background: #5eeeff;
+}
+
+.coc-hq-shell .screenshot-mark-dialog .size-slider .el-slider__button {
+  border-color: #5eeeff;
+}
+
+.coc-hq-shell .screenshot-mark-dialog .doc-type-bar {
+  border-bottom-color: rgba(94, 238, 255, 0.18);
+}
+
+.coc-hq-shell .screenshot-mark-dialog .doc-type-label,
+.coc-hq-shell .screenshot-mark-dialog .preview-label {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.coc-hq-shell .screenshot-mark-dialog .doc-tab-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.coc-hq-shell .screenshot-mark-dialog .doc-tab-btn:hover {
+  border-color: rgba(94, 238, 255, 0.35);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.coc-hq-shell .screenshot-mark-dialog .doc-tab-btn.active.notice {
+  border-color: rgba(94, 238, 255, 0.55);
+  background: rgba(64, 158, 255, 0.2);
+  color: #5eeeff;
+}
+
+.coc-hq-shell .screenshot-mark-dialog .doc-tab-btn.active.reminder {
+  border-color: rgba(168, 171, 178, 0.55);
+  background: rgba(168, 171, 178, 0.15);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.coc-hq-shell .screenshot-mark-dialog .doc-tab-btn.active.penalty {
+  border-color: rgba(245, 108, 108, 0.55);
+  background: rgba(245, 108, 108, 0.15);
+  color: #f89898;
+}
+
+.coc-hq-shell .screenshot-mark-dialog .doc-tab-btn.active.safety {
+  border-color: rgba(246, 197, 117, 0.55);
+  background: rgba(246, 197, 117, 0.15);
+  color: #f6c575;
+}
+
+.coc-hq-shell .screenshot-mark-dialog .doc-tab-btn.active.quality {
+  border-color: rgba(103, 194, 58, 0.55);
+  background: rgba(103, 194, 58, 0.15);
+  color: #95d475;
+}
+
+.coc-hq-shell .screenshot-mark-dialog .preview-thumb {
+  border-color: rgba(94, 238, 255, 0.22);
+  background: rgba(0, 53, 108, 0.35);
+}
+
+.coc-hq-shell .screenshot-mark-dialog .preview-placeholder {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.coc-hq-shell .screenshot-mark-dialog .form-context {
+  background: rgba(16, 29, 55, 0.55);
+  border: 1px solid rgba(94, 238, 255, 0.18);
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.coc-hq-shell .screenshot-mark-dialog .el-form-item__label {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.coc-hq-shell .screenshot-mark-dialog .el-input__wrapper,
+.coc-hq-shell .screenshot-mark-dialog .el-textarea__inner,
+.coc-hq-shell .screenshot-mark-dialog .el-select__wrapper {
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.15) inset;
+}
+
+.coc-hq-shell .screenshot-mark-dialog .el-input__inner,
+.coc-hq-shell .screenshot-mark-dialog .el-textarea__inner,
+.coc-hq-shell .screenshot-mark-dialog .el-select__selected-item,
+.coc-hq-shell .screenshot-mark-dialog .el-select__placeholder {
+  color: #fff;
+}
+
+.coc-hq-shell .screenshot-mark-dialog .el-input__inner::placeholder,
+.coc-hq-shell .screenshot-mark-dialog .el-textarea__inner::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.coc-hq-shell .screenshot-mark-dialog .el-radio {
+  --el-radio-text-color: rgba(255, 255, 255, 0.82);
+}
+
+.coc-hq-shell .screenshot-mark-dialog .el-radio__input.is-checked .el-radio__inner {
+  border-color: #5eeeff;
+  background: #5eeeff;
+}
+
+.coc-hq-shell .screenshot-mark-dialog .el-radio__input.is-checked + .el-radio__label {
+  color: #5eeeff;
+}
+
+/* 问题截图 · 下拉/日期面板 */
+.screenshot-mark-popper.el-popper {
+  background: rgba(10, 18, 36, 0.98);
+  border: 1px solid rgba(94, 238, 255, 0.38);
+  border-radius: 10px;
+  box-shadow:
+    0 14px 42px rgba(0, 0, 0, 0.48),
+    0 0 18px rgba(94, 238, 255, 0.1);
+}
+
+.screenshot-mark-popper .el-select-dropdown__item {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.screenshot-mark-popper .el-select-dropdown__item.hover,
+.screenshot-mark-popper .el-select-dropdown__item:hover {
+  background: rgba(94, 238, 255, 0.12);
+}
+
+.screenshot-mark-popper .el-select-dropdown__item.is-selected {
+  color: #5eeeff;
+  font-weight: 600;
+}
+
+.screenshot-mark-popper .el-popper__arrow::before {
+  background: rgba(10, 18, 36, 0.98);
+  border-color: rgba(94, 238, 255, 0.38);
+}
+
+.screenshot-mark-popper.el-picker__popper {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.screenshot-mark-popper .el-picker-panel {
+  background: transparent;
+  color: inherit;
+  border: none;
+}
+
+.screenshot-mark-popper .el-date-picker__header-label,
+.screenshot-mark-popper .el-date-table th,
+.screenshot-mark-popper .el-date-table td .el-date-table-cell__text {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.screenshot-mark-popper .el-date-table td.available:hover .el-date-table-cell__text {
+  color: #5eeeff;
+}
+
+.screenshot-mark-popper .el-date-table td.current:not(.disabled) .el-date-table-cell__text {
+  background: rgba(64, 158, 255, 0.85);
+  color: #fff;
+}
+
+.screenshot-mark-popper .el-picker-panel__icon-btn {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.screenshot-mark-popper .el-picker-panel__icon-btn:hover {
+  color: #5eeeff;
 }

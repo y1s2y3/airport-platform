@@ -47,7 +47,8 @@ function createId(prefix) {
 
 export function getMonitorProjects() {
   if (!projectsCache) {
-    projectsCache = buildProjects().filter((p) => p.status === '在建' || p.id === FOCUS_PROJECT_ID)
+    // 全部项目均提供视频监控假数据（含前期/在建/历史）
+    projectsCache = buildProjects()
   }
   return projectsCache
 }
@@ -106,11 +107,12 @@ export function moveProjectCamera(projectId, cameraId, direction) {
 }
 
 export function emptyCameraForm(camera) {
+  const type = camera?.type === 'ptz' || camera?.type === 'bullet' ? camera.type : 'gun'
   return {
     id: camera?.id || '',
     name: camera?.name || '',
     location: camera?.location || '',
-    type: camera?.type || 'bullet',
+    type: type === 'bullet' ? 'gun' : type,
     online: camera?.online !== false,
     key: !!camera?.key,
   }

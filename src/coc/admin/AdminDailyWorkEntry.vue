@@ -1,8 +1,11 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Upload, Delete, Edit, Setting } from '@element-plus/icons-vue'
-import { DAILY_WORK_RISK_RULES } from '../config/dailyWorkRiskRules.js'
+import { Plus, Upload, Delete, Edit, Setting, Download } from '@element-plus/icons-vue'
+import {
+  DAILY_WORK_RISK_RULES,
+  buildDailyWorkRiskAlertDetails,
+} from '../config/dailyWorkRiskRules.js'
 import {
   getEnabledRiskRuleIds,
   saveEnabledRiskRuleIds,
@@ -15,7 +18,7 @@ import {
   DAILY_WORK_SHEET_HINT,
   emptyDailyWorkRecord,
 } from '../config/dailyWorkSchema.js'
-import { parseDailyWorkFile } from '../utils/dailyWorkImport.js'
+import { parseDailyWorkFile, downloadDailyWorkTemplate } from '../utils/dailyWorkImport.js'
 import {
   getDailyWorkRecords,
   saveDailyWorkRecord,
@@ -49,9 +52,18 @@ const importVisible = ref(false)
 const importSheet = ref(DAILY_WORK_SHEET_HINT)
 const importPreview = ref([])
 const importFile = ref(null)
+const importRiskVisible = ref(false)
+const importRiskAlerts = ref([])
 
 const ruleConfigVisible = ref(false)
 const enabledRuleIds = ref([])
+
+const importRiskSummary = computed(() => {
+  const list = importRiskAlerts.value
+  const red = list.filter((item) => item.level === 'red').length
+  const yellow = list.filter((item) => item.level === 'yellow').length
+  return { total: list.length, red, yellow }
+})
 
 function loadRuleConfig() {
   enabledRuleIds.value = getEnabledRiskRuleIds()
@@ -172,17 +184,61 @@ function onImportFileChange(uploadFile) {
     })
 }
 
+function riskLevelLabel(level) {
+  if (level === 'red') return '红色'
+  if (level === 'yellow') return '黄色'
+  return level || '—'
+}
+
+function riskLevelTag(level) {
+  if (level === 'red') return 'danger'
+  if (level === 'yellow') return 'warning'
+  return 'info'
+}
+
+function evaluateImportRisks(records) {
+  const ruleIds = getEnabledRiskRuleIds()
+  return buildDailyWorkRiskAlertDetails(records, ruleIds)
+}
+
+function doImportRecords() {
+  importPreview.value.forEach((r) => saveDailyWorkRecord({ ...r, source: 'import' }))
+  load()
+  importRiskVisible.value = false
+  importRiskAlerts.value = []
+  importVisible.value = false
+  importPreview.value = []
+  importFile.value = null
+  ElMessage.success('导入完成')
+}
+
 function confirmImport() {
   if (!importPreview.value.length) {
     ElMessage.warning('没有可导入的数据')
     return
   }
-  importPreview.value.forEach((r) => saveDailyWorkRecord({ ...r, source: 'import' }))
-  load()
-  importVisible.value = false
-  importPreview.value = []
-  importFile.value = null
-  ElMessage.success('导入完成')
+  const alerts = evaluateImportRisks(importPreview.value)
+  if (alerts.length) {
+    importRiskAlerts.value = alerts
+    importRiskVisible.value = true
+    return
+  }
+  doImportRecords()
+}
+
+function cancelRiskImport() {
+  importRiskVisible.value = false
+  importRiskAlerts.value = []
+  ElMessage.info('已取消导入，请按风险明细修改表格后重新上传')
+}
+
+function proceedRiskImport() {
+  doImportRecords()
+}
+
+function handleDownloadTemplate() {
+  downloadDailyWorkTemplate()
+  ElMessage.success('模版已下载，请按 Sheet 填写后导入')
 }
 
 function dangerTagType(isDanger) {
@@ -214,6 +270,7 @@ onMounted(() => {
         />
         <el-input v-model="keyword" placeholder="搜索项目、单位、区域、类别…" clearable class="search-input" />
         <el-button type="primary" :icon="Plus" @click="openCreate">手动添加</el-button>
+        <el-button :icon="Download" @click="handleDownloadTemplate">下载模版</el-button>
         <el-button :icon="Upload" @click="importVisible = true">导入表格</el-button>
       </div>
       <el-button class="config-btn" :icon="Setting" @click="openRuleConfig">配置</el-button>
@@ -341,6 +398,10 @@ onMounted(() => {
 
     <!-- 导入 -->
     <el-dialog v-model="importVisible" title="导入施工作业统计表" width="720px" destroy-on-close>
+      <p class="import-tip">
+        请使用与线下统计表一致的 Excel 结构。
+        <el-button link type="primary" @click="handleDownloadTemplate">下载导入模版</el-button>
+      </p>
       <el-form inline class="import-form">
         <el-form-item label="指定 Sheet">
           <el-input v-model="importSheet" placeholder="如 2026.6.30" style="width: 160px" />
@@ -390,6 +451,51 @@ onMounted(() => {
         <el-button @click="resetRuleConfig">恢复默认</el-button>
         <el-button @click="ruleConfigVisible = false">取消</el-button>
         <el-button type="primary" @click="saveRuleConfig">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 导入风险确认：命中配置页启用的风险项时，需确认是否继续导入 -->
+    <el-dialog
+      v-model="importRiskVisible"
+      title="导入风险确认"
+      width="920px"
+      destroy-on-close
+      :close-on-click-modal="false"
+      @closed="importRiskAlerts = []"
+    >
+      <div class="import-risk-banner">
+        已按「风险提醒规则配置」校验，共发现
+        <strong>{{ importRiskSummary.total }}</strong> 条风险
+        <template v-if="importRiskSummary.red">
+          （红色 <strong class="risk-red">{{ importRiskSummary.red }}</strong>）
+        </template>
+        <template v-if="importRiskSummary.yellow">
+          （黄色 <strong class="risk-yellow">{{ importRiskSummary.yellow }}</strong>）
+        </template>
+        。请核对明细后，确认是否仍要导入。
+      </div>
+      <el-table :data="importRiskAlerts" border size="small" max-height="420" class="import-risk-table">
+        <el-table-column type="index" label="#" width="50" align="center" />
+        <el-table-column label="风险等级" width="90" align="center">
+          <template #default="{ row }">
+            <el-tag :type="riskLevelTag(row.level)" size="small">{{ riskLevelLabel(row.level) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="ruleName" label="风险项" min-width="160" show-overflow-tooltip />
+        <el-table-column prop="message" label="风险说明" min-width="220" show-overflow-tooltip />
+        <el-table-column label="对应数据" min-width="280">
+          <template #default="{ row }">
+            <div class="risk-data-cell">
+              <div v-for="(line, idx) in String(row.dataSummary || '').split('\n')" :key="idx">
+                {{ line }}
+              </div>
+            </div>
+          </template>
+        </el-table-column>
+      </el-table>
+      <template #footer>
+        <el-button @click="cancelRiskImport">取消导入</el-button>
+        <el-button type="warning" @click="proceedRiskImport">仍要导入</el-button>
       </template>
     </el-dialog>
   </div>
@@ -455,6 +561,13 @@ onMounted(() => {
   margin-bottom: 8px;
 }
 
+.import-tip {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--coc-text-muted);
+  line-height: 1.6;
+}
+
 .import-preview {
   margin-top: 16px;
 }
@@ -507,5 +620,36 @@ onMounted(() => {
   font-size: 13px;
   line-height: 1.65;
   color: var(--coc-text-muted, #606266);
+}
+
+.import-risk-banner {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--coc-text, #303133);
+  background: #fff8e6;
+  border: 1px solid #f5dab1;
+  border-radius: 6px;
+}
+
+.risk-red {
+  color: #f56c6c;
+}
+
+.risk-yellow {
+  color: #e6a23c;
+}
+
+.import-risk-table {
+  width: 100%;
+}
+
+.risk-data-cell {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--coc-text-muted, #606266);
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 </style>

@@ -1,7 +1,8 @@
-import { buildProjects, FOCUS_PROJECT_ID } from '../mock/data.js'
+import { buildProjects } from '../mock/data.js'
 
 const NVR_KEY = 'coc-admin-nvr-devices'
-const SEED_FLAG = 'coc-admin-nvr-devices-v1'
+/** v2：为全部项目生成 NVR 假数据 */
+const SEED_FLAG = 'coc-admin-nvr-devices-v2-all-projects'
 
 function readList() {
   try {
@@ -20,30 +21,31 @@ function writeList(list) {
 }
 
 function buildDefaultNvrs() {
-  const projects = buildProjects().filter((p) => p.status === '在建' || p.id === FOCUS_PROJECT_ID)
-  return projects.slice(0, 6).map((project, index) => ({
-    id: `NVR-${String(index + 1).padStart(3, '0')}`,
-    name: `${project.shortName || project.name} NVR`,
-    projectId: project.id,
-    project: project.shortName || project.name,
-    ip: `192.168.${10 + (index % 5)}.${100 + index}`,
-    port: 8000,
-    channelCount: project.cameraCount || 16,
-    usedChannels: project.cameraCount || 0,
-    username: 'admin',
-    online: index % 5 !== 4,
-    lastSync: index % 5 !== 4
-      ? new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-')
-      : '',
-    remark: '',
-  }))
+  return buildProjects().map((project, index) => {
+    const cameras = project.cameras || []
+    const online = index % 7 !== 6
+    return {
+      id: `NVR-${String(index + 1).padStart(3, '0')}`,
+      name: `${project.shortName || project.name} NVR-01`,
+      projectId: project.id,
+      project: project.shortName || project.name,
+      ip: `192.168.${10 + (index % 40)}.${100 + (index % 140)}`,
+      port: 8000,
+      channelCount: Math.max(16, cameras.length || 8),
+      usedChannels: cameras.length || 0,
+      username: 'admin',
+      online,
+      lastSync: online
+        ? new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-')
+        : '',
+      remark: `${project.status || '在建'}项目监控接入`,
+    }
+  })
 }
 
 export function ensureNvrDeviceSeed() {
   if (localStorage.getItem(SEED_FLAG)) return
-  if (!readList()) {
-    writeList(buildDefaultNvrs())
-  }
+  writeList(buildDefaultNvrs())
   localStorage.setItem(SEED_FLAG, '1')
 }
 

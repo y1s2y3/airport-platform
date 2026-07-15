@@ -26,14 +26,41 @@ import {
   HQ_PROJECT_OPTION,
   COC_PROJECT_OPTIONS,
 } from '../config/projectOptions'
-import { selectedProjectId } from '../composables/useCurrentProject'
+import { selectedProjectId, useCurrentProject } from '../composables/useCurrentProject'
+import {
+  MENU_SCOPE_HQ,
+  MENU_SCOPE_PROJECT,
+  filterMenuByScope,
+  isHqOnlyMenuKey,
+  isProjectOnlyMenuKey,
+} from '../utils/menuPermissionTree'
 
 const route = useRoute()
 const router = useRouter()
 const collapsed = ref(false)
 const expandedKeys = ref([])
+const { isHqSelected } = useCurrentProject()
 
 const projectOptions = COC_PROJECT_OPTIONS
+
+/** 企业级隐藏视频监控；项目级隐藏指挥部专属菜单 */
+const visibleSidebarMenu = computed(() =>
+  filterMenuByScope(
+    sidebarMenu,
+    isHqSelected.value ? MENU_SCOPE_HQ : MENU_SCOPE_PROJECT,
+  ),
+)
+
+function collectMenuPathsBy(pred, items = sidebarMenu, acc = []) {
+  for (const item of items) {
+    if (item.path && pred(item.key)) acc.push(item.path)
+    if (item.children?.length) collectMenuPathsBy(pred, item.children, acc)
+  }
+  return acc
+}
+
+const hqOnlyPaths = collectMenuPathsBy(isHqOnlyMenuKey)
+const projectOnlyPaths = collectMenuPathsBy(isProjectOnlyMenuKey)
 
 const iconMap = {
   Monitor,
@@ -58,6 +85,22 @@ const openTabs = ref([
 ])
 const activeTab = computed(() => route.meta.tabKey || 'workbench')
 
+function leaveRestrictedPages(paths) {
+  const onRestricted = paths.some(
+    (path) => route.path === path || route.path.startsWith(`${path}/`),
+  )
+  if (!onRestricted) return
+  openTabs.value = openTabs.value.filter(
+    (tab) => !paths.some((path) => tab.path === path || tab.path.startsWith(`${path}/`)),
+  )
+  router.push('/workbench')
+}
+
+watch(isHqSelected, (hq) => {
+  if (hq) leaveRestrictedPages(projectOnlyPaths)
+  else leaveRestrictedPages(hqOnlyPaths)
+})
+
 const cocScreenHref = computed(() => {
   const { href } = router.resolve({ name: 'CocScreen' })
   if (/^https?:\/\//i.test(href)) return href
@@ -75,7 +118,7 @@ function isChildActive(child) {
 }
 
 function ensureExpandedForRoute() {
-  for (const group of sidebarMenu) {
+  for (const group of visibleSidebarMenu.value) {
     if (!group.children?.length) continue
     if (isGroupActive(group) && !expandedKeys.value.includes(group.key)) {
       expandedKeys.value.push(group.key)
@@ -192,7 +235,7 @@ function closeTab(tab, e) {
     <div class="admin-body">
       <aside class="sidebar" :class="{ collapsed }">
         <nav class="sidebar-nav">
-          <template v-for="item in sidebarMenu" :key="item.key">
+          <template v-for="item in visibleSidebarMenu" :key="item.key">
             <div v-if="item.children" class="menu-group">
               <button
                 type="button"

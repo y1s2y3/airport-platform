@@ -14,12 +14,13 @@ export const dataPermissionLevelOptions = [
   { value: 'project', label: '项目层级' },
 ]
 
-export const dataPermissionHqScopeOptions = ['本组织', '指定组织']
-
 export const dataPermissionProjectScopeOptions = [
   { value: 'all', label: '全部项目' },
   { value: 'specific', label: '指定项目' },
 ]
+
+/** @deprecated 兼容旧引用 */
+export const dataPermissionHqScopeOptions = ['本组织', '指定组织']
 
 /** @deprecated 兼容旧引用 */
 export const dataPermissionTypeOptions = dataPermissionHqScopeOptions
@@ -184,10 +185,7 @@ export const orgDataPermissionsMap = {
     {
       id: 'dp-1',
       levelScope: 'hq',
-      type: '本组织',
-      orgId: 'org-plan',
-      content: '深圳机场集团/职能部门/规划建设部(重大项目推进办公室)',
-      includeSub: false,
+      content: '指挥部层级',
     },
     {
       id: 'dp-1b',
@@ -201,10 +199,7 @@ export const orgDataPermissionsMap = {
     {
       id: 'dp-2',
       levelScope: 'hq',
-      type: '本组织',
-      orgId: 'org-root',
-      content: '深圳机场集团',
-      includeSub: true,
+      content: '指挥部层级',
     },
     {
       id: 'dp-2b',
@@ -369,6 +364,17 @@ export function getOrgDataPermissions(nodeId) {
   return [...(orgDataPermissionsMap[nodeId] || [])].map(normalizeDataPermRow)
 }
 
+export function getOrgDataPermissionConfig(nodeId) {
+  const rows = getOrgDataPermissions(nodeId)
+  const projectRow = rows.find((row) => row.levelScope === 'project')
+  return {
+    hqEnabled: rows.some((row) => row.levelScope === 'hq'),
+    projectEnabled: Boolean(projectRow),
+    projectScope: projectRow?.projectScope || 'all',
+    projectIds: projectRow?.projectIds ? [...projectRow.projectIds] : [],
+  }
+}
+
 function normalizeDataPermRow(row) {
   if (row.levelScope === 'project') {
     return {
@@ -377,20 +383,9 @@ function normalizeDataPermRow(row) {
       projectIds: row.projectIds ? [...row.projectIds] : [],
     }
   }
-  if (row.levelScope === 'hq') {
-    return {
-      ...row,
-      type: row.type || '本组织',
-      includeSub: row.includeSub ?? false,
-    }
-  }
   return {
     ...row,
     levelScope: 'hq',
-    type: row.type || '本组织',
-    includeSub: row.includeSub ?? false,
-    projectScope: 'all',
-    projectIds: [],
   }
 }
 
@@ -402,7 +397,7 @@ export function getDataPermScopeLabel(row) {
   if (row.levelScope === 'project') {
     return row.projectScope === 'specific' ? '指定项目' : '全部项目'
   }
-  return row.type || '本组织'
+  return '指挥部层级'
 }
 
 export function getOrgNodeOptions() {
@@ -542,6 +537,36 @@ export function setPositionRoles(orgId, positionId, roleIds) {
   return true
 }
 
+export function saveOrgDataPermissionConfig(orgId, config = {}) {
+  const list = []
+  if (config.hqEnabled) {
+    list.push({
+      id: `dp-hq-${orgId}`,
+      levelScope: 'hq',
+      content: '指挥部层级',
+    })
+  }
+  if (config.projectEnabled) {
+    const projectScope = config.projectScope === 'specific' ? 'specific' : 'all'
+    const projectIds = projectScope === 'specific' ? [...(config.projectIds || [])] : []
+    list.push({
+      id: `dp-project-${orgId}`,
+      levelScope: 'project',
+      projectScope,
+      projectIds,
+      content:
+        projectScope === 'all'
+          ? '全部项目'
+          : projectIds.length
+            ? `指定项目（${projectIds.length}个）`
+            : '指定项目',
+    })
+  }
+  orgDataPermissionsMap[orgId] = list
+  return true
+}
+
+/** @deprecated 兼容旧表格编辑保存，改用 saveOrgDataPermissionConfig */
 export function saveDataPermission(orgId, payload) {
   if (!orgDataPermissionsMap[orgId]) orgDataPermissionsMap[orgId] = []
 
@@ -554,10 +579,6 @@ export function saveDataPermission(orgId, payload) {
     record.projectScope = payload.projectScope || 'all'
     record.projectIds =
       record.projectScope === 'specific' ? [...(payload.projectIds || [])] : []
-  } else {
-    record.type = payload.type || '本组织'
-    record.orgId = payload.orgId || orgId
-    record.includeSub = payload.includeSub ?? false
   }
 
   if (payload.id) {

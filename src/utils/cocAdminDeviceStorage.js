@@ -1,11 +1,17 @@
+import {
+  defaultSupervisionMeetings,
+  defaultSupervisionHazards,
+} from '../mock/supervisionMeetingSeed.js'
+
 const PATROL_KEY = 'coc-admin-patrol-devices'
 const HELMET_KEY = 'coc-admin-smart-helmets'
-const SUPERVISION_KEY = 'coc-admin-supervision-meetings'
-const SUPERVISION_HAZARD_KEY = 'coc-admin-supervision-hazards'
+const SUPERVISION_KEY = 'coc-admin-supervision-meetings-v2'
+const SUPERVISION_HAZARD_KEY = 'coc-admin-supervision-hazards-v4'
 
 const defaultPatrolDevices = [
   {
     id: 'PD-001',
+    deviceCode: 'XJY-20260301',
     name: '三跑道东区巡检仪',
     project: '三跑道',
     bindPerson: '张工',
@@ -15,6 +21,7 @@ const defaultPatrolDevices = [
   },
   {
     id: 'PD-002',
+    deviceCode: 'XJY-20260302',
     name: 'T2航站楼巡检仪',
     project: 'T2',
     bindPerson: '李监理',
@@ -24,6 +31,7 @@ const defaultPatrolDevices = [
   },
   {
     id: 'PD-003',
+    deviceCode: 'XJY-20260303',
     name: '综合配套巡检仪',
     project: '综合配套',
     bindPerson: '',
@@ -63,58 +71,6 @@ const defaultHelmets = [
   },
 ]
 
-const defaultSupervisionMeetings = [
-  {
-    id: 'SM-001',
-    projectDept: '三跑道项目部',
-    projectName: '三跑道扩建工程',
-    meetingDate: '2026-06-24',
-    pmAttendees: '张某（项目经理）、李某（项目负责人）',
-    directorAttendees: '王某（项目部长）',
-    minutesWord: '三跑道监理例会纪要_20260624.docx',
-    minutesPdf: '三跑道监理例会纪要_20260624.pdf',
-    signInPhoto: '三跑道监理例会签到表_20260624.jpg',
-    meetingPhoto: '三跑道监理例会现场_20260624.jpg',
-    remark: '',
-    uploadTime: '2026-06-24 16:30',
-  },
-  {
-    id: 'SM-002',
-    projectDept: 'T2 项目部',
-    projectName: 'T2 航站区工程',
-    meetingDate: '2026-06-17',
-    pmAttendees: '赵某',
-    directorAttendees: '—',
-    minutesWord: '',
-    minutesPdf: '',
-    signInPhoto: '',
-    meetingPhoto: '',
-    remark: '因暴雨未召开，改期至 6 月 24 日',
-    uploadTime: '2026-06-17 09:00',
-  },
-]
-
-const defaultSupervisionHazards = [
-  {
-    id: 'SHZ-001',
-    hazardType: 'safety',
-    description: '塔吊作业区警戒标识不足，临边防护缺失',
-    hazardLevel: '较大',
-    rectifier: '张安全',
-    hazardDeadline: '2026-07-01',
-    uploadTime: '2026-06-24 17:10',
-  },
-  {
-    id: 'SHZ-002',
-    hazardType: 'quality',
-    description: '钢筋绑扎间距偏差，保护层厚度不足',
-    hazardLevel: '一般',
-    rectifier: '周质量',
-    hazardDeadline: '2026-07-05',
-    uploadTime: '2026-06-24 17:15',
-  },
-]
-
 function readList(key, defaults) {
   try {
     const raw = localStorage.getItem(key)
@@ -137,8 +93,27 @@ export function getPatrolDevices() {
 export function savePatrolDevice(record) {
   const list = getPatrolDevices()
   const idx = list.findIndex((item) => item.id === record.id)
-  if (idx >= 0) list[idx] = { ...list[idx], ...record }
-  else list.unshift({ ...record, id: record.id || `PD-${Date.now()}` })
+  if (idx >= 0) {
+    const existing = list[idx]
+    list[idx] = {
+      ...existing,
+      deviceCode: record.deviceCode ?? '',
+      name: record.name,
+      project: record.project,
+      bindPerson: record.bindPerson ?? '',
+    }
+  } else {
+    list.unshift({
+      id: record.id || `PD-${Date.now()}`,
+      deviceCode: record.deviceCode ?? '',
+      name: record.name,
+      project: record.project,
+      bindPerson: record.bindPerson ?? '',
+      online: false,
+      intercomLinked: false,
+      lastOnline: '',
+    })
+  }
   writeList(PATROL_KEY, list)
   return list
 }
@@ -146,6 +121,7 @@ export function savePatrolDevice(record) {
 export function emptyPatrolDevice(row = {}) {
   return {
     id: row.id || '',
+    deviceCode: row.deviceCode || '',
     name: row.name || '',
     project: row.project || '',
     bindPerson: row.bindPerson || '',
@@ -183,6 +159,7 @@ export function emptySmartHelmet(row = {}) {
 export function emptySupervisionMeeting(row = {}) {
   return {
     id: row.id || '',
+    projectId: row.projectId || '',
     projectDept: row.projectDept || '',
     projectName: row.projectName || '',
     meetingDate: row.meetingDate || '',
@@ -193,6 +170,9 @@ export function emptySupervisionMeeting(row = {}) {
     signInPhoto: row.signInPhoto || '',
     meetingPhoto: row.meetingPhoto || '',
     remark: row.remark || '',
+    parseStatus: row.parseStatus || 'pending',
+    parsedAt: row.parsedAt || '',
+    hazardCount: Number.isFinite(row.hazardCount) ? row.hazardCount : 0,
     uploadTime: row.uploadTime || '',
   }
 }
@@ -221,20 +201,205 @@ export function addSupervisionMeeting(record) {
   return saveSupervisionMeeting(record)
 }
 
+export function saveSupervisionMeetingWithHazards(record, hazards = []) {
+  // 解析失败时即使已手动补录隐患，仍保留 failed，便于列表识别「自动解析未成功」
+  const nextStatus =
+    record.parseStatus === 'failed'
+      ? 'failed'
+      : record.parseStatus === 'skipped'
+        ? 'skipped'
+        : hazards.length
+          ? 'success'
+          : record.parseStatus || 'pending'
+  const meeting = saveSupervisionMeeting({
+    ...record,
+    hazardCount: hazards.length,
+    parseStatus: nextStatus,
+  })
+  replaceSupervisionHazardsForMeeting(meeting.id, hazards, meeting)
+  return meeting
+}
+
+export const SUPERVISION_HAZARD_RECTIFY_STATUSES = ['待整改', '待验收', '已关闭']
+
+export const SUPERVISION_HAZARD_RECTIFY_STATUS_DEFAULT = '待整改'
+
+export const SUPERVISION_HAZARD_ACTOR_ROLES = {
+  CONTRACTOR: '施工方',
+  SUPERVISOR: '监理',
+  SYSTEM: '系统',
+}
+
+function hazardNow() {
+  return new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-')
+}
+
+export function createSupervisionHazardRegisterLog(time = hazardNow()) {
+  return {
+    action: '登记',
+    fromStatus: '',
+    toStatus: SUPERVISION_HAZARD_RECTIFY_STATUS_DEFAULT,
+    operator: '系统',
+    operatorRole: SUPERVISION_HAZARD_ACTOR_ROLES.SYSTEM,
+    remark: '监理解析/人工登记生成隐患',
+    photos: [],
+    time,
+  }
+}
+
+function appendStatusLog(logs, entry) {
+  return [entry, ...(Array.isArray(logs) ? logs : [])]
+}
+
 export function emptySupervisionHazard(row = {}) {
+  const rectifyStatus = SUPERVISION_HAZARD_RECTIFY_STATUSES.includes(row.rectifyStatus)
+    ? row.rectifyStatus
+    : SUPERVISION_HAZARD_RECTIFY_STATUS_DEFAULT
+  const uploadTime = row.uploadTime || ''
+  const statusLogs = Array.isArray(row.statusLogs)
+    ? row.statusLogs
+    : uploadTime
+      ? [createSupervisionHazardRegisterLog(uploadTime)]
+      : []
   return {
     id: row.id || '',
+    meetingId: row.meetingId || '',
+    projectId: row.projectId || '',
+    projectName: row.projectName || '',
+    source: row.source || '监理解析',
     hazardType: row.hazardType || 'safety',
     description: row.description || '',
     hazardLevel: row.hazardLevel || '一般',
     rectifier: row.rectifier || '',
     hazardDeadline: row.hazardDeadline || '',
-    uploadTime: row.uploadTime || '',
+    rectifyStatus,
+    rectifyRemark: row.rectifyRemark || '',
+    rectifyPhotos: Array.isArray(row.rectifyPhotos) ? row.rectifyPhotos : [],
+    statusLogs,
+    uploadTime,
   }
 }
 
 export function getSupervisionHazards() {
-  return readList(SUPERVISION_HAZARD_KEY, defaultSupervisionHazards)
+  return readList(SUPERVISION_HAZARD_KEY, defaultSupervisionHazards).map((row) =>
+    emptySupervisionHazard(row),
+  )
+}
+
+export function getSupervisionHazardsByMeeting(meetingId) {
+  return getSupervisionHazards().filter((item) => item.meetingId === meetingId)
+}
+
+export function getSupervisionHazardsByProject(projectName) {
+  if (!projectName) return getSupervisionHazards()
+  return getSupervisionHazards().filter((item) => item.projectName === projectName)
+}
+
+export function replaceSupervisionHazardsForMeeting(meetingId, hazards, meeting = {}) {
+  const list = getSupervisionHazards().filter((item) => item.meetingId !== meetingId)
+  const now = hazardNow()
+  hazards.forEach((item, index) => {
+    list.unshift(
+      emptySupervisionHazard({
+        ...item,
+        id: item.id || `SHZ-${Date.now()}-${index}`,
+        meetingId,
+        projectId: meeting.projectId || item.projectId || '',
+        projectName: meeting.projectName || item.projectName || '',
+        source: item.source || '监理解析',
+        uploadTime: item.uploadTime || now,
+        statusLogs: [createSupervisionHazardRegisterLog(item.uploadTime || now)],
+      }),
+    )
+  })
+  writeList(SUPERVISION_HAZARD_KEY, list)
+}
+
+function updateSupervisionHazardRecord(id, updater) {
+  const list = readList(SUPERVISION_HAZARD_KEY, defaultSupervisionHazards).map((row) =>
+    emptySupervisionHazard(row),
+  )
+  const idx = list.findIndex((item) => item.id === id)
+  if (idx < 0) return null
+  const next = emptySupervisionHazard(updater(list[idx]))
+  list[idx] = next
+  writeList(SUPERVISION_HAZARD_KEY, list)
+  return next
+}
+
+/** 施工方：待整改 → 提交整改 → 待验收 */
+export function submitSupervisionHazardRectify(id, payload = {}) {
+  return updateSupervisionHazardRecord(id, (row) => {
+    if (row.rectifyStatus !== '待整改') return row
+    const time = hazardNow()
+    const photos = Array.isArray(payload.photos) ? payload.photos.filter(Boolean) : []
+    const remark = String(payload.remark || '').trim()
+    const log = {
+      action: '提交整改',
+      fromStatus: '待整改',
+      toStatus: '待验收',
+      operator: payload.operator || '施工方用户',
+      operatorRole: payload.operatorRole || SUPERVISION_HAZARD_ACTOR_ROLES.CONTRACTOR,
+      remark,
+      photos,
+      time,
+    }
+    return {
+      ...row,
+      rectifyStatus: '待验收',
+      rectifyRemark: remark,
+      rectifyPhotos: photos,
+      statusLogs: appendStatusLog(row.statusLogs, log),
+    }
+  })
+}
+
+/** 监理：待验收 → 验收通过 → 已关闭 */
+export function acceptSupervisionHazard(id, payload = {}) {
+  return updateSupervisionHazardRecord(id, (row) => {
+    if (row.rectifyStatus !== '待验收') return row
+    const time = hazardNow()
+    const remark = String(payload.remark || '').trim() || '现场核查整改到位，予以关闭'
+    const log = {
+      action: '验收通过',
+      fromStatus: '待验收',
+      toStatus: '已关闭',
+      operator: payload.operator || '监理用户',
+      operatorRole: payload.operatorRole || SUPERVISION_HAZARD_ACTOR_ROLES.SUPERVISOR,
+      remark,
+      photos: [],
+      time,
+    }
+    return {
+      ...row,
+      rectifyStatus: '已关闭',
+      statusLogs: appendStatusLog(row.statusLogs, log),
+    }
+  })
+}
+
+/** 监理：待验收 → 驳回 → 待整改 */
+export function rejectSupervisionHazard(id, payload = {}) {
+  return updateSupervisionHazardRecord(id, (row) => {
+    if (row.rectifyStatus !== '待验收') return row
+    const time = hazardNow()
+    const remark = String(payload.remark || '').trim()
+    const log = {
+      action: '验收驳回',
+      fromStatus: '待验收',
+      toStatus: '待整改',
+      operator: payload.operator || '监理用户',
+      operatorRole: payload.operatorRole || SUPERVISION_HAZARD_ACTOR_ROLES.SUPERVISOR,
+      remark,
+      photos: [],
+      time,
+    }
+    return {
+      ...row,
+      rectifyStatus: '待整改',
+      statusLogs: appendStatusLog(row.statusLogs, log),
+    }
+  })
 }
 
 export function saveSupervisionHazard(record) {

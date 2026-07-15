@@ -39,14 +39,6 @@ export const DAILY_WORK_RISK_RULES = [
     scope: 'record',
   },
   {
-    id: 'rule-05',
-    name: '管控措施大批量复制粘贴（针对性不足）',
-    description:
-      '不同施工区域、不同作业内容的管控措施文本完全一致（如所有动土作业都粘贴同一段“高温防中暑措施”），说明未针对具体工况进行风险评估。',
-    defaultEnabled: true,
-    scope: 'batch',
-  },
-  {
     id: 'rule-06',
     name: '特殊作业缺失高度/限高等关键安全参数',
     description:
@@ -54,27 +46,8 @@ export const DAILY_WORK_RISK_RULES = [
     defaultEnabled: true,
     scope: 'record',
   },
-  {
-    id: 'rule-07',
-    name: '核心管控区作业缺失飞行区施工审批描述',
-    description:
-      '施工区域包含“土面区”、“跑道”、“滑行道”、“控制区”、“卫星厅”等敏感词，但管控措施中未包含“飞行区审批”、“适航恢复”、“通行证”等必备合规表述。',
-    defaultEnabled: true,
-    scope: 'record',
-  },
-  {
-    id: 'rule-08',
-    name: '凌晨危险作业（00:00-06:00）缺乏提级管理说明',
-    description:
-      '凌晨时段施工属于高风险时段，若未明确注明“提级管控”、“夜间巡查频次”或“建设方领导带班”，则存在监管盲区。',
-    defaultEnabled: true,
-    scope: 'record',
-  },
 ]
 
-const FLIGHT_AREA_KEYWORDS = ['土面区', '跑道', '滑行道', '控制区', '飞行区', '卫星厅', '空侧']
-const FLIGHT_COMPLIANCE_KEYWORDS = ['飞行区审批', '适航恢复', '通行证', '不停航施工', '民航监管']
-const NIGHT_CONTROL_KEYWORDS = ['提级', '夜间巡查', '领导带班', '总监值班']
 const HEIGHT_PATTERN = /\d+\s*[米mM]/
 const LIFT_LIMIT_PATTERN = /(限高|净空).{0,8}\d+/i
 
@@ -118,33 +91,15 @@ function intervalsOverlap(aStart, aEnd, bStart, bEnd) {
   return startA <= endB && startB <= endA
 }
 
-function normalizeText(value) {
-  return String(value ?? '')
-    .replace(/\s+/g, '')
-    .trim()
-}
-
-function textSimilarity(a, b) {
-  const left = normalizeText(a)
-  const right = normalizeText(b)
-  if (!left || !right) return 0
-  if (left === right) return 1
-  const longer = left.length >= right.length ? left : right
-  const shorter = left.length >= right.length ? right : left
-  let matches = 0
-  for (let i = 0; i < shorter.length; i += 1) {
-    if (longer.includes(shorter[i])) matches += 1
-  }
-  return matches / longer.length
-}
-
-function createAlert(rule, level, message, recordId = null) {
+function createAlert(ruleId, level, message, recordId = null, relatedRecordIds = null) {
+  const rule = getRuleById(ruleId)
   return {
-    ruleId: rule.id,
-    ruleName: rule.name,
+    ruleId,
+    ruleName: rule?.name || ruleId,
     level,
     message,
     recordId,
+    relatedRecordIds: relatedRecordIds || (recordId ? [recordId] : []),
   }
 }
 
@@ -153,7 +108,7 @@ function evaluateRule01(record) {
   if (hours == null) return null
   if (hours >= 24) {
     return createAlert(
-      DAILY_WORK_RISK_RULES[0],
+      'rule-01',
       'red',
       `作业时长 ${hours.toFixed(1)} 小时，达到 24 小时不间断阈值，触发红色预警。`,
       record.id,
@@ -161,7 +116,7 @@ function evaluateRule01(record) {
   }
   if (hours >= 16) {
     return createAlert(
-      DAILY_WORK_RISK_RULES[0],
+      'rule-01',
       'yellow',
       `作业时长 ${hours.toFixed(1)} 小时，超过 16 小时阈值，存在疲劳作业风险。`,
       record.id,
@@ -197,10 +152,11 @@ function evaluateRule02(records) {
         if (hasFire && hasEarth) {
           alerts.push(
             createAlert(
-              DAILY_WORK_RISK_RULES[1],
+              'rule-02',
               'red',
-              `区域「${a.workArea || '—'}」同时存在动火与动土交叉作业，触发红色预警。`,
+              `区域「${a.workArea || '—'}」同时存在动火与动土交叉作业（「${a.dangerWorkCategory || '—'}」与「${b.dangerWorkCategory || '—'}」），触发红色预警。`,
               a.id,
+              [a.id, b.id],
             ),
           )
           continue
@@ -209,10 +165,11 @@ function evaluateRule02(records) {
         if (categories.size >= 3) {
           alerts.push(
             createAlert(
-              DAILY_WORK_RISK_RULES[1],
+              'rule-02',
               'yellow',
-              `区域「${a.workArea || '—'}」同一时段存在 ${categories.size} 类危险作业交叉，触发黄色预警。`,
+              `区域「${a.workArea || '—'}」同一时段存在 ${categories.size} 类危险作业交叉（「${a.dangerWorkCategory || '—'}」与「${b.dangerWorkCategory || '—'}」），触发黄色预警。`,
               a.id,
+              [a.id, b.id],
             ),
           )
         }
@@ -229,7 +186,7 @@ function evaluateRule03(record) {
   const endDate = extractDatePart(record.endTime)
   if ((startDate && startDate !== reportDate) || (endDate && endDate !== reportDate)) {
     return createAlert(
-      DAILY_WORK_RISK_RULES[2],
+      'rule-03',
       'red',
       `作业日期与报表日期 ${reportDate} 不一致，数据无效，需退回修改。`,
       record.id,
@@ -244,46 +201,11 @@ function evaluateRule04(record) {
   if (isFieldEmpty(record.supervisorSafetyManager)) missing.push('监理单位现场安全监管人及手机号')
   if (!missing.length) return null
   return createAlert(
-    DAILY_WORK_RISK_RULES[3],
+    'rule-04',
     'red',
     `${missing.join('、')} 未填报，禁止提交。`,
     record.id,
   )
-}
-
-function evaluateRule05(records) {
-  const alerts = []
-  const groups = new Map()
-  for (const record of records) {
-    const key = `${record.reportDate || ''}__${record.leadUnit || ''}`
-    if (!groups.has(key)) groups.set(key, [])
-    groups.get(key).push(record)
-  }
-
-  for (const group of groups.values()) {
-    const texts = group
-      .map((item) => String(item.dangerControlMeasures || '').trim())
-      .filter(Boolean)
-    if (texts.length <= 3) continue
-
-    let similarPairs = 0
-    for (let i = 0; i < texts.length; i += 1) {
-      for (let j = i + 1; j < texts.length; j += 1) {
-        if (textSimilarity(texts[i], texts[j]) > 0.9) similarPairs += 1
-      }
-    }
-    if (similarPairs > 3) {
-      alerts.push(
-        createAlert(
-          DAILY_WORK_RISK_RULES[4],
-          'yellow',
-          `同一管理单位下 ${texts.length} 条管控措施高度雷同，建议针对性修改。`,
-          group[0]?.id,
-        ),
-      )
-    }
-  }
-  return alerts
 }
 
 function evaluateRule06(record) {
@@ -291,7 +213,7 @@ function evaluateRule06(record) {
   const measures = String(record.dangerControlMeasures || '')
   if (category.includes('高处作业') && !HEIGHT_PATTERN.test(measures)) {
     return createAlert(
-      DAILY_WORK_RISK_RULES[5],
+      'rule-06',
       'yellow',
       '高处作业未填写具体作业高度，请补充如“5米”等量化参数。',
       record.id,
@@ -299,7 +221,7 @@ function evaluateRule06(record) {
   }
   if (category.includes('吊装作业') && !LIFT_LIMIT_PATTERN.test(measures)) {
     return createAlert(
-      DAILY_WORK_RISK_RULES[5],
+      'rule-06',
       'yellow',
       '吊装作业未填写限高/净空数值，请补充关键安全参数。',
       record.id,
@@ -308,49 +230,15 @@ function evaluateRule06(record) {
   return null
 }
 
-function evaluateRule07(record) {
-  const area = String(record.workArea || '')
-  const measures = String(record.dangerControlMeasures || '')
-  const hitArea = FLIGHT_AREA_KEYWORDS.some((word) => area.includes(word))
-  if (!hitArea) return null
-  const hitCompliance = FLIGHT_COMPLIANCE_KEYWORDS.some((word) => measures.includes(word))
-  if (hitCompliance) return null
-  return createAlert(
-    DAILY_WORK_RISK_RULES[6],
-    'red',
-    '该区域属于飞行区核心范围，必须补充审批文号及适航恢复措施。',
-    record.id,
-  )
-}
-
-function evaluateRule08(record) {
-  const startAt = parseDateTime(record.startTime)
-  if (!startAt) return null
-  const hour = startAt.getHours()
-  if (hour < 0 || hour >= 6) return null
-  const measures = String(record.dangerControlMeasures || '')
-  const hit = NIGHT_CONTROL_KEYWORDS.some((word) => measures.includes(word))
-  if (hit) return null
-  return createAlert(
-    DAILY_WORK_RISK_RULES[7],
-    'yellow',
-    '凌晨时段作业需执行提级审批，请补充夜间值班人员信息。',
-    record.id,
-  )
-}
-
 const RECORD_EVALUATORS = {
   'rule-01': evaluateRule01,
   'rule-03': evaluateRule03,
   'rule-04': evaluateRule04,
   'rule-06': evaluateRule06,
-  'rule-07': evaluateRule07,
-  'rule-08': evaluateRule08,
 }
 
 const BATCH_EVALUATORS = {
   'rule-02': evaluateRule02,
-  'rule-05': evaluateRule05,
 }
 
 /**
@@ -379,6 +267,64 @@ export function evaluateDailyWorkRiskAlerts(records, enabledRuleIds = []) {
     dedup.set(`${alert.ruleId}-${alert.recordId || 'batch'}-${alert.message}`, alert)
   }
   return [...dedup.values()]
+}
+
+/**
+ * 导入/提交前风险明细：附带对应行关键数据，供确认弹窗展示。
+ */
+export function buildDailyWorkRiskAlertDetails(records = [], enabledRuleIds = []) {
+  const stamped = (records || []).map((record, index) => ({
+    ...record,
+    id: record.id || `import-tmp-${index}`,
+    _rowNo: index + 1,
+  }))
+  const alerts = evaluateDailyWorkRiskAlerts(stamped, enabledRuleIds)
+  const byId = new Map(stamped.map((record) => [record.id, record]))
+
+  return alerts.map((alert) => {
+    const relatedIds = alert.relatedRecordIds?.length
+      ? alert.relatedRecordIds
+      : alert.recordId
+        ? [alert.recordId]
+        : []
+    const relatedRecords = relatedIds.map((id) => byId.get(id)).filter(Boolean)
+    const primary = relatedRecords[0] || byId.get(alert.recordId) || null
+    const rowNo = primary?._rowNo
+    const projectName = primary?.projectName || '—'
+    const workArea = primary?.workArea || '—'
+    const dangerWorkCategory = primary?.dangerWorkCategory || '—'
+    const startTime = primary?.startTime || '—'
+    const endTime = primary?.endTime || '—'
+    const reportDate = primary?.reportDate || '—'
+    const dataSummary = relatedRecords.length
+      ? relatedRecords
+          .map(
+            (record) =>
+              `第 ${record._rowNo} 行｜项目：${record.projectName || '—'}｜区域：${record.workArea || '—'}｜类别：${record.dangerWorkCategory || '—'}｜${record.startTime || '—'} ~ ${record.endTime || '—'}`,
+          )
+          .join('\n')
+      : '（跨多条记录的批量规则）'
+    return {
+      ...alert,
+      rowNo: rowNo ?? '—',
+      projectName,
+      workArea,
+      dangerWorkCategory,
+      startTime,
+      endTime,
+      reportDate,
+      dataSummary,
+      relatedRows: relatedRecords.map((record) => ({
+        rowNo: record._rowNo,
+        projectName: record.projectName || '—',
+        workArea: record.workArea || '—',
+        dangerWorkCategory: record.dangerWorkCategory || '—',
+        startTime: record.startTime || '—',
+        endTime: record.endTime || '—',
+        reportDate: record.reportDate || '—',
+      })),
+    }
+  })
 }
 
 export function getDefaultEnabledRuleIds() {

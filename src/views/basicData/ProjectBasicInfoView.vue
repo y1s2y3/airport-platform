@@ -7,6 +7,7 @@ import {
   createEmptyProject,
   createProjectFields,
   deriveShortName,
+  formatConstructionPeriod,
 } from '../../mock/projectBasicInfo'
 import { mergeSafetyProfile } from '../../mock/projectSafetyProfile'
 import ProjectSafetyProfileForm from '../../components/basicData/ProjectSafetyProfileForm.vue'
@@ -29,6 +30,11 @@ const filteredList = computed(() => {
 
 const dialogTitle = computed(() => {
   if (formMode.value === 'create') return '新增项目基础信息'
+  if (formMode.value === 'view') {
+    return formModel.value?.projectName
+      ? `查看项目画像 · ${formModel.value.projectName}`
+      : '查看项目画像'
+  }
   return formModel.value?.projectName ? `编辑 · ${formModel.value.projectName}` : '编辑项目基础信息'
 })
 
@@ -56,6 +62,18 @@ function openEdit(row) {
   formMode.value = 'edit'
   formModel.value = cloneProject(source)
   dialogVisible.value = true
+}
+
+function openViewPortrait(row) {
+  const source = projectList.find((item) => item.id === row.id)
+  if (!source) return
+  formMode.value = 'view'
+  formModel.value = cloneProject(source)
+  dialogVisible.value = true
+}
+
+function formatPeriod(row) {
+  return formatConstructionPeriod(row) || '—'
 }
 
 function handleSave() {
@@ -114,16 +132,34 @@ function handleSave() {
 
     <div class="table-section">
       <div class="table-summary">共 {{ filteredList.length }} 个项目</div>
-      <el-table :data="filteredList" border stripe class="ap-table">
-        <el-table-column type="index" label="序号" width="60" align="center" />
-        <el-table-column prop="projectName" label="项目名称" min-width="260" show-overflow-tooltip />
-        <el-table-column prop="contractorUnit" label="施工单位" min-width="180" show-overflow-tooltip />
-        <el-table-column prop="supervisorUnit" label="监理单位" min-width="180" show-overflow-tooltip />
-        <el-table-column prop="constructionSite" label="施工地点" min-width="120" show-overflow-tooltip />
-        <el-table-column prop="entryTime" label="入场时间" width="120" />
-        <el-table-column prop="plannedCompletionTime" label="计划竣工时间" width="120" />
-        <el-table-column label="操作" width="100" fixed="right" align="center">
+      <el-table :data="filteredList" border stripe class="ap-table project-info-table">
+        <el-table-column type="index" label="#" width="52" align="center" />
+        <el-table-column prop="projectName" label="项目名称" min-width="280" show-overflow-tooltip />
+        <el-table-column prop="shortName" label="项目简称" width="140" show-overflow-tooltip />
+        <el-table-column prop="projectCode" label="项目编号" min-width="150" show-overflow-tooltip>
           <template #default="{ row }">
+            {{ row.projectCode || '—' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="status" label="项目状态" width="96" align="center" />
+        <el-table-column label="建设期" min-width="210" show-overflow-tooltip>
+          <template #default="{ row }">
+            {{ formatPeriod(row) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="personInCharge" label="负责人" width="100" align="center" show-overflow-tooltip>
+          <template #default="{ row }">
+            {{ row.personInCharge || '—' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="是否隐藏" width="96" align="center">
+          <template #default="{ row }">
+            <el-switch v-model="row.hidden" />
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="168" fixed="right" align="center">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="openViewPortrait(row)">查看项目画像</el-button>
             <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
           </template>
         </el-table-column>
@@ -139,12 +175,21 @@ function handleSave() {
       class="project-detail-dialog"
     >
       <div class="dialog-scroll-body">
-        <ProjectSafetyProfileForm v-if="formModel" :model="formModel" />
+        <ProjectSafetyProfileForm
+          v-if="formModel"
+          :model="formModel"
+          :readonly="formMode === 'view'"
+        />
       </div>
 
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button class="ap-btn-primary" type="primary" @click="handleSave">保存</el-button>
+        <template v-if="formMode === 'view'">
+          <el-button class="ap-btn-primary" type="primary" @click="dialogVisible = false">关闭</el-button>
+        </template>
+        <template v-else>
+          <el-button @click="dialogVisible = false">取消</el-button>
+          <el-button class="ap-btn-primary" type="primary" @click="handleSave">保存</el-button>
+        </template>
       </template>
     </el-dialog>
   </div>

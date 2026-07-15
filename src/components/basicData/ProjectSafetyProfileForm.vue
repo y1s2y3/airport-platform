@@ -20,6 +20,10 @@ defineProps({
     type: Object,
     required: true,
   },
+  readonly: {
+    type: Boolean,
+    default: false,
+  },
 })
 
 function ensureProfile(model) {
@@ -57,7 +61,7 @@ function addSmallMachinery(model) {
 </script>
 
 <template>
-  <div v-if="model" class="safety-profile-sheet">
+  <div v-if="model" class="safety-profile-sheet" :class="{ 'is-readonly': readonly }">
     <div class="sheet-head">
       <div class="sheet-head-main">
         <div class="sheet-doc-title">建设工程指挥部项目施工安全画像</div>
@@ -974,5 +978,20 @@ function addSmallMachinery(model) {
 .cell-value :deep(.el-select__wrapper.is-focused) {
   box-shadow: 0 0 0 1px var(--ap-primary) inset;
   background: #fff;
+}
+
+.safety-profile-sheet.is-readonly :deep(input),
+.safety-profile-sheet.is-readonly :deep(textarea),
+.safety-profile-sheet.is-readonly :deep(.el-input__wrapper),
+.safety-profile-sheet.is-readonly :deep(.el-textarea__inner),
+.safety-profile-sheet.is-readonly :deep(.el-select__wrapper),
+.safety-profile-sheet.is-readonly :deep(.el-radio),
+.safety-profile-sheet.is-readonly :deep(.el-date-editor) {
+  pointer-events: none;
+}
+
+.safety-profile-sheet.is-readonly :deep(.el-button.is-link),
+.safety-profile-sheet.is-readonly :deep(.el-upload) {
+  display: none;
 }
 </style>

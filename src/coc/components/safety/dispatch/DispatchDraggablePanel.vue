@@ -12,6 +12,8 @@ const props = defineProps({
     default: 'center',
     validator: (v) => ['center', 'right'].includes(v),
   },
+  /** 居右时是否显示半透明遮罩（可点击遮罩关闭） */
+  rightBackdrop: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['close'])
@@ -114,9 +116,12 @@ function onPointerUp() {
   <Teleport to="body">
     <div
       class="drag-panel-backdrop"
-      :class="{ 'placement-right': isRight }"
+      :class="{
+        'placement-right': isRight,
+        'placement-right-dim': isRight && rightBackdrop,
+      }"
       :style="{ zIndex }"
-      @click.self="!isRight && emit('close')"
+      @click.self="(!isRight || rightBackdrop) && emit('close')"
     >
       <div
         class="drag-panel"
@@ -161,6 +166,11 @@ function onPointerUp() {
   background: transparent;
   pointer-events: none;
   justify-content: flex-end;
+}
+
+.drag-panel-backdrop.placement-right-dim {
+  background: rgba(0, 0, 0, 0.38);
+  pointer-events: auto;
 }
 
 .drag-panel {

@@ -72,7 +72,7 @@ function closeDetail() {
     </div>
 
     <div class="panel-card detail-panel list-panel mgmt-panel" :class="{ 'dispatch-hq-list-panel': dispatchHqUi }">
-      <DispatchHqPanelTitle v-if="dispatchHqUi" title="管理人员清单">
+      <DispatchHqPanelTitle v-if="dispatchHqUi" title="管理人员清单" show-v2-tag>
         <template #actions>
           <span class="mgmt-count">共 {{ managementList.length }} 人</span>
         </template>

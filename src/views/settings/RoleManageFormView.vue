@@ -24,7 +24,6 @@ const permTab = ref('web')
 const webTreeRef = ref(null)
 const appTreeRef = ref(null)
 const checkAll = ref(false)
-const parentChildLink = ref(true)
 
 const isEdit = computed(() => Boolean(route.params.id))
 const pageTitle = computed(() => (isEdit.value ? '角色编辑' : '角色新增'))
@@ -62,11 +61,6 @@ onMounted(async () => {
 
 watch(permTab, async () => {
   checkAll.value = false
-  await nextTick()
-  syncTreeCheckedKeys()
-})
-
-watch(parentChildLink, async () => {
   await nextTick()
   syncTreeCheckedKeys()
 })
@@ -203,7 +197,6 @@ async function handleSubmit() {
 
         <div class="perm-toolbar">
           <el-checkbox v-model="checkAll" @change="handleCheckAll">全选</el-checkbox>
-          <el-checkbox v-model="parentChildLink">父子联动</el-checkbox>
         </div>
 
         <el-tree
@@ -213,7 +206,7 @@ async function handleSubmit() {
           show-checkbox
           node-key="id"
           default-expand-all
-          :check-strictly="!parentChildLink"
+          check-strictly
           :props="{ label: 'label', children: 'children' }"
           class="menu-tree"
           @check="handleTreeCheck"
@@ -225,7 +218,7 @@ async function handleSubmit() {
           show-checkbox
           node-key="id"
           default-expand-all
-          :check-strictly="!parentChildLink"
+          check-strictly
           :props="{ label: 'label', children: 'children' }"
           class="menu-tree"
           @check="handleTreeCheck"
