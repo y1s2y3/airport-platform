@@ -21,6 +21,14 @@ export const appMenu = [
     ],
   },
   {
+    key: 'app-safety-inspection',
+    label: '安全巡检',
+    children: [
+      { key: 'app-mobile-tasks', label: '安全巡检(移动端)' },
+      { key: 'app-mobile-rectify', label: '整改复查(移动端)' },
+    ],
+  },
+  {
     key: 'app-video',
     label: '视频监控',
     children: [

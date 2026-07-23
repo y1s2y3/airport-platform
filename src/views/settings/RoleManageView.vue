@@ -10,8 +10,10 @@ import {
   deleteRole,
   toggleRoleStatus,
 } from '../../mock/roles'
+import { useOrgScope } from '../../composables/useOrgScope'
 
 const router = useRouter()
+const { isHqSelected, isRoleVisibleToCurrentUser } = useOrgScope()
 
 const nameFilter = ref('')
 const levelFilter = ref('')
@@ -19,9 +21,16 @@ const statusFilter = ref('')
 const currentPage = ref(1)
 const pageSize = ref(10)
 
+const visibleLevelOptions = computed(() => {
+  if (isHqSelected.value) return roleLevelOptions.filter((item) => item.value)
+  return roleLevelOptions.filter((item) => item.value === '项目')
+})
+
 const filteredList = computed(() => {
   const kw = nameFilter.value.trim().toLowerCase()
   return roleRecords.value.filter((row) => {
+    if (!isRoleVisibleToCurrentUser(row.id)) return false
+    if (!isHqSelected.value && row.level !== '项目') return false
     if (levelFilter.value && row.level !== levelFilter.value) return false
     if (statusFilter.value && row.status !== statusFilter.value) return false
     if (!kw) return true
@@ -92,7 +101,7 @@ function handleToggleStatus(row) {
         <span class="field-label">角色级别</span>
         <el-select v-model="levelFilter" placeholder="请选择" clearable class="filter-select">
           <el-option
-            v-for="opt in roleLevelOptions.filter((o) => o.value)"
+            v-for="opt in visibleLevelOptions"
             :key="opt.value"
             :label="opt.label"
             :value="opt.value"

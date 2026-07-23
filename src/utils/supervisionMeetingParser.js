@@ -1,32 +1,27 @@
-import { HAZARD_REPORTERS } from '../coc/mock/data.js'
-
-function defaultDeadline(days = 7) {
-  const d = new Date()
-  d.setDate(d.getDate() + days)
-  return d.toISOString().slice(0, 10)
-}
-
 const PARSED_HAZARD_SAMPLES = [
   {
     hazardType: 'safety',
     description: '塔吊作业区警戒标识不足，临边防护缺失',
     hazardLevel: '较大',
-    rectifier: '张安全',
-    hazardDeadline: defaultDeadline(7),
+    rectifier: '',
+    hazardDeadline: '',
+    acceptor: '',
   },
   {
     hazardType: 'quality',
     description: '钢筋绑扎间距偏差，保护层厚度不足',
     hazardLevel: '一般',
-    rectifier: '周质量',
-    hazardDeadline: defaultDeadline(10),
+    rectifier: '',
+    hazardDeadline: '',
+    acceptor: '',
   },
   {
     hazardType: 'safety',
     description: '材料堆放占用消防通道，文明施工不到位',
     hazardLevel: '一般',
-    rectifier: '李巡检',
-    hazardDeadline: defaultDeadline(5),
+    rectifier: '',
+    hazardDeadline: '',
+    acceptor: '',
   },
 ]
 
@@ -84,9 +79,11 @@ export function parseSupervisionMeetingMinutes(fileName, projectName = '') {
     const sample = PARSED_HAZARD_SAMPLES[(seed + index) % PARSED_HAZARD_SAMPLES.length]
     return {
       ...sample,
-      rectifier: HAZARD_REPORTERS[(seed + index) % HAZARD_REPORTERS.length] || sample.rectifier,
+      rectifier: '',
+      hazardDeadline: '',
+      acceptor: '',
       source: '监理解析',
-      rectifyStatus: '待整改',
+      rectifyStatus: '待下发',
     }
   })
 
@@ -97,6 +94,6 @@ export function parseSupervisionMeetingMinutes(fileName, projectName = '') {
     directorAttendees,
     hazards,
     parseError: '',
-    summary: `已从「${fileName}」解析 ${hazards.length} 条隐患记录（整改人/期限如有识别偏差可直接修改）`,
+    summary: `已从「${fileName}」解析 ${hazards.length} 条隐患记录（状态为待下发，请在监理隐患清单中下发并指定整改人/期限/验收人）`,
   }
 }

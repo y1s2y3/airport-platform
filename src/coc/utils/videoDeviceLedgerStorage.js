@@ -73,6 +73,7 @@ function buildSeedDevices(project) {
     const onlineRoll = i % 7
     const deviceStatus = onlineRoll === 6 ? '未激活' : onlineRoll === 5 ? '离线' : '在线'
     const cam = cameras[i]
+    const offlineDays = deviceStatus === '离线' ? 3 + ((i * 5 + Number(project.id.replace(/\D/g, '') || 0)) % 28) : 0
     return {
       id: `${project.id}-vd-${String(i + 1).padStart(3, '0')}`,
       accessType: 'GB28181',
@@ -89,6 +90,8 @@ function buildSeedDevices(project) {
       application: USAGE_OPTIONS[i % USAGE_OPTIONS.length].value,
       remark: '',
       deviceStatus,
+      offlineDays,
+      offlineWarningStatus: deviceStatus === '离线' ? (i % 3 === 0 ? '已处置' : '未处置') : '',
       createdAt: `2026-0${(i % 6) + 1}-${String((i % 27) + 1).padStart(2, '0')} 09:${String(10 + i).padStart(2, '0')}:00`,
       projectId: project.id,
     }
@@ -156,6 +159,8 @@ export function emptyVideoDevice(row = {}) {
     application: row.application || row.usage || '',
     remark: row.remark || '',
     deviceStatus: row.deviceStatus || '未激活',
+    offlineDays: Number.isFinite(Number(row.offlineDays)) ? Number(row.offlineDays) : 0,
+    offlineWarningStatus: row.offlineWarningStatus || '',
     createdAt: row.createdAt || '',
     projectId: row.projectId || '',
   }
@@ -169,6 +174,49 @@ export function getDeviceLedgerStats(devices = []) {
   const typeSet = new Set(devices.map((d) => d.deviceType).filter(Boolean))
   const onlineRate = total ? Math.round((online / total) * 100) : 0
   return { total, online, offline, inactive, typeCount: typeSet.size, onlineRate }
+}
+
+/** 离线天数：优先读字段，缺省时按设备 id 稳定推导（演示） */
+export function resolveOfflineDays(device) {
+  if (!device || device.deviceStatus !== '离线') return 0
+  if (Number.isFinite(Number(device.offlineDays))) return Number(device.offlineDays)
+  const n = Number(String(device.id || '').replace(/\D/g, '').slice(-3)) || 0
+  return 1 + (n % 30)
+}
+
+/** 离线预警是否未处置 */
+export function isUntreatedOfflineWarning(device) {
+  if (!device || device.deviceStatus !== '离线') return false
+  if (device.offlineWarningStatus) return device.offlineWarningStatus === '未处置'
+  const days = resolveOfflineDays(device)
+  if (days < 1) return false
+  const n = Number(String(device.id || '').replace(/\D/g, '').slice(-1)) || 0
+  return n % 3 !== 0
+}
+
+/**
+ * 指挥部 · 按项目视频监控统计
+ * @param {{ id: string, label?: string, shortName?: string, name?: string }[]} projects
+ */
+export function buildHqVideoMonitorStatsByProject(projects = []) {
+  ensureVideoDeviceLedgerSeed()
+  return projects.map((p) => {
+    const list = getProjectVideoDevices(p.id)
+    const total = list.length
+    const online = list.filter((d) => d.deviceStatus === '在线').length
+    const offline = list.filter((d) => d.deviceStatus === '离线').length
+    const offlineOver15 = list.filter((d) => resolveOfflineDays(d) > 15).length
+    const untreatedWarnings = list.filter((d) => isUntreatedOfflineWarning(d)).length
+    return {
+      project_id: p.id,
+      project_name: p.label || p.shortName || p.name || p.id,
+      total,
+      online,
+      offline,
+      offlineOver15,
+      untreatedWarnings,
+    }
+  })
 }
 
 export function getPreviewAreaGroups(devices = []) {

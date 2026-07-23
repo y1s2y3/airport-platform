@@ -55,6 +55,21 @@ function seedIfEmpty() {
         snapshot: '',
       },
       {
+        id: 'ss-seed-4',
+        docType: 'quality',
+        projectName: '三跑道扩建',
+        cameraName: '西区球机',
+        cameraLocation: '结构施工区',
+        description: '混凝土养护时间不足，局部出现干缩裂纹。',
+        rectifier: '周质量',
+        hazardLevel: '一般',
+        hazardDeadline: '2026-06-25',
+        cameraId: 'cam-west',
+        sourceType: 'live',
+        createdAt: '2026-06-15 09:18:06',
+        snapshot: '',
+      },
+      {
         id: 'ss-seed-3',
         docType: 'penalty',
         projectName: '飞行区5号通道',
@@ -107,6 +122,13 @@ export function saveScreenshotRecord(payload) {
   const list = readList(SCREENSHOT_KEY)
   list.unshift(record)
   writeList(SCREENSHOT_KEY, list)
+
+  if (record.docType === 'safety' || record.docType === 'quality') {
+    import('../../utils/dispatchHazardStorage.js')
+      .then((mod) => mod.upsertDispatchHazardFromScreenshot(record))
+      .catch(() => {})
+  }
+
   return record
 }
 

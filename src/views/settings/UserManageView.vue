@@ -9,7 +9,10 @@ import {
   deleteSysUser,
   toggleSysUserStatus,
 } from '../../mock/sysUsers'
+import { useOrgScope } from '../../composables/useOrgScope'
+
 const router = useRouter()
+const { isUserInCurrentProject } = useOrgScope()
 
 const statusFilter = ref('')
 const keyword = ref('')
@@ -19,6 +22,7 @@ const pageSize = ref(10)
 const filteredList = computed(() => {
   const kw = keyword.value.trim().toLowerCase()
   return sysUserRecords.value.filter((row) => {
+    if (!isUserInCurrentProject(row.orgId)) return false
     if (statusFilter.value === 'enabled' && !row.status) return false
     if (statusFilter.value === 'disabled' && row.status) return false
     if (!kw) return true

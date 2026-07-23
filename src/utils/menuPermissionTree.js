@@ -11,7 +11,7 @@ export const MENU_SCOPE_ROOTS = [
 
 /**
  * 仅指挥部/企业层级展示的菜单（项目级侧栏与项目角色授权树均不展示）
- * 含：任务单、提示函、处罚单、黑红榜单、日志管理及其子项
+ * 含：任务单、提示函、处罚单、黑红榜单、日志管理、菜单管理、视频离线通知配置
  */
 export const HQ_ONLY_MENU_KEYS = new Set([
   'coc-admin-notice',
@@ -22,23 +22,68 @@ export const HQ_ONLY_MENU_KEYS = new Set([
   'log-system',
   'log-login',
   'log-operation',
+  'sys-menu',
+  'video-monitor-offline-notify',
+  /** 视频监控 · 指挥部统计 */
+  'video-monitor-stats',
+  /** 安全巡检：看板 / 计划 / 检查项仅指挥部维护 */
+  'safety-dashboard',
+  'safety-plan',
+  'safety-check-items',
+  /** 人员实名制 · 指挥部 */
+  'labor-realname-stats',
 ])
 
 /**
  * 仅项目层级展示的菜单（企业/指挥部侧栏与指挥部角色授权树均不展示）
- * 含：视频监控及其子项
+ * 含：视频预览/台账/分组等项目级视频能力（「视频监控」父级两端可见）
  */
 export const PROJECT_ONLY_MENU_KEYS = new Set([
-  'video-monitor',
   'video-monitor-preview',
   'video-monitor-ledger',
   'video-monitor-group',
-  'video-monitor-list',
-  'video-monitor-device',
   'app-video',
   'app-video-list',
   'app-video-device',
   'app-video-group',
+  /** 质量验评 · 项目执行 */
+  'qm-wbs-tree',
+  'qm-plan-list',
+  'qm-form-fill',
+  'qm-physical-deep',
+  'qm-form-fill-deep',
+  'qm-special-deep',
+  'qm-complete-deep',
+  'qm-approver-config',
+  'qm-app-approve',
+  /** 人员实名制 · 项目执行（指挥部仅留统计/配置/黑名单；劳务看板两端可见） */
+  'labor-realname',
+  'labor-personnel-track',
+  'labor-attendance-detail',
+  'labor-salary-compare',
+  'labor-warning-list',
+  'labor-device-manage',
+  /** 车辆管理 · 项目执行（指挥部仅留看板） */
+  'vehicle-access',
+  'vehicle-track',
+  'vehicle-registry',
+  'vehicle-device',
+  'vehicle-warning-list',
+  'app-vehicle-access',
+  'app-vehicle-warning',
+  /** 安全巡检 · 整改复查(移动端)仅项目层；安全巡检(移动端)指挥部/项目均可见 */
+  'mobile-rectify',
+  'app-mobile-rectify',
+  /** 机械设备台账 · 项目维护 */
+  'machine-ledger',
+  'machine-entry-manage',
+  'machine-type-maintain',
+  /** 机械设备监管 · 项目维护（指挥部隐藏监测设备管理、告警配置） */
+  'device-manage',
+  'alert-config',
+  /** 危大工程监管 · 项目维护（指挥部隐藏管理/设备绑定） */
+  'hazard-manage',
+  'device-binding',
 ])
 
 export function isHqOnlyMenuKey(key) {

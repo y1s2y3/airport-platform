@@ -1,6 +1,7 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Monitor,
   DataBoard,
@@ -20,6 +21,9 @@ import {
   VideoCamera,
   Van,
   OfficeBuilding,
+  SetUp,
+  Document,
+  Bell,
 } from '@element-plus/icons-vue'
 import { sidebarMenu } from '../config/menu'
 import {
@@ -39,6 +43,12 @@ const route = useRoute()
 const router = useRouter()
 const collapsed = ref(false)
 const expandedKeys = ref([])
+/** 收起侧栏时当前展开的悬浮子菜单 key */
+const flyoutKey = ref('')
+const flyoutStyle = ref({})
+const flyoutItem = computed(() =>
+  visibleSidebarMenu.value.find((item) => item.key === flyoutKey.value && item.children?.length) || null,
+)
 const { isHqSelected } = useCurrentProject()
 
 const projectOptions = COC_PROJECT_OPTIONS
@@ -62,6 +72,41 @@ function collectMenuPathsBy(pred, items = sidebarMenu, acc = []) {
 const hqOnlyPaths = collectMenuPathsBy(isHqOnlyMenuKey)
 const projectOnlyPaths = collectMenuPathsBy(isProjectOnlyMenuKey)
 
+/** 离开指挥部专属页时，尽量落到对应项目能力页，避免一律踢回工作台 */
+const HQ_LEAVE_REDIRECT = {
+  '/labor/realname-stats': '/labor/realname',
+  '/video-monitor/stats': '/video-monitor/preview',
+  '/safety-inspection/dashboard': '/mobile/tasks',
+  '/safety-inspection/plan': '/mobile/tasks',
+  '/safety-inspection/check-items': '/mobile/tasks',
+}
+
+function resolveLeaveTarget(paths) {
+  if (paths !== hqOnlyPaths) return '/workbench'
+  const hit = Object.entries(HQ_LEAVE_REDIRECT).find(
+    ([hqPath]) => route.path === hqPath || route.path.startsWith(`${hqPath}/`),
+  )
+  return hit?.[1] || '/workbench'
+}
+
+function leaveRestrictedPages(paths) {
+  closeFlyout()
+  const onRestricted = paths.some(
+    (path) => route.path === path || route.path.startsWith(`${path}/`),
+  )
+  if (!onRestricted) return
+  openTabs.value = openTabs.value.filter(
+    (tab) => !paths.some((path) => tab.path === path || tab.path.startsWith(`${path}/`)),
+  )
+  router.push(resolveLeaveTarget(paths))
+}
+
+watch(isHqSelected, (hq) => {
+  closeFlyout()
+  if (hq) leaveRestrictedPages(projectOnlyPaths)
+  else leaveRestrictedPages(hqOnlyPaths)
+})
+
 const iconMap = {
   Monitor,
   DataBoard,
@@ -77,34 +122,26 @@ const iconMap = {
   VideoCamera,
   Van,
   OfficeBuilding,
+  SetUp,
+  Document,
+  Bell,
 }
 
 const activeMenu = computed(() => route.meta.sidebarKey || 'workbench')
 const openTabs = ref([
-  { key: 'workbench', label: '首页', path: '/workbench' },
+  { key: 'workbench', label: '工作台', path: '/workbench' },
 ])
 const activeTab = computed(() => route.meta.tabKey || 'workbench')
 
-function leaveRestrictedPages(paths) {
-  const onRestricted = paths.some(
-    (path) => route.path === path || route.path.startsWith(`${path}/`),
-  )
-  if (!onRestricted) return
-  openTabs.value = openTabs.value.filter(
-    (tab) => !paths.some((path) => tab.path === path || tab.path.startsWith(`${path}/`)),
-  )
-  router.push('/workbench')
-}
-
-watch(isHqSelected, (hq) => {
-  if (hq) leaveRestrictedPages(projectOnlyPaths)
-  else leaveRestrictedPages(hqOnlyPaths)
-})
-
+/** Hash 路由下稳定指向 COC 大屏，避免 resolve href 拼接异常导致打不开 */
 const cocScreenHref = computed(() => {
-  const { href } = router.resolve({ name: 'CocScreen' })
+  const { href, fullPath } = router.resolve({ name: 'CocScreen' })
   if (/^https?:\/\//i.test(href)) return href
-  return `${window.location.origin}${window.location.pathname}${href}`
+  const hash = href.startsWith('#')
+    ? href
+    : `#${fullPath.startsWith('/') ? fullPath : `/${fullPath || 'coc'}`}`
+  const path = window.location.pathname || '/'
+  return `${window.location.origin}${path}${hash.startsWith('#') ? hash : `#${hash}`}`
 })
 
 function isGroupActive(item) {
@@ -134,6 +171,7 @@ function ensureExpandedForRoute() {
 watch(
   () => route.fullPath,
   () => {
+    closeFlyout()
     ensureExpandedForRoute()
     const key = route.meta?.tabKey || route.name || route.path
     const label = route.meta?.title || '页面'
@@ -157,9 +195,69 @@ function toggleGroup(key) {
   }
 }
 
+function onGroupClick(item) {
+  if (collapsed.value) {
+    if (flyoutKey.value === item.key) {
+      closeFlyout()
+      return
+    }
+    flyoutKey.value = item.key
+    nextTick(() => positionFlyout(item.key))
+    return
+  }
+  toggleGroup(item.key)
+}
+
+function closeFlyout() {
+  flyoutKey.value = ''
+  flyoutStyle.value = {}
+}
+
+function positionFlyout(key) {
+  const btn = document.querySelector(`.menu-group[data-menu-key="${key}"] .group-title`)
+  if (!btn) return
+  const rect = btn.getBoundingClientRect()
+  const top = Math.min(rect.top, window.innerHeight - 240)
+  flyoutStyle.value = {
+    top: `${Math.max(8, top)}px`,
+    left: `${rect.right + 8}px`,
+  }
+}
+
 function navigate(path) {
   router.push(path)
+  closeFlyout()
 }
+
+async function handleLogout() {
+  try {
+    await ElMessageBox.confirm('确认退出当前演示账号？', '退出登录', {
+      type: 'warning',
+      confirmButtonText: '退出',
+      cancelButtonText: '取消',
+    })
+  } catch {
+    return
+  }
+  ElMessage.success('已退出')
+  selectedProjectId.value = HQ_PROJECT_OPTION.id
+  openTabs.value = [{ key: 'workbench', label: '工作台', path: '/workbench' }]
+  router.push('/workbench')
+}
+
+function onDocumentClick(e) {
+  if (!collapsed.value || !flyoutKey.value) return
+  const t = e.target
+  if (t?.closest?.('.menu-group') || t?.closest?.('.menu-flyout')) return
+  closeFlyout()
+}
+
+watch(collapsed, (v) => {
+  if (!v) closeFlyout()
+})
+
+onMounted(() => document.addEventListener('click', onDocumentClick))
+onUnmounted(() => document.removeEventListener('click', onDocumentClick))
 
 function closeTab(tab, e) {
   e.stopPropagation()
@@ -217,6 +315,7 @@ function closeTab(tab, e) {
           :href="cocScreenHref"
           target="_blank"
           rel="noopener noreferrer"
+          title="打开 COC 调度大屏"
         >
           COC调度大屏
         </a>
@@ -225,7 +324,7 @@ function closeTab(tab, e) {
           <span class="user-name">COC调度室</span>
           <el-icon :size="12" color="#8f959e"><ArrowDown /></el-icon>
         </div>
-        <button type="button" class="logout-btn">
+        <button type="button" class="logout-btn" @click="handleLogout">
           <el-icon :size="16"><SwitchButton /></el-icon>
           <span>退出</span>
         </button>
@@ -236,17 +335,20 @@ function closeTab(tab, e) {
       <aside class="sidebar" :class="{ collapsed }">
         <nav class="sidebar-nav">
           <template v-for="item in visibleSidebarMenu" :key="item.key">
-            <div v-if="item.children" class="menu-group">
+            <div v-if="item.children" class="menu-group" :data-menu-key="item.key">
               <button
                 type="button"
                 class="menu-item group-title"
                 :class="{ active: isGroupActive(item) }"
-                @click="toggleGroup(item.key)"
+                :title="collapsed ? item.label : undefined"
+                @click.stop="onGroupClick(item)"
               >
                 <el-icon :size="16"><component :is="iconMap[item.icon]" /></el-icon>
                 <span v-if="!collapsed">{{ item.label }}</span>
                 <span v-if="!collapsed" class="expand-arrow">{{ expandedKeys.includes(item.key) ? '▾' : '▸' }}</span>
               </button>
+
+              <!-- 展开态：内嵌子菜单 -->
               <div v-if="expandedKeys.includes(item.key) && !collapsed" class="sub-menu">
                 <template v-for="child in item.children" :key="child.key">
                   <div v-if="child.children?.length" class="sub-group">
@@ -324,12 +426,50 @@ function closeTab(tab, e) {
         </div>
       </main>
     </div>
+
+    <!-- 收起侧栏：Teleport 到 body，避免 overflow:hidden 裁切 -->
+    <Teleport to="body">
+      <div
+        v-if="collapsed && flyoutItem"
+        class="menu-flyout"
+        :style="flyoutStyle"
+        @click.stop
+      >
+        <div class="flyout-title">{{ flyoutItem.label }}</div>
+        <template v-for="child in flyoutItem.children" :key="child.key">
+          <div v-if="child.children?.length" class="flyout-subgroup">
+            <div class="flyout-sub-label">{{ child.label }}</div>
+            <button
+              v-for="leaf in child.children"
+              :key="leaf.key"
+              type="button"
+              class="flyout-item"
+              :class="{ active: isChildActive(leaf) }"
+              @click="navigate(leaf.path)"
+            >
+              {{ leaf.label }}
+            </button>
+          </div>
+          <button
+            v-else
+            type="button"
+            class="flyout-item"
+            :class="{ active: isChildActive(child) }"
+            @click="navigate(child.path)"
+          >
+            {{ child.label }}
+          </button>
+        </template>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <style scoped>
 .admin-shell {
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   background: var(--ap-bg);
@@ -484,12 +624,17 @@ function closeTab(tab, e) {
 
 .sidebar.collapsed {
   width: 56px;
+  overflow: visible;
 }
 
 .sidebar-nav {
   flex: 1;
   padding: 8px 0;
   overflow-y: auto;
+}
+
+.sidebar.collapsed .sidebar-nav {
+  overflow: visible;
 }
 
 .menu-item {
@@ -522,10 +667,75 @@ function closeTab(tab, e) {
   justify-content: flex-start;
 }
 
+.menu-group {
+  position: relative;
+}
+
 .expand-arrow {
   margin-left: auto;
   font-size: 12px;
   opacity: 0.7;
+}
+
+.menu-flyout {
+  position: fixed;
+  z-index: 3200;
+  min-width: 188px;
+  max-width: 260px;
+  max-height: min(70vh, 480px);
+  overflow-y: auto;
+  padding: 8px;
+  background: #fff;
+  border: 1px solid var(--ap-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+.flyout-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ap-text-muted);
+  padding: 4px 10px 8px;
+  border-bottom: 1px solid var(--ap-border);
+  margin-bottom: 6px;
+}
+.flyout-sub-label {
+  font-size: 11px;
+  color: var(--ap-text-muted);
+  padding: 6px 10px 2px;
+}
+.flyout-item {
+  display: block;
+  width: 100%;
+  border: none;
+  background: none;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--ap-text-secondary);
+  cursor: pointer;
+}
+.flyout-item:hover {
+  color: var(--ap-primary);
+  background: var(--ap-primary-muted);
+}
+.flyout-item.active {
+  color: var(--ap-primary);
+  background: var(--ap-primary-light);
+  font-weight: 600;
+}
+.flyout-subgroup + .flyout-item,
+.flyout-item + .flyout-subgroup {
+  margin-top: 4px;
+}
+
+.sidebar.collapsed .menu-item {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+.sidebar.collapsed .menu-item .el-icon {
+  margin: 0;
 }
 
 .sub-menu {
@@ -591,10 +801,13 @@ function closeTab(tab, e) {
 
 .page-tabs {
   display: flex;
+  flex-wrap: nowrap;
   gap: 2px;
   padding: 8px 16px 0;
   background: var(--ap-bg);
   flex-shrink: 0;
+  overflow-x: auto;
+  min-width: 0;
 }
 
 .page-tab {
@@ -609,6 +822,8 @@ function closeTab(tab, e) {
   font-size: 13px;
   padding: 8px 14px;
   cursor: pointer;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .page-tab.active {

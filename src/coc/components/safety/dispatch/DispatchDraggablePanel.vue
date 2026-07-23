@@ -14,6 +14,8 @@ const props = defineProps({
   },
   /** 居右时是否显示半透明遮罩（可点击遮罩关闭） */
   rightBackdrop: { type: Boolean, default: false },
+  /** 面板不透明（无毛玻璃/半透底色） */
+  opaque: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['close'])
@@ -125,7 +127,7 @@ function onPointerUp() {
     >
       <div
         class="drag-panel"
-        :class="{ 'placement-right': isRight }"
+        :class="{ 'placement-right': isRight, 'is-opaque': opaque }"
         :style="{
           left: `${x}px`,
           top: `${y}px`,
@@ -192,6 +194,20 @@ function onPointerUp() {
   pointer-events: auto;
 }
 
+.drag-panel.is-opaque {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: #ffffff;
+}
+
+.drag-panel.is-opaque .drag-panel-header {
+  background: #f7f8fa;
+}
+
+.drag-panel.is-opaque .drag-panel-body {
+  background: #ffffff;
+}
+
 .drag-panel-header {
   display: flex;
   align-items: center;
@@ -256,5 +272,18 @@ function onPointerUp() {
 
 .coc-hq-shell .drag-panel-title-mark {
   display: inline-block;
+}
+
+.coc-hq-shell .drag-panel.is-opaque {
+  background: #162438;
+  border-color: rgba(94, 238, 255, 0.35);
+}
+
+.coc-hq-shell .drag-panel.is-opaque .drag-panel-header {
+  background: #1c2c42;
+}
+
+.coc-hq-shell .drag-panel.is-opaque .drag-panel-body {
+  background: #162438;
 }
 </style>

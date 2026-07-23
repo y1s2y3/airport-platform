@@ -1,6 +1,10 @@
 import { ref } from 'vue'
 import { sidebarMenu } from '../config/menu'
 import { appMenu } from '../config/appMenu'
+import {
+  isHqOnlyMenuKey,
+  isProjectOnlyMenuKey,
+} from '../utils/menuPermissionTree'
 
 export const menuPlatformOptions = [
   { label: 'Web端', value: 'web' },
@@ -12,11 +16,30 @@ export const menuNodeTypeOptions = [
   { label: '菜单', value: 'menu' },
 ]
 
+/** 菜单层级：指挥部层级 / 项目层级 */
+export const menuLevelOptions = [
+  { label: '指挥部层级', value: '指挥部层级' },
+  { label: '项目层级', value: '项目层级' },
+]
+
+function resolveMenuLevel(key) {
+  if (isHqOnlyMenuKey(key)) return '指挥部层级'
+  if (isProjectOnlyMenuKey(key)) return '项目层级'
+  return '指挥部层级'
+}
+
 export const moduleNameOptions = [
   '系统管理',
   '组织管理',
   '人员实名制',
   '车辆管理',
+  '安全巡检',
+  '机械设备监管',
+  '机械设备台账',
+  '登记进场设备',
+  '机械类型维护',
+  '危大工程监管',
+  '告警配置',
   '视频监控',
   'COC后台',
   '基础数据',
@@ -32,8 +55,15 @@ export const menuIconOptions = [
   'Collection',
   'OfficeBuilding',
   'Setting',
-  'FolderOpened',
+  'SetUp',
+  'Document',
+  'Bell',
+  'Warning',
   'Notebook',
+  'DataBoard',
+  'Box',
+  'Medal',
+  'FolderOpened',
 ]
 
 function toComponentName(key) {
@@ -59,6 +89,7 @@ function buildMenuTree(items, platform, parentId = '') {
       hidden: false,
       externalLink: false,
       menuType: hasChildren ? 'directory' : 'menu',
+      menuLevel: resolveMenuLevel(item.key),
       parentId,
       moduleName: '',
       code: item.key,
@@ -101,6 +132,7 @@ export function createEmptyMenuNode(parentId = '') {
     hidden: false,
     externalLink: false,
     menuType: 'menu',
+    menuLevel: '指挥部层级',
     parentId,
     moduleName: '',
     code: '',

@@ -74,7 +74,6 @@ onUnmounted(() => {
         <el-table-column prop="type" label="作业类型" width="96" />
         <el-table-column prop="subType" label="当日施工内容" min-width="160" show-overflow-tooltip />
         <el-table-column prop="location" label="施工区域" min-width="120" show-overflow-tooltip />
-        <el-table-column prop="time" label="作业时间" width="120" />
         <el-table-column prop="status" label="状态" width="80" />
       </el-table>
     </div>
@@ -87,8 +86,6 @@ onUnmounted(() => {
           <el-descriptions-item label="作业类型">{{ current.type }}</el-descriptions-item>
           <el-descriptions-item label="施工内容">{{ current.subType }}</el-descriptions-item>
           <el-descriptions-item label="施工区域">{{ current.location }}</el-descriptions-item>
-          <el-descriptions-item label="作业时间">{{ current.time }}</el-descriptions-item>
-          <el-descriptions-item label="风险管控措施">{{ current.measures || '—' }}</el-descriptions-item>
         </el-descriptions>
       </template>
     </el-dialog>

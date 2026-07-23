@@ -1,40 +1,43 @@
 /**
  * 字段标准来源：建设工程指挥部施工作业统计表
- * 左表：危险作业统计（A-O）；右表：危大工程统计（Q-X）
+ * 左表：危险作业统计（A-O）；右表：危大工程统计（Q-X，导入兼容）
  * 示例 Sheet：2026.6.30
  */
 
 export const DAILY_WORK_SHEET_HINT = '2026.6.30'
 
-/** 危险作业侧字段（列 A-O） */
+/**
+ * 每日施工作业 — 界面填报字段（含手动添加弹窗）
+ * 施工日期单独作为 reportDate，不在本数组内。
+ */
 export const DANGER_WORK_FIELDS = [
-  { key: 'leadUnit', label: '*管理单位', required: true, col: 'A', span: 24 },
+  { key: 'leadUnit', label: '管理单位', required: true, col: 'A', span: 24 },
   { key: 'projectName', label: '施工项目名称', required: false, col: 'B', span: 24 },
-  { key: 'contractor', label: '*施工单位', required: true, col: 'C', span: 24 },
-  { key: 'workArea', label: '*施工区域', required: true, col: 'D', span: 12 },
+  { key: 'contractor', label: '施工单位', required: true, col: 'C', span: 24 },
+  { key: 'workArea', label: '施工区域', required: true, col: 'D', span: 12 },
   { key: 'workContent', label: '当日施工具体内容', required: false, col: 'E', span: 12 },
-  { key: 'dangerWorkCategory', label: '*危险作业作业类别', required: true, col: 'F', span: 12 },
-  { key: 'startTime', label: '*作业开始时间', required: true, col: 'G', span: 12, type: 'datetime' },
-  { key: 'endTime', label: '*作业结束时间', required: true, col: 'H', span: 12, type: 'datetime' },
-  { key: 'ownerProjectManager', label: '*建设单位项目负责人及手机号', required: true, col: 'I', span: 24 },
-  { key: 'ownerSafetyManager', label: '*建设单位现场安全监管人及手机号', required: true, col: 'J', span: 24 },
-  { key: 'contractorProjectManager', label: '*施工单位项目负责人及手机号', required: true, col: 'K', span: 24 },
-  { key: 'contractorSafetyManager', label: '*施工单位现场安全监管人及手机号', required: true, col: 'L', span: 24 },
+  { key: 'dangerWorkCategory', label: '作业类别', required: true, col: 'F', span: 12 },
+  { key: 'startTime', label: '作业开始时间', required: true, col: 'G', span: 12, type: 'datetime' },
+  { key: 'endTime', label: '作业结束时间', required: true, col: 'H', span: 12, type: 'datetime' },
+  { key: 'ownerProjectManager', label: '建设单位项目负责人及手机号', required: true, col: 'I', span: 24 },
+  { key: 'ownerSafetyManager', label: '建设单位现场安全监管人及手机号', required: true, col: 'J', span: 24 },
+  { key: 'contractorProjectManager', label: '施工单位项目负责人及手机号', required: true, col: 'K', span: 24 },
+  { key: 'contractorSafetyManager', label: '施工单位现场安全监管人及手机号', required: true, col: 'L', span: 24 },
   { key: 'supervisorProjectManager', label: '监理单位项目负责人及手机号', required: false, col: 'M', span: 24 },
   { key: 'supervisorSafetyManager', label: '监理单位现场安全监管人及手机号', required: false, col: 'N', span: 24 },
-  { key: 'dangerControlMeasures', label: '*风险管控措施', required: true, col: 'O', span: 24, type: 'textarea' },
+  { key: 'dangerControlMeasures', label: '风险管控措施', required: true, col: 'O', span: 24, type: 'textarea' },
 ]
 
-/** 危大工程侧字段（列 Q-X） */
+/** 危大工程侧字段（Excel 导入兼容，界面表单不再展示） */
 export const MAJOR_PROJECT_FIELDS = [
   { key: 'majorWorkContent', label: '施工具体内容', required: false, col: 'Q', span: 24, type: 'textarea' },
-  { key: 'majorProjectCategory', label: '*危大工程作业类别', required: true, col: 'R', span: 12 },
-  { key: 'majorStartTime', label: '*作业开始时间', required: true, col: 'S', span: 12, type: 'datetime' },
-  { key: 'majorEndTime', label: '*作业结束时间', required: true, col: 'T', span: 12, type: 'datetime' },
-  { key: 'majorOwnerSafetyManager', label: '*建设单位现场安全监管人及手机号', required: true, col: 'U', span: 24 },
-  { key: 'majorContractorSafetyManager', label: '*施工单位现场安全监管人及手机号', required: true, col: 'V', span: 24 },
+  { key: 'majorProjectCategory', label: '危大工程作业类别', required: false, col: 'R', span: 12 },
+  { key: 'majorStartTime', label: '作业开始时间', required: false, col: 'S', span: 12, type: 'datetime' },
+  { key: 'majorEndTime', label: '作业结束时间', required: false, col: 'T', span: 12, type: 'datetime' },
+  { key: 'majorOwnerSafetyManager', label: '建设单位现场安全监管人及手机号', required: false, col: 'U', span: 24 },
+  { key: 'majorContractorSafetyManager', label: '施工单位现场安全监管人及手机号', required: false, col: 'V', span: 24 },
   { key: 'majorSupervisorSafetyManager', label: '监理单位现场安全监管人及手机号', required: false, col: 'W', span: 24 },
-  { key: 'majorControlMeasures', label: '*风险管控措施', required: true, col: 'X', span: 24, type: 'textarea' },
+  { key: 'majorControlMeasures', label: '风险管控措施', required: false, col: 'X', span: 24, type: 'textarea' },
 ]
 
 export const DANGER_WORK_CATEGORY_OPTIONS = [

@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Edit, CircleClose, Upload, Promotion, ChatLineRound, Check, Document } from '@element-plus/icons-vue'
+import { Plus, Edit, CircleClose, Upload, Promotion } from '@element-plus/icons-vue'
 import {
   buildProjects,
 } from '../mock/data.js'
@@ -10,10 +10,6 @@ import {
   saveDispatchPenaltyRecord,
   closeDispatchPenaltyRecord,
   issueDispatchPenaltyRecord,
-  submitPenaltyAppeal,
-  submitPenaltyRecipientReport,
-  acceptPenaltyRecord,
-  resolvePenaltyAppeal,
   markPenaltyBlackBoardSync,
   emptyPenaltyRecord,
   normalizePenaltyRecord,
@@ -26,13 +22,14 @@ import {
   parseRedBlackPeriod,
   buildRedBlackPeriodKey,
 } from '../utils/redBlackBoardStorage.js'
+import DispatchImageAttachments from '../components/DispatchImageAttachments.vue'
+import { buildExecutorOptions, resolveExecutorDisplay } from '../utils/executorDisplay.js'
 
 defineProps({
   title: { type: String, default: '处罚单' },
   description: {
     type: String,
-    default:
-      '指挥部填报项目名称、责任单位、事由与内容；接收人填报条款与金额并上报结果，验收通过后关闭。',
+    default: '管理处罚单：新增、下发、编辑、关闭与纳入黑榜；接收人上报/申诉/验收在个人中心待办处理。',
   },
 })
 
@@ -42,27 +39,15 @@ const list = ref([])
 const detailVisible = ref(false)
 const formVisible = ref(false)
 const blackBoardVisible = ref(false)
-const appealVisible = ref(false)
-const reportVisible = ref(false)
 const formMode = ref('create')
 const current = ref(null)
-const appealTarget = ref(null)
-const reportTarget = ref(null)
-const appealForm = ref({
-  reason: '',
-  attachments: [],
-})
-const reportForm = ref({
-  penaltyClause: '',
-  amount: '',
-  reportResult: '',
-})
 const blackBoardTarget = ref(null)
 const blackBoardPeriodYear = ref(new Date().getFullYear())
 const blackBoardPeriodNo = ref(new Date().getMonth() + 1)
 const form = ref(emptyPenaltyRecord())
 
 const projectOptions = buildProjects().map((p) => p.shortName || p.name)
+const assigneeOptions = buildExecutorOptions()
 
 const filtered = computed(() => {
   let rows = list.value
@@ -70,7 +55,7 @@ const filtered = computed(() => {
   const q = keyword.value.trim()
   if (!q) return rows
   return rows.filter((r) =>
-    [r.id, r.project, r.unit, r.penaltyReason, r.penaltyContent, r.penaltyClause, r.amount]
+    [r.id, r.project, r.unit, r.penaltyReason, r.penaltyContent, r.assignee, r.executor, r.deadline, r.penaltyClause, r.amount]
       .some((f) => String(f || '').includes(q)),
   )
 })
@@ -133,17 +118,28 @@ function validateForm() {
     ElMessage.warning('请填写内容')
     return false
   }
+  if (!form.value.assignee?.trim()) {
+    ElMessage.warning('请填写指派人')
+    return false
+  }
+  if (!form.value.deadline) {
+    ElMessage.warning('请选择完成时限')
+    return false
+  }
   return true
 }
 
 function submitForm() {
   if (!validateForm()) return
+  const assignee = form.value.assignee.trim()
   const payload = {
     ...form.value,
     project: form.value.project.trim(),
     unit: form.value.unit.trim(),
     penaltyReason: form.value.penaltyReason.trim(),
     penaltyContent: form.value.penaltyContent.trim(),
+    assignee,
+    executor: assignee,
   }
   if (formMode.value === 'create') {
     payload.status = PENALTY_STATUSES.PENDING
@@ -156,7 +152,10 @@ function submitForm() {
 }
 
 function handleClose(row) {
-  if (row.status === PENALTY_STATUSES.CLOSED) return
+  if (row.status !== PENALTY_STATUSES.PENDING) {
+    ElMessage.warning('仅待下发状态的处罚单可关闭')
+    return
+  }
   ElMessageBox.confirm(`确定关闭处罚单「${penaltyLabel(row)}」？`, '关闭确认', { type: 'warning' })
     .then(() => {
       closeDispatchPenaltyRecord(row.id)
@@ -177,101 +176,12 @@ function handleIssue(row) {
     .catch(() => {})
 }
 
-function openReport(row) {
-  if (row.status !== PENALTY_STATUSES.PROCESSING) return
-  reportTarget.value = row
-  reportForm.value = {
-    penaltyClause: row.penaltyClause || '',
-    amount: row.amount || '',
-    reportResult: row.reportResult || '',
-  }
-  reportVisible.value = true
-}
-
-function submitReport() {
-  if (!reportForm.value.penaltyClause?.trim()) {
-    ElMessage.warning('请填写条款')
-    return
-  }
-  if (!reportForm.value.amount?.trim()) {
-    ElMessage.warning('请填写金额')
-    return
-  }
-  if (!reportForm.value.reportResult?.trim()) {
-    ElMessage.warning('请填写上报结果')
-    return
-  }
-  if (!reportTarget.value) return
-  submitPenaltyRecipientReport(reportTarget.value.id, {
-    penaltyClause: reportForm.value.penaltyClause.trim(),
-    amount: reportForm.value.amount.trim(),
-    reportResult: reportForm.value.reportResult.trim(),
-  })
-  load()
-  reportVisible.value = false
-  ElMessage.success('上报成功，状态更新为待验收')
-}
-
-function handleAccept(row) {
-  if (row.status !== PENALTY_STATUSES.PENDING_ACCEPTANCE) return
-  ElMessageBox.confirm(`确认验收通过处罚单「${penaltyLabel(row)}」？`, '验收确认', { type: 'success' })
-    .then(() => {
-      acceptPenaltyRecord(row.id)
-      load()
-      ElMessage.success('验收通过，处罚单已关闭')
-    })
-    .catch(() => {})
-}
-
-function openAppeal(row) {
-  if (row.status !== PENALTY_STATUSES.PROCESSING) return
-  appealTarget.value = row
-  appealForm.value = { reason: '', attachments: [] }
-  appealVisible.value = true
-}
-
-function handleAppealUpload(uploadFile) {
-  appealForm.value.attachments.push({ name: uploadFile.name })
-  return false
-}
-
-function removeAppealAttachment(index) {
-  appealForm.value.attachments.splice(index, 1)
-}
-
-function submitAppeal() {
-  if (!appealForm.value.reason?.trim()) {
-    ElMessage.warning('请填写申诉理由')
-    return
-  }
-  if (!appealTarget.value) return
-  submitPenaltyAppeal(appealTarget.value.id, {
-    appealReason: appealForm.value.reason.trim(),
-    appealAttachments: appealForm.value.attachments.map((item) => ({ name: item.name })),
-  })
-  load()
-  appealVisible.value = false
-  ElMessage.success('申诉已提交，状态更新为申诉中')
-}
-
-function handleAppealApprove(row) {
-  ElMessageBox.confirm(`确认通过处罚单「${penaltyLabel(row)}」的申诉？`, '申诉通过', { type: 'success' })
-    .then(() => {
-      resolvePenaltyAppeal(row.id, true)
-      load()
-      ElMessage.success('申诉已通过，处罚单已关闭')
-    })
-    .catch(() => {})
-}
-
-function handleAppealReject(row) {
-  ElMessageBox.confirm(`确认驳回处罚单「${penaltyLabel(row)}」的申诉？`, '申诉驳回', { type: 'warning' })
-    .then(() => {
-      resolvePenaltyAppeal(row.id, false)
-      load()
-      ElMessage.success('申诉已驳回，状态恢复为处理中')
-    })
-    .catch(() => {})
+function canBlackBoard(row) {
+  return (
+    row.status !== PENALTY_STATUSES.CLOSED &&
+    row.status !== PENALTY_STATUSES.PENDING &&
+    row.status !== PENALTY_STATUSES.APPEALING
+  )
 }
 
 function openBlackBoard(row) {
@@ -344,6 +254,12 @@ onMounted(load)
         <el-table-column prop="unit" label="责任单位" min-width="140" show-overflow-tooltip />
         <el-table-column prop="penaltyReason" label="事由" min-width="140" show-overflow-tooltip />
         <el-table-column prop="penaltyContent" label="内容" min-width="180" show-overflow-tooltip />
+        <el-table-column label="指派人" min-width="140" show-overflow-tooltip>
+          <template #default="{ row }">
+            {{ resolveExecutorDisplay(row.assignee || row.executor) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="deadline" label="完成时限" width="108" />
         <el-table-column label="条款" min-width="160" show-overflow-tooltip>
           <template #default="{ row }">{{ displayValue(row.penaltyClause) }}</template>
         </el-table-column>
@@ -363,7 +279,7 @@ onMounted(load)
             <span v-else class="muted">—</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="420" fixed="right">
+        <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openDetail(row)">详情</el-button>
             <el-button
@@ -376,71 +292,28 @@ onMounted(load)
               下发
             </el-button>
             <el-button
-              v-if="row.status === PENALTY_STATUSES.PROCESSING"
-              link
-              type="primary"
-              :icon="Document"
-              @click="openReport(row)"
-            >
-              上报结果
-            </el-button>
-            <el-button
-              v-if="row.status === PENALTY_STATUSES.PROCESSING"
-              link
-              type="warning"
-              :icon="ChatLineRound"
-              @click="openAppeal(row)"
-            >
-              申诉
-            </el-button>
-            <el-button
-              v-if="row.status === PENALTY_STATUSES.PENDING_ACCEPTANCE"
-              link
-              type="success"
-              :icon="Check"
-              @click="handleAccept(row)"
-            >
-              验收通过
-            </el-button>
-            <el-button
-              v-if="row.status === PENALTY_STATUSES.APPEALING"
-              link
-              type="success"
-              @click="handleAppealApprove(row)"
-            >
-              申诉通过
-            </el-button>
-            <el-button
-              v-if="row.status === PENALTY_STATUSES.APPEALING"
-              link
-              type="warning"
-              @click="handleAppealReject(row)"
-            >
-              申诉驳回
-            </el-button>
-            <el-button
+              v-if="row.status === PENALTY_STATUSES.PENDING"
               link
               type="primary"
               :icon="Edit"
-              :disabled="row.status !== PENALTY_STATUSES.PENDING"
               @click="openEdit(row)"
             >
               编辑
             </el-button>
             <el-button
+              v-if="canBlackBoard(row)"
               link
               type="warning"
               :icon="Upload"
-              :disabled="row.status === PENALTY_STATUSES.CLOSED || row.status === PENALTY_STATUSES.PENDING || row.status === PENALTY_STATUSES.APPEALING"
               @click="openBlackBoard(row)"
             >
               纳入黑榜
             </el-button>
             <el-button
+              v-if="row.status === PENALTY_STATUSES.PENDING"
               link
               type="danger"
               :icon="CircleClose"
-              :disabled="row.status === PENALTY_STATUSES.CLOSED"
               @click="handleClose(row)"
             >
               关闭
@@ -482,68 +355,33 @@ onMounted(load)
             placeholder="请描述处罚内容，将作为处罚单正文"
           />
         </el-form-item>
+        <el-form-item label="指派人" required>
+          <el-select
+            v-model="form.assignee"
+            filterable
+            allow-create
+            default-first-option
+            placeholder="选择或输入指派人"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="item in assigneeOptions"
+              :key="item.value"
+              :label="item.value"
+              :value="item.value"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="完成时限" required>
+          <el-date-picker v-model="form.deadline" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="附件">
+          <DispatchImageAttachments v-model="form.attachments" />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="formVisible = false">取消</el-button>
         <el-button type="primary" @click="submitForm">保存</el-button>
-      </template>
-    </el-dialog>
-
-    <el-dialog v-model="reportVisible" title="接收人上报结果" width="560px" destroy-on-close>
-      <p class="dialog-tip">
-        对处罚单「{{ penaltyLabel(reportTarget) }}」填报条款、金额并提交处理结果，提交后状态将变为「待验收」。
-      </p>
-      <el-form label-width="96px">
-        <el-form-item label="条款" required>
-          <el-input v-model="reportForm.penaltyClause" placeholder="请输入处罚条款" />
-        </el-form-item>
-        <el-form-item label="金额" required>
-          <el-input v-model="reportForm.amount" placeholder="如 5000 元" />
-        </el-form-item>
-        <el-form-item label="上报结果" required>
-          <el-input
-            v-model="reportForm.reportResult"
-            type="textarea"
-            :rows="4"
-            placeholder="请说明整改及处理情况"
-          />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="reportVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitReport">提交上报</el-button>
-      </template>
-    </el-dialog>
-
-    <el-dialog v-model="appealVisible" title="提交申诉" width="560px" destroy-on-close>
-      <p class="dialog-tip">
-        对处罚单「{{ penaltyLabel(appealTarget) }}」提出申诉，提交后状态将变为「申诉中」。
-      </p>
-      <el-form label-width="96px">
-        <el-form-item label="申诉理由" required>
-          <el-input
-            v-model="appealForm.reason"
-            type="textarea"
-            :rows="4"
-            placeholder="请说明申诉理由"
-          />
-        </el-form-item>
-        <el-form-item label="附件">
-          <el-upload :show-file-list="false" :before-upload="handleAppealUpload">
-            <el-button :icon="Upload">上传附件</el-button>
-          </el-upload>
-          <ul v-if="appealForm.attachments.length" class="attachment-list">
-            <li v-for="(file, index) in appealForm.attachments" :key="`${file.name}-${index}`">
-              <span>{{ file.name }}</span>
-              <el-button link type="danger" @click="removeAppealAttachment(index)">删除</el-button>
-            </li>
-          </ul>
-          <p v-else class="attachment-empty">可上传说明材料、整改照片等</p>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="appealVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitAppeal">提交申诉</el-button>
       </template>
     </el-dialog>
 
@@ -588,11 +426,33 @@ onMounted(load)
           <el-descriptions-item label="责任单位">{{ current.unit || '—' }}</el-descriptions-item>
           <el-descriptions-item label="事由" :span="2">{{ current.penaltyReason || '—' }}</el-descriptions-item>
           <el-descriptions-item label="内容" :span="2">{{ current.penaltyContent || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="指派人">
+            {{ resolveExecutorDisplay(current.assignee || current.executor) }}
+          </el-descriptions-item>
+          <el-descriptions-item label="完成时限">{{ current.deadline || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="附件" :span="2">
+            <DispatchImageAttachments :model-value="current.attachments || []" readonly />
+          </el-descriptions-item>
           <el-descriptions-item label="条款" :span="2">{{ displayValue(current.penaltyClause) }}</el-descriptions-item>
           <el-descriptions-item label="金额">{{ displayValue(current.amount) }}</el-descriptions-item>
           <el-descriptions-item label="下发时间">{{ current.issueTime || '—' }}</el-descriptions-item>
           <el-descriptions-item v-if="current.reportResult" label="上报结果" :span="2">
             {{ current.reportResult }}
+          </el-descriptions-item>
+          <el-descriptions-item v-if="current.reportAttachments?.length" label="上报附件" :span="2">
+            <div class="report-detail-images">
+              <a
+                v-for="(file, index) in current.reportAttachments"
+                :key="`${file.name}-${index}`"
+                class="report-detail-item"
+                :href="file.url"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <img :src="file.url" :alt="file.name" class="report-detail-thumb" />
+                <span :title="file.name">{{ file.name }}</span>
+              </a>
+            </div>
           </el-descriptions-item>
           <el-descriptions-item v-if="current.reportTime" label="上报时间">{{ current.reportTime }}</el-descriptions-item>
           <el-descriptions-item v-if="current.acceptedTime" label="验收时间">{{ current.acceptedTime }}</el-descriptions-item>
@@ -614,12 +474,10 @@ onMounted(load)
               {{ current.appealResolution }}
             </el-descriptions-item>
             <el-descriptions-item label="附件">
-              <template v-if="current.appealAttachments?.length">
-                <div v-for="file in current.appealAttachments" :key="file.name" class="attachment-item">
-                  {{ file.name }}
-                </div>
-              </template>
-              <span v-else>—</span>
+              <DispatchImageAttachments
+                :model-value="current.appealAttachments || []"
+                readonly
+              />
             </el-descriptions-item>
           </el-descriptions>
         </div>
@@ -755,5 +613,82 @@ onMounted(load)
   font-size: 13px;
   line-height: 1.8;
   color: var(--coc-text-secondary);
+}
+
+.report-attach {
+  width: 100%;
+}
+
+.report-image-list {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.report-image-item {
+  border: 1px solid var(--coc-border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #faf8f6;
+}
+
+.report-thumb {
+  width: 100%;
+  height: 96px;
+  object-fit: cover;
+  display: block;
+  background: #1a1a1a;
+}
+
+.report-image-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 8px;
+}
+
+.report-image-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--coc-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.report-detail-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.report-detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 120px;
+  text-decoration: none;
+  color: var(--coc-text-secondary);
+  font-size: 12px;
+}
+
+.report-detail-thumb {
+  width: 120px;
+  height: 90px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--coc-border);
+  background: #1a1a1a;
+}
+
+.report-detail-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

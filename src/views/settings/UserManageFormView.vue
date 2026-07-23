@@ -9,16 +9,17 @@ import {
   cloneSysUser,
   saveSysUser,
 } from '../../mock/sysUsers'
-import { getOrgNodeOptions, getOrgPositions } from '../../mock/orgStructure'
+import { getOrgPositions } from '../../mock/orgStructure'
+import { useOrgScope } from '../../composables/useOrgScope'
 
 const route = useRoute()
 const router = useRouter()
 const formRef = ref(null)
 const form = ref(null)
+const { isHqSelected, orgNodeOptions, defaultOrgNodeId } = useOrgScope()
 
 const isEdit = computed(() => Boolean(route.params.id))
 const pageTitle = computed(() => (isEdit.value ? '编辑' : '新增'))
-const orgOptions = getOrgNodeOptions()
 
 const positionOptions = computed(() => {
   if (!form.value?.orgId) return []
@@ -54,6 +55,9 @@ onMounted(() => {
     return
   }
   form.value = createEmptySysUser()
+  if (!isHqSelected.value) {
+    form.value.orgId = defaultOrgNodeId.value
+  }
 })
 
 watch(
@@ -148,7 +152,7 @@ async function handleSubmit() {
             <el-form-item label="所属组织" prop="orgId" required>
               <el-select v-model="form.orgId" placeholder="选择组织" filterable style="width: 100%">
                 <el-option
-                  v-for="opt in orgOptions"
+                  v-for="opt in orgNodeOptions"
                   :key="opt.value"
                   :label="opt.label"
                   :value="opt.value"

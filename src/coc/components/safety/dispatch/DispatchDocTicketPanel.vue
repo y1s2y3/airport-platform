@@ -190,6 +190,7 @@ function buildReminderSavePayload(draft) {
 function buildPenaltySavePayload(draft) {
   const penaltyReason = draft.penaltyReason.trim()
   const penaltyContent = draft.penaltyContent.trim()
+  const assignee = (draft.assignee || draft.executor || '').trim()
   const titleBase = penaltyReason.slice(0, 24) || draft.title || '处罚单'
   return {
     id: draft.adminRecordId,
@@ -198,6 +199,9 @@ function buildPenaltySavePayload(draft) {
     unit: draft.unit?.trim() || '',
     penaltyReason,
     penaltyContent,
+    assignee,
+    executor: assignee,
+    deadline: draft.deadline || defaultDeadline(),
     handler: DISPATCH_CURRENT_USER,
     source: '远程调度',
     status: '待下发',
@@ -259,6 +263,14 @@ function validateDraft() {
     }
     if (!penaltyDraft.value.unit?.trim()) {
       ElMessage.warning('请填写责任单位')
+      return false
+    }
+    if (!(penaltyDraft.value.assignee || penaltyDraft.value.executor)?.trim()) {
+      ElMessage.warning('请填写指派人')
+      return false
+    }
+    if (!penaltyDraft.value.deadline) {
+      ElMessage.warning('请选择完成时限')
       return false
     }
   }
@@ -475,6 +487,37 @@ function handleSave() {
                 :rows="4"
                 resize="none"
                 placeholder="请描述处罚内容"
+              />
+            </div>
+            <div class="field-row">
+              <span class="field-label">指派人</span>
+              <el-select
+                v-model="penaltyDraft.assignee"
+                filterable
+                allow-create
+                default-first-option
+                size="small"
+                :popper-class="DOC_POPPER_CLASS"
+                placeholder="选择或输入指派人"
+              >
+                <el-option
+                  v-for="item in executorOptions"
+                  :key="item.value"
+                  :label="item.value"
+                  :value="item.value"
+                />
+              </el-select>
+            </div>
+            <div class="field-row">
+              <span class="field-label">完成时限</span>
+              <el-date-picker
+                v-model="penaltyDraft.deadline"
+                type="date"
+                value-format="YYYY-MM-DD"
+                :popper-class="DOC_POPPER_CLASS"
+                placeholder="选择完成时限"
+                size="small"
+                style="width: 100%"
               />
             </div>
           </template>

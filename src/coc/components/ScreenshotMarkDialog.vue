@@ -386,6 +386,14 @@ function handleSubmit() {
       ElMessage.warning('请填写内容')
       return
     }
+    if (!form.executor?.trim()) {
+      ElMessage.warning('请填写指派人')
+      return
+    }
+    if (!form.deadline) {
+      ElMessage.warning('请选择完成时限')
+      return
+    }
   } else {
     if (!form.description.trim()) {
       ElMessage.warning('请填写隐患描述')
@@ -412,10 +420,13 @@ function handleSubmit() {
             ? form.penaltyContent
             : form.description,
     rectifier:
-      form.docType === 'notice' || form.docType === 'reminder'
+      form.docType === 'notice' || form.docType === 'reminder' || form.docType === 'penalty'
         ? form.executor
         : form.rectifier,
-    assignee: form.docType === 'reminder' ? (form.executor || '项目经理') : '',
+    assignee:
+      form.docType === 'reminder' || form.docType === 'penalty'
+        ? (form.executor || '项目经理')
+        : '',
     executeDept: form.docType === 'notice' ? form.executor : '',
     snapshot: exportMergedImage(),
     cameraId: props.camera?.id,
@@ -666,6 +677,34 @@ watch(
                     type="textarea"
                     :rows="4"
                     placeholder="请描述处罚内容，将作为处罚单正文"
+                  />
+                </el-form-item>
+                <el-form-item label="指派人" required>
+                  <el-select
+                    v-model="form.executor"
+                    filterable
+                    allow-create
+                    default-first-option
+                    :popper-class="MARK_POPPER_CLASS"
+                    placeholder="选择或输入指派人"
+                    style="width: 100%"
+                  >
+                    <el-option
+                      v-for="item in executorOptions"
+                      :key="item.value"
+                      :label="item.value"
+                      :value="item.value"
+                    />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="完成时限" required>
+                  <el-date-picker
+                    v-model="form.deadline"
+                    type="date"
+                    value-format="YYYY-MM-DD"
+                    :popper-class="MARK_POPPER_CLASS"
+                    placeholder="选择完成时限"
+                    style="width: 100%"
                   />
                 </el-form-item>
               </template>

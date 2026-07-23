@@ -1,16 +1,27 @@
 <script setup>
 import { computed } from 'vue'
-import { useCurrentProject } from '../../composables/useCurrentProject'
+import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { selectedProjectId, useCurrentProject } from '../../composables/useCurrentProject'
 import { HQ_PROJECT_OPTION } from '../../config/projectOptions'
 import { getVehicleDashboardData } from '../../mock/vehicleManagement'
 
-const { isHqSelected, laborProjectId, projectLabel } = useCurrentProject()
+const router = useRouter()
+const { isHqSelected, headerProjectLabel } = useCurrentProject()
 
 const dashboardScopeId = computed(() =>
-  isHqSelected.value ? HQ_PROJECT_OPTION.id : laborProjectId.value,
+  isHqSelected.value ? HQ_PROJECT_OPTION.id : selectedProjectId.value,
 )
+const projectLabel = computed(() => headerProjectLabel.value)
 
 const data = computed(() => getVehicleDashboardData(dashboardScopeId.value))
+
+async function viewProjectDetail(row) {
+  if (!row?.projectId) return
+  await router.push('/vehicle/dashboard')
+  selectedProjectId.value = row.projectId
+  ElMessage.success(`已切换至项目：${row.projectName}`)
+}
 </script>
 
 <template>
@@ -21,7 +32,13 @@ const data = computed(() => getVehicleDashboardData(dashboardScopeId.value))
         <h1 class="page-title">车辆管理看板</h1>
       </div>
       <p v-if="!isHqSelected" class="page-scope">当前项目：{{ projectLabel }}</p>
-      <p class="page-tip">车辆监管总看板：展示各项目车辆进出场量、在途/在场数量及异常预警统计。</p>
+      <p class="page-tip">
+        {{
+          isHqSelected
+            ? '按项目汇总车辆进出场、在场/在途及预警；点击「查看项目详情」进入项目级车辆管理看板'
+            : '车辆监管总看板：展示本项目车辆进出场量、在途/在场数量及异常预警统计。'
+        }}
+      </p>
     </div>
 
     <div class="summary-grid">
@@ -67,6 +84,11 @@ const data = computed(() => getVehicleDashboardData(dashboardScopeId.value))
           <el-table-column prop="totalWarnings" label="预警合计" width="90" align="center">
             <template #default="{ row }">
               <span :class="{ 'warn-text': row.totalWarnings > 0 }">{{ row.totalWarnings }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column v-if="isHqSelected" label="操作" width="130" min-width="130" fixed="right">
+            <template #default="{ row }">
+              <el-button link type="primary" @click="viewProjectDetail(row)">查看项目详情</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -171,6 +193,8 @@ const data = computed(() => getVehicleDashboardData(dashboardScopeId.value))
   border-radius: 8px;
   background: #fff;
   padding: 16px;
+  min-width: 0;
+  overflow-x: auto;
 }
 
 .panel-title {

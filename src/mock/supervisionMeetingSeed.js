@@ -47,20 +47,36 @@ const DIRECTOR_ATTENDEES = [
   '钱某（项目副部长）',
 ]
 
-const RECTIFY_STATUSES = ['待整改', '待验收', '已关闭']
+const ACCEPTOR_OPTIONS = ['吴检', '陈工', '王监理', '赵总监']
 
-function buildSeedStatusLogs(status, uploadTime, projectName) {
+/** 演示用状态分布：待下发居多（会议解析默认） */
+const RECTIFY_STATUSES = ['待下发', '待下发', '待整改', '待验收', '已关闭']
+
+function buildSeedStatusLogs(status, uploadTime, projectName, meta = {}) {
   const register = {
     action: '登记',
     fromStatus: '',
-    toStatus: '待整改',
+    toStatus: '待下发',
     operator: '系统',
     operatorRole: '系统',
-    remark: '监理解析自动生成隐患',
+    remark: '监理解析自动生成隐患（待下发）',
     photos: [],
     time: uploadTime,
   }
-  if (status === '待整改') return [register]
+  if (status === '待下发') return [register]
+
+  const issueLog = {
+    action: '下发',
+    fromStatus: '待下发',
+    toStatus: '待整改',
+    operator: '监理用户',
+    operatorRole: '监理',
+    remark: `整改人：${meta.rectifier || '—'}；期限：${meta.hazardDeadline || '—'}；验收人：${meta.acceptor || '—'}`,
+    photos: [],
+    time: uploadTime,
+  }
+  if (status === '待整改') return [issueLog, register]
+
   const token = safeProjectFileToken(projectName)
   const submitLog = {
     action: '提交整改',
@@ -72,7 +88,8 @@ function buildSeedStatusLogs(status, uploadTime, projectName) {
     photos: [`${token}整改现场_01.jpg`],
     time: uploadTime,
   }
-  if (status === '待验收') return [submitLog, register]
+  if (status === '待验收') return [submitLog, issueLog, register]
+
   const acceptLog = {
     action: '验收通过',
     fromStatus: '待验收',
@@ -83,7 +100,7 @@ function buildSeedStatusLogs(status, uploadTime, projectName) {
     photos: [],
     time: uploadTime,
   }
-  return [acceptLog, submitLog, register]
+  return [acceptLog, submitLog, issueLog, register]
 }
 
 function deadlineFrom(baseDate, days) {
@@ -141,6 +158,10 @@ export function buildSupervisionMeetingSeed() {
       const template = HAZARD_TEMPLATES[(index + h) % HAZARD_TEMPLATES.length]
       const uploadTime = formatUploadTime(meetingDate, 17 + (index % 3), 5 + h * 8)
       const rectifyStatus = RECTIFY_STATUSES[(index + h) % RECTIFY_STATUSES.length]
+      const pendingIssue = rectifyStatus === '待下发'
+      const rectifier = pendingIssue ? '' : HAZARD_REPORTERS[(index + h) % HAZARD_REPORTERS.length]
+      const hazardDeadline = pendingIssue ? '' : deadlineFrom(meetingDate, 5 + h * 3)
+      const acceptor = pendingIssue ? '' : ACCEPTOR_OPTIONS[(index + h) % ACCEPTOR_OPTIONS.length]
       hazards.push({
         id: `SHZ-${String(hazardSeq).padStart(3, '0')}`,
         meetingId,
@@ -150,12 +171,21 @@ export function buildSupervisionMeetingSeed() {
         hazardType: template.hazardType,
         description: template.description,
         hazardLevel: template.hazardLevel,
-        rectifier: HAZARD_REPORTERS[(index + h) % HAZARD_REPORTERS.length],
-        hazardDeadline: deadlineFrom(meetingDate, 5 + h * 3),
+        rectifier,
+        hazardDeadline,
+        acceptor,
         rectifyStatus,
-        rectifyRemark: rectifyStatus !== '待整改' ? '已完成现场整改，整改措施已落实。' : '',
-        rectifyPhotos: rectifyStatus !== '待整改' ? [`${fileToken}整改现场_01.jpg`] : [],
-        statusLogs: buildSeedStatusLogs(rectifyStatus, uploadTime, projectName),
+        rectifyRemark: ['待验收', '已关闭'].includes(rectifyStatus)
+          ? '已完成现场整改，整改措施已落实。'
+          : '',
+        rectifyPhotos: ['待验收', '已关闭'].includes(rectifyStatus)
+          ? [`${fileToken}整改现场_01.jpg`]
+          : [],
+        statusLogs: buildSeedStatusLogs(rectifyStatus, uploadTime, projectName, {
+          rectifier,
+          hazardDeadline,
+          acceptor,
+        }),
         uploadTime,
       })
       hazardSeq += 1

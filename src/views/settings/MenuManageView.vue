@@ -18,6 +18,7 @@ import {
   webMenuTree,
   appMenuTree,
   menuNodeTypeOptions,
+  menuLevelOptions,
   moduleNameOptions,
   menuIconOptions,
   listParentMenuOptions,
@@ -29,6 +30,8 @@ import {
 import { permissionList } from '../../mock/rbac'
 
 const activePlatform = ref('web')
+const levelFilter = ref('')
+const nameFilter = ref('')
 const dialogVisible = ref(false)
 const editingId = ref('')
 const parentIdForCreate = ref('')
@@ -50,7 +53,36 @@ const iconMap = {
 
 const dialogTitle = computed(() => (editingId.value ? '编辑菜单' : '新增菜单'))
 
-const currentTree = computed(() => (activePlatform.value === 'web' ? webMenuTree.value : appMenuTree.value))
+const sourceTree = computed(() =>
+  activePlatform.value === 'web' ? webMenuTree.value : appMenuTree.value,
+)
+
+function filterMenuTree(nodes) {
+  const level = levelFilter.value
+  const kw = nameFilter.value.trim().toLowerCase()
+  if (!level && !kw) return nodes
+
+  return nodes
+    .map((node) => {
+      const children = node.children?.length ? filterMenuTree(node.children) : []
+      const levelMatch = !level || node.menuLevel === level
+      const nameMatch = !kw || String(node.name || '').toLowerCase().includes(kw)
+      const selfMatch = levelMatch && nameMatch
+      if (selfMatch) {
+        return {
+          ...node,
+          children: children.length ? children : undefined,
+        }
+      }
+      if (children.length) {
+        return { ...node, children }
+      }
+      return null
+    })
+    .filter(Boolean)
+}
+
+const currentTree = computed(() => filterMenuTree(sourceTree.value))
 
 const parentOptions = computed(() => listParentMenuOptions(activePlatform.value))
 
@@ -60,6 +92,7 @@ const permissionCodeOptions = computed(() =>
 
 const rules = {
   menuType: [{ required: true, message: '请选择菜单类型', trigger: 'change' }],
+  menuLevel: [{ required: true, message: '请选择菜单层级', trigger: 'change' }],
   name: [{ required: true, message: '请输入菜单名称', trigger: 'blur' }],
   code: [{ required: true, message: '请输入菜单编码', trigger: 'blur' }],
   routePath: [{ required: true, message: '请输入路由地址', trigger: 'blur' }],
@@ -68,6 +101,15 @@ const rules = {
 
 function boolLabel(val) {
   return val ? '是' : '否'
+}
+
+function handleSearch() {
+  /* filters are reactive; keep handler for enter / button UX */
+}
+
+function handleReset() {
+  levelFilter.value = ''
+  nameFilter.value = ''
 }
 
 function openCreate(parentId = '') {
@@ -151,6 +193,30 @@ async function handleSubmit() {
       </el-button>
     </div>
 
+    <div class="filter-toolbar">
+      <div class="filter-left">
+        <span class="field-label">菜单层级</span>
+        <el-select v-model="levelFilter" placeholder="请选择" clearable class="filter-select">
+          <el-option
+            v-for="opt in menuLevelOptions"
+            :key="opt.value"
+            :label="opt.label"
+            :value="opt.value"
+          />
+        </el-select>
+        <span class="field-label">菜单名称</span>
+        <el-input
+          v-model="nameFilter"
+          class="filter-input"
+          placeholder="请输入菜单名称"
+          clearable
+          @keyup.enter="handleSearch"
+        />
+        <el-button type="primary" class="ap-btn-primary" @click="handleSearch">搜索</el-button>
+        <el-button @click="handleReset">重置</el-button>
+      </div>
+    </div>
+
     <el-table
       :data="currentTree"
       row-key="id"
@@ -162,6 +228,11 @@ async function handleSubmit() {
       empty-text="暂无菜单数据"
     >
       <el-table-column prop="name" label="菜单名称" min-width="180" />
+      <el-table-column prop="menuLevel" label="菜单层级" width="110" align="center">
+        <template #default="{ row }">
+          {{ row.menuLevel || '—' }}
+        </template>
+      </el-table-column>
       <el-table-column label="图标" width="72" align="center">
         <template #default="{ row }">
           <el-icon v-if="row.icon && iconMap[row.icon]" :size="18">
@@ -214,6 +285,18 @@ async function handleSubmit() {
           <el-radio-group v-model="form.menuType" @change="handleMenuTypeChange">
             <el-radio
               v-for="opt in menuNodeTypeOptions"
+              :key="opt.value"
+              :value="opt.value"
+            >
+              {{ opt.label }}
+            </el-radio>
+          </el-radio-group>
+        </el-form-item>
+
+        <el-form-item label="菜单层级" prop="menuLevel" required>
+          <el-radio-group v-model="form.menuLevel">
+            <el-radio
+              v-for="opt in menuLevelOptions"
               :key="opt.value"
               :value="opt.value"
             >
@@ -341,6 +424,31 @@ async function handleSubmit() {
   justify-content: space-between;
   margin-bottom: 12px;
   gap: 12px;
+}
+
+.filter-toolbar {
+  margin-bottom: 12px;
+}
+
+.filter-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.field-label {
+  font-size: 14px;
+  color: var(--ap-text-secondary);
+  white-space: nowrap;
+}
+
+.filter-select {
+  width: 140px;
+}
+
+.filter-input {
+  width: 200px;
 }
 
 .platform-tabs {

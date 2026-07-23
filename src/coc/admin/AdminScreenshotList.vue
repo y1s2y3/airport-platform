@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getScreenshotRecords, removeScreenshotRecord } from '../utils/videoStorage.js'
@@ -189,6 +189,10 @@ onMounted(load)
           <template v-else-if="isPenaltyRow(current)">
             <el-descriptions-item label="事由">{{ current.penaltyReason || '—' }}</el-descriptions-item>
             <el-descriptions-item label="内容">{{ current.penaltyContent || current.description || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="指派人">
+              {{ resolveExecutorDisplay(current.assignee || current.executor || current.rectifier) }}
+            </el-descriptions-item>
+            <el-descriptions-item label="完成时限">{{ current.deadline || '—' }}</el-descriptions-item>
           </template>
           <template v-else-if="isHazardRow(current)">
             <el-descriptions-item label="隐患描述">{{ current.description || '—' }}</el-descriptions-item>

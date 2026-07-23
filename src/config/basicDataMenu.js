@@ -15,13 +15,6 @@ export const basicDataMenuGroup = {
       path: '/basic-data/project/subcontractor',
       description: '按项目维护分包单位登记信息：安全生产许可、项目负责人、安全管理人员及资质证书。',
     },
-    {
-      key: 'bd-engineering-library',
-      label: '工程划分库',
-      path: '/basic-data/engineering-library',
-      description:
-        '通过树结构统一维护单位工程、子单位工程、分部工程、子分部工程、分项工程；支持新增、编辑、停用、版本管理与 BIM 关联。',
-    },
   ],
 }
 

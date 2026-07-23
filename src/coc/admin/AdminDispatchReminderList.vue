@@ -14,6 +14,7 @@ import {
   NOTICE_STATUSES,
 } from '../utils/dispatchMeetingStorage.js'
 import { buildExecutorOptions, resolveExecutorDisplay } from '../utils/executorDisplay.js'
+import DispatchImageAttachments from '../components/DispatchImageAttachments.vue'
 
 defineProps({
   title: { type: String, default: '提示函' },
@@ -291,6 +292,9 @@ onMounted(load)
         <el-form-item label="完成时限" required>
           <el-date-picker v-model="form.deadline" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
         </el-form-item>
+        <el-form-item label="附件">
+          <DispatchImageAttachments v-model="form.attachments" />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="formVisible = false">取消</el-button>
@@ -308,6 +312,9 @@ onMounted(load)
             {{ resolveExecutorDisplay(current.assignee || current.executor) }}
           </el-descriptions-item>
           <el-descriptions-item label="完成时限">{{ current.deadline || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="附件">
+            <DispatchImageAttachments :model-value="current.attachments || []" readonly />
+          </el-descriptions-item>
         </el-descriptions>
       </template>
     </el-dialog>

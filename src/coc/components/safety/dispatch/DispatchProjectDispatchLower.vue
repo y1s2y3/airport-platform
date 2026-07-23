@@ -20,7 +20,7 @@ const detailView = ref(null)
 
 const managementList = computed(() => getProjectManagementPersonnel(props.projectId))
 
-const workStatusMap = { 待开工: 'pending', 作业中: 'doing', 已完工: 'closed', 已取消: 'cancelled' }
+const workStatusMap = { 待开工: 'pending', 作业中: 'doing', 已完成: 'closed' }
 
 const detailTitle = computed(() => {
   if (!detailView.value) return ''
@@ -53,7 +53,7 @@ function closeDetail() {
       <div class="panel-body list-table-body list-wrap">
         <div class="table-scroll">
           <table class="mini-table">
-            <thead><tr><th>类型</th><th>地点</th><th>状态</th></tr></thead>
+            <thead><tr><th>类型</th><th>施工区域</th><th>状态</th></tr></thead>
             <tbody>
               <tr
                 v-for="row in dangerListPreview"
@@ -118,8 +118,9 @@ function closeDetail() {
     <DispatchDraggablePanel
       v-if="dangerMoreOpen"
       title="危险作业清单"
-      :width="880"
+      :width="960"
       placement="right"
+      opaque
       @close="dangerMoreOpen = false"
     >
       <div class="more-dialog-toolbar">
@@ -129,12 +130,12 @@ function closeDetail() {
         <table class="mini-table more-table">
           <thead>
             <tr>
-              <th>类型</th>
-              <th>子类</th>
-              <th>日期</th>
-              <th>时间</th>
-              <th>地点</th>
-              <th>许可</th>
+              <th>施工日期</th>
+              <th>施工项目</th>
+              <th>施工单位</th>
+              <th>作业类型</th>
+              <th>当日施工内容</th>
+              <th>施工区域</th>
               <th>状态</th>
             </tr>
           </thead>
@@ -145,12 +146,14 @@ function closeDetail() {
               class="clickable-row"
               @click="openDangerDetail(row)"
             >
-              <td>{{ row.type }}</td>
-              <td>{{ row.subType }}</td>
               <td>{{ row.date }}</td>
-              <td>{{ row.time }}</td>
+              <td class="desc col-desc" :title="row.projectName || row.projectShortName">
+                {{ row.projectShortName || row.projectName || '—' }}
+              </td>
+              <td class="desc col-desc" :title="row.contractor">{{ row.contractor || '—' }}</td>
+              <td>{{ row.type }}</td>
+              <td class="desc col-desc" :title="row.subType">{{ row.subType }}</td>
               <td class="desc col-desc" :title="row.location">{{ row.location }}</td>
-              <td>{{ row.permitStatus }}</td>
               <td><span class="status-tag" :class="workStatusMap[row.status]">{{ row.status }}</span></td>
             </tr>
           </tbody>
@@ -164,6 +167,7 @@ function closeDetail() {
       :width="560"
       :z-index="120010"
       placement="right"
+      opaque
       @close="closeDetail"
     >
       <DispatchRecordDetailBody :kind="detailView.kind" :record="detailView.data" />

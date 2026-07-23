@@ -6,7 +6,7 @@ import {
 const PATROL_KEY = 'coc-admin-patrol-devices'
 const HELMET_KEY = 'coc-admin-smart-helmets'
 const SUPERVISION_KEY = 'coc-admin-supervision-meetings-v2'
-const SUPERVISION_HAZARD_KEY = 'coc-admin-supervision-hazards-v4'
+const SUPERVISION_HAZARD_KEY = 'coc-admin-supervision-hazards-v5'
 
 const defaultPatrolDevices = [
   {
@@ -220,9 +220,10 @@ export function saveSupervisionMeetingWithHazards(record, hazards = []) {
   return meeting
 }
 
-export const SUPERVISION_HAZARD_RECTIFY_STATUSES = ['待整改', '待验收', '已关闭']
+export const SUPERVISION_HAZARD_RECTIFY_STATUSES = ['待下发', '待整改', '待验收', '已关闭']
 
-export const SUPERVISION_HAZARD_RECTIFY_STATUS_DEFAULT = '待整改'
+/** 会议解析/登记默认：待下发，未指定整改人与期限 */
+export const SUPERVISION_HAZARD_RECTIFY_STATUS_DEFAULT = '待下发'
 
 export const SUPERVISION_HAZARD_ACTOR_ROLES = {
   CONTRACTOR: '施工方',
@@ -241,7 +242,7 @@ export function createSupervisionHazardRegisterLog(time = hazardNow()) {
     toStatus: SUPERVISION_HAZARD_RECTIFY_STATUS_DEFAULT,
     operator: '系统',
     operatorRole: SUPERVISION_HAZARD_ACTOR_ROLES.SYSTEM,
-    remark: '监理解析/人工登记生成隐患',
+    remark: '监理解析/人工登记生成隐患（待下发）',
     photos: [],
     time,
   }
@@ -261,6 +262,7 @@ export function emptySupervisionHazard(row = {}) {
     : uploadTime
       ? [createSupervisionHazardRegisterLog(uploadTime)]
       : []
+  const pendingIssue = rectifyStatus === '待下发'
   return {
     id: row.id || '',
     meetingId: row.meetingId || '',
@@ -270,8 +272,9 @@ export function emptySupervisionHazard(row = {}) {
     hazardType: row.hazardType || 'safety',
     description: row.description || '',
     hazardLevel: row.hazardLevel || '一般',
-    rectifier: row.rectifier || '',
-    hazardDeadline: row.hazardDeadline || '',
+    rectifier: pendingIssue ? '' : row.rectifier || '',
+    hazardDeadline: pendingIssue ? '' : row.hazardDeadline || '',
+    acceptor: pendingIssue ? '' : row.acceptor || '',
     rectifyStatus,
     rectifyRemark: row.rectifyRemark || '',
     rectifyPhotos: Array.isArray(row.rectifyPhotos) ? row.rectifyPhotos : [],
@@ -299,6 +302,8 @@ export function replaceSupervisionHazardsForMeeting(meetingId, hazards, meeting 
   const list = getSupervisionHazards().filter((item) => item.meetingId !== meetingId)
   const now = hazardNow()
   hazards.forEach((item, index) => {
+    const source = item.source || '监理解析'
+    const isParsed = source === '监理解析'
     list.unshift(
       emptySupervisionHazard({
         ...item,
@@ -306,13 +311,72 @@ export function replaceSupervisionHazardsForMeeting(meetingId, hazards, meeting 
         meetingId,
         projectId: meeting.projectId || item.projectId || '',
         projectName: meeting.projectName || item.projectName || '',
-        source: item.source || '监理解析',
+        source,
+        // 会议解析默认待下发，不带整改人/期限/验收人
+        rectifyStatus: item.rectifyStatus || (isParsed ? '待下发' : SUPERVISION_HAZARD_RECTIFY_STATUS_DEFAULT),
+        rectifier: isParsed ? '' : item.rectifier || '',
+        hazardDeadline: isParsed ? '' : item.hazardDeadline || '',
+        acceptor: isParsed ? '' : item.acceptor || '',
         uploadTime: item.uploadTime || now,
         statusLogs: [createSupervisionHazardRegisterLog(item.uploadTime || now)],
       }),
     )
   })
   writeList(SUPERVISION_HAZARD_KEY, list)
+}
+
+/**
+ * 监理下发：待下发 → 待整改，写入整改人、整改期限、验收人
+ * @returns {{ ok: boolean, updated: object[], msg?: string }}
+ */
+export function issueSupervisionHazards(ids = [], payload = {}) {
+  const idSet = new Set((Array.isArray(ids) ? ids : [ids]).filter(Boolean).map(String))
+  if (!idSet.size) return { ok: false, updated: [], msg: '请选择要下发的隐患' }
+  const rectifier = String(payload.rectifier || '').trim()
+  const hazardDeadline = String(payload.hazardDeadline || '').trim()
+  const acceptor = String(payload.acceptor || '').trim()
+  if (!rectifier) return { ok: false, updated: [], msg: '请指定整改人' }
+  if (!hazardDeadline) return { ok: false, updated: [], msg: '请指定整改期限' }
+  if (!acceptor) return { ok: false, updated: [], msg: '请指定验收人' }
+
+  const list = readList(SUPERVISION_HAZARD_KEY, defaultSupervisionHazards).map((row) =>
+    emptySupervisionHazard(row),
+  )
+  const updated = []
+  const time = hazardNow()
+  list.forEach((row, idx) => {
+    if (!idSet.has(String(row.id))) return
+    if (row.rectifyStatus !== '待下发') return
+    const log = {
+      action: '下发',
+      fromStatus: '待下发',
+      toStatus: '待整改',
+      operator: payload.operator || '监理用户',
+      operatorRole: payload.operatorRole || SUPERVISION_HAZARD_ACTOR_ROLES.SUPERVISOR,
+      remark: `整改人：${rectifier}；期限：${hazardDeadline}；验收人：${acceptor}`,
+      photos: [],
+      time,
+    }
+    const next = emptySupervisionHazard({
+      ...row,
+      rectifier,
+      hazardDeadline,
+      acceptor,
+      rectifyStatus: '待整改',
+      statusLogs: appendStatusLog(row.statusLogs, log),
+    })
+    list[idx] = next
+    updated.push(next)
+  })
+  if (!updated.length) {
+    return { ok: false, updated: [], msg: '仅「待下发」状态的隐患可下发' }
+  }
+  writeList(SUPERVISION_HAZARD_KEY, list)
+  return { ok: true, updated }
+}
+
+export function issueSupervisionHazard(id, payload = {}) {
+  return issueSupervisionHazards([id], payload)
 }
 
 function updateSupervisionHazardRecord(id, updater) {

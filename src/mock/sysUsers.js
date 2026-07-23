@@ -1,4 +1,6 @@
 import { ref } from 'vue'
+import { COC_PROJECT_OPTIONS } from '../config/projectOptions'
+import { getProjectOrgNodeId } from './orgStructure'
 
 export const userStatusOptions = [
   { label: '全部', value: '' },
@@ -88,10 +90,39 @@ const initialUsers = [
     gender: '男',
     status: true,
     remark: '系统管理员',
-    orgId: 'org-root',
+    orgId: 'org-hq',
     positions: [],
   },
 ]
+
+const PROJECT_USER_TEMPLATES = [
+  { suffix: '项目经理', positionKey: 0 },
+  { suffix: '工程师', positionKey: 1 },
+  { suffix: '安全员', positionKey: 2 },
+]
+
+function seedProjectSysUsers() {
+  COC_PROJECT_OPTIONS.slice(0, 12).forEach((project, index) => {
+    const orgId = `${getProjectOrgNodeId(project.id)}-dept-0`
+    PROJECT_USER_TEMPLATES.forEach((staff, staffIndex) => {
+      initialUsers.push({
+        id: `u-proj-${project.id}-${staffIndex}`,
+        name: `${project.label}${staff.suffix}`,
+        loginAccount: `pm_${project.id}_${staffIndex}`,
+        phone: `139${String(index).padStart(2, '0')}${String(staffIndex).padStart(2, '0')}0001`,
+        email: `pm_${project.id}_${staffIndex}@szairport.com`,
+        gender: staffIndex === 0 ? '男' : '女',
+        status: true,
+        remark: '',
+        orgId,
+        projectId: project.id,
+        positions: [`pos-proj-${project.id}-dept-${staff.positionKey}`],
+      })
+    })
+  })
+}
+
+seedProjectSysUsers()
 
 export const sysUserRecords = ref(initialUsers.map((item) => ({ ...item, positions: [...item.positions] })))
 

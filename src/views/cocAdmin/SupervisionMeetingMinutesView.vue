@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus, Edit, View, Upload, Download, Delete } from '@element-plus/icons-vue'
-import { buildProjects, HAZARD_REPORTERS } from '../../coc/mock/data.js'
+import { buildProjects } from '../../coc/mock/data.js'
 import { useCurrentProject } from '../../composables/useCurrentProject.js'
 import {
   getSupervisionMeetings,
@@ -37,7 +37,6 @@ const parseError = ref('')
 const hazardPanelRef = ref(null)
 const detailHazards = ref([])
 const hazardLevels = ['一般', '较大', '重大']
-const rectifierOptions = HAZARD_REPORTERS
 
 const showHazardEditor = computed(
   () =>
@@ -47,16 +46,15 @@ const showHazardEditor = computed(
 )
 
 function createManualHazard(overrides = {}) {
-  const d = new Date()
-  d.setDate(d.getDate() + 7)
   return {
     hazardType: 'safety',
     description: '',
     hazardLevel: '一般',
-    rectifier: rectifierOptions[0] || '',
-    hazardDeadline: d.toISOString().slice(0, 10),
+    rectifier: '',
+    hazardDeadline: '',
+    acceptor: '',
     source: '人工登记',
-    rectifyStatus: '待整改',
+    rectifyStatus: '待下发',
     ...overrides,
   }
 }
@@ -426,7 +424,9 @@ onMounted(load)
             <div class="hazard-editor">
               <div class="hazard-editor-toolbar">
                 <el-button type="primary" link :icon="Plus" @click="addManualHazard">手动新增隐患</el-button>
-                <span class="hazard-editor-tip">来源：监理解析可改字段；手动新增来源记为「人工登记」</span>
+                <span class="hazard-editor-tip">
+                  解析隐患默认「待下发」，无整改人/期限；保存后请在「监理隐患清单」中下发
+                </span>
               </div>
               <el-table :data="parsedHazards" size="small" border empty-text="暂无隐患，可手动新增">
                 <el-table-column type="index" label="#" width="48" />
@@ -438,7 +438,7 @@ onMounted(load)
                     </el-select>
                   </template>
                 </el-table-column>
-                <el-table-column label="隐患描述" min-width="160">
+                <el-table-column label="隐患描述" min-width="180">
                   <template #default="{ row }">
                     <el-input v-model="row.description" size="small" placeholder="隐患描述" />
                   </template>
@@ -450,23 +450,16 @@ onMounted(load)
                     </el-select>
                   </template>
                 </el-table-column>
-                <el-table-column label="整改人" width="110">
+                <el-table-column label="状态" width="88" align="center">
                   <template #default="{ row }">
-                    <el-select v-model="row.rectifier" filterable allow-create default-first-option size="small">
-                      <el-option v-for="name in rectifierOptions" :key="name" :label="name" :value="name" />
-                    </el-select>
+                    <el-tag size="small" type="info">{{ row.rectifyStatus || '待下发' }}</el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column label="整改期限" width="150">
-                  <template #default="{ row }">
-                    <el-date-picker
-                      v-model="row.hazardDeadline"
-                      type="date"
-                      value-format="YYYY-MM-DD"
-                      size="small"
-                      style="width: 100%"
-                    />
-                  </template>
+                <el-table-column label="整改人" width="72" align="center">
+                  <template #default>——</template>
+                </el-table-column>
+                <el-table-column label="整改期限" width="88" align="center">
+                  <template #default>——</template>
                 </el-table-column>
                 <el-table-column label="来源" width="88">
                   <template #default="{ row }">{{ row.source === '人工登记' ? '人工登记' : '监理解析' }}</template>
@@ -543,10 +536,17 @@ onMounted(load)
             <el-table-column prop="description" label="隐患描述" min-width="180" show-overflow-tooltip />
             <el-table-column prop="hazardLevel" label="等级" width="72" />
             <el-table-column label="整改状态" width="88">
-              <template #default="{ row }">{{ row.rectifyStatus || '待整改' }}</template>
+              <template #default="{ row }">{{ row.rectifyStatus || '待下发' }}</template>
             </el-table-column>
-            <el-table-column prop="rectifier" label="整改人" width="88" />
-            <el-table-column prop="hazardDeadline" label="整改期限" width="112" />
+            <el-table-column label="整改人" width="88">
+              <template #default="{ row }">{{ row.rectifier || '—' }}</template>
+            </el-table-column>
+            <el-table-column label="整改期限" width="112">
+              <template #default="{ row }">{{ row.hazardDeadline || '—' }}</template>
+            </el-table-column>
+            <el-table-column label="验收人" width="100">
+              <template #default="{ row }">{{ row.acceptor || '—' }}</template>
+            </el-table-column>
           </el-table>
         </div>
       </template>

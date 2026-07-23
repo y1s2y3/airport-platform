@@ -9,9 +9,9 @@ export const loginTerminalOptions = [
 export const loginOrgOptions = [
   { label: '全部', value: '' },
   { label: '研究院', value: '研究院' },
-  { label: '深圳机场集团/职能部门/规划建设部', value: '规划建设部' },
-  { label: '深圳机场集团/职能部门/办公室', value: '办公室' },
-  { label: '深圳机场集团/公司领导', value: '公司领导' },
+  { label: '工程建设一体化平台/深圳机场指挥部/职能部门/规划建设部', value: '规划建设部' },
+  { label: '工程建设一体化平台/深圳机场指挥部/职能部门/办公室', value: '办公室' },
+  { label: '工程建设一体化平台/深圳机场指挥部/公司领导', value: '公司领导' },
 ]
 
 const sampleUsers = [

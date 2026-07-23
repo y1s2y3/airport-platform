@@ -8,7 +8,7 @@ export const SUPERVISION_HAZARD_ACTOR_OPTIONS = [
 ]
 
 export function useSupervisionHazardActor() {
-  const actorRole = ref(localStorage.getItem(STORAGE_KEY) || '施工方')
+  const actorRole = ref(localStorage.getItem(STORAGE_KEY) || '监理')
 
   watch(actorRole, (value) => {
     localStorage.setItem(STORAGE_KEY, value)

@@ -12,6 +12,9 @@ import {
   syncPositions,
 } from '../../mock/positions'
 import { roleRecords } from '../../mock/roles'
+import { useOrgScope } from '../../composables/useOrgScope'
+
+const { isHqSelected, isRoleVisibleToCurrentUser } = useOrgScope()
 
 const nameFilter = ref('')
 const levelFilter = ref('')
@@ -26,10 +29,15 @@ const form = ref(createEmptyPosition())
 const dialogTitle = computed(() => (editingId.value ? '岗位编辑' : '岗位新增'))
 
 const roleOptions = computed(() =>
-  roleRecords.value.map((item) => ({ value: item.id, label: item.name })),
+  roleRecords.value
+    .filter((item) => isRoleVisibleToCurrentUser(item.id))
+    .map((item) => ({ value: item.id, label: item.name })),
 )
 
-const levelOptions = positionLevelOptions.filter((item) => item.value)
+const levelOptions = computed(() => {
+  if (isHqSelected.value) return positionLevelOptions.filter((item) => item.value)
+  return positionLevelOptions.filter((item) => item.value === '项目')
+})
 
 const rules = {
   code: [{ required: true, message: '请输入岗位编码', trigger: 'blur' }],
@@ -44,6 +52,7 @@ const rules = {
 const filteredList = computed(() => {
   const kw = nameFilter.value.trim().toLowerCase()
   return positionRecords.value.filter((row) => {
+    if (!isHqSelected.value && row.level !== '项目') return false
     if (levelFilter.value && row.level !== levelFilter.value) return false
     if (!kw) return true
     return row.name.toLowerCase().includes(kw) || row.code.toLowerCase().includes(kw)
@@ -68,6 +77,9 @@ function handleReset() {
 function openCreate() {
   editingId.value = ''
   form.value = createEmptyPosition()
+  if (!isHqSelected.value) {
+    form.value.level = '项目'
+  }
   dialogVisible.value = true
 }
 

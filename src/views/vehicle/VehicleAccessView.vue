@@ -1,12 +1,12 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { Search, Refresh } from '@element-plus/icons-vue'
-import { useLaborProjectScope } from '../../composables/useCurrentProject'
+import { useVehicleProjectScope } from '../../composables/useCurrentProject'
 import { getVehicleMenuItem } from '../../config/vehicleMenu.js'
 import { projectTree, getProjectAccessRecords } from '../../mock/vehicleManagement'
 
 const menuItem = getVehicleMenuItem('vehicle-access')
-const { isHqSelected, treeProjectId, scopeProjectId, scopeProjectLabel, onTreeNodeClick } = useLaborProjectScope()
+const { isHqSelected, treeProjectId, scopeProjectId, scopeProjectLabel, onTreeNodeClick } = useVehicleProjectScope()
 const keyword = ref('')
 const filters = ref({ direction: '' })
 

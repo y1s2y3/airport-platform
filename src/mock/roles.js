@@ -26,7 +26,7 @@ const initialRoles = [
     sortOrder: 1,
     updatedBy: '系统管理员',
     updatedAt: '2025-11-26 15:00:35',
-    webMenuIds: ['workbench', 'basic-data', 'coc-admin'],
+    webMenuIds: ['workbench', 'personal-center', 'basic-data', 'coc-admin'],
     appMenuIds: ['app-workbench', 'app-coc'],
   },
   {
@@ -39,7 +39,7 @@ const initialRoles = [
     sortOrder: 2,
     updatedBy: '系统管理员',
     updatedAt: '2025-11-21 12:03:32',
-    webMenuIds: ['workbench', 'sys-settings'],
+    webMenuIds: ['workbench', 'personal-center', 'sys-settings'],
     appMenuIds: ['app-workbench'],
   },
   {
@@ -52,7 +52,7 @@ const initialRoles = [
     sortOrder: 3,
     updatedBy: '系统管理员',
     updatedAt: '2025-03-18 10:53:38',
-    webMenuIds: ['workbench'],
+    webMenuIds: ['workbench', 'personal-center'],
     appMenuIds: ['app-workbench', 'app-profile'],
   },
   {
@@ -65,7 +65,7 @@ const initialRoles = [
     sortOrder: 4,
     updatedBy: '郭俊',
     updatedAt: '2025-10-08 09:12:18',
-    webMenuIds: ['workbench', 'video-monitor'],
+    webMenuIds: ['workbench', 'personal-center', 'video-monitor'],
     appMenuIds: ['app-workbench', 'app-video'],
   },
   {
@@ -91,7 +91,7 @@ const initialRoles = [
     sortOrder: 5,
     updatedBy: '系统管理员',
     updatedAt: '2025-09-15 14:30:00',
-    webMenuIds: ['workbench', 'labor', 'vehicle', 'basic-data'],
+    webMenuIds: ['workbench', 'personal-center', 'labor', 'vehicle', 'basic-data'],
     appMenuIds: ['app-workbench', 'app-labor', 'app-vehicle'],
   },
   {
@@ -104,7 +104,7 @@ const initialRoles = [
     sortOrder: 6,
     updatedBy: '郭俊',
     updatedAt: '2025-08-22 11:05:44',
-    webMenuIds: ['workbench', 'coc-admin', 'video-monitor'],
+    webMenuIds: ['workbench', 'personal-center', 'coc-admin', 'video-monitor'],
     appMenuIds: ['app-workbench', 'app-coc', 'app-video'],
   },
   {
@@ -117,7 +117,7 @@ const initialRoles = [
     sortOrder: 7,
     updatedBy: '系统管理员',
     updatedAt: '2025-07-10 16:18:33',
-    webMenuIds: ['workbench', 'labor'],
+    webMenuIds: ['workbench', 'personal-center', 'labor'],
     appMenuIds: ['app-workbench', 'app-labor'],
   },
   {
@@ -130,7 +130,7 @@ const initialRoles = [
     sortOrder: 8,
     updatedBy: '系统管理员',
     updatedAt: '2025-06-28 10:40:12',
-    webMenuIds: ['workbench', 'vehicle'],
+    webMenuIds: ['workbench', 'personal-center', 'vehicle'],
     appMenuIds: ['app-workbench', 'app-vehicle'],
   },
   {
@@ -143,7 +143,7 @@ const initialRoles = [
     sortOrder: 9,
     updatedBy: '系统管理员',
     updatedAt: '2025-05-16 09:55:27',
-    webMenuIds: ['workbench', 'basic-data'],
+    webMenuIds: ['workbench', 'personal-center', 'basic-data'],
     appMenuIds: ['app-workbench'],
   },
   {
@@ -156,7 +156,7 @@ const initialRoles = [
     sortOrder: 10,
     updatedBy: '郭俊',
     updatedAt: '2025-04-02 13:20:08',
-    webMenuIds: ['workbench', 'sys-log'],
+    webMenuIds: ['workbench', 'personal-center', 'sys-log'],
     appMenuIds: ['app-workbench'],
   },
   {
@@ -169,7 +169,7 @@ const initialRoles = [
     sortOrder: 11,
     updatedBy: '系统管理员',
     updatedAt: '2025-03-25 08:12:56',
-    webMenuIds: ['workbench', 'labor-realname'],
+    webMenuIds: ['workbench', 'personal-center', 'labor-realname'],
     appMenuIds: ['app-workbench', 'app-labor-realname'],
   },
   {
@@ -182,7 +182,7 @@ const initialRoles = [
     sortOrder: 12,
     updatedBy: '系统管理员',
     updatedAt: '2025-02-14 17:45:30',
-    webMenuIds: ['workbench', 'sys-integration'],
+    webMenuIds: ['workbench', 'personal-center', 'sys-integration'],
     appMenuIds: ['app-workbench'],
   },
 ]

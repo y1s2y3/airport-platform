@@ -85,7 +85,6 @@ onUnmounted(() => {
           <el-descriptions-item label="施工项目">{{ current.projectName || '—' }}</el-descriptions-item>
           <el-descriptions-item label="施工内容">{{ current.detail?.workContent || '—' }}</el-descriptions-item>
           <el-descriptions-item label="专项方案">{{ current.scheme }}</el-descriptions-item>
-          <el-descriptions-item label="风险管控措施">{{ current.detail?.controlMeasures || '—' }}</el-descriptions-item>
         </el-descriptions>
       </template>
     </el-dialog>

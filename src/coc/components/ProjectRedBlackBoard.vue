@@ -189,8 +189,8 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <Teleport to="#coc-overlay-root">
-      <div v-if="detailItem" class="rb-detail-overlay" @click.self="closeDetail">
+    <Teleport v-if="detailItem" to="#coc-overlay-root">
+      <div class="rb-detail-overlay" @click.self="closeDetail">
         <div class="detail-card" :class="detailItem.boardType === 'red' ? 'red-detail' : 'black-detail'">
           <div class="detail-header">
             <div class="detail-title-wrap">

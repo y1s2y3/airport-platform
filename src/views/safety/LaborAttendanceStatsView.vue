@@ -1,29 +1,59 @@
 <script setup>
+/**
+ * 考勤统计
+ * - 指挥部：按项目汇总出勤率（单日），可下钻项目级
+ * - 项目级：按人员 / 班组统计（原能力不变）
+ */
 import { ref, computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { Search, Refresh } from '@element-plus/icons-vue'
-import { useLaborProjectScope } from '../../composables/useCurrentProject'
 import {
-  projectTree,
+  selectedProjectId,
+  useLaborProjectScope,
+} from '../../composables/useCurrentProject'
+import {
   getPersonStats,
   getTeamStats,
-  getProjectPersonCount,
   workTypes,
+  buildHqAttendanceStatsByProject,
 } from '../../mock/laborAttendanceStats'
 
-const { isHqSelected, treeProjectId, scopeProjectId, scopeProjectLabel, onTreeNodeClick } = useLaborProjectScope()
+const router = useRouter()
+const { isHqSelected, scopeProjectId, scopeProjectLabel } = useLaborProjectScope()
+
+/** —— 指挥部：按项目出勤率 —— */
+const hqDate = ref('2026-07-20')
+const hqKeyword = ref('')
+
+const hqRows = computed(() => buildHqAttendanceStatsByProject(hqDate.value))
+
+const hqFiltered = computed(() => {
+  const kw = hqKeyword.value.trim()
+  if (!kw) return hqRows.value
+  return hqRows.value.filter((r) => `${r.project_name}${r.project_id}`.includes(kw))
+})
+
+function resetHq() {
+  hqKeyword.value = ''
+  hqDate.value = '2026-07-20'
+}
+
+function handleHqSearch() {
+  ElMessage.success(`已按条件查询，共 ${hqFiltered.value.length} 个项目`)
+}
+
+async function viewProjectDetail(row) {
+  if (!row?.project_id) return
+  // 先离开指挥部专属页，再切项目，避免 leaveRestrictedPages 踢回工作台
+  await router.push('/labor/attendance')
+  selectedProjectId.value = row.project_id
+  ElMessage.success(`已切换至项目：${row.project_name}`)
+}
+
+/** —— 项目级：原人员/班组统计 —— */
 const activeTab = ref('person')
 const personFilters = ref({ name: '', company: '', workType: '' })
-
-const treeData = computed(() =>
-  projectTree.map((group) => ({
-    id: group.id,
-    label: group.label,
-    children: group.children?.map((item) => ({
-      id: item.id,
-      label: `${item.label.replace(/\(\d+\)$/, '')}(${getProjectPersonCount(item.id)})`,
-    })),
-  })),
-)
 
 const allPersonList = computed(() => getPersonStats(scopeProjectId.value))
 const allTeamList = computed(() => getTeamStats(scopeProjectId.value))
@@ -31,7 +61,8 @@ const allTeamList = computed(() => getTeamStats(scopeProjectId.value))
 const filteredPersonList = computed(() => {
   return allPersonList.value.filter((row) => {
     if (personFilters.value.name && !row.name.includes(personFilters.value.name.trim())) return false
-    if (personFilters.value.company && !row.company.includes(personFilters.value.company.trim())) return false
+    if (personFilters.value.company && !row.company.includes(personFilters.value.company.trim()))
+      return false
     if (personFilters.value.workType && row.workType !== personFilters.value.workType) return false
     return true
   })
@@ -40,7 +71,10 @@ const filteredPersonList = computed(() => {
 const personSummary = computed(() => ({
   total: filteredPersonList.value.length,
   avgRate: filteredPersonList.value.length
-    ? `${(filteredPersonList.value.reduce((sum, row) => sum + parseFloat(row.attendanceRate), 0) / filteredPersonList.value.length).toFixed(1)}%`
+    ? `${(
+        filteredPersonList.value.reduce((sum, row) => sum + parseFloat(row.attendanceRate), 0) /
+        filteredPersonList.value.length
+      ).toFixed(1)}%`
     : '-',
   overtime: filteredPersonList.value.reduce((sum, row) => sum + row.overtimeHours, 0),
 }))
@@ -52,35 +86,79 @@ watch(scopeProjectId, () => {
 function handleReset() {
   personFilters.value = { name: '', company: '', workType: '' }
 }
+
+function handlePersonSearch() {
+  ElMessage.success(`已按条件查询，共 ${filteredPersonList.value.length} 人`)
+}
+
+function formatRate(n) {
+  return `${Number(n).toFixed(1)}%`
+}
 </script>
 
 <template>
-  <div class="att-page page-card">
+  <!-- 指挥部：按项目出勤率 -->
+  <div v-if="isHqSelected" class="att-page page-card">
     <div class="page-header">
       <div class="page-breadcrumb">人员实名制管理 / 考勤统计</div>
       <h1 class="page-title">考勤统计</h1>
-      <p v-if="!isHqSelected" class="page-scope">当前项目：{{ scopeProjectLabel }}</p>
+      <p class="page-tip">按项目汇总出勤率；支持单日筛选。点击「查看项目详情」进入项目级考勤统计</p>
+    </div>
+
+    <div class="filter-bar">
+      <el-date-picker
+        v-model="hqDate"
+        type="date"
+        value-format="YYYY-MM-DD"
+        placeholder="统计日期"
+        :clearable="false"
+        style="width: 160px"
+      />
+      <el-input
+        v-model="hqKeyword"
+        clearable
+        placeholder="项目名称"
+        style="width: 220px"
+        :prefix-icon="Search"
+      />
+      <el-button type="primary" :icon="Search" @click="handleHqSearch">查询</el-button>
+      <el-button :icon="Refresh" @click="resetHq">重置</el-button>
+    </div>
+
+    <el-table :data="hqFiltered" stripe border empty-text="暂无项目考勤数据">
+      <el-table-column prop="project_name" label="项目名称" min-width="220" fixed show-overflow-tooltip />
+      <el-table-column label="全部出勤率" width="120" align="center">
+        <template #default="{ row }">{{ formatRate(row.allRate) }}</template>
+      </el-table-column>
+      <el-table-column label="管理人员出勤率" width="140" align="center">
+        <template #default="{ row }">{{ formatRate(row.manageRate) }}</template>
+      </el-table-column>
+      <el-table-column label="劳务人员出勤率" width="140" align="center">
+        <template #default="{ row }">{{ formatRate(row.laborRate) }}</template>
+      </el-table-column>
+      <el-table-column label="特种作业人员出勤率" width="160" align="center">
+        <template #default="{ row }">{{ formatRate(row.specialRate) }}</template>
+      </el-table-column>
+      <el-table-column label="操作" width="130" fixed="right">
+        <template #default="{ row }">
+          <el-button link type="primary" @click="viewProjectDetail(row)">查看项目详情</el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+  </div>
+
+  <!-- 项目级：原页面 -->
+  <div v-else class="att-page page-card">
+    <div class="page-header">
+      <div class="page-breadcrumb">人员实名制管理 / 考勤统计</div>
+      <h1 class="page-title">考勤统计</h1>
+      <p class="page-scope">当前项目：{{ scopeProjectLabel }}</p>
       <p class="page-tip">在场人数统计口径：当日已打上班卡且未打下班卡。统计周期：2026年6月。</p>
     </div>
 
-    <div class="page-layout" :class="{ 'with-tree': isHqSelected }">
-      <aside v-if="isHqSelected" class="project-tree-panel">
-        <div class="panel-title">项目列表</div>
-        <el-tree
-          :data="treeData"
-          node-key="id"
-          highlight-current
-          default-expand-all
-          :current-node-key="treeProjectId"
-          :expand-on-click-node="false"
-          class="project-tree"
-          @node-click="onTreeNodeClick"
-        />
-      </aside>
-
+    <div class="page-layout">
       <section class="stats-panel">
         <div class="panel-head">
-          <div v-if="isHqSelected" class="panel-title">{{ scopeProjectLabel || '请选择项目' }}</div>
           <div v-if="activeTab === 'person'" class="panel-stats">
             <span>人员 {{ personSummary.total }} 人</span>
             <span>平均出勤率 {{ personSummary.avgRate }}</span>
@@ -95,11 +173,16 @@ function handleReset() {
           <el-tab-pane label="按人员统计" name="person">
             <div class="filter-bar">
               <el-input v-model="personFilters.name" placeholder="姓名" clearable style="width: 120px" />
-              <el-input v-model="personFilters.company" placeholder="施工单位" clearable style="width: 140px" />
+              <el-input
+                v-model="personFilters.company"
+                placeholder="施工单位"
+                clearable
+                style="width: 140px"
+              />
               <el-select v-model="personFilters.workType" placeholder="工种" clearable style="width: 110px">
                 <el-option v-for="t in workTypes" :key="t" :label="t" :value="t" />
               </el-select>
-              <el-button class="ap-btn-primary" type="primary" :icon="Search">查询</el-button>
+              <el-button class="ap-btn-primary" type="primary" :icon="Search" @click="handlePersonSearch">查询</el-button>
               <el-button :icon="Refresh" @click="handleReset">重置</el-button>
             </div>
 
@@ -144,22 +227,13 @@ function handleReset() {
 .page-title { font-size: 20px; font-weight: 600; }
 .page-scope { margin: 0 0 8px; font-size: 14px; font-weight: 600; color: var(--ap-text); }
 .page-tip { margin-top: 0; font-size: 12px; color: var(--ap-text-muted); }
-.page-layout.with-tree {
-  display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
-  gap: 16px;
-  min-height: 560px;
-}
-.project-tree-panel,
 .stats-panel {
   border: 1px solid var(--ap-border);
   border-radius: 8px;
   background: #fff;
   padding: 16px;
 }
-.panel-title { font-size: 15px; font-weight: 600; color: var(--ap-text); margin-bottom: 12px; }
 .panel-head { margin-bottom: 12px; }
-.panel-head .panel-title { margin-bottom: 0; }
 .panel-stats {
   display: flex;
   flex-wrap: wrap;
@@ -168,14 +242,5 @@ function handleReset() {
   font-size: 13px;
   color: var(--ap-text-secondary);
 }
-.project-tree :deep(.el-tree-node__content) {
-  height: 34px;
-  border-radius: 4px;
-}
-.project-tree :deep(.el-tree-node.is-current > .el-tree-node__content) {
-  background: var(--ap-primary-light);
-  color: var(--ap-primary);
-  font-weight: 600;
-}
-.filter-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.filter-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; align-items: center; }
 </style>

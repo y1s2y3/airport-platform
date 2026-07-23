@@ -9,8 +9,10 @@ import {
   submitSupervisionHazardRectify,
   acceptSupervisionHazard,
   rejectSupervisionHazard,
+  issueSupervisionHazards,
 } from '../../utils/cocAdminDeviceStorage.js'
 import { useSupervisionHazardActor } from '../../composables/useSupervisionHazardActor.js'
+import { HAZARD_REPORTERS, TASK_EXECUTOR_OPTIONS } from '../../coc/mock/data.js'
 
 const props = defineProps({
   readonly: { type: Boolean, default: true },
@@ -26,14 +28,31 @@ const statusFilter = ref('')
 const list = ref([])
 const detailVisible = ref(false)
 const current = ref(null)
+const selectedRows = ref([])
 
 const submitVisible = ref(false)
 const acceptVisible = ref(false)
 const rejectVisible = ref(false)
+const issueVisible = ref(false)
 const actionTarget = ref(null)
+const issueTargets = ref([])
 const submitForm = ref({ remark: '', photos: [] })
 const acceptForm = ref({ remark: '' })
 const rejectForm = ref({ remark: '' })
+const issueForm = ref({
+  rectifier: '',
+  hazardDeadline: '',
+  acceptor: '',
+})
+
+const rectifierOptions = HAZARD_REPORTERS
+const acceptorOptions = computed(() => {
+  const fromExec = TASK_EXECUTOR_OPTIONS.filter(
+    (item) => /监理|安监|质量|调度/.test(item.position || ''),
+  ).map((item) => `${item.name}（${item.position}）`)
+  const fallback = ['吴检（监理工程师）', '陈工（监理工程师）', '王某（总监）', '赵某（副总监）']
+  return fromExec.length ? fromExec : fallback
+})
 
 function load() {
   let rows = props.projectName
@@ -43,6 +62,7 @@ function load() {
     rows = rows.filter((item) => item.meetingId === props.meetingId)
   }
   list.value = rows
+  selectedRows.value = []
 }
 
 const filtered = computed(() => {
@@ -56,6 +76,7 @@ const filtered = computed(() => {
     [
       row.description,
       row.rectifier,
+      row.acceptor,
       row.hazardLevel,
       row.projectName,
       row.source,
@@ -65,6 +86,10 @@ const filtered = computed(() => {
     ].some((f) => String(f || '').includes(q)),
   )
 })
+
+const pendingIssueSelected = computed(() =>
+  selectedRows.value.filter((row) => row.rectifyStatus === '待下发'),
+)
 
 function hazardTypeLabel(type) {
   return type === 'quality' ? '质量' : '安全'
@@ -76,11 +101,16 @@ function hazardTypeTag(type) {
 
 function rectifyStatusTag(status) {
   const map = {
+    待下发: 'info',
     待整改: 'warning',
     待验收: '',
     已关闭: 'success',
   }
   return map[status] || 'info'
+}
+
+function canIssue(row) {
+  return row.rectifyStatus === '待下发'
 }
 
 function canSubmitRectify(row) {
@@ -103,6 +133,71 @@ function openDetail(row) {
 function refreshDetail(id) {
   const row = list.value.find((item) => item.id === id)
   if (row && current.value?.id === id) current.value = row
+}
+
+function defaultIssueDeadline() {
+  const d = new Date()
+  d.setDate(d.getDate() + 7)
+  return d.toISOString().slice(0, 10)
+}
+
+function resetIssueForm() {
+  issueForm.value = {
+    rectifier: '',
+    hazardDeadline: defaultIssueDeadline(),
+    acceptor: acceptorOptions.value[0] || '',
+  }
+}
+
+function openIssue(row) {
+  issueTargets.value = [row]
+  resetIssueForm()
+  issueVisible.value = true
+}
+
+function openBatchIssue() {
+  if (!pendingIssueSelected.value.length) {
+    ElMessage.warning('请先勾选状态为「待下发」的隐患')
+    return
+  }
+  issueTargets.value = [...pendingIssueSelected.value]
+  resetIssueForm()
+  issueVisible.value = true
+}
+
+function handleIssue() {
+  if (!issueForm.value.rectifier) {
+    ElMessage.warning('请指定整改人')
+    return
+  }
+  if (!issueForm.value.hazardDeadline) {
+    ElMessage.warning('请指定整改期限')
+    return
+  }
+  if (!issueForm.value.acceptor) {
+    ElMessage.warning('请指定验收人')
+    return
+  }
+  const ids = issueTargets.value.map((row) => row.id)
+  const result = issueSupervisionHazards(ids, {
+    rectifier: issueForm.value.rectifier,
+    hazardDeadline: issueForm.value.hazardDeadline,
+    acceptor: issueForm.value.acceptor,
+    operator: operatorName.value,
+    operatorRole: isSupervisor.value ? actorRole.value : '监理',
+  })
+  if (!result.ok) {
+    ElMessage.warning(result.msg || '下发失败')
+    return
+  }
+  load()
+  result.updated.forEach((row) => refreshDetail(row.id))
+  issueVisible.value = false
+  ElMessage.success(
+    result.updated.length > 1
+      ? `已批量下发 ${result.updated.length} 条隐患`
+      : '已下发，状态更新为待整改',
+  )
 }
 
 function openSubmitRectify(row) {
@@ -154,7 +249,7 @@ function handleSubmitRectify() {
   load()
   refreshDetail(actionTarget.value.id)
   submitVisible.value = false
-  ElMessage.success('整改已提交，等待监理验收')
+  ElMessage.success('整改已提交，等待验收')
 }
 
 function handleAccept() {
@@ -227,12 +322,35 @@ defineExpose({ reload: load })
           :value="item"
         />
       </el-select>
-      <el-input v-model="keyword" placeholder="搜索隐患描述、整改人、项目…" clearable class="search-input" />
-      <el-tag v-if="readonly" size="small" type="info">企业级 · 只读查看</el-tag>
+      <el-input
+        v-model="keyword"
+        placeholder="搜索隐患描述、整改人、验收人、项目…"
+        clearable
+        class="search-input"
+      />
+      <el-button
+        type="primary"
+        :disabled="!pendingIssueSelected.length"
+        @click="openBatchIssue"
+      >
+        批量下发{{ pendingIssueSelected.length ? `（${pendingIssueSelected.length}）` : '' }}
+      </el-button>
+      <el-tag v-if="readonly" size="small" type="info">企业级</el-tag>
       <el-tag v-else size="small" type="success">项目层级 · {{ operatorName }}</el-tag>
     </div>
 
-    <el-table :data="filtered" stripe border empty-text="暂无监理隐患记录">
+    <el-table
+      :data="filtered"
+      stripe
+      border
+      empty-text="暂无监理隐患记录"
+      @selection-change="(rows) => (selectedRows = rows)"
+    >
+      <el-table-column
+        type="selection"
+        width="48"
+        :selectable="(row) => row.rectifyStatus === '待下发'"
+      />
       <el-table-column type="index" label="序号" width="56" />
       <el-table-column v-if="!projectName" prop="projectName" label="项目名称" min-width="120" show-overflow-tooltip />
       <el-table-column label="类型" width="72" align="center">
@@ -247,17 +365,25 @@ defineExpose({ reload: load })
       <el-table-column label="整改状态" width="96" align="center">
         <template #default="{ row }">
           <el-tag :type="rectifyStatusTag(row.rectifyStatus)" size="small">
-            {{ row.rectifyStatus || '待整改' }}
+            {{ row.rectifyStatus || '待下发' }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="rectifier" label="整改人" width="88" show-overflow-tooltip />
-      <el-table-column prop="hazardDeadline" label="整改期限" width="112" />
+      <el-table-column label="整改人" width="88" show-overflow-tooltip>
+        <template #default="{ row }">{{ row.rectifier || '—' }}</template>
+      </el-table-column>
+      <el-table-column label="整改期限" width="112">
+        <template #default="{ row }">{{ row.hazardDeadline || '—' }}</template>
+      </el-table-column>
+      <el-table-column label="验收人" width="110" show-overflow-tooltip>
+        <template #default="{ row }">{{ row.acceptor || '—' }}</template>
+      </el-table-column>
       <el-table-column prop="source" label="来源" width="96" />
       <el-table-column prop="uploadTime" label="登记时间" width="148" />
-      <el-table-column label="操作" :width="readonly ? 88 : 220" fixed="right">
+      <el-table-column label="操作" width="260" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" :icon="View" @click="openDetail(row)">详情</el-button>
+          <el-button v-if="canIssue(row)" link type="primary" @click="openIssue(row)">下发</el-button>
           <el-button v-if="canSubmitRectify(row)" link type="primary" @click="openSubmitRectify(row)">
             提交整改
           </el-button>
@@ -274,9 +400,10 @@ defineExpose({ reload: load })
           <el-descriptions-item label="类型">{{ hazardTypeLabel(current.hazardType) }}</el-descriptions-item>
           <el-descriptions-item label="隐患描述">{{ current.description || '—' }}</el-descriptions-item>
           <el-descriptions-item label="等级">{{ current.hazardLevel || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="整改状态">{{ current.rectifyStatus || '待整改' }}</el-descriptions-item>
+          <el-descriptions-item label="整改状态">{{ current.rectifyStatus || '待下发' }}</el-descriptions-item>
           <el-descriptions-item label="整改人">{{ current.rectifier || '—' }}</el-descriptions-item>
           <el-descriptions-item label="整改期限">{{ current.hazardDeadline || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="验收人">{{ current.acceptor || '—' }}</el-descriptions-item>
           <el-descriptions-item label="最新整改说明">{{ current.rectifyRemark || '—' }}</el-descriptions-item>
           <el-descriptions-item label="整改照片">
             {{ current.rectifyPhotos?.length ? current.rectifyPhotos.join('、') : '—' }}
@@ -305,13 +432,69 @@ defineExpose({ reload: load })
           </el-timeline>
         </div>
 
-        <div v-if="!readonly" class="detail-actions">
+        <div class="detail-actions">
+          <el-button v-if="canIssue(current)" type="primary" @click="openIssue(current)">下发</el-button>
           <el-button v-if="canSubmitRectify(current)" type="primary" @click="openSubmitRectify(current)">
             提交整改
           </el-button>
           <el-button v-if="canAccept(current)" type="success" @click="openAccept(current)">验收通过</el-button>
           <el-button v-if="canReject(current)" type="danger" @click="openReject(current)">驳回</el-button>
         </div>
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="issueVisible"
+      :title="issueTargets.length > 1 ? `批量下发（${issueTargets.length}条）` : '下发隐患'"
+      width="560px"
+      destroy-on-close
+    >
+      <el-alert
+        v-if="issueTargets.length > 1"
+        type="info"
+        :closable="false"
+        show-icon
+        class="issue-tip"
+        :title="`将为 ${issueTargets.length} 条待下发隐患统一指定整改人、整改期限与验收人`"
+      />
+      <el-form label-width="96px">
+        <el-form-item label="整改人" required>
+          <el-select
+            v-model="issueForm.rectifier"
+            filterable
+            allow-create
+            default-first-option
+            placeholder="请选择或输入整改人"
+            style="width: 100%"
+          >
+            <el-option v-for="name in rectifierOptions" :key="name" :label="name" :value="name" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="整改期限" required>
+          <el-date-picker
+            v-model="issueForm.hazardDeadline"
+            type="date"
+            value-format="YYYY-MM-DD"
+            placeholder="选择整改期限"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="验收人" required>
+          <el-select
+            v-model="issueForm.acceptor"
+            filterable
+            allow-create
+            default-first-option
+            placeholder="请选择或输入验收人"
+            style="width: 100%"
+          >
+            <el-option v-for="name in acceptorOptions" :key="name" :label="name" :value="name" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="issueVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleIssue">确认下发</el-button>
       </template>
     </el-dialog>
 
@@ -402,6 +585,10 @@ defineExpose({ reload: load })
 
 .search-input {
   width: 280px;
+}
+
+.issue-tip {
+  margin-bottom: 14px;
 }
 
 .status-logs {

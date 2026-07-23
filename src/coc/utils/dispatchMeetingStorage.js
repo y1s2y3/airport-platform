@@ -12,6 +12,7 @@ const DOC_FIELDS_PATCH_FLAG = 'coc-admin-dispatch-doc-fields-v2'
 const PENALTY_PENDING_PATCH_FLAG = 'coc-admin-penalty-pending-v1'
 const PENALTY_APPEAL_PATCH_FLAG = 'coc-admin-penalty-appeal-v1'
 const PENALTY_STATUS_PATCH_FLAG = 'coc-admin-penalty-status-v2'
+const PENALTY_ASSIGNEE_DEADLINE_PATCH_FLAG = 'coc-admin-penalty-assignee-deadline-v1'
 const REMINDER_SEED_FLAG = 'coc-admin-dispatch-reminder-v1'
 const REMINDER_STATUS_PATCH_FLAG = 'coc-admin-reminder-status-v1'
 const NOTICE_STATUS_PATCH_FLAG = 'coc-admin-notice-status-v1'
@@ -198,6 +199,8 @@ function buildPenaltyContentText(fields) {
     `项目名称：${fields.project || '—'}`,
     `事由：${fields.penaltyReason || '—'}`,
     `内容：${fields.penaltyContent || '—'}`,
+    `指派人：${fields.assignee || fields.executor || '—'}`,
+    `完成时限：${fields.deadline || '—'}`,
   ]
   return lines.filter(Boolean).join('\n\n')
 }
@@ -246,6 +249,12 @@ export function normalizeNoticeRecord(record = {}) {
     status: migrateNoticeStatus(record.status || NOTICE_STATUSES.PENDING),
     issueTime: record.issueTime ?? '—',
     issuer: record.issuer || DISPATCH_CURRENT_USER,
+    attachments: Array.isArray(record.attachments)
+      ? record.attachments.filter((item) => item && (item.url || item.name)).map((item) => ({
+          name: item.name || '图片',
+          url: item.url || '',
+        }))
+      : [],
   }
 }
 
@@ -284,6 +293,12 @@ export function normalizeReminderRecord(record = {}) {
       record.content?.includes('事项描述：') && record.content?.includes('项目名称：')
         ? record.content
         : buildReminderContentText(contentFields),
+    attachments: Array.isArray(record.attachments)
+      ? record.attachments.filter((item) => item && (item.url || item.name)).map((item) => ({
+          name: item.name || '图片',
+          url: item.url || '',
+        }))
+      : [],
   }
 }
 
@@ -292,12 +307,21 @@ export function normalizePenaltyRecord(record = {}) {
   const penaltyContent = record.penaltyContent || record.content || ''
   const penaltyClause = record.penaltyClause || ''
   const amount = record.amount || ''
+  const rawAssignee =
+    record.assignee !== undefined && record.assignee !== null
+      ? record.assignee
+      : (record.executor || record.rectifier || '')
+  const assignee = rawAssignee ? resolveExecutorDisplay(rawAssignee) : ''
+  const deadline = record.deadline || defaultDeadline()
   const titleBase = penaltyReason.trim().slice(0, 24) || '处罚单'
   const contentFields = {
     project: record.project || '',
     unit: record.unit || record.executeDept || '',
     penaltyReason,
     penaltyContent,
+    assignee,
+    executor: assignee,
+    deadline,
     cameraName: record.cameraName,
     cameraLocation: record.cameraLocation,
   }
@@ -307,6 +331,9 @@ export function normalizePenaltyRecord(record = {}) {
     penaltyContent,
     penaltyClause,
     amount,
+    assignee,
+    executor: assignee,
+    deadline,
     title: record.title || (titleBase.length >= 24 ? `${titleBase}…` : titleBase),
     project: record.project || '',
     unit: record.unit || record.executeDept || '',
@@ -322,12 +349,20 @@ export function normalizePenaltyRecord(record = {}) {
     appealAttachments: Array.isArray(record.appealAttachments) ? record.appealAttachments : [],
     appealTime: record.appealTime || '',
     reportResult: record.reportResult || '',
+    acceptor: record.acceptor || '',
+    reportAttachments: Array.isArray(record.reportAttachments) ? record.reportAttachments : [],
     reportTime: record.reportTime || '',
     acceptedTime: record.acceptedTime || '',
     acceptedBy: record.acceptedBy || '',
     closedTime: record.closedTime || record.voidedAt || '',
     closedBy: record.closedBy || '',
     appealResolution: record.appealResolution || '',
+    attachments: Array.isArray(record.attachments)
+      ? record.attachments.filter((item) => item && (item.url || item.name)).map((item) => ({
+          name: item.name || '图片',
+          url: item.url || '',
+        }))
+      : [],
   }
 }
 
@@ -344,6 +379,7 @@ export function emptyNoticeRecord() {
     status: NOTICE_STATUSES.PENDING,
     issueTime: '—',
     snapshot: '',
+    attachments: [],
   })
 }
 
@@ -358,6 +394,7 @@ export function emptyReminderRecord() {
     status: NOTICE_STATUSES.PENDING,
     source: '后台录入',
     snapshot: '',
+    attachments: [],
   })
 }
 
@@ -370,6 +407,8 @@ export function emptyPenaltyRecord() {
     penaltyContent: '',
     penaltyClause: '',
     amount: '',
+    assignee: '',
+    deadline: defaultDeadline(),
     issueTime: '—',
     status: PENALTY_STATUSES.PENDING,
     source: '后台录入',
@@ -381,7 +420,9 @@ export function emptyPenaltyRecord() {
     appealAttachments: [],
     appealTime: '',
     reportResult: '',
+    reportAttachments: [],
     reportTime: '',
+    attachments: [],
   })
 }
 
@@ -454,6 +495,8 @@ function buildPenaltyPendingRecords() {
       unit: '中建三局（捷运线施工总承包）',
       penaltyReason: '临边防护缺失限期整改',
       penaltyContent: '基坑周边临边防护缺失（较大隐患），要求今日内完成加固并提交闭环材料。',
+      assignee: '王强（项目经理）',
+      deadline: '2026-06-18',
       handler: DISPATCH_CURRENT_USER,
       issueTime: '—',
       status: PENALTY_STATUSES.PENDING,
@@ -465,6 +508,8 @@ function buildPenaltyPendingRecords() {
       unit: '中建二局',
       penaltyReason: '动火作业手续不全',
       penaltyContent: '现场动火作业未办理完整审批手续，责令停工整改并处以违约金。',
+      assignee: '张安全（安监专员）',
+      deadline: '2026-06-16',
       handler: '安监部',
       issueTime: '—',
       status: PENALTY_STATUSES.PENDING,
@@ -483,6 +528,8 @@ function buildPenaltySeed() {
       penaltyReason: '塔吊警戒标识不足',
       penaltyContent:
         '3号塔吊作业区警戒标识不足，存在人员误入风险。限期 24 小时内整改，逾期将按合同条款追加处罚并通报。',
+      assignee: '李巡检（巡检工程师）',
+      deadline: '2026-06-13',
       handler: '工程管理部',
       issueTime: '2026-06-12 10:15',
       status: PENALTY_STATUSES.PROCESSING,
@@ -494,6 +541,8 @@ function buildPenaltySeed() {
       unit: '中建八局',
       penaltyReason: '混凝土养护措施不到位',
       penaltyContent: '浇筑完成后未按规范覆盖养护，存在开裂风险，限期整改。',
+      assignee: '陈磊（质量员）',
+      deadline: '2026-06-15',
       penaltyClause: '《文明施工管理办法》处罚条款',
       amount: '2000元',
       handler: '质量部',
@@ -509,6 +558,8 @@ function buildPenaltySeed() {
       unit: '中建二局',
       penaltyReason: '文明施工违规',
       penaltyContent: '材料堆放占用消防通道，违反文明施工管理规定，处以违约金并限期清场。',
+      assignee: '赵军（安全员）',
+      deadline: '2026-06-14',
       penaltyClause: '《文明施工管理办法》处罚条款',
       amount: '5000元',
       handler: '工程管理部',
@@ -528,6 +579,8 @@ function buildPenaltySeed() {
       unit: '中铁建工',
       penaltyReason: '高处作业违规',
       penaltyContent: '高处作业人员未系安全带，现场立即停工整改，并对责任单位处以违约金。',
+      assignee: '王强（项目经理）',
+      deadline: '2026-06-11',
       penaltyClause: '《建设工程施工合同》违约处罚条款',
       amount: '3000元',
       handler: '安监部',
@@ -675,6 +728,8 @@ function ensurePenaltyAppealPatch() {
     unit: '中建二局',
     penaltyReason: '文明施工违规',
     penaltyContent: '材料堆放占用消防通道，违反文明施工管理规定，处以违约金并限期清场。',
+    assignee: '赵军（安全员）',
+    deadline: '2026-06-14',
     penaltyClause: '《文明施工管理办法》处罚条款',
     amount: '5000元',
     handler: '工程管理部',
@@ -719,6 +774,46 @@ function ensurePenaltyStatusPatch() {
     list.map((item) => normalizePenaltyRecord(item)),
   )
   localStorage.setItem(PENALTY_STATUS_PATCH_FLAG, '1')
+}
+
+/** 为历史处罚单补齐指派人、完成时限演示数据 */
+function ensurePenaltyAssigneeDeadlinePatch() {
+  if (localStorage.getItem(PENALTY_ASSIGNEE_DEADLINE_PATCH_FLAG)) return
+  const byId = {
+    'CF-PENDING-001': { assignee: '王强（项目经理）', deadline: '2026-06-18' },
+    'CF-PENDING-002': { assignee: '张安全（安监专员）', deadline: '2026-06-16' },
+    'CF-20260612-001': { assignee: '李巡检（巡检工程师）', deadline: '2026-06-13' },
+    'CF-20260612-002': { assignee: '陈磊（质量员）', deadline: '2026-06-15' },
+    'CF-20260611-003': { assignee: '赵军（安全员）', deadline: '2026-06-14' },
+    'CF-20260610-004': { assignee: '王强（项目经理）', deadline: '2026-06-11' },
+    'CF-APPEAL-001': { assignee: '赵军（安全员）', deadline: '2026-06-14' },
+  }
+  const fallbacks = [
+    { assignee: '王强（项目经理）', deadline: '2026-06-20' },
+    { assignee: '张安全（安监专员）', deadline: '2026-06-19' },
+    { assignee: '李巡检（巡检工程师）', deadline: '2026-06-18' },
+    { assignee: '陈磊（质量员）', deadline: '2026-06-17' },
+  ]
+  const list = readList(PENALTY_KEY)
+  if (!list.length) {
+    localStorage.setItem(PENALTY_ASSIGNEE_DEADLINE_PATCH_FLAG, '1')
+    return
+  }
+  writeList(
+    PENALTY_KEY,
+    list.map((item, index) => {
+      const preset = byId[item.id] || fallbacks[index % fallbacks.length]
+      const forcePreset = !!byId[item.id]
+      const hasAssignee = !!(item.assignee || item.executor)?.toString?.().trim?.()
+      const hasDeadline = !!String(item.deadline || '').trim()
+      return normalizePenaltyRecord({
+        ...item,
+        assignee: forcePreset || !hasAssignee ? preset.assignee : item.assignee || item.executor,
+        deadline: forcePreset || !hasDeadline ? preset.deadline : item.deadline,
+      })
+    }),
+  )
+  localStorage.setItem(PENALTY_ASSIGNEE_DEADLINE_PATCH_FLAG, '1')
 }
 
 function buildReminderSeed() {
@@ -833,6 +928,7 @@ export function ensureDispatchMeetingSeed() {
     ensurePenaltyPendingPatch()
     ensurePenaltyAppealPatch()
     ensurePenaltyStatusPatch()
+    ensurePenaltyAssigneeDeadlinePatch()
     ensureReminderSeedPatch()
     ensureNoticeStatusPatch()
     ensureReminderStatusPatch()
@@ -845,6 +941,7 @@ export function ensureDispatchMeetingSeed() {
   localStorage.setItem(SEED_FLAG, '1')
   localStorage.setItem(SNAPSHOT_PATCH_FLAG, '1')
   localStorage.setItem(REMINDER_SEED_FLAG, '1')
+  localStorage.setItem(PENALTY_ASSIGNEE_DEADLINE_PATCH_FLAG, '1')
 }
 
 function ensureDispatchDocSnapshots() {
@@ -960,6 +1057,8 @@ function buildScreenshotPenaltyRecord(payload) {
     unit: payload.unit || '',
     penaltyReason: payload.penaltyReason || '',
     penaltyContent: payload.penaltyContent || payload.description || '',
+    assignee: payload.assignee || payload.executor || payload.rectifier || '',
+    deadline: payload.deadline || defaultDeadline(),
     handler: DISPATCH_CURRENT_USER,
     issueTime: '—',
     status: PENALTY_STATUSES.PENDING,
@@ -1165,13 +1264,15 @@ export function submitPenaltyRecipientReport(id, payload = {}) {
     penaltyClause: payload.penaltyClause || list[index].penaltyClause || '',
     amount: payload.amount || list[index].amount || '',
     reportResult: payload.reportResult || '',
+    acceptor: payload.acceptor || list[index].acceptor || '',
+    reportAttachments: Array.isArray(payload.reportAttachments) ? payload.reportAttachments : [],
     reportTime: new Date().toLocaleString('zh-CN', { hour12: false }),
   }
   writeList(PENALTY_KEY, list)
   return list[index]
 }
 
-export function acceptPenaltyRecord(id, acceptedBy = DISPATCH_CURRENT_USER) {
+export function acceptPenaltyRecord(id, acceptedBy = DISPATCH_CURRENT_USER, remark = '') {
   const list = readList(PENALTY_KEY)
   const index = list.findIndex((item) => item.id === id)
   if (index < 0) return null
@@ -1184,6 +1285,24 @@ export function acceptPenaltyRecord(id, acceptedBy = DISPATCH_CURRENT_USER) {
     acceptedBy,
     closedTime: now,
     closedBy: acceptedBy,
+    acceptRemark: remark || '',
+  }
+  writeList(PENALTY_KEY, list)
+  return list[index]
+}
+
+/** 验收驳回：退回处理中 */
+export function rejectPenaltyAcceptance(id, remark = '', rejectedBy = DISPATCH_CURRENT_USER) {
+  const list = readList(PENALTY_KEY)
+  const index = list.findIndex((item) => item.id === id)
+  if (index < 0) return null
+  if (list[index].status !== PENALTY_STATUSES.PENDING_ACCEPTANCE) return list[index]
+  list[index] = {
+    ...list[index],
+    status: PENALTY_STATUSES.PROCESSING,
+    acceptRemark: remark || '',
+    acceptRejectedBy: rejectedBy,
+    acceptRejectedTime: new Date().toLocaleString('zh-CN', { hour12: false }),
   }
   writeList(PENALTY_KEY, list)
   return list[index]
@@ -1206,7 +1325,7 @@ export function submitPenaltyAppeal(id, payload = {}) {
   return list[index]
 }
 
-export function resolvePenaltyAppeal(id, approved, resolvedBy = DISPATCH_CURRENT_USER) {
+export function resolvePenaltyAppeal(id, approved, resolvedBy = DISPATCH_CURRENT_USER, remark = '') {
   const list = readList(PENALTY_KEY)
   const index = list.findIndex((item) => item.id === id)
   if (index < 0) return null
@@ -1217,6 +1336,7 @@ export function resolvePenaltyAppeal(id, approved, resolvedBy = DISPATCH_CURRENT
       ...list[index],
       status: PENALTY_STATUSES.CLOSED,
       appealResolution: '通过',
+      appealResolveRemark: remark || '',
       closedTime: now,
       closedBy: resolvedBy,
     }
@@ -1225,6 +1345,7 @@ export function resolvePenaltyAppeal(id, approved, resolvedBy = DISPATCH_CURRENT
       ...list[index],
       status: PENALTY_STATUSES.PROCESSING,
       appealResolution: '驳回',
+      appealResolveRemark: remark || '',
     }
   }
   writeList(PENALTY_KEY, list)

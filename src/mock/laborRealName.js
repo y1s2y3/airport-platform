@@ -8,6 +8,7 @@ import {
   onSiteStatusTagClass,
 } from '../constants/laborPersonStatus.js'
 import { appendOperationLog } from './systemLogs.js'
+import { COC_PROJECT_OPTIONS } from '../config/projectOptions.js'
 
 export {
   REALNAME_ENTRY_STATUS_OPTIONS as entryStatusOptions,
@@ -267,6 +268,38 @@ export function getRealNameStats(projectId) {
     ).length,
     special: list.filter((r) => r.isSpecial && r.entryStatus === REALNAME_ENTRY_STATUS.ENTERED).length,
   }
+}
+
+/** 指挥部 · 按项目实名制人员数量（含三类人员；对齐 COC 全量项目，无明细 mock 的显示 0） */
+export function buildHqRealNameStatsByProject() {
+  const mockIds = new Set(projectNodes.map((n) => n.id))
+  return COC_PROJECT_OPTIONS.map((opt) => {
+    if (!mockIds.has(opt.id)) {
+      return {
+        project_id: opt.id,
+        project_name: opt.label,
+        total: 0,
+        manage: 0,
+        labor: 0,
+        special: 0,
+        demoEmpty: true,
+      }
+    }
+    const list = getProjectPersonnel(opt.id)
+    const entered = list.filter((r) => r.entryStatus === REALNAME_ENTRY_STATUS.ENTERED)
+    const manage = entered.filter((r) => r.unit?.personnelCategory === '管理人员').length
+    const labor = entered.filter((r) => r.unit?.personnelCategory === '劳务人员').length
+    const special = entered.filter((r) => r.unit?.personnelCategory === '特种作业人员').length
+    return {
+      project_id: opt.id,
+      project_name: opt.label,
+      total: entered.length,
+      manage,
+      labor,
+      special,
+      demoEmpty: false,
+    }
+  })
 }
 
 export function isSafetyEducationComplete(records) {

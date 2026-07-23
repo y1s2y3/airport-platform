@@ -8,6 +8,7 @@ import AdminDispatchRedBlackList from '../coc/admin/AdminDispatchRedBlackList.vu
 import PatrolDeviceManageView from '../views/cocAdmin/PatrolDeviceManageView.vue'
 import SmartHelmetManageView from '../views/cocAdmin/SmartHelmetManageView.vue'
 import SupervisionMeetingMinutesView from '../views/cocAdmin/SupervisionMeetingMinutesView.vue'
+import DispatchHazardListView from '../views/cocAdmin/DispatchHazardListView.vue'
 
 /** @type {import('vue').Component} */
 const cocAdminItems = [
@@ -57,7 +58,7 @@ const cocAdminItems = [
     path: '/coc-admin/penalty',
     roles: ['安质部', '项目经理', '施工'],
     description:
-      '管理处罚单全流程：开具、申诉、复核、缴纳凭证上传与归档；支持与红黑榜、隐患库联动勾选。',
+      '管理处罚单：新增、下发、编辑、关闭与纳入黑榜；上报/申诉/验收在个人中心待办处理。',
     component: AdminDispatchPenaltyList,
   },
   {
@@ -110,6 +111,16 @@ const cocAdminItems = [
     description:
       '项目层级按模版上传监理例会纪要并解析隐患；施工方提交整改、监理验收；企业级只读查看。',
     component: SupervisionMeetingMinutesView,
+  },
+  {
+    key: 'coc-admin-dispatch-hazard',
+    name: 'CocAdminDispatchHazard',
+    label: '调度隐患清单',
+    path: '/coc-admin/dispatch-hazard',
+    roles: ['COC调度室', '安质部', '项目经理', '施工'],
+    description:
+      '保存 COC 调度大屏问题截图登记的安全隐患与质量隐患；施工方提交整改、安质部验收；指挥部只读查看。',
+    component: DispatchHazardListView,
   },
 ]
 

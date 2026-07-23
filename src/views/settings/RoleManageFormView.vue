@@ -15,9 +15,11 @@ import {
   appMenuPermissionTree,
   collectMenuTreeKeys,
 } from '../../utils/menuPermissionTree'
+import { useOrgScope } from '../../composables/useOrgScope'
 
 const route = useRoute()
 const router = useRouter()
+const { isHqSelected, isRoleVisibleToCurrentUser } = useOrgScope()
 const formRef = ref(null)
 const form = ref(null)
 const permTab = ref('web')
@@ -27,7 +29,10 @@ const checkAll = ref(false)
 
 const isEdit = computed(() => Boolean(route.params.id))
 const pageTitle = computed(() => (isEdit.value ? '角色编辑' : '角色新增'))
-const levelOptions = roleLevelOptions.filter((item) => item.value)
+const levelOptions = computed(() => {
+  if (isHqSelected.value) return roleLevelOptions.filter((item) => item.value)
+  return roleLevelOptions.filter((item) => item.value === '项目')
+})
 
 const currentTree = computed(() =>
   permTab.value === 'web' ? webMenuPermissionTree : appMenuPermissionTree,
@@ -46,7 +51,7 @@ const rules = {
 onMounted(async () => {
   if (isEdit.value) {
     const detail = getRole(route.params.id)
-    if (!detail) {
+    if (!detail || !isRoleVisibleToCurrentUser(detail.id)) {
       ElMessage.warning('未找到角色信息')
       router.replace({ name: 'Sysrole' })
       return
@@ -54,6 +59,9 @@ onMounted(async () => {
     form.value = cloneRoleRecord(detail)
   } else {
     form.value = createEmptyRole()
+    if (!isHqSelected.value) {
+      form.value.level = '项目'
+    }
   }
   await nextTick()
   syncTreeCheckedKeys()

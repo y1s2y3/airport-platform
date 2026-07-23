@@ -1,4 +1,5 @@
 import { projectTree } from './laborRealName.js'
+import { COC_PROJECT_OPTIONS } from '../config/projectOptions.js'
 
 export { projectTree }
 
@@ -118,4 +119,47 @@ export function getProjectLabel(projectId) {
     if (node) return node.label.replace(/\(\d+\)$/, '')
   }
   return ''
+}
+
+function clampRate(n) {
+  return Math.max(0, Math.min(100, Number(n.toFixed(1))))
+}
+
+/**
+ * 指挥部 · 按项目出勤率（单日；对齐 COC 全量项目）
+ * @param {string} dateStr YYYY-MM-DD
+ */
+export function buildHqAttendanceStatsByProject(dateStr = '') {
+  const day = String(dateStr || '2026-07-20').replace(/-/g, '')
+  const daySeed = Number(day.slice(-4)) || 720
+  const mockIds = new Set((projectTree[0]?.children || []).map((n) => n.id))
+  return COC_PROJECT_OPTIONS.map((opt) => {
+    if (!mockIds.has(opt.id)) {
+      return {
+        project_id: opt.id,
+        project_name: opt.label,
+        date: dateStr || '2026-07-20',
+        allRate: 0,
+        manageRate: 0,
+        laborRate: 0,
+        specialRate: 0,
+        demoEmpty: true,
+      }
+    }
+    const seed = opt.id.charCodeAt(opt.id.length - 1) + daySeed
+    const allRate = clampRate(88 + (seed % 12) + (seed % 7) / 10)
+    const manageRate = clampRate(allRate + 2 + (seed % 3))
+    const laborRate = clampRate(allRate - 1 - (seed % 4) / 2)
+    const specialRate = clampRate(allRate + 0.5 - (seed % 5) / 2)
+    return {
+      project_id: opt.id,
+      project_name: opt.label,
+      date: dateStr || '2026-07-20',
+      allRate,
+      manageRate,
+      laborRate,
+      specialRate,
+      demoEmpty: false,
+    }
+  })
 }

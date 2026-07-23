@@ -2,7 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import { Search, Refresh, Plus, Download, Upload } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { useLaborProjectScope } from '../../composables/useCurrentProject'
+import { useVehicleProjectScope } from '../../composables/useCurrentProject'
 import { getVehicleMenuItem } from '../../config/vehicleMenu.js'
 import {
   projectTree,
@@ -14,7 +14,7 @@ import {
 } from '../../mock/vehicleManagement'
 
 const menuItem = getVehicleMenuItem('vehicle-registry')
-const { isHqSelected, treeProjectId, scopeProjectId, scopeProjectLabel, onTreeNodeClick } = useLaborProjectScope()
+const { isHqSelected, treeProjectId, scopeProjectId, scopeProjectLabel, onTreeNodeClick } = useVehicleProjectScope()
 const keyword = ref('')
 const filters = ref({ vehicleType: '', status: '' })
 const list = ref([])

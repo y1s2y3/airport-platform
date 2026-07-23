@@ -1,9 +1,20 @@
+import VideoMonitorStatsView from '../views/videoMonitor/VideoMonitorStatsView.vue'
 import VideoPreviewView from '../views/videoMonitor/VideoPreviewView.vue'
 import DeviceLedgerView from '../views/videoMonitor/DeviceLedgerView.vue'
 import DeviceGroupManageView from '../views/videoMonitor/DeviceGroupManageView.vue'
+import OfflineNotifyConfigView from '../views/videoMonitor/OfflineNotifyConfigView.vue'
 
 /** @type {import('vue').Component} */
 const videoMonitorItems = [
+  {
+    key: 'video-monitor-stats',
+    name: 'VideoMonitorStats',
+    label: '视频监控统计',
+    path: '/video-monitor/stats',
+    description:
+      '指挥部级视频监控统计：按项目汇总摄像头总数、在线/离线数量、超15日离线数量及离线预警未处置数量。',
+    component: VideoMonitorStatsView,
+  },
   {
     key: 'video-monitor-preview',
     name: 'VideoMonitorPreview',
@@ -27,6 +38,15 @@ const videoMonitorItems = [
     path: '/video-monitor/group',
     description: '项目级设备分组：维护分组目录，并向分组添加/移除设备。',
     component: DeviceGroupManageView,
+  },
+  {
+    key: 'video-monitor-offline-notify',
+    name: 'VideoMonitorOfflineNotify',
+    label: '离线通知配置',
+    path: '/video-monitor/offline-notify',
+    description:
+      '指挥部级视频离线分级通知：按离线天数配置通知岗位，默认一天/一周/一月，支持增删改。',
+    component: OfflineNotifyConfigView,
   },
 ]
 

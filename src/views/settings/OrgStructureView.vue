@@ -4,14 +4,11 @@ import { Search, Plus, Edit, Delete, DArrowLeft, DArrowRight } from '@element-pl
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   unifiedOrgTree,
-  getDefaultNodeId,
   findTreeNode,
-  filterOrgTree,
   getOrgMembers,
   getOrgPositions,
   getOrgInfo,
   getOrgDataPermissionConfig,
-  getParentOrgOptions,
   getParentOrgId,
   addOrgNode,
   updateOrgNode,
@@ -28,8 +25,18 @@ import {
   dataPermissionProjectScopeOptions,
 } from '../../mock/orgStructure'
 import { COC_PROJECT_OPTIONS } from '../../config/projectOptions'
+import { useOrgScope } from '../../composables/useOrgScope'
 
-const selectedNodeId = ref(getDefaultNodeId())
+const {
+  isHqSelected,
+  projectId,
+  defaultOrgNodeId,
+  getVisibleOrgTree,
+  getParentOrgOptions: getScopedParentOrgOptions,
+  currentUserRoleIds,
+} = useOrgScope()
+
+const selectedNodeId = ref('')
 const treeKeyword = ref('')
 const sidebarCollapsed = ref(false)
 const activeTab = ref('members')
@@ -83,7 +90,11 @@ const projectSelectOptions = COC_PROJECT_OPTIONS
 const selectedNode = computed(() => findTreeNode(unifiedOrgTree.value, selectedNodeId.value))
 const selectedNodeLabel = computed(() => selectedNode.value?.rawLabel || '')
 
-const filteredTree = computed(() => filterOrgTree(treeKeyword.value))
+const filteredTree = computed(() => getVisibleOrgTree(treeKeyword.value))
+
+watch([isHqSelected, projectId, defaultOrgNodeId], () => {
+  selectedNodeId.value = defaultOrgNodeId.value
+}, { immediate: true })
 
 const memberList = computed(() => {
   unifiedOrgTree.value
@@ -119,10 +130,16 @@ const orgInfo = computed(() => {
   return getOrgInfo(selectedNodeId.value)
 })
 
-const parentOrgOptions = computed(() => getParentOrgOptions(orgForm.id))
+const parentOrgOptions = computed(() => getScopedParentOrgOptions(orgForm.id))
+
+const visibleOrgRoleOptions = computed(() => {
+  if (isHqSelected.value) return orgRoleOptions
+  const allowed = new Set(currentUserRoleIds.value)
+  return orgRoleOptions.filter((item) => allowed.has(item.key))
+})
 
 const roleTransferData = computed(() =>
-  orgRoleOptions.map((item) => ({ key: item.key, label: item.label })),
+  visibleOrgRoleOptions.value.map((item) => ({ key: item.key, label: item.label })),
 )
 
 const roleDialogTitle = computed(() => {
@@ -197,7 +214,9 @@ async function handleDeleteOrg(node) {
       cancelButtonText: '取消',
     })
     if (deleteOrgNode(node.id)) {
-      if (selectedNodeId.value === node.id) selectedNodeId.value = getDefaultNodeId()
+      if (selectedNodeId.value === node.id) {
+        selectedNodeId.value = defaultOrgNodeId.value
+      }
       ElMessage.success('已删除')
     } else {
       ElMessage.error('无法删除该组织')

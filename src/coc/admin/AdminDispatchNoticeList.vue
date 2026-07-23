@@ -14,6 +14,7 @@ import {
   NOTICE_STATUSES,
 } from '../utils/dispatchMeetingStorage.js'
 import { buildExecutorOptions, resolveExecutorDisplay } from '../utils/executorDisplay.js'
+import DispatchImageAttachments from '../components/DispatchImageAttachments.vue'
 
 defineProps({
   title: { type: String, default: '任务单' },
@@ -316,6 +317,9 @@ onMounted(load)
         <el-form-item label="备注">
           <el-input v-model="form.remark" type="textarea" :rows="2" placeholder="选填" />
         </el-form-item>
+        <el-form-item label="附件">
+          <DispatchImageAttachments v-model="form.attachments" />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="formVisible = false">取消</el-button>
@@ -335,6 +339,9 @@ onMounted(load)
           </el-descriptions-item>
           <el-descriptions-item label="完成时限">{{ current.deadline || '—' }}</el-descriptions-item>
           <el-descriptions-item label="备注">{{ current.remark || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="附件">
+            <DispatchImageAttachments :model-value="current.attachments || []" readonly />
+          </el-descriptions-item>
         </el-descriptions>
       </template>
     </el-dialog>

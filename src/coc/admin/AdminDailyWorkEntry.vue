@@ -12,9 +12,7 @@ import {
 } from '../utils/dailyWorkRiskRuleStorage.js'
 import {
   DANGER_WORK_FIELDS,
-  MAJOR_PROJECT_FIELDS,
   DANGER_WORK_CATEGORY_OPTIONS,
-  MAJOR_PROJECT_CATEGORY_OPTIONS,
   DAILY_WORK_SHEET_HINT,
   emptyDailyWorkRecord,
 } from '../config/dailyWorkSchema.js'
@@ -23,8 +21,6 @@ import {
   getDailyWorkRecords,
   saveDailyWorkRecord,
   removeDailyWorkRecord,
-  dangerWorkYesNoLabel,
-  resolveDangerWork,
 } from '../utils/dailyWorkStorage.js'
 
 const props = defineProps({
@@ -47,6 +43,8 @@ function sourceLabel(source) {
 const formVisible = ref(false)
 const formMode = ref('create')
 const form = ref(emptyDailyWorkRecord())
+const formRiskVisible = ref(false)
+const formRiskAlerts = ref([])
 
 const importVisible = ref(false)
 const importSheet = ref(DAILY_WORK_SHEET_HINT)
@@ -58,12 +56,14 @@ const importRiskAlerts = ref([])
 const ruleConfigVisible = ref(false)
 const enabledRuleIds = ref([])
 
-const importRiskSummary = computed(() => {
-  const list = importRiskAlerts.value
+function riskSummaryOf(list) {
   const red = list.filter((item) => item.level === 'red').length
   const yellow = list.filter((item) => item.level === 'yellow').length
   return { total: list.length, red, yellow }
-})
+}
+
+const importRiskSummary = computed(() => riskSummaryOf(importRiskAlerts.value))
+const formRiskSummary = computed(() => riskSummaryOf(formRiskAlerts.value))
 
 function loadRuleConfig() {
   enabledRuleIds.value = getEnabledRiskRuleIds()
@@ -90,7 +90,7 @@ const filtered = computed(() => {
   const q = keyword.value.trim()
   if (!q) return list
   return list.filter((r) =>
-    [r.projectName, r.contractor, r.workArea, r.dangerWorkCategory, r.majorProjectCategory, r.leadUnit]
+    [r.projectName, r.contractor, r.workArea, r.dangerWorkCategory, r.leadUnit]
       .some((f) => String(f || '').includes(q)),
   )
 })
@@ -111,21 +111,21 @@ function load() {
 function openCreate() {
   formMode.value = 'create'
   form.value = emptyDailyWorkRecord(new Date().toISOString().slice(0, 10))
+  formRiskAlerts.value = []
+  formRiskVisible.value = false
   formVisible.value = true
 }
 
 function openEdit(row) {
   formMode.value = 'edit'
   form.value = { ...emptyDailyWorkRecord(), ...row }
+  formRiskAlerts.value = []
+  formRiskVisible.value = false
   formVisible.value = true
 }
 
 function fieldLabel(label) {
   return String(label || '').replace(/^\*/, '')
-}
-
-function isFieldEmpty(key) {
-  return !String(form.value[key] ?? '').trim()
 }
 
 function validateForm() {
@@ -140,23 +140,56 @@ function validateForm() {
       return false
     }
   }
-  if (String(f.majorProjectCategory ?? '').trim()) {
-    for (const field of MAJOR_PROJECT_FIELDS) {
-      if (field.required && !String(f[field.key] ?? '').trim()) {
-        ElMessage.warning(`请填写${fieldLabel(field.label)}`)
-        return false
-      }
-    }
-  }
   return true
+}
+
+/** 手动保存：按启用规则校验，仅保留与当前表单记录相关的风险 */
+function evaluateFormRisks(candidate) {
+  const ruleIds = getEnabledRiskRuleIds()
+  const stamped = {
+    ...candidate,
+    id: candidate.id || 'form-tmp-0',
+  }
+  const existing = getDailyWorkRecords().filter((r) => r.id && r.id !== stamped.id)
+  const alerts = buildDailyWorkRiskAlertDetails([...existing, stamped], ruleIds)
+  return alerts.filter((alert) => {
+    const ids = alert.relatedRecordIds?.length
+      ? alert.relatedRecordIds
+      : alert.recordId
+        ? [alert.recordId]
+        : []
+    return ids.includes(stamped.id)
+  })
+}
+
+function doSaveForm() {
+  saveDailyWorkRecord({ ...form.value })
+  load()
+  formRiskVisible.value = false
+  formRiskAlerts.value = []
+  formVisible.value = false
+  ElMessage.success(formMode.value === 'create' ? '已保存作业填报' : '已更新')
 }
 
 function submitForm() {
   if (!validateForm()) return
-  saveDailyWorkRecord({ ...form.value })
-  load()
-  formVisible.value = false
-  ElMessage.success(formMode.value === 'create' ? '已保存作业填报' : '已更新')
+  const alerts = evaluateFormRisks(form.value)
+  if (alerts.length) {
+    formRiskAlerts.value = alerts
+    formRiskVisible.value = true
+    return
+  }
+  doSaveForm()
+}
+
+function cancelFormRiskSave() {
+  formRiskVisible.value = false
+  formRiskAlerts.value = []
+  ElMessage.info('已取消保存，请根据风险提示修改后重试')
+}
+
+function proceedFormRiskSave() {
+  doSaveForm()
 }
 
 function handleDelete(row) {
@@ -241,10 +274,6 @@ function handleDownloadTemplate() {
   ElMessage.success('模版已下载，请按 Sheet 填写后导入')
 }
 
-function dangerTagType(isDanger) {
-  return isDanger ? 'warning' : 'info'
-}
-
 function indexMethod(index) {
   return (currentPage.value - 1) * pageSize + index + 1
 }
@@ -283,15 +312,9 @@ onMounted(() => {
         <el-table-column prop="projectName" label="施工项目" min-width="160" show-overflow-tooltip />
         <el-table-column prop="contractor" label="施工单位" min-width="140" show-overflow-tooltip />
         <el-table-column prop="workArea" label="施工区域" min-width="120" show-overflow-tooltip />
-        <el-table-column prop="dangerWorkCategory" label="危险作业类别" width="120" show-overflow-tooltip />
-        <el-table-column prop="majorProjectCategory" label="危大工程类别" width="120" show-overflow-tooltip />
-        <el-table-column label="是否危险作业" width="108" align="center">
-          <template #default="{ row }">
-            <el-tag size="small" :type="dangerTagType(resolveDangerWork(row))">
-              {{ dangerWorkYesNoLabel(resolveDangerWork(row)) }}
-            </el-tag>
-          </template>
-        </el-table-column>
+        <el-table-column prop="dangerWorkCategory" label="作业类别" width="120" show-overflow-tooltip />
+        <el-table-column prop="startTime" label="作业开始时间" width="148" show-overflow-tooltip />
+        <el-table-column prop="endTime" label="作业结束时间" width="148" show-overflow-tooltip />
         <el-table-column prop="source" label="来源" width="72">
           <template #default="{ row }">{{ sourceLabel(row.source) }}</template>
         </el-table-column>
@@ -330,7 +353,7 @@ onMounted(() => {
         <el-form-item
           v-for="field in DANGER_WORK_FIELDS"
           :key="'danger-' + field.key"
-          :label="field.label"
+          :label="fieldLabel(field.label)"
           :required="field.required"
         >
           <el-select
@@ -357,42 +380,56 @@ onMounted(() => {
             :rows="field.type === 'textarea' ? 4 : 1"
           />
         </el-form-item>
-
-        <el-form-item
-          v-for="field in MAJOR_PROJECT_FIELDS"
-          :key="'major-' + field.key"
-          :label="field.label"
-          :required="field.required && !isFieldEmpty('majorProjectCategory')"
-        >
-          <el-select
-            v-if="field.key === 'majorProjectCategory'"
-            v-model="form.majorProjectCategory"
-            filterable
-            allow-create
-            clearable
-            style="width: 100%"
-          >
-            <el-option v-for="opt in MAJOR_PROJECT_CATEGORY_OPTIONS" :key="opt" :label="opt" :value="opt" />
-          </el-select>
-          <el-date-picker
-            v-else-if="field.type === 'datetime'"
-            v-model="form[field.key]"
-            type="datetime"
-            value-format="YYYY-MM-DD HH:mm"
-            format="YYYY-MM-DD HH:mm"
-            style="width: 100%"
-          />
-          <el-input
-            v-else
-            v-model="form[field.key]"
-            :type="field.type === 'textarea' ? 'textarea' : 'text'"
-            :rows="field.type === 'textarea' ? 4 : 1"
-          />
-        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="formVisible = false">取消</el-button>
         <el-button type="primary" @click="submitForm">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 手动添加/编辑：命中风险规则时二次确认 -->
+    <el-dialog
+      v-model="formRiskVisible"
+      title="保存风险确认"
+      width="920px"
+      destroy-on-close
+      append-to-body
+      :close-on-click-modal="false"
+      @closed="formRiskAlerts = []"
+    >
+      <div class="import-risk-banner">
+        已按「风险提醒规则配置」校验当前填报，共发现
+        <strong>{{ formRiskSummary.total }}</strong> 条风险
+        <template v-if="formRiskSummary.red">
+          （红色 <strong class="risk-red">{{ formRiskSummary.red }}</strong>）
+        </template>
+        <template v-if="formRiskSummary.yellow">
+          （黄色 <strong class="risk-yellow">{{ formRiskSummary.yellow }}</strong>）
+        </template>
+        。请核对具体风险内容后，确认是否仍要保存。
+      </div>
+      <el-table :data="formRiskAlerts" border size="small" max-height="420" class="import-risk-table">
+        <el-table-column type="index" label="#" width="50" align="center" />
+        <el-table-column label="风险等级" width="90" align="center">
+          <template #default="{ row }">
+            <el-tag :type="riskLevelTag(row.level)" size="small">{{ riskLevelLabel(row.level) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="ruleName" label="风险项" min-width="160" show-overflow-tooltip />
+        <el-table-column prop="message" label="风险说明" min-width="260" show-overflow-tooltip />
+        <el-table-column label="对应数据" min-width="260">
+          <template #default="{ row }">
+            <div class="risk-data-cell">
+              <div v-for="(line, idx) in String(row.dataSummary || '').split('\n')" :key="idx">
+                {{ line }}
+              </div>
+            </div>
+          </template>
+        </el-table-column>
+      </el-table>
+      <template #footer>
+        <el-button @click="cancelFormRiskSave">返回修改</el-button>
+        <el-button type="warning" @click="proceedFormRiskSave">确认保存</el-button>
       </template>
     </el-dialog>
 
@@ -422,12 +459,7 @@ onMounted(() => {
         <el-table :data="importPreview.slice(0, 8)" size="small" border max-height="240">
           <el-table-column prop="projectName" label="项目" min-width="120" show-overflow-tooltip />
           <el-table-column prop="workArea" label="区域" width="100" show-overflow-tooltip />
-          <el-table-column prop="dangerWorkCategory" label="危险作业类别" width="110" show-overflow-tooltip />
-          <el-table-column label="是否危险作业" width="108" align="center">
-            <template #default="{ row }">
-              {{ dangerWorkYesNoLabel(resolveDangerWork(row)) }}
-            </template>
-          </el-table-column>
+          <el-table-column prop="dangerWorkCategory" label="作业类别" width="110" show-overflow-tooltip />
         </el-table>
         <p v-if="importPreview.length > 8" class="preview-more">… 另有 {{ importPreview.length - 8 }} 条</p>
       </div>

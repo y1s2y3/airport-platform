@@ -2,7 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import { Plus, VideoPlay, VideoPause } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { useCurrentProject } from '../../composables/useCurrentProject'
+import { selectedProjectId, useCurrentProject } from '../../composables/useCurrentProject'
 import { getVehicleMenuItem } from '../../config/vehicleMenu.js'
 import {
   projectTree,
@@ -24,7 +24,7 @@ function formatToday() {
 }
 
 const menuItem = getVehicleMenuItem('vehicle-track')
-const { isHqSelected, laborProjectId, projectLabel } = useCurrentProject()
+const { isHqSelected, headerProjectLabel } = useCurrentProject()
 const filterProjectId = ref(getDefaultProjectId())
 const geofenceVersion = ref(0)
 const selectedGeofenceId = ref('')
@@ -55,8 +55,14 @@ const projectOptions = computed(() =>
 )
 
 const activeProjectId = computed(() =>
-  isHqSelected.value ? filterProjectId.value : laborProjectId.value,
+  isHqSelected.value
+    ? filterProjectId.value
+    : selectedProjectId.value && selectedProjectId.value !== 'hq'
+      ? selectedProjectId.value
+      : filterProjectId.value,
 )
+
+const projectLabel = computed(() => headerProjectLabel.value)
 
 const activeProjectLabel = computed(() => getProjectLabel(activeProjectId.value))
 
@@ -162,8 +168,8 @@ watch(activeProjectId, () => {
   resetTrackState(true)
 })
 
-watch(laborProjectId, (id) => {
-  if (!isHqSelected.value) filterProjectId.value = id
+watch(selectedProjectId, (id) => {
+  if (!isHqSelected.value && id && id !== 'hq') filterProjectId.value = id
 })
 
 watch(selectedVehicleId, () => {

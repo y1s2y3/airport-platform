@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { Search, Refresh } from '@element-plus/icons-vue'
-import { useLaborProjectScope } from '../../composables/useCurrentProject'
+import { useVehicleProjectScope } from '../../composables/useCurrentProject'
 import { vehicleWarningMenuItem } from '../../config/vehicleMenu.js'
 import {
   projectTree,
@@ -11,7 +11,7 @@ import {
   vehicleWarningStatusTagClass,
 } from '../../mock/vehicleManagement'
 
-const { isHqSelected, treeProjectId, scopeProjectId, scopeProjectLabel, onTreeNodeClick } = useLaborProjectScope()
+const { isHqSelected, treeProjectId, scopeProjectId, scopeProjectLabel, onTreeNodeClick } = useVehicleProjectScope()
 const keyword = ref('')
 const filters = ref({ status: '', source: '' })
 

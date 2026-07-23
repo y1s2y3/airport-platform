@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { COC_PROJECT_OPTIONS } from '../config/projectOptions'
 
 export const ORG_LEVEL_OPTIONS = ['公司', '项目', '部门']
 export const ORG_TYPE_OPTIONS = ['公司', '项目', '部门']
@@ -7,7 +8,36 @@ export const orgRoleOptions = [
   { key: 'role-company', label: '公司角色' },
   { key: 'role-default', label: '公司默认角色' },
   { key: 'role-video', label: '视频角色' },
+  { key: 'role-pm', label: '项目经理' },
+  { key: 'role-coc', label: 'COC调度员' },
+  { key: 'role-labor', label: '劳务管理员' },
+  { key: 'role-vehicle', label: '车辆管理员' },
 ]
+
+const PROJECT_DEPT_NAMES = ['项目部', '工程部', '安全质量部', '综合部']
+
+const PROJECT_STAFF_TEMPLATES = [
+  { suffix: '项目经理', position: '项目经理岗', roleIds: ['role-pm'] },
+  { suffix: '工程师', position: '工程管理岗', roleIds: ['role-pm'] },
+  { suffix: '安全员', position: '安全质量管理员', roleIds: ['role-labor'] },
+  { suffix: '综合员', position: '综合文秘岗', roleIds: ['role-default'] },
+]
+
+export function getProjectOrgNodeId(projectId) {
+  return `org-proj-${projectId}`
+}
+
+function buildProjectOrgNode(project, sortOrder) {
+  const nodeId = getProjectOrgNodeId(project.id)
+  const children = PROJECT_DEPT_NAMES.map((name, index) =>
+    orgNode(`${nodeId}-dept-${index}`, name, 0, '部门', index + 1),
+  )
+  return orgNode(nodeId, project.fullName || project.label, 0, '项目', sortOrder, children)
+}
+
+function buildConstructionProjects() {
+  return COC_PROJECT_OPTIONS.map((project, index) => buildProjectOrgNode(project, index + 1))
+}
 
 export const dataPermissionLevelOptions = [
   { value: 'hq', label: '指挥部层级' },
@@ -49,31 +79,35 @@ function orgNode(id, label, headcount, level, sortOrder, children = []) {
   }
 }
 
-const initialOrgTree = [
-  orgNode('org-root', '深圳机场集团', 386, '公司', 0, [
-    orgNode('org-hkc', '航空城公司', 1, '公司', 1),
-    orgNode('org-leaders', '公司领导', 5, '部门', 2),
-    orgNode('org-func', '职能部门', 0, '部门', 3, [
-      orgNode('org-office', '办公室', 2, '部门', 1),
-      orgNode('org-party', '党群工作部(新闻中心、工会办公室)', 0, '部门', 2),
-      orgNode('org-hr', '人力资源部', 1, '部门', 3),
-      orgNode('org-discipline', '纪检监察室(监事会办公室)', 1, '部门', 4),
-      orgNode('org-quality', '安全与质量管理部(安委会办公室)', 1, '部门', 5),
-      orgNode('org-safety-supervise', '安全监管(集团、股份安委办)', 0, '部门', 6),
-      orgNode('org-board', '董事会办公室(战略发展部)', 1, '部门', 7),
-      orgNode('org-plan', '规划建设部(重大项目推进办公室)', 24, '部门', 8),
-      orgNode('org-operation', '经营管理部', 1, '部门', 9),
-      orgNode('org-finance', '财务部', 11, '部门', 10),
-      orgNode('org-audit', '审计法务部', 4, '部门', 11),
-    ]),
-    orgNode('org-biz', '业务单位', 0, '部门', 4, [
-      orgNode('org-public', '公共区管理部(三防应急协调办)', 2, '部门', 1),
-      orgNode('org-logistics', '后勤服务中心', 0, '部门', 2),
-    ]),
+const HQ_ORG_CHILDREN = [
+  orgNode('org-hkc', '航空城公司', 1, '公司', 1),
+  orgNode('org-leaders', '公司领导', 5, '部门', 2),
+  orgNode('org-func', '职能部门', 0, '部门', 3, [
+    orgNode('org-office', '办公室', 2, '部门', 1),
+    orgNode('org-party', '党群工作部(新闻中心、工会办公室)', 0, '部门', 2),
+    orgNode('org-hr', '人力资源部', 1, '部门', 3),
+    orgNode('org-discipline', '纪检监察室(监事会办公室)', 1, '部门', 4),
+    orgNode('org-quality', '安全与质量管理部(安委会办公室)', 1, '部门', 5),
+    orgNode('org-safety-supervise', '安全监管(集团、股份安委办)', 0, '部门', 6),
+    orgNode('org-board', '董事会办公室(战略发展部)', 1, '部门', 7),
+    orgNode('org-plan', '规划建设部(重大项目推进办公室)', 24, '部门', 8),
+    orgNode('org-operation', '经营管理部', 1, '部门', 9),
+    orgNode('org-finance', '财务部', 11, '部门', 10),
+    orgNode('org-audit', '审计法务部', 4, '部门', 11),
   ]),
-  orgNode('org-external', '外部单位', 0, '公司', 1),
-  orgNode('org-construction', '施工项目', 0, '项目', 2),
-  orgNode('org-other-users', '其他组织', 0, '部门', 3),
+  orgNode('org-biz', '业务单位', 0, '部门', 4, [
+    orgNode('org-public', '公共区管理部(三防应急协调办)', 2, '部门', 1),
+    orgNode('org-logistics', '后勤服务中心', 0, '部门', 2),
+  ]),
+]
+
+const initialOrgTree = [
+  orgNode('org-root', '工程建设一体化平台', 386, '公司', 0, [
+    orgNode('org-hq', '深圳机场指挥部', 386, '公司', 1, HQ_ORG_CHILDREN),
+    orgNode('org-construction', '施工项目', 0, '项目', 2, buildConstructionProjects()),
+    orgNode('org-external', '外部单位', 0, '公司', 3),
+    orgNode('org-other-users', '其他组织', 0, '部门', 4),
+  ]),
 ]
 
 const orgState = {
@@ -94,7 +128,7 @@ export const orgMembersMap = {
       loginAccount: 'chenjing',
       phone: '13600138890',
       position: '办公室主任',
-      orgPath: '深圳机场集团/职能部门/办公室',
+      orgPath: '工程建设一体化平台/深圳机场指挥部/职能部门/办公室',
       status: true,
       roleIds: ['role-default'],
     },
@@ -104,7 +138,7 @@ export const orgMembersMap = {
       loginAccount: 'zhousm',
       phone: '13600138891',
       position: '综合文秘',
-      orgPath: '深圳机场集团/职能部门/办公室',
+      orgPath: '工程建设一体化平台/深圳机场指挥部/职能部门/办公室',
       status: true,
       roleIds: ['role-default'],
     },
@@ -116,7 +150,7 @@ export const orgMembersMap = {
       loginAccount: 'yaoyuandong',
       phone: '13900133302',
       position: '规划建设部经理',
-      orgPath: '深圳机场集团/职能部门/规划建设部(重大项目推进办公室)',
+      orgPath: '工程建设一体化平台/深圳机场指挥部/职能部门/规划建设部(重大项目推进办公室)',
       status: true,
       roleIds: ['role-company'],
     },
@@ -126,7 +160,7 @@ export const orgMembersMap = {
       loginAccount: 'videoAdmin',
       phone: '13888888888',
       position: '项目推进岗',
-      orgPath: '深圳机场集团/职能部门/规划建设部(重大项目推进办公室)',
+      orgPath: '工程建设一体化平台/深圳机场指挥部/职能部门/规划建设部(重大项目推进办公室)',
       status: true,
       roleIds: ['role-video'],
     },
@@ -138,7 +172,7 @@ export const orgMembersMap = {
       loginAccount: 'liuwenqiang',
       phone: '13800131201',
       position: '财务主管',
-      orgPath: '深圳机场集团/职能部门/财务部',
+      orgPath: '工程建设一体化平台/深圳机场指挥部/职能部门/财务部',
       status: true,
       roleIds: ['role-company', 'role-default'],
     },
@@ -150,7 +184,7 @@ export const orgMembersMap = {
       loginAccount: 'wangqiang',
       phone: '13700132210',
       position: '公共区管理岗',
-      orgPath: '深圳机场集团/业务单位/公共区管理部(三防应急协调办)',
+      orgPath: '工程建设一体化平台/深圳机场指挥部/业务单位/公共区管理部(三防应急协调办)',
       status: true,
       roleIds: ['role-default'],
     },
@@ -174,6 +208,7 @@ export const orgPositionsMap = {
 
 /** @type {Record<string, string[]>} */
 export const orgRoleIdsMap = {
+  'org-hq': ['role-company', 'role-default'],
   'org-plan': ['role-video', 'role-default'],
   'org-root': ['role-company', 'role-default'],
   'org-finance': ['role-company'],
@@ -181,6 +216,20 @@ export const orgRoleIdsMap = {
 
 /** @type {Record<string, Array>} */
 export const orgDataPermissionsMap = {
+  'org-hq': [
+    {
+      id: 'dp-hq-root',
+      levelScope: 'hq',
+      content: '指挥部层级',
+    },
+    {
+      id: 'dp-hq-project',
+      levelScope: 'project',
+      projectScope: 'all',
+      projectIds: [],
+      content: '全部项目',
+    },
+  ],
   'org-plan': [
     {
       id: 'dp-1',
@@ -210,6 +259,70 @@ export const orgDataPermissionsMap = {
     },
   ],
 }
+
+function seedProjectOrgData() {
+  COC_PROJECT_OPTIONS.forEach((project, index) => {
+    const projectNodeId = getProjectOrgNodeId(project.id)
+    const deptNodeId = `${projectNodeId}-dept-0`
+    const projectPath = `工程建设一体化平台/施工项目/${project.fullName || project.label}`
+    const deptPath = `${projectPath}/项目部`
+
+    orgMembersMap[projectNodeId] = []
+    orgPositionsMap[projectNodeId] = [
+      {
+        id: `pos-proj-${project.id}-lead`,
+        name: '项目经理岗',
+        headcount: 1,
+        duty: '统筹项目进度、质量与安全',
+        roleIds: ['role-pm'],
+      },
+    ]
+    orgRoleIdsMap[projectNodeId] = ['role-pm', 'role-default']
+    orgDataPermissionsMap[projectNodeId] = [
+      {
+        id: `dp-proj-${project.id}`,
+        levelScope: 'project',
+        projectScope: 'specific',
+        projectIds: [project.id],
+        content: project.label,
+      },
+    ]
+
+    PROJECT_DEPT_NAMES.forEach((_deptName, deptIndex) => {
+      const deptId = `${projectNodeId}-dept-${deptIndex}`
+      orgMembersMap[deptId] = []
+      orgPositionsMap[deptId] = []
+      orgRoleIdsMap[deptId] = []
+      orgDataPermissionsMap[deptId] = []
+    })
+
+    if (index >= 12) return
+
+    orgMembersMap[deptNodeId] = PROJECT_STAFF_TEMPLATES.map((staff, staffIndex) => ({
+      id: `mem-proj-${project.id}-${staffIndex}`,
+      name: `${project.label}${staff.suffix}`,
+      loginAccount: `pm_${project.id}_${staffIndex}`,
+      phone: `138${String(index).padStart(2, '0')}${String(staffIndex).padStart(2, '0')}0001`,
+      position: staff.position,
+      orgPath: deptPath,
+      status: true,
+      roleIds: [...staff.roleIds],
+      projectId: project.id,
+    }))
+
+    orgPositionsMap[deptNodeId] = PROJECT_STAFF_TEMPLATES.map((staff, staffIndex) => ({
+      id: `pos-proj-${project.id}-dept-${staffIndex}`,
+      name: staff.position,
+      headcount: 1,
+      duty: `${project.label}${staff.suffix}岗位职责`,
+      roleIds: [...staff.roleIds],
+    }))
+
+    orgRoleIdsMap[deptNodeId] = ['role-pm', 'role-labor', 'role-default']
+  })
+}
+
+seedProjectOrgData()
 
 /** 兼容用户管理页 */
 export const orgUserMap = Object.fromEntries(
@@ -266,6 +379,70 @@ export function refreshOrgTree() {
 
 export function getDefaultNodeId() {
   return 'org-plan'
+}
+
+export function getDefaultNodeIdForScope(isHq, projectId = '') {
+  if (isHq) return getDefaultNodeId()
+  return getProjectOrgNodeId(projectId)
+}
+
+export function collectOrgIdsUnderNode(nodeId) {
+  const raw = findRawNode(nodeId)
+  if (!raw) return []
+  return collectNodeIds(raw.node)
+}
+
+export function isOrgUnderProject(orgId, projectId) {
+  if (!orgId || !projectId) return false
+  const projectRootId = getProjectOrgNodeId(projectId)
+  return collectOrgIdsUnderNode(projectRootId).includes(orgId)
+}
+
+export function getScopedOrgTree({ projectId = '', keyword = '' } = {}) {
+  const baseTree = keyword ? filterOrgTree(keyword) : unifiedOrgTree.value
+  if (!projectId) return baseTree
+
+  const projectNodeId = getProjectOrgNodeId(projectId)
+  function findSubtree(nodes) {
+    for (const node of nodes) {
+      if (node.id === projectNodeId) return [node]
+      if (node.children?.length) {
+        const found = findSubtree(node.children)
+        if (found) return found
+      }
+    }
+    return null
+  }
+  return findSubtree(baseTree) || []
+}
+
+export function getOrgNodeOptionsForScope(isHq, projectId = '') {
+  const tree = isHq ? unifiedOrgTree.value : getScopedOrgTree({ projectId })
+  const options = []
+  function walk(nodes, prefix = '') {
+    nodes.forEach((node) => {
+      const label = prefix ? `${prefix}/${node.rawLabel}` : node.rawLabel
+      options.push({ value: node.id, label })
+      if (node.children?.length) walk(node.children, label)
+    })
+  }
+  walk(tree)
+  return options
+}
+
+export function getParentOrgOptionsForScope(isHq, projectId = '', excludeId = '') {
+  const tree = isHq ? unifiedOrgTree.value : getScopedOrgTree({ projectId })
+  const options = [{ value: '', label: '根节点' }]
+  function walk(nodes) {
+    nodes.forEach((node) => {
+      if (node.id !== excludeId) {
+        options.push({ value: node.id, label: node.rawLabel })
+        if (node.children?.length) walk(node.children)
+      }
+    })
+  }
+  walk(tree)
+  return options
 }
 
 export function findTreeNode(nodes, nodeId) {

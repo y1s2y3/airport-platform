@@ -167,6 +167,9 @@ onUnmounted(() => {
       :class="{ 'coc-hq-mode': isHqDarkShell, 'coc-secondary-screen': isSecondaryScreen }"
       :style="{ transform: `scale(${scale})` }"
     >
+      <!-- 浮层挂载点须先于会 Teleport 的子树创建，否则 Vue 在 target 为 null 时会抛错 -->
+      <div id="coc-overlay-root" class="coc-overlay-root" />
+
       <HqEdgeLights v-if="isHqDarkShell" />
       <CocHqHeader
         v-if="isHqDarkShell"
@@ -236,9 +239,6 @@ onUnmounted(() => {
           @project-dispatch="handleProjectLevelDispatch"
         />
       </main>
-
-      <!-- 全画布浮层挂载点（视频放大等），须置于 canvas 最末层 -->
-      <div id="coc-overlay-root" class="coc-overlay-root" />
     </div>
   </div>
 </template>
