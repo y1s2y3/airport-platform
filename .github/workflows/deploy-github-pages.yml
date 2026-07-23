@@ -4,9 +4,14 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      notes:
+        description: 本版更新说明（多项用 | 分隔）
+        required: false
+        default: ''
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -50,3 +55,30 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  bump-version:
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: success()
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Bump pages patch version
+        env:
+          NOTES: ${{ github.event.inputs.notes }}
+        run: node scripts/bump-pages-version.mjs
+
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/config/appVersion.js
+          if git diff --staged --quiet; then
+            echo "No version changes"
+            exit 0
+          fi
+          git commit -m "chore: bump pages version [skip ci]"
+          git push

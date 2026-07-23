@@ -38,9 +38,12 @@ import {
   isHqOnlyMenuKey,
   isProjectOnlyMenuKey,
 } from '../utils/menuPermissionTree'
+import { APP_VERSION, getChangelogByVersion } from '../config/appVersion'
 
 const route = useRoute()
 const router = useRouter()
+const changelogVisible = ref(false)
+const changelog = computed(() => getChangelogByVersion(APP_VERSION))
 const collapsed = ref(false)
 const expandedKeys = ref([])
 /** 收起侧栏时当前展开的悬浮子菜单 key */
@@ -280,6 +283,16 @@ function closeTab(tab, e) {
           </svg>
         </div>
         <span class="brand-title">智慧工程建设管控一体化平台</span>
+        <span class="brand-version">
+          <span class="brand-version-text">{{ APP_VERSION }}</span>
+          <button
+            type="button"
+            class="brand-version-help"
+            title="查看本版更新说明"
+            aria-label="查看本版更新说明"
+            @click="changelogVisible = true"
+          >?</button>
+        </span>
         <el-select
           v-model="selectedProjectId"
           class="project-select"
@@ -330,6 +343,20 @@ function closeTab(tab, e) {
         </button>
       </div>
     </header>
+
+    <el-dialog
+      v-model="changelogVisible"
+      :title="`${APP_VERSION} 更新说明`"
+      width="460px"
+      append-to-body
+      destroy-on-close
+    >
+      <p v-if="changelog" class="changelog-meta">发布日期：{{ changelog.date }}</p>
+      <ul v-if="changelog?.highlights?.length" class="changelog-list">
+        <li v-for="(item, idx) in changelog.highlights" :key="idx">{{ item }}</li>
+      </ul>
+      <p v-else class="changelog-empty">暂无更新说明</p>
+    </el-dialog>
 
     <div class="admin-body">
       <aside class="sidebar" :class="{ collapsed }">
@@ -500,6 +527,66 @@ function closeTab(tab, e) {
   color: var(--ap-text);
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+.brand-version {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-left: -4px;
+}
+
+.brand-version-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: #8f0045;
+  letter-spacing: 0.02em;
+}
+
+.brand-version-help {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid #c9cdd4;
+  background: #fff;
+  color: #646a73;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.brand-version-help:hover {
+  border-color: #8f0045;
+  color: #8f0045;
+}
+
+.changelog-meta {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: #8f959e;
+}
+
+.changelog-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: #1f2329;
+}
+
+.changelog-empty {
+  margin: 0;
+  color: #8f959e;
+  font-size: 14px;
 }
 
 .project-select {
