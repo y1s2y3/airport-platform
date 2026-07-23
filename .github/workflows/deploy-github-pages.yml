@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       notes:
-        description: 本版更新说明（多项用 | 分隔）
+        description: 本版更新说明（多项用 | 分隔；写入当前即将发布的版本）
         required: false
         default: ''
 
@@ -31,6 +31,12 @@ jobs:
         with:
           node-version: 22
           cache: npm
+
+      - name: Apply release notes to current version
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.notes != '' }}
+        env:
+          NOTES: ${{ github.event.inputs.notes }}
+        run: node scripts/apply-release-notes.mjs
 
       - name: Install
         run: npm ci
@@ -66,9 +72,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Bump pages patch version
-        env:
-          NOTES: ${{ github.event.inputs.notes }}
+      - name: Bump pages patch for next release
         run: node scripts/bump-pages-version.mjs
 
       - name: Commit version bump
