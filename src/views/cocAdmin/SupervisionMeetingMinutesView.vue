@@ -373,6 +373,18 @@ onMounted(load)
             style="width: 100%"
           />
         </el-form-item>
+        <el-form-item label="项目经理/负责人参会">
+          <el-input
+            v-model="form.pmAttendees"
+            placeholder="请填写参会的项目经理/负责人；上传纪要后可自动带出并修正"
+          />
+        </el-form-item>
+        <el-form-item label="项目部长/副部长参会">
+          <el-input
+            v-model="form.directorAttendees"
+            placeholder="请填写参会的项目部长/副部长；上传纪要后可自动带出并修正"
+          />
+        </el-form-item>
 
         <el-divider content-position="left">监理例会纪要附件</el-divider>
         <p class="form-tip">
@@ -414,12 +426,6 @@ onMounted(load)
           <el-divider content-position="left">
             {{ form.parseStatus === 'failed' ? '隐患清单（手动补录 / 修正）' : '系统解析结果（可修正）' }}
           </el-divider>
-          <el-form-item label="项目经理/负责人参会">
-            <el-input v-model="form.pmAttendees" placeholder="解析结果可人工修正" />
-          </el-form-item>
-          <el-form-item label="项目部长/副部长参会">
-            <el-input v-model="form.directorAttendees" placeholder="解析结果可人工修正" />
-          </el-form-item>
           <el-form-item label="隐患清单">
             <div class="hazard-editor">
               <div class="hazard-editor-toolbar">
@@ -513,11 +519,11 @@ onMounted(load)
           <el-descriptions-item label="项目名称">{{ current.projectName }}</el-descriptions-item>
           <el-descriptions-item label="项目部">{{ current.projectDept || '—' }}</el-descriptions-item>
           <el-descriptions-item label="召开日期">{{ current.meetingDate }}</el-descriptions-item>
+          <el-descriptions-item label="项目经理/负责人参会">{{ current.pmAttendees || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="项目部长/副部长参会">{{ current.directorAttendees || '—' }}</el-descriptions-item>
           <el-descriptions-item label="解析状态">{{ parseStatusLabel(current.parseStatus) }}</el-descriptions-item>
           <el-descriptions-item label="解析时间">{{ current.parsedAt || '—' }}</el-descriptions-item>
           <el-descriptions-item label="隐患条数">{{ current.hazardCount ?? 0 }}</el-descriptions-item>
-          <el-descriptions-item label="项目经理/负责人参会">{{ current.pmAttendees || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="项目部长/副部长参会">{{ current.directorAttendees || '—' }}</el-descriptions-item>
           <el-descriptions-item label="监理例会纪要 Word">{{ current.minutesWord || '—' }}</el-descriptions-item>
           <el-descriptions-item label="监理例会纪要 PDF">{{ current.minutesPdf || '—' }}</el-descriptions-item>
           <el-descriptions-item label="签到表照片">{{ current.signInPhoto || '—' }}</el-descriptions-item>

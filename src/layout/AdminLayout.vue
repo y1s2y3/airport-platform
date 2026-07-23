@@ -346,12 +346,17 @@ function closeTab(tab, e) {
 
     <el-dialog
       v-model="changelogVisible"
-      :title="`${APP_VERSION} 更新说明`"
+      :title="`${changelog?.version || APP_VERSION} 更新说明`"
       width="460px"
       append-to-body
       destroy-on-close
     >
-      <p v-if="changelog" class="changelog-meta">发布日期：{{ changelog.date }}</p>
+      <p v-if="changelog" class="changelog-meta">
+        发布日期：{{ changelog.date }}
+        <template v-if="changelog.version !== APP_VERSION">
+          （当前页头为 {{ APP_VERSION }}，展示最近一版说明）
+        </template>
+      </p>
       <ul v-if="changelog?.highlights?.length" class="changelog-list">
         <li v-for="(item, idx) in changelog.highlights" :key="idx">{{ item }}</li>
       </ul>

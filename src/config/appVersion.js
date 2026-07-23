@@ -6,7 +6,7 @@
 
 export const APP_VERSION_BASE = '1.0.2'
 
-/** GitHub Pages 发布序号（从 0 开始） */
+/** GitHub Pages 发布序号（从 0 开始；仓库内为「下一版」序号） */
 export const APP_VERSION_PATCH = 1
 
 export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
@@ -16,6 +16,14 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  * highlights 宜短句，便于页头问号弹窗快速阅读
  */
 export const VERSION_CHANGELOG = [
+  {
+    version: 'v1.0.2.1',
+    date: '2026-07-23',
+    highlights: [
+      '登记监理会议：召开日期下新增「项目经理/负责人参会」「项目部长/副部长参会」',
+      '两字段支持手填，上传纪要后仍可自动带出并修正',
+    ],
+  },
   {
     version: 'v1.0.2.0',
     date: '2026-07-23',
