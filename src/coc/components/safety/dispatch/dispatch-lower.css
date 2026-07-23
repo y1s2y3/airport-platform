@@ -1,0 +1,182 @@
+.detail-lower {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  flex: 1;
+}
+
+.detail-panel {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-title.compact {
+  font-size: calc(15px + var(--coc-font-boost));
+  padding: 6px 12px;
+  line-height: 1.2;
+  flex-shrink: 0;
+}
+
+.list-table-body {
+  flex: 1;
+  min-height: 0;
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+.list-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.table-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.mini-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: calc(13px + var(--coc-font-boost));
+}
+
+.mini-table th,
+.mini-table td {
+  padding: 14px 12px;
+  border-bottom: 1px solid var(--coc-border);
+  text-align: left;
+  line-height: 1.5;
+}
+
+.mini-table th {
+  background: #faf8f6;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.table-scroll .desc {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clickable-row { cursor: pointer; }
+.clickable-row:hover { background: rgba(201, 123, 99, 0.05); }
+
+.status-tag, .ticket-status {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: calc(12px + var(--coc-font-boost));
+  font-weight: 600;
+}
+
+.status-tag.pending, .ticket-status.draft { background: rgba(144,147,153,0.12); color: #909399; }
+.status-tag.doing, .status-tag.active, .ticket-status.doing { background: rgba(64,158,255,0.12); color: #409eff; }
+.status-tag.closed, .ticket-status.sent { background: rgba(103,194,58,0.12); color: #67c23a; }
+.status-tag.cancelled, .ticket-status.rejected { background: rgba(245,108,108,0.12); color: #f56c6c; }
+.ticket-status.closed { background: rgba(103,194,58,0.12); color: #67c23a; }
+
+.penalty-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  padding: 12px 14px !important;
+}
+
+.penalty-upper { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+.penalty-lower { flex: 1; min-height: 0; overflow: auto; }
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: calc(13px + var(--coc-font-boost));
+  font-weight: 600;
+  color: var(--coc-text-secondary);
+}
+
+.draft-content {
+  flex: 1;
+  overflow: auto;
+  font-size: calc(12px + var(--coc-font-boost));
+  line-height: 1.55;
+  white-space: pre-wrap;
+  background: #faf8f6;
+  border-radius: 8px;
+  padding: 12px;
+  margin: 0;
+}
+
+.draft-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+.draft-actions :deep(.el-button) {
+  font-size: calc(12px + var(--coc-font-boost));
+}
+
+.detail-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+}
+
+.detail-card {
+  background: #fff;
+  border-radius: 12px;
+  width: 100%;
+  max-height: 100%;
+  overflow: auto;
+}
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 18px;
+  border-bottom: 1px solid var(--coc-border);
+}
+
+.detail-title { font-size: calc(13px + var(--coc-font-boost)); font-weight: 700; }
+
+.close-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--coc-border);
+  background: #fff;
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.detail-body { padding: 14px 18px; }
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 16px;
+  margin-bottom: 12px;
+}
+
+.detail-item { display: flex; gap: 10px; font-size: calc(13px + var(--coc-font-boost)); }
+.dl { color: var(--coc-text-muted); min-width: 72px; flex-shrink: 0; }
+
+.block-label { font-size: calc(13px + var(--coc-font-boost)); font-weight: 600; margin-bottom: 6px; color: var(--coc-text-secondary); }
+.block-content { font-size: calc(12px + var(--coc-font-boost)); line-height: 1.5; background: #faf8f6; padding: 10px 12px; border-radius: 8px; }
+
+/* 更多弹窗样式见 dispatch-more-dialog.css（DispatchDraggablePanel 全局引入） */

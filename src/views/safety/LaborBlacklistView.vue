@@ -1,0 +1,187 @@
+<script setup>
+import { ref, computed } from 'vue'
+import { Search, Refresh, Plus } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { laborBlacklist as initialList, maskIdCard } from '../../mock/laborBlacklist'
+import { useCurrentProject } from '../../composables/useCurrentProject'
+
+const { isHqSelected, projectLabel } = useCurrentProject()
+const list = ref(initialList.map((row) => ({ ...row })))
+const filters = ref({ name: '', idCard: '' })
+const formVisible = ref(false)
+const formRef = ref(null)
+const formData = ref({ name: '', idCard: '', reason: '' })
+
+const formRules = {
+  name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
+  idCard: [
+    { required: true, message: '请输入身份证号', trigger: 'blur' },
+    { pattern: /(^\d{15}$)|(^\d{17}[\dXx]$)/, message: '身份证号格式不正确', trigger: 'blur' },
+  ],
+  reason: [{ required: true, message: '请输入拉黑原因', trigger: 'blur' }],
+}
+
+const filteredList = computed(() => {
+  return list.value.filter((row) => {
+    if (filters.value.name && !row.name.includes(filters.value.name.trim())) return false
+    if (filters.value.idCard && !row.idCard.includes(filters.value.idCard.trim())) return false
+    return true
+  })
+})
+
+function handleReset() {
+  filters.value = { name: '', idCard: '' }
+}
+
+function openForm() {
+  formData.value = { name: '', idCard: '', reason: '' }
+  formVisible.value = true
+}
+
+async function handleSubmit() {
+  await formRef.value.validate()
+  const exists = list.value.some((row) => row.idCard === formData.value.idCard)
+  if (exists) {
+    ElMessage.warning('该身份证号已在黑名单中')
+    return
+  }
+  list.value.unshift({
+    id: `bl-${Date.now()}`,
+    name: formData.value.name.trim(),
+    idCard: formData.value.idCard.trim(),
+    reason: formData.value.reason.trim(),
+    createdBy: '当前用户',
+    createdAt: new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-'),
+  })
+  formVisible.value = false
+  ElMessage.success('已加入劳务黑名单')
+}
+
+async function handleRemove(row) {
+  await ElMessageBox.confirm(`确认将「${row.name}」移出黑名单？`, '提示', { type: 'warning' })
+  list.value = list.value.filter((item) => item.id !== row.id)
+  ElMessage.success('已移出黑名单')
+}
+</script>
+
+<template>
+  <div class="blacklist-page page-card">
+    <div class="page-header">
+      <div class="page-breadcrumb">人员实名制管理 / 劳务黑名单</div>
+      <div class="page-heading">
+        <h1 class="page-title">劳务黑名单</h1>
+        <el-button class="ap-btn-primary" type="primary" :icon="Plus" @click="openForm">新增</el-button>
+      </div>
+      <p v-if="!isHqSelected" class="page-scope">当前项目：{{ projectLabel }}</p>
+    </div>
+
+    <div class="filter-bar">
+      <el-input v-model="filters.name" placeholder="姓名" clearable style="width: 140px" />
+      <el-input v-model="filters.idCard" placeholder="身份证号" clearable style="width: 180px" />
+      <el-button class="ap-btn-primary" type="primary" :icon="Search">查询</el-button>
+      <el-button :icon="Refresh" @click="handleReset">重置</el-button>
+    </div>
+
+    <div class="table-section">
+      <div class="table-summary">共 {{ filteredList.length }} 人</div>
+      <el-table :data="filteredList" border stripe class="ap-table">
+        <el-table-column type="index" label="序号" width="60" align="center" />
+        <el-table-column prop="name" label="姓名" width="100" />
+        <el-table-column label="身份证号" min-width="170">
+          <template #default="{ row }">{{ maskIdCard(row.idCard) }}</template>
+        </el-table-column>
+        <el-table-column prop="reason" label="拉黑原因" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="createdBy" label="登记人" width="100" />
+        <el-table-column prop="createdAt" label="登记时间" width="160" />
+        <el-table-column v-if="isHqSelected" label="操作" width="90" fixed="right" align="center">
+          <template #default="{ row }">
+            <el-button link type="danger" @click="handleRemove(row)">移出</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
+
+    <el-dialog v-model="formVisible" title="新增黑名单人员" width="520px" destroy-on-close>
+      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="90px">
+        <el-form-item label="姓名" prop="name">
+          <el-input v-model="formData.name" placeholder="请输入姓名" maxlength="20" />
+        </el-form-item>
+        <el-form-item label="身份证号" prop="idCard">
+          <el-input v-model="formData.idCard" placeholder="请输入身份证号" maxlength="18" />
+        </el-form-item>
+        <el-form-item label="拉黑原因" prop="reason">
+          <el-input
+            v-model="formData.reason"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入拉黑原因"
+            maxlength="200"
+            show-word-limit
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="formVisible = false">取消</el-button>
+        <el-button class="ap-btn-primary" type="primary" @click="handleSubmit">确定</el-button>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<style scoped>
+.blacklist-page {
+  padding: 20px 24px 24px;
+}
+
+.page-header {
+  margin-bottom: 16px;
+}
+
+.page-breadcrumb {
+  font-size: 13px;
+  color: var(--ap-text-muted);
+  margin-bottom: 8px;
+}
+
+.page-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.page-scope {
+  margin: 8px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ap-text);
+}
+
+.page-title {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 16px 20px;
+  border: 1px solid var(--ap-border);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.table-section {
+  border: 1px solid var(--ap-border);
+  border-radius: 8px;
+  background: #fff;
+  padding: 16px 20px 20px;
+}
+
+.table-summary {
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--ap-text-secondary);
+}
+</style>

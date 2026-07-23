@@ -1,0 +1,216 @@
+/**
+ * 项目调度「更多」浮层内容样式（DispatchDraggablePanel Teleport 到 body，需全局生效）
+ */
+.drag-panel .dialog-filter,
+.drag-panel .more-dialog-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.drag-panel .dialog-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.drag-panel .more-count {
+  font-size: calc(13px + var(--coc-font-boost));
+  color: var(--coc-text-secondary);
+  font-weight: 600;
+}
+
+.drag-panel .more-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.drag-panel .more-table-wrap {
+  max-height: min(calc(100vh - 140px), 920px);
+  overflow: auto;
+  border: 1px solid var(--coc-drag-panel-table-wrap-border, var(--coc-border));
+  border-radius: 8px;
+  background: var(--coc-drag-panel-table-wrap-bg, rgba(0, 0, 0, 0.02));
+}
+
+.drag-panel .more-table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  font-size: calc(13px + var(--coc-font-boost));
+}
+
+.drag-panel .more-table th,
+.drag-panel .more-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--coc-drag-panel-cell-border, var(--coc-border));
+  text-align: left;
+  vertical-align: top;
+  line-height: 1.45;
+}
+
+.drag-panel .more-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--coc-drag-panel-table-head-bg, var(--coc-table-head-bg, #faf8f6));
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--coc-text-secondary);
+}
+
+.drag-panel .more-table td {
+  white-space: normal;
+  word-break: break-word;
+  color: var(--coc-text);
+}
+
+.drag-panel .more-table-wrap .desc,
+.drag-panel .more-table-wrap .inconsistency-full,
+.drag-panel .more-table-wrap .cell-subject {
+  max-width: none;
+  overflow: visible;
+  text-overflow: unset;
+  white-space: normal;
+  word-break: break-word;
+  display: block;
+  -webkit-line-clamp: unset;
+  -webkit-box-orient: unset;
+}
+
+.drag-panel .more-table .col-subject {
+  min-width: 220px;
+  max-width: 360px;
+}
+
+.drag-panel .more-table .col-desc {
+  min-width: 200px;
+  max-width: 420px;
+}
+
+.drag-panel .dialog-tab-btn {
+  border: 1px solid var(--coc-border);
+  border-radius: 999px;
+  background: var(--coc-surface-muted, #fff);
+  padding: 4px 12px;
+  font-size: calc(12px + var(--coc-font-boost));
+  cursor: pointer;
+  color: var(--coc-text-secondary);
+  font-family: inherit;
+}
+
+.drag-panel .dialog-tab-btn.active {
+  border-color: var(--coc-accent);
+  background: rgba(201, 123, 99, 0.1);
+  color: var(--coc-accent);
+  font-weight: 600;
+}
+
+.drag-panel .dialog-count {
+  margin-left: auto;
+  font-size: calc(12px + var(--coc-font-boost));
+  color: var(--coc-text-muted);
+  font-weight: 600;
+}
+
+.drag-panel .clickable-row {
+  cursor: pointer;
+}
+
+.drag-panel .clickable-row:hover {
+  background: var(--coc-drag-panel-row-hover, rgba(201, 123, 99, 0.05));
+}
+
+.drag-panel .empty-row {
+  text-align: center;
+  color: var(--coc-text-muted);
+  font-size: calc(13px + var(--coc-font-boost));
+  padding: 16px 8px !important;
+}
+
+.drag-panel .hazard-date-filter {
+  width: 240px;
+}
+
+/* 浮层内表格（mini-table / data-table 与 more-table 统一） */
+.drag-panel .mini-table th,
+.drag-panel .data-table th {
+  background: var(--coc-drag-panel-table-head-bg, var(--coc-table-head-bg, #faf8f6));
+}
+
+.drag-panel .mini-table th,
+.drag-panel .mini-table td,
+.drag-panel .data-table th,
+.drag-panel .data-table td {
+  border-bottom-color: var(--coc-drag-panel-cell-border, var(--coc-border));
+}
+
+/* 状态标签（浮层内 teleported，需全局定义） */
+.drag-panel .status-tag,
+.drag-panel .ticket-status {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: calc(12px + var(--coc-font-boost));
+  font-weight: 600;
+}
+
+.drag-panel .status-tag.pending,
+.drag-panel .ticket-status.draft {
+  background: rgba(144, 147, 153, 0.12);
+  color: #909399;
+}
+
+.drag-panel .status-tag.doing,
+.drag-panel .status-tag.active,
+.drag-panel .ticket-status.doing {
+  background: rgba(64, 158, 255, 0.12);
+  color: #409eff;
+}
+
+.drag-panel .status-tag.closed,
+.drag-panel .ticket-status.sent,
+.drag-panel .ticket-status.closed {
+  background: rgba(103, 194, 58, 0.12);
+  color: #67c23a;
+}
+
+.drag-panel .status-tag.cancelled,
+.drag-panel .ticket-status.rejected {
+  background: rgba(144, 147, 153, 0.12);
+  color: #909399;
+}
+
+/* HQ 科技蓝 · 状态标签 */
+.coc-hq-shell .drag-panel .status-tag.pending,
+.coc-hq-shell .drag-panel .ticket-status.draft {
+  background: rgba(144, 147, 153, 0.18);
+  color: #a8abb2;
+}
+
+.coc-hq-shell .drag-panel .status-tag.doing,
+.coc-hq-shell .drag-panel .status-tag.active,
+.coc-hq-shell .drag-panel .ticket-status.doing {
+  background: rgba(64, 158, 255, 0.18);
+  color: #5eeeff;
+}
+
+.coc-hq-shell .drag-panel .status-tag.closed,
+.coc-hq-shell .drag-panel .ticket-status.sent,
+.coc-hq-shell .drag-panel .ticket-status.closed {
+  background: rgba(103, 194, 58, 0.15);
+  color: #95d475;
+}
+
+.coc-hq-shell .drag-panel .status-tag.cancelled,
+.coc-hq-shell .drag-panel .ticket-status.rejected {
+  background: rgba(144, 147, 153, 0.15);
+  color: #909399;
+}

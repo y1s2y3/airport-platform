@@ -1,0 +1,20 @@
+/* 后台管理 · 标题栏统一左对齐 */
+.admin-header {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.admin-page > .panel-title {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.admin-page > .panel-title > span {
+  text-align: left;
+}
+
+.admin-page > .panel-title .title-actions,
+.admin-page > .panel-title .toolbar,
+.admin-page > .panel-title > .search-input {
+  margin-left: auto;
+}
