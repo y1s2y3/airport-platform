@@ -4,9 +4,23 @@
 import { reactive } from 'vue'
 
 export const PROCESS_STATUS_OPTIONS = ['审批中', '已通过', '已驳回', '已撤回']
-export const PROCESS_CATEGORY_OPTIONS = ['质量验评', '安全巡检', '人员实名', '车辆管理', 'COC调度']
+export const PROCESS_CATEGORY_OPTIONS = [
+  '质量验评',
+  '品牌报审',
+  '安全巡检',
+  '人员实名',
+  '车辆管理',
+  'COC调度',
+]
 export const READ_STATUS_OPTIONS = ['未读', '已读']
-export const NOTICE_MODULE_OPTIONS = ['待办通知', '环境监测', '质量验评', '安全巡检', '系统通知']
+export const NOTICE_MODULE_OPTIONS = [
+  '待办通知',
+  '环境监测',
+  '质量验评',
+  '品牌报审',
+  '安全巡检',
+  '系统通知',
+]
 
 /** 处罚单待办业务状态 */
 export const PENALTY_TODO_STATUS = {
@@ -67,6 +81,101 @@ export function buildPenaltyApprovalFlow(todo) {
 
 function seedTodos() {
   return [
+    {
+      id: 'todo-brand-1',
+      type: 'brand',
+      sourceLabel: '品牌报审',
+      category: '品牌报审',
+      brandApplicationId: 'PP-2026-002',
+      brandNode: 'supervisor',
+      processName: '品牌报审审批·防水卷材（PP-2026-002）',
+      applicant: '张工',
+      dept: '总包项目部',
+      applyTime: '2026-07-20 11:00:00',
+      detail: {
+        project: 'T2航站区配套',
+        applicationId: 'PP-2026-002',
+        materialName: '防水卷材',
+        materialType: '材料',
+        specs: 'SBS-3mm',
+        brands: '东方雨虹 / 科顺 / 雨中情',
+        currentNode: '待监理审',
+        usePart: '屋面',
+      },
+      approvalFlow: [
+        {
+          title: '施工提交报审',
+          time: '2026-07-20 11:00:00',
+          user: '张工',
+          remark: '直接提交，进入审批中',
+          status: 'done',
+        },
+        {
+          title: '监理审批',
+          time: '',
+          user: '当前用户',
+          remark: '待审批',
+          status: 'current',
+        },
+        {
+          title: '项目经理终审',
+          time: '',
+          user: '项目经理',
+          remark: '待流转',
+          status: 'pending',
+        },
+      ],
+    },
+    {
+      id: 'todo-brand-2',
+      type: 'brand',
+      sourceLabel: '品牌报审',
+      category: '品牌报审',
+      brandApplicationId: 'PP-2026-003',
+      brandNode: 'pm',
+      processName: '品牌报审终审·钢筋（PP-2026-003）',
+      applicant: '张工',
+      dept: '总包项目部',
+      applyTime: '2026-07-18 14:30:00',
+      detail: {
+        project: 'T2航站区配套',
+        applicationId: 'PP-2026-003',
+        materialName: '钢筋',
+        materialType: '材料',
+        specs: 'Φ12、Φ16',
+        brands: '沙钢 / 河钢 / 宝钢',
+        currentNode: '待项目经理审',
+        usePart: '梁板',
+      },
+      brandCandidates: [
+        { candidate_id: 'C-021', brand_name: '沙钢', manufacturer: '江苏沙钢集团有限公司' },
+        { candidate_id: 'C-022', brand_name: '河钢', manufacturer: '河钢集团有限公司' },
+        { candidate_id: 'C-023', brand_name: '宝钢', manufacturer: '中国宝武钢铁集团有限公司' },
+      ],
+      approvalFlow: [
+        {
+          title: '施工提交报审',
+          time: '2026-07-18 14:30:00',
+          user: '张工',
+          remark: '提交钢筋品牌报审',
+          status: 'done',
+        },
+        {
+          title: '监理审批',
+          time: '2026-07-19 09:00:00',
+          user: '王监理',
+          remark: '同意报审',
+          status: 'done',
+        },
+        {
+          title: '项目经理终审',
+          time: '',
+          user: '当前用户',
+          remark: '待选定入选品牌',
+          status: 'current',
+        },
+      ],
+    },
     {
       id: 'todo-1',
       type: 'common',
@@ -418,9 +527,126 @@ export function finishPersonalTodo(id, handleLabel) {
     penalty: row.penalty,
     penaltyId: row.penaltyId,
     bizStatus: row.bizStatus,
+    brandApplicationId: row.brandApplicationId,
+    brandNode: row.brandNode,
+    brandCandidates: row.brandCandidates,
     approvalFlow: flow,
   })
   return row
+}
+
+/** —— 品牌报审：审批入口仅个人中心待办 —— */
+let brandTodoSeq = 10
+
+function removeOpenBrandTodos(applicationId, { onlyNode } = {}) {
+  for (let i = personalTodoStore.todos.length - 1; i >= 0; i -= 1) {
+    const t = personalTodoStore.todos[i]
+    if (t.type !== 'brand' || t.brandApplicationId !== applicationId) continue
+    if (onlyNode && t.brandNode !== onlyNode) continue
+    personalTodoStore.todos.splice(i, 1)
+  }
+}
+
+function buildBrandTodo(payload) {
+  const node = payload.brandNode === 'pm' ? 'pm' : 'supervisor'
+  const isPm = node === 'pm'
+  brandTodoSeq += 1
+  return {
+    id: `todo-brand-${brandTodoSeq}`,
+    type: 'brand',
+    sourceLabel: '品牌报审',
+    category: '品牌报审',
+    brandApplicationId: payload.applicationId,
+    brandNode: node,
+    processName: isPm
+      ? `品牌报审终审·${payload.materialName}（${payload.applicationId}）`
+      : `品牌报审审批·${payload.materialName}（${payload.applicationId}）`,
+    applicant: payload.applicantName || '当前用户',
+    dept: payload.dept || '总包项目部',
+    applyTime: payload.applyTime || '',
+    detail: {
+      project: payload.projectLabel || payload.projectId || '—',
+      applicationId: payload.applicationId,
+      materialName: payload.materialName || '—',
+      materialType: payload.materialType || '—',
+      specs: payload.specsText || '—',
+      brands: payload.brandsText || '—',
+      currentNode: isPm ? '待项目经理审' : '待监理审',
+      usePart: payload.usePart || '',
+    },
+    brandCandidates: payload.candidates || [],
+    approvalFlow: isPm
+      ? [
+          {
+            title: '施工提交报审',
+            time: payload.applyTime || '',
+            user: payload.applicantName || '施工',
+            remark: '直接提交',
+            status: 'done',
+          },
+          {
+            title: '监理审批',
+            time: payload.supervisorTime || '',
+            user: payload.supervisorName || '监理',
+            remark: '同意报审',
+            status: 'done',
+          },
+          {
+            title: '项目经理终审',
+            time: '',
+            user: '当前用户',
+            remark: '待选定入选品牌',
+            status: 'current',
+          },
+        ]
+      : [
+          {
+            title: '施工提交报审',
+            time: payload.applyTime || '',
+            user: payload.applicantName || '施工',
+            remark: '直接提交，进入审批中',
+            status: 'done',
+          },
+          {
+            title: '监理审批',
+            time: '',
+            user: '当前用户',
+            remark: '待审批',
+            status: 'current',
+          },
+          {
+            title: '项目经理终审',
+            time: '',
+            user: '项目经理',
+            remark: '待流转',
+            status: 'pending',
+          },
+        ],
+  }
+}
+
+/** 新建/重提：生成监理待办（会清掉该单未办品牌待办） */
+export function createBrandSupervisorTodo(payload) {
+  if (!payload?.applicationId) return null
+  removeOpenBrandTodos(payload.applicationId)
+  const row = buildBrandTodo({ ...payload, brandNode: 'supervisor' })
+  personalTodoStore.todos.unshift(row)
+  return row
+}
+
+/** 监理同意后：生成项目经理终审待办（不清监理待办，由个人中心办结） */
+export function createBrandPmTodo(payload) {
+  if (!payload?.applicationId) return null
+  removeOpenBrandTodos(payload.applicationId, { onlyNode: 'pm' })
+  const row = buildBrandTodo({ ...payload, brandNode: 'pm' })
+  personalTodoStore.todos.unshift(row)
+  return row
+}
+
+/** 撤回等：丢弃该报审单未办待办 */
+export function discardBrandTodos(applicationId) {
+  if (!applicationId) return
+  removeOpenBrandTodos(applicationId)
 }
 
 /** 通知信息 */
@@ -432,6 +658,14 @@ export const personalNotices = [
     content: '您有一条检验批验收审批待办，项目：T2航站区配套，请及时处理。2026-07-18 09:32',
     time: '2026-07-18 09:32:20',
     readStatus: '已读',
+  },
+  {
+    id: 'nt-brand-1',
+    module: '品牌报审',
+    title: '品牌报审待办提醒',
+    content: '您有品牌报审待办：防水卷材（PP-2026-002）待监理审、钢筋（PP-2026-003）待项目经理终审，请及时处理。',
+    time: '2026-07-20 11:05:00',
+    readStatus: '未读',
   },
   {
     id: 'nt-2',

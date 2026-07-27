@@ -12,6 +12,7 @@ import {
 } from '../config/constructionSafetyMenu.js'
 import { machineHazardRoutes } from '../config/machineHazardMenu.js'
 import { qualityRoutes, qualityViewLoaders } from '../config/qualityMenu.js'
+import { brandRoutes, brandViewLoaders } from '../config/brandMenu.js'
 
 const engineeringLibraryPath = '/basic-data/engineering-library'
 
@@ -290,6 +291,17 @@ const routes = [
         path: item.path.replace(/^\//, ''),
         name: item.name,
         component: qualityViewLoaders[item.component],
+        meta: {
+          sidebarKey: item.sidebarKey || item.key,
+          tabKey: item.sidebarKey || item.key,
+          title: item.label,
+          description: item.description,
+        },
+      })),
+      ...brandRoutes.map((item) => ({
+        path: item.path.replace(/^\//, ''),
+        name: item.name,
+        component: brandViewLoaders[item.component],
         meta: {
           sidebarKey: item.sidebarKey || item.key,
           tabKey: item.sidebarKey || item.key,

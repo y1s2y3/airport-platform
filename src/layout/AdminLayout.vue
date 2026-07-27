@@ -24,6 +24,7 @@ import {
   SetUp,
   Document,
   Bell,
+  Goods,
 } from '@element-plus/icons-vue'
 import { sidebarMenu } from '../config/menu'
 import {
@@ -128,6 +129,7 @@ const iconMap = {
   SetUp,
   Document,
   Bell,
+  Goods,
 }
 
 const activeMenu = computed(() => route.meta.sidebarKey || 'workbench')

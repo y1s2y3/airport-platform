@@ -25,3 +25,8 @@ release
 *.sw?
 
 .vercel
+
+__pycache__/
+*.pyc
+scripts/_*.txt
+

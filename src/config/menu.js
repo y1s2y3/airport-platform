@@ -1,6 +1,7 @@
 import { basicDataMenuGroup } from './basicDataMenu.js'
 import { cocAdminMenuGroup } from './cocAdminMenu.js'
 import { qualityMenuGroup } from './qualityMenu.js'
+import { brandMenuGroup } from './brandMenu.js'
 import { settingsMenuGroups } from './settingsMenu.js'
 import { videoMonitorMenuGroup } from './videoMonitorMenu.js'
 import { vehicleMenuGroup } from './vehicleMenu.js'
@@ -34,6 +35,7 @@ export const sidebarMenu = [
   videoMonitorMenuGroup,
   cocAdminMenuGroup,
   qualityMenuGroup,
+  brandMenuGroup,
   basicDataMenuGroup,
   ...settingsMenuGroups,
 ]

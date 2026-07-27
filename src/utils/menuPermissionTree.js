@@ -32,6 +32,9 @@ export const HQ_ONLY_MENU_KEYS = new Set([
   'safety-check-items',
   /** 人员实名制 · 指挥部 */
   'labor-realname-stats',
+  /** 品牌报审（一级菜单）· 企业主数据 */
+  'brand-library',
+  'brand-material',
 ])
 
 /**
@@ -56,6 +59,9 @@ export const PROJECT_ONLY_MENU_KEYS = new Set([
   'qm-complete-deep',
   'qm-approver-config',
   'qm-app-approve',
+  /** 品牌报审（一级菜单）· 项目执行；审批走个人中心待办，无独立「报审审批」菜单 */
+  'brand-ledger',
+  'brand-application',
   /** 人员实名制 · 项目执行（指挥部仅留统计/配置/黑名单；劳务看板两端可见） */
   'labor-realname',
   'labor-personnel-track',

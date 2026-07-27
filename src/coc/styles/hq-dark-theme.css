@@ -1210,28 +1210,45 @@
   background: rgba(64, 158, 255, 0.32);
 }
 
+.coc-hq-mode .command-meeting-layout .device-grid {
+  border-color: rgba(94, 238, 255, 0.28);
+  background: rgba(0, 24, 56, 0.85);
+  box-shadow: inset 0 0 0 1px rgba(94, 238, 255, 0.08);
+}
+
 .coc-hq-mode .command-meeting-layout .grid-cell {
-  background: rgba(0, 53, 108, 0.35);
-  border-color: rgba(94, 238, 255, 0.18);
+  background: rgba(0, 53, 108, 0.45);
+  box-shadow:
+    inset -1px 0 0 rgba(94, 238, 255, 0.22),
+    inset 0 -1px 0 rgba(94, 238, 255, 0.22);
+}
+
+.coc-hq-mode .command-meeting-layout .grid-cell:nth-child(3n) {
+  box-shadow: inset 0 -1px 0 rgba(94, 238, 255, 0.22);
+}
+
+.coc-hq-mode .command-meeting-layout .grid-cell:nth-child(n + 7) {
+  box-shadow: inset -1px 0 0 rgba(94, 238, 255, 0.22);
+}
+
+.coc-hq-mode .command-meeting-layout .grid-cell:nth-child(3n):nth-child(n + 7) {
+  box-shadow: none;
 }
 
 .coc-hq-mode .command-meeting-layout .grid-cell.empty {
   background: rgba(255, 255, 255, 0.03);
-  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .coc-hq-mode .command-meeting-layout .grid-cell.joined {
-  border-color: rgba(94, 238, 255, 0.45);
+  background: rgba(0, 53, 108, 0.45);
 }
 
-.coc-hq-mode .command-meeting-layout .grid-cell.host-cell {
-  border-color: rgba(94, 238, 255, 0.75);
-  box-shadow: 0 0 12px rgba(94, 238, 255, 0.18);
+.coc-hq-mode .command-meeting-layout .grid-cell.host-cell .cell-video {
+  box-shadow: inset 0 0 0 2px rgba(94, 238, 255, 0.85);
 }
 
-.coc-hq-mode .command-meeting-layout .grid-cell.speaking:not(.host-cell) {
-  border-color: rgba(246, 197, 117, 0.75);
-  box-shadow: 0 0 10px rgba(246, 197, 117, 0.15);
+.coc-hq-mode .command-meeting-layout .grid-cell.speaking:not(.host-cell) .cell-video {
+  box-shadow: inset 0 0 0 2px rgba(246, 197, 117, 0.85);
 }
 
 .coc-hq-mode .command-meeting-layout .host-director-badge {
@@ -1240,7 +1257,8 @@
 }
 
 .coc-hq-mode .command-meeting-layout .cell-label {
-  background: rgba(16, 29, 55, 0.88);
+  background: rgba(16, 29, 55, 0.92);
+  border-top-color: rgba(94, 238, 255, 0.12);
 }
 
 .coc-hq-mode .command-meeting-layout .cell-name {
@@ -1332,6 +1350,19 @@
 .coc-hq-mode .command-meeting-layout .call-btn:hover:not(:disabled) {
   background: rgba(64, 158, 255, 0.22);
   color: #fff;
+}
+
+.coc-hq-mode .command-meeting-layout .device-act-btn {
+  border-color: rgba(94, 238, 255, 0.28);
+  background: rgba(0, 53, 108, 0.45);
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.coc-hq-mode .command-meeting-layout .device-act-btn:hover,
+.coc-hq-mode .command-meeting-layout .device-act-btn.active {
+  border-color: rgba(94, 238, 255, 0.55);
+  color: #5eeeff;
+  background: rgba(94, 238, 255, 0.14);
 }
 
 .coc-hq-mode .command-meeting-layout .tree-empty {

@@ -17,6 +17,15 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v1.0.2.2',
+    date: '2026-07-27',
+    highlights: [
+      '品牌报审：台账/报审申请/品牌库与材料规格库；审批统一走个人中心待办',
+      '巡检仪注册：新增必填设备账号、设备密码，并关闭浏览器自动填充',
+      '领导讲话会议列表：九宫格合并为大画面；声音/全屏改到设备列表',
+    ],
+  },
+  {
     version: 'v1.0.2.1',
     date: '2026-07-23',
     highlights: [

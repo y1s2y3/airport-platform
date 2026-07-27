@@ -101,6 +101,8 @@ export function savePatrolDevice(record) {
       name: record.name,
       project: record.project,
       bindPerson: record.bindPerson ?? '',
+      deviceAccount: record.deviceAccount ?? '',
+      devicePassword: record.devicePassword ?? '',
     }
   } else {
     list.unshift({
@@ -109,6 +111,8 @@ export function savePatrolDevice(record) {
       name: record.name,
       project: record.project,
       bindPerson: record.bindPerson ?? '',
+      deviceAccount: record.deviceAccount ?? '',
+      devicePassword: record.devicePassword ?? '',
       online: false,
       intercomLinked: false,
       lastOnline: '',
@@ -125,6 +129,8 @@ export function emptyPatrolDevice(row = {}) {
     name: row.name || '',
     project: row.project || '',
     bindPerson: row.bindPerson || '',
+    deviceAccount: row.deviceAccount || '',
+    devicePassword: row.devicePassword || '',
     online: row.online ?? true,
     intercomLinked: row.intercomLinked ?? false,
     lastOnline: row.lastOnline || '',
