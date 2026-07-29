@@ -25,6 +25,9 @@ import {
   Document,
   Bell,
   Goods,
+  PictureFilled,
+  DocumentChecked,
+  WarnTriangleFilled,
 } from '@element-plus/icons-vue'
 import { sidebarMenu } from '../config/menu'
 import {
@@ -39,6 +42,11 @@ import {
   isHqOnlyMenuKey,
   isProjectOnlyMenuKey,
 } from '../utils/menuPermissionTree'
+import {
+  SAMPLE_APPROVE_MENU_KEYS,
+  canSeeSampleApproveMenu,
+  sampleDemoRole,
+} from '../utils/sampleDemoRole.js'
 import { APP_VERSION, getChangelogByVersion } from '../config/appVersion'
 
 const route = useRoute()
@@ -57,13 +65,22 @@ const { isHqSelected } = useCurrentProject()
 
 const projectOptions = COC_PROJECT_OPTIONS
 
-/** 企业级隐藏视频监控；项目级隐藏指挥部专属菜单 */
-const visibleSidebarMenu = computed(() =>
-  filterMenuByScope(
+/** 企业级隐藏视频监控；项目级隐藏指挥部专属菜单；样板审批菜单按 Demo 角色过滤 */
+const visibleSidebarMenu = computed(() => {
+  const scoped = filterMenuByScope(
     sidebarMenu,
     isHqSelected.value ? MENU_SCOPE_HQ : MENU_SCOPE_PROJECT,
-  ),
-)
+  )
+  if (canSeeSampleApproveMenu(sampleDemoRole.value)) return scoped
+  const stripApprove = (items = []) =>
+    items
+      .filter((item) => !SAMPLE_APPROVE_MENU_KEYS.has(item.key))
+      .map((item) =>
+        item.children?.length ? { ...item, children: stripApprove(item.children) } : item,
+      )
+      .filter((item) => !item.children || item.children.length > 0)
+  return stripApprove(scoped)
+})
 
 function collectMenuPathsBy(pred, items = sidebarMenu, acc = []) {
   for (const item of items) {
@@ -130,6 +147,9 @@ const iconMap = {
   Document,
   Bell,
   Goods,
+  PictureFilled,
+  DocumentChecked,
+  WarnTriangleFilled,
 }
 
 const activeMenu = computed(() => route.meta.sidebarKey || 'workbench')

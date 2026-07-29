@@ -13,6 +13,9 @@ import {
 import { machineHazardRoutes } from '../config/machineHazardMenu.js'
 import { qualityRoutes, qualityViewLoaders } from '../config/qualityMenu.js'
 import { brandRoutes, brandViewLoaders } from '../config/brandMenu.js'
+import { sampleRoutes, sampleViewLoaders } from '../config/sampleMenu.js'
+import { matRoutes, matViewLoaders } from '../config/matMenu.js'
+import { eqRoutes, eqViewLoaders } from '../config/eqMenu.js'
 
 const engineeringLibraryPath = '/basic-data/engineering-library'
 
@@ -51,6 +54,7 @@ const constructionSafetyRouteComponents = {
   'safety-plan-edit': () => import('../views/safety/InspectionPlanFormView.vue'),
   'safety-plan-detail': () => import('../views/safety/InspectionPlanDetailView.vue'),
   'safety-check-items': () => import('../views/safety/SafetyCheckItemsView.vue'),
+  'safety-inspector-config': () => import('../views/safety/InspectionPersonConfigView.vue'),
   'safety-task-manage': () => import('../views/safety/InspectionTaskManageView.vue'),
   'safety-task-detail': () => import('../views/safety/InspectionTaskDetailView.vue'),
   'safety-hazard': () => import('../views/safety/SafetyHazardListView.vue'),
@@ -302,6 +306,39 @@ const routes = [
         path: item.path.replace(/^\//, ''),
         name: item.name,
         component: brandViewLoaders[item.component],
+        meta: {
+          sidebarKey: item.sidebarKey || item.key,
+          tabKey: item.sidebarKey || item.key,
+          title: item.label,
+          description: item.description,
+        },
+      })),
+      ...sampleRoutes.map((item) => ({
+        path: item.path.replace(/^\//, ''),
+        name: item.name,
+        component: sampleViewLoaders[item.component],
+        meta: {
+          sidebarKey: item.sidebarKey || item.key,
+          tabKey: item.sidebarKey || item.key,
+          title: item.label,
+          description: item.description,
+        },
+      })),
+      ...matRoutes.map((item) => ({
+        path: item.path.replace(/^\//, ''),
+        name: item.name,
+        component: matViewLoaders[item.component],
+        meta: {
+          sidebarKey: item.sidebarKey || item.key,
+          tabKey: item.sidebarKey || item.key,
+          title: item.label,
+          description: item.description,
+        },
+      })),
+      ...eqRoutes.map((item) => ({
+        path: item.path.replace(/^\//, ''),
+        name: item.name,
+        component: eqViewLoaders[item.component],
         meta: {
           sidebarKey: item.sidebarKey || item.key,
           tabKey: item.sidebarKey || item.key,

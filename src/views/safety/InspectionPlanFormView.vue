@@ -23,8 +23,7 @@ const form = reactive({
   cycleInterval: 1,
   cycleType: 'week',
   cycleTimes: 3,
-  startDate: '',
-  endDate: '',
+  effectiveDate: '',
   remark: '',
   checkConfig: [],
 })
@@ -35,8 +34,8 @@ const cycleLabel = computed(() => {
   return map[form.cycleType] || '周'
 })
 const pushDesc = computed(() => {
-  if (form.cycleType === 'once') return '有效期内执行 1 次巡检'
-  return `每 ${form.cycleInterval} ${cycleLabel.value} 执行 ${form.cycleTimes} 次巡检，共生成 ${form.cycleTimes} 份检查单推送至执行人`
+  if (form.cycleType === 'once') return '有效期内执行 1 次巡检，任务默认推送至项目级巡检人'
+  return `每 ${form.cycleInterval} ${cycleLabel.value} 执行 ${form.cycleTimes} 次巡检，共生成 ${form.cycleTimes} 份检查单，默认推送至项目级巡检人`
 })
 
 function onTypeChange(val) {
@@ -117,7 +116,7 @@ const displayItems = computed(() => {
 const totalCheckItems = computed(() => form.checkConfig.reduce((s, c) => s + c.itemIds.length, 0))
 
 function removeConfig(index) {
-  if (index < 0 || index >= form.checkConfig.length) return
+  if (index < 0) return
   const removed = form.checkConfig.splice(index, 1)[0]
   if (removed && displayTreeCat.value === removed.categoryId) {
     displayTreeCat.value = form.checkConfig[0]?.categoryId || ''
@@ -137,8 +136,7 @@ onMounted(() => {
       form.cycleInterval = plan.cycleInterval || 1
       form.cycleType = plan.cycleType || 'week'
       form.cycleTimes = plan.cycleTimes || 3
-      form.startDate = plan.startDate
-      form.endDate = plan.endDate
+      form.effectiveDate = plan.startDate || ''
       form.remark = plan.remark || ''
       form.checkConfig = plan.checkConfig ? plan.checkConfig.map(c => ({ categoryId: c.categoryId, itemIds: [...c.itemIds] })) : []
       if (form.checkConfig.length > 0) displayTreeCat.value = form.checkConfig[0].categoryId
@@ -150,9 +148,8 @@ onMounted(() => {
 function handleSave() {
   if (!form.name.trim()) { ElMessage.warning('请输入计划名称'); return }
   if (form.projectIds.length === 0) { ElMessage.warning('请选择关联项目'); return }
-  if (!form.responsiblePerson) { ElMessage.warning('请选择责任人'); return }
   if (form.checkConfig.length === 0) { ElMessage.warning('请配置检查内容'); return }
-  if (!form.startDate || !form.endDate) { ElMessage.warning('请选择生效日期'); return }
+  if (!form.effectiveDate) { ElMessage.warning('请选择生效日期'); return }
 
   const projLabels = form.projectIds.map(id => projectOptions.find(p => p.id === id)?.label || '').filter(Boolean)
   const payload = {
@@ -161,10 +158,10 @@ function handleSave() {
     checkConfig: form.checkConfig.map(c => ({ categoryId: c.categoryId, itemIds: [...c.itemIds] })),
     responsiblePerson: form.responsiblePerson, ccPersons: [...form.ccPersons],
     cycleType: form.cycleType, cycleInterval: form.cycleInterval, cycleTimes: form.cycleTimes,
-    startDate: form.startDate, endDate: form.endDate, remark: form.remark.trim(),
+    effectiveDate: form.effectiveDate, remark: form.remark.trim(),
   }
   if (isEdit.value) { updatePlan(route.params.id, payload); ElMessage.success('计划已更新') }
-  else { addPlan(payload); ElMessage.success('计划已创建，规则生效后将自动推送检查单') }
+  else { addPlan(payload); ElMessage.success('计划已创建，规则生效后将自动推送检查单给项目巡检人') }
   router.push('/safety-inspection/plan')
 }
 function handleCancel() { router.push('/safety-inspection/plan') }
@@ -200,23 +197,9 @@ function handleCancel() { router.push('/safety-inspection/plan') }
 
       <!-- ===== 执行规则 ===== -->
       <h4 class="form-section-title" style="margin-top: 28px">执行规则</h4>
-      <el-form-item label="责任人" required>
-        <el-select v-model="form.responsiblePerson" filterable placeholder="请选择责任人" style="width: 100%">
-          <el-option v-for="u in userOptions" :key="u.id" :label="`${u.label}（${u.role}）`" :value="u.id" />
-        </el-select>
-      </el-form-item>
       <el-form-item label="推送规则" required>
         <div class="push-rule">
           <span class="push-label">每</span>
-          <el-input-number
-            v-model="form.cycleInterval"
-            :min="1"
-            :max="30"
-            size="default"
-            controls-position="right"
-            style="width: 90px"
-            :disabled="form.cycleType==='once'"
-          />
           <el-select v-model="form.cycleType" style="width: 100px" :disabled="form.cycleType==='once'">
             <el-option label="天" value="day" />
             <el-option label="周" value="week" />
@@ -235,11 +218,7 @@ function handleCancel() { router.push('/safety-inspection/plan') }
         </el-select>
       </el-form-item>
       <el-form-item label="生效日期" required>
-        <div class="date-range-row">
-          <el-date-picker v-model="form.startDate" type="date" placeholder="开始日期" value-format="YYYY-MM-DD" style="width: 100%" />
-          <span class="date-sep">至</span>
-          <el-date-picker v-model="form.endDate" type="date" placeholder="结束日期" value-format="YYYY-MM-DD" style="width: 100%" />
-        </div>
+        <el-date-picker v-model="form.effectiveDate" type="date" placeholder="选择生效日期" value-format="YYYY-MM-DD" style="width: 100%" />
       </el-form-item>
 
       <!-- ===== 配置检查内容 ===== -->
@@ -255,7 +234,7 @@ function handleCancel() { router.push('/safety-inspection/plan') }
         <div v-if="form.checkConfig.length > 0" class="result-tree-layout">
           <div class="result-tree-left">
             <div
-              v-for="(cfg, cfgIndex) in form.checkConfig"
+              v-for="cfg in form.checkConfig"
               :key="cfg.categoryId"
               class="result-tree-cat"
               :class="{ active: displayTreeCat === cfg.categoryId }"
@@ -265,7 +244,7 @@ function handleCancel() { router.push('/safety-inspection/plan') }
                 {{ getCategoryLabel(cfg.categoryId) }}
               </el-tag>
               <span class="result-tree-cat-count">{{ cfg.itemIds.length }} 项</span>
-              <el-button text type="danger" size="small" @click.stop="removeConfig(cfgIndex)">移除</el-button>
+              <el-button text type="danger" size="small" @click.stop="removeConfig(form.checkConfig.indexOf(cfg))">移除</el-button>
             </div>
           </div>
           <div class="result-tree-right">
@@ -356,8 +335,7 @@ function handleCancel() { router.push('/safety-inspection/plan') }
 .plan-form { padding: 8px 0; }
 .type-radio { padding: 8px 18px; border-radius: 6px; }
 .form-tip { font-size: 11px; color: var(--ap-text-muted); margin-top: 4px; }
-.date-range-row { display: flex; align-items: center; gap: 10px; width: 100%; }
-.date-sep { flex-shrink: 0; font-size: 13px; color: var(--ap-text-muted); }
+.date-sep { display: block; text-align: center; font-size: 12px; color: var(--ap-text-muted); padding: 4px 0; }
 .form-actions { display: flex; justify-content: flex-end; gap: 12px; padding-bottom: 24px; }
 
 /* 推送规则 */
@@ -368,11 +346,10 @@ function handleCancel() { router.push('/safety-inspection/plan') }
 .check-config-area { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
 .config-hint { font-size: 12px; color: var(--ap-text-muted); }
 .result-tree-layout { display: flex; border: 1px solid var(--ap-border); border-radius: 6px; overflow: hidden; margin-top: 10px; }
-.result-tree-left { width: 240px; flex-shrink: 0; border-right: 1px solid var(--ap-border); background: #fafafa; padding: 6px 0; overflow-y: auto; max-height: 300px; }
-.result-tree-cat { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 12px; cursor: pointer; font-size: 13px; }
+.result-tree-left { width: 200px; flex-shrink: 0; border-right: 1px solid var(--ap-border); background: #fafafa; padding: 6px 0; overflow-y: auto; max-height: 300px; }
+.result-tree-cat { display: flex; align-items: center; gap: 6px; padding: 8px 12px; cursor: pointer; font-size: 13px; }
 .result-tree-cat:hover { background: var(--ap-primary-muted); }
 .result-tree-cat.active { background: var(--ap-primary-light); }
-.result-tree-cat :deep(.el-tag) { max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
 .result-tree-cat-count { font-size: 11px; color: var(--ap-text-muted); margin-right: auto; }
 .result-tree-right { flex: 1; padding: 12px 16px; min-height: 100px; overflow-y: auto; max-height: 300px; }
 .result-tree-items { display: flex; flex-direction: column; gap: 4px; }

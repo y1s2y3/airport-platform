@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { getProjectInspectorLabel } from '../../composables/useInspectionPersonConfig'
 
 const route = useRoute()
 const router = useRouter()
@@ -8,16 +9,16 @@ const taskId = route.params.id
 
 // ===== 5条任务基本信息 =====
 const taskMap = {
-  'mt-000': { taskNo:'XJ20260730001', planName:'6月底安全巡检', planNo:'JH2026007', planType:'周检', source:'任务推送', project:'飞行区跑道延长工程', executor:'', inspector:'', companions:[], deadline:'2026-07-10', inspectionDate:'', status:'待指派', itemCount:10, hazardCount:0, result:'', normalPhotos:[], hazardItems:[] },
-  'mt-001': { taskNo:'XJ20260728001', planName:'7月第4周安全巡检', planNo:'JH2026001', planType:'周检', source:'任务推送', project:'飞行区跑道延长工程', executor:'王工', inspector:'王工', companions:[], deadline:'2026-07-28', inspectionDate:'', status:'待执行', itemCount:12, hazardCount:0, result:'', normalPhotos:[], hazardItems:[] },
-  'mt-002': { taskNo:'XJ20260720002', planName:'临时用电专项检查', planNo:'JH2026002', planType:'专项巡检', source:'任务推送', project:'T3航站楼扩建工程', executor:'王工', inspector:'王工', companions:['刘工'], deadline:'2026-07-20', inspectionDate:'2026-07-20', status:'已完成', itemCount:8, hazardCount:2, result:'hazard', normalPhotos:[],
+  'mt-000': { taskNo:'XJ20260730001', planName:'6月底安全巡检', planNo:'JH2026007', planType:'周检', source:'任务推送', project:'飞行区跑道延长工程', projectId:'p-000', executor:'', inspector:getProjectInspectorLabel('p-000'), companions:[], deadline:'2026-07-10', inspectionDate:'', status:'待执行', itemCount:10, hazardCount:0, result:'', normalPhotos:[], hazardItems:[] },
+  'mt-001': { taskNo:'XJ20260728001', planName:'7月第4周安全巡检', planNo:'JH2026001', planType:'周检', source:'任务推送', project:'飞行区跑道延长工程', projectId:'p-000', executor:'王工', inspector:getProjectInspectorLabel('p-000'), companions:[], deadline:'2026-07-28', inspectionDate:'', status:'待执行', itemCount:12, hazardCount:0, result:'', normalPhotos:[], hazardItems:[] },
+  'mt-002': { taskNo:'XJ20260720002', planName:'临时用电专项检查', planNo:'JH2026002', planType:'专项巡检', source:'任务推送', project:'T3航站楼扩建工程', projectId:'p-001', executor:'王工', inspector:getProjectInspectorLabel('p-001'), companions:[], deadline:'2026-07-20', inspectionDate:'2026-07-20', status:'已完成', itemCount:8, hazardCount:2, result:'hazard', normalPhotos:[],
     hazardItems:[
       { desc:'五芯电缆破损，线路未按规范敷设', photos:['📷 隐患照片1'], hasRectify:true, rectifyNo:'ZG202607001', rectifyId:'rec-001', rectifier:'赵工', rectifyDeadline:'2026-07-30' },
       { desc:'电缆线路沿地明敷未做保护', photos:['📷 隐患照片1'], hasRectify:true, rectifyNo:'ZG202607002', rectifyId:'rec-002', rectifier:'赵工', rectifyDeadline:'2026-07-30' },
     ] },
-  'mt-003': { taskNo:'XJ20260721003', planName:'7月第三周安全巡检', planNo:'JH2026001', planType:'周检', source:'任务推送', project:'T3航站楼扩建工程', executor:'王工', inspector:'王工', companions:['刘工','陈工'], deadline:'2026-07-21', inspectionDate:'2026-07-21', status:'已完成', itemCount:12, hazardCount:0, result:'normal', normalPhotos:['📷 巡检照片1','📷 巡检照片2'], hazardItems:[] },
-  'mt-004': { taskNo:'XJ20260731004', planName:'', planNo:'', planType:'月检', source:'系统自建', project:'新货运站建设工程', executor:'王工', inspector:'王工', companions:[], deadline:'', inspectionDate:'2026-07-31', status:'已完成', itemCount:0, hazardCount:0, result:'normal', normalPhotos:['📷 巡检照片1','📷 巡检照片2'], hazardItems:[] },
-  'mt-005': { taskNo:'XJ20260728005', planName:'', planNo:'', planType:'专项巡检', source:'系统自建', project:'飞行区跑道延长工程', executor:'王工', inspector:'王工', companions:['吴工'], deadline:'', inspectionDate:'2026-07-28', status:'已完成', itemCount:0, hazardCount:1, result:'hazard', normalPhotos:[],
+  'mt-003': { taskNo:'XJ20260721003', planName:'7月第三周安全巡检', planNo:'JH2026001', planType:'周检', source:'任务推送', project:'T3航站楼扩建工程', projectId:'p-001', executor:'王工', inspector:getProjectInspectorLabel('p-001'), companions:[], deadline:'2026-07-21', inspectionDate:'2026-07-21', status:'已完成', itemCount:12, hazardCount:0, result:'normal', normalPhotos:['📷 巡检照片1','📷 巡检照片2'], hazardItems:[] },
+  'mt-004': { taskNo:'XJ20260731004', planName:'【自建】月检巡检', planNo:'', planType:'月检', source:'系统自建', project:'新货运站建设工程', projectId:'p-003', executor:'王工', inspector:'王工', companions:[], deadline:'2026-07-31', inspectionDate:'2026-07-31', status:'已完成', itemCount:0, hazardCount:0, result:'normal', normalPhotos:['📷 巡检照片1','📷 巡检照片2'], hazardItems:[] },
+  'mt-005': { taskNo:'XJ20260728005', planName:'【自建】专项巡检', planNo:'', planType:'专项巡检', source:'系统自建', project:'飞行区跑道延长工程', projectId:'p-000', executor:'王工', inspector:'王工', companions:['吴工'], deadline:'2026-07-28', inspectionDate:'2026-07-28', status:'已完成', itemCount:0, hazardCount:1, result:'hazard', normalPhotos:[],
     hazardItems:[
       { desc:'电缆破损，存在安全隐患', photos:['📷 隐患照片1','📷 隐患照片2'], hasRectify:true, rectifyNo:'ZG202607007', rectifyId:'rec-007', rectifier:'赵工', rectifyDeadline:'2026-08-05' },
     ] },
@@ -112,7 +113,7 @@ function goRectify(id) { if (id) router.push(`/safety-inspection/hazard/${id}`) 
       <!-- 系统自建：展示巡检日期 -->
       <div class="info-row" v-if="taskInfo.source === '系统自建' && taskInfo.inspectionDate"><span class="il">巡检日期</span><span class="iv">{{ taskInfo.inspectionDate }}</span></div>
       <div class="info-row"><span class="il">状态</span>
-        <span class="iv" :style="{color:taskInfo.status==='已完成'?'#34a853':taskInfo.status==='待指派'?'#999':'#f5a623',fontWeight:600}">{{ taskInfo.status }}</span>
+        <span class="iv" :style="{color:taskInfo.status==='已完成'?'#34a853':'#f5a623',fontWeight:600}">{{ taskInfo.status }}</span>
       </div>
     </div>
 

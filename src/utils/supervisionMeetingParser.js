@@ -30,12 +30,21 @@ export function isSupervisionWordFileName(fileName = '') {
   return /\.(doc|docx)$/i.test(String(fileName || '').trim())
 }
 
+/** 监理例会纪要：支持 Word / PDF */
+export function isSupervisionMinutesFileName(fileName = '') {
+  return /\.(doc|docx|pdf)$/i.test(String(fileName || '').trim())
+}
+
+export function isSupervisionPdfFileName(fileName = '') {
+  return /\.pdf$/i.test(String(fileName || '').trim())
+}
+
 /**
  * 模拟解析监理例会纪要 Word 附件，提取会议字段与隐患清单。
  * 正式环境可替换为服务端 OCR / 文档解析接口。
  *
  * 兜底约定（与需求文档一致）：
- * - 上传格式仅 doc/docx；非法格式由调用方拦截
+ * - 上传格式支持 doc/docx/pdf；自动解析目前仅 Word
  * - 解析失败返回 failed，前端须提示并允许手动录入隐患
  * - 解析成功字段（含整改人、整改期限）允许人工修正
  *
@@ -43,6 +52,17 @@ export function isSupervisionWordFileName(fileName = '') {
  */
 export function parseSupervisionMeetingMinutes(fileName, projectName = '') {
   const name = String(fileName || '').trim()
+  if (isSupervisionPdfFileName(name)) {
+    return {
+      parseStatus: 'pending',
+      parsedAt: '',
+      pmAttendees: '',
+      directorAttendees: '',
+      hazards: [],
+      parseError: '',
+      summary: '已上传 PDF 纪要。当前演示环境仅对 Word 自动解析隐患，可手动补录本周隐患。',
+    }
+  }
   if (!isSupervisionWordFileName(name)) {
     return {
       parseStatus: 'failed',
@@ -50,7 +70,7 @@ export function parseSupervisionMeetingMinutes(fileName, projectName = '') {
       pmAttendees: '',
       directorAttendees: '',
       hazards: [],
-      parseError: '仅支持上传 .doc 或 .docx 格式的监理例会纪要',
+      parseError: '仅支持上传 .doc / .docx / .pdf 格式的监理例会纪要',
       summary: '',
     }
   }
@@ -79,11 +99,12 @@ export function parseSupervisionMeetingMinutes(fileName, projectName = '') {
     const sample = PARSED_HAZARD_SAMPLES[(seed + index) % PARSED_HAZARD_SAMPLES.length]
     return {
       ...sample,
+      remark: '',
       rectifier: '',
       hazardDeadline: '',
       acceptor: '',
       source: '监理解析',
-      rectifyStatus: '待下发',
+      rectifyStatus: '待整改',
     }
   })
 
@@ -94,6 +115,6 @@ export function parseSupervisionMeetingMinutes(fileName, projectName = '') {
     directorAttendees,
     hazards,
     parseError: '',
-    summary: `已从「${fileName}」解析 ${hazards.length} 条隐患记录（状态为待下发，请在监理隐患清单中下发并指定整改人/期限/验收人）`,
+    summary: `已从「${fileName}」解析 ${hazards.length} 条隐患记录（默认待整改，可在监理隐患清单中确认关闭）`,
   }
 }

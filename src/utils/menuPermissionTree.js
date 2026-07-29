@@ -35,6 +35,8 @@ export const HQ_ONLY_MENU_KEYS = new Set([
   /** 品牌报审（一级菜单）· 企业主数据 */
   'brand-library',
   'brand-material',
+  /** 材料进场管理 · 指挥部标准库 */
+  'mat-library',
 ])
 
 /**
@@ -62,6 +64,18 @@ export const PROJECT_ONLY_MENU_KEYS = new Set([
   /** 品牌报审（一级菜单）· 项目执行；审批走个人中心待办，无独立「报审审批」菜单 */
   'brand-ledger',
   'brand-application',
+  /** 样板管理 · 项目执行（台账 sample-ledger 两端可见，不在此列） */
+  'sample-material-app',
+  'sample-material-approve',
+  'sample-process-app',
+  'sample-process-approve',
+  /** 材料进场管理 · 项目执行（看板两端可见；标准库仅指挥部） */
+  'mat-ledger',
+  'mat-application',
+  'mat-exit',
+  /** 设备进场管理 · 项目执行（看板两端可见） */
+  'eq-ledger',
+  'eq-application',
   /** 人员实名制 · 项目执行（指挥部仅留统计/配置/黑名单；劳务看板两端可见） */
   'labor-realname',
   'labor-personnel-track',
@@ -77,7 +91,8 @@ export const PROJECT_ONLY_MENU_KEYS = new Set([
   'vehicle-warning-list',
   'app-vehicle-access',
   'app-vehicle-warning',
-  /** 安全巡检 · 整改复查(移动端)仅项目层；安全巡检(移动端)指挥部/项目均可见 */
+  /** 安全巡检 · 巡检人配置 / 整改复查(移动端)仅项目层；安全巡检(移动端)指挥部/项目均可见 */
+  'safety-inspector-config',
   'mobile-rectify',
   'app-mobile-rectify',
   /** 机械设备台账 · 项目维护 */

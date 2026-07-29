@@ -13,8 +13,10 @@ import {
 import {
   parseSupervisionMeetingMinutes,
   isSupervisionWordFileName,
+  isSupervisionMinutesFileName,
+  isSupervisionPdfFileName,
 } from '../../utils/supervisionMeetingParser.js'
-import { downloadSupervisionMeetingMinutesTemplate } from '../../utils/supervisionMeetingTemplate.js'
+import { downloadWeeklyHazardListTemplate } from '../../utils/supervisionMeetingTemplate.js'
 import SupervisionHazardListPanel from './SupervisionHazardListPanel.vue'
 
 defineProps({
@@ -42,7 +44,8 @@ const showHazardEditor = computed(
   () =>
     form.value.parseStatus === 'success' ||
     form.value.parseStatus === 'failed' ||
-    parsedHazards.value.length > 0,
+    parsedHazards.value.length > 0 ||
+    (Boolean(form.value.minutesFile) && isSupervisionPdfFileName(form.value.minutesFile)),
 )
 
 function createManualHazard(overrides = {}) {
@@ -50,11 +53,12 @@ function createManualHazard(overrides = {}) {
     hazardType: 'safety',
     description: '',
     hazardLevel: '一般',
+    remark: '',
     rectifier: '',
     hazardDeadline: '',
     acceptor: '',
     source: '人工登记',
-    rectifyStatus: '待下发',
+    rectifyStatus: '待整改',
     ...overrides,
   }
 }
@@ -145,15 +149,34 @@ function assignUploadFile(field, uploadFile) {
   return false
 }
 
-function handleWordUpload(uploadFile) {
+function handleMinutesUpload(uploadFile) {
   const fileName = uploadFile.name || ''
-  if (!isSupervisionWordFileName(fileName)) {
-    ElMessage.error('仅支持上传 .doc 或 .docx 格式的监理例会纪要，请重新选择文件')
+  if (!isSupervisionMinutesFileName(fileName)) {
+    ElMessage.error('监理例会纪要仅支持 .doc / .docx / .pdf，请重新选择文件')
     return false
   }
 
-  form.value.minutesWord = fileName
+  form.value.minutesFile = fileName
+  // 兼容旧字段：Word 写入 minutesWord，PDF 写入 minutesPdf
+  if (isSupervisionWordFileName(fileName)) {
+    form.value.minutesWord = fileName
+    form.value.minutesPdf = ''
+  } else {
+    form.value.minutesPdf = fileName
+    form.value.minutesWord = ''
+  }
+
   if (isNotHeld(form.value)) return false
+
+  if (isSupervisionPdfFileName(fileName)) {
+    parsing.value = false
+    parseError.value = ''
+    form.value.parseStatus = 'pending'
+    form.value.parsedAt = ''
+    parsedHazards.value = []
+    ElMessage.success('已上传 PDF 纪要。演示环境暂不对 PDF 自动解析，可手动补录隐患。')
+    return false
+  }
 
   parsing.value = true
   parseError.value = ''
@@ -162,7 +185,7 @@ function handleWordUpload(uploadFile) {
 
   window.setTimeout(() => {
     const result = parseSupervisionMeetingMinutes(
-      form.value.minutesWord,
+      form.value.minutesFile,
       form.value.projectName || scopeProjectName.value,
     )
     form.value.pmAttendees = result.pmAttendees
@@ -180,6 +203,16 @@ function handleWordUpload(uploadFile) {
     }
   }, 600)
 
+  return false
+}
+
+function handleWeeklyHazardUpload(uploadFile) {
+  const fileName = uploadFile.name || ''
+  if (!/\.xlsx$/i.test(fileName)) {
+    ElMessage.error('本周隐患清单仅支持 .xlsx 格式')
+    return false
+  }
+  form.value.weeklyHazardList = fileName
   return false
 }
 
@@ -226,17 +259,28 @@ function validateForm() {
     }
     return true
   }
-  if (!form.value.minutesWord?.trim()) {
-    ElMessage.warning('请上传监理例会纪要 Word 附件（仅支持 .doc / .docx）')
+  if (!form.value.minutesFile?.trim()) {
+    ElMessage.warning('请上传监理例会纪要（支持 .doc / .docx / .pdf）')
     return false
   }
-  if (!isSupervisionWordFileName(form.value.minutesWord)) {
-    ElMessage.error('纪要附件格式不正确，仅支持 .doc / .docx')
+  if (!isSupervisionMinutesFileName(form.value.minutesFile)) {
+    ElMessage.error('纪要附件格式不正确，仅支持 .doc / .docx / .pdf')
+    return false
+  }
+  if (!form.value.weeklyHazardList?.trim()) {
+    ElMessage.warning('请上传本周隐患清单')
+    return false
+  }
+  if (!/\.xlsx$/i.test(form.value.weeklyHazardList)) {
+    ElMessage.error('本周隐患清单仅支持 .xlsx 格式')
     return false
   }
   if (form.value.parseStatus === 'parsing') {
     ElMessage.warning('附件正在解析，请稍候')
     return false
+  }
+  if (isSupervisionPdfFileName(form.value.minutesFile)) {
+    return true
   }
   if (form.value.parseStatus === 'failed') {
     if (!parsedHazards.value.length) {
@@ -282,8 +326,8 @@ function submitForm() {
 }
 
 function handleDownloadTemplate() {
-  downloadSupervisionMeetingMinutesTemplate()
-  ElMessage.success('模版已下载，填写后上传 Word 附件')
+  downloadWeeklyHazardListTemplate()
+  ElMessage.success('清单模板已下载，按模板填报后上传本周隐患清单')
 }
 
 watch(selectedProjectId, () => {
@@ -309,7 +353,7 @@ onMounted(load)
         <el-tab-pane label="会议记录" name="meeting">
           <div class="tab-toolbar">
             <el-input v-model="keyword" placeholder="搜索项目、参会人员、解析状态…" clearable class="search-input" />
-            <el-button v-if="!isHqSelected" :icon="Download" @click="handleDownloadTemplate">下载模版</el-button>
+            <el-button v-if="!isHqSelected" :icon="Download" @click="handleDownloadTemplate">清单模板</el-button>
             <el-button v-if="!isHqSelected" type="primary" :icon="Plus" @click="openCreate">登记会议</el-button>
           </div>
 
@@ -329,7 +373,7 @@ onMounted(load)
             <el-table-column prop="hazardCount" label="隐患条数" width="88" align="center" />
             <el-table-column label="例会纪要" width="88" align="center">
               <template #default="{ row }">
-                <el-tag v-if="row.minutesWord" type="success" size="small">已上传</el-tag>
+                <el-tag v-if="row.minutesFile || row.minutesWord || row.minutesPdf" type="success" size="small">已上传</el-tag>
                 <el-tag v-else-if="isNotHeld(row)" type="info" size="small">未召开</el-tag>
                 <el-tag v-else type="warning" size="small">缺件</el-tag>
               </template>
@@ -347,7 +391,7 @@ onMounted(load)
         <el-tab-pane label="监理隐患清单" name="hazard">
           <SupervisionHazardListPanel
             ref="hazardPanelRef"
-            :readonly="isHqSelected"
+            :allow-close="isHqSelected"
             :project-name="scopeProjectName"
           />
         </el-tab-pane>
@@ -387,20 +431,26 @@ onMounted(load)
         </el-form-item>
 
         <el-divider content-position="left">监理例会纪要附件</el-divider>
-        <p class="form-tip">
-          请先
-          <el-button link type="primary" @click="handleDownloadTemplate">下载纪要模版</el-button>
-          ，填写后上传 Word 附件（仅支持 .doc / .docx）。系统自动解析会议内容与隐患清单；解析失败可重新上传或手动补录隐患；解析出的整改人、整改期限等字段允许直接修正。
-        </p>
-        <el-form-item label="监理例会纪要 Word" required>
+        <el-form-item label="监理例会纪要" required>
           <div class="upload-row">
-            <el-upload :show-file-list="false" accept=".doc,.docx" :before-upload="handleWordUpload">
-              <el-button :icon="Upload" :loading="parsing">上传 Word</el-button>
+            <el-upload
+              :show-file-list="false"
+              accept=".doc,.docx,.pdf"
+              :before-upload="handleMinutesUpload"
+            >
+              <el-button :icon="Upload" :loading="parsing">上传附件</el-button>
             </el-upload>
-            <span class="file-name">{{ form.minutesWord || '未选择文件' }}</span>
+            <span class="file-name">{{ form.minutesFile || '未选择文件' }}</span>
             <el-tag v-if="form.parseStatus === 'success'" type="success" size="small">已解析</el-tag>
             <el-tag v-else-if="form.parseStatus === 'failed'" type="danger" size="small">解析失败</el-tag>
             <el-tag v-else-if="parsing || form.parseStatus === 'parsing'" type="warning" size="small">解析中</el-tag>
+            <el-tag
+              v-else-if="form.minutesFile && isSupervisionPdfFileName(form.minutesFile)"
+              type="info"
+              size="small"
+            >
+              PDF 已上传
+            </el-tag>
           </div>
         </el-form-item>
         <el-alert
@@ -413,12 +463,23 @@ onMounted(load)
           description="可重新上传符合模版的 .doc/.docx，或点击下方「手动新增隐患」补录后保存。"
         />
 
-        <el-form-item label="监理例会纪要 PDF">
-          <div class="upload-row">
-            <el-upload :show-file-list="false" accept=".pdf" :before-upload="(f) => assignUploadFile('minutesPdf', f)">
-              <el-button :icon="Upload">上传 PDF（可选）</el-button>
-            </el-upload>
-            <span class="file-name">{{ form.minutesPdf || '未选择文件' }}</span>
+        <el-form-item label="本周隐患清单" required>
+          <div class="weekly-hazard-field">
+            <p class="form-tip form-tip--inline">
+              请先
+              <el-button link type="primary" @click="handleDownloadTemplate">下载清单模板</el-button>
+              ，按模板填报后上传（仅支持 .xlsx）。隐患类型、隐患描述、隐患等级为必填；类型选安全/质量，等级选一般/较大/重大。
+            </p>
+            <div class="upload-row">
+              <el-upload
+                :show-file-list="false"
+                accept=".xlsx"
+                :before-upload="handleWeeklyHazardUpload"
+              >
+                <el-button :icon="Upload">上传附件</el-button>
+              </el-upload>
+              <span class="file-name">{{ form.weeklyHazardList || '未选择文件' }}</span>
+            </div>
           </div>
         </el-form-item>
 
@@ -431,7 +492,7 @@ onMounted(load)
               <div class="hazard-editor-toolbar">
                 <el-button type="primary" link :icon="Plus" @click="addManualHazard">手动新增隐患</el-button>
                 <span class="hazard-editor-tip">
-                  解析隐患默认「待下发」，无整改人/期限；保存后请在「监理隐患清单」中下发
+                  解析/补录隐患默认「待整改」；保存后可在「监理隐患清单」中确认关闭
                 </span>
               </div>
               <el-table :data="parsedHazards" size="small" border empty-text="暂无隐患，可手动新增">
@@ -456,16 +517,15 @@ onMounted(load)
                     </el-select>
                   </template>
                 </el-table-column>
-                <el-table-column label="状态" width="88" align="center">
+                <el-table-column label="备注" min-width="120">
                   <template #default="{ row }">
-                    <el-tag size="small" type="info">{{ row.rectifyStatus || '待下发' }}</el-tag>
+                    <el-input v-model="row.remark" size="small" placeholder="选填" />
                   </template>
                 </el-table-column>
-                <el-table-column label="整改人" width="72" align="center">
-                  <template #default>——</template>
-                </el-table-column>
-                <el-table-column label="整改期限" width="88" align="center">
-                  <template #default>——</template>
+                <el-table-column label="状态" width="88" align="center">
+                  <template #default="{ row }">
+                    <el-tag size="small" type="warning">{{ row.rectifyStatus || '待整改' }}</el-tag>
+                  </template>
                 </el-table-column>
                 <el-table-column label="来源" width="88">
                   <template #default="{ row }">{{ row.source === '人工登记' ? '人工登记' : '监理解析' }}</template>
@@ -524,8 +584,10 @@ onMounted(load)
           <el-descriptions-item label="解析状态">{{ parseStatusLabel(current.parseStatus) }}</el-descriptions-item>
           <el-descriptions-item label="解析时间">{{ current.parsedAt || '—' }}</el-descriptions-item>
           <el-descriptions-item label="隐患条数">{{ current.hazardCount ?? 0 }}</el-descriptions-item>
-          <el-descriptions-item label="监理例会纪要 Word">{{ current.minutesWord || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="监理例会纪要 PDF">{{ current.minutesPdf || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="监理例会纪要">
+            {{ current.minutesFile || current.minutesWord || current.minutesPdf || '—' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="本周隐患清单">{{ current.weeklyHazardList || '—' }}</el-descriptions-item>
           <el-descriptions-item label="签到表照片">{{ current.signInPhoto || '—' }}</el-descriptions-item>
           <el-descriptions-item label="会议照片">{{ current.meetingPhoto || '—' }}</el-descriptions-item>
           <el-descriptions-item label="备注">{{ current.remark || '—' }}</el-descriptions-item>
@@ -541,17 +603,11 @@ onMounted(load)
             </el-table-column>
             <el-table-column prop="description" label="隐患描述" min-width="180" show-overflow-tooltip />
             <el-table-column prop="hazardLevel" label="等级" width="72" />
+            <el-table-column label="备注" min-width="100" show-overflow-tooltip>
+              <template #default="{ row }">{{ row.remark || '—' }}</template>
+            </el-table-column>
             <el-table-column label="整改状态" width="88">
-              <template #default="{ row }">{{ row.rectifyStatus || '待下发' }}</template>
-            </el-table-column>
-            <el-table-column label="整改人" width="88">
-              <template #default="{ row }">{{ row.rectifier || '—' }}</template>
-            </el-table-column>
-            <el-table-column label="整改期限" width="112">
-              <template #default="{ row }">{{ row.hazardDeadline || '—' }}</template>
-            </el-table-column>
-            <el-table-column label="验收人" width="100">
-              <template #default="{ row }">{{ row.acceptor || '—' }}</template>
+              <template #default="{ row }">{{ row.rectifyStatus || '待整改' }}</template>
             </el-table-column>
           </el-table>
         </div>
@@ -614,6 +670,14 @@ onMounted(load)
   font-size: 13px;
   color: #606266;
   line-height: 1.6;
+}
+
+.form-tip--inline {
+  margin: 0 0 8px;
+}
+
+.weekly-hazard-field {
+  width: 100%;
 }
 
 .parse-fail-alert {

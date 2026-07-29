@@ -31,20 +31,20 @@ const hazardData = [
 ]
 
 const taskData = [
-  { id:'mt-000', taskNo:'XJ20260730001', project:'飞行区跑道延长工程', pid:'p-000', status:'待指派', deadline:'2026-07-10', desc:'6月底安全巡检' },
-  { id:'mt-001', taskNo:'XJ20260728001', project:'飞行区跑道延长工程', pid:'p-000', status:'待执行', deadline:'2026-07-28', desc:'7月第4周安全巡检' },
-  { id:'mt-002', taskNo:'XJ20260720002', project:'T3航站楼扩建工程', pid:'p-001', status:'已完成', deadline:'2026-07-20', desc:'临时用电专项检查' },
-  { id:'mt-003', taskNo:'XJ20260721003', project:'T3航站楼扩建工程', pid:'p-001', status:'已完成', deadline:'2026-07-21', desc:'7月第三周安全巡检' },
-  { id:'mt-004', taskNo:'XJ20260731004', project:'新货运站建设工程', pid:'p-003', status:'已完成', desc:'月检巡检' },
-  { id:'mt-005', taskNo:'XJ20260728005', project:'飞行区跑道延长工程', pid:'p-000', status:'已完成', desc:'专项巡检' },
-  { id:'mt-010', taskNo:'XJ20260715006', project:'综合配套区工程', pid:'p-004', status:'待指派', deadline:'2026-07-08', desc:'综合配套区周检' },
-  { id:'mt-011', taskNo:'XJ20260722007', project:'综合配套区工程', pid:'p-004', status:'已完成', desc:'综合配套区专项检查' },
-  { id:'mt-020', taskNo:'XJ20260718008', project:'捷运系统工程', pid:'p-005', status:'待执行', deadline:'2026-07-25', desc:'捷运系统月检' },
-  { id:'mt-021', taskNo:'XJ20260725009', project:'捷运系统工程', pid:'p-005', status:'已完成', deadline:'2026-07-25', desc:'捷运系统专项巡检' },
-  { id:'mt-030', taskNo:'XJ20260705010', project:'机坪扩建工程', pid:'p-006', status:'待指派', deadline:'2026-07-05', desc:'机坪扩建周检' },
-  { id:'mt-031', taskNo:'XJ20260728011', project:'机坪扩建工程', pid:'p-006', status:'已完成', desc:'机坪扩建巡检' },
-  { id:'mt-040', taskNo:'XJ20260712012', project:'航站楼连接线工程', pid:'p-007', status:'待执行', deadline:'2026-07-22', desc:'连接线工程周检' },
-  { id:'mt-041', taskNo:'XJ20260726013', project:'航站楼连接线工程', pid:'p-007', status:'已完成', deadline:'2026-07-26', desc:'连接线工程月检' },
+  { id:'mt-000', taskNo:'XJ20260730001', project:'飞行区跑道延长工程', pid:'p-000', status:'待执行', deadline:'2026-07-10', desc:'6月底安全巡检', hazardCount:0 },
+  { id:'mt-001', taskNo:'XJ20260728001', project:'飞行区跑道延长工程', pid:'p-000', status:'待执行', deadline:'2026-07-28', desc:'7月第4周安全巡检', hazardCount:0 },
+  { id:'mt-002', taskNo:'XJ20260720002', project:'T3航站楼扩建工程', pid:'p-001', status:'已完成', deadline:'2026-07-20', desc:'临时用电专项检查', hazardCount:2 },
+  { id:'mt-003', taskNo:'XJ20260721003', project:'T3航站楼扩建工程', pid:'p-001', status:'已完成', deadline:'2026-07-21', desc:'7月第三周安全巡检', hazardCount:0 },
+  { id:'mt-004', taskNo:'XJ20260731004', project:'新货运站建设工程', pid:'p-003', status:'已完成', desc:'【自建】月检巡检', hazardCount:0 },
+  { id:'mt-005', taskNo:'XJ20260728005', project:'飞行区跑道延长工程', pid:'p-000', status:'已完成', desc:'【自建】专项巡检', hazardCount:1 },
+  { id:'mt-010', taskNo:'XJ20260715006', project:'综合配套区工程', pid:'p-004', status:'待执行', deadline:'2026-07-08', desc:'综合配套区周检', hazardCount:0 },
+  { id:'mt-011', taskNo:'XJ20260722007', project:'综合配套区工程', pid:'p-004', status:'已完成', desc:'综合配套区专项检查', hazardCount:1 },
+  { id:'mt-020', taskNo:'XJ20260718008', project:'捷运系统工程', pid:'p-005', status:'待执行', deadline:'2026-07-25', desc:'捷运系统月检', hazardCount:0 },
+  { id:'mt-021', taskNo:'XJ20260725009', project:'捷运系统工程', pid:'p-005', status:'已完成', deadline:'2026-07-25', desc:'捷运系统专项巡检', hazardCount:0 },
+  { id:'mt-030', taskNo:'XJ20260705010', project:'机坪扩建工程', pid:'p-006', status:'待执行', deadline:'2026-07-05', desc:'机坪扩建周检', hazardCount:0 },
+  { id:'mt-031', taskNo:'XJ20260728011', project:'机坪扩建工程', pid:'p-006', status:'已完成', desc:'机坪扩建巡检', hazardCount:1 },
+  { id:'mt-040', taskNo:'XJ20260712012', project:'航站楼连接线工程', pid:'p-007', status:'待执行', deadline:'2026-07-22', desc:'连接线工程周检', hazardCount:0 },
+  { id:'mt-041', taskNo:'XJ20260726013', project:'航站楼连接线工程', pid:'p-007', status:'已完成', deadline:'2026-07-26', desc:'连接线工程月检', hazardCount:0 },
 ]
 
 // ===== 统计 =====
@@ -59,11 +59,11 @@ const hazardStats = computed(() => {
 
 const taskStats = computed(() => {
   const total = taskData.length
-  const assign = taskData.filter(d => d.status === '待指派').length
   const exec = taskData.filter(d => d.status === '待执行').length
   const done = taskData.filter(d => d.status === '已完成').length
+  const withHazard = taskData.filter(d => d.status === '已完成' && d.hazardCount > 0).length
   const overdue = taskData.filter(d => calcOverdue(d).overdue).length
-  return { total, assign, exec, done, overdue, rate: total ? Math.round(done / total * 100) : 0 }
+  return { total, exec, done, withHazard, overdue, rate: total ? Math.round(done / total * 100) : 0 }
 })
 
 // ===== 图表数据 =====
@@ -72,7 +72,7 @@ const projectShort = ['飞行区跑道','T3航站楼','新货运站','综合配�
 
 const taskChartData = computed(() => projectNames.map((name, i) => {
   const items = taskData.filter(d => d.project === name)
-  return { name: projectShort[i], assign: items.filter(d => d.status === '待指派').length, exec: items.filter(d => d.status === '待执行').length, done: items.filter(d => d.status === '已完成').length, rate: items.length ? Math.round(items.filter(d=>d.status==='已完成').length / items.length * 100) : 0 }
+  return { name: projectShort[i], exec: items.filter(d => d.status === '待执行').length, done: items.filter(d => d.status === '已完成').length, rate: items.length ? Math.round(items.filter(d=>d.status==='已完成').length / items.length * 100) : 0 }
 }))
 
 const hazardChartData = computed(() => projectNames.map((name, i) => {
@@ -109,7 +109,6 @@ function initCharts() {
         series: [{ type:'pie', radius:['40%','65%'],
           label: { show:true, formatter:'{d}%', fontSize:11 },
           data: [
-            { value:s.assign, name:'待指派', itemStyle:{color:'#bbb'} },
             { value:s.exec, name:'待执行', itemStyle:{color:'#f5a623'} },
             { value:s.done, name:'已完成', itemStyle:{color:'#34a853'} },
           ],
@@ -139,7 +138,7 @@ function initCharts() {
       const d = taskChartData.value
       chBarTask.setOption({
         tooltip: { trigger:'axis', axisPointer:{type:'shadow'} },
-        legend: { data:['待指派','待执行','已完成','完成率'], bottom:0, itemWidth:10, itemHeight:10, textStyle:{fontSize:11} },
+        legend: { data:['待执行','已完成','完成率'], bottom:0, itemWidth:10, itemHeight:10, textStyle:{fontSize:11} },
         grid: { left:40, right:40, top:20, bottom:40 },
         xAxis: { type:'category', data:d.map(v=>v.name), axisLabel:{fontSize:11} },
         yAxis: [
@@ -147,7 +146,6 @@ function initCharts() {
           { type:'value', name:'完成率%', min:0, max:100, axisLabel:{fontSize:10,formatter:'{value}%'}, splitLine:{show:false} },
         ],
         series: [
-          { name:'待指派', type:'bar', stack:'total', data:d.map(v=>v.assign), itemStyle:{color:'#bbb'} },
           { name:'待执行', type:'bar', stack:'total', data:d.map(v=>v.exec), itemStyle:{color:'#f5a623'} },
           { name:'已完成', type:'bar', stack:'total', data:d.map(v=>v.done), itemStyle:{color:'#34a853'} },
           { name:'完成率', type:'line', yAxisIndex:1, data:d.map(v=>v.rate), itemStyle:{color:'#4285f4'}, lineStyle:{width:2}, symbol:'circle', symbolSize:6 },
@@ -219,11 +217,11 @@ function goHazardList() { router.push('/safety-inspection/hazard') }
     <el-row :gutter="12" class="stat-row">
       <el-col :span="4" v-for="s in [
         { val:taskStats.total, lbl:'总任务', cls:'' },
-        { val:taskStats.assign, lbl:'待指派', cls:'muted' },
         { val:taskStats.exec, lbl:'待执行', cls:'warn' },
         { val:taskStats.done, lbl:'已完成', cls:'success' },
         { val:taskStats.rate+'%', lbl:'完成率', cls:'success' },
         { val:taskStats.overdue, lbl:'逾期任务', cls:'danger' },
+        { val:taskStats.withHazard, lbl:'有隐患任务', cls:'danger' },
       ]" :key="s.lbl" @click="goTaskList">
         <div class="stat-card" :class="s.cls ? 'stat-'+s.cls : ''">
           <div class="stat-val">{{ s.val }}</div>
@@ -250,24 +248,24 @@ function goHazardList() { router.push('/safety-inspection/hazard') }
         <div class="overdue-section">
           <div class="overdue-title">⚠ 逾期清单</div>
           <el-table :data="overdueItems" stripe border size="small" style="width:100%" class="overdue-table" @row-click="r => goDetail(r.type, r.id)">
-            <el-table-column label="类型" width="60" align="center">
+            <el-table-column label="类型" width="70" align="center">
               <template #default="{ row }">{{ row.type === 'task' ? '巡检' : '整改' }}</template>
             </el-table-column>
-            <el-table-column label="编号" width="130">
+            <el-table-column label="编号" >
               <template #default="{ row }">
                 {{ row.type === 'task' ? row.taskNo : getHazardNo(row.id) }}
               </template>
             </el-table-column>
-            <el-table-column prop="project" label="项目" min-width="130" show-overflow-tooltip />
-            <el-table-column label="逾期天数" width="75" align="center">
+            <el-table-column prop="project" label="项目" min- show-overflow-tooltip />
+            <el-table-column label="逾期天数"  align="center">
               <template #default="{ row }">
                 <span style="color:#e53935;font-weight:600">{{ row.days }}天</span>
               </template>
             </el-table-column>
-            <el-table-column label="状态" width="65" align="center">
+            <el-table-column label="状态" width="70" align="center">
               <template #default="{ row }">{{ row.status }}</template>
             </el-table-column>
-            <el-table-column label="截止日期" width="95" align="center">
+            <el-table-column label="截止日期"  align="center">
               <template #default="{ row }"><span style="color:#e53935">{{ row.deadline }}</span></template>
             </el-table-column>
           </el-table>
@@ -320,4 +318,7 @@ function goHazardList() { router.push('/safety-inspection/hazard') }
 .overdue-table { font-size:12px; }
 .overdue-table :deep(.el-table__row) { cursor:pointer; }
 .table-empty { text-align:center; padding:20px 0; color:#999; font-size:13px; }
+
+.el-table { width:100% !important; }
+.el-table__header-wrapper table, .el-table__body-wrapper table { table-layout:fixed; width:100% !important; }
 </style>

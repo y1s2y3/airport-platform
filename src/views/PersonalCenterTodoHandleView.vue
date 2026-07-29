@@ -14,6 +14,12 @@ import {
   pmApprove,
   supervisorApprove,
 } from '../mock/brand.js'
+import { supervisorApproveSample, pmApproveSample } from '../mock/sample.js'
+import { getEntryDetail, supervisorApproveEntry } from '../mock/mat.js'
+import {
+  getEntryDetail as getEqEntryDetail,
+  supervisorApproveEntry as supervisorApproveEqEntry,
+} from '../mock/eq.js'
 import BrandCandidateAttachBlock from './quality/brand/BrandCandidateAttachBlock.vue'
 import {
   submitPenaltyRecipientReport,
@@ -93,6 +99,9 @@ const todoSourceLabel = computed(() => {
   if (todo.value.category) return todo.value.category
   if (todo.value.type === 'penalty') return '处罚单'
   if (todo.value.type === 'brand') return '品牌报审'
+  if (todo.value.type === 'sample') return '样板管理'
+  if (todo.value.type === 'mat_entry') return '材料进场管理'
+  if (todo.value.type === 'eq_entry') return '设备进场管理'
   if (todo.value.processName?.includes('品牌报审')) return '品牌报审'
   if (todo.value.processName?.includes('检验批') || todo.value.processName?.includes('验收')) {
     return '质量验评'
@@ -162,6 +171,18 @@ const brandNodeLabel = computed(() => {
   if (todo.value?.brandNode === 'supervisor') return '待监理审'
   if (todo.value?.brandNode === 'pm') return '待项目经理审'
   return todo.value?.detail?.currentNode || ''
+})
+
+const matEntryDetail = computed(() => {
+  const id = todo.value?.matEntryId
+  if (!id || todo.value?.type !== 'mat_entry') return null
+  return getEntryDetail(id)
+})
+
+const eqEntryDetail = computed(() => {
+  const id = todo.value?.eqEntryId
+  if (!id || todo.value?.type !== 'eq_entry') return null
+  return getEqEntryDetail(id)
 })
 
 function resetForms() {
@@ -281,9 +302,37 @@ function submitAppealHandle() {
 }
 
 function submitCommonHandle() {
-  if (!commonForm.remark.trim()) return ElMessage.warning('请填写说明')
   const approved = commonForm.decision === 'pass'
   const row = todo.value
+  const needRemark =
+    !approved ||
+    (row?.type !== 'sample' &&
+      row?.type !== 'brand' &&
+      row?.type !== 'mat_entry' &&
+      row?.type !== 'eq_entry')
+  if (needRemark && !commonForm.remark.trim()) {
+    return ElMessage.warning(approved ? '请填写说明' : '请填写退回意见')
+  }
+  if (row?.type === 'eq_entry' && row.eqEntryId) {
+    const action = approved ? 'agree' : 'reject'
+    const opinion = commonForm.remark.trim()
+    const r = supervisorApproveEqEntry(row.eqEntryId, { action, opinion })
+    if (!r.ok) return ElMessage.error(r.msg)
+    return afterSubmit(
+      approved ? '监理同意' : '监理退回',
+      approved ? '设备进场审批通过' : '已退回施工单位',
+    )
+  }
+  if (row?.type === 'mat_entry' && row.matEntryId) {
+    const action = approved ? 'agree' : 'reject'
+    const opinion = commonForm.remark.trim()
+    const r = supervisorApproveEntry(row.matEntryId, { action, opinion })
+    if (!r.ok) return ElMessage.error(r.msg)
+    return afterSubmit(
+      approved ? '监理同意' : '监理退回',
+      approved ? '进场审批通过' : '已退回施工单位',
+    )
+  }
   if (row?.type === 'brand' && row.brandApplicationId) {
     const action = approved ? 'agree' : 'reject'
     const opinion = commonForm.remark.trim()
@@ -310,6 +359,33 @@ function submitCommonHandle() {
       return afterSubmit(
         approved ? '终审通过并入库' : '终审退回',
         approved ? '终审通过，已完成品牌入库' : '已退回施工单位',
+      )
+    }
+  }
+  if (row?.type === 'sample' && row.sampleApplicationId && row.sampleBizType) {
+    const action = approved ? 'agree' : 'reject'
+    const opinion = commonForm.remark.trim()
+    if (row.sampleNode === 'supervisor') {
+      const r = supervisorApproveSample(row.sampleBizType, row.sampleApplicationId, {
+        action,
+        opinion,
+      })
+      if (!r.ok) return ElMessage.error(r.msg)
+      return afterSubmit(
+        approved ? '监理同意' : '监理退回',
+        approved ? '已同意，项目经理终审待办已生成' : '已退回施工单位',
+      )
+    }
+    if (row.sampleNode === 'pm') {
+      const r = pmApproveSample(row.sampleBizType, row.sampleApplicationId, { action, opinion })
+      if (!r.ok) return ElMessage.error(r.msg)
+      return afterSubmit(
+        approved ? '终审通过' : '终审退回',
+        approved
+          ? row.sampleBizType === 'process'
+            ? '终审通过，已生成二维码'
+            : '终审通过，已入台账视图'
+          : '已退回施工单位',
       )
     }
   }
@@ -417,6 +493,154 @@ function submitCommonHandle() {
               <div class="cand-mfr">生产厂家：{{ c.manufacturer || '—' }}</div>
               <BrandCandidateAttachBlock :candidate="c" :editable="false" />
             </div>
+          </div>
+        </section>
+      </template>
+
+      <!-- 样板管理 -->
+      <template v-else-if="todo.type === 'sample'">
+        <section class="block block--panel">
+          <div class="block-head">
+            <div class="block-title">样板报审信息</div>
+            <el-tag size="small" type="warning" effect="light">
+              {{ todo.detail?.currentNode || (todo.sampleNode === 'pm' ? '待项目经理审' : '待监理审') }}
+            </el-tag>
+          </div>
+          <el-descriptions :column="2" border size="small" class="desc-panel">
+            <el-descriptions-item label="报审编号">
+              {{ todo.detail?.applicationId || todo.sampleApplicationId || '—' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="类型">
+              {{ todo.detail?.bizType || '—' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="名称">
+              {{ todo.detail?.title || '—' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="使用部位">
+              {{ todo.detail?.usePart || '—' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="项目">
+              {{ todo.detail?.project || '—' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="申请人">
+              {{ todo.applicant || '—' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="比选/交底" :span="2">
+              {{ todo.detail?.briefing || '—' }}
+            </el-descriptions-item>
+          </el-descriptions>
+        </section>
+      </template>
+
+      <!-- 材料进场 -->
+      <template v-else-if="todo.type === 'mat_entry'">
+        <section class="block block--panel">
+          <div class="block-head">
+            <div class="block-title">进场报验信息</div>
+            <el-tag size="small" type="warning" effect="light">待监理审</el-tag>
+          </div>
+          <el-descriptions :column="2" border size="small" class="desc-panel">
+            <el-descriptions-item label="进场单号">
+              {{ matEntryDetail?.entry_id || todo.detail?.entryId || todo.matEntryId || '—' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="项目">
+              {{ matEntryDetail?.project_label || todo.detail?.project || '—' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="材料名称">
+              {{ matEntryDetail?.material_name || todo.detail?.materialName || '—' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="品牌">
+              {{ matEntryDetail?.brand_name || todo.detail?.brandName || '—' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="定样单号">
+              {{ matEntryDetail?.sample_id || todo.detail?.sampleId || '—' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="数量">
+              <template v-if="matEntryDetail">
+                {{ matEntryDetail.quantity }}{{ matEntryDetail.unit }}
+              </template>
+              <template v-else>{{ todo.detail?.quantity || '—' }}</template>
+            </el-descriptions-item>
+            <el-descriptions-item label="供应商">
+              {{ matEntryDetail?.supplier || '—' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="品牌一致">
+              <el-tag
+                v-if="matEntryDetail"
+                size="small"
+                :type="matEntryDetail.brand_match ? 'success' : 'danger'"
+              >
+                {{ matEntryDetail.brand_match ? '一致' : '不一致' }}
+              </el-tag>
+              <span v-else>—</span>
+            </el-descriptions-item>
+            <el-descriptions-item label="合格证">{{ matEntryDetail?.cert_file || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="质检报告">{{ matEntryDetail?.inspect_file || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="现场照片">{{ matEntryDetail?.photo_file || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="送检结果">
+              {{
+                matEntryDetail?.inspect_result_checked
+                  ? matEntryDetail.inspect_result_file || '已勾选'
+                  : '未勾选'
+              }}
+            </el-descriptions-item>
+          </el-descriptions>
+        </section>
+      </template>
+
+      <!-- 设备进场 -->
+      <template v-else-if="todo.type === 'eq_entry'">
+        <section class="block block--panel">
+          <div class="block-head">
+            <div class="block-title">设备进场报验信息</div>
+            <el-tag size="small" type="warning" effect="light">待监理审</el-tag>
+          </div>
+          <el-descriptions :column="2" border size="small" class="desc-panel">
+            <el-descriptions-item label="进场单号">
+              {{ eqEntryDetail?.entry_id || todo.detail?.entryId || todo.eqEntryId || '—' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="项目">
+              {{ eqEntryDetail?.project_label || todo.detail?.project || '—' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="设备名称">
+              {{ eqEntryDetail?.equipment_name || todo.detail?.equipmentName || '—' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="品牌">
+              {{ eqEntryDetail?.brand_name || todo.detail?.brandName || '—' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="定样单号">
+              {{ eqEntryDetail?.sample_id || todo.detail?.sampleId || '—' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="数量">
+              <template v-if="eqEntryDetail">
+                {{ eqEntryDetail.quantity }}{{ eqEntryDetail.unit }}
+              </template>
+              <template v-else>{{ todo.detail?.quantity || '—' }}</template>
+            </el-descriptions-item>
+            <el-descriptions-item label="型号">{{ eqEntryDetail?.model || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="供应商">{{ eqEntryDetail?.supplier || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="合格证">{{ eqEntryDetail?.cert_file || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="质检报告">{{ eqEntryDetail?.inspect_file || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="现场照片">{{ eqEntryDetail?.photo_file || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="送检结果">
+              {{
+                eqEntryDetail?.inspect_result_checked
+                  ? eqEntryDetail.inspect_result_file || '已勾选'
+                  : '未勾选'
+              }}
+            </el-descriptions-item>
+          </el-descriptions>
+          <div v-if="eqEntryDetail?.unpack_items?.length" style="margin-top: 12px">
+            <div class="block-title" style="margin-bottom: 8px; font-size: 14px">开箱清单</div>
+            <el-table :data="eqEntryDetail.unpack_items" size="small" border stripe>
+              <el-table-column prop="label" label="检查项" min-width="120" />
+              <el-table-column label="齐全" width="80">
+                <template #default="{ row }">{{ row.ok ? '是' : '否' }}</template>
+              </el-table-column>
+              <el-table-column prop="remark" label="备注" min-width="120">
+                <template #default="{ row }">{{ row.remark || '—' }}</template>
+              </el-table-column>
+            </el-table>
           </div>
         </section>
       </template>
@@ -688,15 +912,35 @@ function submitCommonHandle() {
                 </div>
               </el-radio-group>
             </el-form-item>
-            <el-form-item label="说明" required>
+            <el-form-item
+              label="说明"
+              :required="
+                !(
+                  todo.type === 'sample' ||
+                  todo.type === 'brand' ||
+                  todo.type === 'mat_entry' ||
+                  todo.type === 'eq_entry'
+                ) ||
+                commonForm.decision === 'reject'
+              "
+            >
               <el-input
                 v-model="commonForm.remark"
                 type="textarea"
                 :rows="3"
                 :placeholder="
-                  todo.type === 'brand' && commonForm.decision === 'reject'
+                  commonForm.decision === 'reject' &&
+                  (todo.type === 'brand' ||
+                    todo.type === 'sample' ||
+                    todo.type === 'mat_entry' ||
+                    todo.type === 'eq_entry')
                     ? '退回意见必填'
-                    : '请填写审批说明'
+                    : todo.type === 'brand' ||
+                        todo.type === 'sample' ||
+                        todo.type === 'mat_entry' ||
+                        todo.type === 'eq_entry'
+                      ? '审批意见选填'
+                      : '请填写审批说明'
                 "
               />
             </el-form-item>

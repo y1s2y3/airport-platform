@@ -13,6 +13,8 @@ import {
   READ_STATUS_OPTIONS,
   NOTICE_MODULE_OPTIONS,
 } from '../mock/personalCenter.js'
+import '../mock/mat.js'
+import '../mock/eq.js'
 
 const route = useRoute()
 const router = useRouter()

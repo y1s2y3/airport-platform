@@ -7,6 +7,9 @@ export const PROCESS_STATUS_OPTIONS = ['审批中', '已通过', '已驳回', '�
 export const PROCESS_CATEGORY_OPTIONS = [
   '质量验评',
   '品牌报审',
+  '样板管理',
+  '材料进场',
+  '设备进场',
   '安全巡检',
   '人员实名',
   '车辆管理',
@@ -194,6 +197,186 @@ function seedTodos() {
         { title: '提交报验', time: '2026-07-18 09:32:15', user: '张工', remark: '提交检验批验收', status: 'done' },
         { title: '项目技术负责人审批', time: '', user: '当前用户', remark: '待审批', status: 'current' },
         { title: '监理验收', time: '', user: '监理工程师', remark: '', status: 'pending' },
+      ],
+    },
+    {
+      id: 'todo-sample-1',
+      type: 'sample',
+      sourceLabel: '样板管理',
+      category: '样板管理',
+      sampleBizType: 'material',
+      sampleApplicationId: 'MS-002',
+      sampleNode: 'supervisor',
+      processName: '材料定样审批·室内地砖 800×800（MS-002）',
+      applicant: '施工-李工',
+      dept: '总包项目部',
+      applyTime: '2026-07-25 11:05:00',
+      detail: {
+        project: 'T2航站区配套',
+        applicationId: 'MS-002',
+        bizType: '材料定样',
+        title: '室内地砖 800×800',
+        usePart: '商业区公区',
+        currentNode: '待监理审',
+        briefing: '两款对比，耐磨与色差达标。',
+      },
+      approvalFlow: [
+        {
+          title: '施工提交',
+          time: '2026-07-25 11:05:00',
+          user: '施工-李工',
+          remark: '直接提交',
+          status: 'done',
+        },
+        {
+          title: '监理审批',
+          time: '',
+          user: '当前用户',
+          remark: '待审批',
+          status: 'current',
+        },
+        {
+          title: '项目经理终审',
+          time: '',
+          user: '项目经理',
+          remark: '待流转',
+          status: 'pending',
+        },
+      ],
+    },
+    {
+      id: 'todo-sample-2',
+      type: 'sample',
+      sourceLabel: '样板管理',
+      category: '样板管理',
+      sampleBizType: 'process',
+      sampleApplicationId: 'PS-002',
+      sampleNode: 'supervisor',
+      processName: '工序样板审批·防水卷材铺贴样板（PS-002）',
+      applicant: '施工-李工',
+      dept: '总包项目部',
+      applyTime: '2026-07-26 09:40:00',
+      detail: {
+        project: 'T2航站区配套',
+        applicationId: 'PS-002',
+        bizType: '工序样板',
+        title: '防水卷材铺贴样板',
+        usePart: '屋面防水层',
+        currentNode: '待监理审',
+        briefing: '搭接宽度、热熔顺序、节点加强。',
+      },
+      approvalFlow: [
+        {
+          title: '施工提交',
+          time: '2026-07-26 09:40:00',
+          user: '施工-李工',
+          remark: '直接提交',
+          status: 'done',
+        },
+        {
+          title: '监理审批',
+          time: '',
+          user: '当前用户',
+          remark: '待审批',
+          status: 'current',
+        },
+        {
+          title: '项目经理终审',
+          time: '',
+          user: '项目经理',
+          remark: '待流转',
+          status: 'pending',
+        },
+      ],
+    },
+    {
+      id: 'todo-sample-3',
+      type: 'sample',
+      sourceLabel: '样板管理',
+      category: '样板管理',
+      sampleBizType: 'material',
+      sampleApplicationId: 'MS-003',
+      sampleNode: 'pm',
+      processName: '材料定样终审·铝单板幕墙（MS-003）',
+      applicant: '施工-赵工',
+      dept: '总包项目部',
+      applyTime: '2026-07-20 14:10:00',
+      detail: {
+        project: '空侧捷运线',
+        applicationId: 'MS-003',
+        bizType: '材料定样',
+        title: '铝单板幕墙',
+        usePart: '连廊立面',
+        currentNode: '待项目经理审',
+        briefing: '色差与平整度已现场确认。',
+      },
+      approvalFlow: [
+        {
+          title: '施工提交',
+          time: '2026-07-20 14:10:00',
+          user: '施工-赵工',
+          remark: '直接提交',
+          status: 'done',
+        },
+        {
+          title: '监理审批',
+          time: '2026-07-21 11:00:00',
+          user: '监理用户',
+          remark: '同意',
+          status: 'done',
+        },
+        {
+          title: '项目经理终审',
+          time: '',
+          user: '当前用户',
+          remark: '待审批',
+          status: 'current',
+        },
+      ],
+    },
+    {
+      id: 'todo-sample-4',
+      type: 'sample',
+      sourceLabel: '样板管理',
+      category: '样板管理',
+      sampleBizType: 'process',
+      sampleApplicationId: 'PS-003',
+      sampleNode: 'pm',
+      processName: '工序样板终审·砌体样板墙（PS-003）',
+      applicant: '施工-赵工',
+      dept: '总包项目部',
+      applyTime: '2026-07-22 15:20:00',
+      detail: {
+        project: '空侧捷运线',
+        applicationId: 'PS-003',
+        bizType: '工序样板',
+        title: '砌体样板墙',
+        usePart: '办公区隔墙',
+        currentNode: '待项目经理审',
+        briefing: '灰缝厚度、拉结筋、洞口加强。',
+      },
+      approvalFlow: [
+        {
+          title: '施工提交',
+          time: '2026-07-22 15:20:00',
+          user: '施工-赵工',
+          remark: '直接提交',
+          status: 'done',
+        },
+        {
+          title: '监理审批',
+          time: '2026-07-23 10:00:00',
+          user: '监理用户',
+          remark: '同意',
+          status: 'done',
+        },
+        {
+          title: '项目经理终审',
+          time: '',
+          user: '当前用户',
+          remark: '待审批',
+          status: 'current',
+        },
       ],
     },
     {
@@ -530,6 +713,9 @@ export function finishPersonalTodo(id, handleLabel) {
     brandApplicationId: row.brandApplicationId,
     brandNode: row.brandNode,
     brandCandidates: row.brandCandidates,
+    sampleBizType: row.sampleBizType,
+    sampleApplicationId: row.sampleApplicationId,
+    sampleNode: row.sampleNode,
     approvalFlow: flow,
   })
   return row
@@ -647,6 +833,268 @@ export function createBrandPmTodo(payload) {
 export function discardBrandTodos(applicationId) {
   if (!applicationId) return
   removeOpenBrandTodos(applicationId)
+}
+
+/** —— 样板管理：个人中心待办 + 模块内审批列表 —— */
+let sampleTodoSeq = 20
+
+function removeOpenSampleTodos(bizType, applicationId, { onlyNode } = {}) {
+  for (let i = personalTodoStore.todos.length - 1; i >= 0; i -= 1) {
+    const t = personalTodoStore.todos[i]
+    if (t.type !== 'sample') continue
+    if (t.sampleBizType !== bizType || t.sampleApplicationId !== applicationId) continue
+    if (onlyNode && t.sampleNode !== onlyNode) continue
+    personalTodoStore.todos.splice(i, 1)
+  }
+}
+
+function buildSampleTodo(payload) {
+  const node = payload.sampleNode === 'pm' ? 'pm' : 'supervisor'
+  const isPm = node === 'pm'
+  const isMaterial = payload.bizType === 'material'
+  const bizLabel = isMaterial ? '材料定样' : '工序样板'
+  sampleTodoSeq += 1
+  return {
+    id: `todo-sample-${sampleTodoSeq}`,
+    type: 'sample',
+    sourceLabel: '样板管理',
+    category: '样板管理',
+    sampleBizType: payload.bizType,
+    sampleApplicationId: payload.applicationId,
+    sampleNode: node,
+    processName: isPm
+      ? `${bizLabel}终审·${payload.title}（${payload.applicationId}）`
+      : `${bizLabel}审批·${payload.title}（${payload.applicationId}）`,
+    applicant: payload.applicantName || '当前用户',
+    dept: payload.dept || '总包项目部',
+    applyTime: payload.applyTime || '',
+    detail: {
+      project: payload.projectLabel || payload.projectId || '—',
+      applicationId: payload.applicationId,
+      bizType: bizLabel,
+      title: payload.title || '—',
+      usePart: payload.usePart || '—',
+      currentNode: isPm ? '待项目经理审' : '待监理审',
+      briefing: payload.briefing || '',
+    },
+    approvalFlow: isPm
+      ? [
+          {
+            title: '施工提交',
+            time: payload.applyTime || '',
+            user: payload.applicantName || '施工',
+            remark: '直接提交',
+            status: 'done',
+          },
+          {
+            title: '监理审批',
+            time: payload.supervisorTime || '',
+            user: payload.supervisorName || '监理',
+            remark: '同意',
+            status: 'done',
+          },
+          {
+            title: '项目经理终审',
+            time: '',
+            user: '当前用户',
+            remark: '待审批',
+            status: 'current',
+          },
+        ]
+      : [
+          {
+            title: '施工提交',
+            time: payload.applyTime || '',
+            user: payload.applicantName || '施工',
+            remark: '直接提交',
+            status: 'done',
+          },
+          {
+            title: '监理审批',
+            time: '',
+            user: '当前用户',
+            remark: '待审批',
+            status: 'current',
+          },
+          {
+            title: '项目经理终审',
+            time: '',
+            user: '项目经理',
+            remark: '待流转',
+            status: 'pending',
+          },
+        ],
+  }
+}
+
+export function createSampleSupervisorTodo(payload) {
+  if (!payload?.applicationId || !payload?.bizType) return null
+  removeOpenSampleTodos(payload.bizType, payload.applicationId)
+  const row = buildSampleTodo({ ...payload, sampleNode: 'supervisor' })
+  personalTodoStore.todos.unshift(row)
+  return row
+}
+
+export function createSamplePmTodo(payload) {
+  if (!payload?.applicationId || !payload?.bizType) return null
+  // 监理节点已办结：清掉该单监理待办，再挂项目经理待办
+  removeOpenSampleTodos(payload.bizType, payload.applicationId, { onlyNode: 'supervisor' })
+  removeOpenSampleTodos(payload.bizType, payload.applicationId, { onlyNode: 'pm' })
+  const row = buildSampleTodo({ ...payload, sampleNode: 'pm' })
+  personalTodoStore.todos.unshift(row)
+  return row
+}
+
+export function discardSampleTodos(bizType, applicationId) {
+  if (!bizType || !applicationId) return
+  removeOpenSampleTodos(bizType, applicationId)
+}
+
+/**
+ * 模块审批办理后：将该单对应节点未办待办移入已办（双入口同步）
+ */
+export function finishSampleOpenTodos(bizType, applicationId, node, handleLabel) {
+  if (!bizType || !applicationId) return
+  const ids = personalTodoStore.todos
+    .filter(
+      (t) =>
+        t.type === 'sample' &&
+        t.sampleBizType === bizType &&
+        t.sampleApplicationId === applicationId &&
+        (!node || t.sampleNode === node),
+    )
+    .map((t) => t.id)
+  ids.forEach((id) => finishPersonalTodo(id, handleLabel))
+}
+
+/** —— 材料进场：仅个人中心监理待办 —— */
+let matEntryTodoSeq = 30
+
+function removeOpenMatEntryTodos(entryId) {
+  for (let i = personalTodoStore.todos.length - 1; i >= 0; i -= 1) {
+    const t = personalTodoStore.todos[i]
+    if (t.type !== 'mat_entry') continue
+    if (t.matEntryId !== entryId) continue
+    personalTodoStore.todos.splice(i, 1)
+  }
+}
+
+function buildMatEntryTodo(payload) {
+  matEntryTodoSeq += 1
+  return {
+    id: `todo-mat-${matEntryTodoSeq}`,
+    type: 'mat_entry',
+    sourceLabel: '材料进场管理',
+    category: '材料进场',
+    matEntryId: payload.entryId,
+    processName: `材料进场审批·${payload.materialName}（${payload.entryId}）`,
+    applicant: payload.applicantName || '当前用户',
+    dept: payload.dept || '总包项目部',
+    applyTime: payload.applyTime || '',
+    detail: {
+      project: payload.projectLabel || payload.projectId || '—',
+      entryId: payload.entryId,
+      materialName: payload.materialName || '—',
+      brandName: payload.brandName || '—',
+      sampleId: payload.sampleId || '—',
+      quantity: payload.quantity || '—',
+      currentNode: '待监理审',
+    },
+    approvalFlow: [
+      {
+        title: '施工提交进场',
+        time: payload.applyTime || '',
+        user: payload.applicantName || '施工',
+        remark: '直接提交，进入审批中',
+        status: 'done',
+      },
+      {
+        title: '监理审批',
+        time: '',
+        user: '当前用户',
+        remark: '待审批',
+        status: 'current',
+      },
+    ],
+  }
+}
+
+export function createMatEntrySupervisorTodo(payload) {
+  if (!payload?.entryId) return null
+  removeOpenMatEntryTodos(payload.entryId)
+  const row = buildMatEntryTodo(payload)
+  personalTodoStore.todos.unshift(row)
+  return row
+}
+
+export function discardMatEntryTodos(entryId) {
+  if (!entryId) return
+  removeOpenMatEntryTodos(entryId)
+}
+
+/** —— 设备进场：仅个人中心监理待办 —— */
+let eqEntryTodoSeq = 40
+
+function removeOpenEqEntryTodos(entryId) {
+  for (let i = personalTodoStore.todos.length - 1; i >= 0; i -= 1) {
+    const t = personalTodoStore.todos[i]
+    if (t.type !== 'eq_entry') continue
+    if (t.eqEntryId !== entryId) continue
+    personalTodoStore.todos.splice(i, 1)
+  }
+}
+
+function buildEqEntryTodo(payload) {
+  eqEntryTodoSeq += 1
+  return {
+    id: `todo-eq-${eqEntryTodoSeq}`,
+    type: 'eq_entry',
+    sourceLabel: '设备进场管理',
+    category: '设备进场',
+    eqEntryId: payload.entryId,
+    processName: `设备进场审批·${payload.equipmentName}（${payload.entryId}）`,
+    applicant: payload.applicantName || '当前用户',
+    dept: payload.dept || '总包项目部',
+    applyTime: payload.applyTime || '',
+    detail: {
+      project: payload.projectLabel || payload.projectId || '—',
+      entryId: payload.entryId,
+      equipmentName: payload.equipmentName || '—',
+      brandName: payload.brandName || '—',
+      sampleId: payload.sampleId || '—',
+      quantity: payload.quantity || '—',
+      currentNode: '待监理审',
+    },
+    approvalFlow: [
+      {
+        title: '施工提交设备进场',
+        time: payload.applyTime || '',
+        user: payload.applicantName || '施工',
+        remark: '直接提交，进入审批中',
+        status: 'done',
+      },
+      {
+        title: '监理审批',
+        time: '',
+        user: '当前用户',
+        remark: '待审批',
+        status: 'current',
+      },
+    ],
+  }
+}
+
+export function createEqEntrySupervisorTodo(payload) {
+  if (!payload?.entryId) return null
+  removeOpenEqEntryTodos(payload.entryId)
+  const row = buildEqEntryTodo(payload)
+  personalTodoStore.todos.unshift(row)
+  return row
+}
+
+export function discardEqEntryTodos(entryId) {
+  if (!entryId) return
+  removeOpenEqEntryTodos(entryId)
 }
 
 /** 通知信息 */

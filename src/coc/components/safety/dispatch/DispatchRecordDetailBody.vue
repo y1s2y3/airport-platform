@@ -8,21 +8,35 @@ const props = defineProps({
 })
 
 const detail = computed(() => props.record.detail || {})
-const images = computed(() => detail.value.images || [])
+
+const isSupervisionMeetingHazard = computed(() => {
+  const ticket = detail.value.ticketType || props.record.ticketType || ''
+  return ticket === '监理会议隐患'
+})
+
+/** 监理会议隐患：图片为空 */
+const images = computed(() =>
+  isSupervisionMeetingHazard.value ? [] : detail.value.images || [],
+)
 
 const hazardFields = computed(() => {
   if (props.kind !== 'hazard') return []
+  const emptyForMeeting = isSupervisionMeetingHazard.value
   return [
+    { label: '单号类型', value: detail.value.ticketType || props.record.ticketType },
     { label: '隐患类别', value: props.record.hazardCategory || (props.record.type === 'quality' ? '质量' : '安全') },
-    { label: '发现日期', value: props.record.date },
-    { label: '施工部位', value: props.record.location },
     { label: '隐患等级', value: props.record.level },
     { label: '整改状态', value: props.record.status },
-    { label: '责任单位', value: detail.value.unit },
     { label: '整改期限', value: detail.value.deadline },
-    { label: '上报人', value: detail.value.reporter || props.record.reporter },
+    {
+      label: '上报人',
+      value: emptyForMeeting ? '' : detail.value.reporter || props.record.reporter,
+    },
+    {
+      label: '整改人',
+      value: emptyForMeeting ? '' : detail.value.rectifier || props.record.rectifier,
+    },
     { label: '上报时间', value: detail.value.reportTime },
-    { label: '整改措施', value: detail.value.measure, full: true },
     { label: '隐患描述', value: props.record.desc || detail.value.requirement, full: true },
   ]
 })

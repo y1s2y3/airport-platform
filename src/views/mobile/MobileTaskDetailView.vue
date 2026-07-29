@@ -1,12 +1,20 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { getMobileInspectionTask } from '../../mock/mobileInspectionTasks'
 
 const route = useRoute()
 const router = useRouter()
 const id = route.params.id
 
 const taskMap = {
+  'mt-000': {
+    taskNo:'XJ20260730001', planName:'6月底安全巡检', planNo:'JH2026007', planType:'周检',
+    project:'飞行区跑道延长工程', executor:'王工', source:'任务推送',
+    inspector:'王工', companions:[],
+    deadline:'2026-07-10', inspDate:'', status:'待执行', submittedAt:'',
+    result:'', normalPhotos:[], hazardItems:[],
+  },
   'mt-001': {
     taskNo:'XJ20260728001', planName:'7月第4周安全巡检', planNo:'JH2026001', planType:'周检',
     project:'飞行区跑道延长工程', executor:'王工', source:'任务推送',
@@ -33,25 +41,42 @@ const taskMap = {
     result:'normal', normalPhotos:['📷 巡检照片1','📷 巡检照片2'], hazardItems:[],
   },
   'mt-004': {
-    taskNo:'XJ20260731004', planName:'', source:'系统自建',
+    taskNo:'XJ20260731004', planName:'【自建】月检巡检', planNo:'', planType:'月检', source:'系统自建',
     project:'新货运站建设工程', executor:'当前用户', inspType:'月检',
     inspector:'当前用户', companions:[],
     deadline:'2026-07-31', inspDate:'2026-07-31', status:'已完成', submittedAt:'2026-07-31 10:00',
     result:'normal', normalPhotos:['📷 巡检照片1'], hazardItems:[],
   },
   'mt-005': {
-    taskNo:'XJ20260728005', planName:'', source:'系统自建',
+    taskNo:'XJ20260728005', planName:'【自建】专项巡检', planNo:'', planType:'专项巡检', source:'系统自建',
     project:'飞行区跑道延长工程', executor:'当前用户', inspType:'专项巡检',
     inspector:'当前用户', companions:['吴工'],
     deadline:'2026-07-28', inspDate:'2026-07-28', status:'已完成', submittedAt:'2026-07-28 10:30',
     result:'hazard', normalPhotos:[],
     hazardItems:[
-      { desc:'电缆破损，存在安全隐患', photos:['📷 隐患照片1'], hasRectify:true, rectifyNo:'ZG202607003', rectifyPerson:'赵工（项目经理）', rectifyDeadline:'2026-08-05' },
+      { desc:'电缆破损，存在安全隐患', photos:['📷 隐患照片1'], hasRectify:true, rectifyNo:'ZG202607007', rectifyPerson:'赵工（项目经理）', rectifyDeadline:'2026-08-05' },
     ],
   },
 }
 
-const taskInfo = computed(() => taskMap[id] || taskMap['mt-001'])
+function withTaskDefaults(task) {
+  if (!task) return null
+  return {
+    ...task,
+    companions: task.companions || [],
+    hazardItems: task.hazardItems || [],
+    normalPhotos: task.normalPhotos || [],
+    result: task.result || '',
+    inspDate: task.inspDate || task.deadline || '',
+    inspector: task.inspector || task.executor || '',
+    planType: task.planType || task.inspType || '',
+    inspType: task.inspType || task.planType || '',
+    planName: task.planName || '',
+    planNo: task.planNo || '',
+  }
+}
+
+const taskInfo = computed(() => withTaskDefaults(taskMap[id] || getMobileInspectionTask(id) || taskMap['mt-001']))
 const isPush = computed(() => taskInfo.value.source === '任务推送')
 
 const activeCat = ref('cat-2')

@@ -9,6 +9,7 @@
     "build:html": "node scripts/build-standalone.mjs",
     "build:coc-html": "node scripts/build-coc-standalone.mjs",
     "build:dispatch-html": "node scripts/build-dispatch-standalone.mjs",
+    "build:all-html": "node scripts/build-all-html.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

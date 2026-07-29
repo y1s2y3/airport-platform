@@ -5,7 +5,7 @@ import { listMobileInspectionTasks } from '../../mock/mobileInspectionTasks'
 
 const router = useRouter()
 
-const tasks = computed(() => listMobileInspectionTasks())
+const tasks = ref(listMobileInspectionTasks())
 
 const activeTab = ref('全部')
 const searchKeyword = ref('')
@@ -26,7 +26,7 @@ const filteredTasks = computed(() => {
   if (typeFilter.value) list = list.filter(t => t.planType && (t.planType === typeFilter.value || t.planType.startsWith(typeFilter.value)))
   if (searchKeyword.value.trim()) {
     const kw = searchKeyword.value.trim()
-    list = list.filter(t => t.taskNo.includes(kw) || t.planName.includes(kw) || t.project.includes(kw))
+    list = list.filter(t => t.taskNo.includes(kw) || (t.planName || '').includes(kw) || (t.project || '').includes(kw))
   }
   return list
 })
@@ -101,7 +101,7 @@ function goBack() { router.push('/') }
           <span class="m-task-status-label" :style="{ color: task.status === '待执行' ? '#f5a623' : '#34a853' }">{{ task.status === '待执行' ? '待执行' : '已完成' }}</span>
         </div>
         <div class="m-task-bottom">
-          <span>执行人：{{ task.executor }}</span>
+          <span>巡检人：{{ task.executor }}</span>
           <span>截止：{{ task.deadline }}</span>
           <span>{{ task.itemCount }} 项</span>
         </div>

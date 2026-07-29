@@ -31,7 +31,7 @@
   --coc-project-list-w: 315px;
   --coc-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
   --coc-fab-border: rgba(94, 238, 255, 0.45);
-  --coc-fab-bg: linear-gradient(180deg, rgba(82, 110, 131, 0.65) 0%, rgba(16, 29, 55, 0.92) 100%);
+  --coc-fab-bg: linear-gradient(180deg, #3d5568 0%, #101d37 100%);
   --coc-fab-shadow: 0 4px 20px rgba(0, 0, 0, 0.35), 0 0 10px rgba(94, 238, 255, 0.1);
   --coc-fab-hover-shadow: 0 6px 24px rgba(94, 238, 255, 0.22);
   --coc-surface-muted: rgba(255, 255, 255, 0.06);
@@ -104,31 +104,31 @@
   --coc-podium-count-color: #a8abb2;
 }
 
-/* Teleport 到 body 的浮层继承 HQ 变量 */
+/* Teleport 到 body 的浮层继承 HQ 变量（弹出层一律不透明实底） */
 .coc-hq-shell {
   --coc-border: rgba(228, 231, 237, 0.28);
   --coc-text: #ffffff;
   --coc-text-secondary: rgba(255, 255, 255, 0.88);
   --coc-text-muted: #a8abb2;
   --coc-accent: #5eeeff;
-  --coc-table-head-bg: rgba(255, 255, 255, 0.08);
-  --coc-drag-panel-bg: rgba(82, 110, 131, 0.31);
-  --coc-drag-panel-border: rgba(94, 238, 255, 0.28);
-  --coc-drag-panel-shadow: 0 16px 48px rgba(0, 0, 0, 0.35), 0 0 16px rgba(94, 238, 255, 0.08);
-  --coc-drag-panel-header-bg: rgba(82, 110, 131, 0.38);
-  --coc-drag-panel-header-border: rgba(255, 255, 255, 0.1);
-  --coc-drag-panel-body-bg: transparent;
-  --coc-drag-panel-table-wrap-bg: rgba(255, 255, 255, 0.04);
-  --coc-drag-panel-table-head-bg: rgba(255, 255, 255, 0.08);
-  --coc-drag-panel-detail-bg: rgba(82, 110, 131, 0.35);
+  --coc-table-head-bg: #1e3048;
+  --coc-drag-panel-bg: #162438;
+  --coc-drag-panel-border: rgba(94, 238, 255, 0.35);
+  --coc-drag-panel-shadow: 0 16px 48px rgba(0, 0, 0, 0.45), 0 0 16px rgba(94, 238, 255, 0.08);
+  --coc-drag-panel-header-bg: #1c2c42;
+  --coc-drag-panel-header-border: rgba(255, 255, 255, 0.12);
+  --coc-drag-panel-body-bg: #162438;
+  --coc-drag-panel-table-wrap-bg: #1a283c;
+  --coc-drag-panel-table-head-bg: #1e3048;
+  --coc-drag-panel-detail-bg: #1a2d45;
   --coc-drag-panel-title-color: #ffffff;
   --coc-drag-panel-hint-color: #a8abb2;
   --coc-drag-panel-close-bg: transparent;
   --coc-drag-panel-close-border: rgba(255, 255, 255, 0.22);
   --coc-drag-panel-close-color: rgba(255, 255, 255, 0.85);
-  --coc-drag-panel-row-hover: rgba(94, 238, 255, 0.06);
-  --coc-drag-panel-table-wrap-border: rgba(94, 238, 255, 0.18);
-  --coc-drag-panel-cell-border: rgba(255, 255, 255, 0.08);
+  --coc-drag-panel-row-hover: rgba(94, 238, 255, 0.1);
+  --coc-drag-panel-table-wrap-border: rgba(94, 238, 255, 0.22);
+  --coc-drag-panel-cell-border: rgba(255, 255, 255, 0.1);
   --coc-table-head-bg: var(--coc-drag-panel-table-head-bg);
 }
 
@@ -182,7 +182,7 @@
 
 /* 头部 · 组织结构选择下拉 */
 .hq-org-tree-select-popper.el-popper {
-  background: rgba(10, 18, 36, 0.98);
+  background: #0a1224;
   border: 1px solid rgba(94, 238, 255, 0.38);
   border-radius: 10px;
   box-shadow:
@@ -343,7 +343,7 @@
 }
 
 .hq-org-tree-select-popper .el-popper__arrow::before {
-  background: rgba(10, 18, 36, 0.98);
+  background: #0a1224;
   border-color: rgba(94, 238, 255, 0.38);
 }
 
@@ -1009,11 +1009,21 @@
   color: #a8abb2;
 }
 
-/* 右侧浮窗：会议签到 / 会议管控 */
+/* 右侧浮窗：会议签到 / 会议管控（不透明） */
 .coc-hq-mode .coc-floating-stack .sign-in-panel,
 .coc-hq-mode .coc-floating-stack .meeting-panel {
-  border: 1px solid rgba(94, 238, 255, 0.18);
+  background: #162438;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid rgba(94, 238, 255, 0.28);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 0 16px rgba(94, 238, 255, 0.08);
+}
+
+.coc-hq-mode .coc-floating-stack .sign-fab-btn,
+.coc-hq-mode .coc-floating-stack .ai-fab-btn {
+  background: var(--coc-fab-bg);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .coc-hq-mode .sign-in-body .scope-select .el-select__wrapper {
@@ -1914,8 +1924,8 @@
 
 .coc-hq-shell .drag-panel .detail-card {
   background: var(--coc-drag-panel-detail-bg);
-  backdrop-filter: blur(9px);
-  -webkit-backdrop-filter: blur(9px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border: 1px solid rgba(94, 238, 255, 0.28);
   color: #fff;
 }
@@ -1974,7 +1984,7 @@
 }
 
 .coc-hq-shell .doc-list-dialog {
-  background: rgba(16, 29, 55, 0.98);
+  background: #101d37;
   border: 1px solid rgba(94, 238, 255, 0.28);
 }
 
@@ -2018,13 +2028,13 @@
   color: rgba(255, 255, 255, 0.92);
 }
 
-/* 问题截图弹窗 · 科技蓝 */
+/* 问题截图弹窗 · 科技蓝（弹窗本体不透明） */
 .coc-hq-shell .screenshot-mark-modal {
   background: rgba(4, 12, 28, 0.72);
 }
 
 .coc-hq-shell .screenshot-mark-dialog {
-  background: rgba(16, 29, 55, 0.98);
+  background: #101d37;
   border: 1px solid rgba(94, 238, 255, 0.28);
   border-radius: 10px;
   box-shadow:

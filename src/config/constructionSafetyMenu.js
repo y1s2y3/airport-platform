@@ -7,7 +7,7 @@
 export const constructionSafetyMenuGroup = {
   key: 'safety-inspection',
   label: '安全巡检',
-  icon: 'Warning',
+  icon: 'DocumentChecked',
   children: [
     {
       key: 'safety-dashboard',
@@ -23,6 +23,11 @@ export const constructionSafetyMenuGroup = {
       key: 'safety-check-items',
       label: '安全检查项',
       path: '/safety-inspection/check-items',
+    },
+    {
+      key: 'safety-inspector-config',
+      label: '巡检人配置',
+      path: '/safety-inspection/inspector-config',
     },
     {
       key: 'safety-task-manage',
@@ -87,6 +92,12 @@ export const constructionSafetyRoutes = [
     name: 'SafetyCheckItems',
     label: '安全检查项',
     path: '/safety-inspection/check-items',
+  },
+  {
+    key: 'safety-inspector-config',
+    name: 'InspectionPersonConfig',
+    label: '巡检人配置',
+    path: '/safety-inspection/inspector-config',
   },
   {
     key: 'safety-task-manage',

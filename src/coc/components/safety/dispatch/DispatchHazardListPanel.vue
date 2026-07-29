@@ -1,21 +1,28 @@
 <script setup>
 import { ref, computed, inject } from 'vue'
-import { SAFETY_HAZARDS, QUALITY_HAZARDS } from '../../../mock/data.js'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import {
+  SAFETY_HAZARDS,
+  QUALITY_HAZARDS,
+  closeCocSupervisionMeetingHazard,
+} from '../../../mock/data.js'
+import { isSupervisionMeetingHazardTicket } from '../../../../utils/cocAdminDeviceStorage.js'
 import DispatchDraggablePanel from './DispatchDraggablePanel.vue'
 import DispatchRecordDetailBody from './DispatchRecordDetailBody.vue'
 import DispatchHqPanelTitle from './DispatchHqPanelTitle.vue'
 
 const dispatchHqUi = inject('dispatchHqUi', false)
 
-const hazardList = [
+const hazardList = ref([
   ...SAFETY_HAZARDS.map((h) => ({ ...h, hazardCategory: '安全' })),
   ...QUALITY_HAZARDS.map((h) => ({ ...h, hazardCategory: '质量' })),
-]
+])
 
 const hazardStatusFilter = ref('待整改')
 const hazardDateRange = ref(null)
 const hazardMoreOpen = ref(false)
 const detailView = ref(null)
+const closing = ref(false)
 
 const hazardStatusOptions = [
   { label: '全部', value: '全部' },
@@ -29,8 +36,8 @@ const HAZARD_LEVEL_ORDER = { 重大: 0, 较大: 1, 一般: 2 }
 const filteredHazardList = computed(() => {
   const list =
     hazardStatusFilter.value === '全部'
-      ? [...hazardList]
-      : hazardList.filter((row) => row.status === hazardStatusFilter.value)
+      ? [...hazardList.value]
+      : hazardList.value.filter((row) => row.status === hazardStatusFilter.value)
   return list.sort(
     (a, b) => (HAZARD_LEVEL_ORDER[a.level] ?? 9) - (HAZARD_LEVEL_ORDER[b.level] ?? 9),
   )
@@ -60,6 +67,12 @@ const detailTitle = computed(() => {
   return `${cat}隐患详情`
 })
 
+const canConfirmCloseDetail = computed(() => {
+  const row = detailView.value?.data
+  if (!row || detailView.value?.kind !== 'hazard') return false
+  return isSupervisionMeetingHazardTicket(row) && row.status === '待整改'
+})
+
 function levelClass(level) {
   if (level === '重大') return 'major'
   if (level === '较大') return 'medium'
@@ -72,6 +85,48 @@ function openHazardDetail(row) {
 
 function closeDetail() {
   detailView.value = null
+}
+
+function syncLocalHazardStatus(id, status) {
+  const row = hazardList.value.find((item) => item.id === id)
+  if (row) row.status = status
+  if (detailView.value?.data?.id === id) {
+    detailView.value = {
+      ...detailView.value,
+      data: { ...detailView.value.data, status },
+    }
+  }
+}
+
+async function handleConfirmClose() {
+  const row = detailView.value?.data
+  if (!row) return
+  try {
+    await ElMessageBox.confirm(
+      '确认关闭该监理会议隐患？关闭后状态将变为「已闭合」，与后台指挥部关闭操作一致。',
+      '确认关闭',
+      {
+        type: 'warning',
+        confirmButtonText: '确认关闭',
+        cancelButtonText: '取消',
+      },
+    )
+  } catch {
+    return
+  }
+
+  closing.value = true
+  const result = closeCocSupervisionMeetingHazard(row.id, {
+    operator: '指挥部用户',
+  })
+  closing.value = false
+
+  if (!result.ok) {
+    ElMessage.warning(result.msg || '关闭失败')
+    return
+  }
+  syncLocalHazardStatus(row.id, '已闭合')
+  ElMessage.success('隐患已关闭')
 }
 </script>
 
@@ -196,7 +251,6 @@ function closeDetail() {
               <th>类别</th>
               <th>日期</th>
               <th>描述</th>
-              <th>施工部位</th>
               <th>隐患等级</th>
               <th>状态</th>
             </tr>
@@ -215,14 +269,13 @@ function closeDetail() {
               </td>
               <td>{{ row.date }}</td>
               <td class="desc col-desc" :title="row.desc">{{ row.desc }}</td>
-              <td class="col-desc">{{ row.location }}</td>
               <td>
                 <span class="level-tag" :class="levelClass(row.level)">{{ row.level }}</span>
               </td>
               <td><span class="status-tag" :class="statusMap[row.status]">{{ row.status }}</span></td>
             </tr>
             <tr v-if="!popupFilteredHazardList.length">
-              <td colspan="6" class="empty-row">暂无符合条件的隐患记录</td>
+              <td colspan="5" class="empty-row">暂无符合条件的隐患记录</td>
             </tr>
           </tbody>
         </table>
@@ -238,6 +291,11 @@ function closeDetail() {
       @close="closeDetail"
     >
       <DispatchRecordDetailBody :kind="detailView.kind" :record="detailView.data" />
+      <div v-if="canConfirmCloseDetail" class="hazard-detail-actions">
+        <el-button type="success" :loading="closing" @click="handleConfirmClose">
+          确认关闭
+        </el-button>
+      </div>
     </DispatchDraggablePanel>
   </div>
 </template>
@@ -250,6 +308,15 @@ function closeDetail() {
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+.hazard-detail-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--coc-border, #e4e7ed);
 }
 
 .hazard-side-panel .panel-title {

@@ -8,11 +8,6 @@ const route = useRoute()
 const router = useRouter()
 const plan = computed(() => getPlanById(route.params.id))
 
-const getExecLabel = computed(() => {
-  if (!plan.value) return ''
-  const u = userOptions.find(u => u.id === plan.value.responsiblePerson)
-  return u ? `${u.label}（${u.role}）` : ''
-})
 const getCcLabels = computed(() => {
   if (!plan.value) return '无'
   return plan.value.ccPersons.map(id => { const u = userOptions.find(u => u.id === id); return u ? `${u.label}（${u.role}）` : '' }).join('；') || '无'
@@ -24,8 +19,8 @@ const getProjLabels = computed(() => {
 const getPushRule = computed(() => {
   if (!plan.value) return ''
   const map = { day: '天', week: '周', month: '月', once: '' }
-  if (plan.value.cycleType === 'once') return '有效期内执行 1 次巡检'
-  return `每 ${plan.value.cycleInterval} ${map[plan.value.cycleType]} 需进行 ${plan.value.cycleTimes} 次巡检`
+  if (plan.value.cycleType === 'once') return '有效期内执行 1 次巡检，任务默认推送至项目级巡检人'
+  return `每 ${plan.value.cycleInterval} ${map[plan.value.cycleType]} 需进行 ${plan.value.cycleTimes} 次巡检，任务默认推送至项目级巡检人`
 })
 
 // 检查内容树形结构
@@ -74,10 +69,7 @@ function goBack() { router.push('/safety-inspection/plan') }
             {{ plan.enabled ? '启用' : '禁用' }}
           </el-tag>
         </div>
-        <span class="detail-meta">
-          更新人：{{ userOptions.find((u) => u.id === plan.updatedBy)?.label || plan.updatedBy || '-' }}
-          · 更新时间：{{ plan.updatedAt }}
-        </span>
+        <span class="detail-meta">更新人：{{ plan.updatedBy }} · 更新时间：{{ plan.updatedAt }}</span>
       </div>
 
       <!-- ===== 基本信息 ===== -->
@@ -85,7 +77,6 @@ function goBack() { router.push('/safety-inspection/plan') }
         <h4 class="section-title">基本信息</h4>
         <el-descriptions :column="2" border>
           <el-descriptions-item label="计划名称" :span="2">{{ plan.name }}</el-descriptions-item>
-          <el-descriptions-item label="计划编号">{{ plan.planNo || '—' }}</el-descriptions-item>
           <el-descriptions-item label="计划类型">
             <el-tag v-if="plan.type==='周检'" size="small" effect="plain">周检</el-tag>
             <el-tag v-else-if="plan.type==='月检'" size="small" type="warning" effect="plain">月检</el-tag>
@@ -95,9 +86,7 @@ function goBack() { router.push('/safety-inspection/plan') }
             <el-tag :type="plan.enabled ? 'success' : 'info'" size="small" effect="light">{{ plan.enabled ? '启用' : '禁用' }}</el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="关联项目" :span="2">{{ getProjLabels.join('、') }}</el-descriptions-item>
-          <el-descriptions-item label="更新人">
-            {{ userOptions.find((u) => u.id === plan.updatedBy)?.label || plan.updatedBy || '-' }}
-          </el-descriptions-item>
+          <el-descriptions-item label="更新人">{{ plan.updatedBy }}</el-descriptions-item>
           <el-descriptions-item label="更新时间">{{ plan.updatedAt }}</el-descriptions-item>
         </el-descriptions>
       </div>
@@ -106,7 +95,7 @@ function goBack() { router.push('/safety-inspection/plan') }
       <div class="detail-card">
         <h4 class="section-title">执行规则</h4>
         <el-descriptions :column="2" border>
-          <el-descriptions-item label="执行人">{{ getExecLabel }}</el-descriptions-item>
+          <el-descriptions-item label="任务接收人">按各项目“巡检人配置”自动推送</el-descriptions-item>
           <el-descriptions-item label="抄送人">{{ getCcLabels }}</el-descriptions-item>
           <el-descriptions-item label="推送规则" :span="2">{{ getPushRule }}</el-descriptions-item>
           <el-descriptions-item label="生效日期" :span="2">{{ plan.startDate }} ~ {{ plan.endDate }}</el-descriptions-item>
@@ -177,4 +166,7 @@ function goBack() { router.push('/safety-inspection/plan') }
 .dt-num { color: var(--ap-text-muted); flex-shrink: 0; }
 .dt-text { flex: 1; }
 .dt-empty { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--ap-text-muted); font-size: 13px; min-height: 100px; }
+
+.el-table { width:100% !important; }
+.el-table__header-wrapper table, .el-table__body-wrapper table { table-layout:fixed; width:100% !important; }
 </style>

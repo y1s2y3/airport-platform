@@ -59,6 +59,7 @@ export const menuIconOptions = [
   'Document',
   'Bell',
   'Warning',
+  'DocumentChecked',
   'Notebook',
   'DataBoard',
   'Box',

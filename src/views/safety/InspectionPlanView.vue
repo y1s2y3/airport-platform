@@ -10,10 +10,9 @@ const router = useRouter()
 const filterForm = reactive({ type: '', keyword: '' })
 
 const filteredPlans = computed(() => {
-  return planData.filter((p) => {
+  return planData.filter(p => {
     if (filterForm.type && p.type !== filterForm.type) return false
-    const name = p.name || ''
-    if (filterForm.keyword && !name.includes(filterForm.keyword)) return false
+    if (filterForm.keyword && !(p.name || '').includes(filterForm.keyword)) return false
     return true
   })
 })
@@ -65,37 +64,35 @@ function handleDelete(row) {
     <div class="table-wrap">
       <el-table :data="filteredPlans" border stripe class="ap-table" style="width: 100%">
         <el-table-column type="index" label="序号" width="55" align="center" />
-        <el-table-column prop="name" label="计划名称" min-width="150" show-overflow-tooltip>
+        <el-table-column prop="name" label="计划名称" min- show-overflow-tooltip>
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="goDetail(row.id)">{{ row.name }}</el-button>
           </template>
         </el-table-column>
-        <el-table-column prop="planNo" label="计划编号" width="105" align="center" />
-        <el-table-column label="类型" width="65" align="center">
+        <el-table-column prop="planNo" label="计划编号"  align="center" />
+        <el-table-column label="类型" width="70" align="center">
           <template #default="{ row }">
             <el-tag v-if="row.type==='周检'" size="small" effect="plain">周检</el-tag>
             <el-tag v-else-if="row.type==='月检'" size="small" type="warning" effect="plain">月检</el-tag>
             <el-tag v-else size="small" type="danger" effect="plain">专项</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="projects" label="项目" min-width="150" show-overflow-tooltip>
+        <el-table-column prop="projects" label="项目" min- show-overflow-tooltip>
           <template #default="{ row }">{{ row.projects.join('、') }}</template>
         </el-table-column>
-        <el-table-column label="执行人" width="80" align="center">
-          <template #default="{ row }">
-            {{ userOptions.find(u=>u.id===row.responsiblePerson)?.label || '-' }}
-          </template>
+        <el-table-column label="任务接收人" min-width="150" align="center">
+          <template #default>项目级巡检人配置</template>
         </el-table-column>
-        <el-table-column label="推送规则" width="110" align="center">
+        <el-table-column label="推送规则"  align="center">
           <template #default="{ row }">{{ pushRuleLabel(row) }}</template>
         </el-table-column>
-        <el-table-column label="生效日期" width="180" align="center">
+        <el-table-column label="生效日期"  align="center">
           <template #default="{ row }">{{ row.startDate }} ~ {{ row.endDate }}</template>
         </el-table-column>
-        <el-table-column label="更新人" width="80" align="center">
+        <el-table-column label="更新人"  align="center">
           <template #default="{ row }">{{ getUpdatedByName(row) }}</template>
         </el-table-column>
-        <el-table-column label="更新时间" width="150" align="center">
+        <el-table-column label="更新时间"  align="center">
           <template #default="{ row }">{{ row.updatedAt }}</template>
         </el-table-column>
         <el-table-column label="状态" width="70" align="center">
@@ -105,7 +102,7 @@ function handleDelete(row) {
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="180" align="center" fixed="right">
+        <el-table-column label="操作" width="160" align="center" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="goDetail(row.id)">详情</el-button>
             <el-button link type="primary" size="small" @click="goEdit(row.id)">编辑</el-button>
@@ -127,4 +124,7 @@ function handleDelete(row) {
 .filter-bar { display: flex; gap: 12px; flex-wrap: wrap; }
 .table-wrap { flex: 1; background: var(--ap-card); border: 1px solid var(--ap-border); border-radius: 8px; padding: 16px; overflow: hidden; }
 .empty-row { text-align: center; padding: 40px 0; color: var(--ap-text-muted); font-size: 14px; }
+
+.el-table { width:100% !important; }
+.el-table__header-wrapper table, .el-table__body-wrapper table { table-layout:fixed; width:100% !important; }
 </style>

@@ -38,12 +38,13 @@ const treeDataWithCount = computed(() => {
 
 // 6条整改单，每单一条隐患
 const rectifyData = [
-  { id:'rec-001', rectifyNo:'ZG202607001', taskNo:'XJ20260728001', project:'飞行区跑道延长工程', projectId:'p-000', rectifier:'赵工', reviewer:'张工', deadline:'2026-07-30', status:'待整改', rectDate:'', reviewDate:'' },
-  { id:'rec-006', rectifyNo:'ZG202607006', taskNo:'XJ20260721003', project:'T3航站楼扩建工程', projectId:'p-001', rectifier:'王工', reviewer:'张工', deadline:'2026-07-22', status:'待整改', rectDate:'2026-07-20', reviewDate:'2026-07-22' },
-  { id:'rec-002', rectifyNo:'ZG202607002', taskNo:'XJ20260728001', project:'飞行区跑道延长工程', projectId:'p-000', rectifier:'李工', reviewer:'张工', deadline:'2026-07-28', status:'待复查', rectDate:'2026-07-25', reviewDate:'' },
-  { id:'rec-003', rectifyNo:'ZG202607003', taskNo:'XJ20260721003', project:'T3航站楼扩建工程', projectId:'p-001', rectifier:'王工', reviewer:'张工', deadline:'2026-07-28', status:'待复查', rectDate:'2026-07-27', reviewDate:'2026-07-25' },
-  { id:'rec-004', rectifyNo:'ZG202607004', taskNo:'XJ20260728005', project:'飞行区跑道延长工程', projectId:'p-000', rectifier:'赵工', reviewer:'李工', deadline:'2026-07-20', status:'已关闭', rectDate:'2026-07-22', reviewDate:'2026-07-25' },
-  { id:'rec-011', rectifyNo:'ZG202607011', taskNo:'XJ20260721003', project:'T3航站楼扩建工程', projectId:'p-001', rectifier:'王工', reviewer:'张工', deadline:'2026-07-25', status:'已关闭', rectDate:'2026-07-24', reviewDate:'2026-07-26' },
+  { id:'rec-001', rectifyNo:'ZG202607001', taskNo:'XJ20260720002', project:'T3航站楼扩建工程', projectId:'p-001', rectifier:'赵工', reviewer:'张工', deadline:'2026-07-30', status:'待整改', rectDate:'', reviewDate:'', hazardDesc:'五芯电缆破损，线路未按规范敷设' },
+  { id:'rec-006', rectifyNo:'ZG202607006', taskNo:'XJ20260721003', project:'T3航站楼扩建工程', projectId:'p-001', rectifier:'王工', reviewer:'张工', deadline:'2026-07-22', status:'待整改', rectDate:'2026-07-20', reviewDate:'2026-07-22', hazardDesc:'脚手架施工方案未报审即施工' },
+  { id:'rec-002', rectifyNo:'ZG202607002', taskNo:'XJ20260720002', project:'T3航站楼扩建工程', projectId:'p-001', rectifier:'李工', reviewer:'张工', deadline:'2026-07-28', status:'待复查', rectDate:'2026-07-25', reviewDate:'', hazardDesc:'电缆线路沿地明敷未做保护' },
+  { id:'rec-003', rectifyNo:'ZG202607003', taskNo:'XJ20260721003', project:'T3航站楼扩建工程', projectId:'p-001', rectifier:'王工', reviewer:'张工', deadline:'2026-07-28', status:'待复查', rectDate:'2026-07-27', reviewDate:'2026-07-25', hazardDesc:'脚手架施工方案未报审即施工' },
+  { id:'rec-004', rectifyNo:'ZG202607004', taskNo:'XJ20260728005', project:'飞行区跑道延长工程', projectId:'p-000', rectifier:'赵工', reviewer:'李工', deadline:'2026-07-20', status:'已关闭', rectDate:'2026-07-22', reviewDate:'2026-07-25', hazardDesc:'电缆破损，存在安全隐患' },
+  { id:'rec-007', rectifyNo:'ZG202607007', taskNo:'XJ20260728005', project:'飞行区跑道延长工程', projectId:'p-000', rectifier:'赵工', reviewer:'李工', deadline:'2026-08-05', status:'待整改', rectDate:'', reviewDate:'', hazardDesc:'电缆破损，存在安全隐患' },
+  { id:'rec-011', rectifyNo:'ZG202607011', taskNo:'XJ20260721003', project:'T3航站楼扩建工程', projectId:'p-001', rectifier:'王工', reviewer:'张工', deadline:'2026-07-25', status:'已关闭', rectDate:'2026-07-24', reviewDate:'2026-07-26', hazardDesc:'消防器材过期未更换' },
 ]
 
 const filterForm = reactive({ keyword: '', status: '', overdue: '' })
@@ -126,6 +127,7 @@ function handleReset() { Object.keys(filterForm).forEach(k => filterForm[k] = ''
           <el-table-column type="index" label="序号" width="55" align="center" />
           <el-table-column prop="rectifyNo" label="整改单编号" min-width="120" />
           <el-table-column prop="taskNo" label="巡检任务单编号" min-width="120" />
+          <el-table-column prop="hazardDesc" label="隐患说明" min-width="160" show-overflow-tooltip />
           <el-table-column prop="project" label="项目" min-width="110" show-overflow-tooltip />
           <el-table-column prop="rectifier" label="整改人" min-width="55" align="center" />
           <el-table-column prop="reviewer" label="复查人" min-width="55" align="center" />

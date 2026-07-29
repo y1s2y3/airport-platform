@@ -33,7 +33,7 @@ export const machineLedgerMenuGroup = {
 export const majorHazardMenuGroup = {
   key: 'major-hazard',
   label: '危大工程监管',
-  icon: 'Warning',
+  icon: 'WarnTriangleFilled',
   children: [
     { key: 'deep-foundation-pit', label: '深基坑安全监管', path: '/major-hazard/deep-foundation-pit' },
     { key: 'subway-protection', label: '地铁铁路安全监管', path: '/major-hazard/subway-protection' },
