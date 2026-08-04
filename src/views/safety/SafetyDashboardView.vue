@@ -192,7 +192,10 @@ function goHazardList() { router.push('/safety-inspection/hazard') }
 <template>
   <div class="dash-page">
     <div class="page-head">
-      <h3 class="page-title">安全巡检看板</h3>
+      <div>
+        <div class="page-breadcrumb">安全看板 / 安全巡检看板</div>
+        <h3 class="page-title">安全巡检看板</h3>
+      </div>
       <span class="page-subtitle">工程指挥部 · 全项目统计</span>
     </div>
 
@@ -294,7 +297,8 @@ function goHazardList() { router.push('/safety-inspection/hazard') }
 
 <style scoped>
 .dash-page { padding:0; }
-.page-head { display:flex; align-items:baseline; gap:12px; margin-bottom:16px; }
+.page-head { display:flex; align-items:baseline; gap:12px; margin-bottom:16px; flex-wrap: wrap; }
+.page-breadcrumb { font-size:13px; color:var(--ap-text-muted, #909399); margin-bottom:4px; }
 .page-title { font-size:18px; font-weight:600; color:#1f2329; margin:0; }
 .page-subtitle { font-size:12px; color:#999; }
 .stat-row { margin-bottom:10px !important; cursor:pointer; }

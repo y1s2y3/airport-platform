@@ -25,7 +25,6 @@ import {
   rejectTask,
   resolveProjectName,
   rollbackToDraft,
-  SELF_CHECK,
   signatureRecords,
   TASK_STATUS,
   TASK_TYPE_LABEL,
@@ -77,11 +76,6 @@ const planLabel = computed(() => {
   if (task.value.unplanned_flag === 1 || !task.value.plan_id) return '未挂计划'
   return acceptancePlans.find((p) => p.id === task.value.plan_id)?.plan_no || task.value.plan_id
 })
-
-function formatSelfCheck(val) {
-  if (val == null || val === '') return ''
-  return SELF_CHECK[val] || ''
-}
 
 function formatFirstPass(flag) {
   if (flag == null || flag === '') return ''
@@ -282,7 +276,6 @@ function stepClass(idx) {
               <div class="info-item"><span class="k">隐蔽工程</span><span class="v">{{ task.is_hidden_work === 1 ? '是' : '否' }}</span></div>
               <div class="info-item"><span class="k">业主终审</span><span class="v">{{ task.owner_final_required === 1 ? '需要' : '否' }}</span></div>
               <div class="info-item"><span class="k">计划</span><span class="v">{{ planLabel }}</span></div>
-              <div class="info-item"><span class="k">自检结果</span><span class="v">{{ formatSelfCheck(task.self_check_result) || '—' }}</span></div>
               <div class="info-item"><span class="k">一次通过</span><span class="v">{{ formatFirstPass(task.first_pass_flag) || '—' }}</span></div>
               <div class="info-item full">
                 <span class="k">施工单位</span>

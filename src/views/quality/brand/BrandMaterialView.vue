@@ -3,6 +3,7 @@ import './brand-page.css'
 import { computed, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search, Refresh } from '@element-plus/icons-vue'
+import { useQmProjectScope } from '../../../composables/useCurrentProject'
 import {
   deleteSpec,
   listMaterials,
@@ -12,6 +13,8 @@ import {
   saveSpec,
   toggleMaterialStatus,
 } from '../../../mock/brand.js'
+
+const { isHqSelected, scopeProjectId, scopeProjectLabel } = useQmProjectScope()
 
 const keyword = ref('')
 const statusFilter = ref('')
@@ -31,7 +34,12 @@ const editingSpecModel = ref('')
 
 const list = computed(() => {
   void tick.value
-  return listMaterials({ keyword: keyword.value, status: statusFilter.value }).map((m) => ({
+  if (isHqSelected.value || !scopeProjectId.value) return []
+  return listMaterials({
+    keyword: keyword.value,
+    status: statusFilter.value,
+    projectId: scopeProjectId.value,
+  }).map((m) => ({
     ...m,
     specs: listSpecsByMaterial(m.material_id),
   }))
@@ -43,6 +51,9 @@ function reset() {
 }
 
 function openCreate() {
+  if (isHqSelected.value || !scopeProjectId.value) {
+    return ElMessage.warning('请先切换到具体项目')
+  }
   Object.assign(form, {
     material_id: '',
     material_name: '',
@@ -63,7 +74,8 @@ function openEdit(row) {
 }
 
 function onSave() {
-  const r = saveMaterial(form)
+  if (!scopeProjectId.value) return ElMessage.warning('请先切换到具体项目')
+  const r = saveMaterial({ ...form, project_id: scopeProjectId.value })
   if (!r.ok) return ElMessage.error(r.msg)
   tick.value += 1
   dialogVisible.value = false
@@ -140,9 +152,22 @@ async function onDeleteSpec(row) {
     <div class="page-header">
       <div class="page-breadcrumb">品牌报审 / 材料规格库</div>
       <h1 class="page-title">材料规格库</h1>
-      <p class="page-tip">企业级主数据 · 报审导入仅可选启用材料 · 不含报审手填数据</p>
+      <p class="page-tip">
+        项目级主数据 · 当前：{{ isHqSelected ? '请切换到具体项目' : scopeProjectLabel }} ·
+        报审导入仅可选本项目启用材料 · 不含报审手填数据
+      </p>
     </div>
 
+    <el-alert
+      v-if="isHqSelected"
+      type="warning"
+      :closable="false"
+      show-icon
+      class="mb"
+      title="请切换到具体项目后维护本项目材料规格库"
+    />
+
+    <template v-else>
     <div class="filter-bar">
       <el-input
         v-model="keyword"
@@ -251,6 +276,7 @@ async function onDeleteSpec(row) {
         <el-button type="primary" @click="onAddSpec">添加</el-button>
       </div>
     </el-dialog>
+    </template>
   </div>
 </template>
 

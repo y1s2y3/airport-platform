@@ -1,5 +1,5 @@
 /**
- * 品牌报审 — 一级菜单（位于质量验评之后）
+ * 品牌报审 — 一级菜单（位于质量看板 / 质量验评之后）
  */
 export const brandMenuGroup = {
   key: 'brand-approval',
@@ -27,7 +27,7 @@ export const brandMenuGroup = {
       key: 'brand-library',
       label: '品牌库管理',
       path: '/qm/brand/library',
-      description: '企业级品牌库维护；项目侧只读引用。',
+      description: '本项目品牌库维护；报审匹配与通过后入库均归属当前项目。',
       name: 'BrandLibrary',
       component: 'BrandLibraryView',
     },
@@ -35,7 +35,7 @@ export const brandMenuGroup = {
       key: 'brand-material',
       label: '材料规格库',
       path: '/qm/brand/materials',
-      description: '企业级材料与规格主数据；报审导入仅启用材料。',
+      description: '本项目材料与规格主数据；报审导入仅可选本项目启用材料。',
       name: 'BrandMaterial',
       component: 'BrandMaterialView',
     },

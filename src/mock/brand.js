@@ -1,5 +1,5 @@
 /**
- * 品牌报审 Mock — 对齐 research-brand；审批入口为个人中心待办
+ * 品牌报审 Mock — 对齐 research-brand V1.43；材料/品牌库为项目级主数据；审批入口为个人中心待办
  */
 import { reactive } from 'vue'
 import { getProjectLabel } from './laborRealName.js'
@@ -51,8 +51,10 @@ export function createEmptyCandidate() {
   }
 }
 export const SOURCE_TYPE = {
-  hq_manual: '指挥部新增',
+  project_manual: '项目新增',
   project_approval: '项目报审通过',
+  /** @deprecated 历史数据展示；新数据不再使用 */
+  hq_manual: '指挥部新增',
 }
 
 const store = reactive({
@@ -568,14 +570,79 @@ const store = reactive({
   seq: { app: 5, cand: 43, spec: 13, brand: 4, material: 12, bs: 6, ar: 4, att: 6 },
 })
 
+/** 种子主数据默认归属 p-000；并为 p-001 克隆一份演示数据 */
+;(function seedProjectScopedMasterData() {
+  store.materials.forEach((m) => {
+    if (!m.project_id) m.project_id = 'p-000'
+  })
+  store.brands.forEach((b) => {
+    if (!b.project_id) b.project_id = 'p-000'
+    if (b.source_type === 'hq_manual') b.source_type = 'project_manual'
+  })
+
+  const cloneProjectId = 'p-001'
+  const materialIdMap = new Map()
+  const specIdMap = new Map()
+  const brandIdMap = new Map()
+
+  store.materials
+    .filter((m) => m.project_id === 'p-000')
+    .slice(0, 4)
+    .forEach((m) => {
+      store.seq.material += 1
+      const nid = `M-${String(store.seq.material).padStart(3, '0')}`
+      materialIdMap.set(m.material_id, nid)
+      store.materials.push({ ...m, material_id: nid, project_id: cloneProjectId })
+    })
+
+  store.specs.forEach((s) => {
+    const newMid = materialIdMap.get(s.material_id)
+    if (!newMid) return
+    store.seq.spec += 1
+    const nid = `S-${String(store.seq.spec).padStart(3, '0')}`
+    specIdMap.set(s.spec_id, nid)
+    store.specs.push({ ...s, spec_id: nid, material_id: newMid })
+  })
+
+  store.brands
+    .filter((b) => b.project_id === 'p-000')
+    .slice(0, 2)
+    .forEach((b) => {
+      store.seq.brand += 1
+      const nid = `B-${String(store.seq.brand).padStart(3, '0')}`
+      brandIdMap.set(b.brand_lib_id, nid)
+      store.brands.push({
+        ...b,
+        brand_lib_id: nid,
+        project_id: cloneProjectId,
+        source_type: 'project_manual',
+      })
+    })
+
+  store.brandSpecs.forEach((link) => {
+    const newBid = brandIdMap.get(link.brand_lib_id)
+    const newMid = materialIdMap.get(link.material_id)
+    const newSid = specIdMap.get(link.material_spec_id)
+    if (!newBid || !newMid || !newSid) return
+    store.seq.bs += 1
+    store.brandSpecs.push({
+      brand_lib_spec_id: `BS-${String(store.seq.bs).padStart(3, '0')}`,
+      brand_lib_id: newBid,
+      material_id: newMid,
+      material_spec_id: newSid,
+    })
+  })
+})()
+
 function timestamp() {
   const d = new Date()
   const p = (n) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
 }
 
-export function listMaterials({ keyword = '', status = '' } = {}) {
+export function listMaterials({ keyword = '', status = '', projectId = '' } = {}) {
   let rows = [...store.materials]
+  if (projectId) rows = rows.filter((m) => m.project_id === projectId)
   if (status) rows = rows.filter((m) => m.status === status)
   const kw = keyword.trim()
   if (kw) rows = rows.filter((m) => `${m.material_name}${m.remark || ''}`.includes(kw))
@@ -598,9 +665,12 @@ export function saveMaterial(payload) {
       material_type: payload.material_type,
       status: payload.status || row.status,
       remark: payload.remark || '',
+      project_id: payload.project_id || row.project_id,
     })
     return { ok: true, data: row }
   }
+  const project_id = payload.project_id
+  if (!project_id) return { ok: false, msg: '请切换到具体项目' }
   store.seq.material += 1
   const row = {
     material_id: `M-${String(store.seq.material).padStart(3, '0')}`,
@@ -608,6 +678,7 @@ export function saveMaterial(payload) {
     material_type: payload.material_type,
     status: payload.status || 'active',
     remark: payload.remark || '',
+    project_id,
   }
   store.materials.push(row)
   return { ok: true, data: row }
@@ -666,8 +737,9 @@ export function toggleMaterialStatus(materialId) {
   return { ok: true, data: row }
 }
 
-export function listBrands({ keyword = '', status = 'active' } = {}) {
+export function listBrands({ keyword = '', status = 'active', projectId = '' } = {}) {
   let rows = [...store.brands]
+  if (projectId) rows = rows.filter((b) => b.project_id === projectId)
   if (status) rows = rows.filter((b) => b.status === status)
   const kw = keyword.trim()
   if (kw) rows = rows.filter((b) => `${b.brand_name}${b.manufacturer}`.includes(kw))
@@ -701,8 +773,8 @@ export function getBrandMaterialSpecGroups(brandLibId) {
  * 品牌库列表行：一条数据 = 品牌 + 一个材料 + 多个规格
  * 同一品牌可对应多行（不同材料）
  */
-export function listBrandMaterialRows({ keyword = '', status = '' } = {}) {
-  const brands = listBrands({ keyword: '', status })
+export function listBrandMaterialRows({ keyword = '', status = '', projectId = '' } = {}) {
+  const brands = listBrands({ keyword: '', status, projectId })
   const kw = keyword.trim()
   const rows = []
   for (const b of brands) {
@@ -715,6 +787,7 @@ export function listBrandMaterialRows({ keyword = '', status = '' } = {}) {
         manufacturer: b.manufacturer,
         source_type: b.source_type,
         status: b.status,
+        project_id: b.project_id,
         material_id: '',
         material_name: '',
         material_type: '',
@@ -730,6 +803,7 @@ export function listBrandMaterialRows({ keyword = '', status = '' } = {}) {
         manufacturer: b.manufacturer,
         source_type: b.source_type,
         status: b.status,
+        project_id: b.project_id,
         material_id: g.material_id,
         material_name: g.material_name,
         material_type: g.material_type,
@@ -745,11 +819,16 @@ export function listBrandMaterialRows({ keyword = '', status = '' } = {}) {
   )
 }
 
-export function findBrandByNameManufacturer(brandName, manufacturer, { includeInactive = false } = {}) {
+export function findBrandByNameManufacturer(
+  brandName,
+  manufacturer,
+  { includeInactive = false, projectId = '' } = {},
+) {
   const name = (brandName || '').trim()
   const mfr = (manufacturer || '').trim()
   return (
     store.brands.find((b) => {
+      if (projectId && b.project_id !== projectId) return false
       if (b.brand_name.trim() !== name || b.manufacturer.trim() !== mfr) return false
       if (!includeInactive && b.status !== 'active') return false
       return true
@@ -822,16 +901,22 @@ export function saveBrand(payload) {
     return { ok: true, data: row }
   }
 
-  // 指挥部手工新增一条数据：品牌 + 一个材料 + 多规格
-  // 同名同厂家品牌已存在则复用（一个品牌多条材料数据）；否则新建品牌
+  // 项目手工新增一条数据：品牌 + 一个材料 + 多规格
+  // 同项目内同名同厂家品牌已存在则复用；否则新建品牌
   // 项目报审入库：skipSpecLink 可先建品牌再补关联
   const skipSpecLink = payload.skipSpecLink === true
   const materialId = payload.material_id || ''
   const specIds = Array.isArray(payload.spec_ids) ? payload.spec_ids.filter(Boolean) : []
+  const project_id = payload.project_id || ''
   if (!skipSpecLink) {
     if (!materialId) return { ok: false, msg: '请选择材料' }
     if (!specIds.length) return { ok: false, msg: '请至少选择 1 个材料规格' }
-    const material = store.materials.find((m) => m.material_id === materialId && m.status === 'active')
+    const material = store.materials.find(
+      (m) =>
+        m.material_id === materialId &&
+        m.status === 'active' &&
+        (!project_id || m.project_id === project_id),
+    )
     if (!material) return { ok: false, msg: '材料不存在或已停用' }
     for (const sid of specIds) {
       const sp = store.specs.find((s) => s.spec_id === sid)
@@ -841,16 +926,18 @@ export function saveBrand(payload) {
     }
   }
 
-  let row = findBrandByNameManufacturer(brand_name, manufacturer)
+  let row = findBrandByNameManufacturer(brand_name, manufacturer, { projectId: project_id })
   if (!row) {
+    if (!project_id && !payload.brand_lib_id) return { ok: false, msg: '请切换到具体项目' }
     store.seq.brand += 1
     row = {
       brand_lib_id: `B-${String(store.seq.brand).padStart(3, '0')}`,
       brand_name,
       manufacturer,
-      source_type: payload.source_type || 'hq_manual',
+      source_type: payload.source_type || 'project_manual',
       application_id: payload.application_id || '',
       status: 'active',
+      project_id: project_id || payload.project_id || '',
     }
     store.brands.push(row)
   }
@@ -958,6 +1045,43 @@ export function listLedger(projectId, { keyword = '' } = {}) {
   })
 }
 
+/** 指挥部 · 品牌报审按项目统计 */
+export function buildHqBrandApprovalStatsByProject() {
+  const idSet = new Set(store.applications.map((a) => a.project_id).filter(Boolean))
+  ;['p-000', 'p-001', 'p-011'].forEach((id) => idSet.add(id))
+  return [...idSet]
+    .map((project_id) => {
+      const apps = listApplications(project_id)
+      const count = (status) => apps.filter((a) => a.status === status).length
+      return {
+        project_id,
+        project_name: getProjectLabel(project_id) || project_id,
+        total: apps.length,
+        in_approval: count('in_approval'),
+        approved: count('approved'),
+        rejected: count('rejected'),
+        withdrawn: count('withdrawn'),
+      }
+    })
+    .sort((a, b) => b.total - a.total || a.project_name.localeCompare(b.project_name, 'zh-CN'))
+}
+
+export function buildHqBrandApprovalSummary() {
+  const rows = buildHqBrandApprovalStatsByProject()
+  return rows.reduce(
+    (acc, row) => {
+      acc.projectCount += 1
+      acc.total += row.total
+      acc.in_approval += row.in_approval
+      acc.approved += row.approved
+      acc.rejected += row.rejected
+      acc.withdrawn += row.withdrawn
+      return acc
+    },
+    { projectCount: 0, total: 0, in_approval: 0, approved: 0, rejected: 0, withdrawn: 0 },
+  )
+}
+
 /** 将附件行展开为与新建页一致的勾选槽位（只读展示用） */
 export function buildAttachSlotsFromRecords(records = []) {
   const byType = new Map((records || []).map((r) => [r.attach_type, r]))
@@ -1004,12 +1128,12 @@ export function getApplicationDetail(applicationId) {
   }
 }
 
-export function searchActiveBrands(keyword = '') {
-  return listBrands({ keyword, status: 'active' })
+export function searchActiveBrands(keyword = '', projectId = '') {
+  return listBrands({ keyword, status: 'active', projectId })
 }
 
-export function searchActiveMaterials(keyword = '') {
-  return listMaterials({ keyword, status: 'active' })
+export function searchActiveMaterials(keyword = '', projectId = '') {
+  return listMaterials({ keyword, status: 'active', projectId })
 }
 
 /** 组装个人中心品牌待办所需字段 */
@@ -1062,12 +1186,20 @@ export function submitApplication(payload) {
   if (!material_name || !material_type) return { ok: false, msg: '材料名称与材料类型必填' }
   if (specs.length < 1) return { ok: false, msg: '本单规格至少 1 条' }
   if (candidates.length < 3) return { ok: false, msg: '备选品牌至少 3 条' }
+  if (payload.material_id) {
+    const m = store.materials.find((x) => x.material_id === payload.material_id)
+    if (!m || m.project_id !== project_id || m.status !== 'active') {
+      return { ok: false, msg: '导入材料不可用，请重新从本项目规格库导入' }
+    }
+  }
 
-  // 库选入：有 brand_lib_id 时校验仍为启用；勾选附件须上传文件
+  // 库选入：有 brand_lib_id 时校验仍为启用且属本项目；勾选附件须上传文件
   for (const c of candidates) {
     if (c.brand_lib_id) {
       const b = store.brands.find((x) => x.brand_lib_id === c.brand_lib_id)
-      if (!b || b.status !== 'active') return { ok: false, msg: `品牌「${c.brand_name}」不可用，请删除后重选` }
+      if (!b || b.status !== 'active' || b.project_id !== project_id) {
+        return { ok: false, msg: `品牌「${c.brand_name}」不可用，请删除后重选` }
+      }
     }
     const slots = Array.isArray(c.attachSlots) ? c.attachSlots : []
     for (const slot of slots) {
@@ -1264,17 +1396,21 @@ export function pmApprove(applicationId, { action, opinion, selectedCandidateId,
   if (selectedCount !== 1) return { ok: false, msg: '终审同意须恰好选定 1 个入选品牌' }
   const selected = cands.find((c) => c.is_selected)
 
-  // 入库步骤（简化完整规则）
+  // 入库步骤（简化完整规则）——材料/品牌库均按本项目隔离
   let materialId = app.material_id
   if (!materialId) {
     const hits = store.materials.filter(
-      (m) => m.status === 'active' && m.material_name.trim() === app.material_name.trim(),
+      (m) =>
+        m.project_id === app.project_id &&
+        m.status === 'active' &&
+        m.material_name.trim() === app.material_name.trim(),
     )
     if (hits.length === 0) {
       const created = saveMaterial({
         material_name: app.material_name,
         material_type: app.material_type,
         status: 'active',
+        project_id: app.project_id,
       })
       materialId = created.data.material_id
       store.appSpecs
@@ -1289,7 +1425,7 @@ export function pmApprove(applicationId, { action, opinion, selectedCandidateId,
       if (!resolveMaterialId) {
         return {
           ok: false,
-          msg: '存在多条同名启用企业材料，请选择一条',
+          msg: '存在多条同名启用材料，请选择一条',
           needChooseMaterial: true,
           materials: hits,
         }
@@ -1297,11 +1433,19 @@ export function pmApprove(applicationId, { action, opinion, selectedCandidateId,
       materialId = resolveMaterialId
     }
     app.material_id = materialId
+  } else {
+    const owned = store.materials.find(
+      (m) => m.material_id === materialId && m.project_id === app.project_id,
+    )
+    if (!owned) return { ok: false, msg: '报审引用的材料不属于本项目规格库' }
   }
 
   let brandLibId = selected.brand_lib_id
   if (brandLibId) {
     const brand = store.brands.find((b) => b.brand_lib_id === brandLibId)
+    if (brand && brand.project_id && brand.project_id !== app.project_id) {
+      return { ok: false, msg: '入选品牌不属于本项目品牌库' }
+    }
     if (brand && brand.status === 'inactive') {
       // 中途停用仍入选 → 新建启用品牌
       const created = saveBrand({
@@ -1309,6 +1453,7 @@ export function pmApprove(applicationId, { action, opinion, selectedCandidateId,
         manufacturer: selected.manufacturer,
         source_type: 'project_approval',
         application_id: applicationId,
+        project_id: app.project_id,
         skipSpecLink: true,
       })
       if (!created.ok) return created
@@ -1319,7 +1464,10 @@ export function pmApprove(applicationId, { action, opinion, selectedCandidateId,
     const name = selected.brand_name.trim()
     const mfr = selected.manufacturer.trim()
     const hits = store.brands.filter(
-      (b) => b.brand_name.trim() === name && b.manufacturer.trim() === mfr,
+      (b) =>
+        b.project_id === app.project_id &&
+        b.brand_name.trim() === name &&
+        b.manufacturer.trim() === mfr,
     )
     const activeHit = hits.find((b) => b.status === 'active')
     const inactiveHit = hits.find((b) => b.status === 'inactive')
@@ -1335,6 +1483,7 @@ export function pmApprove(applicationId, { action, opinion, selectedCandidateId,
         manufacturer: mfr,
         source_type: 'project_approval',
         application_id: applicationId,
+        project_id: app.project_id,
         skipSpecLink: true,
       })
       if (!created.ok) return created

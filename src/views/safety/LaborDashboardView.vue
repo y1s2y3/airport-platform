@@ -207,10 +207,10 @@ function goWarningList() {
     <div class="page-header">
       <div class="page-breadcrumb">人员实名制管理 / 劳务看板</div>
       <h1 class="page-title">劳务看板</h1>
-      <p v-if="isHqSelected" class="page-tip">汇总展示所有项目的劳务统计数据。</p>
+      <p v-if="isHqSelected" class="page-tip">指挥部监管看板：汇总人数、工种/类别占比、特种作业在岗与预警；班组明细由项目自有系统完成。</p>
       <template v-else>
         <p class="page-scope">当前项目：{{ projectLabel }}</p>
-        <p class="page-tip">统计数据随顶部项目切换联动，仅展示当前项目范围。</p>
+        <p class="page-tip">项目监管汇总：在场人数、特种作业、预警与工种结构；不做班组级明细与平台填报。</p>
       </template>
     </div>
 
@@ -316,14 +316,11 @@ function goWarningList() {
         </div>
 
         <section class="panel full">
-          <div class="panel-title">班组出勤统计</div>
-          <el-table :data="data.teamRanking" border stripe class="ap-table">
+          <div class="panel-title">工种结构汇总</div>
+          <el-table :data="data.workTypeSummary" border stripe class="ap-table">
             <el-table-column type="index" label="序号" width="60" align="center" />
-            <el-table-column prop="team" label="班组" min-width="140" />
-            <el-table-column prop="company" label="施工单位" min-width="160" />
-            <el-table-column prop="headcount" label="人数" width="80" align="center" />
-            <el-table-column prop="presentDays" label="出勤人天" width="100" align="center" />
-            <el-table-column prop="rate" label="平均出勤率" width="110" align="center" />
+            <el-table-column prop="workType" label="工种" min-width="160" />
+            <el-table-column prop="headcount" label="人数" width="100" align="center" />
           </el-table>
         </section>
       </template>

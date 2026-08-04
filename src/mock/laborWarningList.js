@@ -18,7 +18,6 @@ export const warningHandleModeMap = {
   multiSiteOnSite: '手动处理',
   managerAttendance: '手动处理',
   blacklistEntry: '手动处理',
-  salaryAbnormal: '手动处理',
 }
 
 /** 各预警类型处置方法说明 */
@@ -42,9 +41,7 @@ export const warningHandleGuideMap = {
   managerAttendance:
     '本预警需手动处理。请督促参建单位提升管理人员出勤率，落实考勤要求；填写整改措施及结果后关闭预警，可上传考勤统计表等附件。',
   blacklistEntry:
-    '本预警需手动处理。请确认黑名单人员已被拦截且未安排入场，通报相关责任单位；填写处置说明并关闭预警，建议上传通报记录或现场处置照片。',
-  salaryAbnormal:
-    '本预警需手动处理。请核对工资发放与考勤、合同信息，督促参建单位整改异常；填写核实结果后关闭预警，可上传工资发放明细等证明材料。',
+    '本预警需手动处理。请确认黑名单人员已被拦截且未安排入场，通报相关责任单位；填写处置说明并关闭预警，建议上传通报记录或现场处置照片。平台无法强制操控考勤机拉黑，需持续提醒直至退场。',
 }
 
 export function getWarningHandleGuide(ruleKey) {

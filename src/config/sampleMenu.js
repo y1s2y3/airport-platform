@@ -19,36 +19,42 @@ export const sampleMenuGroup = {
       key: 'sample-material-app',
       label: '材料定样报审',
       path: '/qm/sample/material/applications',
-      description: '施工单位提交材料定版定样方案。',
+      description: '施工单位提交材料定版定样方案；审批在个人中心办理。',
       name: 'SampleMaterialApp',
       component: 'SampleMaterialAppListView',
-    },
-    {
-      key: 'sample-material-approve',
-      label: '材料定样审批',
-      path: '/qm/sample/material/approve',
-      description: '监理/项目经理审批；与个人中心待办并行。',
-      name: 'SampleMaterialApprove',
-      component: 'SampleMaterialApproveListView',
     },
     {
       key: 'sample-process-app',
       label: '关键工序样板报审',
       path: '/qm/sample/process/applications',
-      description: '施工单位提交关键工序样板与交底。',
+      description: '施工单位提交关键工序样板与交底；审批在个人中心办理。',
       name: 'SampleProcessApp',
       component: 'SampleProcessAppListView',
     },
-    {
-      key: 'sample-process-approve',
-      label: '关键工序样板审批',
-      path: '/qm/sample/process/approve',
-      description: '监理→项目经理；通过后生成二维码。',
-      name: 'SampleProcessApprove',
-      component: 'SampleProcessApproveListView',
-    },
   ],
 }
+
+/** 已从侧栏移除的审批菜单：路由保留兼容旧链接，审批办理在个人中心 */
+export const sampleHiddenApproveMenus = [
+  {
+    key: 'sample-material-approve',
+    label: '材料定样审批',
+    path: '/qm/sample/material/approve',
+    description: '已迁至个人中心待办。',
+    name: 'SampleMaterialApprove',
+    component: 'SampleMaterialApproveListView',
+    hidden: true,
+  },
+  {
+    key: 'sample-process-approve',
+    label: '关键工序样板审批',
+    path: '/qm/sample/process/approve',
+    description: '已迁至个人中心待办。',
+    name: 'SampleProcessApprove',
+    component: 'SampleProcessApproveListView',
+    hidden: true,
+  },
+]
 
 export const sampleExtraRoutes = [
   {
@@ -118,7 +124,11 @@ function flattenMenuLeaves(items = []) {
   return leaves
 }
 
-export const sampleRoutes = [...flattenMenuLeaves(sampleMenuGroup.children), ...sampleExtraRoutes]
+export const sampleRoutes = [
+  ...flattenMenuLeaves(sampleMenuGroup.children),
+  ...sampleHiddenApproveMenus,
+  ...sampleExtraRoutes,
+]
 
 export const sampleViewLoaders = {
   SampleLedgerView: () => import('../views/quality/sample/SampleLedgerView.vue'),

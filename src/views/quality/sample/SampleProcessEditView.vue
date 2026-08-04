@@ -5,7 +5,6 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useQmProjectScope } from '../../../composables/useCurrentProject'
 import { submitProcessApp } from '../../../mock/sample.js'
-import SampleDemoRoleBar from './SampleDemoRoleBar.vue'
 
 const router = useRouter()
 const { isHqSelected, scopeProjectId, scopeProjectLabel } = useQmProjectScope()
@@ -51,10 +50,10 @@ function onSubmit() {
     <div class="page-header">
       <div class="page-breadcrumb">样板管理 / 关键工序样板报审 / 新建</div>
       <h1 class="page-title">新建关键工序样板</h1>
-      <p class="page-tip">项目：{{ isHqSelected ? '请先选项目' : scopeProjectLabel }}</p>
+      <p class="page-tip">
+        项目：{{ isHqSelected ? '请先选项目' : scopeProjectLabel }} · 本页仅施工方提交，审批请在个人中心办理
+      </p>
     </div>
-
-    <SampleDemoRoleBar />
 
     <el-form label-width="112px" class="create-form">
       <el-form-item label="工序名称" required>

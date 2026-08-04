@@ -28,6 +28,9 @@ import {
   PictureFilled,
   DocumentChecked,
   WarnTriangleFilled,
+  DataAnalysis,
+  Cpu,
+  MapLocation,
 } from '@element-plus/icons-vue'
 import { sidebarMenu } from '../config/menu'
 import {
@@ -44,8 +47,6 @@ import {
 } from '../utils/menuPermissionTree'
 import {
   SAMPLE_APPROVE_MENU_KEYS,
-  canSeeSampleApproveMenu,
-  sampleDemoRole,
 } from '../utils/sampleDemoRole.js'
 import { APP_VERSION, getChangelogByVersion } from '../config/appVersion'
 
@@ -65,13 +66,12 @@ const { isHqSelected } = useCurrentProject()
 
 const projectOptions = COC_PROJECT_OPTIONS
 
-/** 企业级隐藏视频监控；项目级隐藏指挥部专属菜单；样板审批菜单按 Demo 角色过滤 */
+/** 企业级隐藏视频监控；项目级隐藏指挥部专属菜单；样板审批入口已迁个人中心，侧栏始终隐藏 */
 const visibleSidebarMenu = computed(() => {
   const scoped = filterMenuByScope(
     sidebarMenu,
     isHqSelected.value ? MENU_SCOPE_HQ : MENU_SCOPE_PROJECT,
   )
-  if (canSeeSampleApproveMenu(sampleDemoRole.value)) return scoped
   const stripApprove = (items = []) =>
     items
       .filter((item) => !SAMPLE_APPROVE_MENU_KEYS.has(item.key))
@@ -96,10 +96,14 @@ const projectOnlyPaths = collectMenuPathsBy(isProjectOnlyMenuKey)
 /** 离开指挥部专属页时，尽量落到对应项目能力页，避免一律踢回工作台 */
 const HQ_LEAVE_REDIRECT = {
   '/labor/realname-stats': '/labor/realname',
+  '/labor/warning-config': '/labor/warning-list',
+  '/labor/blacklist': '/labor/warning-list',
   '/video-monitor/stats': '/video-monitor/preview',
   '/safety-inspection/dashboard': '/mobile/tasks',
   '/safety-inspection/plan': '/mobile/tasks',
   '/safety-inspection/check-items': '/mobile/tasks',
+  '/qm/quality-board/brand-stats': '/qm/brand/ledger',
+  '/safety-board': '/workbench',
 }
 
 function resolveLeaveTarget(paths) {
@@ -150,6 +154,9 @@ const iconMap = {
   PictureFilled,
   DocumentChecked,
   WarnTriangleFilled,
+  DataAnalysis,
+  Cpu,
+  MapLocation,
 }
 
 const activeMenu = computed(() => route.meta.sidebarKey || 'workbench')

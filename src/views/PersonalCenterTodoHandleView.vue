@@ -31,10 +31,9 @@ import {
   getDispatchPenaltyRecords,
   PENALTY_STATUSES,
 } from '../coc/utils/dispatchMeetingStorage.js'
-import { formatRedBlackPeriod } from '../coc/utils/redBlackBoardStorage.js'
-import { resolveExecutorDisplay } from '../coc/utils/executorDisplay.js'
 import { userOptions, getUserLabel } from '../composables/useInspectionPlan.js'
 import DispatchImageAttachments from '../coc/components/DispatchImageAttachments.vue'
+import PenaltyDetailPanels from '../coc/components/PenaltyDetailPanels.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -73,19 +72,6 @@ const mergedPenalty = computed(() => {
   }
   return merged
 })
-
-function displayValue(value) {
-  return value?.trim?.() ? value : '—'
-}
-
-function penaltyStatusTagType(status) {
-  if (status === PENALTY_STATUSES.CLOSED) return 'info'
-  if (status === PENALTY_STATUSES.PROCESSING) return 'warning'
-  if (status === PENALTY_STATUSES.PENDING) return 'warning'
-  if (status === PENALTY_STATUSES.APPEALING) return 'warning'
-  if (status === PENALTY_STATUSES.PENDING_ACCEPTANCE) return 'success'
-  return 'info'
-}
 
 const approvalFlow = computed(() => {
   if (!todo.value) return []
@@ -248,8 +234,10 @@ function submitProcessReport() {
       amount: reportForm.amount.trim(),
       reportResult: reportForm.reportResult.trim(),
       acceptor: reportForm.acceptor.trim(),
-      reportAttachments: reportForm.attachments.map((item) => ({
-        name: item.name,
+      reportAttachments: reportForm.attachments.map((item, index) => ({
+        name: item.name?.startsWith('上报结果附件')
+          ? item.name
+          : `上报结果附件-${index + 1}${String(item.name || '').match(/\.[a-z0-9]+$/i)?.[0] || '.jpg'}`,
         url: item.url,
       })),
     })
@@ -265,8 +253,10 @@ function submitProcessAppeal() {
     ensurePenaltyReadyForProcess(row.penaltyId)
     submitPenaltyAppeal(row.penaltyId, {
       appealReason: appealForm.reason.trim(),
-      appealAttachments: appealForm.attachments.map((item) => ({
-        name: item.name,
+      appealAttachments: appealForm.attachments.map((item, index) => ({
+        name: item.name?.startsWith('申诉附件')
+          ? item.name
+          : `申诉附件-${index + 1}${String(item.name || '').match(/\.[a-z0-9]+$/i)?.[0] || '.jpg'}`,
         url: item.url || '',
       })),
     })
@@ -651,84 +641,7 @@ function submitCommonHandle() {
           <div class="block-title">详情信息</div>
         </div>
         <template v-if="todo.type === 'penalty' && mergedPenalty">
-          <el-descriptions :column="2" border size="small" class="desc-panel">
-            <el-descriptions-item label="编号">{{ mergedPenalty.id || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="状态">
-              <el-tag :type="penaltyStatusTagType(mergedPenalty.status)" size="small">
-                {{ mergedPenalty.status }}
-              </el-tag>
-            </el-descriptions-item>
-            <el-descriptions-item label="项目名称">{{ mergedPenalty.project || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="责任单位">{{ mergedPenalty.unit || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="事由" :span="2">{{ mergedPenalty.penaltyReason || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="内容" :span="2">{{ mergedPenalty.penaltyContent || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="指派人">
-              {{ resolveExecutorDisplay(mergedPenalty.assignee || mergedPenalty.executor) }}
-            </el-descriptions-item>
-            <el-descriptions-item label="完成时限">{{ mergedPenalty.deadline || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="附件" :span="2">
-              <DispatchImageAttachments :model-value="mergedPenalty.attachments || []" readonly />
-            </el-descriptions-item>
-            <el-descriptions-item label="条款" :span="2">{{ displayValue(mergedPenalty.penaltyClause) }}</el-descriptions-item>
-            <el-descriptions-item label="金额">{{ displayValue(mergedPenalty.amount) }}</el-descriptions-item>
-            <el-descriptions-item label="下发时间">{{ mergedPenalty.issueTime || '—' }}</el-descriptions-item>
-            <el-descriptions-item v-if="mergedPenalty.reportResult" label="上报结果" :span="2">
-              {{ mergedPenalty.reportResult }}
-            </el-descriptions-item>
-            <el-descriptions-item v-if="mergedPenalty.acceptor" label="验收人">
-              {{ mergedPenalty.acceptor }}
-            </el-descriptions-item>
-            <el-descriptions-item v-if="mergedPenalty.reportAttachments?.length" label="上报附件" :span="2">
-              <div class="report-detail-images">
-                <a
-                  v-for="(file, index) in mergedPenalty.reportAttachments"
-                  :key="`${file.name}-${index}`"
-                  class="report-detail-item"
-                  :href="file.url"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <img :src="file.url" :alt="file.name" class="report-detail-thumb" />
-                  <span :title="file.name">{{ file.name }}</span>
-                </a>
-              </div>
-            </el-descriptions-item>
-            <el-descriptions-item v-if="mergedPenalty.reportTime" label="上报时间">
-              {{ mergedPenalty.reportTime }}
-            </el-descriptions-item>
-            <el-descriptions-item v-if="mergedPenalty.acceptedTime" label="验收时间">
-              {{ mergedPenalty.acceptedTime }}
-            </el-descriptions-item>
-            <el-descriptions-item v-if="mergedPenalty.closedTime" label="关闭时间">
-              {{ mergedPenalty.closedTime }}
-            </el-descriptions-item>
-            <el-descriptions-item v-if="mergedPenalty.blackBoardSynced" label="黑榜期数" :span="2">
-              {{ formatRedBlackPeriod(mergedPenalty.blackBoardMonth) }}
-            </el-descriptions-item>
-          </el-descriptions>
-          <div v-if="mergedPenalty.snapshot" class="content-block">
-            <div class="block-label">关联图片</div>
-            <img :src="mergedPenalty.snapshot" alt="关联图片" class="snapshot-img" />
-          </div>
-          <div
-            v-if="mergedPenalty.status === PENALTY_STATUSES.APPEALING || mergedPenalty.appealReason"
-            class="content-block appeal-block"
-          >
-            <div class="block-label">申诉信息</div>
-            <el-descriptions :column="1" border size="small">
-              <el-descriptions-item label="申诉时间">{{ mergedPenalty.appealTime || '—' }}</el-descriptions-item>
-              <el-descriptions-item label="申诉理由">{{ mergedPenalty.appealReason || '—' }}</el-descriptions-item>
-              <el-descriptions-item v-if="mergedPenalty.appealResolution" label="申诉结论">
-                {{ mergedPenalty.appealResolution }}
-              </el-descriptions-item>
-              <el-descriptions-item label="附件">
-                <DispatchImageAttachments
-                  :model-value="mergedPenalty.appealAttachments || []"
-                  readonly
-                />
-              </el-descriptions-item>
-            </el-descriptions>
-          </div>
+          <PenaltyDetailPanels :record="mergedPenalty" />
         </template>
         <template v-else>
           <el-descriptions :column="2" border size="small" class="desc-panel">
@@ -781,7 +694,7 @@ function submitCommonHandle() {
         <template v-if="todo.type === 'penalty' && todo.bizStatus === PENALTY_TODO_STATUS.PROCESSING">
           <el-tabs v-model="processTab">
             <el-tab-pane label="上报结果" name="report">
-              <el-form label-width="96px" class="op-form">
+              <el-form label-width="110px" class="op-form">
                 <el-form-item label="条款" required>
                   <el-input v-model="reportForm.penaltyClause" placeholder="请输入处罚条款" />
                 </el-form-item>
@@ -812,13 +725,16 @@ function submitCommonHandle() {
                     />
                   </el-select>
                 </el-form-item>
-                <el-form-item label="附件">
-                  <DispatchImageAttachments v-model="reportForm.attachments" />
+                <el-form-item label="上报结果附件">
+                  <DispatchImageAttachments
+                    v-model="reportForm.attachments"
+                    name-prefix="上报结果附件"
+                  />
                 </el-form-item>
               </el-form>
             </el-tab-pane>
             <el-tab-pane label="申诉" name="appeal">
-              <el-form label-width="96px" class="op-form">
+              <el-form label-width="110px" class="op-form">
                 <el-form-item label="申诉理由" required>
                   <el-input
                     v-model="appealForm.reason"
@@ -827,8 +743,11 @@ function submitCommonHandle() {
                     placeholder="请说明申诉理由"
                   />
                 </el-form-item>
-                <el-form-item label="附件">
-                  <DispatchImageAttachments v-model="appealForm.attachments" />
+                <el-form-item label="申诉附件">
+                  <DispatchImageAttachments
+                    v-model="appealForm.attachments"
+                    name-prefix="申诉附件"
+                  />
                 </el-form-item>
               </el-form>
             </el-tab-pane>
@@ -1261,60 +1180,5 @@ function submitCommonHandle() {
   border-top: 1px solid #ebeef5;
   border-radius: 0 0 10px 10px;
   backdrop-filter: blur(6px);
-}
-
-.content-block {
-  margin-top: 14px;
-}
-
-.block-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: #606266;
-  margin-bottom: 8px;
-}
-
-.snapshot-img {
-  max-width: 100%;
-  max-height: 280px;
-  border-radius: 6px;
-  border: 1px solid #ebeef5;
-  object-fit: contain;
-  background: #fff;
-}
-
-.appeal-block {
-  padding-top: 4px;
-}
-
-.report-detail-images {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.report-detail-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  width: 88px;
-  text-decoration: none;
-  color: #606266;
-  font-size: 12px;
-}
-
-.report-detail-thumb {
-  width: 88px;
-  height: 66px;
-  object-fit: cover;
-  border-radius: 4px;
-  border: 1px solid #ebeef5;
-  background: #f5f7fa;
-}
-
-.report-detail-item span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 </style>

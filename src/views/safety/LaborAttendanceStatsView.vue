@@ -1,8 +1,8 @@
 <script setup>
 /**
  * 考勤统计
- * - 指挥部：按项目汇总出勤率（单日），可下钻项目级
- * - 项目级：按人员 / 班组统计（原能力不变）
+ * - 指挥部：按项目汇总出勤率（工种/管理人员/劳务/特种）
+ * - 项目级：按人员汇总（不做班组统计）
  */
 import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
@@ -14,7 +14,6 @@ import {
 } from '../../composables/useCurrentProject'
 import {
   getPersonStats,
-  getTeamStats,
   workTypes,
   buildHqAttendanceStatsByProject,
 } from '../../mock/laborAttendanceStats'
@@ -22,7 +21,6 @@ import {
 const router = useRouter()
 const { isHqSelected, scopeProjectId, scopeProjectLabel } = useLaborProjectScope()
 
-/** —— 指挥部：按项目出勤率 —— */
 const hqDate = ref('2026-07-20')
 const hqKeyword = ref('')
 
@@ -45,18 +43,14 @@ function handleHqSearch() {
 
 async function viewProjectDetail(row) {
   if (!row?.project_id) return
-  // 先离开指挥部专属页，再切项目，避免 leaveRestrictedPages 踢回工作台
   await router.push('/labor/attendance')
   selectedProjectId.value = row.project_id
   ElMessage.success(`已切换至项目：${row.project_name}`)
 }
 
-/** —— 项目级：原人员/班组统计 —— */
-const activeTab = ref('person')
 const personFilters = ref({ name: '', company: '', workType: '' })
 
 const allPersonList = computed(() => getPersonStats(scopeProjectId.value))
-const allTeamList = computed(() => getTeamStats(scopeProjectId.value))
 
 const filteredPersonList = computed(() => {
   return allPersonList.value.filter((row) => {
@@ -97,12 +91,11 @@ function formatRate(n) {
 </script>
 
 <template>
-  <!-- 指挥部：按项目出勤率 -->
   <div v-if="isHqSelected" class="att-page page-card">
     <div class="page-header">
       <div class="page-breadcrumb">人员实名制管理 / 考勤统计</div>
       <h1 class="page-title">考勤统计</h1>
-      <p class="page-tip">按项目汇总出勤率；支持单日筛选。点击「查看项目详情」进入项目级考勤统计</p>
+      <p class="page-tip">按项目汇总出勤率（含管理人员/劳务/特种）；班组级明细不在平台统计。</p>
     </div>
 
     <div class="filter-bar">
@@ -147,74 +140,53 @@ function formatRate(n) {
     </el-table>
   </div>
 
-  <!-- 项目级：原页面 -->
   <div v-else class="att-page page-card">
     <div class="page-header">
       <div class="page-breadcrumb">人员实名制管理 / 考勤统计</div>
       <h1 class="page-title">考勤统计</h1>
       <p class="page-scope">当前项目：{{ scopeProjectLabel }}</p>
-      <p class="page-tip">在场人数统计口径：当日已打上班卡且未打下班卡。统计周期：2026年6月。</p>
+      <p class="page-tip">按人员汇总出勤（对接闸机数据）。班组级明细由项目自有系统完成，平台不做班组排行。</p>
     </div>
 
     <div class="page-layout">
       <section class="stats-panel">
         <div class="panel-head">
-          <div v-if="activeTab === 'person'" class="panel-stats">
+          <div class="panel-stats">
             <span>人员 {{ personSummary.total }} 人</span>
             <span>平均出勤率 {{ personSummary.avgRate }}</span>
             <span>加班合计 {{ personSummary.overtime }} h</span>
           </div>
-          <div v-else class="panel-stats">
-            <span>班组 {{ allTeamList.length }} 个</span>
-          </div>
         </div>
 
-        <el-tabs v-model="activeTab">
-          <el-tab-pane label="按人员统计" name="person">
-            <div class="filter-bar">
-              <el-input v-model="personFilters.name" placeholder="姓名" clearable style="width: 120px" />
-              <el-input
-                v-model="personFilters.company"
-                placeholder="施工单位"
-                clearable
-                style="width: 140px"
-              />
-              <el-select v-model="personFilters.workType" placeholder="工种" clearable style="width: 110px">
-                <el-option v-for="t in workTypes" :key="t" :label="t" :value="t" />
-              </el-select>
-              <el-button class="ap-btn-primary" type="primary" :icon="Search" @click="handlePersonSearch">查询</el-button>
-              <el-button :icon="Refresh" @click="handleReset">重置</el-button>
-            </div>
+        <div class="filter-bar">
+          <el-input v-model="personFilters.name" placeholder="姓名" clearable style="width: 120px" />
+          <el-input
+            v-model="personFilters.company"
+            placeholder="施工单位"
+            clearable
+            style="width: 140px"
+          />
+          <el-select v-model="personFilters.workType" placeholder="工种" clearable style="width: 110px">
+            <el-option v-for="t in workTypes" :key="t" :label="t" :value="t" />
+          </el-select>
+          <el-button class="ap-btn-primary" type="primary" :icon="Search" @click="handlePersonSearch">查询</el-button>
+          <el-button :icon="Refresh" @click="handleReset">重置</el-button>
+        </div>
 
-            <el-table :data="filteredPersonList" border stripe class="ap-table">
-              <el-table-column type="index" label="序号" width="60" align="center" />
-              <el-table-column prop="name" label="姓名" width="90" />
-              <el-table-column prop="company" label="施工单位" min-width="120" />
-              <el-table-column prop="workType" label="工种" width="90" />
-              <el-table-column prop="attendanceDays" label="出勤天数" width="90" align="center" />
-              <el-table-column prop="totalHours" label="总工时(h)" width="95" align="center" />
-              <el-table-column prop="avgHours" label="日均(h)" width="85" align="center" />
-              <el-table-column prop="lateCount" label="迟到" width="70" align="center" />
-              <el-table-column prop="earlyLeaveCount" label="早退" width="70" align="center" />
-              <el-table-column prop="absentCount" label="缺勤" width="70" align="center" />
-              <el-table-column prop="overtimeHours" label="加班(h)" width="85" align="center" />
-              <el-table-column prop="attendanceRate" label="出勤率" width="90" align="center" />
-            </el-table>
-          </el-tab-pane>
-
-          <el-tab-pane label="按班组统计" name="team">
-            <el-table :data="allTeamList" border stripe class="ap-table">
-              <el-table-column type="index" label="序号" width="60" align="center" />
-              <el-table-column prop="team" label="班组" min-width="120" />
-              <el-table-column prop="company" label="施工单位" min-width="120" />
-              <el-table-column prop="headcount" label="人数" width="80" align="center" />
-              <el-table-column prop="presentDays" label="出勤人天" width="100" align="center" />
-              <el-table-column prop="avgRate" label="平均出勤率" width="110" align="center" />
-              <el-table-column prop="absentTotal" label="缺勤合计" width="90" align="center" />
-              <el-table-column prop="overtimeHours" label="加班(h)" width="90" align="center" />
-            </el-table>
-          </el-tab-pane>
-        </el-tabs>
+        <el-table :data="filteredPersonList" border stripe class="ap-table">
+          <el-table-column type="index" label="序号" width="60" align="center" />
+          <el-table-column prop="name" label="姓名" width="90" />
+          <el-table-column prop="company" label="施工单位" min-width="120" />
+          <el-table-column prop="workType" label="工种" width="90" />
+          <el-table-column prop="attendanceDays" label="出勤天数" width="90" align="center" />
+          <el-table-column prop="totalHours" label="总工时(h)" width="95" align="center" />
+          <el-table-column prop="avgHours" label="日均(h)" width="85" align="center" />
+          <el-table-column prop="lateCount" label="迟到" width="70" align="center" />
+          <el-table-column prop="earlyLeaveCount" label="早退" width="70" align="center" />
+          <el-table-column prop="absentCount" label="缺勤" width="70" align="center" />
+          <el-table-column prop="overtimeHours" label="加班(h)" width="85" align="center" />
+          <el-table-column prop="attendanceRate" label="出勤率" width="90" align="center" />
+        </el-table>
       </section>
     </div>
   </div>

@@ -5,7 +5,6 @@ import { useRouter } from 'vue-router'
 import { Search, Refresh } from '@element-plus/icons-vue'
 import { useQmProjectScope } from '../../../composables/useCurrentProject'
 import { BIZ_TYPE_LABEL, listLedger, STATUS_LABEL, statusTagType } from '../../../mock/sample.js'
-import SampleDemoRoleBar from './SampleDemoRoleBar.vue'
 
 const router = useRouter()
 const { isHqSelected, scopeProjectId, scopeProjectLabel } = useQmProjectScope()
@@ -45,16 +44,16 @@ function openQr(row) {
 <template>
   <div class="qm-page page-card">
     <div class="page-header">
-      <div class="page-breadcrumb">样板管理 / 样板台账</div>
+      <div class="page-breadcrumb">
+        {{ isHqSelected ? '质量看板' : '样板管理' }} / 样板台账
+      </div>
       <h1 class="page-title">样板台账</h1>
       <p class="page-tip">
         仅展示已通过单据（视图）· 当前：{{
           isHqSelected ? '指挥部（跨项目）' : scopeProjectLabel || '请选择项目'
         }}
       </p>
-    </div>
-
-    <SampleDemoRoleBar />
+      </div>
 
     <el-alert
       v-if="!isHqSelected && !scopeProjectId"

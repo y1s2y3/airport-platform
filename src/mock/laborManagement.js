@@ -1,6 +1,6 @@
-import { projectTree, getRealNameStats, getProjectPersonnel, getProjectLabel } from './laborRealName.js'
+import { projectTree, getRealNameStats, getProjectPersonnel, getProjectLabel, buildHqRealNameStatsByProject } from './laborRealName.js'
 import { getProjectWarnings, getWarningStats } from './laborWarningList.js'
-import { getPersonStats, getTeamStats } from './laborAttendanceStats.js'
+import { getPersonStats, buildHqAttendanceStatsByProject } from './laborAttendanceStats.js'
 import { REALNAME_ENTRY_STATUS } from '../constants/laborPersonStatus.js'
 
 export { projectTree }
@@ -94,7 +94,7 @@ function aggregateRealNameStats() {
   )
 }
 
-function buildDashboardPayload({ realname, warningStats, warnings, personStats, teamStats }) {
+function buildDashboardPayload({ realname, warningStats, warnings, personStats }) {
   const avgAttendanceRate = personStats.length
     ? `${(personStats.reduce((sum, row) => sum + parseFloat(row.attendanceRate), 0) / personStats.length).toFixed(1)}%`
     : '-'
@@ -103,6 +103,7 @@ function buildDashboardPayload({ realname, warningStats, warnings, personStats, 
     .filter((item) => item.status !== '已关闭')
     .sort((a, b) => (b.triggeredAt || '').localeCompare(a.triggeredAt || ''))
 
+  // 平台仅汇总：全局人数、工种/类别占比、特种在岗、预警；班组明细由项目自有系统完成
   return {
     summary: {
       total: realname.total,
@@ -132,13 +133,17 @@ function buildDashboardPayload({ realname, warningStats, warnings, personStats, 
         abnormalType: item.ruleLabel,
         expireDate: item.status,
       })),
-    teamRanking: teamStats.map((item) => ({
-      team: item.team,
-      company: item.company,
-      headcount: item.headcount,
-      presentDays: item.presentDays,
-      rate: item.avgRate,
-    })),
+    workTypeSummary: (() => {
+      const counts = {}
+      personStats.forEach((row) => {
+        const key = row.workType || '其他'
+        counts[key] = (counts[key] || 0) + 1
+      })
+      return Object.entries(counts)
+        .map(([workType, headcount]) => ({ workType, headcount }))
+        .sort((a, b) => b.headcount - a.headcount)
+        .slice(0, 12)
+    })(),
   }
 }
 
@@ -151,7 +156,6 @@ export function getLaborDashboardData(projectId) {
         warningStats: getWarningStats('hq'),
         warnings: getProjectWarnings('hq'),
         personStats: ALL_LABOR_PROJECT_IDS.flatMap((id) => getPersonStats(id)),
-        teamStats: ALL_LABOR_PROJECT_IDS.flatMap((id) => getTeamStats(id)),
       }),
       ageAnalysis: aggregateAgeAnalysis(),
       categoryAnalysis: aggregateCategoryAnalysis(),
@@ -164,7 +168,6 @@ export function getLaborDashboardData(projectId) {
     warningStats: getWarningStats(projectId),
     warnings: getProjectWarnings(projectId),
     personStats: getPersonStats(projectId),
-    teamStats: getTeamStats(projectId),
   })
 }
 
@@ -238,3 +241,81 @@ export const attendanceTeamList = [
 ]
 
 export const workTypes = ['钢筋工', '木工', '混凝土工', '架子工', '电工', '焊工', '起重工', '普工', '安全员']
+
+/** 演示「今日」口径，与考勤/预警 mock 主数据日对齐 */
+export const LABOR_HQ_STATS_TODAY = '2026-06-29'
+
+/**
+ * 指挥部 · 实名制统计（按项目）
+ * 总人数 / 三类人员 / 今日出勤率（含分类）/ 今日与累计预警 / 未处置
+ */
+export function buildHqRealNameSupervisionStatsByProject(today = LABOR_HQ_STATS_TODAY) {
+  const headcounts = buildHqRealNameStatsByProject()
+  const attendance = Object.fromEntries(
+    buildHqAttendanceStatsByProject(today).map((row) => [row.project_id, row]),
+  )
+
+  return headcounts.map((row) => {
+    const att = attendance[row.project_id]
+    const warnings = row.demoEmpty ? [] : getProjectWarnings(row.project_id)
+    const todayWarnings = warnings.filter((w) => String(w.triggeredAt || '').startsWith(today))
+    const pending = warnings.filter((w) => w.status === '待处理').length
+
+    return {
+      project_id: row.project_id,
+      project_name: row.project_name,
+      demoEmpty: row.demoEmpty,
+      total: row.total,
+      manage: row.manage,
+      labor: row.labor,
+      special: row.special,
+      todayAttendanceRate: att?.allRate ?? 0,
+      todayManageRate: att?.manageRate ?? 0,
+      todayLaborRate: att?.laborRate ?? 0,
+      todaySpecialRate: att?.specialRate ?? 0,
+      todayWarningCount: todayWarnings.length,
+      pendingWarningCount: pending,
+      totalWarningCount: warnings.length,
+    }
+  })
+}
+
+function weightedRate(rows, rateKey, weightKey) {
+  let weighted = 0
+  let weightSum = 0
+  rows.forEach((row) => {
+    const w = Number(row[weightKey]) || 0
+    if (w <= 0) return
+    weighted += (Number(row[rateKey]) || 0) * w
+    weightSum += w
+  })
+  return weightSum ? Number((weighted / weightSum).toFixed(1)) : 0
+}
+
+/** 指挥部 · 实名制统计顶部指标卡（全项目汇总） */
+export function buildHqRealNameSupervisionSummary(today = LABOR_HQ_STATS_TODAY) {
+  const rows = buildHqRealNameSupervisionStatsByProject(today).filter((r) => !r.demoEmpty)
+  const total = rows.reduce((s, r) => s + r.total, 0)
+  const manage = rows.reduce((s, r) => s + r.manage, 0)
+  const labor = rows.reduce((s, r) => s + r.labor, 0)
+  const special = rows.reduce((s, r) => s + r.special, 0)
+  return {
+    today,
+    total,
+    manage,
+    labor,
+    special,
+    todayAttendanceRate: weightedRate(rows, 'todayAttendanceRate', 'total'),
+    todayManageRate: weightedRate(rows, 'todayManageRate', 'manage'),
+    todayWarningCount: rows.reduce((s, r) => s + r.todayWarningCount, 0),
+    pendingWarningCount: rows.reduce((s, r) => s + r.pendingWarningCount, 0),
+  }
+}
+
+/** 未处置预警最多的项目（用于指标卡下钻） */
+export function pickProjectWithMostPendingWarnings(today = LABOR_HQ_STATS_TODAY) {
+  const rows = buildHqRealNameSupervisionStatsByProject(today)
+    .filter((r) => !r.demoEmpty && r.pendingWarningCount > 0)
+    .sort((a, b) => b.pendingWarningCount - a.pendingWarningCount)
+  return rows[0] || null
+}

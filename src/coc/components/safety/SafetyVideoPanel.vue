@@ -12,7 +12,10 @@ import { PANEL_TITLE_ICON_URL } from '../../config/panelTitleAssets.js'
 import HqPanelTitleLine from '../hq/HqPanelTitleLine.vue'
 
 const DISPATCH_PAGE_SIZE = 3
-const MONITOR_PAGE_SIZE = 6
+/** 首页视频监控九宫格 */
+const MONITOR_PAGE_SIZE = 9
+/** 首页隐藏右侧巡检对讲设备栏，视频区横向铺满 */
+const SHOW_DISPATCH_COLUMN = false
 
 const props = defineProps({
   project: { type: Object, required: true },
@@ -188,7 +191,10 @@ function openDispatch(device) {
 </script>
 
 <template>
-  <div class="safety-video-wrap" :class="{ 'is-hq-layout': hqLayout }">
+  <div
+    class="safety-video-wrap"
+    :class="{ 'is-hq-layout': hqLayout, 'hide-dispatch': !SHOW_DISPATCH_COLUMN }"
+  >
     <div class="safety-video-modules">
       <ProjectListPanel
         :projects="projects"
@@ -285,7 +291,7 @@ function openDispatch(device) {
         </div>
         <div class="panel-body module-body">
           <div class="video-hint">点击在线画面可放大查看，支持云台、截图等操作</div>
-          <div class="video-grid grid-2x3">
+          <div class="video-grid grid-3x3">
             <template v-if="isConnected">
               <div
                 v-for="(cam, idx) in pagedCameras"
@@ -320,7 +326,7 @@ function openDispatch(device) {
         </div>
       </div>
 
-      <div class="panel-card module-panel dispatch-module">
+      <div v-if="SHOW_DISPATCH_COLUMN" class="panel-card module-panel dispatch-module">
         <div class="panel-title simple-title module-title-bar">
           <img
             class="hq-panel-title-icon"
@@ -435,6 +441,11 @@ function openDispatch(device) {
   width: 100%;
   height: 100%;
   min-height: 0;
+}
+
+/* 隐藏巡检对讲栏：视频监控横向铺满原对讲区域 */
+.safety-video-wrap.hide-dispatch .safety-video-modules {
+  grid-template-columns: var(--coc-project-list-w) minmax(0, 1fr);
 }
 
 .safety-video-wrap.is-hq-layout .safety-video-modules {
@@ -646,6 +657,15 @@ function openDispatch(device) {
   grid-template-columns: repeat(2, 1fr);
   grid-template-rows: repeat(3, 1fr);
   gap: 12px;
+  min-height: 0;
+}
+
+.video-grid.grid-3x3 {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 10px;
   min-height: 0;
 }
 

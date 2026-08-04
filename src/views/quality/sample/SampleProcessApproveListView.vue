@@ -10,7 +10,6 @@ import {
   STATUS_LABEL,
   statusTagType,
 } from '../../../mock/sample.js'
-import SampleDemoRoleBar from './SampleDemoRoleBar.vue'
 
 const router = useRouter()
 const { isHqSelected, scopeProjectId, scopeProjectLabel } = useQmProjectScope()
@@ -35,13 +34,11 @@ function reset() {
       <div class="page-breadcrumb">样板管理 / 关键工序样板审批</div>
       <h1 class="page-title">关键工序样板审批</h1>
       <p class="page-tip">
-        监理 → 项目经理 · 通过后赋码 · 当前：{{
+        审批已迁至个人中心待办；本页仅作兼容入口 · 当前：{{
           isHqSelected ? '请切换到具体项目' : scopeProjectLabel
         }}
       </p>
     </div>
-
-    <SampleDemoRoleBar />
 
     <el-alert
       v-if="isHqSelected"

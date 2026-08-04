@@ -1,7 +1,6 @@
 /**
- * 质量验评菜单 — 对齐 PRD 原型页面路径
- * 指挥部侧栏：统计看板
- * 项目侧栏：统计看板 + 目录树/计划/表单填报/实体验收(深度集成含专项)/App审批等
+ * 质量验评菜单 — 仅项目层级
+ * 按实体工程验收 / 专项验收 / 竣工验收划分；不做验收计划
  */
 export const qualityMenuGroup = {
   key: 'quality-inspect',
@@ -10,9 +9,9 @@ export const qualityMenuGroup = {
   children: [
     {
       key: 'qm-dashboard',
-      label: '统计看板',
+      label: '质量验评看板',
       path: '/qm/inspect/dashboard',
-      description: '验评指标看板；指挥部看全项目，项目级看本项目。',
+      description: '验评指标看板；项目级看本项目。',
       name: 'QmDashboard',
       component: 'QmDashboardView',
     },
@@ -20,69 +19,49 @@ export const qualityMenuGroup = {
       key: 'qm-wbs-tree',
       label: '验评目录树',
       path: '/qm/inspect/tree',
-      description: '项目维护本工程验评目录树，检验批绑定类型。',
+      description:
+        '树结构：项目竣工验收 → 实体工程验收 / 专项验收；实体下维护单位工程至检验批；专项下自建消防、人防等节点。',
       name: 'QmWbsTree',
       component: 'QmWbsTreeView',
     },
     {
-      key: 'qm-plan-list',
-      label: '验收计划',
-      path: '/qm/inspect/plans',
-      description: '计划编制/复核/跟踪；可从计划发起验评。',
-      name: 'QmPlanList',
-      component: 'QmPlanListView',
+      key: 'qm-form-fill-deep',
+      label: '实体工程验收',
+      path: '/qm/inspect/form-fill-deep',
+      description:
+        '检验批至单位工程逐级验收；下级全部通过后方可发起当前节点验收任务。',
+      name: 'QmFormFillDeep',
+      component: 'QmFormFillDeepView',
     },
     {
-      key: 'qm-form-fill',
-      label: '表单填报',
-      path: '/qm/inspect/form-fill',
-      description: '嵌入第三方表格填报系统（WBS + 工序表格填报）。',
-      name: 'QmFormFill',
-      component: 'QmFormFillView',
+      key: 'qm-special-deep',
+      label: '专项验收',
+      path: '/qm/inspect/special-deep',
+      description: '针对目录树专项节点（消防、人防等）发起验收；与实体工程可并行。',
+      name: 'QmSpecialDeep',
+      component: 'QmSpecialDeepView',
     },
     {
-      key: 'qm-physical-deep',
-      label: '实体验收（深度集成）',
-      children: [
-        {
-          key: 'qm-form-fill-deep',
-          label: '实体验收',
-          path: '/qm/inspect/form-fill-deep',
-          description: '实体验收列表仅展示单位工程；下级通过后方可发起单位工程报验。',
-          name: 'QmFormFillDeep',
-          component: 'QmFormFillDeepView',
-        },
-        {
-          key: 'qm-special-deep',
-          label: '专项验收',
-          path: '/qm/inspect/special-deep',
-          description: '专项验收：挂接验收计划、选择专项类型；不挂目录树；按类型必传法定资料。',
-          name: 'QmSpecialDeep',
-          component: 'QmSpecialDeepView',
-        },
-        {
-          key: 'qm-complete-deep',
-          label: '竣工验收',
-          path: '/qm/inspect/complete-deep',
-          description: '实体与专项均完成后发起竣工；表单页顶部展示实体/专项完成情况。',
-          name: 'QmCompleteDeep',
-          component: 'QmCompleteDeepView',
-        },
-      ],
+      key: 'qm-complete-deep',
+      label: '竣工验收',
+      path: '/qm/inspect/complete-deep',
+      description: '实体工程与专项验收全部完成后，方可发起项目竣工验收。',
+      name: 'QmCompleteDeep',
+      component: 'QmCompleteDeepView',
     },
     {
-      key: 'qm-approver-config',
-      label: '审批人配置',
-      path: '/qm/inspect/approver-config',
-      description: '项目级按建设单位/监理/施工/勘察/设计/验收组等岗位分类配置审批人，均支持多人。',
-      name: 'QmApproverConfig',
-      component: 'QmApproverConfigView',
+      key: 'qm-seal-user',
+      label: '项目用章人配置',
+      path: '/qm/inspect/seal-user',
+      description: '项目用章人维护；保存即下传档案系统，供档案侧签章调用。',
+      name: 'QmSealUserConfig',
+      component: 'QmSealUserConfigView',
     },
     {
       key: 'qm-app-approve',
       label: 'App审批待办',
       path: '/qm/inspect/app/approve',
-      description: '移动端审批待办；与实体验收（深度集成）同源任务与字段。',
+      description: '移动端审批待办；与验评任务同源。',
       name: 'QmAppApprove',
       component: 'QmAppApproveListView',
     },
@@ -91,6 +70,31 @@ export const qualityMenuGroup = {
 
 /** 已隐藏的侧栏菜单：保留路由兼容旧链接，不在侧栏展示 */
 export const qualityHiddenMenus = [
+  // V2.3.1：表单填报（第三方表格系统嵌入）随省统表填报下线；审批人配置随「审批链档案同步」下线
+  {
+    key: 'qm-form-fill',
+    label: '表单填报',
+    path: '/qm/inspect/form-fill',
+    name: 'QmFormFill',
+    component: 'QmFormFillView',
+    hidden: true,
+  },
+  {
+    key: 'qm-approver-config',
+    label: '审批人配置',
+    path: '/qm/inspect/approver-config',
+    name: 'QmApproverConfig',
+    component: 'QmApproverConfigView',
+    hidden: true,
+  },
+  {
+    key: 'qm-plan-list',
+    label: '验收计划',
+    path: '/qm/inspect/plans',
+    name: 'QmPlanList',
+    component: 'QmPlanListView',
+    hidden: true,
+  },
   {
     key: 'qm-ledger',
     label: '实体验收台账',
@@ -180,15 +184,15 @@ export const qualityExtraRoutes = [
   { key: 'qm-form-fill-edit', path: '/qm/inspect/form-fill/edit', name: 'QmFormFillEdit', label: '表格填写', component: 'QmFormFillEditView', sidebarKey: 'qm-form-fill' },
   { key: 'qm-batch-edit', path: '/qm/inspect/batch/edit', name: 'QmBatchEdit', label: '检验批填报', component: 'QmBatchEditView', sidebarKey: 'qm-form-fill-deep' },
   { key: 'qm-batch-approve', path: '/qm/inspect/batch/approve', name: 'QmBatchApprove', label: '检验批审批', component: 'QmBatchApproveView', sidebarKey: 'qm-form-fill-deep' },
-  { key: 'qm-part-edit', path: '/qm/inspect/part/edit', name: 'QmPartEdit', label: '分部分项填报', component: 'QmPartEditView', sidebarKey: 'qm-form-fill' },
-  { key: 'qm-part-approve', path: '/qm/inspect/part/approve', name: 'QmPartApprove', label: '分部分项审批', component: 'QmPartApproveView', sidebarKey: 'qm-form-fill' },
+  { key: 'qm-part-edit', path: '/qm/inspect/part/edit', name: 'QmPartEdit', label: '分部分项填报', component: 'QmPartEditView', sidebarKey: 'qm-form-fill-deep' },
+  { key: 'qm-part-approve', path: '/qm/inspect/part/approve', name: 'QmPartApprove', label: '分部分项审批', component: 'QmPartApproveView', sidebarKey: 'qm-form-fill-deep' },
   { key: 'qm-unit-edit', path: '/qm/inspect/unit/edit', name: 'QmUnitEdit', label: '单位工程填报', component: 'QmUnitEditView', sidebarKey: 'qm-form-fill-deep' },
   { key: 'qm-unit-approve', path: '/qm/inspect/unit/approve', name: 'QmUnitApprove', label: '单位工程审批', component: 'QmUnitApproveView', sidebarKey: 'qm-form-fill-deep' },
   { key: 'qm-special-edit', path: '/qm/inspect/special/edit', name: 'QmSpecialEdit', label: '专项填报', component: 'QmSpecialEditView', sidebarKey: 'qm-special-deep' },
   { key: 'qm-special-approve', path: '/qm/inspect/special/approve', name: 'QmSpecialApprove', label: '专项审批', component: 'QmSpecialApproveView', sidebarKey: 'qm-special-deep' },
   { key: 'qm-complete-edit', path: '/qm/inspect/complete/edit', name: 'QmCompleteEdit', label: '竣工填报', component: 'QmCompleteEditView', sidebarKey: 'qm-complete-deep' },
   { key: 'qm-complete-approve', path: '/qm/inspect/complete/approve', name: 'QmCompleteApprove', label: '竣工审批', component: 'QmCompleteApproveView', sidebarKey: 'qm-complete-deep' },
-  { key: 'qm-rectify-detail', path: '/qm/inspect/rectify/detail', name: 'QmRectifyDetail', label: '整改详情', component: 'QmRectifyDetailView', sidebarKey: 'qm-form-fill' },
+  { key: 'qm-rectify-detail', path: '/qm/inspect/rectify/detail', name: 'QmRectifyDetail', label: '整改详情', component: 'QmRectifyDetailView', sidebarKey: 'qm-form-fill-deep' },
   {
     key: 'qm-app-approve-detail',
     path: '/qm/inspect/app/approve/detail',
@@ -249,4 +253,5 @@ export const qualityViewLoaders = {
   QmLedgerView: () => import('../views/quality/QmLedgerView.vue'),
   QmAppApproveListView: () => import('../views/quality/QmAppApproveListView.vue'),
   QmAppApproveDetailView: () => import('../views/quality/QmAppApproveDetailView.vue'),
+  QmSealUserConfigView: () => import('../views/quality/QmSealUserConfigView.vue'),
 }

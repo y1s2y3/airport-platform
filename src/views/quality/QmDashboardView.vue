@@ -20,8 +20,10 @@ const special = computed(() => panels.value.special)
 <template>
   <div class="qm-page page-card">
     <div class="page-header">
-      <div class="page-breadcrumb">质量验评 / 统计看板</div>
-      <h1 class="page-title">验评统计看板</h1>
+      <div class="page-breadcrumb">
+        {{ isHqSelected ? '质量看板' : '质量验评' }} / 质量验评看板
+      </div>
+      <h1 class="page-title">质量验评看板</h1>
       <p class="page-tip">范围：{{ isHqSelected ? '全部项目（指挥部）' : scopeProjectLabel }}</p>
     </div>
 

@@ -13,6 +13,7 @@ const PENALTY_PENDING_PATCH_FLAG = 'coc-admin-penalty-pending-v1'
 const PENALTY_APPEAL_PATCH_FLAG = 'coc-admin-penalty-appeal-v1'
 const PENALTY_STATUS_PATCH_FLAG = 'coc-admin-penalty-status-v2'
 const PENALTY_ASSIGNEE_DEADLINE_PATCH_FLAG = 'coc-admin-penalty-assignee-deadline-v1'
+const PENALTY_STATUS_DEMO_PATCH_FLAG = 'coc-admin-penalty-status-demo-v4'
 const REMINDER_SEED_FLAG = 'coc-admin-dispatch-reminder-v1'
 const REMINDER_STATUS_PATCH_FLAG = 'coc-admin-reminder-status-v1'
 const NOTICE_STATUS_PATCH_FLAG = 'coc-admin-notice-status-v1'
@@ -46,6 +47,34 @@ function migratePenaltyStatus(status) {
   if (status === '待确认') return PENALTY_STATUSES.PENDING_ACCEPTANCE
   if (status === '已作废' || status === '已闭环') return PENALTY_STATUSES.CLOSED
   return status
+}
+
+function isPenaltyImageAttachment(item) {
+  if (!item || !(item.url || item.name)) return false
+  const url = String(item.url || '')
+  const name = String(item.name || '')
+  if (url.startsWith('data:image/')) return true
+  if (/\.(jpe?g|png|gif|webp|bmp|svg)(\?|$)/i.test(url) || /\.(jpe?g|png|gif|webp|bmp|svg)(\?|$)/i.test(name)) {
+    return true
+  }
+  // 无扩展名但有 url（上传 dataURL）保留
+  if (url && !/\.\w{2,5}(\?|$)/.test((url.split('/').pop() || '').split('?')[0])) return true
+  return false
+}
+
+function normalizePenaltyImageAttachments(list, namePrefix = '图片附件') {
+  return (Array.isArray(list) ? list : [])
+    .filter((item) => isPenaltyImageAttachment(item))
+    .map((item, index) => {
+      const ext =
+        String(item.name || '').match(/(\.(jpe?g|png|gif|webp|bmp|svg))$/i)?.[1]?.toLowerCase() ||
+        (String(item.url || '').startsWith('data:image/svg') ? '.svg' : '.jpg')
+      const hasPrefixed = String(item.name || '').startsWith(namePrefix)
+      return {
+        name: hasPrefixed ? item.name : `${namePrefix}-${index + 1}${ext}`,
+        url: item.url || '',
+      }
+    })
 }
 
 function buildMonitorSnapshotMock({
@@ -346,23 +375,34 @@ export function normalizePenaltyRecord(record = {}) {
         ? record.content
         : buildPenaltyContentText(contentFields),
     appealReason: record.appealReason || '',
-    appealAttachments: Array.isArray(record.appealAttachments) ? record.appealAttachments : [],
+    appealAttachments: normalizePenaltyImageAttachments(record.appealAttachments, '申诉附件'),
     appealTime: record.appealTime || '',
     reportResult: record.reportResult || '',
     acceptor: record.acceptor || '',
-    reportAttachments: Array.isArray(record.reportAttachments) ? record.reportAttachments : [],
+    reportAttachments: normalizePenaltyImageAttachments(record.reportAttachments, '上报结果附件'),
     reportTime: record.reportTime || '',
     acceptedTime: record.acceptedTime || '',
     acceptedBy: record.acceptedBy || '',
+    acceptRemark: record.acceptRemark || '',
+    acceptRejectedBy: record.acceptRejectedBy || '',
+    acceptRejectedTime: record.acceptRejectedTime || '',
     closedTime: record.closedTime || record.voidedAt || '',
     closedBy: record.closedBy || '',
+    closeType: record.closeType || '',
+    closeRemark: record.closeRemark || '',
     appealResolution: record.appealResolution || '',
-    attachments: Array.isArray(record.attachments)
-      ? record.attachments.filter((item) => item && (item.url || item.name)).map((item) => ({
-          name: item.name || '图片',
-          url: item.url || '',
-        }))
-      : [],
+    attachments: (() => {
+      const atts = normalizePenaltyImageAttachments(record.attachments, '处罚单补充附件')
+      const snap = record.snapshot || ''
+      if (snap && !atts.some((item) => item.url === snap)) {
+        return normalizePenaltyImageAttachments(
+          [{ name: '处罚单补充附件-现场图片.svg', url: snap }, ...atts],
+          '处罚单补充附件',
+        )
+      }
+      return atts
+    })(),
+    snapshot: record.snapshot || '',
   }
 }
 
@@ -488,39 +528,35 @@ function buildNoticeSeed() {
 }
 
 function buildPenaltyPendingRecords() {
+  return buildPenaltyStatusDemoRecords().filter((r) => r.status === PENALTY_STATUSES.PENDING)
+}
+
+/** 五态各一条演示数据：待下发 / 处理中 / 待验收 / 申诉中 / 已关闭 */
+function buildPenaltyStatusDemoRecords() {
   return [
     normalizePenaltyRecord({
       id: 'CF-PENDING-001',
-      project: '捷运线延长段',
-      unit: '中建三局（捷运线施工总承包）',
-      penaltyReason: '临边防护缺失限期整改',
-      penaltyContent: '基坑周边临边防护缺失（较大隐患），要求今日内完成加固并提交闭环材料。',
+      project: '航站区配套工程',
+      unit: '中交一航局',
+      penaltyReason: '基坑临边防护缺失',
+      penaltyContent: '基坑周边临边防护缺失（较大隐患），草稿待指挥部下发。',
       assignee: '王强（项目经理）',
       deadline: '2026-06-18',
       handler: DISPATCH_CURRENT_USER,
       issueTime: '—',
       status: PENALTY_STATUSES.PENDING,
       source: '监理隐患清单',
+      attachments: [
+        {
+          name: '处罚单补充附件-1.svg',
+          url: buildMonitorSnapshotMock({
+            cameraName: '基坑临边枪机',
+            stamp: '2026-06-17 09:20:00',
+            hue: 28,
+          }),
+        },
+      ],
     }),
-    normalizePenaltyRecord({
-      id: 'CF-PENDING-002',
-      project: 'T2主体结构',
-      unit: '中建二局',
-      penaltyReason: '动火作业手续不全',
-      penaltyContent: '现场动火作业未办理完整审批手续，责令停工整改并处以违约金。',
-      assignee: '张安全（安监专员）',
-      deadline: '2026-06-16',
-      handler: '安监部',
-      issueTime: '—',
-      status: PENALTY_STATUSES.PENDING,
-      source: '调度指挥会议',
-    }),
-  ]
-}
-
-function buildPenaltySeed() {
-  return attachPenaltySnapshots([
-    ...buildPenaltyPendingRecords(),
     normalizePenaltyRecord({
       id: 'CF-20260612-001',
       project: '捷运线延长段',
@@ -534,6 +570,26 @@ function buildPenaltySeed() {
       issueTime: '2026-06-12 10:15',
       status: PENALTY_STATUSES.PROCESSING,
       source: '调度指挥会议',
+      attachments: [
+        {
+          name: '处罚单补充附件-1.svg',
+          url: buildMonitorSnapshotMock({
+            cameraName: '3号塔吊球机',
+            stamp: '2026-06-12 10:15:32',
+            hue: 20,
+          }),
+        },
+        {
+          name: '处罚单补充附件-2.svg',
+          url: buildMonitorSnapshotMock({
+            cameraName: '塔吊作业区全景',
+            stamp: '2026-06-12 10:16:08',
+            hue: 35,
+            markX: 320,
+            markY: 180,
+          }),
+        },
+      ],
     }),
     normalizePenaltyRecord({
       id: 'CF-20260612-002',
@@ -543,13 +599,46 @@ function buildPenaltySeed() {
       penaltyContent: '浇筑完成后未按规范覆盖养护，存在开裂风险，限期整改。',
       assignee: '陈磊（质量员）',
       deadline: '2026-06-15',
-      penaltyClause: '《文明施工管理办法》处罚条款',
+      penaltyClause: '《文明施工管理办法》第12条',
       amount: '2000元',
       handler: '质量部',
       issueTime: '2026-06-12 10:12',
       status: PENALTY_STATUSES.PENDING_ACCEPTANCE,
-      reportResult: '已完成覆盖养护整改，提交现场照片及养护记录。',
+      reportResult: '已完成覆盖养护整改，提交现场照片及养护记录，请验收。',
       reportTime: '2026-06-12 16:30',
+      acceptor: '质量部验收岗',
+      attachments: [
+        {
+          name: '处罚单补充附件-1.svg',
+          url: buildMonitorSnapshotMock({
+            cameraName: '飞行区5号通道',
+            stamp: '2026-06-12 10:12:00',
+            hue: 48,
+          }),
+        },
+      ],
+      reportAttachments: [
+        {
+          name: '上报结果附件-1.svg',
+          url: buildMonitorSnapshotMock({
+            cameraName: '养护覆盖现场',
+            stamp: '2026-06-12 16:28:00',
+            hue: 140,
+            markX: 300,
+            markY: 160,
+          }),
+        },
+        {
+          name: '上报结果附件-2.svg',
+          url: buildMonitorSnapshotMock({
+            cameraName: '养护记录留痕',
+            stamp: '2026-06-12 16:29:20',
+            hue: 160,
+            markX: 400,
+            markY: 200,
+          }),
+        },
+      ],
       source: '巡检对讲',
     }),
     normalizePenaltyRecord({
@@ -566,10 +655,38 @@ function buildPenaltySeed() {
       issueTime: '2026-06-11 16:40',
       status: PENALTY_STATUSES.APPEALING,
       source: '调度指挥会议',
+      attachments: [
+        {
+          name: '处罚单补充附件-1.svg',
+          url: buildMonitorSnapshotMock({
+            cameraName: 'T2消防通道',
+            stamp: '2026-06-11 16:40:00',
+            hue: 8,
+          }),
+        },
+      ],
       appealReason: '现场已按要求完成清场，处罚依据与事实不符，申请复核减免。',
       appealAttachments: [
-        { name: '清场整改照片_20260612.jpg' },
-        { name: '文明施工自查报告.pdf' },
+        {
+          name: '申诉附件-1.svg',
+          url: buildMonitorSnapshotMock({
+            cameraName: '清场后通道',
+            stamp: '2026-06-12 09:28:00',
+            hue: 200,
+            markX: 280,
+            markY: 150,
+          }),
+        },
+        {
+          name: '申诉附件-2.svg',
+          url: buildMonitorSnapshotMock({
+            cameraName: '自查现场',
+            stamp: '2026-06-12 09:29:10',
+            hue: 210,
+            markX: 420,
+            markY: 170,
+          }),
+        },
       ],
       appealTime: '2026-06-12 09:30',
     }),
@@ -588,11 +705,79 @@ function buildPenaltySeed() {
       status: PENALTY_STATUSES.CLOSED,
       reportResult: '已停工整改并完成安全带佩戴专项交底。',
       reportTime: '2026-06-10 15:20',
+      acceptor: '安监部',
+      attachments: [
+        {
+          name: '处罚单补充附件-1.svg',
+          url: buildMonitorSnapshotMock({
+            cameraName: '钢筋加工场高处',
+            stamp: '2026-06-10 11:05:00',
+            hue: 0,
+          }),
+        },
+      ],
+      reportAttachments: [
+        {
+          name: '上报结果附件-1.svg',
+          url: buildMonitorSnapshotMock({
+            cameraName: '交底现场',
+            stamp: '2026-06-10 15:18:00',
+            hue: 95,
+            markX: 350,
+            markY: 140,
+          }),
+        },
+        {
+          name: '上报结果附件-2.svg',
+          url: buildMonitorSnapshotMock({
+            cameraName: '安全带佩戴复核',
+            stamp: '2026-06-10 15:19:30',
+            hue: 110,
+            markX: 260,
+            markY: 190,
+          }),
+        },
+      ],
       acceptedTime: '2026-06-10 17:00',
       acceptedBy: '安监部',
+      acceptRemark: '现场复核通过，安全带交底记录齐全，同意关闭。',
+      closedTime: '2026-06-10 17:00',
+      closedBy: '安监部',
+      closeType: 'acceptance',
       source: '安质管控对讲',
     }),
-  ])
+    normalizePenaltyRecord({
+      id: 'CF-CLOSED-MANUAL-001',
+      project: '货运区道路工程',
+      unit: '中建一局',
+      penaltyReason: '临时用电线路私拉乱接（误报）',
+      penaltyContent: '巡检发现临时用电线路疑似私拉乱接，拟下发处罚；复核后确认为误报，指挥部手动关闭。',
+      assignee: '张安全（安监专员）',
+      deadline: '2026-06-20',
+      handler: DISPATCH_CURRENT_USER,
+      issueTime: '—',
+      status: PENALTY_STATUSES.CLOSED,
+      source: '监理隐患清单',
+      attachments: [
+        {
+          name: '处罚单补充附件-1.svg',
+          url: buildMonitorSnapshotMock({
+            cameraName: '货运区临电点',
+            stamp: '2026-06-18 11:20:00',
+            hue: 55,
+          }),
+        },
+      ],
+      closedTime: '2026-06-18 14:05',
+      closedBy: DISPATCH_CURRENT_USER,
+      closeType: 'manual',
+      closeRemark: '现场复核为误报，处罚单未下发，指挥部手动关闭。',
+    }),
+  ]
+}
+
+function buildPenaltySeed() {
+  return attachPenaltySnapshots(buildPenaltyStatusDemoRecords())
 }
 
 const DEFAULT_ATTENDEES = [
@@ -816,6 +1001,41 @@ function ensurePenaltyAssigneeDeadlinePatch() {
   localStorage.setItem(PENALTY_ASSIGNEE_DEADLINE_PATCH_FLAG, '1')
 }
 
+/** 覆盖写入演示处罚单（含各状态 + 手动关闭样例） */
+function ensurePenaltyStatusDemoPatch() {
+  if (localStorage.getItem(PENALTY_STATUS_DEMO_PATCH_FLAG)) {
+    // 兜底：即使补丁已跑过，也确保手动关闭样例存在
+    ensureManualClosedDemoExists()
+    return
+  }
+  const demos = attachPenaltySnapshots(buildPenaltyStatusDemoRecords())
+  const list = readList(PENALTY_KEY)
+  demos.forEach((demo) => {
+    const index = list.findIndex((item) => item.id === demo.id)
+    if (index >= 0) list[index] = { ...list[index], ...demo }
+    else list.unshift(demo)
+  })
+  // 去掉重复的旧待下发样例，避免同状态挤占
+  const cleaned = list.filter((item, idx, arr) => {
+    if (item.id === 'CF-PENDING-002') return false
+    if (item.id === 'CF-APPEAL-001') return false
+    return arr.findIndex((x) => x.id === item.id) === idx
+  })
+  writeList(PENALTY_KEY, cleaned)
+  localStorage.setItem(PENALTY_STATUS_DEMO_PATCH_FLAG, '1')
+}
+
+function ensureManualClosedDemoExists() {
+  const list = readList(PENALTY_KEY)
+  if (list.some((item) => item.id === 'CF-CLOSED-MANUAL-001')) return
+  const demo = attachPenaltySnapshots(
+    buildPenaltyStatusDemoRecords().filter((r) => r.id === 'CF-CLOSED-MANUAL-001'),
+  )[0]
+  if (!demo) return
+  list.unshift(demo)
+  writeList(PENALTY_KEY, list)
+}
+
 function buildReminderSeed() {
   return [
     normalizeReminderRecord({
@@ -929,6 +1149,7 @@ export function ensureDispatchMeetingSeed() {
     ensurePenaltyAppealPatch()
     ensurePenaltyStatusPatch()
     ensurePenaltyAssigneeDeadlinePatch()
+    ensurePenaltyStatusDemoPatch()
     ensureReminderSeedPatch()
     ensureNoticeStatusPatch()
     ensureReminderStatusPatch()
@@ -942,6 +1163,7 @@ export function ensureDispatchMeetingSeed() {
   localStorage.setItem(SNAPSHOT_PATCH_FLAG, '1')
   localStorage.setItem(REMINDER_SEED_FLAG, '1')
   localStorage.setItem(PENALTY_ASSIGNEE_DEADLINE_PATCH_FLAG, '1')
+  localStorage.setItem(PENALTY_STATUS_DEMO_PATCH_FLAG, '1')
 }
 
 function ensureDispatchDocSnapshots() {
@@ -1188,6 +1410,8 @@ export function closeDispatchPenaltyRecord(id, closedBy = DISPATCH_CURRENT_USER)
     status: PENALTY_STATUSES.CLOSED,
     closedTime: now,
     closedBy,
+    closeType: 'manual',
+    closeRemark: list[index].closeRemark || '指挥部手动关闭（未下发）',
   }
   writeList(PENALTY_KEY, list)
   return list[index]
@@ -1286,6 +1510,7 @@ export function acceptPenaltyRecord(id, acceptedBy = DISPATCH_CURRENT_USER, rema
     closedTime: now,
     closedBy: acceptedBy,
     acceptRemark: remark || '',
+    closeType: 'acceptance',
   }
   writeList(PENALTY_KEY, list)
   return list[index]
@@ -1339,6 +1564,7 @@ export function resolvePenaltyAppeal(id, approved, resolvedBy = DISPATCH_CURRENT
       appealResolveRemark: remark || '',
       closedTime: now,
       closedBy: resolvedBy,
+      closeType: 'appeal',
     }
   } else {
     list[index] = {

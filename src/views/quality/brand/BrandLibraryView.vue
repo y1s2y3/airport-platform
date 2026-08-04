@@ -3,6 +3,7 @@ import './brand-page.css'
 import { computed, nextTick, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search, Refresh } from '@element-plus/icons-vue'
+import { useQmProjectScope } from '../../../composables/useCurrentProject'
 import {
   listBrandMaterialRows,
   listMaterials,
@@ -13,6 +14,8 @@ import {
   SOURCE_TYPE,
   toggleBrandStatus,
 } from '../../../mock/brand.js'
+
+const { isHqSelected, scopeProjectId, scopeProjectLabel } = useQmProjectScope()
 
 const keyword = ref('')
 const statusFilter = ref('')
@@ -33,19 +36,22 @@ const form = reactive({
 
 const list = computed(() => {
   void tick.value
+  if (isHqSelected.value || !scopeProjectId.value) return []
   return listBrandMaterialRows({
     keyword: keyword.value,
     status: statusFilter.value,
+    projectId: scopeProjectId.value,
   })
 })
 
 const activeMaterials = computed(() => {
   void tick.value
-  const all = listMaterials({ status: 'active' })
+  if (!scopeProjectId.value) return []
+  const all = listMaterials({ status: 'active', projectId: scopeProjectId.value })
   // 新增材料：排除该品牌下已有材料（一条数据=品牌+一个材料）
   if (dialogMode.value === 'addMaterial' && form.brand_lib_id) {
     const used = new Set(
-      listBrandMaterialRows({})
+      listBrandMaterialRows({ projectId: scopeProjectId.value })
         .filter((r) => r.brand_lib_id === form.brand_lib_id && r.material_id)
         .map((r) => r.material_id),
     )
@@ -77,6 +83,9 @@ function reset() {
 }
 
 function openCreate() {
+  if (isHqSelected.value || !scopeProjectId.value) {
+    return ElMessage.warning('请先切换到具体项目')
+  }
   dialogMode.value = 'create'
   Object.assign(form, {
     brand_lib_id: '',
@@ -119,6 +128,8 @@ async function openEdit(row) {
 }
 
 function onSave() {
+  if (!scopeProjectId.value) return ElMessage.warning('请先切换到具体项目')
+  const projectPayload = { project_id: scopeProjectId.value }
   let r
   if (dialogMode.value === 'edit') {
     r = saveBrand({
@@ -128,14 +139,15 @@ function onSave() {
       material_id: form.material_id,
       editMaterialId: form.editMaterialId,
       spec_ids: form.spec_ids,
+      ...projectPayload,
     })
   } else if (dialogMode.value === 'addMaterial') {
-    // 复用品牌，新增一条材料数据
     r = saveBrand({
       brand_name: form.brand_name,
       manufacturer: form.manufacturer,
       material_id: form.material_id,
       spec_ids: form.spec_ids,
+      ...projectPayload,
     })
   } else {
     r = saveBrand({
@@ -143,6 +155,8 @@ function onSave() {
       manufacturer: form.manufacturer,
       material_id: form.material_id,
       spec_ids: form.spec_ids,
+      source_type: 'project_manual',
+      ...projectPayload,
     })
   }
   if (!r.ok) return ElMessage.error(r.msg)
@@ -182,10 +196,21 @@ async function onRemoveRow(row) {
       <div class="page-breadcrumb">品牌报审 / 品牌库管理</div>
       <h1 class="page-title">品牌库管理</h1>
       <p class="page-tip">
-        一条数据 = 一个品牌 + 一个材料 + 多个规格；同一品牌可有多条数据（不同材料）；一个生产厂家可对应多个品牌
+        项目级主数据 · 当前：{{ isHqSelected ? '请切换到具体项目' : scopeProjectLabel }} ·
+        一条数据 = 一个品牌 + 一个材料 + 多个规格；同一品牌可有多条数据（不同材料）
       </p>
     </div>
 
+    <el-alert
+      v-if="isHqSelected"
+      type="warning"
+      :closable="false"
+      show-icon
+      class="mb"
+      title="请切换到具体项目后维护本项目品牌库"
+    />
+
+    <template v-else>
     <div class="filter-bar">
       <el-input
         v-model="keyword"
@@ -315,6 +340,7 @@ async function onRemoveRow(row) {
         <el-button type="primary" @click="onSave">保存</el-button>
       </template>
     </el-dialog>
+    </template>
   </div>
 </template>
 

@@ -23,6 +23,7 @@ import {
   buildRedBlackPeriodKey,
 } from '../utils/redBlackBoardStorage.js'
 import DispatchImageAttachments from '../components/DispatchImageAttachments.vue'
+import PenaltyDetailPanels from '../components/PenaltyDetailPanels.vue'
 import { buildExecutorOptions, resolveExecutorDisplay } from '../utils/executorDisplay.js'
 
 defineProps({
@@ -375,8 +376,8 @@ onMounted(load)
         <el-form-item label="完成时限" required>
           <el-date-picker v-model="form.deadline" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
         </el-form-item>
-        <el-form-item label="附件">
-          <DispatchImageAttachments v-model="form.attachments" />
+        <el-form-item label="处罚单补充附件">
+          <DispatchImageAttachments v-model="form.attachments" name-prefix="处罚单补充附件" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -415,73 +416,8 @@ onMounted(load)
       </template>
     </el-dialog>
 
-    <el-dialog v-model="detailVisible" title="处罚单详情" width="720px" destroy-on-close>
-      <template v-if="current">
-        <el-descriptions :column="2" border size="small">
-          <el-descriptions-item label="编号">{{ current.id }}</el-descriptions-item>
-          <el-descriptions-item label="状态">
-            <el-tag :type="statusTagType(current.status)" size="small">{{ current.status }}</el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="项目名称">{{ current.project || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="责任单位">{{ current.unit || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="事由" :span="2">{{ current.penaltyReason || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="内容" :span="2">{{ current.penaltyContent || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="指派人">
-            {{ resolveExecutorDisplay(current.assignee || current.executor) }}
-          </el-descriptions-item>
-          <el-descriptions-item label="完成时限">{{ current.deadline || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="附件" :span="2">
-            <DispatchImageAttachments :model-value="current.attachments || []" readonly />
-          </el-descriptions-item>
-          <el-descriptions-item label="条款" :span="2">{{ displayValue(current.penaltyClause) }}</el-descriptions-item>
-          <el-descriptions-item label="金额">{{ displayValue(current.amount) }}</el-descriptions-item>
-          <el-descriptions-item label="下发时间">{{ current.issueTime || '—' }}</el-descriptions-item>
-          <el-descriptions-item v-if="current.reportResult" label="上报结果" :span="2">
-            {{ current.reportResult }}
-          </el-descriptions-item>
-          <el-descriptions-item v-if="current.reportAttachments?.length" label="上报附件" :span="2">
-            <div class="report-detail-images">
-              <a
-                v-for="(file, index) in current.reportAttachments"
-                :key="`${file.name}-${index}`"
-                class="report-detail-item"
-                :href="file.url"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <img :src="file.url" :alt="file.name" class="report-detail-thumb" />
-                <span :title="file.name">{{ file.name }}</span>
-              </a>
-            </div>
-          </el-descriptions-item>
-          <el-descriptions-item v-if="current.reportTime" label="上报时间">{{ current.reportTime }}</el-descriptions-item>
-          <el-descriptions-item v-if="current.acceptedTime" label="验收时间">{{ current.acceptedTime }}</el-descriptions-item>
-          <el-descriptions-item v-if="current.closedTime" label="关闭时间">{{ current.closedTime }}</el-descriptions-item>
-          <el-descriptions-item v-if="current.blackBoardSynced" label="黑榜期数" :span="2">
-            {{ formatRedBlackPeriod(current.blackBoardMonth) }}
-          </el-descriptions-item>
-        </el-descriptions>
-        <div v-if="current.snapshot" class="content-block">
-          <div class="block-label">关联图片</div>
-          <img :src="current.snapshot" alt="关联图片" class="snapshot-img" />
-        </div>
-        <div v-if="current.status === PENALTY_STATUSES.APPEALING || current.appealReason" class="content-block appeal-block">
-          <div class="block-label">申诉信息</div>
-          <el-descriptions :column="1" border size="small">
-            <el-descriptions-item label="申诉时间">{{ current.appealTime || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="申诉理由">{{ current.appealReason || '—' }}</el-descriptions-item>
-            <el-descriptions-item v-if="current.appealResolution" label="申诉结论">
-              {{ current.appealResolution }}
-            </el-descriptions-item>
-            <el-descriptions-item label="附件">
-              <DispatchImageAttachments
-                :model-value="current.appealAttachments || []"
-                readonly
-              />
-            </el-descriptions-item>
-          </el-descriptions>
-        </div>
-      </template>
+    <el-dialog v-model="detailVisible" title="处罚单详情" width="780px" destroy-on-close>
+      <PenaltyDetailPanels v-if="current" :record="current" compact />
     </el-dialog>
   </div>
 </template>
@@ -558,30 +494,6 @@ onMounted(load)
   color: var(--coc-text-secondary);
 }
 
-.content-block {
-  margin-top: 16px;
-}
-
-.block-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--coc-text);
-  margin-bottom: 8px;
-}
-
-.snapshot-img {
-  max-width: 100%;
-  max-height: 320px;
-  object-fit: contain;
-  border-radius: 8px;
-  border: 1px solid var(--coc-border);
-  background: #1a1a1a;
-}
-
-.appeal-block {
-  padding-top: 4px;
-}
-
 .attachment-list {
   margin: 10px 0 0;
   padding: 0;
@@ -656,37 +568,6 @@ onMounted(load)
   min-width: 0;
   font-size: 12px;
   color: var(--coc-text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.report-detail-images {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.report-detail-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  width: 120px;
-  text-decoration: none;
-  color: var(--coc-text-secondary);
-  font-size: 12px;
-}
-
-.report-detail-thumb {
-  width: 120px;
-  height: 90px;
-  object-fit: cover;
-  border-radius: 6px;
-  border: 1px solid var(--coc-border);
-  background: #1a1a1a;
-}
-
-.report-detail-item span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

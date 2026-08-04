@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, Document, Edit } from '@element-plus/icons-vue'
+import { ArrowLeft, Document } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import {
   getPersonnelDetail,
@@ -30,10 +30,6 @@ onMounted(() => {
 
 function goBack() {
   router.push({ name: 'RealNamePersonnel' })
-}
-
-function goEdit() {
-  router.push({ name: 'RealNamePersonnelEdit', params: { id: detail.value.id } })
 }
 
 function previewAttachment(name) {
@@ -74,9 +70,8 @@ function viewIdNumber() {
       <div class="page-toolbar">
         <div class="toolbar-left">
           <el-button size="small" :icon="ArrowLeft" class="back-btn" @click="goBack">返回列表</el-button>
-          <h1 class="page-title">详情</h1>
+          <h1 class="page-title">详情（对接只读）</h1>
         </div>
-        <el-button type="primary" class="ap-btn-primary" :icon="Edit" @click="goEdit">编辑</el-button>
       </div>
       <div class="title-main">
         <el-avatar :size="56" class="person-avatar">{{ detail.basic.name.slice(0, 1) }}</el-avatar>
@@ -90,16 +85,14 @@ function viewIdNumber() {
           </div>
         </div>
       </div>
+      <p class="page-tip">展示闸机/考勤子系统同步数据。四类采集：基本身份、日常考勤、特种资质有效期、三级安全教育。</p>
     </div>
 
     <div class="detail-body">
       <section class="detail-section">
-        <div class="section-title">人员基本信息</div>
+        <div class="section-title">① 基本身份信息</div>
         <el-descriptions :column="2" border>
           <el-descriptions-item label="人员编号">{{ detail.basic.personnelNo }}</el-descriptions-item>
-          <el-descriptions-item label="照片">
-            <el-avatar :size="48">{{ detail.basic.name.slice(0, 1) }}</el-avatar>
-          </el-descriptions-item>
           <el-descriptions-item label="姓名">{{ detail.basic.name }}</el-descriptions-item>
           <el-descriptions-item label="手机号码">
             <div class="sensitive-cell">
@@ -116,28 +109,34 @@ function viewIdNumber() {
               <el-button v-if="!idVisible" link type="primary" size="small" @click="viewIdNumber">查看</el-button>
             </div>
           </el-descriptions-item>
-          <el-descriptions-item label="证件有效开始时间">{{ detail.basic.idValidFrom }}</el-descriptions-item>
-          <el-descriptions-item label="证件有效结束时间">{{ detail.basic.idValidTo }}</el-descriptions-item>
-          <el-descriptions-item label="籍贯">{{ detail.basic.nativePlace }}</el-descriptions-item>
-          <el-descriptions-item label="现住址" :span="2">{{ detail.basic.address }}</el-descriptions-item>
-          <el-descriptions-item label="文化程度">{{ detail.basic.education }}</el-descriptions-item>
-          <el-descriptions-item label="政治面貌">{{ detail.basic.politicalStatus }}</el-descriptions-item>
-          <el-descriptions-item label="健康状态">{{ detail.basic.healthStatus }}</el-descriptions-item>
-          <el-descriptions-item label="疾病史">{{ detail.basic.medicalHistory }}</el-descriptions-item>
+          <el-descriptions-item label="证件有效期">{{ detail.basic.idValidFrom }} ~ {{ detail.basic.idValidTo }}</el-descriptions-item>
+          <el-descriptions-item label="参建单位" :span="2">{{ detail.unit.unitName }}</el-descriptions-item>
+          <el-descriptions-item label="工种/职务">{{ detail.unit.workType }}</el-descriptions-item>
+          <el-descriptions-item label="人员类别">{{ detail.unit.personnelCategory }}</el-descriptions-item>
+          <el-descriptions-item :label="REALNAME_ENTRY_LABEL">
+            <span class="ap-status-tag" :class="entryStatusTagClass(detail.entryStatus)">{{ detail.entryStatus }}</span>
+          </el-descriptions-item>
+          <el-descriptions-item label="通行状态">{{ detail.accessStatus }}</el-descriptions-item>
         </el-descriptions>
       </section>
 
       <section class="detail-section">
-        <div class="section-title">参建单位信息</div>
+        <div class="section-title">② 日常考勤记录</div>
         <el-descriptions :column="2" border>
-          <el-descriptions-item label="参建单位名称" :span="2">{{ detail.unit.unitName }}</el-descriptions-item>
-          <el-descriptions-item label="所属单位统一社会信用代码" :span="2">{{ detail.unit.creditCode }}</el-descriptions-item>
-          <el-descriptions-item label="参建单位类型">{{ detail.unit.unitType || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="人员类别">{{ detail.unit.personnelCategory }}</el-descriptions-item>
-          <el-descriptions-item label="工种/职务">{{ detail.unit.workType }}</el-descriptions-item>
-          <el-descriptions-item label="所属班组">{{ detail.unit.team }}</el-descriptions-item>
-          <el-descriptions-item label="是否班组长">{{ detail.unit.isTeamLeader ? '是' : '否' }}</el-descriptions-item>
-          <el-descriptions-item label="特种作业证书附件">
+          <el-descriptions-item label="今日上班打卡">{{ detail.clockIn || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="今日下班打卡">{{ detail.clockOut || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="在场状态">{{ detail.onSiteStatus || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="数据来源">考勤闸机对接同步</el-descriptions-item>
+        </el-descriptions>
+      </section>
+
+      <section class="detail-section">
+        <div class="section-title">③ 特种作业资质有效期</div>
+        <el-descriptions :column="2" border>
+          <el-descriptions-item label="是否特种作业">{{ detail.isSpecial ? '是' : '否' }}</el-descriptions-item>
+          <el-descriptions-item label="证书编号">{{ detail.certNo || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="证书有效期">{{ detail.unit.certValidTo || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="证书附件">
             <el-button
               v-if="detail.unit.specialCertAttachment"
               link
@@ -149,32 +148,11 @@ function viewIdNumber() {
             </el-button>
             <span v-else>—</span>
           </el-descriptions-item>
-          <el-descriptions-item label="证书有效期">{{ detail.unit.certValidTo || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="劳动合同/用工书面协议附件">
-            <el-button
-              v-if="detail.unit.contractAttachment"
-              link
-              type="primary"
-              :icon="Document"
-              @click="previewAttachment(detail.unit.contractAttachment)"
-            >
-              {{ detail.unit.contractAttachment }}
-            </el-button>
-            <span v-else>—</span>
-          </el-descriptions-item>
-          <el-descriptions-item label="合同起始日期">{{ detail.unit.contractStartDate || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="合同结束日期">{{ detail.unit.contractEndDate || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="薪酬计算方式">{{ detail.unit.salaryType }}</el-descriptions-item>
-          <el-descriptions-item label="单价">{{ detail.unit.unitPrice }}</el-descriptions-item>
-          <el-descriptions-item :label="REALNAME_ENTRY_LABEL">
-            <span class="ap-status-tag" :class="entryStatusTagClass(detail.entryStatus)">{{ detail.entryStatus }}</span>
-          </el-descriptions-item>
-          <el-descriptions-item label="通行状态">{{ detail.accessStatus }}</el-descriptions-item>
         </el-descriptions>
       </section>
 
       <section class="detail-section">
-        <div class="section-title">安全教育</div>
+        <div class="section-title">④ 三级安全教育完成情况</div>
         <el-table :data="detail.safetyEducation" border stripe class="ap-table">
           <el-table-column type="index" label="序号" width="60" align="center" />
           <el-table-column prop="type" label="教育类型" width="120" />
@@ -208,26 +186,10 @@ function viewIdNumber() {
 </template>
 
 <style scoped>
-.detail-page {
-  padding: 20px 24px 32px;
-}
-
-.page-header {
-  margin-bottom: 20px;
-}
-
-.page-breadcrumb {
-  font-size: 13px;
-  color: var(--ap-text-muted);
-  margin-bottom: 4px;
-}
-
-.back-btn {
-  padding: 5px 11px;
-  height: 28px;
-  font-size: 13px;
-}
-
+.detail-page { padding: 20px 24px 32px; }
+.page-header { margin-bottom: 20px; }
+.page-breadcrumb { font-size: 13px; color: var(--ap-text-muted); margin-bottom: 4px; }
+.back-btn { padding: 5px 11px; height: 28px; font-size: 13px; }
 .page-toolbar {
   display: flex;
   align-items: center;
@@ -235,43 +197,11 @@ function viewIdNumber() {
   gap: 16px;
   margin-bottom: 16px;
 }
-
-.toolbar-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-
-.page-title {
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--ap-text);
-  margin: 0;
-  white-space: nowrap;
-}
-
-.title-main {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 4px;
-}
-
-.person-name {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--ap-text);
-  margin: 0;
-}
-
-.person-avatar {
-  background: var(--ap-primary);
-  color: #fff;
-  font-size: 22px;
-  flex-shrink: 0;
-}
-
+.toolbar-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.page-title { font-size: 20px; font-weight: 600; color: var(--ap-text); margin: 0; white-space: nowrap; }
+.title-main { display: flex; align-items: center; gap: 16px; margin-bottom: 4px; }
+.person-name { font-size: 18px; font-weight: 600; color: var(--ap-text); margin: 0; }
+.person-avatar { background: var(--ap-primary); color: #fff; font-size: 22px; flex-shrink: 0; }
 .sub-meta {
   display: flex;
   flex-wrap: wrap;
@@ -281,18 +211,9 @@ function viewIdNumber() {
   font-size: 13px;
   color: var(--ap-text-secondary);
 }
-
-.sensitive-cell,
-.phone-cell {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.detail-body {
-  max-width: 1120px;
-}
-
+.page-tip { margin: 8px 0 0; font-size: 12px; color: var(--ap-text-muted); }
+.sensitive-cell { display: flex; align-items: center; gap: 8px; }
+.detail-body { max-width: 1120px; }
 .detail-section {
   border: 1px solid var(--ap-border);
   border-radius: 8px;
@@ -300,11 +221,5 @@ function viewIdNumber() {
   padding: 20px 24px;
   margin-bottom: 16px;
 }
-
-.section-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--ap-text);
-  margin-bottom: 16px;
-}
+.section-title { font-size: 15px; font-weight: 600; color: var(--ap-text); margin-bottom: 16px; }
 </style>

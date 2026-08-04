@@ -2,37 +2,33 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Fold, Expand } from '@element-plus/icons-vue'
 import QmCompletePrereqPanel from './QmCompletePrereqPanel.vue'
+import QmArchivePanel from './QmArchivePanel.vue'
 import {
-  acceptancePlans,
   addAttachment,
   approvalRecords,
-  ARCHIVE_STATUS,
   buildCompleteGate,
+  checkArchiveBlock,
   createRectify,
   decideReinspect,
   ensureTaskItems,
   FILE_CATEGORY,
   findTask,
-  formTemplates,
   getApprovalChain,
   getAttachments,
   getItemsByTaskId,
   getNextApprovalRole,
   getPassedApprovalRoles,
   getSpecialAcceptType,
-  ITEM_CATEGORY,
-  JUDGE_RESULT,
+  getArchiveInstance,
+  getTaskMaterialLinks,
+  getTaskSampleLinks,
+  missingPhotoItems,
   missingSpecialRequiredDocs,
-  PLAN_TYPE,
   removeAttachment,
   resolveProjectName,
-  resolveTemplateName,
   saveRectifyMeasure,
-  saveTaskItems,
-  SELF_CHECK,
-  setSelfCheck,
+  saveTaskDraft,
   specialTypeLabel,
   submitInspect,
   submitReinspectRequest,
@@ -40,6 +36,8 @@ import {
   TASK_TYPE_LABEL,
   findRectify,
   rectificationOrders,
+  taskMaterialLinks,
+  taskSampleLinks,
   updateCompleteTaskMeta,
   wbsNodes,
 } from '../../../mock/qm.js'
@@ -64,21 +62,25 @@ const rectifyMeasure = ref('')
 const rejectOpinion = ref('')
 const activeTpl = ref('')
 const formDataLocal = ref({})
-const formTab = ref('todo')
-const fillFilter = ref('all')
-const collapsedForms = ref(false)
-const selectedFormIds = ref([])
 /** 触发现场资料列表刷新 */
 const siteAttTick = ref(0)
-/** 竣工表头：计划/部位/备注 */
+/** 触发③材料/定样关联区块刷新 */
+const linkTick = ref(0)
+/** 填报三步向导当前步（0 系统数据 / 1 档案 / 2 审批流程确认） */
+const activeStep = ref(0)
+let lastLoadedId = ''
+/** 竣工表头：部位/备注 */
 const completeMeta = reactive({
-  plan_id: '',
   location_name: '',
   remark: '',
 })
 
 function load() {
   const id = props.taskId || route.query.id
+  if (id !== lastLoadedId) {
+    lastLoadedId = id
+    activeStep.value = 0
+  }
   task.value = id ? findTask(id) : null
   if (!task.value) return
   ensureTaskItems(task.value)
@@ -93,14 +95,8 @@ function load() {
     ? findRectify(task.value.current_rectify_id)
     : rectificationOrders.find((r) => r.source_task_id === task.value.id && r.status !== 3)
   rectifyMeasure.value = rectify?.measure || ''
-  completeMeta.plan_id = task.value.plan_id || ''
   completeMeta.location_name = task.value.location_name || ''
   completeMeta.remark = task.value.remark || ''
-}
-
-function formatSelfCheck(val) {
-  if (val == null || val === '') return ''
-  return SELF_CHECK[val] || ''
 }
 
 function formatFirstPass(flag) {
@@ -115,26 +111,9 @@ watch(activeTpl, (id) => {
   if (!formDataLocal.value[id]) formDataLocal.value[id] = {}
 })
 
-const completePlanOptions = computed(() => {
-  if (!task.value) return []
-  return acceptancePlans.filter(
-    (p) =>
-      p.project_id === task.value.project_id &&
-      Number(p.plan_type) === 3 &&
-      ([1, 2].includes(p.status) || p.id === completeMeta.plan_id),
-  )
-})
-
-function planLabel(plan_id) {
-  if (!plan_id) return '未挂计划'
-  const p = acceptancePlans.find((x) => x.id === plan_id)
-  return p ? `${p.plan_no} ${p.plan_name}` : plan_id
-}
-
 function syncCompleteMeta() {
   if (!task.value || Number(task.value.task_type) !== 7) return { ok: true }
   return updateCompleteTaskMeta(task.value, {
-    plan_id: completeMeta.plan_id,
     location_name: completeMeta.location_name,
     remark: completeMeta.remark,
   })
@@ -150,6 +129,13 @@ const nodeName = computed(() => {
 const records = computed(() =>
   task.value ? approvalRecords.filter((r) => r.task_id === task.value.id) : [],
 )
+
+/** 页头档案摘要（Q12 一任务一档案文档） */
+const archiveBrief = computed(() => {
+  if (!task.value) return '未登记'
+  const inst = getArchiveInstance(task.value.id)
+  return inst ? `已登记 ${inst.archive_doc_id}` : '未登记'
+})
 
 /** 按验收类型的默认审批流程：施工报验 → 审批链 → 办结 */
 const flowSteps = computed(() => {
@@ -200,6 +186,51 @@ const flowTip = computed(() => {
 })
 
 const canEdit = computed(() => Number(task.value?.status) === 0)
+
+/** 第 3 步：提交前核对清单（与 submitInspect 拦截口径一致，实时联动） */
+const submitChecklist = computed(() => {
+  void siteAttTick.value
+  void linkTick.value
+  if (!task.value) return []
+  const t = task.value
+  const inst = getArchiveInstance(t.id)
+  const archiveBlock = checkArchiveBlock(t)
+  const siteCount = getAttachments('TASK', t.id).filter((a) =>
+    [1, 2, 3].includes(Number(a.file_category)),
+  ).length
+  const rows = [
+    {
+      label: '档案系统数据登记',
+      ok: !archiveBlock.blocked,
+      desc: inst
+        ? `已登记（${inst.archive_doc_id}）`
+        : archiveBlock.blocked
+          ? '节点配置了需填报档案文件，请先在第 2 步完成登记'
+          : '本节点未配置需填报档案文件，可直接提交',
+    },
+    {
+      label: '工程影像 / 附件资料（默认必填）',
+      ok: siteCount > 0,
+      desc: siteCount > 0 ? `已上传 ${siteCount} 份` : '尚未上传现场影像或附件（第 1 步上传）',
+    },
+  ]
+  if (Number(t.task_type) === 6 && specialRequiredDocs.value.length) {
+    const miss = specialDocsMissing.value
+    rows.push({
+      label: '专项必传资料',
+      ok: !miss.length,
+      desc: miss.length ? `缺：${miss.map((d) => d.label).join('、')}` : '已全部上传',
+    })
+  }
+  const missPhoto = missingPhotoItems(t.id)
+  rows.push({
+    label: '必拍影像检查项',
+    ok: !missPhoto.length,
+    desc: missPhoto.length ? `缺：${missPhoto.map((i) => i.item_name).join('、')}` : '无缺失',
+  })
+  return rows
+})
+
 const currentRectify = computed(() => {
   if (!task.value?.current_rectify_id) return null
   return findRectify(task.value.current_rectify_id)
@@ -336,98 +367,84 @@ function onRemoveSiteAtt(row) {
   ElMessage.success('已删除')
 }
 
-const templateTabs = computed(() => {
-  const ids = [...new Set(items.value.map((i) => i.form_template_id).filter(Boolean))]
-  if (!ids.length && task.value?.form_template_id) ids.push(task.value.form_template_id)
-  return ids.map((id) => ({
-    id,
-    name: resolveTemplateName(id),
-    fields: formTemplates.find((t) => t.id === id)?.form_schema?.fields || [],
-  }))
+/** ③材料/定版定样关联（可选区块） */
+const materialLinks = computed(() => {
+  void linkTick.value
+  return task.value ? getTaskMaterialLinks(task.value.id) : []
+})
+const sampleLinks = computed(() => {
+  void linkTick.value
+  return task.value ? getTaskSampleLinks(task.value.id) : []
 })
 
-const filteredItems = computed(() => {
-  if (!activeTpl.value) return items.value
-  return items.value.filter((i) => i.form_template_id === activeTpl.value)
-})
+const MATERIAL_POOL = [
+  { material_id: 'mat-001', material_name: 'HRB400E 螺纹钢 Φ25', batch_no: 'PC-20260801-01', supplier: '某钢铁集团' },
+  { material_id: 'mat-003', material_name: '商品混凝土 C40', batch_no: 'PC-20260801-02', supplier: '某拌合站' },
+  { material_id: 'mat-004', material_name: 'SBS 防水卷材 4mm', batch_no: 'PC-20260801-03', supplier: '某防水材料厂' },
+]
+const SAMPLE_POOL = [
+  { sample_id: 'spl-003', sample_name: '砌体样板段封样', sample_category: '工艺样板' },
+  { sample_id: 'spl-004', sample_name: '机电管线综合排布定版', sample_category: '定版' },
+]
 
-/** 对齐「表单填报 · 工序需填写表格」列表 */
-const processFormRows = computed(() => {
-  const rows = templateTabs.value.map((tab, index) => {
-    const tpl = formTemplates.find((t) => t.id === tab.id)
-    const bucket = formDataLocal.value[tab.id] || {}
-    const filled = Object.keys(bucket).some((k) => String(bucket[k] || '').trim())
-    return {
-      id: tab.id,
-      name: tab.name,
-      remark: tpl?.standard_ref || '',
-      sgFilledNo: filled ? `${task.value?.task_no || 'YS'}-SG-${index + 1}` : '',
-      jlFilledNo: '',
-      needSg: true,
-      needJl: index % 2 === 1,
-      measure: /计量|数量/.test(tab.name),
-      filled,
-    }
+function onLinkMaterial() {
+  if (!task.value) return
+  const linked = new Set(materialLinks.value.map((l) => l.material_id))
+  const candidate = MATERIAL_POOL.find((m) => !linked.has(m.material_id)) || MATERIAL_POOL[0]
+  taskMaterialLinks.push({
+    id: `tml-${Date.now()}`,
+    task_id: task.value.id,
+    ...candidate,
+    link_time: new Date().toISOString().slice(0, 19).replace('T', ' '),
   })
-  let list = rows
-  if (formTab.value === 'todo') list = list.filter((f) => !f.filled || f.needSg || f.needJl)
-  if (formTab.value === 'done') list = list.filter((f) => f.filled)
-  if (fillFilter.value === 'sg') list = list.filter((f) => f.needSg)
-  if (fillFilter.value === 'jl') list = list.filter((f) => f.needJl)
-  if (fillFilter.value === 'std') {
-    list = list.filter((f) => f.remark.includes('省统') || f.remark.includes('主控'))
-  }
-  return list
-})
-
-function goFill(row) {
-  const formId = row?.id || selectedFormIds.value[0] || processFormRows.value[0]?.id
-  if (!formId) return ElMessage.warning('请先选择要填写的表格')
-  activeTpl.value = formId
-  router.push({
-    path: '/qm/inspect/form-fill/edit',
-    query: {
-      nodeId: task.value.wbs_node_id,
-      formId,
-      taskId: task.value.id,
-      returnTo: `${route.path}?id=${task.value.id}`,
-    },
-  })
+  linkTick.value += 1
+  ElMessage.success(`已关联材料「${candidate.material_name}」`)
 }
 
-function onSaveItems() {
+function onUnlinkMaterial(row) {
+  const idx = taskMaterialLinks.findIndex((l) => l.id === row.id)
+  if (idx >= 0) taskMaterialLinks.splice(idx, 1)
+  linkTick.value += 1
+  ElMessage.success('已解除关联')
+}
+
+function onLinkSample() {
+  if (!task.value) return
+  const linked = new Set(sampleLinks.value.map((l) => l.sample_id))
+  const candidate = SAMPLE_POOL.find((s) => !linked.has(s.sample_id)) || SAMPLE_POOL[0]
+  taskSampleLinks.push({
+    id: `tsl-${Date.now()}`,
+    task_id: task.value.id,
+    ...candidate,
+    link_time: new Date().toISOString().slice(0, 19).replace('T', ' '),
+  })
+  linkTick.value += 1
+  ElMessage.success(`已关联定样「${candidate.sample_name}」`)
+}
+
+function onUnlinkSample(row) {
+  const idx = taskSampleLinks.findIndex((l) => l.id === row.id)
+  if (idx >= 0) taskSampleLinks.splice(idx, 1)
+  linkTick.value += 1
+  ElMessage.success('已解除关联')
+}
+
+/** 保存草稿（§5.1：is_draft=1，不计正式任务；与档案登记互不影响 C1） */
+function onSaveDraft() {
   const meta = syncCompleteMeta()
   if (!meta.ok) return ElMessage.error(meta.msg)
-  task.value.form_data = JSON.parse(JSON.stringify(formDataLocal.value))
-  const r = saveTaskItems(task.value, items.value)
-  if (!r.ok) return ElMessage.error(r.msg)
-  ElMessage.success('已保存')
-}
-
-function onAddPhoto(item) {
-  const r = addAttachment({
-    biz_type: 'ITEM',
-    biz_id: item.id,
-    task_id: task.value.id,
-    file_name: `${item.item_name}-现场.jpg`,
-    file_category: 1,
-    file_ext: 'jpg',
+  const r = saveTaskDraft(task.value, {
+    remark: task.value.remark,
+    form_data: formDataLocal.value,
   })
   if (!r.ok) return ElMessage.error(r.msg)
-  ElMessage.success('已模拟上传影像')
-}
-
-function photoCount(itemId) {
-  return getAttachments('ITEM', itemId).length
+  ElMessage.success('草稿已保存（不计正式任务，可先行登记档案或继续填报）')
 }
 
 function onSubmit() {
   const meta = syncCompleteMeta()
   if (!meta.ok) return ElMessage.error(meta.msg)
   task.value.form_data = JSON.parse(JSON.stringify(formDataLocal.value))
-  saveTaskItems(task.value, items.value)
-  // 提交报验时自动记为自检合格（页面不再单独选择）
-  setSelfCheck(task.value, 1)
   const r = submitInspect(task.value)
   if (!r.ok) return ElMessage.error(r.msg)
   ElMessage.success('已提交报验，进入验评中')
@@ -438,11 +455,12 @@ function onSubmit() {
   router.push(`${props.approvePath}?id=${task.value.id}`)
 }
 
+/** D4：整改=审批驳回的结果；谁提交的验收流程谁来整改 */
 function onIssueRectify() {
   if (!rejectOpinion.value.trim()) return ElMessage.warning('请填写问题描述')
   const r = createRectify(task.value, rejectOpinion.value)
   if (!r.ok) return ElMessage.error(r.msg)
-  ElMessage.success(`已下发整改单 ${r.order.order_no}`)
+  ElMessage.success(`已生成整改单 ${r.order.order_no}（驳回结果，由任务提交人整改）`)
   load()
 }
 
@@ -504,7 +522,9 @@ function onReinspectFail() {
         <h1 class="page-title">{{ task.task_no }} · {{ TASK_TYPE_LABEL[task.task_type] }}</h1>
         <p class="page-tip">
           {{ resolveProjectName(task.project_id) }} · {{ nodeName }} ·
-          {{ TASK_STATUS[task.status] }} · 归档：{{ ARCHIVE_STATUS[task.archive_status] }}
+          {{ TASK_STATUS[task.status] }}
+          <el-tag v-if="task.is_draft === 1" size="small" type="info" effect="plain">草稿</el-tag>
+          · 档案：{{ archiveBrief }}
         </p>
       </div>
       <el-button @click="router.push(listPath)">返回列表</el-button>
@@ -514,7 +534,8 @@ function onReinspectFail() {
       <el-tag size="small" :type="Number(task.status) === 0 ? 'warning' : 'success'">
         {{ TASK_STATUS[task.status] }}
       </el-tag>
-      <span class="embed-status-tip">归档：{{ ARCHIVE_STATUS[task.archive_status] }}</span>
+      <el-tag v-if="task.is_draft === 1" size="small" type="info" effect="plain">草稿</el-tag>
+      <span class="embed-status-tip">档案：{{ archiveBrief }}</span>
     </div>
 
     <template v-if="completeGate">
@@ -522,29 +543,25 @@ function onReinspectFail() {
       <QmCompletePrereqPanel :gate="completeGate" compact class="mb" />
     </template>
 
-    <!-- 竣工：表头字段整合进表单 -->
+    <!-- 填报三步向导（可编辑状态）：①系统数据 → ②档案系统 → ③审批流程确认提交 -->
+    <el-steps
+      v-if="canEdit"
+      :active="activeStep"
+      align-center
+      finish-status="success"
+      class="mb wizard-steps"
+    >
+      <el-step title="填报系统数据" description="基本信息 · 影像附件 · 材料定样" />
+      <el-step title="档案系统填报" description="按档案系统页面填写表格" />
+      <el-step title="审批流程 · 确认提交" description="核对审批链与提交条件" />
+    </el-steps>
+
+    <!-- 第 1 步：本系统数据（非编辑状态平铺展示） -->
+    <template v-if="!canEdit || activeStep === 0">
+    <!-- ① 基本信息（竣工：表头字段整合进表单） -->
     <template v-if="isCompleteTask">
-      <div class="section-title">竣工验收填报</div>
+      <div class="section-title">① 基本信息 · 竣工验收填报</div>
       <el-form v-if="canEdit" label-width="110px" class="complete-meta-form mb">
-        <el-form-item label="验收计划">
-          <el-select
-            v-model="completeMeta.plan_id"
-            clearable
-            filterable
-            placeholder="选填；关联竣工类计划"
-            style="width: 100%; max-width: 520px"
-          >
-            <el-option
-              v-for="p in completePlanOptions"
-              :key="p.id"
-              :label="`${p.plan_no} ${p.plan_name}`"
-              :value="p.id"
-            >
-              <span>{{ p.plan_no }} {{ p.plan_name }}</span>
-              <span class="opt-sub">{{ PLAN_TYPE[p.plan_type] }} · {{ p.plan_date }}</span>
-            </el-option>
-          </el-select>
-        </el-form-item>
         <el-form-item label="工程/部位" required>
           <el-input
             v-model="completeMeta.location_name"
@@ -561,35 +578,33 @@ function onReinspectFail() {
             style="max-width: 520px"
           />
         </el-form-item>
-        <el-form-item label="自检结果">
-          <span>{{ formatSelfCheck(task.self_check_result) || '提交报验时自动记为合格' }}</span>
-        </el-form-item>
         <el-form-item label="一次通过">
           <span>{{ formatFirstPass(task.first_pass_flag) || '—' }}</span>
         </el-form-item>
       </el-form>
       <el-descriptions v-else :column="2" border size="small" class="mb">
-        <el-descriptions-item label="验收计划">{{ planLabel(task.plan_id) }}</el-descriptions-item>
         <el-descriptions-item label="工程/部位">{{ task.location_name }}</el-descriptions-item>
         <el-descriptions-item label="备注" :span="2">{{ task.remark || '—' }}</el-descriptions-item>
-        <el-descriptions-item label="自检结果">{{ formatSelfCheck(task.self_check_result) }}</el-descriptions-item>
         <el-descriptions-item label="一次通过">{{ formatFirstPass(task.first_pass_flag) }}</el-descriptions-item>
       </el-descriptions>
     </template>
 
-    <el-descriptions v-else :column="3" border size="small" class="mb">
-      <el-descriptions-item v-if="task.task_type === 6" label="专项类型">
-        {{ specialTypeLabel(task.special_type) }}
-      </el-descriptions-item>
-      <el-descriptions-item label="部位">{{ task.location_name }}</el-descriptions-item>
-      <el-descriptions-item v-if="task.task_type !== 6" label="隐蔽工程">
-        {{ task.is_hidden_work === 1 ? '是' : '否' }}
-      </el-descriptions-item>
-      <el-descriptions-item label="业主终审">{{ task.owner_final_required === 1 ? '需要' : '否' }}</el-descriptions-item>
-      <el-descriptions-item label="计划">{{ task.unplanned_flag === 1 ? '未挂计划' : task.plan_id }}</el-descriptions-item>
-      <el-descriptions-item label="自检结果">{{ formatSelfCheck(task.self_check_result) }}</el-descriptions-item>
-      <el-descriptions-item label="一次通过">{{ formatFirstPass(task.first_pass_flag) }}</el-descriptions-item>
-    </el-descriptions>
+    <template v-else>
+      <div class="section-title">① 基本信息</div>
+      <el-descriptions :column="3" border size="small" class="mb">
+        <el-descriptions-item label="任务名称">{{ task.task_name || '—' }}</el-descriptions-item>
+        <el-descriptions-item v-if="task.task_type === 6" label="专项类型">
+          {{ specialTypeLabel(task.special_type) }}
+        </el-descriptions-item>
+        <el-descriptions-item label="节点">{{ nodeName }}</el-descriptions-item>
+        <el-descriptions-item label="部位">{{ task.location_name }}</el-descriptions-item>
+        <el-descriptions-item v-if="task.task_type !== 6" label="隐蔽工程">
+          {{ task.is_hidden_work === 1 ? '是' : '否' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="业主终审">{{ task.owner_final_required === 1 ? '需要' : '否' }}</el-descriptions-item>
+        <el-descriptions-item label="一次通过">{{ formatFirstPass(task.first_pass_flag) }}</el-descriptions-item>
+      </el-descriptions>
+    </template>
 
     <template v-if="task.task_type === 6 && specialRequiredDocs.length">
       <div class="section-title">专项必传资料</div>
@@ -631,7 +646,18 @@ function onReinspectFail() {
       </el-table>
     </template>
 
-    <div class="section-title">现场资料</div>
+    <div class="section-title">
+      ② 工程影像 / 附件资料
+      <el-tag size="small" type="danger" effect="plain" class="req-tag">默认必填</el-tag>
+    </div>
+    <el-alert
+      v-if="canEdit && !taskSiteAttachments.filter((a) => [1, 2, 3].includes(Number(a.file_category))).length"
+      type="warning"
+      :closable="false"
+      show-icon
+      class="mb"
+      title="提交报验前须至少上传一份现场影像或附件（默认必填，可在节点配置中调整）"
+    />
     <div class="site-materials mb">
       <div class="site-block">
         <div class="site-block-head">
@@ -701,91 +727,138 @@ function onReinspectFail() {
       </div>
     </div>
 
-    <template v-if="canEdit">
-      <div class="section-title">自检填报</div>
-
-      <div class="process-form-module mb">
-        <div class="tp-tabs-bar">
-          <el-radio-group v-model="formTab" size="small">
-            <el-radio-button label="todo">工序需填写表格</el-radio-button>
-            <el-radio-button label="done">已填写表格</el-radio-button>
-          </el-radio-group>
-          <div class="tp-filters">
-            <el-radio-group v-model="fillFilter" size="small">
-              <el-radio label="all">全部</el-radio>
-              <el-radio label="sg">施工需填</el-radio>
-              <el-radio label="jl">监理需填</el-radio>
-              <el-radio label="std">显示标准规范表格</el-radio>
-            </el-radio-group>
-            <el-button
-              size="small"
-              :icon="collapsedForms ? Expand : Fold"
-              @click="collapsedForms = !collapsedForms"
-            >
-              {{ collapsedForms ? '展开' : '收缩' }}
-            </el-button>
-            <el-button size="small">所有表格</el-button>
+    <!-- ③ 材料 / 定版定样关联（可选区块） -->
+    <div class="section-title">
+      ③ 材料 / 定版定样关联
+      <el-tag size="small" type="info" effect="plain" class="req-tag">可选</el-tag>
+    </div>
+    <div class="site-materials mb">
+      <div class="site-block">
+        <div class="site-block-head">
+          <div>
+            <div class="site-block-title">关联材料</div>
+            <div class="site-block-tip">从材料管理 / 进场报验选择（演示为模拟关联）</div>
+          </div>
+          <div v-if="canEdit" class="filter-bar">
+            <el-button size="small" @click="onLinkMaterial">关联材料</el-button>
           </div>
         </div>
-        <el-table
-          v-show="!collapsedForms"
-          :data="processFormRows"
-          border
-          stripe
-          empty-text="暂无关联表格"
-          @selection-change="(rows) => (selectedFormIds = rows.map((r) => r.id))"
-        >
-          <el-table-column type="selection" width="44" />
-          <el-table-column prop="name" label="工序/表格名称" min-width="240" show-overflow-tooltip />
-          <el-table-column prop="remark" label="备注" width="140" show-overflow-tooltip />
-          <el-table-column prop="sgFilledNo" label="施工已填写表格编号" min-width="150" show-overflow-tooltip />
-          <el-table-column prop="jlFilledNo" label="监理已填写表格编号" min-width="150" show-overflow-tooltip />
-          <el-table-column label="施工需填" width="90" align="center">
-            <template #default="{ row }"><el-checkbox :model-value="row.needSg" disabled /></template>
-          </el-table-column>
-          <el-table-column label="监理需填" width="90" align="center">
-            <template #default="{ row }"><el-checkbox :model-value="row.needJl" disabled /></template>
-          </el-table-column>
-          <el-table-column label="施工计量" width="90" align="center">
-            <template #default="{ row }"><el-checkbox :model-value="row.measure" disabled /></template>
-          </el-table-column>
-          <el-table-column label="操作" width="88" fixed="right">
+        <el-table :data="materialLinks" border size="small" empty-text="暂无关联材料">
+          <el-table-column prop="material_name" label="材料名称" min-width="170" show-overflow-tooltip />
+          <el-table-column prop="batch_no" label="进场批次" width="140" />
+          <el-table-column prop="supplier" label="供应商" min-width="120" show-overflow-tooltip />
+          <el-table-column v-if="canEdit" label="操作" width="80" fixed="right">
             <template #default="{ row }">
-              <el-button link type="primary" @click="goFill(row)">填写</el-button>
+              <el-button link type="danger" @click="onUnlinkMaterial(row)">解除</el-button>
             </template>
           </el-table-column>
         </el-table>
       </div>
 
-      <div class="filter-bar mb self-check-actions">
-        <el-button @click="onSaveItems">保存</el-button>
-        <el-button type="primary" @click="onSubmit">提交报验</el-button>
+      <div class="site-block">
+        <div class="site-block-head">
+          <div>
+            <div class="site-block-title">关联定版定样</div>
+            <div class="site-block-tip">从样品管理选择定版 / 封样记录（演示为模拟关联）</div>
+          </div>
+          <div v-if="canEdit" class="filter-bar">
+            <el-button size="small" @click="onLinkSample">关联定样</el-button>
+          </div>
+        </div>
+        <el-table :data="sampleLinks" border size="small" empty-text="暂无关联定版定样">
+          <el-table-column prop="sample_name" label="定样名称" min-width="180" show-overflow-tooltip />
+          <el-table-column prop="sample_category" label="类别" width="110" />
+          <el-table-column prop="link_time" label="关联时间" width="160" />
+          <el-table-column v-if="canEdit" label="操作" width="80" fixed="right">
+            <template #default="{ row }">
+              <el-button link type="danger" @click="onUnlinkSample(row)">解除</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
       </div>
+    </div>
+
     </template>
 
-    <template v-else>
-      <div class="section-title">验评项明细（只读）</div>
-      <el-table :data="filteredItems" border size="small" class="mb">
-        <el-table-column prop="seq_no" label="序号" width="60" />
-        <el-table-column label="类别" width="70">
-          <template #default="{ row }">{{ ITEM_CATEGORY[row.item_category] }}</template>
-        </el-table-column>
-        <el-table-column prop="item_name" label="检查项" min-width="160" />
-        <el-table-column prop="measured_value" label="实测值" min-width="120" />
-        <el-table-column label="判定" width="90">
-          <template #default="{ row }">{{ JUDGE_RESULT[row.judge_result] }}</template>
-        </el-table-column>
-      </el-table>
+    <!-- 第 2 步：档案系统填报（按档案系统页面展示；C1 用户主动登记；C2 节点级拦截） -->
+    <template v-if="!canEdit || activeStep === 1">
+      <div class="section-title">
+        ④ 档案系统填报
+        <el-tag v-if="canEdit" size="small" type="warning" effect="plain" class="req-tag">
+          档案系统页面
+        </el-tag>
+      </div>
+      <QmArchivePanel :task="task" class="mb" @changed="load" />
     </template>
+
+    <!-- 第 3 步：审批流程 · 确认提交 -->
+    <template v-if="canEdit && activeStep === 2">
+      <div class="section-title">提交前核对</div>
+      <el-table :data="submitChecklist" border size="small" class="mb">
+        <el-table-column prop="label" label="核对项" min-width="200" />
+        <el-table-column label="状态" width="90">
+          <template #default="{ row }">
+            <el-tag :type="row.ok ? 'success' : 'danger'" size="small">
+              {{ row.ok ? '通过' : '未满足' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="desc" label="说明" min-width="260" show-overflow-tooltip />
+      </el-table>
+
+      <div class="section-title">审批流程</div>
+      <p class="flow-tip">{{ flowTip }}</p>
+      <div class="flow-box mb">
+        <el-steps :active="0" process-status="process" finish-status="success" align-center>
+          <el-step
+            v-for="(step, idx) in flowSteps"
+            :key="`confirm-${step.title}-${idx}`"
+            :title="step.title"
+            :description="step.desc"
+          />
+        </el-steps>
+      </div>
+      <el-alert
+        type="info"
+        :closable="false"
+        show-icon
+        class="mb"
+        title="确认无误后点击下方「提交报验」：提交后任务进入审批流程，审批链以档案系统登记时快照为准"
+      />
+    </template>
+
+    <!-- 向导操作条 -->
+    <div v-if="canEdit" class="filter-bar mb self-check-actions">
+      <el-button v-if="activeStep > 0" @click="activeStep -= 1">上一步</el-button>
+      <el-button @click="onSaveDraft">保存草稿</el-button>
+      <el-button v-if="activeStep < 2" type="primary" @click="activeStep += 1">下一步</el-button>
+      <el-button v-else type="primary" @click="onSubmit">提交报验</el-button>
+    </div>
 
     <template v-if="task.status === 3">
-      <div class="section-title">下发整改</div>
-      <el-input v-model="rejectOpinion" type="textarea" :rows="3" placeholder="问题描述" class="mb" />
-      <el-button type="warning" @click="onIssueRectify">下发整改单</el-button>
+      <div class="section-title">整改（审批驳回结果）</div>
+      <el-alert
+        type="info"
+        :closable="false"
+        show-icon
+        class="mb"
+        title="整改为审批驳回的结果，不存在单独下发动作；谁提交的验收流程，谁来整改问题"
+      />
+      <el-input v-model="rejectOpinion" type="textarea" :rows="3" placeholder="问题描述（默认取驳回意见）" class="mb" />
+      <el-button type="warning" @click="onIssueRectify">生成整改单</el-button>
     </template>
 
     <template v-if="task.status === 4 && currentRectify">
       <div class="section-title">整改执行 · {{ currentRectify.order_no }}</div>
+      <el-descriptions :column="3" border size="small" class="mb">
+        <el-descriptions-item label="问题描述" :span="3">{{ currentRectify.problem_desc }}</el-descriptions-item>
+        <el-descriptions-item label="整改期限">{{ currentRectify.deadline || '—' }}</el-descriptions-item>
+        <el-descriptions-item label="状态变更时间">{{ currentRectify.status_changed_at || '—' }}</el-descriptions-item>
+        <el-descriptions-item label="复验轮次">{{ currentRectify.round_count ?? 0 }}</el-descriptions-item>
+        <el-descriptions-item label="关联档案文档状态" :span="3">
+          <el-tag size="small" type="warning" effect="plain">{{ currentRectify.archive_doc_status || '—' }}</el-tag>
+        </el-descriptions-item>
+      </el-descriptions>
       <el-input v-model="rectifyMeasure" type="textarea" :rows="3" placeholder="整改措施 measure" class="mb" />
       <div class="filter-bar">
         <el-button @click="onSaveMeasure">保存措施</el-button>
@@ -809,6 +882,7 @@ function onReinspectFail() {
       </el-button>
     </template>
 
+    <template v-if="!canEdit">
     <el-divider class="approve-divider" />
     <div class="section-title">审批轨迹</div>
     <p class="flow-tip">{{ flowTip }}</p>
@@ -835,6 +909,7 @@ function onReinspectFail() {
       </el-timeline-item>
     </el-timeline>
     <el-empty v-else description="尚未提交报验，以下为按验收类型预设的默认审批流程" :image-size="56" />
+    </template>
   </div>
 </template>
 
@@ -884,6 +959,7 @@ function onReinspectFail() {
   background: #fafafa;
   padding: 16px 12px 8px;
 }
+.wizard-steps { padding: 4px 0 8px; }
 .filter-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .self-check-actions { margin-top: 4px; }
 .approve-divider { margin: 8px 0 4px; }
@@ -921,19 +997,4 @@ function onReinspectFail() {
   color: #909399;
 }
 .req-tag { margin-left: 8px; }
-.process-form-module {
-  border: 1px solid #ebeef5;
-  border-radius: 6px;
-  background: #fff;
-  padding: 10px 12px 12px;
-}
-.tp-tabs-bar {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 8px;
-  align-items: center;
-  margin-bottom: 8px;
-}
-.tp-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 </style>

@@ -1,54 +1,57 @@
 /**
- * 专项验收任务创建（深度集成 · 专项）
- * 不挂接验评目录树，须挂验收计划；按类型强制上传对应附件
+ * 专项验收任务创建 — 挂接目录树专项节点（消防/人防等），不做验收计划
  */
-import { acceptancePlans, inspectionTasks, nowStr } from './qmInspect.js'
-import { ensureTaskItems, refreshPlanStatus, syncNodeAccept } from './qmInspectOps.js'
+import { inspectionTasks, nowStr, wbsNodes } from './qmInspect.js'
+import { ensureTaskItems, syncNodeAccept } from './qmInspectOps.js'
 import { getSpecialAcceptType } from './qmSpecialTypes.js'
 
 export * from './qmSpecialTypes.js'
 
 /**
- * 创建专项验收任务（不挂目录树节点，须挂专项计划 + 专项类型）
+ * 创建专项验收任务（须选择目录树专项节点 node_type=7）
  */
 export function createSpecialTask({
   project_id,
-  plan_id,
-  special_type,
+  wbs_node_id,
+  special_type = '',
+  task_name = '',
   location_name = '',
   remark = '',
   contractor_org_id = 'org-sg-01',
   supervisor_org_id = 'org-jl-01',
 }) {
   if (!project_id) return { ok: false, msg: '请先选择项目' }
-  if (!plan_id) return { ok: false, msg: '专项验收须挂接验收计划' }
-  if (!special_type) return { ok: false, msg: '请选择专项验收类型' }
+  if (!wbs_node_id) return { ok: false, msg: '请选择专项验收节点（目录树·专项验收下）' }
 
-  const plan = acceptancePlans.find((p) => p.id === plan_id)
-  if (!plan) return { ok: false, msg: '验收计划不存在' }
-  if (plan.project_id !== project_id) return { ok: false, msg: '计划不属于当前项目' }
-  if (Number(plan.plan_type) !== 2) return { ok: false, msg: '请选择专项验收类计划' }
-  if (![1, 2].includes(plan.status)) return { ok: false, msg: '仅未开始/进行中的计划可发起' }
+  const node = wbsNodes.find((n) => n.id === wbs_node_id)
+  if (!node) return { ok: false, msg: '专项节点不存在' }
+  if (node.project_id !== project_id) return { ok: false, msg: '节点不属于当前项目' }
+  if (Number(node.node_type) !== 7) return { ok: false, msg: '请选择专项节点（消防/人防等）' }
 
-  const typeMeta = getSpecialAcceptType(special_type)
+  const typeCode = special_type || node.special_type || ''
+  if (!typeCode) return { ok: false, msg: '专项节点未配置专项类型' }
+
+  const typeMeta = getSpecialAcceptType(typeCode)
   if (!typeMeta) return { ok: false, msg: '专项验收类型无效' }
 
+  // 一节点可上报多个任务（不再做「一节点一有效任务」拦截）
   const id = `tk-${Date.now()}`
   const task = {
     id,
     task_no: `ZX-2026-${String(inspectionTasks.filter((t) => t.task_type === 6).length + 1).padStart(3, '0')}`,
+    task_name: task_name || `${typeMeta.label}专项验收`,
     project_id,
-    wbs_node_id: '',
-    plan_id,
-    unplanned_flag: 0,
+    wbs_node_id,
+    plan_id: '',
+    unplanned_flag: 1,
     parent_task_id: '',
     task_type: 6,
-    special_type,
+    special_type: typeCode,
     specialty: typeMeta.label,
-    location_name: location_name || `${typeMeta.label}专项`,
-    form_template_id: typeMeta.form_template_id || 'ft-special-fire',
+    location_name: location_name || node.location_code || node.node_name,
+    form_template_id: node.form_template_id || typeMeta.form_template_id || 'ft-special-fire',
     form_data: {
-      [typeMeta.form_template_id || 'ft-special-fire']: {
+      [node.form_template_id || typeMeta.form_template_id || 'ft-special-fire']: {
         专项名称: `${typeMeta.label}专项验收`,
       },
     },
@@ -68,6 +71,8 @@ export function createSpecialTask({
     finish_time: '',
     archive_status: 0,
     archive_pkg_no: '',
+    archive_instance_id: '',
+    is_draft: 0,
     owner_final_required: 1,
     remark: remark || '',
     created_by: 'u-sg-01',
@@ -78,74 +83,6 @@ export function createSpecialTask({
 
   inspectionTasks.unshift(task)
   ensureTaskItems(task)
-
-  if (plan.status === 1) plan.status = 2
-  refreshPlanStatus(plan_id)
   syncNodeAccept(task)
   return { ok: true, task }
 }
-
-/** 演示用：确保有专项计划种子（幂等追加） */
-export function ensureSpecialPlanSeeds() {
-  const seeds = [
-    {
-      id: 'pl-special-001',
-      plan_no: 'JH-ZX-2026-001',
-      project_id: 'p-000',
-      plan_type: 2,
-      plan_name: 'T2消防专项验收计划',
-      wbs_node_id: '',
-      content: '消防系统专项验收',
-      plan_date: '2026-08-20',
-      contractor_org_id: 'org-sg-01',
-      supervisor_org_id: 'org-jl-01',
-      status: 1,
-      change_flag: 0,
-      reviewer_id: 'u-jl-01',
-      review_time: '2026-07-01 10:00:00',
-      review_opinion: '',
-      remark: '专项计划样例',
-    },
-    {
-      id: 'pl-special-002',
-      plan_no: 'JH-ZX-2026-002',
-      project_id: 'p-000',
-      plan_type: 2,
-      plan_name: 'T2人防专项验收计划',
-      wbs_node_id: '',
-      content: '人防工程专项验收',
-      plan_date: '2026-09-05',
-      contractor_org_id: 'org-sg-01',
-      supervisor_org_id: 'org-jl-01',
-      status: 1,
-      change_flag: 0,
-      reviewer_id: 'u-jl-01',
-      review_time: '2026-07-02 10:00:00',
-      review_opinion: '',
-      remark: '',
-    },
-    {
-      id: 'pl-special-003',
-      plan_no: 'JH-ZX-2026-003',
-      project_id: 'p-000',
-      plan_type: 2,
-      plan_name: '电梯特种设备验收计划',
-      wbs_node_id: '',
-      content: '扶梯/电梯专项',
-      plan_date: '2026-08-28',
-      contractor_org_id: 'org-sg-01',
-      supervisor_org_id: 'org-jl-01',
-      status: 2,
-      change_flag: 0,
-      reviewer_id: 'u-jl-01',
-      review_time: '2026-07-03 10:00:00',
-      review_opinion: '',
-      remark: '',
-    },
-  ]
-  seeds.forEach((s) => {
-    if (!acceptancePlans.some((p) => p.id === s.id)) acceptancePlans.push(s)
-  })
-}
-
-ensureSpecialPlanSeeds()

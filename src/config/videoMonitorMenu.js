@@ -45,7 +45,7 @@ const videoMonitorItems = [
     label: '离线通知配置',
     path: '/video-monitor/offline-notify',
     description:
-      '指挥部级视频离线分级通知：按离线天数配置通知岗位，默认一天/一周/一月，支持增删改。',
+      '项目级视频离线分级通知：按离线天数配置通知岗位与通知人员，默认一天/一周/一月，支持增删改。',
     component: OfflineNotifyConfigView,
   },
 ]

@@ -27,7 +27,9 @@ async function viewProjectDetail(row) {
 <template>
   <div class="vehicle-dashboard page-card">
     <div class="page-header">
-      <div class="page-breadcrumb">车辆管理 / 车辆管理看板</div>
+      <div class="page-breadcrumb">
+        {{ isHqSelected ? '安全看板' : '车辆管理' }} / 车辆管理看板
+      </div>
       <div class="page-heading">
         <h1 class="page-title">车辆管理看板</h1>
       </div>

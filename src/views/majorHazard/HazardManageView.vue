@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ref } from 'vue'
 import HazardRegionView from './HazardRegionView.vue'
 
@@ -21,9 +21,9 @@ const typeTips = {
 <template>
   <div class="manage-page page-card">
     <div class="page-header">
-      <div class="page-breadcrumb">危大工程监管 / 危大工程管理</div>
+      <div class="page-breadcrumb">危大工程监测 / 监测区域管理</div>
       <div class="page-heading">
-        <h1 class="page-title">危大工程管理</h1>
+        <h1 class="page-title">监测区域管理</h1>
         <el-radio-group v-model="activeType" size="small">
           <el-radio-button v-for="t in typeOptions" :key="t.value" :value="t.value">{{ t.label }}</el-radio-button>
         </el-radio-group>
@@ -35,7 +35,7 @@ const typeTips = {
       :key="activeType"
       :hazard-type="activeType"
       :title="typeTitles[activeType]"
-      :breadcrumb="'危大工程监管 / ' + typeTitles[activeType]"
+      :breadcrumb="'危大工程监测 / ' + typeTitles[activeType]"
       :tip="typeTips[activeType]"
     />
   </div>

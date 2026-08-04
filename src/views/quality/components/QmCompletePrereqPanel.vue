@@ -14,7 +14,7 @@ defineProps({
     <div class="prereq-grid">
       <div class="prereq-card" :class="{ ok: gate.physical.done, bad: !gate.physical.done }">
         <div class="prereq-head">
-          <span class="prereq-title">实体验收情况</span>
+          <span class="prereq-title">实体工程验收情况</span>
           <el-tag :type="gate.physical.done ? 'success' : 'warning'" size="small">
             {{ gate.physical.done ? '全部完成' : '未完成' }}
           </el-tag>
@@ -35,7 +35,7 @@ defineProps({
             </template>
           </el-table-column>
         </el-table>
-        <p v-else class="prereq-empty">暂无实体验收节点</p>
+        <p v-else class="prereq-empty">暂无单位工程节点</p>
         <p v-if="compact && gate.physical.rows.length > 5" class="prereq-more">
           另有 {{ gate.physical.rows.length - 5 }} 项…
         </p>
@@ -65,7 +65,7 @@ defineProps({
             </template>
           </el-table-column>
         </el-table>
-        <p v-else class="prereq-empty">暂无专项验收记录（不阻塞竣工）</p>
+        <p v-else class="prereq-empty">暂无专项节点，请先在目录树维护</p>
         <p v-if="compact && gate.special.rows.length > 5" class="prereq-more">
           另有 {{ gate.special.rows.length - 5 }} 项…
         </p>
@@ -78,7 +78,7 @@ defineProps({
       :closable="false"
       show-icon
       class="prereq-alert"
-      :title="gate.blockReason || '实体与专项验收均须全部完成后，方可发起竣工验收'"
+      :title="gate.blockReason || '实体工程与专项验收均须全部完成后，方可发起竣工验收'"
     />
     <el-alert
       v-else
@@ -86,7 +86,7 @@ defineProps({
       :closable="false"
       show-icon
       class="prereq-alert"
-      title="实体验收、专项验收均已完成，可发起竣工验收"
+      title="实体工程验收、专项验收均已完成，可发起竣工验收"
     />
   </div>
 </template>

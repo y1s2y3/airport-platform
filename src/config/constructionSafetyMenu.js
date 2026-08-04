@@ -10,11 +10,6 @@ export const constructionSafetyMenuGroup = {
   icon: 'DocumentChecked',
   children: [
     {
-      key: 'safety-dashboard',
-      label: '安全巡检看板',
-      path: '/safety-inspection/dashboard',
-    },
-    {
       key: 'safety-plan',
       label: '巡检计划',
       path: '/safety-inspection/plan',

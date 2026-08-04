@@ -44,7 +44,7 @@ export const matMenuGroup = {
       key: 'mat-library',
       label: '材料标准库',
       path: '/qm/mat/library',
-      description: '复用品牌报审企业级材料/品牌库只读入口。',
+      description: '复用本项目品牌报审材料/品牌库的只读入口。',
       name: 'MatLibrary',
       component: 'MatLibraryView',
     },

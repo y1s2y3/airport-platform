@@ -12,6 +12,19 @@ import {
 } from '../config/constructionSafetyMenu.js'
 import { machineHazardRoutes } from '../config/machineHazardMenu.js'
 import { qualityRoutes, qualityViewLoaders } from '../config/qualityMenu.js'
+import {
+  qualityDashboardRoutes,
+  qualityDashboardViewLoaders,
+} from '../config/qualityDashboardMenu.js'
+import {
+  safetyBoardRoutes,
+} from '../config/safetyBoardMenu.js'
+import {
+  siteConstructionRoutes,
+  siteConstructionViewLoaders,
+  aiAppRoutes,
+  aiAppViewLoaders,
+} from '../config/projectOpsMenu.js'
 import { brandRoutes, brandViewLoaders } from '../config/brandMenu.js'
 import { sampleRoutes, sampleViewLoaders } from '../config/sampleMenu.js'
 import { matRoutes, matViewLoaders } from '../config/matMenu.js'
@@ -23,8 +36,8 @@ const laborRoutes = [
   { path: 'labor/realname-stats', name: 'LaborRealNameStats', component: () => import('../views/safety/LaborRealNameStatsView.vue'), meta: { sidebarKey: 'labor-realname-stats', tabKey: 'labor-realname-stats', title: '实名制统计' } },
   { path: 'labor/dashboard', name: 'LaborDashboard', component: () => import('../views/safety/LaborDashboardView.vue'), meta: { sidebarKey: 'labor-dashboard', tabKey: 'labor-dashboard', title: '劳务看板' } },
   { path: 'labor/realname', name: 'RealNamePersonnel', component: () => import('../views/safety/RealNamePersonnelView.vue'), meta: { sidebarKey: 'labor-realname', tabKey: 'labor-realname', title: '人员实名制' } },
-  { path: 'labor/realname/form', name: 'RealNamePersonnelCreate', component: () => import('../views/safety/RealNamePersonnelFormView.vue'), meta: { sidebarKey: 'labor-realname', tabKey: 'labor-realname', title: '新增人员' } },
-  { path: 'labor/realname/form/:id', name: 'RealNamePersonnelEdit', component: () => import('../views/safety/RealNamePersonnelFormView.vue'), meta: { sidebarKey: 'labor-realname', tabKey: 'labor-realname', title: '编辑人员' } },
+  { path: 'labor/realname/form', redirect: '/labor/realname' },
+  { path: 'labor/realname/form/:id', redirect: (to) => `/labor/realname/${to.params.id}` },
   { path: 'labor/realname/:id', name: 'RealNamePersonnelDetail', component: () => import('../views/safety/RealNamePersonnelDetailView.vue'), meta: { sidebarKey: 'labor-realname', tabKey: 'labor-realname', title: '人员详情' } },
   { path: 'labor/personnel-track', name: 'LaborPersonnelTrack', component: () => import('../views/safety/LaborPersonnelTrackView.vue'), meta: { sidebarKey: 'labor-personnel-track', tabKey: 'labor-personnel-track', title: '人员轨迹' } },
   { path: 'labor/warning-config', name: 'LaborWarningConfig', component: () => import('../views/safety/LaborWarningConfigView.vue'), meta: { sidebarKey: 'labor-warning-config', tabKey: 'labor-warning-config', title: '实名制配置' } },
@@ -32,10 +45,10 @@ const laborRoutes = [
   { path: 'labor/warning-list/:id', name: 'LaborWarningDetail', component: () => import('../views/safety/LaborWarningDetailView.vue'), meta: { sidebarKey: 'labor-warning-list', tabKey: 'labor-warning-list', title: '预警详情' } },
   { path: 'labor/attendance-detail', name: 'LaborAttendanceDetail', component: () => import('../views/safety/LaborAttendanceDetailView.vue'), meta: { sidebarKey: 'labor-attendance-detail', tabKey: 'labor-attendance-detail', title: '考勤明细' } },
   { path: 'labor/attendance', name: 'LaborAttendanceStats', component: () => import('../views/safety/LaborAttendanceStatsView.vue'), meta: { sidebarKey: 'labor-attendance', tabKey: 'labor-attendance', title: '考勤统计' } },
-  { path: 'labor/salary-compare', name: 'LaborSalaryCompare', component: () => import('../views/safety/LaborSalaryAttendanceCompareView.vue'), meta: { sidebarKey: 'labor-salary-compare', tabKey: 'labor-salary-compare', title: '工资考勤比对' } },
+  { path: 'labor/salary-compare', redirect: '/labor/dashboard' },
   { path: 'labor/device-manage', name: 'LaborDeviceManage', component: () => import('../views/safety/LaborDeviceManageView.vue'), meta: { sidebarKey: 'labor-device-manage', tabKey: 'labor-device-manage', title: '设备管理' } },
   { path: 'labor/blacklist', name: 'LaborBlacklist', component: () => import('../views/safety/LaborBlacklistView.vue'), meta: { sidebarKey: 'labor-blacklist', tabKey: 'labor-blacklist', title: '劳务黑名单' } },
-  { path: 'labor', redirect: '/labor/attendance' },
+  { path: 'labor', redirect: '/labor/realname-stats' },
 ]
 
 const vehicleRouteComponents = {
@@ -87,6 +100,8 @@ const machineHazardRouteComponents = {
   'machine-entry': () => import('../views/safety/MachineEntryFormView.vue'),
   'machine-exit': () => import('../views/safety/MachineExitFormView.vue'),
   'machine-ledger-detail': () => import('../views/safety/MachineryLedgerDetailView.vue'),
+  'major-hazard-daily-work': () => import('../views/majorHazard/DailyWorkView.vue'),
+  'major-hazard-list': () => import('../views/majorHazard/HazardListView.vue'),
   'deep-foundation-pit': () => import('../views/majorHazard/DeepFoundationPitView.vue'),
   'subway-protection': () => import('../views/majorHazard/SubwayProtectionView.vue'),
   'high-formwork': () => import('../views/majorHazard/HighFormworkView.vue'),
@@ -254,12 +269,18 @@ const routes = [
           title: '流程详情',
         },
       },
+      ...safetyBoardRoutes.map((item) => ({
+        path: item.path.replace(/^\//, ''),
+        name: item.name,
+        redirect: item.redirect,
+      })),
       ...laborRoutes,
       ...constructionSafetyRoutes.map(mapConstructionSafetyRoute),
       ...riskManageRoutes.map(mapConstructionSafetyRoute),
       ...mobileSafetyRoutes.map(mapConstructionSafetyRoute),
       ...machineHazardRoutes.map(mapMachineHazardRoute),
       { path: 'major-hazard/alert-config', redirect: '/major-hazard/alert-record' },
+      { path: 'coc-admin/daily-work', redirect: '/major-hazard/daily-work' },
       ...vehicleRouteEntries,
       { path: 'vehicle', redirect: '/vehicle/dashboard' },
       ...legacyLaborRedirects,
@@ -295,6 +316,39 @@ const routes = [
         path: item.path.replace(/^\//, ''),
         name: item.name,
         component: qualityViewLoaders[item.component],
+        meta: {
+          sidebarKey: item.sidebarKey || item.key,
+          tabKey: item.sidebarKey || item.key,
+          title: item.label,
+          description: item.description,
+        },
+      })),
+      ...qualityDashboardRoutes.map((item) => ({
+        path: item.path.replace(/^\//, ''),
+        name: item.name,
+        component: qualityDashboardViewLoaders[item.component],
+        meta: {
+          sidebarKey: item.sidebarKey || item.key,
+          tabKey: item.sidebarKey || item.key,
+          title: item.label,
+          description: item.description,
+        },
+      })),
+      ...siteConstructionRoutes.map((item) => ({
+        path: item.path.replace(/^\//, ''),
+        name: item.name,
+        component: siteConstructionViewLoaders[item.component],
+        meta: {
+          sidebarKey: item.sidebarKey || item.key,
+          tabKey: item.sidebarKey || item.key,
+          title: item.label,
+          description: item.description,
+        },
+      })),
+      ...aiAppRoutes.map((item) => ({
+        path: item.path.replace(/^\//, ''),
+        name: item.name,
+        component: aiAppViewLoaders[item.component],
         meta: {
           sidebarKey: item.sidebarKey || item.key,
           tabKey: item.sidebarKey || item.key,

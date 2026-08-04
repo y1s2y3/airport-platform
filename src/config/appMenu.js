@@ -7,7 +7,6 @@ export const appMenu = [
     children: [
       { key: 'app-labor-dashboard', label: '劳务看板' },
       { key: 'app-labor-realname', label: '人员实名制' },
-      { key: 'app-labor-attendance', label: '考勤统计' },
       { key: 'app-labor-warning', label: '预警清单' },
     ],
   },
@@ -18,6 +17,7 @@ export const appMenu = [
       { key: 'app-vehicle-dashboard', label: '车辆管理看板' },
       { key: 'app-vehicle-access', label: '进出场记录' },
       { key: 'app-vehicle-warning', label: '预警清单' },
+      // 轨迹/电子围栏不在 App 端强制提供；有对接时以 PC 监管端为准
     ],
   },
   {
@@ -39,7 +39,7 @@ export const appMenu = [
   },
   {
     key: 'app-coc',
-    label: 'COC后台管理',
+    label: '调度后台管理',
     children: [
       { key: 'app-coc-daily-work', label: '每日施工作业' },
       { key: 'app-coc-notice', label: '任务单' },

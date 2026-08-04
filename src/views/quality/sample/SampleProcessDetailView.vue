@@ -2,7 +2,6 @@
 import './sample-page.css'
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
 import {
   ACTION_LABEL,
   APPROVAL_NODE_LABEL,
@@ -11,32 +10,19 @@ import {
   NODE_LABEL,
   STATUS_LABEL,
   statusTagType,
-  supervisorApproveSample,
-  pmApproveSample,
 } from '../../../mock/sample.js'
-import { canApproveSampleNode, sampleDemoRoleLabel } from '../../../utils/sampleDemoRole.js'
-import SampleDemoRoleBar from './SampleDemoRoleBar.vue'
 
 const route = useRoute()
 const router = useRouter()
 const id = computed(() => route.query.id || '')
 const isApproveMode = computed(() => route.path.includes('/approve'))
 const tick = ref(0)
-const opinion = ref('')
 
 const detail = computed(() => {
   void tick.value
   return id.value ? getProcessDetail(id.value) : null
 })
 
-const canApprove = computed(() => {
-  const d = detail.value
-  if (!isApproveMode.value || !d || d.status !== 'in_approval') return false
-  if (d.current_node !== 'supervisor' && d.current_node !== 'pm') return false
-  return canApproveSampleNode(d.current_node)
-})
-
-/** 审批轨迹：历史记录（中文）+ 审批中当前节点 */
 const approvalTimeline = computed(() => {
   const d = detail.value
   if (!d) return []
@@ -61,7 +47,7 @@ const approvalTimeline = computed(() => {
       actionLabel: '待办理',
       operator: d.current_node === 'supervisor' ? '监理' : '项目经理',
       time: '',
-      remark: '等待审批',
+      remark: '等待审批（个人中心待办）',
       status: 'current',
     })
   }
@@ -74,30 +60,6 @@ function timelineType(status) {
   if (status === 'current') return 'warning'
   return 'info'
 }
-
-function doApprove(action) {
-  const d = detail.value
-  if (!d) return
-  const node = d.current_node
-  if (!canApproveSampleNode(node)) {
-    return ElMessage.warning(`当前 Demo 角色为「${sampleDemoRoleLabel.value}」，无法办理本节点`)
-  }
-  const fn = node === 'supervisor' ? supervisorApproveSample : pmApproveSample
-  const r = fn('process', d.application_id, { action, opinion: opinion.value })
-  if (!r.ok) return ElMessage.error(r.msg)
-  tick.value += 1
-  opinion.value = ''
-  ElMessage.success(
-    action === 'agree'
-      ? node === 'pm'
-        ? '已通过并生成二维码'
-        : '已同意，流转项目经理'
-      : '已退回',
-  )
-  if (action === 'reject' || (action === 'agree' && node === 'pm')) {
-    router.push('/qm/sample/process/approve')
-  }
-}
 </script>
 
 <template>
@@ -107,9 +69,8 @@ function doApprove(action) {
         样板管理 / {{ isApproveMode ? '关键工序样板审批' : '关键工序样板报审' }} / 详情
       </div>
       <h1 class="page-title">工序样板详情 {{ id }}</h1>
+      <p v-if="isApproveMode" class="page-tip">审批请在个人中心待办办理；本页仅查看。</p>
     </div>
-
-    <SampleDemoRoleBar />
 
     <el-empty v-if="!detail" description="单据不存在" />
 
@@ -191,22 +152,6 @@ function doApprove(action) {
           </el-timeline-item>
         </el-timeline>
       </el-card>
-
-      <div v-if="canApprove" class="approve-box">
-        <div class="page-tip" style="margin-bottom: 8px">
-          当前节点：{{ NODE_LABEL[detail.current_node] }}
-        </div>
-        <el-input
-          v-model="opinion"
-          type="textarea"
-          :rows="2"
-          placeholder="审批意见（退回必填）"
-        />
-        <div class="form-actions">
-          <el-button type="danger" @click="doApprove('reject')">退回</el-button>
-          <el-button type="primary" @click="doApprove('agree')">同意</el-button>
-        </div>
-      </div>
 
       <div class="form-actions">
         <el-button @click="router.back()">返回</el-button>

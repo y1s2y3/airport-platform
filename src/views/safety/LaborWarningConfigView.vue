@@ -1,482 +1,449 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useCurrentProject } from '../../composables/useCurrentProject'
-import { projectTree, getProjectLabel } from '../../mock/laborRealName'
+import { projectTree, getProjectLabel, getDefaultProjectId } from '../../mock/laborRealName'
 import {
-  getWarningConfig,
-  saveWarningConfig,
-  resetWarningConfig,
-  getProjectSiteIntegration,
-  saveProjectSiteIntegration,
-  tierRecipientOptions,
-  tierLevelDefinitions,
+  getProjectWarningConfig,
+  saveProjectWarningConfig,
+  resetProjectWarningConfig,
+  getProjectTrackJump,
+  saveProjectTrackJump,
+  tierPositionCatalog,
+  tierPersonnelCatalog,
+  getTierPersonnelByPosition,
+  createEmptyTierLevel,
+  TIER_LEVEL_MAX,
   warningRuleDefinitions,
-  integratedFieldPaths,
 } from '../../mock/laborWarningConfig'
 
-const HQ_NODE_ID = 'hq'
 const { isHqSelected, projectLabel, laborProjectId } = useCurrentProject()
 const form = ref(null)
 const saving = ref(false)
-const savingIntegration = ref(false)
-const selectedNodeId = ref(HQ_NODE_ID)
-const projectIntegration = ref({ enabled: true })
+const savingTrackJump = ref(false)
+const selectedProjectId = ref('')
+const projectTrackJump = ref({ enabled: false, systemName: '', url: '' })
 
-const isHqConfig = computed(() => selectedNodeId.value === HQ_NODE_ID)
-const selectedScopeLabel = computed(() => {
-  if (isHqConfig.value) return '工程指挥部（全局配置）'
-  return getProjectLabel(selectedNodeId.value) || '项目配置'
+const activeProjectId = computed(() => {
+  if (isHqSelected.value) return selectedProjectId.value
+  return laborProjectId.value
 })
 
-const projectIntegrationPreview = computed(() =>
-  getProjectSiteIntegration(laborProjectId.value),
-)
-
-function loadProjectIntegration(projectId) {
-  projectIntegration.value = { ...getProjectSiteIntegration(projectId) }
-}
+const selectedScopeLabel = computed(() => {
+  const id = activeProjectId.value
+  return id ? getProjectLabel(id) || '项目配置' : '请选择项目'
+})
 
 const treeData = computed(() =>
-  projectTree.map((group) => ({
-    id: group.id,
-    label: group.label,
-    children: group.children?.map((item) => ({
+  projectTree.flatMap((group) =>
+    (group.children || []).map((item) => ({
       id: item.id,
       label: item.label.replace(/\(\d+\)$/, ''),
     })),
-  })),
+  ),
 )
 
-onMounted(() => {
-  form.value = getWarningConfig()
-})
+const flatProjectIds = computed(() =>
+  projectTree.flatMap((g) => (g.children || []).map((c) => c.id)),
+)
 
-watch(selectedNodeId, (id) => {
-  if (id !== HQ_NODE_ID) loadProjectIntegration(id)
-}, { immediate: true })
+function loadProject(projectId) {
+  if (!projectId) {
+    form.value = null
+    return
+  }
+  form.value = getProjectWarningConfig(projectId)
+  projectTrackJump.value = { ...getProjectTrackJump(projectId) }
+}
+
+watch(
+  [isHqSelected, laborProjectId],
+  () => {
+    if (isHqSelected.value) {
+      if (!selectedProjectId.value || !flatProjectIds.value.includes(selectedProjectId.value)) {
+        selectedProjectId.value = getDefaultProjectId() || flatProjectIds.value[0] || ''
+      }
+      loadProject(selectedProjectId.value)
+    } else {
+      loadProject(laborProjectId.value)
+    }
+  },
+  { immediate: true },
+)
 
 function handleNodeClick(data) {
-  selectedNodeId.value = data.id
-  if (data.id !== HQ_NODE_ID) loadProjectIntegration(data.id)
+  if (!data?.id) return
+  selectedProjectId.value = data.id
+  loadProject(data.id)
 }
 
-async function handleSaveIntegration() {
-  if (isHqConfig.value) return
-  savingIntegration.value = true
-  try {
-    saveProjectSiteIntegration(selectedNodeId.value, projectIntegration.value.enabled)
-    ElMessage.success(`已保存「${getProjectLabel(selectedNodeId.value)}」现场实名制对接配置`)
-  } finally {
-    savingIntegration.value = false
+function validateForm() {
+  if (!form.value || !activeProjectId.value) return false
+  const levels = form.value.tieredControl.levels || []
+  if (!levels.length) {
+    ElMessage.warning('请至少配置一级分级管控')
+    return false
   }
-}
-
-async function handleSave() {
-  if (!form.value || !isHqConfig.value) return
-  const levels = form.value.tieredControl.levels
-  for (const tier of tierLevelDefinitions) {
-    const item = levels[tier.key]
-    if (!item?.reportDays || item.reportDays < 1) {
-      ElMessage.warning(`请填写${tier.label}的有效上报天数`)
-      return
+  for (let i = 0; i < levels.length; i += 1) {
+    const item = levels[i]
+    const label = `第${i + 1}级`
+    if (!item.positionId) {
+      ElMessage.warning(`请选择${label}岗位`)
+      return false
     }
     if (!item.recipientId) {
-      ElMessage.warning(`请选择${tier.label}责任人`)
-      return
+      ElMessage.warning(`请选择${label}责任人`)
+      return false
+    }
+    if (!item.reportDays || item.reportDays < 1) {
+      ElMessage.warning(`请填写${label}的有效上报天数`)
+      return false
     }
   }
-  for (let i = 1; i < tierLevelDefinitions.length; i += 1) {
-    const prev = levels[tierLevelDefinitions[i - 1].key].reportDays
-    const curr = levels[tierLevelDefinitions[i].key].reportDays
-    if (curr < prev) {
+  for (let i = 1; i < levels.length; i += 1) {
+    if (levels[i].reportDays < levels[i - 1].reportDays) {
       ElMessage.warning('各层级上报天数应按顺序递增设置（后一级 ≥ 前一级）')
-      return
+      return false
     }
   }
   const absentRule = form.value.warningRules.absentDays
   if (absentRule.enabled && (!absentRule.days || absentRule.days < 1)) {
     ElMessage.warning('请填写连续未出勤天数')
-    return
+    return false
   }
   const workRule = form.value.warningRules.workOver12h
   if (workRule.enabled && (!workRule.hours || workRule.hours < 1)) {
     ElMessage.warning('请填写连续工作时长阈值')
-    return
+    return false
   }
   const ageRule = form.value.warningRules.ageLimit
   if (ageRule.enabled && (!ageRule.minAge || ageRule.minAge < 1)) {
     ElMessage.warning('请填写实名制年龄下限')
-    return
+    return false
   }
   const elderlyRule = form.value.warningRules.elderlyReminder
   if (elderlyRule.enabled) {
     if (!elderlyRule.maleAge || elderlyRule.maleAge < 1 || !elderlyRule.femaleAge || elderlyRule.femaleAge < 1) {
       ElMessage.warning('请填写高龄提醒年龄阈值')
-      return
+      return false
     }
   }
+  return true
+}
+
+async function handleSave() {
+  if (!validateForm()) return
   saving.value = true
   try {
-    saveWarningConfig(form.value)
-    ElMessage.success('实名制配置已保存，对所有项目生效')
+    saveProjectWarningConfig(activeProjectId.value, form.value)
+    ElMessage.success(`已保存「${selectedScopeLabel.value}」实名制配置`)
   } finally {
     saving.value = false
   }
 }
 
 function handleReset() {
-  if (!isHqConfig.value) return
-  form.value = resetWarningConfig()
-  ElMessage.info('已恢复默认配置')
+  if (!activeProjectId.value) return
+  form.value = resetProjectWarningConfig(activeProjectId.value)
+  ElMessage.info('已恢复该项目默认配置')
+}
+
+async function handleSaveTrackJump() {
+  if (!activeProjectId.value) return
+  if (projectTrackJump.value.enabled && !projectTrackJump.value.url.trim()) {
+    ElMessage.warning('启用跳转时请填写外部轨迹系统 URL')
+    return
+  }
+  savingTrackJump.value = true
+  try {
+    saveProjectTrackJump(activeProjectId.value, projectTrackJump.value)
+    ElMessage.success(`已保存「${selectedScopeLabel.value}」人员轨迹跳转配置`)
+  } finally {
+    savingTrackJump.value = false
+  }
+}
+
+const tierLevels = computed({
+  get: () => form.value?.tieredControl?.levels || [],
+  set: (list) => {
+    if (!form.value) return
+    form.value.tieredControl.levels = list
+  },
+})
+
+function personnelOptionsFor(row) {
+  const matched = getTierPersonnelByPosition(row.positionId)
+  const matchedIds = new Set(matched.map((u) => u.id))
+  const others = tierPersonnelCatalog.filter((u) => !matchedIds.has(u.id))
+  return { matched, others }
+}
+
+function onTierPositionChange(row) {
+  const matched = getTierPersonnelByPosition(row.positionId)
+  if (!matched.some((u) => u.id === row.recipientId)) {
+    row.recipientId = ''
+  }
+}
+
+function addTierLevel() {
+  if (!form.value) return
+  const list = form.value.tieredControl.levels
+  if (list.length >= TIER_LEVEL_MAX) {
+    ElMessage.warning(`最多配置 ${TIER_LEVEL_MAX} 级`)
+    return
+  }
+  list.push(createEmptyTierLevel(list.length + 1))
+}
+
+function removeTierLevel(index) {
+  if (!form.value) return
+  const list = form.value.tieredControl.levels
+  if (list.length <= 1) {
+    ElMessage.warning('至少保留一级')
+    return
+  }
+  list.splice(index, 1)
 }
 </script>
 
 <template>
   <div v-if="form" class="warning-config-page page-card">
-    <!-- 工程指挥部层级：原有可编辑 + 项目树 -->
-    <template v-if="isHqSelected">
-      <div class="page-header">
-        <div class="page-breadcrumb">人员实名制管理 / 实名制配置</div>
-        <div class="page-heading">
-          <h1 class="page-title">实名制配置</h1>
-          <div v-if="isHqConfig" class="header-actions">
-            <el-button @click="handleReset">恢复默认</el-button>
-            <el-button class="ap-btn-primary" type="primary" :loading="saving" @click="handleSave">保存配置</el-button>
-          </div>
-        </div>
-        <p class="page-tip">分级管控与预警配置在「工程指挥部」维护；现场实名制对接按项目单独配置，请选择具体项目节点操作。</p>
-      </div>
-
-      <div class="config-layout">
-        <aside class="project-tree-panel">
-          <div class="panel-title">项目列表</div>
-          <el-tree
-            :data="treeData"
-            node-key="id"
-            highlight-current
-            default-expand-all
-            :current-node-key="selectedNodeId"
-            :expand-on-click-node="false"
-            class="project-tree"
-            @node-click="handleNodeClick"
-          />
-        </aside>
-
-        <div class="config-panel" :class="{ readonly: !isHqConfig }">
-          <div class="panel-head">
-            <div class="panel-title">{{ selectedScopeLabel }}</div>
-            <el-tag v-if="isHqConfig" size="small" type="success" effect="plain">可编辑</el-tag>
-            <el-tag v-else size="small" type="warning" effect="plain">对接可编辑</el-tag>
-          </div>
-          <el-alert
-            v-if="!isHqConfig"
-            type="info"
-            :closable="false"
-            show-icon
-            class="scope-alert"
-            title="项目配置模式"
-            description="分级管控与预警配置为全局只读预览；现场实名制对接可在本项目节点单独配置并保存。"
-          />
-
-          <section v-if="!isHqConfig" class="config-section integration-section">
-            <div class="section-head">
-              <div>
-                <div class="section-title">现场实名制对接</div>
-                <p class="section-desc">配置本项目是否与现场实名制系统对接及人员档案编辑策略。</p>
-              </div>
-              <el-button
-                class="ap-btn-primary"
-                type="primary"
-                :loading="savingIntegration"
-                @click="handleSaveIntegration"
-              >
-                保存对接配置
-              </el-button>
-            </div>
-            <el-form label-width="160px" class="integration-form">
-              <el-form-item label="是否对接现场实名制">
-                <el-radio-group v-model="projectIntegration.enabled">
-                  <el-radio :value="true">是</el-radio>
-                  <el-radio :value="false">否</el-radio>
-                </el-radio-group>
-              </el-form-item>
-            </el-form>
-            <div v-if="projectIntegration.enabled" class="integration-hint enabled">
-              <p>已开启对接，规则如下：</p>
-              <ul>
-                <li>人员实名制列表<strong>不支持新增</strong>，人员数据由现场系统同步</li>
-                <li>对接同步字段<strong>不可编辑</strong>：姓名、手机号、证件信息、参建单位等</li>
-                <li>平台补充字段<strong>可编辑</strong>：安全教育、合同附件、薪酬、入退场等</li>
-              </ul>
-              <div class="field-tags">
-                <span class="field-tags-label">同步字段：</span>
-                <el-tag v-for="field in integratedFieldPaths" :key="field" size="small" effect="plain">{{ field }}</el-tag>
-              </div>
-            </div>
-            <div v-else class="integration-hint disabled">
-              <p>未对接现场系统，规则如下：</p>
-              <ul>
-                <li>人员实名制<strong>支持新增</strong>人员</li>
-                <li>全部字段<strong>可编辑</strong></li>
-              </ul>
-            </div>
-          </section>
-
-          <fieldset class="config-fieldset" :disabled="!isHqConfig">
-            <section class="config-section">
-              <div class="section-title">分级管控</div>
-              <p class="section-desc">预警超期未处置时，按各层级设定天数自动逐级上报至对应责任人。</p>
-              <div class="tier-table-wrap">
-                <el-table :data="tierLevelDefinitions" border stripe class="ap-table tier-table">
-                  <el-table-column label="层级" width="80" align="center">
-                    <template #default="{ row }">{{ row.level }}级</template>
-                  </el-table-column>
-                  <el-table-column prop="label" label="岗位" width="140" />
-                  <el-table-column label="上报天数" width="200">
-                    <template #default="{ row }">
-                      <div class="inline-field">
-                        <span class="field-prefix">超</span>
-                        <el-input-number
-                          v-model="form.tieredControl.levels[row.key].reportDays"
-                          :min="1"
-                          :max="30"
-                          controls-position="right"
-                          size="small"
-                        />
-                        <span class="field-suffix">天</span>
-                      </div>
-                    </template>
-                  </el-table-column>
-                  <el-table-column label="责任人" min-width="280">
-                    <template #default="{ row }">
-                      <el-select
-                        v-model="form.tieredControl.levels[row.key].recipientId"
-                        placeholder="请选择人员"
-                        style="width: 100%"
-                        filterable
-                      >
-                        <el-option
-                          v-for="user in tierRecipientOptions[row.key]"
-                          :key="user.id"
-                          :label="`${user.name} · ${user.dept}`"
-                          :value="user.id"
-                        />
-                      </el-select>
-                    </template>
-                  </el-table-column>
-                </el-table>
-              </div>
-            </section>
-
-            <section class="config-section">
-              <div class="section-title">预警配置</div>
-              <p class="section-desc">开启后系统将按规则自动检测并生成对应预警。</p>
-              <div class="rule-list">
-                <div v-for="rule in warningRuleDefinitions" :key="rule.key" class="rule-item">
-                  <div class="rule-main">
-                    <el-switch
-                      v-model="form.warningRules[rule.key].enabled"
-                      inline-prompt
-                      active-text="开"
-                      inactive-text="关"
-                    />
-                    <div class="rule-info">
-                      <div class="rule-label-row">
-                        <template v-if="rule.extra === 'hours'">
-                          <span class="rule-label">连续工作超</span>
-                          <el-input-number
-                            v-model="form.warningRules[rule.key].hours"
-                            :min="1"
-                            :max="24"
-                            controls-position="right"
-                            size="small"
-                            class="rule-inline-input"
-                          />
-                          <span class="rule-label">小时预警</span>
-                        </template>
-                        <template v-else-if="rule.extra === 'minAge'">
-                          <span class="rule-label">实名制年龄低于</span>
-                          <el-input-number
-                            v-model="form.warningRules[rule.key].minAge"
-                            :min="1"
-                            :max="100"
-                            controls-position="right"
-                            size="small"
-                            class="rule-inline-input"
-                          />
-                          <span class="rule-label">周岁预警</span>
-                        </template>
-                        <template v-else-if="rule.extra === 'elderlyAge'">
-                          <span class="rule-label">高龄提醒（男</span>
-                          <el-input-number
-                            v-model="form.warningRules[rule.key].maleAge"
-                            :min="1"
-                            :max="100"
-                            controls-position="right"
-                            size="small"
-                            class="rule-inline-input"
-                          />
-                          <span class="rule-label">岁/女</span>
-                          <el-input-number
-                            v-model="form.warningRules[rule.key].femaleAge"
-                            :min="1"
-                            :max="100"
-                            controls-position="right"
-                            size="small"
-                            class="rule-inline-input"
-                          />
-                          <span class="rule-label">岁）</span>
-                        </template>
-                        <template v-else-if="rule.extra === 'days'">
-                          <span class="rule-label">连续</span>
-                          <el-input-number
-                            v-model="form.warningRules[rule.key].days"
-                            :min="1"
-                            :max="90"
-                            controls-position="right"
-                            size="small"
-                            class="rule-inline-input"
-                          />
-                          <span class="rule-label">天未出勤预警</span>
-                        </template>
-                        <span v-else class="rule-label">{{ rule.label }}</span>
-                        <el-tag v-if="rule.scopeTag" size="small" type="info" effect="plain">{{ rule.scopeTag }}</el-tag>
-                      </div>
-                      <div class="rule-desc">{{ rule.description }}</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
-          </fieldset>
+    <div class="page-header">
+      <div class="page-breadcrumb">人员实名制管理 / 实名制配置</div>
+      <div class="page-heading">
+        <h1 class="page-title">实名制配置</h1>
+        <div class="header-actions">
+          <el-button @click="handleReset">恢复默认</el-button>
+          <el-button class="ap-btn-primary" type="primary" :loading="saving" @click="handleSave">保存配置</el-button>
         </div>
       </div>
-    </template>
+      <p v-if="!isHqSelected" class="page-scope">当前项目：{{ projectLabel }}</p>
+      <p class="page-tip">
+        分级管控、预警规则与人员轨迹外链均按项目单独配置；平台不做人员填报，工资明细本期不采集。
+      </p>
+    </div>
 
-    <!-- 项目层级：只读预览，无项目树 -->
-    <template v-else>
-      <div class="page-header">
-        <div class="page-breadcrumb">人员实名制管理 / 实名制配置</div>
-        <div class="page-heading">
-          <h1 class="page-title">实名制配置</h1>
-          <el-tag size="small" type="info" effect="plain">只读</el-tag>
-        </div>
-        <p class="page-scope">当前项目：{{ projectLabel }}</p>
-        <p class="page-tip">以下为当前项目适用的实名制配置预览，如需调整请联系系统管理员。</p>
-      </div>
-
-      <div class="config-panel readonly">
-        <el-alert
-          type="info"
-          :closable="false"
-          show-icon
-          class="scope-alert"
-          title="配置只读"
-          description="实名制配置由工程指挥部统一维护，本页仅展示当前项目生效的配置内容，不支持在线编辑。"
+    <div class="config-layout" :class="{ 'with-tree': isHqSelected }">
+      <aside v-if="isHqSelected" class="project-tree-panel">
+        <div class="panel-title">项目列表</div>
+        <el-tree
+          :data="treeData"
+          node-key="id"
+          highlight-current
+          default-expand-all
+          :current-node-key="selectedProjectId"
+          :expand-on-click-node="false"
+          class="project-tree"
+          @node-click="handleNodeClick"
         />
+      </aside>
 
-        <fieldset class="config-fieldset" disabled>
-          <section class="config-section">
-            <div class="section-title">现场实名制对接</div>
-            <p class="section-desc">是否与现场实名制系统对接及人员档案编辑策略。</p>
-            <el-form label-width="160px" class="integration-form">
-              <el-form-item label="是否对接现场实名制">
-                <el-radio-group :model-value="projectIntegrationPreview.enabled" disabled>
-                  <el-radio :value="true">是</el-radio>
-                  <el-radio :value="false">否</el-radio>
-                </el-radio-group>
-              </el-form-item>
-            </el-form>
-            <div v-if="projectIntegrationPreview.enabled" class="integration-hint enabled">
-              <p>已开启对接，规则如下：</p>
-              <ul>
-                <li>人员实名制列表<strong>不支持新增</strong>，人员数据由现场系统同步</li>
-                <li>对接同步字段<strong>不可编辑</strong>：姓名、手机号、证件信息、参建单位等</li>
-                <li>平台补充字段<strong>可编辑</strong>：安全教育、合同附件、薪酬、入退场等</li>
-              </ul>
-              <div class="field-tags">
-                <span class="field-tags-label">同步字段：</span>
-                <el-tag v-for="field in integratedFieldPaths" :key="field" size="small" effect="plain">{{ field }}</el-tag>
-              </div>
-            </div>
-            <div v-else class="integration-hint disabled">
-              <p>未对接现场系统，规则如下：</p>
-              <ul>
-                <li>人员实名制<strong>支持新增</strong>人员</li>
-                <li>全部字段<strong>可编辑</strong></li>
-              </ul>
-            </div>
-          </section>
+      <div class="config-panel">
+        <div class="panel-head">
+          <div class="panel-title">{{ selectedScopeLabel }}</div>
+          <el-tag size="small" type="success" effect="plain">按项目可编辑</el-tag>
+        </div>
 
-          <section class="config-section">
-            <div class="section-title">分级管控</div>
-            <p class="section-desc">预警超期未处置时，按各层级设定天数自动逐级上报至对应责任人。</p>
-            <div class="tier-table-wrap">
-              <el-table :data="tierLevelDefinitions" border stripe class="ap-table tier-table">
-                <el-table-column label="层级" width="80" align="center">
-                  <template #default="{ row }">{{ row.level }}级</template>
-                </el-table-column>
-                <el-table-column prop="label" label="岗位" width="140" />
-                <el-table-column label="上报天数" width="200">
-                  <template #default="{ row }">
-                    <span>超 {{ form.tieredControl.levels[row.key].reportDays }} 天</span>
-                  </template>
-                </el-table-column>
-                <el-table-column label="责任人" min-width="280">
-                  <template #default="{ row }">
-                    {{
-                      tierRecipientOptions[row.key]?.find((u) => u.id === form.tieredControl.levels[row.key].recipientId)
-                        ? `${tierRecipientOptions[row.key].find((u) => u.id === form.tieredControl.levels[row.key].recipientId).name} · ${tierRecipientOptions[row.key].find((u) => u.id === form.tieredControl.levels[row.key].recipientId).dept}`
-                        : '-'
-                    }}
-                  </template>
-                </el-table-column>
-              </el-table>
+        <section class="config-section">
+          <div class="section-head">
+            <div>
+              <div class="section-title">人员轨迹跳转配置</div>
+              <p class="section-desc">不统一轨迹硬件与数据标准；按项目配置独立跳转到自有系统。</p>
             </div>
-          </section>
+            <el-button
+              class="ap-btn-primary"
+              type="primary"
+              :loading="savingTrackJump"
+              @click="handleSaveTrackJump"
+            >
+              保存跳转配置
+            </el-button>
+          </div>
+          <el-form label-width="160px" class="track-form">
+            <el-form-item label="启用外链跳转">
+              <el-switch v-model="projectTrackJump.enabled" />
+            </el-form-item>
+            <el-form-item label="系统名称">
+              <el-input v-model="projectTrackJump.systemName" placeholder="如：现场安全帽定位平台" />
+            </el-form-item>
+            <el-form-item label="跳转 URL">
+              <el-input v-model="projectTrackJump.url" placeholder="https://" />
+            </el-form-item>
+          </el-form>
+        </section>
 
-          <section class="config-section">
-            <div class="section-title">预警配置</div>
-            <p class="section-desc">开启后系统将按规则自动检测并生成对应预警。</p>
-            <div class="rule-list">
-              <div v-for="rule in warningRuleDefinitions" :key="rule.key" class="rule-item">
-                <div class="rule-main">
-                  <el-switch
-                    v-model="form.warningRules[rule.key].enabled"
-                    inline-prompt
-                    active-text="开"
-                    inactive-text="关"
-                    disabled
-                  />
-                  <div class="rule-info">
-                    <div class="rule-label-row">
-                      <template v-if="rule.extra === 'hours'">
-                        <span class="rule-label">连续工作超 {{ form.warningRules[rule.key].hours }} 小时预警</span>
-                      </template>
-                      <template v-else-if="rule.extra === 'minAge'">
-                        <span class="rule-label">实名制年龄低于 {{ form.warningRules[rule.key].minAge }} 周岁预警</span>
-                      </template>
-                      <template v-else-if="rule.extra === 'elderlyAge'">
-                        <span class="rule-label">
-                          高龄提醒（男 {{ form.warningRules[rule.key].maleAge }} 岁 / 女 {{ form.warningRules[rule.key].femaleAge }} 岁）
-                        </span>
-                      </template>
-                      <template v-else-if="rule.extra === 'days'">
-                        <span class="rule-label">连续 {{ form.warningRules[rule.key].days }} 天未出勤预警</span>
-                      </template>
-                      <span v-else class="rule-label">{{ rule.label }}</span>
-                      <el-tag v-if="rule.scopeTag" size="small" type="info" effect="plain">{{ rule.scopeTag }}</el-tag>
-                    </div>
-                    <div class="rule-desc">{{ rule.description }}</div>
+        <section class="config-section">
+          <div class="section-head">
+            <div>
+              <div class="section-title">分级管控</div>
+              <p class="section-desc">
+                预警超期未处置时按层级逐级上报。岗位、责任人可灵活选择；可增删层级（最多 {{ TIER_LEVEL_MAX }} 级），上报天数须逐级递增。
+              </p>
+            </div>
+            <el-button type="primary" class="ap-btn-primary" @click="addTierLevel">添加层级</el-button>
+          </div>
+          <div class="tier-table-wrap">
+            <el-table :data="tierLevels" border stripe class="ap-table tier-table">
+              <el-table-column label="层级" width="72" align="center">
+                <template #default="{ $index }">{{ $index + 1 }}级</template>
+              </el-table-column>
+              <el-table-column label="岗位" min-width="180">
+                <template #default="{ row }">
+                  <el-select
+                    v-model="row.positionId"
+                    placeholder="请选择岗位"
+                    filterable
+                    style="width: 100%"
+                    @change="onTierPositionChange(row)"
+                  >
+                    <el-option
+                      v-for="pos in tierPositionCatalog"
+                      :key="pos.id"
+                      :label="pos.name"
+                      :value="pos.id"
+                    />
+                  </el-select>
+                </template>
+              </el-table-column>
+              <el-table-column label="责任人" min-width="240">
+                <template #default="{ row }">
+                  <el-select
+                    v-model="row.recipientId"
+                    placeholder="请选择人员"
+                    filterable
+                    style="width: 100%"
+                  >
+                    <el-option-group
+                      v-if="personnelOptionsFor(row).matched.length"
+                      label="本岗位候选人"
+                    >
+                      <el-option
+                        v-for="user in personnelOptionsFor(row).matched"
+                        :key="user.id"
+                        :label="`${user.name} · ${user.dept}`"
+                        :value="user.id"
+                      />
+                    </el-option-group>
+                    <el-option-group
+                      v-if="personnelOptionsFor(row).others.length"
+                      label="其他人员"
+                    >
+                      <el-option
+                        v-for="user in personnelOptionsFor(row).others"
+                        :key="user.id"
+                        :label="`${user.name} · ${user.dept}`"
+                        :value="user.id"
+                      />
+                    </el-option-group>
+                  </el-select>
+                </template>
+              </el-table-column>
+              <el-table-column label="上报天数" width="200">
+                <template #default="{ row }">
+                  <div class="inline-field">
+                    <span class="field-prefix">超</span>
+                    <el-input-number
+                      v-model="row.reportDays"
+                      :min="1"
+                      :max="30"
+                      controls-position="right"
+                      size="small"
+                    />
+                    <span class="field-suffix">天</span>
                   </div>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="90" align="center" fixed="right">
+                <template #default="{ $index }">
+                  <el-button link type="danger" @click="removeTierLevel($index)">删除</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </section>
+
+        <section class="config-section">
+          <div class="section-title">预警配置</div>
+          <p class="section-desc">开启后系统将按规则自动检测并生成对应预警。</p>
+          <div class="rule-list">
+            <div v-for="rule in warningRuleDefinitions" :key="rule.key" class="rule-item">
+              <div class="rule-main">
+                <el-switch
+                  v-model="form.warningRules[rule.key].enabled"
+                  inline-prompt
+                  active-text="开"
+                  inactive-text="关"
+                />
+                <div class="rule-info">
+                  <div class="rule-label-row">
+                    <template v-if="rule.extra === 'hours'">
+                      <span class="rule-label">连续工作超</span>
+                      <el-input-number
+                        v-model="form.warningRules[rule.key].hours"
+                        :min="1"
+                        :max="24"
+                        controls-position="right"
+                        size="small"
+                        class="rule-inline-input"
+                      />
+                      <span class="rule-label">小时预警</span>
+                    </template>
+                    <template v-else-if="rule.extra === 'minAge'">
+                      <span class="rule-label">实名制年龄低于</span>
+                      <el-input-number
+                        v-model="form.warningRules[rule.key].minAge"
+                        :min="1"
+                        :max="100"
+                        controls-position="right"
+                        size="small"
+                        class="rule-inline-input"
+                      />
+                      <span class="rule-label">周岁预警</span>
+                    </template>
+                    <template v-else-if="rule.extra === 'elderlyAge'">
+                      <span class="rule-label">高龄提醒（男</span>
+                      <el-input-number
+                        v-model="form.warningRules[rule.key].maleAge"
+                        :min="1"
+                        :max="100"
+                        controls-position="right"
+                        size="small"
+                        class="rule-inline-input"
+                      />
+                      <span class="rule-label">岁/女</span>
+                      <el-input-number
+                        v-model="form.warningRules[rule.key].femaleAge"
+                        :min="1"
+                        :max="100"
+                        controls-position="right"
+                        size="small"
+                        class="rule-inline-input"
+                      />
+                      <span class="rule-label">岁）</span>
+                    </template>
+                    <template v-else-if="rule.extra === 'days'">
+                      <span class="rule-label">连续</span>
+                      <el-input-number
+                        v-model="form.warningRules[rule.key].days"
+                        :min="1"
+                        :max="90"
+                        controls-position="right"
+                        size="small"
+                        class="rule-inline-input"
+                      />
+                      <span class="rule-label">天未出勤预警</span>
+                    </template>
+                    <span v-else class="rule-label">{{ rule.label }}</span>
+                    <el-tag v-if="rule.scopeTag" size="small" type="info" effect="plain">{{ rule.scopeTag }}</el-tag>
+                  </div>
+                  <div class="rule-desc">{{ rule.description }}</div>
                 </div>
               </div>
             </div>
-          </section>
-        </fieldset>
+          </div>
+        </section>
       </div>
-    </template>
+    </div>
   </div>
 </template>
 
@@ -491,9 +458,11 @@ function handleReset() {
 .header-actions { display: flex; gap: 8px; }
 .config-layout {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
   gap: 16px;
   min-height: 560px;
+}
+.config-layout.with-tree {
+  grid-template-columns: 280px minmax(0, 1fr);
 }
 .project-tree-panel,
 .config-panel {
@@ -516,9 +485,6 @@ function handleReset() {
   color: var(--ap-primary);
   font-weight: 600;
 }
-.scope-alert { margin-bottom: 16px; }
-.config-fieldset { border: none; margin: 0; padding: 0; min-width: 0; }
-.config-fieldset:disabled { opacity: 0.92; }
 .config-section {
   border: 1px solid var(--ap-border);
   border-radius: 8px;
@@ -526,7 +492,6 @@ function handleReset() {
   padding: 20px 24px;
   margin-bottom: 16px;
 }
-.config-panel.readonly .config-section { background: #fff; }
 .section-title { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
 .section-head {
   display: flex;
@@ -537,22 +502,8 @@ function handleReset() {
 }
 .section-head .section-title { margin-bottom: 4px; }
 .section-head .section-desc { margin: 0; }
-.integration-section { background: #fff; }
 .section-desc { font-size: 13px; color: var(--ap-text-muted); margin: 0 0 16px; }
-.integration-form { max-width: 640px; }
-.integration-hint {
-  margin-top: 4px;
-  padding: 12px 16px;
-  border-radius: 6px;
-  font-size: 13px;
-  line-height: 1.7;
-}
-.integration-hint.enabled { background: #f0f7ff; border: 1px solid #d6e8ff; }
-.integration-hint.disabled { background: #f6ffed; border: 1px solid #d9f7be; }
-.integration-hint p { margin: 0 0 8px; font-weight: 600; }
-.integration-hint ul { margin: 0; padding-left: 20px; }
-.field-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; align-items: center; }
-.field-tags-label { font-size: 12px; color: var(--ap-text-muted); }
+.track-form { max-width: 640px; }
 .tier-table-wrap { margin-top: 4px; }
 .tier-table :deep(.el-input-number) { width: 100px; }
 .inline-field { display: flex; align-items: center; gap: 8px; }

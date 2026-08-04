@@ -21,7 +21,6 @@ export {
 
 export const workTypeOptions = ['钢筋工', '木工', '混凝土工', '架子工', '电工', '焊工', '起重工', '普工', '安全员', '测量员']
 export const genderOptions = ['男', '女']
-export const salaryTypeOptions = ['计时', '计件', '计量', '月薪', '其他']
 export const personnelCategoryOptions = ['管理人员', '劳务人员', '特种作业人员']
 export const unitTypeOptions = ['建设单位', '勘察单位', '设计单位', '监理单位', '总包单位', '劳务分包', '单位分包']
 export const educationTypeOptions = ['三级教育', '岗前培训']
@@ -67,9 +66,6 @@ const personnelTemplates = [
 const nativePlaces = ['湖北省武汉市', '湖南省长沙市', '广东省深圳市', '四川省成都市', '河南省郑州市', '江西省南昌市']
 const educations = ['小学', '初中', '高中', '中专', '大专', '本科']
 const politicalStatuses = ['群众', '共青团员', '中共党员']
-const salaryTypes = ['计时', '计件', '计量', '月薪', '其他']
-const salaryUnits = { 计时: '元/天', 计件: '元/件', 计量: '元/m³', 月薪: '元/月', 其他: '元/天' }
-
 export const educationLevelOptions = ['小学', '初中', '高中', '中专', '大专', '本科', '硕士', '博士']
 export const politicalStatusOptions = ['群众', '共青团员', '中共党员', '民主党派']
 export const healthStatusOptions = ['健康', '一般', '需关注']
@@ -146,10 +142,9 @@ function buildPersonnel(projectId, index, tpl, offset = 0) {
   const punch = buildTodayPunch(seq, entryStatus)
   const onSiteStatus = getRealNameOnSiteStatus(entryStatus, punch.clockIn, punch.clockOut)
   const unitProfile = unitProfiles[tpl.unitKey] || { fullName: tpl.unitKey, creditCode: '91440000000000000X' }
-  const salaryType = salaryTypes[seq % salaryTypes.length]
-  const entryDate = `2025-${String((seq % 12) + 1).padStart(2, '0')}-${String((seq % 28) + 1).padStart(2, '0')}`
   const personnelNo = `RN-${projectId.toUpperCase()}-${String(seq).padStart(4, '0')}`
 
+  // 监管采集口径：①基本身份 ②日常考勤 ③特种作业资质有效期 ④三级安全教育（工资/合同等不采集）
   const basic = {
     personnelNo,
     photo: '',
@@ -180,11 +175,6 @@ function buildPersonnel(projectId, index, tpl, offset = 0) {
     isTeamLeader: tpl.isTeamLeader,
     specialCertAttachment: tpl.special ? `${tpl.workType}操作证.pdf` : '',
     certValidTo: tpl.special ? '2027-06-30' : '',
-    contractAttachment: '劳动合同.pdf',
-    contractStartDate: entryDate,
-    contractEndDate: entryStatus === REALNAME_ENTRY_STATUS.EXITED ? '2026-05-30' : '2026-12-31',
-    salaryType,
-    unitPrice: `${220 + (seq % 8) * 20}${salaryUnits[salaryType]}`,
   }
 
   const safetyEducation = buildSafetyEducation(seq, entryStatus)
@@ -358,11 +348,6 @@ export function createEmptyPersonnel(projectId) {
       isTeamLeader: false,
       specialCertAttachment: '',
       certValidTo: '',
-      contractAttachment: '',
-      contractStartDate: '',
-      contractEndDate: '',
-      salaryType: '计时',
-      unitPrice: '',
     },
     safetyEducation: [createEmptySafetyEducation()],
   }

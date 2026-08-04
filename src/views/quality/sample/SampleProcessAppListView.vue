@@ -13,7 +13,6 @@ import {
   withdrawSample,
   resubmitSample,
 } from '../../../mock/sample.js'
-import SampleDemoRoleBar from './SampleDemoRoleBar.vue'
 
 const router = useRouter()
 const { isHqSelected, scopeProjectId, scopeProjectLabel } = useQmProjectScope()
@@ -68,11 +67,11 @@ async function onResubmit(row) {
       <div class="page-breadcrumb">样板管理 / 关键工序样板报审</div>
       <h1 class="page-title">关键工序样板报审</h1>
       <p class="page-tip">
-        通过后自动赋码 · 当前：{{ isHqSelected ? '请切换到具体项目' : scopeProjectLabel }}
+        本模块仅施工方提交；审批在个人中心办理 · 通过后自动赋码 · 当前：{{
+          isHqSelected ? '请切换到具体项目' : scopeProjectLabel
+        }}
       </p>
     </div>
-
-    <SampleDemoRoleBar />
 
     <el-alert
       v-if="isHqSelected"

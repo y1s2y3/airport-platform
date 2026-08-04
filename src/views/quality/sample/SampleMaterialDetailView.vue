@@ -2,56 +2,23 @@
 import './sample-page.css'
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
 import {
   getMaterialDetail,
   NODE_LABEL,
   STATUS_LABEL,
   statusTagType,
-  supervisorApproveSample,
-  pmApproveSample,
 } from '../../../mock/sample.js'
-import { canApproveSampleNode, sampleDemoRoleLabel } from '../../../utils/sampleDemoRole.js'
-import SampleDemoRoleBar from './SampleDemoRoleBar.vue'
 
 const route = useRoute()
 const router = useRouter()
 const id = computed(() => route.query.id || '')
 const isApproveMode = computed(() => route.path.includes('/approve'))
 const tick = ref(0)
-const opinion = ref('')
 
 const detail = computed(() => {
   void tick.value
   return id.value ? getMaterialDetail(id.value) : null
 })
-
-const canApprove = computed(() => {
-  const d = detail.value
-  if (!isApproveMode.value || !d || d.status !== 'in_approval') return false
-  if (d.current_node !== 'supervisor' && d.current_node !== 'pm') return false
-  return canApproveSampleNode(d.current_node)
-})
-
-function doApprove(action) {
-  const d = detail.value
-  if (!d) return
-  const node = d.current_node
-  if (!canApproveSampleNode(node)) {
-    return ElMessage.warning(`当前 Demo 角色为「${sampleDemoRoleLabel.value}」，无法办理本节点`)
-  }
-  const fn = node === 'supervisor' ? supervisorApproveSample : pmApproveSample
-  const r = fn('material', d.application_id, { action, opinion: opinion.value })
-  if (!r.ok) return ElMessage.error(r.msg)
-  tick.value += 1
-  opinion.value = ''
-  ElMessage.success(
-    action === 'agree' ? (node === 'pm' ? '已通过定样' : '已同意，流转项目经理') : '已退回',
-  )
-  if (action === 'reject' || (action === 'agree' && node === 'pm')) {
-    router.push('/qm/sample/material/approve')
-  }
-}
 </script>
 
 <template>
@@ -61,9 +28,8 @@ function doApprove(action) {
         样板管理 / {{ isApproveMode ? '材料定样审批' : '材料定样报审' }} / 详情
       </div>
       <h1 class="page-title">材料定样详情 {{ id }}</h1>
+      <p v-if="isApproveMode" class="page-tip">审批请在个人中心待办办理；本页仅查看。</p>
     </div>
-
-    <SampleDemoRoleBar />
 
     <el-empty v-if="!detail" description="单据不存在" />
 
@@ -101,22 +67,6 @@ function doApprove(action) {
         <el-table-column prop="operator_name" label="操作人" width="120" />
         <el-table-column prop="opinion" label="意见" min-width="160" />
       </el-table>
-
-      <div v-if="canApprove" class="approve-box">
-        <div class="page-tip" style="margin-bottom: 8px">
-          当前节点：{{ NODE_LABEL[detail.current_node] }}
-        </div>
-        <el-input
-          v-model="opinion"
-          type="textarea"
-          :rows="2"
-          placeholder="审批意见（退回必填）"
-        />
-        <div class="form-actions">
-          <el-button type="danger" @click="doApprove('reject')">退回</el-button>
-          <el-button type="primary" @click="doApprove('agree')">同意</el-button>
-        </div>
-      </div>
 
       <div class="form-actions">
         <el-button @click="router.back()">返回</el-button>

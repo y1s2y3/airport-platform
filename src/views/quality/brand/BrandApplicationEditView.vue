@@ -34,7 +34,9 @@ const importPageSize = ref(5)
 const brandSuggest = ref({})
 
 const imported = computed(() => !!form.material_id)
-const importAll = computed(() => searchActiveMaterials(importKw.value))
+const importAll = computed(() =>
+  scopeProjectId.value ? searchActiveMaterials(importKw.value, scopeProjectId.value) : [],
+)
 const importTotal = computed(() => importAll.value.length)
 const importList = computed(() => {
   const start = (importPage.value - 1) * importPageSize.value
@@ -93,7 +95,7 @@ function removeCandidate(idx) {
 function onBrandInput(idx) {
   const c = form.candidates[idx]
   if (c.brand_lib_id) return
-  brandSuggest.value[idx] = searchActiveBrands(c.brand_name)
+  brandSuggest.value[idx] = searchActiveBrands(c.brand_name, scopeProjectId.value)
 }
 
 function pickBrand(idx, brand) {

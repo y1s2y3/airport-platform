@@ -1,4 +1,4 @@
-﻿# Logs (only root-level log dirs/files; do not ignore src/views/logs)
+# Logs (only root-level log dirs/files; do not ignore src/views/logs)
 /logs
 *.log
 npm-debug.log*
@@ -25,13 +25,3 @@ release
 *.sw?
 
 .vercel
-
-__pycache__/
-*.pyc
-scripts/_*.txt
-
-scripts/fix_all_brand_views.py
-scripts/fix_brand_views_encoding.py
-scripts/inject_brand_css.py
-scripts/restore_brand_app_views.py
-scripts/restore_brand_edit_approve.py

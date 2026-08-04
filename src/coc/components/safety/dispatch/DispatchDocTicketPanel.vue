@@ -20,7 +20,7 @@ import DispatchHqPanelTitle from './DispatchHqPanelTitle.vue'
 
 const dispatchHqUi = inject('dispatchHqUi', false)
 
-const ADMIN_MENU_ROOT = 'COC后台管理'
+const ADMIN_MENU_ROOT = '调度后台管理'
 const ADMIN_MENU_NOTICE = '任务单'
 const ADMIN_MENU_REMINDER = '提示函'
 const ADMIN_MENU_PENALTY = '处罚单'

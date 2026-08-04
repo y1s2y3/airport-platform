@@ -2,6 +2,7 @@
 export * from './qmInspect.js'
 export * from './qmFormTemplates.js'
 export * from './qmAttachments.js'
+export * from './qmArchive.js'
 export * from './qmInspectOps.js'
 export * from './qmApproverConfig.js'
 export * from './qmSpecialAccept.js'

@@ -97,7 +97,9 @@ function viewProjectDetail(row) {
 <template>
   <div class="qm-page page-card">
     <div class="page-header">
-      <div class="page-breadcrumb">材料进场管理 / 材料进场看板</div>
+      <div class="page-breadcrumb">
+        {{ isHqSelected ? '质量看板' : '材料进场管理' }} / 材料进场看板
+      </div>
       <h1 class="page-title">材料进场看板</h1>
       <p class="page-tip">
         <template v-if="isHqSelected">
