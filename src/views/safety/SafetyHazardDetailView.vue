@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { getProjectRectifierLabel, getProjectReviewerLabel } from '../../composables/useInspectionPersonConfig'
 
 const route = useRoute()
 const router = useRouter()
@@ -10,18 +11,18 @@ const flowCollapsed = ref(false)
 const prevCollapsed = ref(true)
 
 const d = {
-  // ===== 待整改·一次 =====
+  // ===== 待整改 =====
   'rec-001': {
-    rn:'ZG202607001', tn:'XJ20260720002', pj:'T3航站楼扩建工程', rf:'赵工', rv:'张工', dl:'2026-07-30', st:'待整改',
+    rn:'ZG202607001', tn:'AQXJ20260728001', pj:'飞行区跑道延长工程', rf:'赵工', rv:'张工', dl:'2026-07-30', st:'待整改',
     hazard:{ desc:'五芯电缆破损，线路未按规范敷设', photos:['📷 隐患照片1'] },
     flow:[
       { a:'下发整改单', d:'2026-07-25 09:00' },
       { a:'等待整改人执行', d:'', cur:true },
     ],
   },
-  // ===== 待整改·二次（被退回） =====
+  // ===== 待整改（复查退回） =====
   'rec-006': {
-    rn:'ZG202607006', tn:'XJ20260721003', pj:'T3航站楼扩建工程', rf:'王工', rv:'张工', dl:'2026-07-22', st:'待整改',
+    rn:'ZG202607006', tn:'AQXJ20260721003', pj:'T3航站楼扩建工程', rf:'王工', rv:'张工', dl:'2026-07-22', st:'待整改',
     hazard:{ desc:'脚手架施工方案未报审即施工', photos:['📷 隐患照片1'] },
     prevRect:{ date:'2026-07-20', photos:['📷 整改照片1'], note:'已补报方案' },
     prevReview:{ date:'2026-07-22', comment:'整改不彻底，电缆接头处仍有裸露', result:'不通过' },
@@ -32,10 +33,10 @@ const d = {
       { a:'等待整改人重新整改', d:'', cur:true },
     ],
   },
-  // ===== 待复查·一次 =====
+  // ===== 待复查 =====
   'rec-002': {
-    rn:'ZG202607002', tn:'XJ20260720002', pj:'T3航站楼扩建工程', rf:'李工', rv:'张工', dl:'2026-07-28', st:'待复查',
-    hazard:{ desc:'电缆线路沿地明敷未做保护', photos:['📷 隐患照片1'] },
+    rn:'ZG202607002', tn:'AQXJ20260728001', pj:'飞行区跑道延长工程', rf:'李工', rv:'张工', dl:'2026-07-28', st:'待复查',
+    hazard:{ desc:'五芯电缆破损，线路未按规范敷设', photos:['📷 隐患照片1'] },
     rectification:{ date:'2026-07-25', photos:['📷 整改照片1'], note:'已更换合规电缆' },
     flow:[
       { a:'下发整改单', d:'2026-07-20 14:00' },
@@ -43,9 +44,9 @@ const d = {
       { a:'待复查人审核', d:'', cur:true },
     ],
   },
-  // ===== 待复查·二次（曾退回） =====
+  // ===== 待复查（曾退回） =====
   'rec-003': {
-    rn:'ZG202607003', tn:'XJ20260721003', pj:'T3航站楼扩建工程', rf:'王工', rv:'张工', dl:'2026-07-28', st:'待复查',
+    rn:'ZG202607003', tn:'ZLXJ20260721003', pj:'T3航站楼扩建工程', rf:'王工', rv:'张工', dl:'2026-07-28', st:'待复查',
     hazard:{ desc:'脚手架施工方案未报审即施工', photos:['📷 隐患照片1'] },
     prevRect:{ date:'2026-07-23', photos:['📷 整改照片1'], note:'已补报方案' },
     prevReview:{ date:'2026-07-25', comment:'整改不彻底', result:'不通过' },
@@ -58,30 +59,37 @@ const d = {
       { a:'待复查人审核', d:'', cur:true },
     ],
   },
-  // ===== 已关闭·一次闭环 =====
+  // ===== 已复查·等待项目经理审批 =====
+  'rec-007': {
+    rn:'ZG202607007', tn:'AQXJ20260730001', pj:'飞行区跑道延长工程', rf:'赵工', rv:'张工', dl:'2026-07-31', st:'已复查',
+    hazard:{ desc:'临边防护栏杆局部缺失', photos:['临边防护隐患照片.jpg'] },
+    rectification:{ date:'2026-07-30', photos:['临边防护整改后照片.jpg'], note:'已恢复缺失栏杆并加固连接节点。' },
+    reviews:[{ round:1, date:'2026-07-30', comment:'整改到位，同意提交项目经理审批。', result:'通过' }],
+    managerApproval:{ manager:'赵经理（项目经理）', status:'审批中', comment:'-' },
+    flow:[
+      { a:'下发整改单', d:'2026-07-25 09:00' },
+      { a:'整改人提交整改结果', d:'2026-07-30 16:30' },
+      { a:'复查人复查通过', d:'2026-07-30 17:20' },
+      { a:'待项目经理审批', d:'', cur:true },
+    ],
+  },
+  // ===== 已关闭（直接闭环） =====
   'rec-004': {
-    rn:'ZG202607004', tn:'XJ20260728005', pj:'飞行区跑道延长工程', rf:'赵工', rv:'李工', dl:'2026-07-20', st:'已关闭', cd:'2026-07-25',
+    rn:'ZG202607004', tn:'ZLXJ20260728005', pj:'飞行区跑道延长工程', rf:'赵工', rv:'李工', dl:'2026-07-20', st:'已关闭', cd:'2026-07-25',
     hazard:{ desc:'电缆破损，存在安全隐患', photos:['📷 隐患照片1','📷 隐患照片2'] },
     rectifications:[{ round:1, date:'2026-07-22', photos:['📷 整改照片1','📷 整改照片2'], note:'已更换破损电缆' }],
-    reviews:[{ round:1, date:'2026-07-25', comment:'整改合格，同意关闭', result:'通过' }],
+    reviews:[{ round:1, date:'2026-07-25', comment:'整改合格，同意提交审批', result:'通过' }],
+    managerApproval:{ manager:'赵经理（项目经理）', date:'2026-07-25', status:'通过', comment:'同意关闭' },
     flow:[
       { a:'下发整改单', d:'2026-07-18 09:00' },
       { a:'整改人提交整改结果', d:'2026-07-22 14:30' },
-      { a:'复查通过，整改单关闭', d:'2026-07-25 16:00' },
+      { a:'复查人复查通过', d:'2026-07-25 15:30' },
+      { a:'项目经理审批通过，整改单关闭', d:'2026-07-25 16:00' },
     ],
   },
-  // ===== 待整改·自建专项（与 mt-005 关联） =====
-  'rec-007': {
-    rn:'ZG202607007', tn:'XJ20260728005', pj:'飞行区跑道延长工程', rf:'赵工', rv:'李工', dl:'2026-08-05', st:'待整改',
-    hazard:{ desc:'电缆破损，存在安全隐患', photos:['📷 隐患照片1'] },
-    flow:[
-      { a:'下发整改单', d:'2026-07-28 10:30' },
-      { a:'等待整改人执行', d:'', cur:true },
-    ],
-  },
-  // ===== 已关闭·二次闭环 =====
+  // ===== 已关闭（退回后闭环） =====
   'rec-011': {
-    rn:'ZG202607011', tn:'XJ20260721003', pj:'T3航站楼扩建工程', rf:'王工', rv:'张工', dl:'2026-07-25', st:'已关闭', cd:'2026-07-30',
+    rn:'ZG202607011', tn:'AQXJ20260721003', pj:'T3航站楼扩建工程', rf:'王工', rv:'张工', dl:'2026-07-25', st:'已关闭', cd:'2026-07-30',
     hazard:{ desc:'消防器材过期未更换', photos:['📷 隐患照片1','📷 隐患照片2'] },
     rectifications:[
       { round:1, date:'2026-07-24', photos:['📷 整改照片1'], note:'已购买新灭火器' },
@@ -89,18 +97,28 @@ const d = {
     ],
     reviews:[
       { round:1, date:'2026-07-26', comment:'整改不彻底，需重新处理', result:'不通过' },
-      { round:2, date:'2026-07-30', comment:'整改到位，同意关闭', result:'通过' },
+      { round:2, date:'2026-07-30', comment:'整改到位，同意提交审批', result:'通过' },
     ],
+    managerApproval:{ manager:'李经理（项目经理）', date:'2026-07-30', status:'通过', comment:'同意关闭' },
     flow:[
       { a:'下发整改单', d:'2026-07-20 09:00' },
       { a:'整改人提交整改结果', d:'2026-07-24 15:30' },
       { a:'复查不通过，退回继续整改', d:'2026-07-26 10:00', dt:'整改不彻底，需重新处理' },
       { a:'整改人重新提交整改结果', d:'2026-07-28 16:20' },
-      { a:'复查通过，整改单关闭', d:'2026-07-30 11:00' },
+      { a:'复查人复查通过', d:'2026-07-30 10:30' },
+      { a:'项目经理审批通过，整改单关闭', d:'2026-07-30 11:00' },
     ],
   },
 }
-const info = computed(() => d[rid] || d['rec-001'])
+const info = computed(() => {
+  const source = d[rid] || d['rec-001']
+  return {
+    ...source,
+    cat: ['rec-003', 'rec-004'].includes(rid) ? '质量' : '安全',
+    rf: getProjectRectifierLabel(source.pj),
+    rv: getProjectReviewerLabel(source.pj),
+  }
+})
 const isRetry = computed(() => rid === 'rec-003' || rid === 'rec-011')
 const isRejected = computed(() => rid === 'rec-006')
 
@@ -111,18 +129,19 @@ function goBack() { router.push('/safety-inspection/hazard') }
   <div class="pg">
     <div class="hd">
       <button class="bk" @click="goBack">‹ 返回</button>
-      <h3 class="pt">安全隐患详情</h3>
+      <h3 class="pt">隐患详情</h3>
     </div>
 
     <!-- ===== 基本信息 ===== -->
     <div class="ig">
       <div class="ic"><label>整改单编号</label><span>{{ info.rn }}</span></div>
       <div class="ic"><label>巡检任务单编号</label><span>{{ info.tn }}</span></div>
-      <div class="ic"><label>项目</label><span>{{ info.pj }}</span></div>
+      <div class="ic"><label>项目名称</label><span>{{ info.pj }}</span></div>
+      <div class="ic"><label>巡检分类</label><span>{{ info.cat }}</span></div>
       <div class="ic"><label>整改人</label><span>{{ info.rf }}</span></div>
       <div class="ic"><label>复查人</label><span>{{ info.rv }}</span></div>
       <div class="ic"><label>截止日期</label><span>{{ info.dl }}</span></div>
-      <div class="ic"><label>状态</label><span :style="{color:info.st==='已关闭'?'#34a853':'#f5a623',fontWeight:600}">{{ info.st }}</span></div>
+      <div class="ic"><label>状态</label><span :style="{color:info.st==='已关闭'?'#34a853':info.st==='已复查'?'#8f0045':'#f5a623',fontWeight:600}">{{ info.st }}</span></div>
       <div class="ic" v-if="info.cd"><label>关闭日期</label><span>{{ info.cd }}</span></div>
     </div>
 
@@ -133,7 +152,7 @@ function goBack() { router.push('/safety-inspection/hazard') }
       <div class="rf" v-if="info.hazard.photos?.length"><label>隐患照片</label><span>{{ info.hazard.photos.join('、') }}</span></div>
     </div>
 
-    <!-- ===== 待整改·二次：上次整改情况+复查结果 ===== -->
+    <!-- ===== 待整改：上次整改情况+复查结果 ===== -->
     <template v-if="isRejected">
       <div class="sc">
         <div class="sct">上次整改情况</div>
@@ -149,7 +168,7 @@ function goBack() { router.push('/safety-inspection/hazard') }
       </div>
     </template>
 
-    <!-- ===== 待复查·二次：上次整改情况+复查结果（可收起） ===== -->
+    <!-- ===== 待复查：上次整改情况+复查结果（可收起） ===== -->
     <template v-if="isRetry && info.st === '待复查'">
       <div class="sc">
         <div class="sct colps" @click="prevCollapsed = !prevCollapsed">
@@ -158,7 +177,7 @@ function goBack() { router.push('/safety-inspection/hazard') }
         </div>
         <div v-show="!prevCollapsed">
           <div class="sc-inner">
-            <div class="inner-title">第1次整改</div>
+            <div class="inner-title">历史整改</div>
             <div class="rf"><label>日期</label><span>{{ info.prevRect.date }}</span></div>
             <div class="rf"><label>照片</label><span>{{ info.prevRect.photos.join('、') }}</span></div>
             <div class="rf"><label>说明</label><span>{{ info.prevRect.note }}</span></div>
@@ -173,13 +192,13 @@ function goBack() { router.push('/safety-inspection/hazard') }
       </div>
     </template>
 
-    <!-- ===== 整改信息（待复查/已关闭展示） ===== -->
-    <template v-if="info.st === '待复查' || info.st === '已关闭'">
+    <!-- ===== 整改信息（待复查/已复查/已关闭展示） ===== -->
+    <template v-if="['待复查', '已复查', '已关闭'].includes(info.st)">
       <div class="sc">
         <div class="sct">整改信息</div>
         <div v-if="info.rectifications" v-for="(rct, ri) in info.rectifications" :key="ri" class="sc-inner" :class="{ 'inner-fail': ri===0 && info.rectifications.length>1, 'inner-pass': ri===info.rectifications.length-1 }">
           <div class="inner-title">
-            <template v-if="info.rectifications.length>1">第{{ rct.round }}次整改</template>
+            <template v-if="info.rectifications.length>1">{{ ri === info.rectifications.length - 1 ? '本次整改' : '历史整改' }}</template>
             <template v-else>整改</template>
             <span v-if="ri===0 && info.rectifications.length>1" class="tag-fail">退回</span>
             <span v-if="ri===info.rectifications.length-1 && info.rectifications.length>1" class="tag-pass">通过</span>
@@ -188,7 +207,7 @@ function goBack() { router.push('/safety-inspection/hazard') }
           <div class="rf"><label>照片</label><span>{{ rct.photos.join('、') }}</span></div>
           <div class="rf"><label>说明</label><span>{{ rct.note }}</span></div>
         </div>
-        <!-- 待复查·一次：单条整改 -->
+        <!-- 待复查：单条整改 -->
         <div v-if="info.rectification" class="sc-inner">
           <div class="inner-title">整改</div>
           <div class="rf"><label>日期</label><span>{{ info.rectification.date }}</span></div>
@@ -198,13 +217,13 @@ function goBack() { router.push('/safety-inspection/hazard') }
       </div>
     </template>
 
-    <!-- ===== 复查信息（已关闭展示） ===== -->
-    <template v-if="info.st === '已关闭'">
+    <!-- ===== 复查信息（复查通过后展示） ===== -->
+    <template v-if="['已复查', '已关闭'].includes(info.st)">
       <div class="sc">
         <div class="sct">复查信息</div>
         <div v-for="(rv, ri) in info.reviews" :key="ri" class="rv-item" :class="{ 'rv-pass': rv.result==='通过' }">
           <div class="rv-top">
-            <span v-if="info.reviews.length>1" class="rv-round">第{{ rv.round }}次复查</span>
+            <span v-if="info.reviews.length>1" class="rv-round">{{ ri === info.reviews.length - 1 ? '本次复查' : '历史复查' }}</span>
             <span v-else class="rv-round">复查</span>
             <span class="rv-date">{{ rv.date }}</span>
             <span class="rv-result" :class="{ 'rv-result-pass': rv.result==='通过' }">{{ rv.result==='通过' ? '✅ 通过' : '❌ 不通过' }}</span>
@@ -213,6 +232,14 @@ function goBack() { router.push('/safety-inspection/hazard') }
         </div>
       </div>
     </template>
+
+    <div v-if="info.managerApproval" class="sc">
+      <div class="sct">项目经理审批</div>
+      <div class="rf"><label>审批人</label><span>{{ info.managerApproval.manager }}</span></div>
+      <div class="rf"><label>审批状态</label><span :style="{ color:info.managerApproval.status === '通过' ? '#34a853' : '#8f0045', fontWeight:600 }">{{ info.managerApproval.status }}</span></div>
+      <div v-if="info.managerApproval.date" class="rf"><label>审批日期</label><span>{{ info.managerApproval.date }}</span></div>
+      <div class="rf"><label>审批意见</label><span>{{ info.managerApproval.comment }}</span></div>
+    </div>
 
     <!-- ===== 流程记录（最底部） ===== -->
     <div class="sc">

@@ -1,16 +1,17 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { submitRectification } from '../../composables/useMobileRectification'
 
 const route = useRoute()
 const router = useRouter()
 const rid = route.params.id
 
 const dataMap = {
-  'rec-001': { rn:'ZG202607001', tn:'XJ20260728001', pj:'飞行区跑道延长工程', rf:'赵工', rv:'张工', dl:'2026-07-30', isRejected:false,
+  'rec-001': { rn:'ZG202607001', tn:'AQXJ20260728001', cat:'安全', pj:'飞行区跑道延长工程', rf:'王工（项目安全员）', rv:'陈工（监理工程师）', dl:'2026-07-30', isRejected:false,
     item:{ desc:'五芯电缆破损，线路未按规范敷设', p:['📷 隐患照片1'] } },
-  'rec-006': { rn:'ZG202607006', tn:'XJ20260721003', pj:'T3航站楼扩建工程', rf:'王工', rv:'张工', dl:'2026-07-22', isRejected:true,
+  'rec-006': { rn:'ZG202607006', tn:'AQXJ20260721003', cat:'安全', pj:'T3航站楼扩建工程', rf:'刘工（专职安全员）', rv:'陈工（监理工程师）', dl:'2026-07-22', isRejected:true,
     item:{ desc:'脚手架施工方案未报审即施工', p:['📷 隐患照片1'] },
     prev:{ rd:'2026-07-20', rp:['📷 整改照片1'], rn:'已补报方案' },
     prv:{ d:'2026-07-22', c:'整改不彻底，电缆接头处仍有裸露', r:'不通过' } },
@@ -23,6 +24,7 @@ const rectDate = ref('')
 const rectPhotos = ref([])
 const rectNote = ref('')
 const flowCollapsed = ref(false)
+onMounted(() => document.querySelector('.page-viewport')?.scrollTo({ top:0 }))
 
 const flowRecords = computed(() => isRejected.value ? [
   { a:'下发整改单', d:'2026-07-20 14:00' },
@@ -46,7 +48,8 @@ function submitRectify() {
   if (!rectDate.value) { ElMessage.warning('请选择整改日期'); return }
   if (rectPhotos.value.length === 0) { ElMessage.warning('请至少上传一张整改照片'); return }
   if (!rectNote.value.trim()) { ElMessage.warning('请填写整改说明'); return }
-  ElMessage.success('整改结果已提交')
+  submitRectification(rid, { rectDate: rectDate.value, rectNote: rectNote.value })
+  ElMessage.success('整改结果已提交，已流转至复查人复查')
   const tab = route.query.tab; router.push(tab ? `/mobile/rectify?tab=${tab}` : '/mobile/rectify')
 }
 
@@ -62,7 +65,8 @@ function goBack() { const tab = route.query.tab; router.push(tab ? `/mobile/rect
 
     <div class="task-bar">
       <div class="tbn">⚠ {{ info.rn }}</div>
-      <div class="tbi">巡检单号：{{ info.tn }}</div>
+      <div class="tbi">巡检任务单编号：{{ info.tn }}</div>
+      <div class="tbi">巡检分类：{{ info.cat }}</div>
       <div class="tbi">
         <span>{{ info.pj }}</span>
         <span>整改人：{{ info.rf }}</span>

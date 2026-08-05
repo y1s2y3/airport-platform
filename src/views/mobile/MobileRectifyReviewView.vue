@@ -1,21 +1,25 @@
 <script setup>
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { getMobileRectification, submitRectificationReview } from '../../composables/useMobileRectification'
 
 const route = useRoute()
 const router = useRouter()
 const rid = route.params.id
+const workflowRecord = getMobileRectification(rid)
 
 const isSecondRound = rid === 'rec-003'
 
 const infoMap = {
-  'rec-002': { rn:'ZG202607002', tn:'XJ20260728001', pj:'飞行区跑道延长工程', rf:'李工', rv:'张工', sd:'2026-07-25', is2:false,
+  'rec-002': { rn:'ZG202607002', tn:'AQXJ20260728001', cat:'安全', pj:'飞行区跑道延长工程', rf:'王工（项目安全员）', rv:'陈工（监理工程师）', sd:'2026-07-25', is2:false,
     items:[{ desc:'五芯电缆破损，线路未按规范敷设', p:['📷 隐患照片1'], rd:'2026-07-25', rp:['📷 整改照片1'], rn:'已更换合规电缆' }] },
-  'rec-003': { rn:'ZG202607003', tn:'XJ20260721003', pj:'T3航站楼扩建工程', rf:'王工', rv:'张工', sd:'2026-07-27', is2:true,
+  'rec-003': { rn:'ZG202607003', tn:'ZLXJ20260721003', cat:'质量', pj:'T3航站楼扩建工程', rf:'刘工（专职安全员）', rv:'陈工（监理工程师）', sd:'2026-07-27', is2:true,
     items:[{ desc:'脚手架施工方案未报审即施工', p:['📷 隐患照片1'], rd:'2026-07-27', rp:['📷 整改照片1'], rn:'已重新补报方案并通过审核' }],
     preItems:[{ desc:'脚手架施工方案未报审即施工', p:['📷 隐患照片1'], rd:'2026-07-23', rp:['📷 整改照片1'], rn:'已补报方案' }],
     prv:{ d:'2026-07-25', c:'整改不彻底', r:'不通过' } },
+  'rec-008': { rn:'ZG202607008', tn:'ZLXJ20260730002', cat:'质量', pj:'T3航站楼扩建工程', rf:'刘工（专职安全员）', rv:'陈工（监理工程师）', sd:'2026-07-30', is2:false,
+    items:[{ desc:'混凝土外观存在蜂窝麻面', p:['📷 隐患照片1'], rd:'2026-07-30', rp:['📷 整改照片1'], rn:'已完成缺陷修补并养护' }] },
 }
 
 const info = infoMap[rid] || infoMap['rec-002']
@@ -36,11 +40,13 @@ const flowCollapsed = ref(false)
 const prevCollapsed = ref(true)
 const reviewComment = ref('')
 const reviewDate = ref('')
+onMounted(() => document.querySelector('.page-viewport')?.scrollTo({ top:0 }))
 
 function handleReview(pass) {
   if (!reviewComment.value.trim()) { ElMessage.warning('请输入复查意见'); return }
   if (!reviewDate.value) { ElMessage.warning('请选择复查日期'); return }
-  ElMessage.success(pass ? '复查通过，整改单已关闭' : '复查不通过，已退回继续整改')
+  submitRectificationReview(rid, pass, { reviewDate: reviewDate.value, reviewComment: reviewComment.value.trim() })
+  ElMessage.success(pass ? '复查通过，状态已更新为“已复查”，已流转至项目经理审批' : '复查不通过，已退回整改人重新整改')
   const tab = route.query.tab; router.push(tab ? `/mobile/rectify?tab=${tab}` : '/mobile/rectify')
 }
 function goBack() { const tab = route.query.tab; router.push(tab ? `/mobile/rectify?tab=${tab}` : '/mobile/rectify') }
@@ -55,8 +61,15 @@ function goBack() { const tab = route.query.tab; router.push(tab ? `/mobile/rect
 
     <div class="ib">
       <div class="ibn">⚠ {{ info.rn }}</div>
-      <div class="ibm">巡检单号：{{ info.tn }}</div>
+      <div class="ibm">巡检任务单编号：{{ info.tn }}</div>
+      <div class="ibm">巡检分类：{{ info.cat }}</div>
       <div class="ibm">{{ info.pj }} · 整改人：{{ info.rf }} · 复查人：{{ info.rv }} · 提交：{{ info.sd }}</div>
+    </div>
+
+    <div v-if="workflowRecord?.approvalRejected" class="approval-reject-tip">
+      <strong>项目经理审批不通过</strong>
+      <span>{{ workflowRecord.approvalReason }}</span>
+      <small>请复查人重新核验并提交审批</small>
     </div>
 
     <!-- 流程记录 -->
@@ -135,6 +148,8 @@ function goBack() { const tab = route.query.tab; router.push(tab ? `/mobile/rect
 .ib { background:#fff; padding:14px 16px; border-bottom:1px solid #eee; }
 .ibn { font-size:15px; font-weight:600; color:#1f2329; margin-bottom:4px; }
 .ibm { font-size:12px; color:#999; }
+.approval-reject-tip { margin:12px 16px 0; padding:12px 14px; border-radius:10px; background:#fff2f2; border:1px solid #ffc9c9; display:flex; flex-direction:column; gap:4px; color:#d93025; font-size:13px; }
+.approval-reject-tip small { color:#999; }
 
 .sc { background:#fff; border-radius:10px; padding:14px 16px; margin:12px 16px; box-shadow:0 1px 3px rgba(0,0,0,0.04); }
 .sct { font-size:13px; font-weight:600; color:#1f2329; margin-bottom:10px; padding-left:8px; border-left:3px solid #8f0045; }

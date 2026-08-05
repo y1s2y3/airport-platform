@@ -5,11 +5,13 @@ import { listMobileInspectionTasks } from '../../mock/mobileInspectionTasks'
 
 const router = useRouter()
 
-const tasks = ref(listMobileInspectionTasks())
+/** 直接读共享 reactive，提交后列表状态可即时刷新 */
+const tasks = computed(() => listMobileInspectionTasks())
 
 const activeTab = ref('全部')
 const searchKeyword = ref('')
 const sourceFilter = ref('')
+const categoryFilter = ref('')
 const typeFilter = ref('')
 const tabs = computed(() => {
   const counts = { '全部': tasks.value.length }
@@ -23,10 +25,11 @@ const filteredTasks = computed(() => {
   let list = tasks.value
   if (activeTab.value !== '全部') list = list.filter(t => t.status === activeTab.value)
   if (sourceFilter.value) list = list.filter(t => t.source === sourceFilter.value)
+  if (categoryFilter.value) list = list.filter(t => t.inspectionCategory === categoryFilter.value)
   if (typeFilter.value) list = list.filter(t => t.planType && (t.planType === typeFilter.value || t.planType.startsWith(typeFilter.value)))
   if (searchKeyword.value.trim()) {
     const kw = searchKeyword.value.trim()
-    list = list.filter(t => t.taskNo.includes(kw) || (t.planName || '').includes(kw) || (t.project || '').includes(kw))
+    list = list.filter(t => t.taskNo.includes(kw) || t.planName.includes(kw) || t.project.includes(kw))
   }
   return list
 })
@@ -65,6 +68,11 @@ function goBack() { router.push('/') }
         <button class="m-chip self" :class="{ active: sourceFilter === '系统自建' }" @click="sourceFilter = '系统自建'">系统自建</button>
       </div>
       <div class="m-type-chips">
+        <button class="m-chip" :class="{ active: categoryFilter === '' }" @click="categoryFilter = ''">全部分类</button>
+        <button class="m-chip" :class="{ active: categoryFilter === '安全' }" @click="categoryFilter = '安全'">安全</button>
+        <button class="m-chip" :class="{ active: categoryFilter === '质量' }" @click="categoryFilter = '质量'">质量</button>
+      </div>
+      <div class="m-type-chips">
         <button class="m-chip" :class="{ active: typeFilter === '' }" @click="typeFilter = ''">全部类型</button>
         <button class="m-chip" :class="{ active: typeFilter === '周检' }" @click="typeFilter = '周检'">周检</button>
         <button class="m-chip" :class="{ active: typeFilter === '月检' }" @click="typeFilter = '月检'">月检</button>
@@ -97,11 +105,12 @@ function goBack() { router.push('/') }
           </div>
         </div>
         <div class="m-task-mid">
+          <span class="m-type-tag" :style="{ background: task.inspectionCategory === '质量' ? '#fff3e0' : '#e8f5e9', color: task.inspectionCategory === '质量' ? '#e67e22' : '#34a853' }">{{ task.inspectionCategory }}</span>
           <span class="m-type-tag" :style="{ background: typeTagMap[task.planType] + '20', color: typeTagMap[task.planType] }">{{ task.planType }}</span>
           <span class="m-task-status-label" :style="{ color: task.status === '待执行' ? '#f5a623' : '#34a853' }">{{ task.status === '待执行' ? '待执行' : '已完成' }}</span>
         </div>
         <div class="m-task-bottom">
-          <span>巡检人：{{ task.executor }}</span>
+          <span>执行人：{{ task.executor }}</span>
           <span>截止：{{ task.deadline }}</span>
           <span>{{ task.itemCount }} 项</span>
         </div>

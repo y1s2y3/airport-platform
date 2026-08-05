@@ -1,0 +1,173 @@
+<script setup>
+import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Plus, Search, Refresh } from '@element-plus/icons-vue'
+import { useQmProjectScope } from '../../../composables/useCurrentProject'
+import {
+  listApplications,
+  MATERIAL_TYPE,
+  NODE_LABEL,
+  STATUS_LABEL,
+  statusTagType,
+  withdrawApplication,
+  resubmitApplication,
+  getApplicationDetail,
+} from '../../../mock/brand.js'
+
+const router = useRouter()
+const { isHqSelected, scopeProjectId, scopeProjectLabel } = useQmProjectScope()
+const keyword = ref('')
+const statusFilter = ref('')
+const tick = ref(0)
+
+const list = computed(() => {
+  void tick.value
+  if (isHqSelected.value || !scopeProjectId.value) return []
+  return listApplications(scopeProjectId.value, {
+    keyword: keyword.value,
+    status: statusFilter.value,
+  }).map((a) => {
+    const detail = getApplicationDetail(a.application_id)
+    return {
+      ...a,
+      candidate_count: detail?.candidates?.length || 0,
+      brand_preview: (detail?.candidates || [])
+        .slice(0, 3)
+        .map((c) => c.brand_name)
+        .join(' / '),
+    }
+  })
+})
+
+function reset() {
+  keyword.value = ''
+  statusFilter.value = ''
+}
+
+async function onWithdraw(row) {
+  try {
+    await ElMessageBox.confirm(`????????${row.application_id}??????????`, '??', {
+      type: 'warning',
+    })
+  } catch {
+    return
+  }
+  const r = withdrawApplication(row.application_id)
+  if (!r.ok) return ElMessage.error(r.msg)
+  tick.value += 1
+  ElMessage.success('????)
+}
+
+async function onResubmit(row) {
+  try {
+    await ElMessageBox.confirm(`????????${row.application_id}???????????`, '??', {
+      type: 'warning',
+    })
+  } catch {
+    return
+  }
+  const r = resubmitApplication(row.application_id)
+  if (!r.ok) return ElMessage.error(r.msg)
+  tick.value += 1
+  ElMessage.success('??????????')
+}
+</script>
+
+<template>
+  <div class="qm-page page-card">
+    <div class="page-header">
+      <div class="page-breadcrumb">???? / ????</div>
+      <h1 class="page-title">????</h1>
+      <p class="page-tip">
+        ?????? � ???{{ isHqSelected ? '????????' : scopeProjectLabel }}
+      </p>
+    </div>
+
+    <el-alert
+      v-if="isHqSelected"
+      type="warning"
+      :closable="false"
+      show-icon
+      title="????????????????????????
+      class="mb"
+    />
+
+    <template v-else>
+      <div class="filter-bar">
+        <el-input
+          v-model="keyword"
+          clearable
+          placeholder="???? / ?? / ??"
+          style="width: 240px"
+          :prefix-icon="Search"
+        />
+        <el-select v-model="statusFilter" clearable placeholder="??? style="width: 140px">
+          <el-option v-for="(label, val) in STATUS_LABEL" :key="val" :label="label" :value="val" />
+        </el-select>
+        <el-button type="primary" :icon="Search">??</el-button>
+        <el-button :icon="Refresh" @click="reset">??</el-button>
+        <el-button type="primary" :icon="Plus" @click="router.push('/qm/brand/applications/edit')">
+          ??????
+        </el-button>
+      </div>
+
+      <el-table :data="list" stripe border empty-text="??????>
+        <el-table-column prop="application_id" label="????" width="130" />
+        <el-table-column prop="material_name" label="??/??" min-width="130" />
+        <el-table-column label="??" width="80">
+          <template #default="{ row }">{{ MATERIAL_TYPE[row.material_type] }}</template>
+        </el-table-column>
+        <el-table-column prop="brand_preview" label="????? min-width="180" show-overflow-tooltip />
+        <el-table-column label="??? width="90">
+          <template #default="{ row }">
+            <el-tag size="small" :type="statusTagType(row.status)">{{ STATUS_LABEL[row.status] }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="????" width="120">
+          <template #default="{ row }">{{ NODE_LABEL[row.current_node] || '?? }}</template>
+        </el-table-column>
+        <el-table-column prop="submit_time" label="????" width="170" />
+        <el-table-column label="??" width="200" fixed="right">
+          <template #default="{ row }">
+            <el-button
+              link
+              type="primary"
+              @click="router.push(`/qm/brand/applications/detail?id=${row.application_id}`)"
+            >
+              ??
+            </el-button>
+            <el-button
+              v-if="row.status === 'in_approval' && row.current_node === 'supervisor'"
+              link
+              type="warning"
+              @click="onWithdraw(row)"
+            >
+              ??
+            </el-button>
+            <el-button
+              v-if="row.status === 'rejected' || row.status === 'withdrawn'"
+              link
+              type="primary"
+              @click="onResubmit(row)"
+            >
+              ??
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </template>
+  </div>
+</template>
+
+<style scoped>
+.mb {
+  margin-bottom: 12px;
+}
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+</style>

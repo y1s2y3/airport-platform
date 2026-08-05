@@ -22,9 +22,10 @@ export const appMenu = [
   },
   {
     key: 'app-safety-inspection',
-    label: '安全巡检',
+    label: '巡检管理',
     children: [
-      { key: 'app-mobile-tasks', label: '安全巡检(移动端)' },
+      { key: 'app-mobile-tasks', label: '巡检管理(移动端)' },
+      { key: 'app-mobile-message-center', label: '消息中心(移动端)' },
       { key: 'app-mobile-rectify', label: '整改复查(移动端)' },
     ],
   },

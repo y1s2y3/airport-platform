@@ -1,56 +1,93 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { getMobileRectification } from '../../composables/useMobileRectification'
 
 const route = useRoute()
 const router = useRouter()
+const workflowRecord = getMobileRectification(route.params.id)
+onMounted(() => document.querySelector('.page-viewport')?.scrollTo({ top:0 }))
 
-// ===== 两种场景判定 =====
-// rec-004 : 一次整改闭环
-// rec-011 : 二次整改闭环
+// 是否包含退回后重新整改记录
 const isRetry = route.params.id === 'rec-011'
-
-const scenarioLabel = isRetry ? '二次整改闭环' : '一次整改闭环'
 
 // ===== 单据信息 =====
 const rectInfoMap = {
-  'rec-004': { rectifyNo:'ZG202607004', taskNo:'XJ20260728005', project:'飞行区跑道延长工程', rectifier:'赵工', reviewer:'李工', closeDate:'2026-07-25' },
-  'rec-011': { rectifyNo:'ZG202607011', taskNo:'XJ20260721003', project:'T3航站楼扩建工程', rectifier:'王工', reviewer:'张工', closeDate:'2026-07-30' },
+  'rec-004': { rectifyNo:'ZG202607004', taskNo:'ZLXJ20260728005', inspectionCategory:'质量', project:'飞行区跑道延长工程', rectifier:'王工（项目安全员）', reviewer:'陈工（监理工程师）', closeDate:'2026-07-25' },
+  'rec-011': { rectifyNo:'ZG202607011', taskNo:'AQXJ20260721003', inspectionCategory:'安全', project:'T3航站楼扩建工程', rectifier:'刘工（专职安全员）', reviewer:'陈工（监理工程师）', closeDate:'2026-07-30' },
 }
-const rectInfo = rectInfoMap[route.params.id] || rectInfoMap['rec-004']
+const rectInfo = workflowRecord || rectInfoMap[route.params.id] || rectInfoMap['rec-004']
+const statusText = computed(() => rectInfo.status || '已关闭')
+const managerApproval = computed(() => {
+  if (!rectInfo.manager || !['已复查', '已关闭'].includes(statusText.value)) return null
+  const closed = statusText.value === '已关闭'
+  return {
+    manager: rectInfo.manager,
+    status: closed ? '通过' : '审批中',
+    date: closed ? (rectInfo.approvalDate || rectInfo.closeDate) : '',
+    comment: closed ? (rectInfo.approvalComment || '同意关闭') : '—',
+  }
+})
 
 // ===== 流程记录 =====
-const flowRecords = isRetry ? [
+const closedFlowRecords = isRetry ? [
   { action:'下发整改单',                date:'2026-07-20 09:00' },
   { action:'整改人提交整改结果',        date:'2026-07-24 15:30' },
   { action:'复查不通过，退回继续整改',  date:'2026-07-26 10:00', detail:'整改不彻底，需重新处理' },
   { action:'整改人重新提交整改结果',    date:'2026-07-28 16:20' },
-  { action:'复查通过，整改单关闭',      date:'2026-07-30 11:00' },
+  { action:'复查通过，提交项目经理审批',date:'2026-07-30 10:30' },
+  { action:'项目经理审批通过，整改单关闭',date:'2026-07-30 11:00' },
 ] : [
   { action:'下发整改单',                date:'2026-07-18 09:00' },
   { action:'整改人提交整改结果',        date:'2026-07-22 14:30' },
-  { action:'复查通过，整改单关闭',      date:'2026-07-25 16:00' },
+  { action:'复查通过，提交项目经理审批',date:'2026-07-25 15:30' },
+  { action:'项目经理审批通过，整改单关闭',date:'2026-07-25 16:00' },
 ]
+
+const flowRecords = computed(() => {
+  if (!workflowRecord || workflowRecord.status === '已关闭') return closedFlowRecords
+  const items = [{ action:'下发整改单', date:workflowRecord.applyDate }]
+  if (workflowRecord.status === '待整改') {
+    items.push({ action:workflowRecord.currentNode, date:'', current:true })
+  } else {
+    items.push({ action:'整改人提交整改结果', date:workflowRecord.submitDate || workflowRecord.applyDate })
+    if (workflowRecord.status === '待复查') items.push({ action:workflowRecord.currentNode, date:'', current:true })
+    if (workflowRecord.status === '已复查') {
+      items.push({ action:'复查通过，提交项目经理审批', date:workflowRecord.applyDate })
+      items.push({ action:'待项目经理审批', date:'', current:true })
+    }
+  }
+  return items
+})
 
 const flowCollapsed = ref(false)
 
 // ===== 复查记录 =====
-const reviewRecords = isRetry ? [
+const fallbackReviewRecords = isRetry ? [
   { round:1, date:'2026-07-26', comment:'整改不彻底，需重新处理', result:'不通过' },
   { round:2, date:'2026-07-30', comment:'整改到位，同意关闭',      result:'通过' },
 ] : [
   { round:1, date:'2026-07-25', comment:'整改合格，同意关闭',      result:'通过' },
 ]
+const reviewRecords = computed(() => {
+  if (workflowRecord?.reviewDate || workflowRecord?.reviewComment) {
+    return [{
+      round: 1,
+      date: workflowRecord.reviewDate || workflowRecord.submitDate || '—',
+      comment: workflowRecord.reviewComment || '—',
+      result: workflowRecord.reviewResult || '通过',
+    }]
+  }
+  return fallbackReviewRecords
+})
 
 // ===== 隐患整改明细（统一格式，无检查项/分类） =====
 
-// --- 一次整改闭环 ---
 const onceItems = [
   { desc:'电缆破损，存在安全隐患', inspPhotos:['📷 隐患照片1','📷 隐患照片2'],
     rectifications: [{ round:1, date:'2026-07-22', photos:['📷 整改照片1','📷 整改照片2'], note:'已更换破损电缆' }] },
 ]
 
-// --- 二次整改闭环 ---
 const retryItems = [
   { desc:'消防器材过期未更换', inspPhotos:['📷 隐患照片1','📷 隐患照片2'],
     rectifications: [
@@ -61,6 +98,18 @@ const retryItems = [
 
 // ===== 当前隐患数据（统一取第一条） =====
 const currentHazard = isRetry ? retryItems[0] : onceItems[0]
+if (workflowRecord?.hazard) {
+  currentHazard.desc = workflowRecord.hazard
+  currentHazard.inspPhotos = workflowRecord.hazardPhotos || currentHazard.inspPhotos
+  if (workflowRecord.rectificationDate || workflowRecord.submitDate) {
+    currentHazard.rectifications = [{
+      round: 1,
+      date: workflowRecord.rectificationDate || workflowRecord.submitDate,
+      photos: workflowRecord.rectificationPhotos || ['整改现场照片.jpg'],
+      note: workflowRecord.rectificationNote || '已完成整改并提交复查。',
+    }]
+  }
+}
 
 function goBack() { const tab = route.query.tab; router.push(tab ? `/mobile/rectify?tab=${tab}` : '/mobile/rectify') }
 </script>
@@ -70,19 +119,77 @@ function goBack() { const tab = route.query.tab; router.push(tab ? `/mobile/rect
     <header class="mh">
       <button class="mb" @click="goBack">‹</button>
       <h1 class="mt">整改详情</h1>
-      <span style="font-size:12px;color:#34a853;font-weight:600">✅ 已关闭</span>
+      <span class="header-status" :class="{ closed:statusText === '已关闭' }">{{ statusText === '已关闭' ? '✅ 已关闭' : statusText }}</span>
     </header>
 
-    <div class="info-bar">
-      <div class="info-title">⚠ {{ rectInfo.rectifyNo }}</div>
-      <div class="info-meta">巡检单号：{{ rectInfo.taskNo }}</div>
-      <div class="info-meta" style="margin-top:2px">
-        <span class="scenario-tag">{{ scenarioLabel }}</span>
-        {{ rectInfo.project }} · 整改人：{{ rectInfo.rectifier }} · 复查人：{{ rectInfo.reviewer }}
+    <!-- 基本信息 -->
+    <div class="section">
+      <div class="section-title">基本信息</div>
+      <div class="ir"><span class="il">整改单编号</span><span>{{ rectInfo.rectifyNo }}</span></div>
+      <div class="ir"><span class="il">巡检任务单编号</span><span>{{ rectInfo.taskNo }}</span></div>
+      <div class="ir"><span class="il">项目名称</span><span>{{ rectInfo.project }}</span></div>
+      <div class="ir"><span class="il">巡检分类</span><span>{{ rectInfo.inspectionCategory }}</span></div>
+      <div class="ir"><span class="il">整改人</span><span>{{ rectInfo.rectifier }}</span></div>
+      <div class="ir"><span class="il">复查人</span><span>{{ rectInfo.reviewer }}</span></div>
+      <div class="ir"><span class="il">截止日期</span><span>{{ rectInfo.deadline || '—' }}</span></div>
+      <div class="ir"><span class="il">状态</span><span class="status-value" :class="{ closed:statusText === '已关闭', reviewed:statusText === '已复查' }">{{ statusText }}</span></div>
+      <div v-if="rectInfo.closeDate" class="ir"><span class="il">关闭日期</span><span>{{ rectInfo.closeDate }}</span></div>
+    </div>
+
+    <!-- 隐患信息 -->
+    <div class="section">
+      <div class="section-title">隐患信息</div>
+      <div class="ir"><span class="il">隐患说明</span><span>{{ currentHazard.desc }}</span></div>
+      <div v-if="currentHazard.inspPhotos?.length" class="ir"><span class="il">隐患照片</span><span>{{ currentHazard.inspPhotos.join('、') }}</span></div>
+    </div>
+
+    <!-- 整改信息 -->
+    <div v-if="['待复查', '已复查', '已关闭'].includes(statusText)" class="section">
+      <div class="section-title">整改信息</div>
+      <div
+        v-for="(rct,ri) in currentHazard.rectifications"
+        :key="ri"
+        class="hc-round"
+        :class="{ 'hc-round-fail': ri === 0 && currentHazard.rectifications.length > 1, 'hc-round-pass': ri === currentHazard.rectifications.length - 1 }"
+      >
+        <div class="hc-round-title">
+          <template v-if="currentHazard.rectifications.length > 1">{{ ri === currentHazard.rectifications.length - 1 ? '本次整改' : '历史整改' }}</template>
+          <template v-else>整改</template>
+          <span v-if="ri === 0 && currentHazard.rectifications.length > 1" style="color:#e53935;font-size:11px;font-weight:400">（退回）</span>
+          <span v-if="ri === currentHazard.rectifications.length - 1 && currentHazard.rectifications.length > 1" style="color:#34a853;font-size:11px;font-weight:400">（通过）</span>
+        </div>
+        <div class="hc-row"><span class="il">日期</span><span>{{ rct.date }}</span></div>
+        <div class="hc-row"><span class="il">照片</span><span>{{ rct.photos.join('、') }}</span></div>
+        <div class="hc-row"><span class="il">说明</span><span>{{ rct.note }}</span></div>
       </div>
     </div>
 
-    <!-- 流程记录（含收起展开） -->
+    <!-- 复查信息 -->
+    <div v-if="['已复查', '已关闭'].includes(statusText)" class="section">
+      <div class="section-title">复查信息</div>
+      <div v-for="(rv,ri) in reviewRecords" :key="ri" class="review-record" :class="{ pass: rv.result === '通过' }">
+        <div class="rr-top">
+          <span v-if="reviewRecords.length > 1" class="rr-round">{{ ri === reviewRecords.length - 1 ? '本次复查' : '历史复查' }}</span>
+          <span v-else class="rr-round">复查</span>
+          <span class="rr-date">{{ rv.date }}</span>
+          <span class="rr-result" :class="{ pass: rv.result === '通过' }">
+            {{ rv.result === '通过' ? '✅ 通过' : '❌ 不通过' }}
+          </span>
+        </div>
+        <div class="rr-comment">{{ rv.comment }}</div>
+      </div>
+    </div>
+
+    <!-- 项目经理审批 -->
+    <div v-if="managerApproval" class="section">
+      <div class="section-title">项目经理审批</div>
+      <div class="ir"><span class="il">审批人</span><span>{{ managerApproval.manager }}</span></div>
+      <div class="ir"><span class="il">审批状态</span><span class="status-value" :class="{ closed:managerApproval.status === '通过' }">{{ managerApproval.status }}</span></div>
+      <div v-if="managerApproval.date" class="ir"><span class="il">审批日期</span><span>{{ managerApproval.date }}</span></div>
+      <div class="ir"><span class="il">审批意见</span><span>{{ managerApproval.comment }}</span></div>
+    </div>
+
+    <!-- 流程记录（与 WEB 端一致放在详情最下方） -->
     <div class="section">
       <div class="section-title collapsible" @click="flowCollapsed = !flowCollapsed">
         <span>流程记录</span>
@@ -93,7 +200,7 @@ function goBack() { const tab = route.query.tab; router.push(tab ? `/mobile/rect
           v-for="(f,i) in flowRecords"
           :key="i"
           class="flow-item"
-          :class="{ reject: f.action.includes('不通过'), done: f.action.includes('关闭') }"
+          :class="{ reject: f.action.includes('不通过'), done: f.action.includes('关闭'), current:f.current }"
         >
           <div class="flow-dot" :class="{ reject: f.action.includes('不通过') }"></div>
           <div class="flow-content">
@@ -107,52 +214,6 @@ function goBack() { const tab = route.query.tab; router.push(tab ? `/mobile/rect
       </div>
     </div>
 
-    <!-- 隐患信息 -->
-    <div class="section">
-      <div class="section-title">隐患信息</div>
-      <div class="ir"><span class="il">隐患说明</span><span>{{ currentHazard.desc }}</span></div>
-      <div v-if="currentHazard.inspPhotos?.length" class="ir"><span class="il">隐患照片</span><span>{{ currentHazard.inspPhotos.join('、') }}</span></div>
-    </div>
-
-    <!-- 整改信息 -->
-    <div class="section">
-      <div class="section-title">整改信息</div>
-      <div
-        v-for="(rct,ri) in currentHazard.rectifications"
-        :key="ri"
-        class="hc-round"
-        :class="{ 'hc-round-fail': ri === 0 && currentHazard.rectifications.length > 1, 'hc-round-pass': ri === currentHazard.rectifications.length - 1 }"
-      >
-        <div class="hc-round-title">
-          <template v-if="currentHazard.rectifications.length > 1">第{{ rct.round }}次整改</template>
-          <template v-else>整改</template>
-          <span v-if="ri === 0 && currentHazard.rectifications.length > 1" style="color:#e53935;font-size:11px;font-weight:400">（退回）</span>
-          <span v-if="ri === currentHazard.rectifications.length - 1 && currentHazard.rectifications.length > 1" style="color:#34a853;font-size:11px;font-weight:400">（通过）</span>
-        </div>
-        <div class="hc-row"><span class="il">日期</span><span>{{ rct.date }}</span></div>
-        <div class="hc-row"><span class="il">照片</span><span>{{ rct.photos.join('、') }}</span></div>
-        <div class="hc-row"><span class="il">说明</span><span>{{ rct.note }}</span></div>
-      </div>
-    </div>
-
-    <!-- 复查信息 -->
-    <div class="section">
-      <div class="section-title">复查信息</div>
-      <div v-for="(rv,ri) in reviewRecords" :key="ri" class="review-record" :class="{ pass: rv.result === '通过' }">
-        <div class="rr-top">
-          <span v-if="reviewRecords.length > 1" class="rr-round">第{{ rv.round }}次复查</span>
-          <span v-else class="rr-round">复查</span>
-          <span class="rr-date">{{ rv.date }}</span>
-          <span class="rr-result" :class="{ pass: rv.result === '通过' }">
-            {{ rv.result === '通过' ? '✅ 通过' : '❌ 不通过' }}
-          </span>
-        </div>
-        <div class="rr-comment">{{ rv.comment }}</div>
-      </div>
-    </div>
-
-    <!-- 场景标识脚注 -->
-    <div class="scenario-footer">{{ scenarioLabel }}</div>
   </div>
 </template>
 
@@ -161,6 +222,8 @@ function goBack() { const tab = route.query.tab; router.push(tab ? `/mobile/rect
 .mh { display:flex; align-items:center; padding:12px 16px; background:#8f0045; color:#fff; position:sticky; top:0; z-index:10; }
 .mb { background:none; border:none; color:#fff; font-size:28px; padding:0 4px 0 0; line-height:1; cursor:pointer; }
 .mt { flex:1; font-size:18px; font-weight:600; margin:0; }
+.header-status { font-size:12px; color:#ffd166; font-weight:600; }
+.header-status.closed { color:#d8f5df; }
 .info-bar { background:#fff; padding:14px 16px; border-bottom:1px solid #eee; }
 .info-title { font-size:15px; font-weight:600; color:#1f2329; margin-bottom:4px; }
 .info-meta { font-size:12px; color:#999; }
@@ -200,6 +263,9 @@ function goBack() { const tab = route.query.tab; router.push(tab ? `/mobile/rect
 .ir { display:flex; gap:6px; font-size:13px; line-height:1.6; margin-bottom:4px; }
 .il { color:#999; flex-shrink:0; width:68px; }
 .ir > span:last-child { flex:1; min-width:0; word-break:break-word; }
+.status-value { color:#f5a623; font-weight:600; }
+.status-value.reviewed { color:#8f0045; }
+.status-value.closed { color:#34a853; }
 .hc-round { margin-bottom:8px; padding:8px 10px; background:#fafafa; border-radius:6px; }
 .hc-round.hc-round-fail { border-left:3px solid #e53935; }
 .hc-round.hc-round-pass { border-left:3px solid #34a853; }

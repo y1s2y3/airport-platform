@@ -1,14 +1,13 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Edit, CircleClose, Promotion, View } from '@element-plus/icons-vue'
+import { Plus, Edit, CircleClose, Promotion } from '@element-plus/icons-vue'
 import { buildProjects } from '../mock/data.js'
 import {
   getDispatchReminderRecords,
   saveDispatchReminderRecord,
   voidDispatchReminderRecord,
   issueDispatchReminderRecord,
-  receiveDispatchReminderRecord,
   emptyReminderRecord,
   normalizeReminderRecord,
   NOTICE_STATUSES,
@@ -20,7 +19,7 @@ defineProps({
   title: { type: String, default: '提示函' },
   description: {
     type: String,
-    default: '管理远程调度产生的提示函：创建、下发、指派人查阅接收，支持从截图/调度会一键生成。',
+    default: '管理远程调度产生的提示函：创建、下发与闭环，支持从截图/调度会一键生成。',
   },
 })
 
@@ -54,25 +53,6 @@ function load() {
 function openDetail(row) {
   current.value = { ...row }
   detailVisible.value = true
-}
-
-function openAssigneeRead(row) {
-  if (row.status !== NOTICE_STATUSES.ISSUED) {
-    openDetail(row)
-    return
-  }
-  ElMessageBox.confirm(`确认查阅提示函「${(row.matterDescription || row.title || row.id).slice(0, 24)}」？`, '查阅确认', {
-    type: 'info',
-  })
-    .then(() => {
-      const updated = receiveDispatchReminderRecord(row.id)
-      if (!updated) return
-      current.value = updated
-      load()
-      detailVisible.value = true
-      ElMessage.success('提示函已查阅，状态已更新为已接收')
-    })
-    .catch(() => {})
 }
 
 function handleIssue(row) {
@@ -149,7 +129,10 @@ function submitForm() {
 }
 
 function handleVoid(row) {
-  if (row.status === NOTICE_STATUSES.VOID) return
+  if (row.status !== NOTICE_STATUSES.PENDING) {
+    ElMessage.warning('仅待下发状态的提示函可作废')
+    return
+  }
   const label = row.matterDescription || row.title || row.id
   ElMessageBox.confirm(`确定作废提示函「${label.slice(0, 24)}」？`, '作废确认', { type: 'warning' })
     .then(() => {
@@ -203,7 +186,7 @@ onMounted(load)
             <el-tag :type="statusTagType(row.status)" size="small">{{ row.status }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openDetail(row)">详情</el-button>
             <el-button
@@ -216,28 +199,19 @@ onMounted(load)
               确认下发
             </el-button>
             <el-button
-              v-if="row.status === NOTICE_STATUSES.ISSUED"
-              link
-              type="warning"
-              :icon="View"
-              @click="openAssigneeRead(row)"
-            >
-              查阅
-            </el-button>
-            <el-button
+              v-if="row.status === NOTICE_STATUSES.PENDING"
               link
               type="primary"
               :icon="Edit"
-              :disabled="row.status !== NOTICE_STATUSES.PENDING"
               @click="openEdit(row)"
             >
               编辑
             </el-button>
             <el-button
+              v-if="row.status === NOTICE_STATUSES.PENDING"
               link
               type="danger"
               :icon="CircleClose"
-              :disabled="row.status === NOTICE_STATUSES.VOID"
               @click="handleVoid(row)"
             >
               作废
@@ -302,18 +276,28 @@ onMounted(load)
       </template>
     </el-dialog>
 
-    <el-dialog v-model="detailVisible" title="提示函详情" width="640px" destroy-on-close>
+    <el-dialog v-model="detailVisible" title="提示函详情" width="720px" destroy-on-close>
       <template v-if="current">
-        <el-descriptions :column="1" border size="small">
+        <el-descriptions :column="2" border size="small" class="detail-desc">
           <el-descriptions-item label="编号">{{ current.id || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="项目名称">{{ current.project || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="事项描述">{{ current.matterDescription || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="状态">
+            <el-tag :type="statusTagType(current.status)" size="small">{{ current.status || '—' }}</el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="项目名称" :span="2">{{ current.project || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="事项描述" :span="2">{{ current.matterDescription || '—' }}</el-descriptions-item>
           <el-descriptions-item label="指派人">
             {{ resolveExecutorDisplay(current.assignee || current.executor) }}
           </el-descriptions-item>
           <el-descriptions-item label="完成时限">{{ current.deadline || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="附件">
-            <DispatchImageAttachments :model-value="current.attachments || []" readonly />
+          <el-descriptions-item label="下发时间">{{ current.issueTime && current.issueTime !== '—' ? current.issueTime : '—' }}</el-descriptions-item>
+          <el-descriptions-item v-if="current.issuer" label="登记人">{{ current.issuer }}</el-descriptions-item>
+          <el-descriptions-item label="附件" :span="2">
+            <DispatchImageAttachments
+              v-if="current.attachments?.length"
+              :model-value="current.attachments"
+              readonly
+            />
+            <span v-else class="detail-empty-text">暂无附件</span>
           </el-descriptions-item>
         </el-descriptions>
       </template>
@@ -357,5 +341,10 @@ onMounted(load)
   font-size: 13px;
   color: var(--coc-text-secondary);
   line-height: 1.6;
+}
+
+.detail-empty-text {
+  color: var(--el-text-color-secondary, #909399);
+  font-size: 13px;
 }
 </style>

@@ -1,4 +1,5 @@
 import { reactive, computed } from 'vue'
+import { buildInspectionPlanNo } from '../config/inspectionManagement'
 
 // ========== 项目列表 ==========
 export const projectOptions = [
@@ -30,7 +31,7 @@ export function getUserLabel(id) {
 // ========== 检查分类 & 检查项（最多二级） ==========
 export const checkCategoryTree = [
   {
-    id: 'cat-1', label: '安全管理行为',
+    id: 'cat-1', label: '安全管理行为', inspectionCategory: '安全',
     items: [
       { id: 'item-1-1', label: '是否建立安全生产责任制并逐级签订责任书' },
       { id: 'item-1-2', label: '是否设置安全管理机构并配备专职安全管理人员' },
@@ -44,7 +45,7 @@ export const checkCategoryTree = [
     ],
   },
   {
-    id: 'cat-2', label: '临时用电',
+    id: 'cat-2', label: '临时用电', inspectionCategory: '安全',
     items: [
       { id: 'item-2-1', label: '在建工程与外电线路的距离是否符合规范要求' },
       { id: 'item-2-2', label: '外电防护设施是否设置到位并有效' },
@@ -57,7 +58,7 @@ export const checkCategoryTree = [
     ],
   },
   {
-    id: 'cat-3', label: '高处作业',
+    id: 'cat-3', label: '高处作业', inspectionCategory: '安全',
     items: [
       { id: 'item-3-1', label: '临边防护栏杆是否按规范设置' },
       { id: 'item-3-2', label: '洞口是否设置盖板或防护栏杆' },
@@ -69,7 +70,7 @@ export const checkCategoryTree = [
     ],
   },
   {
-    id: 'cat-4', label: '脚手架工程',
+    id: 'cat-4', label: '脚手架工程', inspectionCategory: '安全',
     items: [
       { id: 'item-4-1', label: '脚手架施工方案是否经审批' },
       { id: 'item-4-2', label: '立杆基础是否平整、夯实，有无排水措施' },
@@ -82,7 +83,7 @@ export const checkCategoryTree = [
     ],
   },
   {
-    id: 'cat-5', label: '机械设备',
+    id: 'cat-5', label: '机械设备', inspectionCategory: '安全',
     items: [
       { id: 'item-5-1', label: '起重机械是否办理使用登记' },
       { id: 'item-5-2', label: '限位装置和保险装置是否齐全有效' },
@@ -93,7 +94,7 @@ export const checkCategoryTree = [
     ],
   },
   {
-    id: 'cat-6', label: '消防安全',
+    id: 'cat-6', label: '消防安全', inspectionCategory: '安全',
     items: [
       { id: 'item-6-1', label: '是否按规范配备消防器材' },
       { id: 'item-6-2', label: '消防设施是否定期检查并保持完好有效' },
@@ -104,7 +105,7 @@ export const checkCategoryTree = [
     ],
   },
   {
-    id: 'cat-7', label: '基坑工程',
+    id: 'cat-7', label: '基坑工程', inspectionCategory: '安全',
     items: [
       { id: 'item-7-1', label: '基坑支护方案是否经审批和专家论证' },
       { id: 'item-7-2', label: '支护结构是否按方案施工' },
@@ -115,13 +116,29 @@ export const checkCategoryTree = [
     ],
   },
   {
-    id: 'cat-8', label: '文明施工',
+    id: 'cat-8', label: '文明施工', inspectionCategory: '安全',
     items: [
       { id: 'item-8-1', label: '施工现场是否设置连续封闭围挡' },
       { id: 'item-8-2', label: '出入口是否设置门卫及车辆冲洗设施' },
       { id: 'item-8-3', label: '施工道路是否硬化' },
       { id: 'item-8-4', label: '施工现场是否洒水降尘' },
       { id: 'item-8-5', label: '建筑材料是否分类堆放' },
+    ],
+  },
+  {
+    id: 'cat-q1', label: '材料质量', inspectionCategory: '质量',
+    items: [
+      { id: 'item-q1-1', label: '进场材料是否具备合格证及检验报告' },
+      { id: 'item-q1-2', label: '见证取样与复试结果是否符合设计要求' },
+      { id: 'item-q1-3', label: '材料规格、型号及外观质量是否符合要求' },
+    ],
+  },
+  {
+    id: 'cat-q2', label: '施工工艺', inspectionCategory: '质量',
+    items: [
+      { id: 'item-q2-1', label: '关键工序是否按施工方案和技术交底执行' },
+      { id: 'item-q2-2', label: '实测实量结果是否符合验收标准' },
+      { id: 'item-q2-3', label: '隐蔽工程验收记录是否完整' },
     ],
   },
 ]
@@ -147,8 +164,8 @@ function now() {
 export const planData = reactive([
   {
     id: 'plan-001',
-    assigned: true, executors: ['user-1'],
-    planNo: 'JH2026001', name: '7月第3周联合周检', type: '周检',
+    inspectionCategory: '安全',
+    assigned: true, executors: ['user-1'], planNo: 'AQXJ20260714001', name: '7月第3周安全巡检', type: '周检',
     projects: ['T3 航站楼扩建工程', '飞行区跑道延长工程'],
     projectIds: ['proj-1', 'proj-2'],
     checkConfig: [
@@ -158,32 +175,31 @@ export const planData = reactive([
     responsiblePerson: 'user-1', ccPersons: ['user-3', 'user-4'],
     cycleType: 'week', cycleInterval: 1, cycleTimes: 3,
     startDate: '2026-07-15', endDate: '2026-07-21',
-    enabled: true, status: '启用', remark: '例行周检，覆盖安全管理行为与临时用电重点项',
-    createdBy: 'user-1', updatedBy: 'user-1',
+    enabled: true, status: '启用', remark: '例行周检',
+    createdBy: 'admin', updatedBy: 'admin',
     createdAt: '2026-07-14 09:00', updatedAt: '2026-07-15 08:30',
   },
   {
     id: 'plan-002',
-    assigned: true, executors: ['user-2'],
-    planNo: 'JH2026002', name: '7月全项目月度安全检查', type: '月检',
+    inspectionCategory: '质量',
+    assigned: true, executors: ['user-2'], planNo: 'ZLXJ20260628001', name: '7月质量巡检', type: '月检',
     projects: ['T3 航站楼扩建工程', '新货运站建设工程'],
     projectIds: ['proj-1', 'proj-3'],
     checkConfig: [
-      { categoryId: 'cat-1', itemIds: ['item-1-1','item-1-2','item-1-3','item-1-4','item-1-5'] },
-      { categoryId: 'cat-3', itemIds: ['item-3-1','item-3-4','item-3-5'] },
-      { categoryId: 'cat-6', itemIds: ['item-6-1','item-6-3','item-6-4'] },
+      { categoryId: 'cat-q1', itemIds: ['item-q1-1','item-q1-2','item-q1-3'] },
+      { categoryId: 'cat-q2', itemIds: ['item-q2-1','item-q2-2'] },
     ],
     responsiblePerson: 'user-2', ccPersons: ['user-6'],
     cycleType: 'month', cycleInterval: 1, cycleTimes: 1,
     startDate: '2026-07-01', endDate: '2026-07-31',
-    enabled: true, status: '启用', remark: '全项目覆盖月度检查，重点高处作业与消防',
-    createdBy: 'user-2', updatedBy: 'user-6',
+    enabled: true, status: '启用', remark: '全项目覆盖月度检查',
+    createdBy: 'admin', updatedBy: 'admin',
     createdAt: '2026-06-28 14:00', updatedAt: '2026-07-01 09:00',
   },
   {
     id: 'plan-003',
-    assigned: true, executors: ['user-2', 'user-3'],
-    planNo: 'JH2026003', name: '雨季临时用电专项巡检', type: '专项巡检',
+    inspectionCategory: '安全',
+    assigned: true, executors: ['user-2', 'user-3'], planNo: 'AQXJ20260718001', name: '雨季临时用电专项巡检', type: '专项巡检',
     projects: ['T3 航站楼扩建工程'],
     projectIds: ['proj-1'],
     checkConfig: [
@@ -193,31 +209,30 @@ export const planData = reactive([
     cycleType: 'once', cycleInterval: 1, cycleTimes: 1,
     startDate: '2026-07-20', endDate: '2026-07-20',
     enabled: true, status: '启用', remark: '针对雨季临时用电安全专项检查',
-    createdBy: 'user-3', updatedBy: 'user-3',
+    createdBy: 'admin', updatedBy: 'admin',
     createdAt: '2026-07-18 16:30', updatedAt: '2026-07-18 16:30',
   },
   {
     id: 'plan-004',
-    assigned: false, executors: [],
-    planNo: 'JH2026004', name: '上半年综合安全检查', type: '专项巡检',
+    inspectionCategory: '质量',
+    assigned: false, executors: [], planNo: 'ZLXJ20260610001', name: '上半年综合质量巡检', type: '专项巡检',
     projects: ['T3 航站楼扩建工程', '飞行区跑道延长工程', '新货运站建设工程'],
     projectIds: ['proj-1', 'proj-2', 'proj-3'],
     checkConfig: [
-      { categoryId: 'cat-1', itemIds: ['item-1-1','item-1-2','item-1-3','item-1-4','item-1-5','item-1-6','item-1-7','item-1-8','item-1-9'] },
-      { categoryId: 'cat-4', itemIds: ['item-4-1','item-4-2','item-4-3','item-4-4'] },
-      { categoryId: 'cat-6', itemIds: ['item-6-1','item-6-2','item-6-3','item-6-4','item-6-5','item-6-6'] },
+      { categoryId: 'cat-q1', itemIds: ['item-q1-1','item-q1-2','item-q1-3'] },
+      { categoryId: 'cat-q2', itemIds: ['item-q2-1','item-q2-2','item-q2-3'] },
     ],
     responsiblePerson: 'user-6', ccPersons: ['user-1', 'user-2', 'user-4'],
     cycleType: 'once', cycleInterval: 1, cycleTimes: 1,
     startDate: '2026-06-15', endDate: '2026-06-30',
     enabled: false, status: '禁用', remark: '上半年综合检查',
-    createdBy: 'user-6', updatedBy: 'user-1',
+    createdBy: 'admin', updatedBy: 'admin',
     createdAt: '2026-06-10 10:00', updatedAt: '2026-06-30 17:00',
   },
   {
     id: 'plan-005',
-    assigned: false, executors: [],
-    planNo: 'JH2026005', name: '7月第4周安全巡检', type: '周检',
+    inspectionCategory: '安全',
+    assigned: false, executors: [], planNo: 'AQXJ20260719001', name: '7月第4周安全巡检', type: '周检',
     projects: ['飞行区跑道延长工程'],
     projectIds: ['proj-2'],
     checkConfig: [
@@ -228,7 +243,7 @@ export const planData = reactive([
     cycleType: 'week', cycleInterval: 1, cycleTimes: 2,
     startDate: '2026-07-22', endDate: '2026-07-28',
     enabled: true, status: '启用', remark: '',
-    createdBy: 'user-3', updatedBy: 'user-3',
+    createdBy: 'admin', updatedBy: 'admin',
     createdAt: '2026-07-19 11:20', updatedAt: '2026-07-19 11:20',
   },
 ])
@@ -237,25 +252,15 @@ export function getPlanById(id) {
   return planData.find(p => p.id === id)
 }
 
-function normalizePlanPayload(plan) {
-  const startDate = plan.startDate || plan.effectiveDate || ''
-  const endDate = plan.endDate || plan.effectiveDate || startDate
-  const { effectiveDate: _effectiveDate, ...rest } = plan
-  return {
-    ...rest,
-    planNo: plan.planNo || `JH${String(Date.now()).slice(-8)}`,
-    assigned: plan.assigned ?? false,
-    executors: plan.executors || [],
-    startDate,
-    endDate,
-  }
-}
-
 export function addPlan(plan) {
   const newId = 'plan-' + String(Date.now()).slice(-6)
   const t = now()
+  const date = new Date()
+  const dateText = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`
+  const prefix = plan.inspectionCategory === '质量' ? 'ZLXJ' : 'AQXJ'
+  const sequence = planData.filter(item => item.planNo?.startsWith(`${prefix}${dateText}`)).length + 1
   planData.unshift({
-    id: newId, ...normalizePlanPayload(plan),
+    id: newId, planNo: buildInspectionPlanNo(plan.inspectionCategory, date, sequence), ...plan,
     enabled: true, status: '启用',
     createdBy: '当前用户', updatedBy: '当前用户',
     createdAt: t, updatedAt: t,
@@ -266,7 +271,7 @@ export function addPlan(plan) {
 export function updatePlan(id, data) {
   const item = planData.find(p => p.id === id)
   if (item) {
-    Object.assign(item, normalizePlanPayload(data), { updatedAt: now(), updatedBy: '当前用户' })
+    Object.assign(item, data, { updatedAt: now(), updatedBy: '当前用户' })
   }
 }
 

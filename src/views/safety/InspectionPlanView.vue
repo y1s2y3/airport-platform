@@ -7,12 +7,13 @@ import { planData, deletePlan, togglePlanEnabled, userOptions } from '../../comp
 
 const router = useRouter()
 
-const filterForm = reactive({ type: '', keyword: '' })
+const filterForm = reactive({ category: '', type: '', keyword: '' })
 
 const filteredPlans = computed(() => {
   return planData.filter(p => {
+    if (filterForm.category && p.inspectionCategory !== filterForm.category) return false
     if (filterForm.type && p.type !== filterForm.type) return false
-    if (filterForm.keyword && !(p.name || '').includes(filterForm.keyword)) return false
+    if (filterForm.keyword && !p.name.includes(filterForm.keyword)) return false
     return true
   })
 })
@@ -54,6 +55,10 @@ function handleDelete(row) {
       </el-button>
     </div>
     <div class="filter-bar">
+      <el-select v-model="filterForm.category" placeholder="巡检分类" clearable style="width: 110px">
+        <el-option label="安全" value="安全" />
+        <el-option label="质量" value="质量" />
+      </el-select>
       <el-select v-model="filterForm.type" placeholder="计划类型" clearable style="width: 130px">
         <el-option label="周检" value="周检" />
         <el-option label="月检" value="月检" />
@@ -70,6 +75,13 @@ function handleDelete(row) {
           </template>
         </el-table-column>
         <el-table-column prop="planNo" label="计划编号"  align="center" />
+        <el-table-column prop="inspectionCategory" label="巡检分类" width="85" align="center">
+          <template #default="{ row }">
+            <el-tag :type="row.inspectionCategory === '质量' ? 'warning' : 'success'" size="small" effect="plain">
+              {{ row.inspectionCategory || '安全' }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="类型" width="70" align="center">
           <template #default="{ row }">
             <el-tag v-if="row.type==='周检'" size="small" effect="plain">周检</el-tag>
@@ -81,7 +93,7 @@ function handleDelete(row) {
           <template #default="{ row }">{{ row.projects.join('、') }}</template>
         </el-table-column>
         <el-table-column label="任务接收人" min-width="150" align="center">
-          <template #default>项目级巡检人配置</template>
+          <template #default>监理</template>
         </el-table-column>
         <el-table-column label="推送规则"  align="center">
           <template #default="{ row }">{{ pushRuleLabel(row) }}</template>

@@ -1,13 +1,19 @@
 /**
  * 项目级侧栏重组：
  * - 智慧工地监管：人员实名制 / 车辆 / 机械设备监管 / 视频监控（降级为二级）
- * - 施工现场管理：施工作业申报 + 安全巡检 + 危大工程 + 机械设备台账 + 告警配置 + AI 应用
+ * - 施工现场管理：施工作业申报 + 巡检管理 + 危大工程 + 机械设备台账 + 告警配置
+ * - 施工质量管控：质量验评 / 品牌报审 / 样板管理 / 材料进场管理 / 设备进场管理
  * 指挥部「施工现场管理」见 hqSiteConstructionMenuGroup
  */
 import { vehicleMenuGroup } from './vehicleMenu.js'
 import { videoMonitorMenuGroup } from './videoMonitorMenu.js'
 import { constructionSafetyMenuGroup } from './constructionSafetyMenu.js'
 import { machineSuperviseMenuGroup, majorHazardMenuGroup, machineLedgerMenuGroup, alertConfigMenuItem } from './machineHazardMenu.js'
+import { qualityMenuGroup } from './qualityMenu.js'
+import { brandMenuGroup } from './brandMenu.js'
+import { sampleMenuGroup } from './sampleMenu.js'
+import { matMenuGroup } from './matMenu.js'
+import { eqMenuGroup } from './eqMenu.js'
 
 /** 人员实名制子项（指挥部仅保留配置/黑名单；统计已在安全看板） */
 export const laborMenuChildren = [
@@ -35,7 +41,7 @@ function nestGroup(source, nestedKey, extraChildren = []) {
 /**
  * 指挥部 · 施工现场管理（一级）
  * 顺序挂在：安全看板 → 质量看板 → 本菜单
- * 二级：人员实名制管理 / 安全巡检 / 机械设备监管 / 危大工程监测
+ * 二级：人员实名制管理 / 巡检管理 / 机械设备监管 / 危大工程监测
  */
 export const hqSiteConstructionMenuGroup = {
   key: 'hq-site-construction',
@@ -107,6 +113,23 @@ export const siteConstructionMenuGroup = {
   ],
 }
 
+/**
+ * 施工质量管控（仅项目层级）
+ * 顺序：施工现场管理下方；二级为原质量相关一级菜单
+ */
+export const constructionQualityMenuGroup = {
+  key: 'construction-quality',
+  label: '施工质量管控',
+  icon: 'Medal',
+  children: [
+    nestGroup(qualityMenuGroup, 'quality-inspect'),
+    nestGroup(brandMenuGroup, 'brand-approval'),
+    nestGroup(sampleMenuGroup, 'sample-mgmt'),
+    nestGroup(matMenuGroup, 'mat-entry-mgmt'),
+    nestGroup(eqMenuGroup, 'eq-entry-mgmt'),
+  ],
+}
+
 export const siteConstructionRoutes = [
   {
     key: 'site-work-declare',
@@ -122,7 +145,7 @@ export const siteConstructionViewLoaders = {
 }
 
 /**
- * AI 应用（一级菜单，位于施工现场管理下方）
+ * AI 应用（一级菜单，位于施工质量管控下方）
  * 二级：现场不安全行为检测 / 现场隐患事件检测 / 围栏入侵及破坏检测 / 多机位人员轨迹预测 / 无人机 AI 识别
  */
 export const aiAppMenuGroup = {

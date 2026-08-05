@@ -25,7 +25,7 @@ export const HQ_ONLY_MENU_KEYS = new Set([
   'sys-menu',
   /** 视频监控 · 指挥部统计 */
   'video-monitor-stats',
-  /** 安全巡检：看板 / 计划 / 检查项仅指挥部维护 */
+  /** 巡检管理：看板 / 计划 / 检查项仅指挥部维护 */
   'safety-dashboard',
   'safety-plan',
   'safety-check-items',
@@ -98,7 +98,7 @@ export const PROJECT_ONLY_MENU_KEYS = new Set([
   'mat-application',
   'mat-exit',
   'mat-library',
-  /** 设备进场管理 · 项目执行（指挥部仅通过「质量看板」看设备进场看板） */
+  /** 设备进场管理 · 项目执行（挂在「施工质量管控」下；指挥部仅通过「质量看板」看设备进场看板） */
   'eq-entry-mgmt',
   'eq-ledger',
   'eq-application',
@@ -116,13 +116,12 @@ export const PROJECT_ONLY_MENU_KEYS = new Set([
   'vehicle-device',
   'app-vehicle-access',
   'app-vehicle-warning',
-  /** 安全巡检 · 巡检人配置 / 整改复查(移动端)仅项目层；安全巡检(移动端)指挥部/项目均可见 */
+  /** 巡检管理 · 人员配置 / 整改复查(移动端)仅项目层；巡检管理(移动端)/消息中心(移动端)指挥部/项目均可见 */
   'safety-inspector-config',
   'mobile-rectify',
   'app-mobile-rectify',
-  /** 机械设备台账 · 项目维护 */
+  /** 机械设备台账 · 项目维护（登记进场 machine-entry-manage 两端共用：指挥部在安全看板） */
   'machine-ledger',
-  'machine-entry-manage',
   'machine-type-maintain',
   /** 机械设备监管 · 项目维护（指挥部隐藏监测设备管理、告警配置） */
   'device-manage',
@@ -130,7 +129,7 @@ export const PROJECT_ONLY_MENU_KEYS = new Set([
   /** 危大工程监测 · 项目维护（指挥部隐藏监测区域/设备绑定） */
   'hazard-manage',
   'device-binding',
-  /** 项目级菜单包装：智慧工地监管 / 施工现场管理 */
+  /** 项目级菜单包装：智慧工地监管 / 施工现场管理 / 施工质量管控 */
   'smart-site',
   'smart-labor',
   'smart-vehicle',
@@ -140,6 +139,7 @@ export const PROJECT_ONLY_MENU_KEYS = new Set([
   'site-work-declare',
   'site-safety-inspection',
   'site-major-hazard',
+  'construction-quality',
   'ai-app',
 ])
 

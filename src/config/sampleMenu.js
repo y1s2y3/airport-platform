@@ -1,5 +1,5 @@
 /**
- * 样板管理 — 一级菜单（位于品牌报审之后）
+ * 样板管理 — 项目级挂在「施工质量管控」下
  * 对齐 prd-sample-v1 / 架构 V1.2
  */
 export const sampleMenuGroup = {

@@ -80,9 +80,11 @@ const constructionSafetyRouteComponents = {
   'mobile-task-create': () => import('../views/mobile/MobileTaskCreateView.vue'),
   'mobile-task-execute': () => import('../views/mobile/MobileTaskExecuteView.vue'),
   'mobile-task-detail': () => import('../views/mobile/MobileTaskDetailView.vue'),
+  'mobile-message-center': () => import('../views/mobile/MobileMessageCenterView.vue'),
   'mobile-rectify': () => import('../views/mobile/MobileRectifyListView.vue'),
   'mobile-rectify-execute': () => import('../views/mobile/MobileRectifyExecuteView.vue'),
   'mobile-rectify-review': () => import('../views/mobile/MobileRectifyReviewView.vue'),
+  'mobile-rectify-approval': () => import('../views/mobile/MobileRectifyApprovalView.vue'),
   'mobile-rectify-detail': () => import('../views/mobile/MobileRectifyDetailView.vue'),
 }
 

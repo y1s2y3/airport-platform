@@ -48,12 +48,18 @@ import {
 import {
   SAMPLE_APPROVE_MENU_KEYS,
 } from '../utils/sampleDemoRole.js'
-import { APP_VERSION, getChangelogByVersion } from '../config/appVersion'
+import {
+  APP_VERSION,
+  getChangelogByVersion,
+  getPublishedChangelogs,
+} from '../config/appVersion'
 
 const route = useRoute()
 const router = useRouter()
 const changelogVisible = ref(false)
+const changelogHistoryVisible = ref(false)
 const changelog = computed(() => getChangelogByVersion(APP_VERSION))
+const publishedChangelogs = computed(() => getPublishedChangelogs())
 const collapsed = ref(false)
 const expandedKeys = ref([])
 /** 收起侧栏时当前展开的悬浮子菜单 key */
@@ -200,13 +206,20 @@ function ensureExpandedForRoute() {
   }
 }
 
+function resolveCurrentTabLabel() {
+  if (isHqSelected.value && route.path === '/machine-supervise/ledger') {
+    return '机械设备台账'
+  }
+  return route.meta?.title || '页面'
+}
+
 watch(
   () => route.fullPath,
   () => {
     closeFlyout()
     ensureExpandedForRoute()
     const key = route.meta?.tabKey || route.name || route.path
-    const label = route.meta?.title || '页面'
+    const label = resolveCurrentTabLabel()
     const path = route.path
     const existing = openTabs.value.find((t) => t.key === key)
     if (existing) {
@@ -390,6 +403,40 @@ function closeTab(tab, e) {
         <li v-for="(item, idx) in changelog.highlights" :key="idx">{{ item }}</li>
       </ul>
       <p v-else class="changelog-empty">暂无更新说明</p>
+      <template #footer>
+        <div class="changelog-footer">
+          <el-button @click="changelogHistoryVisible = true">更新日志</el-button>
+          <el-button type="primary" @click="changelogVisible = false">知道了</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="changelogHistoryVisible"
+      title="更新日志"
+      width="520px"
+      append-to-body
+      destroy-on-close
+      class="changelog-history-dialog"
+    >
+      <p class="changelog-history-tip">仅展示已发布到线上的版本记录</p>
+      <div v-if="publishedChangelogs.length" class="changelog-history-list">
+        <section
+          v-for="entry in publishedChangelogs"
+          :key="entry.version"
+          class="changelog-history-item"
+        >
+          <header class="changelog-history-head">
+            <span class="changelog-history-version">{{ entry.version }}</span>
+            <span class="changelog-history-date">{{ entry.date }}</span>
+          </header>
+          <ul v-if="entry.highlights?.length" class="changelog-list">
+            <li v-for="(item, idx) in entry.highlights" :key="idx">{{ item }}</li>
+          </ul>
+          <p v-else class="changelog-empty">暂无更新说明</p>
+        </section>
+      </div>
+      <p v-else class="changelog-empty">暂无已发布的更新记录</p>
     </el-dialog>
 
     <div class="admin-body">
@@ -621,6 +668,57 @@ function closeTab(tab, e) {
   margin: 0;
   color: #8f959e;
   font-size: 14px;
+}
+
+.changelog-footer {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.changelog-history-tip {
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: #8f959e;
+}
+
+.changelog-history-list {
+  max-height: min(60vh, 480px);
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-right: 4px;
+}
+
+.changelog-history-item {
+  padding-bottom: 16px;
+  border-bottom: 1px solid #eef0f3;
+}
+
+.changelog-history-item:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.changelog-history-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.changelog-history-version {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f2329;
+}
+
+.changelog-history-date {
+  font-size: 13px;
+  color: #8f959e;
+  flex-shrink: 0;
 }
 
 .project-select {

@@ -5,8 +5,8 @@ import {
 
 const PATROL_KEY = 'coc-admin-patrol-devices'
 const HELMET_KEY = 'coc-admin-smart-helmets'
-const SUPERVISION_KEY = 'coc-admin-supervision-meetings-v2'
-const SUPERVISION_HAZARD_KEY = 'coc-admin-supervision-hazards-v5'
+const SUPERVISION_KEY = 'coc-admin-supervision-meetings-v3'
+const SUPERVISION_HAZARD_KEY = 'coc-admin-supervision-hazards-v6'
 
 const defaultPatrolDevices = [
   {
@@ -177,8 +177,13 @@ export function emptySupervisionMeeting(row = {}) {
     minutesPdf: row.minutesPdf || '',
     /** 本周隐患清单附件 */
     weeklyHazardList: row.weeklyHazardList || '',
+    weeklyHazardListUrl: row.weeklyHazardListUrl || '',
     signInPhoto: row.signInPhoto || '',
+    signInPhotoUrl: row.signInPhotoUrl || '',
     meetingPhoto: row.meetingPhoto || '',
+    meetingPhotoUrl: row.meetingPhotoUrl || '',
+    /** 监理例会纪要预览地址（dataURL / blob） */
+    minutesFileUrl: row.minutesFileUrl || '',
     remark: row.remark || '',
     parseStatus: row.parseStatus || 'pending',
     parsedAt: row.parsedAt || '',
@@ -212,14 +217,14 @@ export function addSupervisionMeeting(record) {
 }
 
 export function saveSupervisionMeetingWithHazards(record, hazards = []) {
-  // 解析失败时即使已手动补录隐患，仍保留 failed，便于列表识别「自动解析未成功」
+  // 未召开跳过导入；有隐患则记为已导入，否则保留原状态
   const nextStatus =
-    record.parseStatus === 'failed'
-      ? 'failed'
-      : record.parseStatus === 'skipped'
-        ? 'skipped'
-        : hazards.length
-          ? 'success'
+    record.parseStatus === 'skipped'
+      ? 'skipped'
+      : hazards.length
+        ? 'success'
+        : record.parseStatus === 'failed'
+          ? 'failed'
           : record.parseStatus || 'pending'
   const meeting = saveSupervisionMeeting({
     ...record,
@@ -288,7 +293,7 @@ export function emptySupervisionHazard(row = {}) {
     meetingId: row.meetingId || '',
     projectId: row.projectId || '',
     projectName: row.projectName || '',
-    source: row.source || '监理解析',
+    source: row.source || '清单导入',
     hazardType: row.hazardType || 'safety',
     description: row.description || '',
     hazardLevel: row.hazardLevel || '一般',
@@ -330,7 +335,7 @@ export function replaceSupervisionHazardsForMeeting(meetingId, hazards, meeting 
         meetingId,
         projectId: meeting.projectId || item.projectId || '',
         projectName: meeting.projectName || item.projectName || '',
-        source: item.source || '监理解析',
+        source: item.source || '清单导入',
         remark: item.remark || '',
         rectifyStatus: item.rectifyStatus || SUPERVISION_HAZARD_RECTIFY_STATUS_DEFAULT,
         uploadTime: item.uploadTime || now,

@@ -111,7 +111,7 @@ const cocAdminItems = [
     path: '/coc-admin/dispatch-hazard',
     roles: ['COC调度室', '安质部', '项目经理', '施工'],
     description:
-      '保存 COC 调度大屏问题截图登记的安全隐患与质量隐患；施工方提交整改、安质部验收；指挥部只读查看。',
+      '汇集 COC 调度大屏问题截图登记的安全/质量隐患台账；整改与验收在个人中心待办处理；指挥部可查看全部项目。',
     component: DispatchHazardListView,
   },
 ]

@@ -1,8 +1,9 @@
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { FolderOpened } from '@element-plus/icons-vue'
+import { INSPECTION_CATEGORIES } from '../../config/inspectionManagement'
 import {
   projectOptions, activeProjects, userOptions,
   checkCategoryTree, getCategoryLabel, getItemLabel,
@@ -16,6 +17,7 @@ const pageTitle = computed(() => isEdit.value ? '编辑巡检计划' : '新增�
 
 const form = reactive({
   name: '',
+  inspectionCategory: '安全',
   type: '周检',
   projectIds: [],
   responsiblePerson: '',
@@ -34,8 +36,8 @@ const cycleLabel = computed(() => {
   return map[form.cycleType] || '周'
 })
 const pushDesc = computed(() => {
-  if (form.cycleType === 'once') return '有效期内执行 1 次巡检，任务默认推送至项目级巡检人'
-  return `每 ${form.cycleInterval} ${cycleLabel.value} 执行 ${form.cycleTimes} 次巡检，共生成 ${form.cycleTimes} 份检查单，默认推送至项目级巡检人`
+  if (form.cycleType === 'once') return '有效期内执行 1 次巡检，任务默认推送给监理，执行人生成任务后固定'
+  return `每 ${form.cycleInterval} ${cycleLabel.value} 执行 ${form.cycleTimes} 次巡检，共生成 ${form.cycleTimes} 份检查单，默认推送给监理`
 })
 
 function onTypeChange(val) {
@@ -52,13 +54,23 @@ const activeSelectingItems = computed(() => {
   if (!selTreeActive.value) return []
   return selecting[selTreeActive.value] || []
 })
+const categoryCheckTree = computed(() =>
+  checkCategoryTree.filter(category => category.inspectionCategory === form.inspectionCategory)
+)
+
+watch(() => form.inspectionCategory, () => {
+  form.checkConfig = []
+  displayTreeCat.value = ''
+  selTreeActive.value = ''
+  Object.keys(selecting).forEach(key => delete selecting[key])
+}, { flush: 'sync' })
 
 function openSelectDialog() {
   const keys = {}
   for (const c of form.checkConfig) keys[c.categoryId] = [...c.itemIds]
   Object.keys(selecting).forEach(k => delete selecting[k])
   for (const [catId, itemIds] of Object.entries(keys)) selecting[catId] = itemIds
-  selTreeActive.value = checkCategoryTree[0]?.id || ''
+  selTreeActive.value = categoryCheckTree.value[0]?.id || ''
   selectDialogVisible.value = true
 }
 
@@ -115,20 +127,13 @@ const displayItems = computed(() => {
 })
 const totalCheckItems = computed(() => form.checkConfig.reduce((s, c) => s + c.itemIds.length, 0))
 
-function removeConfig(index) {
-  if (index < 0) return
-  const removed = form.checkConfig.splice(index, 1)[0]
-  if (removed && displayTreeCat.value === removed.categoryId) {
-    displayTreeCat.value = form.checkConfig[0]?.categoryId || ''
-  }
-}
-
 // ===== 编辑加载 =====
 onMounted(() => {
   if (isEdit.value) {
     const plan = getPlanById(route.params.id)
     if (plan) {
       form.name = plan.name
+      form.inspectionCategory = plan.inspectionCategory || '安全'
       form.type = plan.type
       form.projectIds = [...plan.projectIds]
       form.responsiblePerson = plan.responsiblePerson
@@ -147,13 +152,14 @@ onMounted(() => {
 // ===== 保存 =====
 function handleSave() {
   if (!form.name.trim()) { ElMessage.warning('请输入计划名称'); return }
+  if (!form.inspectionCategory) { ElMessage.warning('请选择巡检分类'); return }
   if (form.projectIds.length === 0) { ElMessage.warning('请选择关联项目'); return }
   if (form.checkConfig.length === 0) { ElMessage.warning('请配置检查内容'); return }
   if (!form.effectiveDate) { ElMessage.warning('请选择生效日期'); return }
 
   const projLabels = form.projectIds.map(id => projectOptions.find(p => p.id === id)?.label || '').filter(Boolean)
   const payload = {
-    name: form.name.trim(), type: form.type,
+    name: form.name.trim(), inspectionCategory: form.inspectionCategory, type: form.type,
     projects: projLabels, projectIds: [...form.projectIds],
     checkConfig: form.checkConfig.map(c => ({ categoryId: c.categoryId, itemIds: [...c.itemIds] })),
     responsiblePerson: form.responsiblePerson, ccPersons: [...form.ccPersons],
@@ -161,7 +167,7 @@ function handleSave() {
     effectiveDate: form.effectiveDate, remark: form.remark.trim(),
   }
   if (isEdit.value) { updatePlan(route.params.id, payload); ElMessage.success('计划已更新') }
-  else { addPlan(payload); ElMessage.success('计划已创建，规则生效后将自动推送检查单给项目巡检人') }
+  else { addPlan(payload); ElMessage.success('计划已创建，规则生效后将自动推送检查单给监理') }
   router.push('/safety-inspection/plan')
 }
 function handleCancel() { router.push('/safety-inspection/plan') }
@@ -179,7 +185,14 @@ function handleCancel() { router.push('/safety-inspection/plan') }
       <!-- ===== 基本信息 ===== -->
       <h4 class="form-section-title">基本信息</h4>
       <el-form-item label="计划名称" required>
-        <el-input v-model="form.name" placeholder="如：7月第三周安全巡检" maxlength="50" />
+        <el-input v-model="form.name" placeholder="如：7月第三周巡检计划" maxlength="50" />
+      </el-form-item>
+      <el-form-item label="巡检分类" required>
+        <el-radio-group v-model="form.inspectionCategory">
+          <el-radio v-for="category in INSPECTION_CATEGORIES" :key="category" :value="category" border>
+            {{ category }}
+          </el-radio>
+        </el-radio-group>
       </el-form-item>
       <el-form-item label="计划类型" required>
         <el-radio-group v-model="form.type" @change="onTypeChange">
@@ -210,7 +223,7 @@ function handleCancel() { router.push('/safety-inspection/plan') }
           <el-input-number v-model="form.cycleTimes" :min="1" :max="30" size="default" controls-position="right" style="width: 90px" :disabled="form.cycleType==='once'" />
           <span class="push-label">次巡检</span>
         </div>
-        <div class="form-tip">{{ pushDesc }}</div>
+        <div class="form-tip rule-tip">{{ pushDesc }}</div>
       </el-form-item>
       <el-form-item label="抄送人">
         <el-select v-model="form.ccPersons" multiple placeholder="可选，多人" style="width: 100%">
@@ -277,7 +290,7 @@ function handleCancel() { router.push('/safety-inspection/plan') }
           <div class="sel-left-title">检查分类</div>
           <div class="sel-left-list">
             <div
-              v-for="cat in checkCategoryTree"
+              v-for="cat in categoryCheckTree"
               :key="cat.id"
               class="sel-left-cat"
               :class="{ active: selTreeActive === cat.id }"
@@ -297,11 +310,11 @@ function handleCancel() { router.push('/safety-inspection/plan') }
         </div>
         <div class="sel-dialog-right">
           <div class="sel-right-title">
-            {{ selTreeActive ? (checkCategoryTree.find(c=>c.id===selTreeActive)?.label || '') + ' 检查项' : '请选择分类' }}
+            {{ selTreeActive ? (categoryCheckTree.find(c=>c.id===selTreeActive)?.label || '') + ' 检查项' : '请选择分类' }}
           </div>
           <div v-if="selTreeActive" class="sel-right-list">
             <div
-              v-for="item in (checkCategoryTree.find(c=>c.id===selTreeActive)?.items || [])"
+              v-for="item in (categoryCheckTree.find(c=>c.id===selTreeActive)?.items || [])"
               :key="item.id"
               class="sel-right-item"
             >
@@ -312,7 +325,7 @@ function handleCancel() { router.push('/safety-inspection/plan') }
                 {{ item.label }}
               </el-checkbox>
             </div>
-            <div v-if="!(checkCategoryTree.find(c=>c.id===selTreeActive)?.items?.length)" class="sel-right-empty">该分类下暂无检查项</div>
+            <div v-if="!(categoryCheckTree.find(c=>c.id===selTreeActive)?.items?.length)" class="sel-right-empty">该分类下暂无检查项</div>
           </div>
           <div v-else class="sel-right-placeholder">
             <el-icon :size="40" color="#d9d9d9"><FolderOpened /></el-icon>
@@ -335,6 +348,7 @@ function handleCancel() { router.push('/safety-inspection/plan') }
 .plan-form { padding: 8px 0; }
 .type-radio { padding: 8px 18px; border-radius: 6px; }
 .form-tip { font-size: 11px; color: var(--ap-text-muted); margin-top: 4px; }
+.rule-tip { margin-top:14px; }
 .date-sep { display: block; text-align: center; font-size: 12px; color: var(--ap-text-muted); padding: 4px 0; }
 .form-actions { display: flex; justify-content: flex-end; gap: 12px; padding-bottom: 24px; }
 

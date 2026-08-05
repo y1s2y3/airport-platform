@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { ElMessage } from 'element-plus'
-import { Plus, Edit, View, Upload, Download, Delete } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Plus, Edit, View, Upload, Download } from '@element-plus/icons-vue'
 import { buildProjects } from '../../coc/mock/data.js'
 import { useCurrentProject } from '../../composables/useCurrentProject.js'
 import {
@@ -11,12 +11,13 @@ import {
   getSupervisionHazardsByMeeting,
 } from '../../utils/cocAdminDeviceStorage.js'
 import {
-  parseSupervisionMeetingMinutes,
   isSupervisionWordFileName,
   isSupervisionMinutesFileName,
-  isSupervisionPdfFileName,
 } from '../../utils/supervisionMeetingParser.js'
-import { downloadWeeklyHazardListTemplate } from '../../utils/supervisionMeetingTemplate.js'
+import {
+  downloadWeeklyHazardListTemplate,
+  importWeeklyHazardListFromFile,
+} from '../../utils/supervisionMeetingTemplate.js'
 import SupervisionHazardListPanel from './SupervisionHazardListPanel.vue'
 
 defineProps({
@@ -33,42 +34,110 @@ const formVisible = ref(false)
 const detailVisible = ref(false)
 const form = ref(emptySupervisionMeeting())
 const current = ref(null)
-const parsedHazards = ref([])
-const parsing = ref(false)
-const parseError = ref('')
+const importedHazards = ref([])
+const importing = ref(false)
 const hazardPanelRef = ref(null)
-const detailHazards = ref([])
-const hazardLevels = ['一般', '较大', '重大']
 
-const showHazardEditor = computed(
-  () =>
-    form.value.parseStatus === 'success' ||
-    form.value.parseStatus === 'failed' ||
-    parsedHazards.value.length > 0 ||
-    (Boolean(form.value.minutesFile) && isSupervisionPdfFileName(form.value.minutesFile)),
-)
+const previewVisible = ref(false)
+const previewTitle = ref('')
+const previewUrl = ref('')
+const previewKind = ref('other') // image | pdf | other
 
-function createManualHazard(overrides = {}) {
-  return {
-    hazardType: 'safety',
-    description: '',
-    hazardLevel: '一般',
-    remark: '',
-    rectifier: '',
-    hazardDeadline: '',
-    acceptor: '',
-    source: '人工登记',
-    rectifyStatus: '待整改',
-    ...overrides,
+const IMAGE_EXT_RE = /\.(jpe?g|png|gif|webp|bmp|svg)(\?|$)/i
+const PDF_EXT_RE = /\.pdf(\?|$)/i
+
+function attachmentName(nameOrObj) {
+  if (!nameOrObj) return ''
+  if (typeof nameOrObj === 'object') return String(nameOrObj.name || '').trim()
+  return String(nameOrObj || '').trim()
+}
+
+function attachmentUrl(record, nameField, urlField) {
+  if (!record) return ''
+  const direct = String(record[urlField] || '').trim()
+  if (direct) return direct
+  const value = record[nameField]
+  if (value && typeof value === 'object') return String(value.url || '').trim()
+  return ''
+}
+
+function detectPreviewKind(fileName = '', url = '') {
+  const name = String(fileName || '')
+  const src = String(url || '')
+  if (src.startsWith('data:text/html')) return 'html'
+  if (IMAGE_EXT_RE.test(name) || src.startsWith('data:image/') || IMAGE_EXT_RE.test(src)) return 'image'
+  if (PDF_EXT_RE.test(name) || src.startsWith('data:application/pdf') || PDF_EXT_RE.test(src)) return 'pdf'
+  return 'other'
+}
+
+function readFileAsPreviewUrl(file, maxMb = 12) {
+  return new Promise((resolve, reject) => {
+    if (!file) {
+      reject(new Error('empty file'))
+      return
+    }
+    if (file.size > maxMb * 1024 * 1024) {
+      resolve(URL.createObjectURL(file))
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result || ''))
+    reader.onerror = () => reject(reader.error || new Error('read failed'))
+    reader.readAsDataURL(file)
+  })
+}
+
+function openAttachmentPreview(fileName, url) {
+  const name = attachmentName(fileName)
+  if (!name) return
+  const src = String(url || '').trim()
+  if (!src) {
+    ElMessage.warning('当前附件暂无预览内容（历史数据仅保留文件名），请重新上传后可预览')
+    return
   }
+  previewTitle.value = name
+  previewUrl.value = src
+  previewKind.value = detectPreviewKind(name, src)
+  if (previewKind.value === 'other') {
+    // Office / xlsx：新窗口打开或触发下载
+    const link = document.createElement('a')
+    link.href = src
+    link.target = '_blank'
+    link.rel = 'noopener'
+    link.download = name
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    ElMessage.success('已打开附件，可在新窗口查看或下载')
+    return
+  }
+  previewVisible.value = true
 }
 
-function addManualHazard() {
-  parsedHazards.value = [...parsedHazards.value, createManualHazard()]
+function previewMinutes(record) {
+  const name = attachmentName(record?.minutesFile || record?.minutesWord || record?.minutesPdf)
+  openAttachmentPreview(name, attachmentUrl(record, 'minutesFile', 'minutesFileUrl'))
 }
 
-function removeParsedHazard(index) {
-  parsedHazards.value = parsedHazards.value.filter((_, i) => i !== index)
+function previewWeeklyList(record) {
+  openAttachmentPreview(
+    attachmentName(record?.weeklyHazardList),
+    attachmentUrl(record, 'weeklyHazardList', 'weeklyHazardListUrl'),
+  )
+}
+
+function previewSignInPhoto(record) {
+  openAttachmentPreview(
+    attachmentName(record?.signInPhoto),
+    attachmentUrl(record, 'signInPhoto', 'signInPhotoUrl'),
+  )
+}
+
+function previewMeetingPhoto(record) {
+  openAttachmentPreview(
+    attachmentName(record?.meetingPhoto),
+    attachmentUrl(record, 'meetingPhoto', 'meetingPhotoUrl'),
+  )
 }
 
 const projectOptions = buildProjects().map((p) => ({
@@ -94,7 +163,7 @@ const filtered = computed(() => {
       row.pmAttendees,
       row.directorAttendees,
       row.remark,
-      parseStatusLabel(row.parseStatus),
+      importStatusLabel(row.parseStatus),
     ].some((f) => String(f || '').includes(q)),
   )
 })
@@ -122,21 +191,18 @@ function openCreate() {
     projectDept: resolveProjectDept(projectName),
     parseStatus: 'pending',
   })
-  parsedHazards.value = []
-  parseError.value = ''
+  importedHazards.value = []
   formVisible.value = true
 }
 
 function openEdit(row) {
   form.value = emptySupervisionMeeting(row)
-  parsedHazards.value = getSupervisionHazardsByMeeting(row.id)
-  parseError.value = row.parseStatus === 'failed' ? '上次保存为解析失败状态，可重新上传或继续编辑隐患清单' : ''
+  importedHazards.value = getSupervisionHazardsByMeeting(row.id)
   formVisible.value = true
 }
 
 function openDetail(row) {
   current.value = row
-  detailHazards.value = getSupervisionHazardsByMeeting(row.id)
   detailVisible.value = true
 }
 
@@ -145,19 +211,31 @@ function isNotHeld(record) {
 }
 
 function assignUploadFile(field, uploadFile) {
-  form.value[field] = uploadFile.name || ''
+  const file = uploadFile?.raw || uploadFile
+  const fileName = file?.name || uploadFile?.name || ''
+  if (!fileName) return false
+  form.value[field] = fileName
+  const urlField = `${field}Url`
+  readFileAsPreviewUrl(file)
+    .then((url) => {
+      form.value[urlField] = url
+    })
+    .catch(() => {
+      form.value[urlField] = ''
+      ElMessage.warning('附件已上传，但预览生成失败')
+    })
   return false
 }
 
 function handleMinutesUpload(uploadFile) {
-  const fileName = uploadFile.name || ''
+  const file = uploadFile?.raw || uploadFile
+  const fileName = file?.name || uploadFile?.name || ''
   if (!isSupervisionMinutesFileName(fileName)) {
     ElMessage.error('监理例会纪要仅支持 .doc / .docx / .pdf，请重新选择文件')
     return false
   }
 
   form.value.minutesFile = fileName
-  // 兼容旧字段：Word 写入 minutesWord，PDF 写入 minutesPdf
   if (isSupervisionWordFileName(fileName)) {
     form.value.minutesWord = fileName
     form.value.minutesPdf = ''
@@ -166,68 +244,111 @@ function handleMinutesUpload(uploadFile) {
     form.value.minutesWord = ''
   }
 
-  if (isNotHeld(form.value)) return false
-
-  if (isSupervisionPdfFileName(fileName)) {
-    parsing.value = false
-    parseError.value = ''
-    form.value.parseStatus = 'pending'
-    form.value.parsedAt = ''
-    parsedHazards.value = []
-    ElMessage.success('已上传 PDF 纪要。演示环境暂不对 PDF 自动解析，可手动补录隐患。')
-    return false
-  }
-
-  parsing.value = true
-  parseError.value = ''
-  form.value.parseStatus = 'parsing'
-  parsedHazards.value = []
-
-  window.setTimeout(() => {
-    const result = parseSupervisionMeetingMinutes(
-      form.value.minutesFile,
-      form.value.projectName || scopeProjectName.value,
-    )
-    form.value.pmAttendees = result.pmAttendees
-    form.value.directorAttendees = result.directorAttendees
-    form.value.parseStatus = result.parseStatus
-    form.value.parsedAt = result.parsedAt
-    parsedHazards.value = result.hazards || []
-    parseError.value = result.parseError || ''
-    parsing.value = false
-
-    if (result.parseStatus === 'failed') {
-      ElMessage.error(result.parseError || '文档解析失败，请重新上传或手动录入隐患清单')
-    } else {
-      ElMessage.success(result.summary || '附件解析完成')
-    }
-  }, 600)
-
+  readFileAsPreviewUrl(file)
+    .then((url) => {
+      form.value.minutesFileUrl = url
+      ElMessage.success('纪要已上传，可点击「预览」查看')
+    })
+    .catch(() => {
+      form.value.minutesFileUrl = ''
+      ElMessage.success('纪要已上传（暂无法生成预览，仍可保存）')
+    })
   return false
 }
 
-function handleWeeklyHazardUpload(uploadFile) {
-  const fileName = uploadFile.name || ''
+async function handleWeeklyHazardUpload(uploadFile) {
+  const file = uploadFile?.raw || uploadFile
+  const fileName = file?.name || uploadFile?.name || ''
   if (!/\.xlsx$/i.test(fileName)) {
-    ElMessage.error('本周隐患清单仅支持 .xlsx 格式')
+    ElMessage.error('隐患清单仅支持 Excel（.xlsx），请按模板另存后上传')
     return false
   }
-  form.value.weeklyHazardList = fileName
+
+  importing.value = true
+  form.value.parseStatus = 'parsing'
+
+  try {
+    const result = await importWeeklyHazardListFromFile(file)
+    if (!result.ok) {
+      form.value.weeklyHazardList = ''
+      form.value.weeklyHazardListUrl = ''
+      form.value.parseStatus = 'failed'
+      form.value.parsedAt = ''
+      importedHazards.value = []
+      showImportFormatErrors(result)
+      return false
+    }
+
+    form.value.weeklyHazardList = fileName
+    form.value.parseStatus = 'success'
+    form.value.parsedAt = new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-')
+    importedHazards.value = result.hazards || []
+    try {
+      form.value.weeklyHazardListUrl = await readFileAsPreviewUrl(file)
+    } catch {
+      form.value.weeklyHazardListUrl = ''
+    }
+    ElMessage.success(
+      result.summary || `清单解析成功，已导入 ${importedHazards.value.length} 条隐患`,
+    )
+  } catch {
+    form.value.weeklyHazardList = ''
+    form.value.weeklyHazardListUrl = ''
+    form.value.parseStatus = 'failed'
+    importedHazards.value = []
+    ElMessageBox.alert('清单解析失败，请确认文件未损坏且为模板格式后重试。', '解析失败', {
+      type: 'error',
+    })
+  } finally {
+    importing.value = false
+  }
+
   return false
 }
 
-function parseStatusLabel(status) {
+function showImportFormatErrors(result) {
+  const details = Array.isArray(result?.errors) ? result.errors.filter(Boolean) : []
+  const summary = result?.error || '清单格式不符合模板要求'
+  const escapeText = (text) =>
+    String(text)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+  if (!details.length) {
+    ElMessageBox.alert(summary, '解析失败', { type: 'error', confirmButtonText: '知道了' })
+    return
+  }
+  const listHtml = details
+    .map((item) => `<li style="margin:4px 0;line-height:1.5">${escapeText(item)}</li>`)
+    .join('')
+  ElMessageBox.alert(
+    `<div style="max-height:320px;overflow:auto">
+      <p style="margin:0 0 10px;color:#606266">${escapeText(summary)}。请按模板修正后重新上传，问题明细如下（共 ${details.length} 项）：</p>
+      <ol style="margin:0;padding-left:20px;color:#303133">${listHtml}</ol>
+    </div>`,
+    '解析失败',
+    {
+      type: 'error',
+      dangerouslyUseHTMLString: true,
+      confirmButtonText: '知道了',
+      customClass: 'import-format-error-box',
+    },
+  )
+}
+
+function importStatusLabel(status) {
   const map = {
     success: '已解析',
-    pending: '待解析',
+    pending: '待上传',
     parsing: '解析中',
-    skipped: '未解析',
+    skipped: '未召开',
     failed: '解析失败',
   }
   return map[status] || status || '—'
 }
 
-function parseStatusTag(status) {
+function importStatusTag(status) {
   const map = {
     success: 'success',
     pending: 'info',
@@ -236,10 +357,6 @@ function parseStatusTag(status) {
     failed: 'danger',
   }
   return map[status] || 'info'
-}
-
-function hazardTypeLabel(type) {
-  return type === 'quality' ? '质量' : '安全'
 }
 
 function validateForm() {
@@ -275,27 +392,12 @@ function validateForm() {
     ElMessage.error('本周隐患清单仅支持 .xlsx 格式')
     return false
   }
-  if (form.value.parseStatus === 'parsing') {
-    ElMessage.warning('附件正在解析，请稍候')
+  if (importing.value || form.value.parseStatus === 'parsing') {
+    ElMessage.warning('清单正在导入，请稍候')
     return false
   }
-  if (isSupervisionPdfFileName(form.value.minutesFile)) {
-    return true
-  }
-  if (form.value.parseStatus === 'failed') {
-    if (!parsedHazards.value.length) {
-      ElMessage.warning('文档解析失败：请重新上传符合模版的 Word，或点击「手动新增隐患」补录后再保存')
-      return false
-    }
-    const incomplete = parsedHazards.value.some((h) => !String(h.description || '').trim())
-    if (incomplete) {
-      ElMessage.warning('请完善手动录入的隐患描述')
-      return false
-    }
-    return true
-  }
-  if (form.value.parseStatus !== 'success' && !parsedHazards.value.length) {
-    ElMessage.warning('请等待系统完成附件解析，或解析失败后手动录入隐患')
+  if (!importedHazards.value.length) {
+    ElMessage.warning('请上传并通过解析校验的本周隐患清单后再保存')
     return false
   }
   return true
@@ -309,25 +411,23 @@ function submitForm() {
     ...form.value,
     projectId: form.value.projectId || resolveProjectId(form.value.projectName),
     projectDept: form.value.projectDept || resolveProjectDept(form.value.projectName),
-    parseStatus: notHeld ? 'skipped' : form.value.parseStatus || 'success',
-    hazardCount: notHeld ? 0 : parsedHazards.value.length,
+    parseStatus: notHeld ? 'skipped' : importedHazards.value.length ? 'success' : form.value.parseStatus || 'pending',
+    hazardCount: notHeld ? 0 : importedHazards.value.length,
   }
 
-  saveSupervisionMeetingWithHazards(payload, notHeld ? [] : parsedHazards.value)
+  saveSupervisionMeetingWithHazards(payload, notHeld ? [] : importedHazards.value)
   load()
   formVisible.value = false
   ElMessage.success(
     notHeld
       ? '监理会议记录已保存'
-      : form.value.parseStatus === 'failed'
-        ? `会议已保存（解析失败，已保留手动录入 ${parsedHazards.value.length} 条隐患）`
-        : `会议记录已保存，共 ${parsedHazards.value.length} 条隐患`,
+      : `会议记录已保存，共导入 ${importedHazards.value.length} 条隐患`,
   )
 }
 
 function handleDownloadTemplate() {
   downloadWeeklyHazardListTemplate()
-  ElMessage.success('清单模板已下载，按模板填报后上传本周隐患清单')
+  ElMessage.success('清单模板已下载，填报完成后请上传 .xlsx 清单')
 }
 
 watch(selectedProjectId, () => {
@@ -347,12 +447,12 @@ onMounted(load)
     <div class="panel-body page-body">
       <p v-if="description" class="page-desc">{{ description }}</p>
       <p v-if="!isHqSelected" class="page-scope">当前项目：{{ headerProjectLabel }}</p>
-      <p v-else class="page-scope">查看全部项目的监理会议记录及系统解析的隐患清单</p>
+      <p v-else class="page-scope">查看全部项目的监理会议记录及隐患清单</p>
 
       <el-tabs v-model="activeTab" class="supervision-tabs">
         <el-tab-pane label="会议记录" name="meeting">
           <div class="tab-toolbar">
-            <el-input v-model="keyword" placeholder="搜索项目、参会人员、解析状态…" clearable class="search-input" />
+            <el-input v-model="keyword" placeholder="搜索项目、参会人员、导入状态…" clearable class="search-input" />
             <el-button v-if="!isHqSelected" :icon="Download" @click="handleDownloadTemplate">清单模板</el-button>
             <el-button v-if="!isHqSelected" type="primary" :icon="Plus" @click="openCreate">登记会议</el-button>
           </div>
@@ -363,14 +463,13 @@ onMounted(load)
             <el-table-column prop="meetingDate" label="召开日期" width="112" />
             <el-table-column prop="pmAttendees" label="项目经理/负责人参会" min-width="150" show-overflow-tooltip />
             <el-table-column prop="directorAttendees" label="项目部长/副部长参会" min-width="140" show-overflow-tooltip />
-            <el-table-column label="解析状态" width="96" align="center">
+            <el-table-column label="导入状态" width="96" align="center">
               <template #default="{ row }">
-                <el-tag :type="parseStatusTag(row.parseStatus)" size="small">
-                  {{ parseStatusLabel(row.parseStatus) }}
+                <el-tag :type="importStatusTag(row.parseStatus)" size="small">
+                  {{ importStatusLabel(row.parseStatus) }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="hazardCount" label="隐患条数" width="88" align="center" />
             <el-table-column label="例会纪要" width="88" align="center">
               <template #default="{ row }">
                 <el-tag v-if="row.minutesFile || row.minutesWord || row.minutesPdf" type="success" size="small">已上传</el-tag>
@@ -392,7 +491,9 @@ onMounted(load)
           <SupervisionHazardListPanel
             ref="hazardPanelRef"
             :allow-close="isHqSelected"
+            :allow-create="!isHqSelected"
             :project-name="scopeProjectName"
+            :project-id="isHqSelected ? '' : selectedProjectId"
           />
         </el-tab-pane>
       </el-tabs>
@@ -420,13 +521,13 @@ onMounted(load)
         <el-form-item label="项目经理/负责人参会">
           <el-input
             v-model="form.pmAttendees"
-            placeholder="请填写参会的项目经理/负责人；上传纪要后可自动带出并修正"
+            placeholder="请填写参会的项目经理/负责人"
           />
         </el-form-item>
         <el-form-item label="项目部长/副部长参会">
           <el-input
             v-model="form.directorAttendees"
-            placeholder="请填写参会的项目部长/副部长；上传纪要后可自动带出并修正"
+            placeholder="请填写参会的项目部长/副部长"
           />
         </el-form-item>
 
@@ -438,37 +539,27 @@ onMounted(load)
               accept=".doc,.docx,.pdf"
               :before-upload="handleMinutesUpload"
             >
-              <el-button :icon="Upload" :loading="parsing">上传附件</el-button>
+              <el-button :icon="Upload">上传纪要</el-button>
             </el-upload>
-            <span class="file-name">{{ form.minutesFile || '未选择文件' }}</span>
-            <el-tag v-if="form.parseStatus === 'success'" type="success" size="small">已解析</el-tag>
-            <el-tag v-else-if="form.parseStatus === 'failed'" type="danger" size="small">解析失败</el-tag>
-            <el-tag v-else-if="parsing || form.parseStatus === 'parsing'" type="warning" size="small">解析中</el-tag>
-            <el-tag
-              v-else-if="form.minutesFile && isSupervisionPdfFileName(form.minutesFile)"
-              type="info"
-              size="small"
+            <span class="file-name">{{ form.minutesFile || '未上传' }}</span>
+            <el-button
+              v-if="form.minutesFile"
+              link
+              type="primary"
+              @click="previewMinutes(form)"
             >
-              PDF 已上传
-            </el-tag>
+              预览
+            </el-button>
           </div>
+          <p class="form-tip">支持 Word（.doc / .docx）或 PDF，上传后可预览；本页不自动解析纪要正文。</p>
         </el-form-item>
-        <el-alert
-          v-if="form.parseStatus === 'failed'"
-          type="error"
-          :closable="false"
-          show-icon
-          class="parse-fail-alert"
-          :title="parseError || '文档解析失败'"
-          description="可重新上传符合模版的 .doc/.docx，或点击下方「手动新增隐患」补录后保存。"
-        />
 
         <el-form-item label="本周隐患清单" required>
           <div class="weekly-hazard-field">
             <p class="form-tip form-tip--inline">
-              请先
+              流程：
               <el-button link type="primary" @click="handleDownloadTemplate">下载清单模板</el-button>
-              ，按模板填报后上传（仅支持 .xlsx）。隐患类型、隐患描述、隐患等级为必填；类型选安全/质量，等级选一般/较大/重大。
+              → 按模板填报 → 上传 .xlsx。系统校验格式并导入隐患；必填列为隐患类型（安全/质量）、隐患描述、隐患等级（一般/较大/重大）。
             </p>
             <div class="upload-row">
               <el-upload
@@ -476,69 +567,25 @@ onMounted(load)
                 accept=".xlsx"
                 :before-upload="handleWeeklyHazardUpload"
               >
-                <el-button :icon="Upload">上传附件</el-button>
+                <el-button :icon="Upload" :loading="importing">上传清单</el-button>
               </el-upload>
-              <span class="file-name">{{ form.weeklyHazardList || '未选择文件' }}</span>
+              <span class="file-name">{{ form.weeklyHazardList || '未上传' }}</span>
+              <el-button
+                v-if="form.weeklyHazardList"
+                link
+                type="primary"
+                @click="previewWeeklyList(form)"
+              >
+                预览
+              </el-button>
+              <el-tag v-if="form.parseStatus === 'success' && importedHazards.length" type="success" size="small">
+                已解析导入 {{ importedHazards.length }} 条
+              </el-tag>
+              <el-tag v-else-if="form.parseStatus === 'failed'" type="danger" size="small">解析失败</el-tag>
+              <el-tag v-else-if="importing || form.parseStatus === 'parsing'" type="warning" size="small">解析中…</el-tag>
             </div>
           </div>
         </el-form-item>
-
-        <template v-if="showHazardEditor">
-          <el-divider content-position="left">
-            {{ form.parseStatus === 'failed' ? '隐患清单（手动补录 / 修正）' : '系统解析结果（可修正）' }}
-          </el-divider>
-          <el-form-item label="隐患清单">
-            <div class="hazard-editor">
-              <div class="hazard-editor-toolbar">
-                <el-button type="primary" link :icon="Plus" @click="addManualHazard">手动新增隐患</el-button>
-                <span class="hazard-editor-tip">
-                  解析/补录隐患默认「待整改」；保存后可在「监理隐患清单」中确认关闭
-                </span>
-              </div>
-              <el-table :data="parsedHazards" size="small" border empty-text="暂无隐患，可手动新增">
-                <el-table-column type="index" label="#" width="48" />
-                <el-table-column label="类型" width="100">
-                  <template #default="{ row }">
-                    <el-select v-model="row.hazardType" size="small">
-                      <el-option label="安全" value="safety" />
-                      <el-option label="质量" value="quality" />
-                    </el-select>
-                  </template>
-                </el-table-column>
-                <el-table-column label="隐患描述" min-width="180">
-                  <template #default="{ row }">
-                    <el-input v-model="row.description" size="small" placeholder="隐患描述" />
-                  </template>
-                </el-table-column>
-                <el-table-column label="等级" width="100">
-                  <template #default="{ row }">
-                    <el-select v-model="row.hazardLevel" size="small">
-                      <el-option v-for="lv in hazardLevels" :key="lv" :label="lv" :value="lv" />
-                    </el-select>
-                  </template>
-                </el-table-column>
-                <el-table-column label="备注" min-width="120">
-                  <template #default="{ row }">
-                    <el-input v-model="row.remark" size="small" placeholder="选填" />
-                  </template>
-                </el-table-column>
-                <el-table-column label="状态" width="88" align="center">
-                  <template #default="{ row }">
-                    <el-tag size="small" type="warning">{{ row.rectifyStatus || '待整改' }}</el-tag>
-                  </template>
-                </el-table-column>
-                <el-table-column label="来源" width="88">
-                  <template #default="{ row }">{{ row.source === '人工登记' ? '人工登记' : '监理解析' }}</template>
-                </el-table-column>
-                <el-table-column label="操作" width="72" fixed="right">
-                  <template #default="{ $index }">
-                    <el-button link type="danger" :icon="Delete" @click="removeParsedHazard($index)" />
-                  </template>
-                </el-table-column>
-              </el-table>
-            </div>
-          </el-form-item>
-        </template>
 
         <el-divider content-position="left">影像资料（可选）</el-divider>
         <el-form-item label="签到表照片">
@@ -547,6 +594,14 @@ onMounted(load)
               <el-button :icon="Upload">上传照片</el-button>
             </el-upload>
             <span class="file-name">{{ form.signInPhoto || '未选择文件' }}</span>
+            <el-button
+              v-if="form.signInPhoto"
+              link
+              type="primary"
+              @click="previewSignInPhoto(form)"
+            >
+              预览
+            </el-button>
           </div>
         </el-form-item>
         <el-form-item label="会议照片">
@@ -555,6 +610,14 @@ onMounted(load)
               <el-button :icon="Upload">上传照片</el-button>
             </el-upload>
             <span class="file-name">{{ form.meetingPhoto || '未选择文件' }}</span>
+            <el-button
+              v-if="form.meetingPhoto"
+              link
+              type="primary"
+              @click="previewMeetingPhoto(form)"
+            >
+              预览
+            </el-button>
           </div>
         </el-form-item>
 
@@ -563,55 +626,96 @@ onMounted(load)
             v-model="form.remark"
             type="textarea"
             :rows="3"
-            placeholder="如未召开，须注明原因（如：因暴雨未召开）"
+            placeholder="请输入"
           />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="formVisible = false">取消</el-button>
-        <el-button type="primary" :loading="parsing" @click="submitForm">保存</el-button>
+        <el-button type="primary" :loading="importing" @click="submitForm">保存</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="detailVisible" title="监理会议详情" width="760px">
+    <el-dialog v-model="detailVisible" title="监理会议详情" width="640px" destroy-on-close>
       <template v-if="current">
         <el-descriptions :column="1" border>
-          <el-descriptions-item label="项目名称">{{ current.projectName }}</el-descriptions-item>
-          <el-descriptions-item label="项目部">{{ current.projectDept || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="召开日期">{{ current.meetingDate }}</el-descriptions-item>
+          <el-descriptions-item label="项目名称">{{ current.projectName || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="召开日期">{{ current.meetingDate || '—' }}</el-descriptions-item>
           <el-descriptions-item label="项目经理/负责人参会">{{ current.pmAttendees || '—' }}</el-descriptions-item>
           <el-descriptions-item label="项目部长/副部长参会">{{ current.directorAttendees || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="解析状态">{{ parseStatusLabel(current.parseStatus) }}</el-descriptions-item>
-          <el-descriptions-item label="解析时间">{{ current.parsedAt || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="隐患条数">{{ current.hazardCount ?? 0 }}</el-descriptions-item>
           <el-descriptions-item label="监理例会纪要">
-            {{ current.minutesFile || current.minutesWord || current.minutesPdf || '—' }}
+            <button
+              v-if="current.minutesFile || current.minutesWord || current.minutesPdf"
+              type="button"
+              class="attach-link"
+              @click="previewMinutes(current)"
+            >
+              {{ current.minutesFile || current.minutesWord || current.minutesPdf }}
+            </button>
+            <span v-else>—</span>
           </el-descriptions-item>
-          <el-descriptions-item label="本周隐患清单">{{ current.weeklyHazardList || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="签到表照片">{{ current.signInPhoto || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="会议照片">{{ current.meetingPhoto || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="本周隐患清单">
+            <button
+              v-if="current.weeklyHazardList"
+              type="button"
+              class="attach-link"
+              @click="previewWeeklyList(current)"
+            >
+              {{ current.weeklyHazardList }}
+            </button>
+            <span v-else>—</span>
+          </el-descriptions-item>
+          <el-descriptions-item label="签到表照片">
+            <button
+              v-if="current.signInPhoto"
+              type="button"
+              class="attach-link"
+              @click="previewSignInPhoto(current)"
+            >
+              {{ current.signInPhoto }}
+            </button>
+            <span v-else>—</span>
+          </el-descriptions-item>
+          <el-descriptions-item label="会议照片">
+            <button
+              v-if="current.meetingPhoto"
+              type="button"
+              class="attach-link"
+              @click="previewMeetingPhoto(current)"
+            >
+              {{ current.meetingPhoto }}
+            </button>
+            <span v-else>—</span>
+          </el-descriptions-item>
           <el-descriptions-item label="备注">{{ current.remark || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="登记时间">{{ current.uploadTime }}</el-descriptions-item>
         </el-descriptions>
-
-        <div v-if="detailHazards.length" class="detail-hazards">
-          <h4>解析隐患清单</h4>
-          <el-table :data="detailHazards" size="small" border>
-            <el-table-column type="index" label="#" width="48" />
-            <el-table-column label="类型" width="72">
-              <template #default="{ row }">{{ hazardTypeLabel(row.hazardType) }}</template>
-            </el-table-column>
-            <el-table-column prop="description" label="隐患描述" min-width="180" show-overflow-tooltip />
-            <el-table-column prop="hazardLevel" label="等级" width="72" />
-            <el-table-column label="备注" min-width="100" show-overflow-tooltip>
-              <template #default="{ row }">{{ row.remark || '—' }}</template>
-            </el-table-column>
-            <el-table-column label="整改状态" width="88">
-              <template #default="{ row }">{{ row.rectifyStatus || '待整改' }}</template>
-            </el-table-column>
-          </el-table>
-        </div>
       </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="previewVisible"
+      :title="previewTitle || '附件预览'"
+      width="860px"
+      destroy-on-close
+      append-to-body
+      class="attachment-preview-dialog"
+    >
+      <div class="preview-body">
+        <el-image
+          v-if="previewKind === 'image'"
+          :src="previewUrl"
+          fit="contain"
+          class="preview-image"
+          :preview-src-list="[previewUrl]"
+          preview-teleported
+        />
+        <iframe
+          v-else-if="previewKind === 'pdf' || previewKind === 'html'"
+          class="preview-pdf"
+          :src="previewUrl"
+          title="附件预览"
+        />
+      </div>
     </el-dialog>
   </div>
 </template>
@@ -680,28 +784,6 @@ onMounted(load)
   width: 100%;
 }
 
-.parse-fail-alert {
-  margin: 0 0 16px 220px;
-  max-width: 520px;
-}
-
-.hazard-editor {
-  width: 100%;
-}
-
-.hazard-editor-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 8px;
-  flex-wrap: wrap;
-}
-
-.hazard-editor-tip {
-  font-size: 12px;
-  color: #909399;
-}
-
 .upload-row {
   display: flex;
   align-items: center;
@@ -715,14 +797,43 @@ onMounted(load)
   word-break: break-all;
 }
 
-.detail-hazards {
-  margin-top: 20px;
+.attach-link {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  color: #91003d;
+  cursor: pointer;
+  text-align: left;
+  word-break: break-all;
+  line-height: 1.6;
+  text-decoration: underline;
 }
 
-.detail-hazards h4 {
-  margin: 0 0 12px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #303133;
+.attach-link:hover {
+  opacity: 0.85;
+}
+
+.preview-body {
+  min-height: 360px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f7fa;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.preview-image {
+  width: 100%;
+  max-height: 70vh;
+}
+
+.preview-pdf {
+  width: 100%;
+  height: 70vh;
+  border: 0;
+  background: #fff;
 }
 </style>

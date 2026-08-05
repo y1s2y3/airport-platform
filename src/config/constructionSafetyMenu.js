@@ -1,12 +1,13 @@
 /**
- * 安全巡检（Web）菜单与路由元数据
+ * 巡检管理（Web）菜单与路由元数据
  * 页面组件由 router 懒加载，本文件只描述菜单/路由信息。
+ * 指挥部「巡检看板」入口在安全看板；项目侧挂在「施工现场管理」下。
  */
 
-/** 侧栏一级菜单：安全巡检 */
+/** 侧栏一级菜单：巡检管理 */
 export const constructionSafetyMenuGroup = {
   key: 'safety-inspection',
-  label: '安全巡检',
+  label: '巡检管理',
   icon: 'DocumentChecked',
   children: [
     {
@@ -16,12 +17,12 @@ export const constructionSafetyMenuGroup = {
     },
     {
       key: 'safety-check-items',
-      label: '安全检查项',
+      label: '巡检检查项',
       path: '/safety-inspection/check-items',
     },
     {
       key: 'safety-inspector-config',
-      label: '巡检人配置',
+      label: '人员配置',
       path: '/safety-inspection/inspector-config',
     },
     {
@@ -31,13 +32,18 @@ export const constructionSafetyMenuGroup = {
     },
     {
       key: 'safety-hazard',
-      label: '安全隐患清单',
+      label: '隐患清单',
       path: '/safety-inspection/hazard',
     },
     {
       key: 'mobile-safety-inspection',
-      label: '安全巡检(移动端)',
+      label: '巡检管理(移动端)',
       path: '/mobile/tasks',
+    },
+    {
+      key: 'mobile-message-center',
+      label: '消息中心(移动端)',
+      path: '/mobile/messages',
     },
     {
       key: 'mobile-rectify',
@@ -52,7 +58,7 @@ export const constructionSafetyRoutes = [
   {
     key: 'safety-dashboard',
     name: 'SafetyDashboard',
-    label: '安全巡检看板',
+    label: '巡检看板',
     path: '/safety-inspection/dashboard',
   },
   {
@@ -85,13 +91,13 @@ export const constructionSafetyRoutes = [
   {
     key: 'safety-check-items',
     name: 'SafetyCheckItems',
-    label: '安全检查项',
+    label: '巡检检查项',
     path: '/safety-inspection/check-items',
   },
   {
     key: 'safety-inspector-config',
     name: 'InspectionPersonConfig',
-    label: '巡检人配置',
+    label: '人员配置',
     path: '/safety-inspection/inspector-config',
   },
   {
@@ -110,13 +116,13 @@ export const constructionSafetyRoutes = [
   {
     key: 'safety-hazard',
     name: 'SafetyHazardList',
-    label: '安全隐患清单',
+    label: '隐患清单',
     path: '/safety-inspection/hazard',
   },
   {
     key: 'safety-hazard-detail',
     name: 'SafetyHazardDetail',
-    label: '安全隐患详情',
+    label: '隐患详情',
     path: '/safety-inspection/hazard/:id',
     sidebarKey: 'safety-hazard',
   },
@@ -157,7 +163,7 @@ export const mobileSafetyRoutes = [
   {
     key: 'mobile-safety-inspection',
     name: 'MobileTaskList',
-    label: '安全巡检(移动端)',
+    label: '巡检管理(移动端)',
     path: '/mobile/tasks',
   },
   {
@@ -182,6 +188,12 @@ export const mobileSafetyRoutes = [
     sidebarKey: 'mobile-safety-inspection',
   },
   {
+    key: 'mobile-message-center',
+    name: 'MobileMessageCenter',
+    label: '消息中心(移动端)',
+    path: '/mobile/messages',
+  },
+  {
     key: 'mobile-rectify',
     name: 'MobileRectifyList',
     label: '整改复查(移动端)',
@@ -200,6 +212,13 @@ export const mobileSafetyRoutes = [
     label: '整改复查',
     path: '/mobile/rectify/:id/review',
     sidebarKey: 'mobile-rectify',
+  },
+  {
+    key: 'mobile-rectify-approval',
+    name: 'MobileRectifyApproval',
+    label: '项目经理审批',
+    path: '/mobile/rectify/:id/approval',
+    sidebarKey: 'mobile-message-center',
   },
   {
     key: 'mobile-rectify-detail',

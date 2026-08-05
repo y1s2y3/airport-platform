@@ -1386,6 +1386,7 @@ export function voidDispatchNoticeRecord(id) {
   const list = readList(NOTICE_KEY)
   const index = list.findIndex((item) => item.id === id)
   if (index < 0) return null
+  if (list[index].status !== NOTICE_STATUSES.PENDING) return list[index]
   list[index] = {
     ...list[index],
     status: '已作废',
@@ -1454,6 +1455,7 @@ export function voidDispatchReminderRecord(id) {
   const list = readList(REMINDER_KEY)
   const index = list.findIndex((item) => item.id === id)
   if (index < 0) return null
+  if (list[index].status !== NOTICE_STATUSES.PENDING) return list[index]
   list[index] = {
     ...list[index],
     status: NOTICE_STATUSES.VOID,

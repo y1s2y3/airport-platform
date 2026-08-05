@@ -1,16 +1,23 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { addMobileInspectionTask } from '../../mock/mobileInspectionTasks'
+import { INSPECTION_CATEGORIES, buildInspectionTaskNo } from '../../config/inspectionManagement'
+import {
+  inspectorCandidates,
+  getProjectRectifierLabel,
+  getProjectReviewerLabel,
+} from '../../composables/useInspectionPersonConfig'
 
 const router = useRouter()
 
 const form = ref({
+  inspectionCategory: '安全',
   inspType: '周检',
   inspDate: new Date().toISOString().slice(0, 10),
   project: '',
-  inspector: '',
+  inspector: '当前用户',
   companions: [],
   photos: [],
   result: '',
@@ -20,7 +27,7 @@ const form = ref({
 
 const inspectTypes = ['周检', '月检', '专项巡检']
 const projectOptions = ['T3 航站楼扩建工程', '飞行区跑道延长工程', '新货运站建设工程', '机场北片区路网工程', '员工宿舍楼工程']
-const personOptions = ['张工（安全总监）', '李工（安全主管）', '王工（安全员）', '赵工（项目经理）']
+const personOptions = inspectorCandidates.map(p => `${p.name}（${p.role}）`)
 const companionOptions = ['刘工（安全员）', '陈工（技术员）', '周工（施工员）', '吴工（质检员）']
 
 const selectedCompanion = ref('')
@@ -32,14 +39,24 @@ function addCompanion() {
 }
 
 function addHazard() {
+  const defaultRectifier = getProjectRectifierLabel(form.value.project)
+  const defaultReviewer = getProjectReviewerLabel(form.value.project)
   form.value.hazardItems.push({
     desc: '',
     photos: [],
     issueRectify: false,
-    rectifyPerson: '',
+    rectifyPerson: defaultRectifier,
+    reviewPerson: defaultReviewer,
     rectifyDeadline: '',
   })
 }
+
+watch(() => form.value.project, project => {
+  form.value.hazardItems.forEach(item => {
+    item.rectifyPerson = getProjectRectifierLabel(project)
+    item.reviewPerson = getProjectReviewerLabel(project)
+  })
+})
 function removeHazard(idx) {
   form.value.hazardItems.splice(idx, 1)
 }
@@ -69,9 +86,9 @@ function triggerPhoto() {
 function removePhoto(i) { form.value.photos.splice(i, 1) }
 
 function submitInspection() {
+  if (!form.value.inspectionCategory) { ElMessage.warning('请选择巡检分类'); return }
   if (!form.value.inspDate) { ElMessage.warning('请选择巡检日期'); return }
   if (!form.value.project) { ElMessage.warning('请选择所属项目'); return }
-  if (!form.value.inspector) { ElMessage.warning('请选择巡检人'); return }
   if (!form.value.result) { ElMessage.warning('请选择巡检结果'); return }
   if (form.value.result === 'hazard') {
     if (form.value.hazardItems.length === 0) { ElMessage.warning('请至少添加一条隐患'); return }
@@ -79,6 +96,10 @@ function submitInspection() {
       if (!item.desc.trim()) { ElMessage.warning(`第 ${i+1} 条隐患请填写说明`); return }
       if (item.issueRectify && !item.rectifyPerson) {
         ElMessage.warning(`第 ${i+1} 条隐患请选择整改人`)
+        return
+      }
+      if (item.issueRectify && !item.reviewPerson) {
+        ElMessage.warning(`第 ${i+1} 条隐患请选择复查人`)
         return
       }
       if (item.issueRectify && !item.rectifyDeadline) {
@@ -90,7 +111,7 @@ function submitInspection() {
 
   const now = Date.now()
   const dateKey = new Date().toISOString().slice(0,10).replace(/-/g,'')
-  const taskNo = `XJ${dateKey}${String(now).slice(-4)}`
+  const taskNo = buildInspectionTaskNo(form.value.inspectionCategory, form.value.inspDate, Number(String(now).slice(-3)))
   const hazardItems = form.value.hazardItems.map((item, index) => {
     const rectifyNo = item.issueRectify
       ? `ZG${dateKey}${String(now).slice(-4)}${String(index + 1).padStart(2, '0')}`
@@ -102,6 +123,7 @@ function submitInspection() {
       rectifyNo,
       rectifyId: rectifyNo ? `self-${rectifyNo}` : '',
       rectifyPerson: item.issueRectify ? item.rectifyPerson : '',
+      reviewPerson: item.issueRectify ? item.reviewPerson : '',
       rectifyDeadline: item.issueRectify ? item.rectifyDeadline : '',
     }
   })
@@ -110,7 +132,7 @@ function submitInspection() {
   const newTask = {
     id: `self-${now}`,
     taskNo,
-    planNo: '', source: '系统自建', planType: form.value.inspType, inspType: form.value.inspType,
+    planNo: '', source: '系统自建', inspectionCategory: form.value.inspectionCategory, planType: form.value.inspType, inspType: form.value.inspType,
     planName: `【自建】${form.value.inspType}巡检`,
     project: form.value.project, executor: form.value.inspector,
     inspector: form.value.inspector, companions: [...form.value.companions],
@@ -146,6 +168,13 @@ function goBack() { router.push('/mobile/tasks') }
         <div class="fs-title">巡检信息</div>
 
         <div class="form-row">
+          <span class="form-label">巡检分类<span class="required-mark">*</span></span>
+          <div class="form-tags">
+            <button v-for="category in INSPECTION_CATEGORIES" :key="category" class="tag-btn" :class="{ active: form.inspectionCategory === category }" @click="form.inspectionCategory = category">{{ category }}</button>
+          </div>
+        </div>
+
+        <div class="form-row">
           <span class="form-label">巡检类型<span class="required-mark">*</span></span>
           <div class="form-tags">
             <button v-for="t in inspectTypes" :key="t" class="tag-btn" :class="{ active: form.inspType === t }" @click="form.inspType = t">{{ t }}</button>
@@ -166,11 +195,8 @@ function goBack() { router.push('/mobile/tasks') }
         </div>
 
         <div class="form-row">
-          <span class="form-label">巡检人<span class="required-mark">*</span></span>
-          <select v-model="form.inspector" class="form-input">
-            <option value="" disabled>请选择</option>
-            <option v-for="p in personOptions" :key="p" :value="p">{{ p }}</option>
-          </select>
+          <span class="form-label">执行人</span>
+          <input :value="form.inspector" class="form-input" disabled />
         </div>
 
         <div class="form-row">
@@ -240,7 +266,14 @@ function goBack() { router.push('/mobile/tasks') }
                   </select>
                 </div>
                 <div class="form-row">
-                  <span class="form-label">整改截止<span class="required-mark">*</span></span>
+                  <span class="form-label">复查人<span class="required-mark">*</span></span>
+                  <select v-model="item.reviewPerson" class="form-input">
+                    <option value="" disabled>请选择复查人</option>
+                    <option v-for="p in personOptions" :key="p" :value="p">{{ p }}</option>
+                  </select>
+                </div>
+                <div class="form-row">
+                    <span class="form-label">整改截止日期<span class="required-mark">*</span></span>
                   <input type="date" v-model="item.rectifyDeadline" class="form-input" />
                 </div>
               </template>

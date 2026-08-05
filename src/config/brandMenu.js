@@ -1,5 +1,5 @@
 /**
- * 品牌报审 — 一级菜单（位于质量看板 / 质量验评之后）
+ * 品牌报审 — 项目级挂在「施工质量管控」下
  */
 export const brandMenuGroup = {
   key: 'brand-approval',

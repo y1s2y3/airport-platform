@@ -1,7 +1,7 @@
 /**
- * 设备进场管理 — 一级菜单（位于材料进场管理之后）
+ * 设备进场管理 — 项目级挂在「施工质量管控」下（见 projectOpsMenu.constructionQualityMenuGroup）
  * 对齐 feature-list-mat 设备到场能力；菜单名按产品定稿「设备进场管理」
- * 审批走个人中心待办，无独立审批菜单
+ * 审批走个人中心待办，无独立审批菜单；指挥部看板入口在「质量看板」
  */
 export const eqMenuGroup = {
   key: 'eq-entry-mgmt',

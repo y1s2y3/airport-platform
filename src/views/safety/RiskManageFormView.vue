@@ -51,7 +51,7 @@ function goBack() { router.push('/safety-inspection/risk') }
 <template>
   <div class="fp">
     <div class="fh">
-      <div class="fb">安全巡检 / 风险管理 / 新增风险辨识</div>
+      <div class="fb">巡检管理 / 风险管理 / 新增风险辨识</div>
       <div style="display:flex;align-items:center;gap:16px;margin-bottom:8px">
         <el-button text @click="goBack">← 返回风险管理台账</el-button>
         <h1 class="ft">新增风险辨识</h1>
