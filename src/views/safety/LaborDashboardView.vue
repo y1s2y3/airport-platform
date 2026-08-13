@@ -133,7 +133,7 @@ function buildTrendOption(trend) {
         stack: 'present',
         barMaxWidth: 14,
         itemStyle: { color: '#43a047' },
-        data: list.map((item) => item.managePresent),
+        data: list.map((item) => item.manage_present_count),
       },
       {
         name: '建筑工人',
@@ -141,7 +141,7 @@ function buildTrendOption(trend) {
         stack: 'present',
         barMaxWidth: 14,
         itemStyle: { color: '#4285f4' },
-        data: list.map((item) => item.laborPresent),
+        data: list.map((item) => item.labor_present_count),
       },
       {
         name: '出勤率',
@@ -152,7 +152,7 @@ function buildTrendOption(trend) {
         symbolSize: 5,
         lineStyle: { width: 2, color: '#ff9800' },
         itemStyle: { color: '#ff9800' },
-        data: list.map((item) => item.attendanceRate),
+        data: list.map((item) => item.attendance_rate),
       },
     ],
   }
@@ -206,7 +206,7 @@ function buildWarningTrendOption(trend) {
             { offset: 1, color: 'rgba(255, 152, 0, 0.02)' },
           ]),
         },
-        data: list.map((item) => item.newCount),
+        data: list.map((item) => item.new_warning_count),
       },
       {
         name: '未处置',
@@ -216,7 +216,7 @@ function buildWarningTrendOption(trend) {
         symbolSize: 5,
         lineStyle: { width: 2, color: '#e53935' },
         itemStyle: { color: '#e53935' },
-        data: list.map((item) => item.pendingCount),
+        data: list.map((item) => item.pending_warning_count),
       },
     ],
   }
@@ -290,10 +290,10 @@ function goWarningList() {
         <div class="stat-card"><span class="stat-label">管理人员</span><span class="stat-value">{{ data.summary.manage }}</span></div>
         <div class="stat-card"><span class="stat-label">建筑工人</span><span class="stat-value">{{ data.summary.labor }}</span></div>
         <div class="stat-card"><span class="stat-label">特种作业人员</span><span class="stat-value warn">{{ data.summary.special }}</span></div>
-        <div class="stat-card"><span class="stat-label">今日综合出勤率</span><span class="stat-value ok">{{ data.summary.todayAttendanceRate }}</span></div>
-        <div class="stat-card"><span class="stat-label">今日管理人员出勤率</span><span class="stat-value ok">{{ data.summary.todayManageRate }}</span></div>
-        <div class="stat-card"><span class="stat-label">今日实名制预警</span><span class="stat-value warn">{{ data.summary.todayWarningCount }}</span></div>
-        <div class="stat-card"><span class="stat-label">预警未处置</span><span class="stat-value warn">{{ data.summary.pendingWarningCount }}</span></div>
+        <div class="stat-card"><span class="stat-label">今日综合出勤率</span><span class="stat-value ok">{{ data.summary.today_attendance_rate }}</span></div>
+        <div class="stat-card"><span class="stat-label">今日管理人员出勤率</span><span class="stat-value ok">{{ data.summary.today_manage_attendance_rate }}</span></div>
+        <div class="stat-card"><span class="stat-label">今日实名制预警</span><span class="stat-value warn">{{ data.summary.today_warning_count }}</span></div>
+        <div class="stat-card"><span class="stat-label">预警未处置</span><span class="stat-value warn">{{ data.summary.pending_warning_count }}</span></div>
       </div>
 
       <div class="structure-row">
@@ -346,11 +346,11 @@ function goWarningList() {
             <div class="panel-title">预警清单</div>
             <el-button link type="primary" @click="goWarningList">查看全部</el-button>
           </div>
-          <el-table :data="data.pendingWarningList" border stripe size="small" class="ap-table warning-table">
-            <el-table-column v-if="isHqSelected" prop="projectName" label="项目" min-width="100" show-overflow-tooltip />
-            <el-table-column v-if="!isHqSelected" prop="warningNo" label="编号" width="110" />
+          <el-table :data="data.pending_warning_list" border stripe size="small" class="ap-table warning-table">
+            <el-table-column v-if="isHqSelected" prop="project_name" label="项目" min-width="100" show-overflow-tooltip />
+            <el-table-column v-if="!isHqSelected" prop="warning_no" label="编号" width="110" />
             <el-table-column prop="name" label="姓名" width="64" />
-            <el-table-column prop="ruleLabel" label="预警类型" min-width="110" show-overflow-tooltip />
+            <el-table-column prop="rule_label" label="预警类型" min-width="110" show-overflow-tooltip />
             <el-table-column prop="status" label="状态" width="72" align="center">
               <template #default="{ row }">
                 <span class="ap-status-tag" :class="warningStatusTagClass[row.status]">{{ row.status }}</span>

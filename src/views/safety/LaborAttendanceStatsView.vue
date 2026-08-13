@@ -48,37 +48,37 @@ async function viewProjectDetail(row) {
   ElMessage.success(`已切换至项目：${row.project_name}`)
 }
 
-const personFilters = ref({ name: '', company: '', workType: '' })
+const personFilters = ref({ name: '', unit_name: '', work_type: '' })
 
 const allPersonList = computed(() => getPersonStats(scopeProjectId.value))
 
 const filteredPersonList = computed(() => {
   return allPersonList.value.filter((row) => {
     if (personFilters.value.name && !row.name.includes(personFilters.value.name.trim())) return false
-    if (personFilters.value.company && !row.company.includes(personFilters.value.company.trim()))
+    if (personFilters.value.unit_name && !row.unit_name.includes(personFilters.value.unit_name.trim()))
       return false
-    if (personFilters.value.workType && row.workType !== personFilters.value.workType) return false
+    if (personFilters.value.work_type && row.work_type !== personFilters.value.work_type) return false
     return true
   })
 })
 
 const personSummary = computed(() => ({
   total: filteredPersonList.value.length,
-  avgRate: filteredPersonList.value.length
+  avg_rate: filteredPersonList.value.length
     ? `${(
-        filteredPersonList.value.reduce((sum, row) => sum + parseFloat(row.attendanceRate), 0) /
+        filteredPersonList.value.reduce((sum, row) => sum + parseFloat(row.attendance_rate), 0) /
         filteredPersonList.value.length
       ).toFixed(1)}%`
     : '-',
-  overtime: filteredPersonList.value.reduce((sum, row) => sum + row.overtimeHours, 0),
+  overtime: filteredPersonList.value.reduce((sum, row) => sum + row.overtime_hours, 0),
 }))
 
 watch(scopeProjectId, () => {
-  personFilters.value = { name: '', company: '', workType: '' }
+  personFilters.value = { name: '', unit_name: '', work_type: '' }
 })
 
 function handleReset() {
-  personFilters.value = { name: '', company: '', workType: '' }
+  personFilters.value = { name: '', unit_name: '', work_type: '' }
 }
 
 function handlePersonSearch() {
@@ -121,16 +121,16 @@ function formatRate(n) {
     <el-table :data="hqFiltered" stripe border empty-text="暂无项目考勤数据">
       <el-table-column prop="project_name" label="项目名称" min-width="220" fixed show-overflow-tooltip />
       <el-table-column label="全部出勤率" width="120" align="center">
-        <template #default="{ row }">{{ formatRate(row.allRate) }}</template>
+        <template #default="{ row }">{{ formatRate(row.today_attendance_rate) }}</template>
       </el-table-column>
       <el-table-column label="管理人员出勤率" width="140" align="center">
-        <template #default="{ row }">{{ formatRate(row.manageRate) }}</template>
+        <template #default="{ row }">{{ formatRate(row.today_manage_attendance_rate) }}</template>
       </el-table-column>
       <el-table-column label="建筑工人出勤率" width="140" align="center">
-        <template #default="{ row }">{{ formatRate(row.laborRate) }}</template>
+        <template #default="{ row }">{{ formatRate(row.today_labor_attendance_rate) }}</template>
       </el-table-column>
       <el-table-column label="特种作业人员出勤率" width="160" align="center">
-        <template #default="{ row }">{{ formatRate(row.specialRate) }}</template>
+        <template #default="{ row }">{{ formatRate(row.today_special_attendance_rate) }}</template>
       </el-table-column>
       <el-table-column label="操作" width="130" fixed="right">
         <template #default="{ row }">
@@ -153,7 +153,7 @@ function formatRate(n) {
         <div class="panel-head">
           <div class="panel-stats">
             <span>人员 {{ personSummary.total }} 人</span>
-            <span>平均出勤率 {{ personSummary.avgRate }}</span>
+            <span>平均出勤率 {{ personSummary.avg_rate }}</span>
             <span>加班合计 {{ personSummary.overtime }} h</span>
           </div>
         </div>
@@ -161,12 +161,12 @@ function formatRate(n) {
         <div class="filter-bar">
           <el-input v-model="personFilters.name" placeholder="姓名" clearable style="width: 120px" />
           <el-input
-            v-model="personFilters.company"
+            v-model="personFilters.unit_name"
             placeholder="施工单位"
             clearable
             style="width: 140px"
           />
-          <el-select v-model="personFilters.workType" placeholder="工种" clearable style="width: 110px">
+          <el-select v-model="personFilters.work_type" placeholder="工种" clearable style="width: 110px">
             <el-option v-for="t in workTypes" :key="t" :label="t" :value="t" />
           </el-select>
           <el-button class="ap-btn-primary" type="primary" :icon="Search" @click="handlePersonSearch">查询</el-button>
@@ -176,16 +176,16 @@ function formatRate(n) {
         <el-table :data="filteredPersonList" border stripe class="ap-table">
           <el-table-column type="index" label="序号" width="60" align="center" />
           <el-table-column prop="name" label="姓名" width="90" />
-          <el-table-column prop="company" label="施工单位" min-width="120" />
-          <el-table-column prop="workType" label="工种" width="90" />
-          <el-table-column prop="attendanceDays" label="出勤天数" width="90" align="center" />
-          <el-table-column prop="totalHours" label="总工时(h)" width="95" align="center" />
-          <el-table-column prop="avgHours" label="日均(h)" width="85" align="center" />
-          <el-table-column prop="lateCount" label="迟到" width="70" align="center" />
-          <el-table-column prop="earlyLeaveCount" label="早退" width="70" align="center" />
-          <el-table-column prop="absentCount" label="缺勤" width="70" align="center" />
-          <el-table-column prop="overtimeHours" label="加班(h)" width="85" align="center" />
-          <el-table-column prop="attendanceRate" label="出勤率" width="90" align="center" />
+          <el-table-column prop="unit_name" label="施工单位" min-width="120" />
+          <el-table-column prop="work_type" label="工种" width="90" />
+          <el-table-column prop="attendance_days" label="出勤天数" width="90" align="center" />
+          <el-table-column prop="total_hours" label="总工时(h)" width="95" align="center" />
+          <el-table-column prop="avg_hours" label="日均(h)" width="85" align="center" />
+          <el-table-column prop="late_count" label="迟到" width="70" align="center" />
+          <el-table-column prop="early_leave_count" label="早退" width="70" align="center" />
+          <el-table-column prop="absent_count" label="缺勤" width="70" align="center" />
+          <el-table-column prop="overtime_hours" label="加班(h)" width="85" align="center" />
+          <el-table-column prop="attendance_rate" label="出勤率" width="90" align="center" />
         </el-table>
       </section>
     </div>

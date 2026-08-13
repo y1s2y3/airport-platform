@@ -37,27 +37,31 @@ export const HQ_ONLY_MENU_KEYS = new Set([
   'quality-board',
   'brand-approval-stats',
   'qm-dashboard',
-  /** 指挥部轨迹系统列表（挂在施工现场管理下） */
+  /** 指挥部轨迹系统列表（挂在智慧工地监管下） */
   'labor-track-system',
   'vehicle-track-system',
   /** 安全看板（指挥部专属一级菜单） */
   'safety-board',
-  /** 指挥部 · 施工现场管理（一级；二级为人员/车辆/巡检/机械/危大） */
+  /** 指挥部 · 施工现场管理（一级；二级为巡检 / 施工作业） */
   'hq-site-construction',
-  'hq-vehicle',
   'hq-work-manage',
+  /** 指挥部 · 智慧工地监管（一级；二级为人员 / 车辆 / 机械 / 危大） */
+  'hq-smart-site',
+  'hq-vehicle',
   'vehicle-track-config',
   /**
    * 原指挥部「视频监控」「车辆管理」一级已删除；
-   * 实名制统计 / 人员轨迹系统挂在「施工现场管理 / 人员实名制管理」；
-   * 车辆管理看板 / 车辆轨迹系统挂在「施工现场管理 / 车辆管理」（看板仅指挥部）；其余统计/告警挂在安全看板。
+   * 实名制统计 / 人员轨迹系统挂在「智慧工地监管 / 人员实名制管理」；
+   * 车辆管理看板 / 车辆轨迹系统挂在「智慧工地监管 / 车辆管理」（看板仅指挥部）；其余统计/告警挂在安全看板。
    * 项目侧能力在「智慧工地监管」下。
    */
   'video-monitor',
   'vehicle',
   /**
-   * 以下原一级在指挥部已降为「施工现场管理」二级；项目侧用 smart-* / site-* 包装，
-   * 仍用 HQ_ONLY 隐藏这些根 key，避免与项目包装重复。
+   * 以下原一级在指挥部已降为二级包装：
+   * - labor / machine-supervise / major-hazard →「智慧工地监管」
+   * - safety-inspection →「施工现场管理」
+   * 项目侧用 smart-* / site-* 包装，仍用 HQ_ONLY 隐藏这些根 key，避免与项目包装重复。
    */
   'labor',
   'safety-inspection',
@@ -124,7 +128,7 @@ export const PROJECT_ONLY_MENU_KEYS = new Set([
   'labor-attendance-detail',
   'labor-warning-list',
   'labor-device-manage',
-  /** 车辆管理 · 项目执行（指挥部：施工现场管理 / 车辆管理看看板与轨迹系统；轨迹跳转仅项目侧菜单） */
+  /** 车辆管理 · 项目执行（指挥部：智慧工地监管 / 车辆管理看看板与轨迹系统；轨迹跳转仅项目侧菜单） */
   'vehicle-access',
   'vehicle-track',
   'vehicle-registry',
@@ -144,7 +148,7 @@ export const PROJECT_ONLY_MENU_KEYS = new Set([
   /** 危大工程监测 · 项目维护（指挥部隐藏监测区域/设备绑定） */
   'hazard-manage',
   'device-binding',
-  /** 项目级菜单包装：智慧工地监管 / 施工现场管理 / 施工质量管控 */
+  /** 项目级菜单包装：智慧工地监管（含危大监测/告警配置） / 施工现场管理 / 施工质量管控 */
   'smart-site',
   'smart-labor',
   'smart-vehicle',

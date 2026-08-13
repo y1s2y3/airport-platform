@@ -20,7 +20,7 @@ const { isHqSelected, projectLabel, laborProjectId } = useCurrentProject()
 const form = ref(null)
 const saving = ref(false)
 const selectedProjectId = ref('')
-const projectTrackJump = ref({ enabled: false, systemName: '', url: '' })
+const projectTrackJump = ref({ enabled: false, system_name: '', url: '' })
 
 const activeProjectId = computed(() => {
   if (isHqSelected.value) return selectedProjectId.value
@@ -45,13 +45,13 @@ const flatProjectIds = computed(() =>
   projectTree.flatMap((g) => (g.children || []).map((c) => c.id)),
 )
 
-function loadProject(projectId) {
-  if (!projectId) {
+function loadProject(project_id) {
+  if (!project_id) {
     form.value = null
     return
   }
-  form.value = getProjectWarningConfig(projectId)
-  projectTrackJump.value = { ...getProjectTrackJump(projectId) }
+  form.value = getProjectWarningConfig(project_id)
+  projectTrackJump.value = { ...getProjectTrackJump(project_id) }
 }
 
 watch(
@@ -81,12 +81,12 @@ function validateForm() {
     ElMessage.warning('启用跳转时请填写外部轨迹系统 URL')
     return false
   }
-  const defaultRecipient = form.value.defaultRecipient || {}
-  if (!defaultRecipient.recipientId) {
+  const default_recipient = form.value.default_recipient || {}
+  if (!default_recipient.recipient_id) {
     ElMessage.warning('请选择默认接收人责任人')
     return false
   }
-  if (!defaultRecipient.positionId) {
+  if (!default_recipient.position_id) {
     ElMessage.warning('请选择默认接收人岗位')
     return false
   }
@@ -98,21 +98,21 @@ function validateForm() {
   for (let i = 0; i < levels.length; i += 1) {
     const item = levels[i]
     const label = `第${i + 1}级`
-    if (!item.recipientId) {
+    if (!item.recipient_id) {
       ElMessage.warning(`请选择${label}责任人`)
       return false
     }
-    if (!item.positionId) {
+    if (!item.position_id) {
       ElMessage.warning(`请选择${label}岗位`)
       return false
     }
-    if (!item.reportDays || item.reportDays < 1) {
+    if (!item.report_days || item.report_days < 1) {
       ElMessage.warning(`请填写${label}的有效上报天数`)
       return false
     }
   }
   for (let i = 1; i < levels.length; i += 1) {
-    if (levels[i].reportDays < levels[i - 1].reportDays) {
+    if (levels[i].report_days < levels[i - 1].report_days) {
       ElMessage.warning('各层级上报天数应按顺序递增设置（后一级 ≥ 前一级）')
       return false
     }
@@ -168,30 +168,30 @@ const tierLevels = computed({
 })
 
 function personnelOptionsFor(row) {
-  const matched = getTierPersonnelByPosition(row.positionId)
+  const matched = getTierPersonnelByPosition(row.position_id)
   const matchedIds = new Set(matched.map((u) => u.id))
   const others = tierPersonnelCatalog.filter((u) => !matchedIds.has(u.id))
   return { matched, others }
 }
 
 function onTierPositionChange(row) {
-  const matched = getTierPersonnelByPosition(row.positionId)
-  if (!matched.some((u) => u.id === row.recipientId)) {
-    row.recipientId = ''
+  const matched = getTierPersonnelByPosition(row.position_id)
+  if (!matched.some((u) => u.id === row.recipient_id)) {
+    row.recipient_id = ''
   }
 }
 
 function onDefaultPositionChange() {
-  if (!form.value?.defaultRecipient) return
-  const matched = getTierPersonnelByPosition(form.value.defaultRecipient.positionId)
-  if (!matched.some((u) => u.id === form.value.defaultRecipient.recipientId)) {
-    form.value.defaultRecipient.recipientId = ''
+  if (!form.value?.default_recipient) return
+  const matched = getTierPersonnelByPosition(form.value.default_recipient.position_id)
+  if (!matched.some((u) => u.id === form.value.default_recipient.recipient_id)) {
+    form.value.default_recipient.recipient_id = ''
   }
 }
 
 const defaultPersonnelOptions = computed(() => {
-  const positionId = form.value?.defaultRecipient?.positionId || ''
-  return personnelOptionsFor({ positionId })
+  const position_id = form.value?.default_recipient?.position_id || ''
+  return personnelOptionsFor({ position_id })
 })
 
 function addTierLevel() {
@@ -264,7 +264,7 @@ function removeTierLevel(index) {
               <el-switch v-model="projectTrackJump.enabled" />
             </el-form-item>
             <el-form-item label="系统名称">
-              <el-input v-model="projectTrackJump.systemName" placeholder="如：现场安全帽定位平台" />
+              <el-input v-model="projectTrackJump.system_name" placeholder="如：现场安全帽定位平台" />
             </el-form-item>
             <el-form-item label="跳转 URL">
               <el-input v-model="projectTrackJump.url" placeholder="https://" />
@@ -279,12 +279,12 @@ function removeTierLevel(index) {
               <p class="section-desc">预警触发后先通知默认接收人；超期未关闭再按下方分级管控逐级上报。</p>
             </div>
           </div>
-          <el-form v-if="form?.defaultRecipient" label-width="88px" class="default-recipient-form">
+          <el-form v-if="form?.default_recipient" label-width="88px" class="default-recipient-form">
             <el-row :gutter="24">
               <el-col :xs="24" :sm="12">
                 <el-form-item label="责任人" required>
                   <el-select
-                    v-model="form.defaultRecipient.recipientId"
+                    v-model="form.default_recipient.recipient_id"
                     placeholder="请选择人员"
                     filterable
                     style="width: 100%"
@@ -317,7 +317,7 @@ function removeTierLevel(index) {
               <el-col :xs="24" :sm="12">
                 <el-form-item label="岗位" required>
                   <el-select
-                    v-model="form.defaultRecipient.positionId"
+                    v-model="form.default_recipient.position_id"
                     placeholder="请选择岗位"
                     filterable
                     style="width: 100%"
@@ -354,7 +354,7 @@ function removeTierLevel(index) {
               <el-table-column label="责任人" min-width="240">
                 <template #default="{ row }">
                   <el-select
-                    v-model="row.recipientId"
+                    v-model="row.recipient_id"
                     placeholder="请选择人员"
                     filterable
                     style="width: 100%"
@@ -387,7 +387,7 @@ function removeTierLevel(index) {
               <el-table-column label="岗位" min-width="180">
                 <template #default="{ row }">
                   <el-select
-                    v-model="row.positionId"
+                    v-model="row.position_id"
                     placeholder="请选择岗位"
                     filterable
                     style="width: 100%"
@@ -407,7 +407,7 @@ function removeTierLevel(index) {
                   <div class="inline-field">
                     <span class="field-prefix">超</span>
                     <el-input-number
-                      v-model="row.reportDays"
+                      v-model="row.report_days"
                       :min="1"
                       :max="30"
                       controls-position="right"

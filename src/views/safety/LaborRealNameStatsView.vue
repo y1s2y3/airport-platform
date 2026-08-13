@@ -76,19 +76,19 @@ async function viewProjectDetail(row) {
       </div>
       <div class="kpi-card">
         <span class="kpi-label">今日综合出勤率</span>
-        <span class="kpi-value ok">{{ formatRate(summary.todayAttendanceRate) }}</span>
+        <span class="kpi-value ok">{{ formatRate(summary.today_attendance_rate) }}</span>
       </div>
       <div class="kpi-card">
         <span class="kpi-label">今日管理人员出勤率</span>
-        <span class="kpi-value ok">{{ formatRate(summary.todayManageRate) }}</span>
+        <span class="kpi-value ok">{{ formatRate(summary.today_manage_attendance_rate) }}</span>
       </div>
       <div class="kpi-card">
         <span class="kpi-label">今日实名制预警</span>
-        <span class="kpi-value warn">{{ summary.todayWarningCount }}</span>
+        <span class="kpi-value warn">{{ summary.today_warning_count }}</span>
       </div>
       <div class="kpi-card">
         <span class="kpi-label">预警未处置</span>
-        <span class="kpi-value warn">{{ summary.pendingWarningCount }}</span>
+        <span class="kpi-value warn">{{ summary.pending_warning_count }}</span>
       </div>
     </div>
 
@@ -111,27 +111,27 @@ async function viewProjectDetail(row) {
       <el-table-column label="建筑工人数量" width="120" align="center" prop="labor" />
       <el-table-column label="特种作业人员数量" width="140" align="center" prop="special" />
       <el-table-column label="今日出勤率" width="110" align="center">
-        <template #default="{ row }">{{ formatRate(row.todayAttendanceRate) }}</template>
+        <template #default="{ row }">{{ formatRate(row.today_attendance_rate) }}</template>
       </el-table-column>
       <el-table-column label="今日管理人员出勤率" width="150" align="center">
-        <template #default="{ row }">{{ formatRate(row.todayManageRate) }}</template>
+        <template #default="{ row }">{{ formatRate(row.today_manage_attendance_rate) }}</template>
       </el-table-column>
       <el-table-column label="今日建筑工人出勤率" width="150" align="center">
-        <template #default="{ row }">{{ formatRate(row.todayLaborRate) }}</template>
+        <template #default="{ row }">{{ formatRate(row.today_labor_attendance_rate) }}</template>
       </el-table-column>
       <el-table-column label="今日特种作业人员出勤率" width="170" align="center">
-        <template #default="{ row }">{{ formatRate(row.todaySpecialRate) }}</template>
+        <template #default="{ row }">{{ formatRate(row.today_special_attendance_rate) }}</template>
       </el-table-column>
-      <el-table-column label="今日实名制预警次数" width="150" align="center" prop="todayWarningCount" />
+      <el-table-column label="今日实名制预警次数" width="150" align="center" prop="today_warning_count" />
       <el-table-column label="预警未处置数量" width="130" align="center">
         <template #default="{ row }">
-          <span :class="{ 'warn-num': row.pendingWarningCount > 0 }">{{ row.pendingWarningCount }}</span>
+          <span :class="{ 'warn-num': row.pending_warning_count > 0 }">{{ row.pending_warning_count }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="累计预警次数" width="150" align="center" prop="totalWarningCount" />
+      <el-table-column label="累计预警次数" width="150" align="center" prop="total_warning_count" />
       <el-table-column label="操作" width="120" fixed="right">
         <template #default="{ row }">
-          <el-button link type="primary" :disabled="row.demoEmpty" @click="viewProjectDetail(row)">
+          <el-button link type="primary" :disabled="row.demo_empty" @click="viewProjectDetail(row)">
             查看项目详情
           </el-button>
         </template>

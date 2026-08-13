@@ -8,21 +8,23 @@ import {
   siteConstructionMenuGroup,
   constructionQualityMenuGroup,
   hqSiteConstructionMenuGroup,
+  hqSmartSiteMenuGroup,
   aiAppMenuGroup,
 } from './projectOpsMenu.js'
 
 /**
  * 侧栏菜单：
- * - 指挥部：个人中心下 → 安全看板 → 质量看板 → 施工现场管理
+ * - 指挥部：个人中心下 → 安全看板 → 质量看板 → 施工现场管理 → 智慧工地监管
  * - 项目：个人中心下 → 智慧工地监管 / 施工现场管理 / 施工质量管控 / AI 应用
  */
 export const sidebarMenu = [
   { key: 'workbench', label: '工作台', icon: 'Monitor', path: '/workbench' },
   { key: 'personal-center', label: '个人中心', icon: 'Notebook', path: '/personal-center' },
-  /** 指挥部：安全看板 → 质量看板 → 施工现场管理 */
+  /** 指挥部：安全看板 → 质量看板 → 施工现场管理 → 智慧工地监管 */
   safetyBoardMenuGroup,
   qualityDashboardMenuGroup,
   hqSiteConstructionMenuGroup,
+  hqSmartSiteMenuGroup,
   /** 项目级包装菜单 */
   smartSiteMenuGroup,
   siteConstructionMenuGroup,

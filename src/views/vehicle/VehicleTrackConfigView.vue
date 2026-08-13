@@ -13,7 +13,7 @@ import {
 
 const saving = ref(false)
 const selectedProjectId = ref('')
-const form = ref({ enabled: false, systemName: '', url: '' })
+const form = ref({ enabled: false, system_name: '', url: '' })
 
 const treeData = computed(() =>
   projectTree.flatMap((group) =>
@@ -31,12 +31,12 @@ const selectedScopeLabel = computed(() => {
   return id ? getProjectLabel(id) || '项目配置' : '请选择项目'
 })
 
-function loadProject(projectId) {
-  if (!projectId) {
-    form.value = { enabled: false, systemName: '', url: '' }
+function loadProject(project_id) {
+  if (!project_id) {
+    form.value = { enabled: false, system_name: '', url: '' }
     return
   }
-  form.value = { ...getProjectVehicleTrackCapability(projectId) }
+  form.value = { ...getProjectVehicleTrackCapability(project_id) }
 }
 
 watch(
@@ -121,7 +121,7 @@ function handleSave() {
               <el-switch v-model="form.enabled" />
             </el-form-item>
             <el-form-item label="系统名称">
-              <el-input v-model="form.systemName" placeholder="如：车辆 GPS 定位平台" />
+              <el-input v-model="form.system_name" placeholder="如：车辆 GPS 定位平台" />
             </el-form-item>
             <el-form-item label="跳转 URL">
               <el-input v-model="form.url" placeholder="https://" />

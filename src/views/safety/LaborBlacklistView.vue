@@ -7,14 +7,14 @@ import { useCurrentProject } from '../../composables/useCurrentProject'
 
 const { isHqSelected, projectLabel } = useCurrentProject()
 const list = ref(initialList.map((row) => ({ ...row })))
-const filters = ref({ name: '', idCard: '' })
+const filters = ref({ name: '', id_card: '' })
 const formVisible = ref(false)
 const formRef = ref(null)
-const formData = ref({ name: '', idCard: '', reason: '' })
+const formData = ref({ name: '', id_card: '', reason: '' })
 
 const formRules = {
   name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
-  idCard: [
+  id_card: [
     { required: true, message: '请输入身份证号', trigger: 'blur' },
     { pattern: /(^\d{15}$)|(^\d{17}[\dXx]$)/, message: '身份证号格式不正确', trigger: 'blur' },
   ],
@@ -24,23 +24,23 @@ const formRules = {
 const filteredList = computed(() => {
   return list.value.filter((row) => {
     if (filters.value.name && !row.name.includes(filters.value.name.trim())) return false
-    if (filters.value.idCard && !row.idCard.includes(filters.value.idCard.trim())) return false
+    if (filters.value.id_card && !row.id_card.includes(filters.value.id_card.trim())) return false
     return true
   })
 })
 
 function handleReset() {
-  filters.value = { name: '', idCard: '' }
+  filters.value = { name: '', id_card: '' }
 }
 
 function openForm() {
-  formData.value = { name: '', idCard: '', reason: '' }
+  formData.value = { name: '', id_card: '', reason: '' }
   formVisible.value = true
 }
 
 async function handleSubmit() {
   await formRef.value.validate()
-  const exists = list.value.some((row) => row.idCard === formData.value.idCard)
+  const exists = list.value.some((row) => row.id_card === formData.value.id_card)
   if (exists) {
     ElMessage.warning('该身份证号已在黑名单中')
     return
@@ -48,10 +48,10 @@ async function handleSubmit() {
   list.value.unshift({
     id: `bl-${Date.now()}`,
     name: formData.value.name.trim(),
-    idCard: formData.value.idCard.trim(),
+    id_card: formData.value.id_card.trim(),
     reason: formData.value.reason.trim(),
-    createdBy: '当前用户',
-    createdAt: new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-'),
+    created_by: '当前用户',
+    created_at: new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-'),
   })
   formVisible.value = false
   ElMessage.success('已加入劳务黑名单')
@@ -77,7 +77,7 @@ async function handleRemove(row) {
 
     <div class="filter-bar">
       <el-input v-model="filters.name" placeholder="姓名" clearable style="width: 140px" />
-      <el-input v-model="filters.idCard" placeholder="身份证号" clearable style="width: 180px" />
+      <el-input v-model="filters.id_card" placeholder="身份证号" clearable style="width: 180px" />
       <el-button class="ap-btn-primary" type="primary" :icon="Search">查询</el-button>
       <el-button :icon="Refresh" @click="handleReset">重置</el-button>
     </div>
@@ -88,11 +88,11 @@ async function handleRemove(row) {
         <el-table-column type="index" label="序号" width="60" align="center" />
         <el-table-column prop="name" label="姓名" width="100" />
         <el-table-column label="身份证号" min-width="170">
-          <template #default="{ row }">{{ maskIdCard(row.idCard) }}</template>
+          <template #default="{ row }">{{ maskIdCard(row.id_card) }}</template>
         </el-table-column>
         <el-table-column prop="reason" label="拉黑原因" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="createdBy" label="登记人" width="100" />
-        <el-table-column prop="createdAt" label="登记时间" width="160" />
+        <el-table-column prop="created_by" label="登记人" width="100" />
+        <el-table-column prop="created_at" label="登记时间" width="160" />
         <el-table-column v-if="isHqSelected" label="操作" width="90" fixed="right" align="center">
           <template #default="{ row }">
             <el-button link type="danger" @click="handleRemove(row)">移出</el-button>
@@ -106,8 +106,8 @@ async function handleRemove(row) {
         <el-form-item label="姓名" prop="name">
           <el-input v-model="formData.name" placeholder="请输入姓名" maxlength="20" />
         </el-form-item>
-        <el-form-item label="身份证号" prop="idCard">
-          <el-input v-model="formData.idCard" placeholder="请输入身份证号" maxlength="18" />
+        <el-form-item label="身份证号" prop="id_card">
+          <el-input v-model="formData.id_card" placeholder="请输入身份证号" maxlength="18" />
         </el-form-item>
         <el-form-item label="拉黑原因" prop="reason">
           <el-input

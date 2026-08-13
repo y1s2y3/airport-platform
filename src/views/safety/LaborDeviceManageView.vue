@@ -89,8 +89,8 @@ async function handleSubmit() {
   await formRef.value.validate()
   const payload = {
     ...formData.value,
-    projectId: scopeProjectId.value,
-    updatedAt: new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-'),
+    project_id: scopeProjectId.value,
+    updated_at: new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-'),
   }
   if (editingId.value) {
     const index = list.value.findIndex((item) => item.id === editingId.value)
@@ -178,7 +178,7 @@ async function handleDelete(row) {
               </span>
             </template>
           </el-table-column>
-          <el-table-column prop="updatedAt" label="更新时间" width="170" />
+          <el-table-column prop="updated_at" label="更新时间" width="170" />
           <el-table-column label="操作" width="140" fixed="right">
             <template #default="{ row }">
               <el-button link type="primary" @click="openEdit(row)">编辑</el-button>

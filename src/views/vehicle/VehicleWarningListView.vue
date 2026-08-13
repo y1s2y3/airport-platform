@@ -37,7 +37,7 @@ const filteredWarnings = computed(() => {
     if (filters.value.status && row.status !== filters.value.status) return false
     if (filters.value.source && row.source !== filters.value.source) return false
     if (kw) {
-      const hay = `${row.warningNo}${row.plateNo}${row.warningType}${row.relatedInfo}${row.source}`
+      const hay = `${row.warning_no}${row.plate_no}${row.warning_type}${row.related_info}${row.source}`
       if (!hay.includes(kw)) return false
     }
     return true
@@ -114,11 +114,11 @@ function handleReset() {
 
         <el-table :data="filteredWarnings" border stripe class="ap-table" empty-text="暂无车辆预警">
           <el-table-column type="index" label="序号" width="60" align="center" />
-          <el-table-column prop="warningNo" label="预警编号" width="130" show-overflow-tooltip />
-          <el-table-column prop="plateNo" label="车牌号" width="110" />
-          <el-table-column prop="warningType" label="预警类型" min-width="120" />
+          <el-table-column prop="warning_no" label="预警编号" width="130" show-overflow-tooltip />
+          <el-table-column prop="plate_no" label="车牌号" width="110" />
+          <el-table-column prop="warning_type" label="预警类型" min-width="120" />
           <el-table-column prop="source" label="来源" width="90" align="center" />
-          <el-table-column prop="relatedInfo" label="关联信息" min-width="120" show-overflow-tooltip />
+          <el-table-column prop="related_info" label="关联信息" min-width="120" show-overflow-tooltip />
           <el-table-column label="状态" width="90" align="center">
             <template #default="{ row }">
               <span class="ap-status-tag" :class="vehicleWarningStatusTagClass(row.status)">
@@ -126,7 +126,7 @@ function handleReset() {
               </span>
             </template>
           </el-table-column>
-          <el-table-column prop="triggeredAt" label="触发时间" width="160" />
+          <el-table-column prop="triggered_at" label="触发时间" width="160" />
         </el-table>
       </main>
     </div>

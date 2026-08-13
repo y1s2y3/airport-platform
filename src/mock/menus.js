@@ -31,6 +31,8 @@ function resolveMenuLevel(key) {
 export const moduleNameOptions = [
   '系统管理',
   '组织管理',
+  '智慧工地监管',
+  '施工现场管理',
   '人员实名制',
   '车辆管理',
   '巡检管理',

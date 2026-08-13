@@ -27,7 +27,7 @@ const filteredRecords = computed(() => {
   const kw = keyword.value.trim()
   return allRecords.value.filter((row) => {
     if (kw) {
-      const hay = `${row.plateNo}${row.gateName}${row.vehicleType || ''}`
+      const hay = `${row.plate_no}${row.gate_name}${row.vehicle_type || ''}`
       if (!hay.includes(kw)) return false
     }
     if (filters.value.direction && row.direction !== filters.value.direction) return false
@@ -110,11 +110,11 @@ function handleReset() {
 
         <el-table :data="filteredRecords" border stripe class="ap-table access-table">
           <el-table-column type="index" label="序号" width="60" align="center" />
-          <el-table-column prop="plateNo" label="车牌号" min-width="120" />
-          <el-table-column prop="vehicleType" label="车辆类型" min-width="120" />
+          <el-table-column prop="plate_no" label="车牌号" min-width="120" />
+          <el-table-column prop="vehicle_type" label="车辆类型" min-width="120" />
           <el-table-column prop="direction" label="方向" width="80" align="center" />
-          <el-table-column prop="gateName" label="道闸" min-width="120" />
-          <el-table-column prop="recordTime" label="记录时间" min-width="160" />
+          <el-table-column prop="gate_name" label="道闸" min-width="120" />
+          <el-table-column prop="record_time" label="记录时间" min-width="160" />
         </el-table>
       </div>
     </div>

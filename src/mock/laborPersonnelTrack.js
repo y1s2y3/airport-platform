@@ -11,8 +11,8 @@ export function listProjectTrackJumpConfigs() {
   return (projectTree[0]?.children || []).map((item) => {
     const jump = getProjectTrackJump(item.id)
     return {
-      projectId: item.id,
-      projectName: item.label.replace(/\(\d+\)$/, ''),
+      project_id: item.id,
+      project_name: item.label.replace(/\(\d+\)$/, ''),
       ...jump,
     }
   })
@@ -29,7 +29,7 @@ export function listConfiguredPersonnelTrackSystems() {
   return listConfiguredFromStore()
     .map((row) => ({
       ...row,
-      projectName: nameMap[row.projectId] || row.projectId,
+      project_name: nameMap[row.project_id] || row.project_id,
     }))
-    .sort((a, b) => String(a.projectName).localeCompare(String(b.projectName), 'zh-CN'))
+    .sort((a, b) => String(a.project_name).localeCompare(String(b.project_name), 'zh-CN'))
 }

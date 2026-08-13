@@ -67,7 +67,7 @@ function goBack() {
           <h3 class="detail-title">{{ plan.name }}</h3>
           <el-tag class="detail-tag" type="success" size="large" effect="light">{{ plan.status || '已下发' }}</el-tag>
         </div>
-        <span class="detail-meta">更新人：{{ plan.updatedBy }} · 更新时间：{{ plan.updatedAt }}</span>
+        <span class="detail-meta">更新人：{{ plan.updatedBy }} · 更新时间：{{ plan.updated_at }}</span>
       </div>
 
       <!-- ===== 基本信息 ===== -->
@@ -86,7 +86,7 @@ function goBack() {
           </el-descriptions-item>
           <el-descriptions-item label="关联项目" :span="2">{{ getProjLabels.join('、') }}</el-descriptions-item>
           <el-descriptions-item label="更新人">{{ plan.updatedBy }}</el-descriptions-item>
-          <el-descriptions-item label="更新时间">{{ plan.updatedAt }}</el-descriptions-item>
+          <el-descriptions-item label="更新时间">{{ plan.updated_at }}</el-descriptions-item>
         </el-descriptions>
       </div>
 

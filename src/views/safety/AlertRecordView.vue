@@ -15,14 +15,14 @@ function handleTreeNodeClick(data) {
 }
 
 const alertData = ref([
-  { id:'alt-001', alertTime:'2026-07-16 08:56:23', alertType:'塔吊告警', content:'塔吊起力矩告警，请及时处理', deviceName:'塔吊QTZ160（#1）', region:'施工A区', level:'重大告警', status:'未处置', projectId:'p-000', project:'飞行区跑道延长工程' },
-  { id:'alt-002', alertTime:'2026-07-16 07:30:15', alertType:'塔吊告警', content:'塔吊风力超限告警', deviceName:'塔吊QTZ80（#7）', region:'堆场区', level:'重大告警', status:'未处置', projectId:'p-003', project:'新货运站建设工程' },
-  { id:'alt-003', alertTime:'2026-07-15 17:20:00', alertType:'升降机告警', content:'升降机载重超限告警', deviceName:'升降机SC200（#2）', region:'施工B区', level:'较大告警', status:'已处置', result:'现场已处置', remark:'超载人员已疏散', handler:'李工', handleTime:'2026-07-15 17:45:00', projectId:'p-000', project:'飞行区跑道延长工程' },
-  { id:'alt-004', alertTime:'2026-07-15 14:10:30', alertType:'塔吊告警', content:'塔吊倾角异常告警', deviceName:'塔吊QTZ160（#1）', region:'施工A区', level:'重大告警', status:'已处置', result:'误报', remark:'传感器临时波动', handler:'王工', handleTime:'2026-07-15 14:30:00', projectId:'p-000', project:'飞行区跑道延长工程' },
-  { id:'alt-005', alertTime:'2026-07-14 10:05:00', alertType:'桩基告警', content:'桩基施工深度超限', deviceName:'桩基钻孔机#5', region:'跑道区', level:'较大告警', status:'未处置', projectId:'p-000', project:'飞行区跑道延长工程' },
-  { id:'alt-006', alertTime:'2026-07-14 09:30:00', alertType:'升降机告警', content:'升降机人数超限告警', deviceName:'升降机SC200（#4）', region:'基础区', level:'较大告警', status:'已处置', result:'现场已处置', remark:'超员已劝离', handler:'张工', handleTime:'2026-07-14 10:00:00', projectId:'p-003', project:'新货运站建设工程' },
-  { id:'alt-007', alertTime:'2026-07-13 16:45:20', alertType:'复合地基告警', content:'复合地基电流异常', deviceName:'复合地基桩机#3', region:'基坑区', level:'一般告警', status:'未处置', projectId:'p-001', project:'T3航站楼扩建工程' },
-  { id:'alt-008', alertTime:'2026-07-13 08:00:00', alertType:'塔吊告警', content:'塔吊起重力矩超限', deviceName:'塔吊QTZ160（#1）', region:'施工A区', level:'重大告警', status:'已处置', result:'现场已处置', remark:'已调整起重参数', handler:'王工', handleTime:'2026-07-13 09:15:00', projectId:'p-000', project:'飞行区跑道延长工程' },
+  { id:'alt-001', alertTime:'2026-07-16 08:56:23', alertType:'塔吊告警', content:'塔吊起力矩告警，请及时处理', deviceName:'塔吊QTZ160（#1）', region:'施工A区', level:'重大告警', status:'未处置', project_id:'p-000', project:'飞行区跑道延长工程' },
+  { id:'alt-002', alertTime:'2026-07-16 07:30:15', alertType:'塔吊告警', content:'塔吊风力超限告警', deviceName:'塔吊QTZ80（#7）', region:'堆场区', level:'重大告警', status:'未处置', project_id:'p-003', project:'新货运站建设工程' },
+  { id:'alt-003', alertTime:'2026-07-15 17:20:00', alertType:'升降机告警', content:'升降机载重超限告警', deviceName:'升降机SC200（#2）', region:'施工B区', level:'较大告警', status:'已处置', result:'现场已处置', remark:'超载人员已疏散', handler:'李工', handleTime:'2026-07-15 17:45:00', project_id:'p-000', project:'飞行区跑道延长工程' },
+  { id:'alt-004', alertTime:'2026-07-15 14:10:30', alertType:'塔吊告警', content:'塔吊倾角异常告警', deviceName:'塔吊QTZ160（#1）', region:'施工A区', level:'重大告警', status:'已处置', result:'误报', remark:'传感器临时波动', handler:'王工', handleTime:'2026-07-15 14:30:00', project_id:'p-000', project:'飞行区跑道延长工程' },
+  { id:'alt-005', alertTime:'2026-07-14 10:05:00', alertType:'桩基告警', content:'桩基施工深度超限', deviceName:'桩基钻孔机#5', region:'跑道区', level:'较大告警', status:'未处置', project_id:'p-000', project:'飞行区跑道延长工程' },
+  { id:'alt-006', alertTime:'2026-07-14 09:30:00', alertType:'升降机告警', content:'升降机人数超限告警', deviceName:'升降机SC200（#4）', region:'基础区', level:'较大告警', status:'已处置', result:'现场已处置', remark:'超员已劝离', handler:'张工', handleTime:'2026-07-14 10:00:00', project_id:'p-003', project:'新货运站建设工程' },
+  { id:'alt-007', alertTime:'2026-07-13 16:45:20', alertType:'复合地基告警', content:'复合地基电流异常', deviceName:'复合地基桩机#3', region:'基坑区', level:'一般告警', status:'未处置', project_id:'p-001', project:'T3航站楼扩建工程' },
+  { id:'alt-008', alertTime:'2026-07-13 08:00:00', alertType:'塔吊告警', content:'塔吊起重力矩超限', deviceName:'塔吊QTZ160（#1）', region:'施工A区', level:'重大告警', status:'已处置', result:'现场已处置', remark:'已调整起重参数', handler:'王工', handleTime:'2026-07-13 09:15:00', project_id:'p-000', project:'飞行区跑道延长工程' },
 ])
 
 const filterForm = reactive({ keyword: '', status: '', alertType: '', level: '' })
@@ -62,7 +62,7 @@ const treeDataWithCount = computed(() => {
   if (!isHqSelected.value) return []
   const root = projectTree[0]
   const children = root.children.map(node => {
-    const count = alertData.value.filter(d => d.projectId === node.id).length
+    const count = alertData.value.filter(d => d.project_id === node.id).length
     const label = treeSearch.value
       ? (node.label.includes(treeSearch.value) ? `${node.label}（${count}）` : '')
       : `${node.label}（${count}）`
@@ -74,7 +74,7 @@ const treeDataWithCount = computed(() => {
 
 const filteredData = computed(() => {
   let list = alertData.value
-  if (isHqSelected.value && localProjectId.value) list = list.filter(d => d.projectId === localProjectId.value)
+  if (isHqSelected.value && localProjectId.value) list = list.filter(d => d.project_id === localProjectId.value)
   return list.filter(d => {
     if (filterForm.status && d.status !== filterForm.status) return false
     if (filterForm.alertType && d.alertType !== filterForm.alertType) return false

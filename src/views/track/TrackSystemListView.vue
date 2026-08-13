@@ -1,6 +1,6 @@
 <script setup>
 /**
- * 指挥部 · 施工现场管理 · 人员/车辆轨迹系统列表
+ * 指挥部 · 智慧工地监管 · 人员/车辆轨迹系统列表
  * 仅展示已填写系统地址的项目（含停用）；操作「跳转」打开外链。
  */
 import { computed, ref } from 'vue'
@@ -44,7 +44,7 @@ const filtered = computed(() => {
   const kw = keyword.value.trim()
   if (!kw) return rows.value
   return rows.value.filter((r) =>
-    `${r.projectName}${r.url}${r.systemName}${r.projectId}`.includes(kw),
+    `${r.project_name}${r.url}${r.system_name}${r.project_id}`.includes(kw),
   )
 })
 
@@ -62,7 +62,7 @@ function handleRefresh() {
 }
 
 function handleJump(row) {
-  openTrackExternalByUrl(row?.url, row?.systemName || pageTitle.value)
+  openTrackExternalByUrl(row?.url, row?.system_name || pageTitle.value)
 }
 </script>
 
@@ -92,10 +92,10 @@ function handleJump(row) {
     </div>
 
     <el-table :data="filtered" stripe border class="sys-table" empty-text="暂无已配置系统地址的项目">
-      <el-table-column prop="projectName" label="项目名称" min-width="200" show-overflow-tooltip />
-      <el-table-column prop="systemName" label="系统名称" min-width="180" show-overflow-tooltip>
+      <el-table-column prop="project_name" label="项目名称" min-width="200" show-overflow-tooltip />
+      <el-table-column prop="system_name" label="系统名称" min-width="180" show-overflow-tooltip>
         <template #default="{ row }">
-          {{ row.systemName || '—' }}
+          {{ row.system_name || '—' }}
         </template>
       </el-table-column>
       <el-table-column prop="url" label="系统地址" min-width="280" show-overflow-tooltip />
@@ -106,9 +106,9 @@ function handleJump(row) {
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="updatedAt" label="更新时间" width="180" align="center">
+      <el-table-column prop="updated_at" label="更新时间" width="180" align="center">
         <template #default="{ row }">
-          {{ row.updatedAt || '—' }}
+          {{ row.updated_at || '—' }}
         </template>
       </el-table-column>
       <el-table-column label="操作" width="100" align="center" fixed="right">

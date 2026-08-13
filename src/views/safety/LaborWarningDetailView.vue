@@ -23,12 +23,12 @@ const showHandleForm = ref(false)
 
 const canHandle = computed(() => {
   if (!detail.value) return false
-  return detail.value.handleMode === '手动处理' && detail.value.status !== '已关闭'
+  return detail.value.handle_mode === '手动处理' && detail.value.status !== '已关闭'
 })
 
 const handleGuide = computed(() => {
   if (!detail.value) return ''
-  return getWarningHandleGuide(detail.value.ruleKey)
+  return getWarningHandleGuide(detail.value.rule_key)
 })
 
 onMounted(() => {
@@ -51,8 +51,8 @@ function goBack() {
 }
 
 function goPersonnel() {
-  if (!detail.value?.personnelId) return
-  router.push({ name: 'RealNamePersonnelDetail', params: { id: detail.value.personnelId } })
+  if (!detail.value?.personnel_id) return
+  router.push({ name: 'RealNamePersonnelDetail', params: { id: detail.value.personnel_id } })
 }
 
 function resetHandleForm() {
@@ -126,19 +126,19 @@ async function submitHandle(close = false) {
       </div>
       <div class="title-main">
         <div>
-          <h2 class="warning-name">{{ detail.ruleLabel }}</h2>
+          <h2 class="warning-name">{{ detail.rule_label }}</h2>
           <div class="sub-meta">
-            <span>{{ detail.warningNo }}</span>
-            <span>{{ getProjectLabel(detail.projectId) }}</span>
+            <span>{{ detail.warning_no }}</span>
+            <span>{{ getProjectLabel(detail.project_id) }}</span>
             <span class="ap-status-tag" :class="warningStatusTagClass[detail.status]">{{ detail.status }}</span>
             <el-tag
               size="small"
-              :type="detail.handleMode === '系统自动关闭' ? 'success' : detail.handleMode === '通知' ? 'info' : 'warning'"
+              :type="detail.handle_mode === '系统自动关闭' ? 'success' : detail.handle_mode === '通知' ? 'info' : 'warning'"
               effect="plain"
             >
-              {{ detail.handleMode }}
+              {{ detail.handle_mode }}
             </el-tag>
-            <span v-if="detail.status !== '已关闭'">当前 {{ detail.currentLevel }} 级</span>
+            <span v-if="detail.status !== '已关闭'">当前 {{ detail.current_level }} 级</span>
           </div>
         </div>
       </div>
@@ -148,15 +148,15 @@ async function submitHandle(close = false) {
       <section class="detail-section">
         <div class="section-title">预警信息</div>
         <el-descriptions :column="2" border>
-          <el-descriptions-item label="预警编号">{{ detail.warningNo }}</el-descriptions-item>
-          <el-descriptions-item label="预警类型">{{ detail.ruleLabel }}</el-descriptions-item>
-          <el-descriptions-item label="触发时间">{{ detail.triggeredAt }}</el-descriptions-item>
-          <el-descriptions-item label="关闭时间">{{ detail.closedAt || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="处置方式">{{ detail.handleMode }}</el-descriptions-item>
+          <el-descriptions-item label="预警编号">{{ detail.warning_no }}</el-descriptions-item>
+          <el-descriptions-item label="预警类型">{{ detail.rule_label }}</el-descriptions-item>
+          <el-descriptions-item label="触发时间">{{ detail.triggered_at }}</el-descriptions-item>
+          <el-descriptions-item label="关闭时间">{{ detail.closed_at || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="处置方式">{{ detail.handle_mode }}</el-descriptions-item>
           <el-descriptions-item label="当前层级">
-            {{ detail.status === '已关闭' ? '-' : `${detail.currentLevel} 级` }}
+            {{ detail.status === '已关闭' ? '-' : `${detail.current_level} 级` }}
           </el-descriptions-item>
-          <el-descriptions-item label="触发原因" :span="2">{{ detail.triggerReason }}</el-descriptions-item>
+          <el-descriptions-item label="触发原因" :span="2">{{ detail.trigger_reason }}</el-descriptions-item>
         </el-descriptions>
       </section>
 
@@ -166,9 +166,9 @@ async function submitHandle(close = false) {
           <el-descriptions-item label="人员姓名">
             <el-button link type="primary" @click="goPersonnel">{{ detail.name }}</el-button>
           </el-descriptions-item>
-          <el-descriptions-item label="人员编号">{{ detail.personnelNo }}</el-descriptions-item>
-          <el-descriptions-item label="参建单位">{{ detail.unitName }}</el-descriptions-item>
-          <el-descriptions-item label="工种/职务">{{ detail.workType }}</el-descriptions-item>
+          <el-descriptions-item label="人员编号">{{ detail.personnel_no }}</el-descriptions-item>
+          <el-descriptions-item label="参建单位">{{ detail.unit_name }}</el-descriptions-item>
+          <el-descriptions-item label="工种/职务">{{ detail.work_type }}</el-descriptions-item>
         </el-descriptions>
       </section>
 
@@ -182,7 +182,7 @@ async function submitHandle(close = false) {
 
         <el-timeline>
           <el-timeline-item
-            v-for="(record, index) in detail.disposalRecords"
+            v-for="(record, index) in detail.disposal_records"
             :key="index"
             :timestamp="record.time"
             placement="top"

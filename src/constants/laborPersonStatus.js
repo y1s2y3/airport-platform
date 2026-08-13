@@ -79,8 +79,8 @@ export function isRealNameActive(entryStatus) {
 
 export function isRealNamePersonOnSite(person) {
   return (
-    isRealNameActive(person.entryStatus) &&
-    person.onSiteStatus === ONSITE_STATUS.ON_SITE
+    isRealNameActive(person.entry_status) &&
+    person.on_site_status === ONSITE_STATUS.ON_SITE
   )
 }
 

@@ -23,12 +23,12 @@ function goBackToHQ() {
 }
 
 const machineData = ref([
-  { id:'mac-001', machineType:'塔吊', name:'塔吊QTZ160（#1）', spec:'QTZ160', attr:'大型设备', entryType:'租赁', supplier:'四川三益机械有限公司', supplierContact:'张工', supplierPhone:'139****5566', recordNo:'渝U-T00789', manufacturer:'中联重科', factoryNo:'1012T002318', prodDate:'2021-07-16', entryDate:'2023-03-05', exitDate:'', status:'在场', enabled:true, admin:'王工', address:'飞行区跑道延长工程-施工A区', project:'飞行区跑道延长工程', projectId:'p-000', installDate:'2023-03-10', installUnit:'重庆永鸿翔建筑机械有限公司', installPerson:'刘师傅', removeDate:'', removeUnit:'', removePerson:'' },
-  { id:'mac-002', machineType:'塔吊', name:'塔吊QTZ160（#2）', spec:'WA6515-8', attr:'大型设备', entryType:'租赁', supplier:'四川三益机械有限公司', supplierContact:'张工', supplierPhone:'139****5566', recordNo:'渝U-T00790', manufacturer:'中联重科', factoryNo:'1012T002319', prodDate:'2023-02-10', entryDate:'2023-03-31', exitDate:'', status:'在场', enabled:true, admin:'王工', address:'飞行区跑道延长工程-施工B区', project:'飞行区跑道延长工程', projectId:'p-000', installDate:'2023-04-05', installUnit:'四川三益机械有限公司', installPerson:'陈师傅', removeDate:'', removeUnit:'', removePerson:'' },
-  { id:'mac-003', machineType:'塔吊', name:'塔吊QTZ80（#7）', spec:'QTZ250', attr:'大型设备', entryType:'租赁', supplier:'四川三益机械有限公司', supplierContact:'张工', supplierPhone:'139****5566', recordNo:'渝U-T00791', manufacturer:'徐州建机', factoryNo:'XUG025P123', prodDate:'2020-03-30', entryDate:'2023-07-12', exitDate:'2024-07-16', status:'已退场', enabled:false, admin:'张工', address:'新货运站建设工程-堆场区', project:'新货运站建设工程', projectId:'p-003', installDate:'2023-07-18', installUnit:'四川三益机械有限公司', installPerson:'李师傅', removeDate:'2024-07-16', removeUnit:'四川三益机械有限公司', removePerson:'李师傅' },
-  { id:'mac-004', machineType:'升降机', name:'升降机SC200（#2）', spec:'SC200/200', attr:'大型设备', entryType:'租赁', supplier:'重庆永鸿翔建筑机械有限公司', supplierContact:'张吉', supplierPhone:'19950234146', recordNo:'渝JB-S01946', manufacturer:'广州市特威工程机械有限公司', factoryNo:'220431782', prodDate:'2022-04-29', entryDate:'2024-02-02', exitDate:'', status:'在场', enabled:true, admin:'李工', address:'飞行区跑道延长工程-施工B区', project:'飞行区跑道延长工程', projectId:'p-000', installDate:'2024-02-02', installUnit:'重庆永鸿翔建筑机械有限公司', installPerson:'赵师傅', removeDate:'', removeUnit:'', removePerson:'' },
-  { id:'mac-005', machineType:'升降机', name:'升降机SC200（#4）', spec:'SC200/200', attr:'大型设备', entryType:'租赁', supplier:'重庆永鸿翔建筑机械有限公司', supplierContact:'张吉', supplierPhone:'19950234146', recordNo:'渝JB-S01947', manufacturer:'广州市特威工程机械有限公司', factoryNo:'220431781', prodDate:'2022-04-26', entryDate:'2024-01-14', exitDate:'2024-11-22', status:'已退场', enabled:false, admin:'张工', address:'新货运站建设工程-基础区', project:'新货运站建设工程', projectId:'p-003', installDate:'2024-01-20', installUnit:'重庆永鸿翔建筑机械有限公司', installPerson:'王师傅', removeDate:'2024-11-22', removeUnit:'重庆永鸿翔建筑机械有限公司', removePerson:'王师傅' },
-  { id:'mac-006', machineType:'桩基机械', name:'桩基钻孔机#5', spec:'ZJ-3000', attr:'大型设备', entryType:'租赁', supplier:'重庆永鸿翔建筑机械有限公司', supplierContact:'张吉', supplierPhone:'19950234146', recordNo:'渝JB-S01948', manufacturer:'广州市特威工程机械有限公司', factoryNo:'210828443', prodDate:'2021-08-16', entryDate:'2023-12-06', exitDate:'', status:'在场', enabled:true, admin:'王工', address:'飞行区跑道延长工程-跑道区', project:'飞行区跑道延长工程', projectId:'p-000', installDate:'2023-12-10', installUnit:'重庆永鸿翔建筑机械有限公司', installPerson:'周师傅', removeDate:'', removeUnit:'', removePerson:'' },
+  { id:'mac-001', machineType:'塔吊', name:'塔吊QTZ160（#1）', spec:'QTZ160', attr:'大型设备', entryType:'租赁', supplier:'四川三益机械有限公司', supplierContact:'张工', supplierPhone:'139****5566', recordNo:'渝U-T00789', manufacturer:'中联重科', factoryNo:'1012T002318', prodDate:'2021-07-16', entryDate:'2023-03-05', exitDate:'', status:'在场', enabled:true, admin:'王工', address:'飞行区跑道延长工程-施工A区', project:'飞行区跑道延长工程', project_id:'p-000', installDate:'2023-03-10', installUnit:'重庆永鸿翔建筑机械有限公司', installPerson:'刘师傅', removeDate:'', removeUnit:'', removePerson:'' },
+  { id:'mac-002', machineType:'塔吊', name:'塔吊QTZ160（#2）', spec:'WA6515-8', attr:'大型设备', entryType:'租赁', supplier:'四川三益机械有限公司', supplierContact:'张工', supplierPhone:'139****5566', recordNo:'渝U-T00790', manufacturer:'中联重科', factoryNo:'1012T002319', prodDate:'2023-02-10', entryDate:'2023-03-31', exitDate:'', status:'在场', enabled:true, admin:'王工', address:'飞行区跑道延长工程-施工B区', project:'飞行区跑道延长工程', project_id:'p-000', installDate:'2023-04-05', installUnit:'四川三益机械有限公司', installPerson:'陈师傅', removeDate:'', removeUnit:'', removePerson:'' },
+  { id:'mac-003', machineType:'塔吊', name:'塔吊QTZ80（#7）', spec:'QTZ250', attr:'大型设备', entryType:'租赁', supplier:'四川三益机械有限公司', supplierContact:'张工', supplierPhone:'139****5566', recordNo:'渝U-T00791', manufacturer:'徐州建机', factoryNo:'XUG025P123', prodDate:'2020-03-30', entryDate:'2023-07-12', exitDate:'2024-07-16', status:'已退场', enabled:false, admin:'张工', address:'新货运站建设工程-堆场区', project:'新货运站建设工程', project_id:'p-003', installDate:'2023-07-18', installUnit:'四川三益机械有限公司', installPerson:'李师傅', removeDate:'2024-07-16', removeUnit:'四川三益机械有限公司', removePerson:'李师傅' },
+  { id:'mac-004', machineType:'升降机', name:'升降机SC200（#2）', spec:'SC200/200', attr:'大型设备', entryType:'租赁', supplier:'重庆永鸿翔建筑机械有限公司', supplierContact:'张吉', supplierPhone:'19950234146', recordNo:'渝JB-S01946', manufacturer:'广州市特威工程机械有限公司', factoryNo:'220431782', prodDate:'2022-04-29', entryDate:'2024-02-02', exitDate:'', status:'在场', enabled:true, admin:'李工', address:'飞行区跑道延长工程-施工B区', project:'飞行区跑道延长工程', project_id:'p-000', installDate:'2024-02-02', installUnit:'重庆永鸿翔建筑机械有限公司', installPerson:'赵师傅', removeDate:'', removeUnit:'', removePerson:'' },
+  { id:'mac-005', machineType:'升降机', name:'升降机SC200（#4）', spec:'SC200/200', attr:'大型设备', entryType:'租赁', supplier:'重庆永鸿翔建筑机械有限公司', supplierContact:'张吉', supplierPhone:'19950234146', recordNo:'渝JB-S01947', manufacturer:'广州市特威工程机械有限公司', factoryNo:'220431781', prodDate:'2022-04-26', entryDate:'2024-01-14', exitDate:'2024-11-22', status:'已退场', enabled:false, admin:'张工', address:'新货运站建设工程-基础区', project:'新货运站建设工程', project_id:'p-003', installDate:'2024-01-20', installUnit:'重庆永鸿翔建筑机械有限公司', installPerson:'王师傅', removeDate:'2024-11-22', removeUnit:'重庆永鸿翔建筑机械有限公司', removePerson:'王师傅' },
+  { id:'mac-006', machineType:'桩基机械', name:'桩基钻孔机#5', spec:'ZJ-3000', attr:'大型设备', entryType:'租赁', supplier:'重庆永鸿翔建筑机械有限公司', supplierContact:'张吉', supplierPhone:'19950234146', recordNo:'渝JB-S01948', manufacturer:'广州市特威工程机械有限公司', factoryNo:'210828443', prodDate:'2021-08-16', entryDate:'2023-12-06', exitDate:'', status:'在场', enabled:true, admin:'王工', address:'飞行区跑道延长工程-跑道区', project:'飞行区跑道延长工程', project_id:'p-000', installDate:'2023-12-10', installUnit:'重庆永鸿翔建筑机械有限公司', installPerson:'周师傅', removeDate:'', removeUnit:'', removePerson:'' },
 ])
 
 const filterForm = reactive({ keyword: '', machineType: '', entryType: '', status: '' })
@@ -40,17 +40,17 @@ const typeOptions = computed(() => machineTypeList.map((t) => t.name))
 
 const hqProjectRows = computed(() => {
   return COC_PROJECT_OPTIONS.map((node) => {
-    const list = machineData.value.filter((d) => d.projectId === node.id)
+    const list = machineData.value.filter((d) => d.project_id === node.id)
     return {
-      projectId: node.id,
-      projectName: node.label,
+      project_id: node.id,
+      project_name: node.label,
       totalCount: list.length,
       inFieldCount: list.filter(d => d.status === '在场').length,
       exitCount: list.filter(d => d.status === '已退场').length,
       enabledCount: list.filter(d => d.enabled).length,
       largeCount: list.filter(d => d.attr === '大型设备').length,
     }
-  }).filter(row => !hqProjectKeyword.value || row.projectName.includes(hqProjectKeyword.value))
+  }).filter(row => !hqProjectKeyword.value || row.project_name.includes(hqProjectKeyword.value))
 })
 
 const hqTotalStats = computed(() => {
@@ -65,7 +65,7 @@ const hqTotalStats = computed(() => {
 
 const filteredData = computed(() => {
   let list = machineData.value
-  if (!isHqSelected.value) list = list.filter(d => d.projectId === scopeProjectId.value)
+  if (!isHqSelected.value) list = list.filter(d => d.project_id === scopeProjectId.value)
   return list.filter(d => {
     if (filterForm.machineType && d.machineType !== filterForm.machineType) return false
     if (filterForm.entryType && d.entryType !== filterForm.entryType) return false
@@ -82,7 +82,7 @@ function handleReset() { Object.keys(filterForm).forEach(k => filterForm[k] = ''
 function viewDetail(row) { router.push(`/machine-supervise/ledger/${row.id}`) }
 function viewProjectLedger(row) {
   router.push({ path: '/machine-supervise/ledger', query: { from: 'hq' } }).then(() => {
-    selectedProjectId.value = row.projectId
+    selectedProjectId.value = row.project_id
   })
 }
 
@@ -207,7 +207,7 @@ function toggleEnabled(row) {
         </div>
         <el-table :data="hqProjectRows" border stripe class="ap-table" style="width:100%;margin-top:12px">
           <el-table-column type="index" label="序号" width="55" align="center" />
-          <el-table-column prop="projectName" label="项目名称" min-width="180" />
+          <el-table-column prop="project_name" label="项目名称" min-width="180" />
           <el-table-column prop="totalCount" label="设备数量" align="center" />
           <el-table-column prop="inFieldCount" label="在场设备" align="center" />
           <el-table-column prop="exitCount" label="已退场设备" align="center" />

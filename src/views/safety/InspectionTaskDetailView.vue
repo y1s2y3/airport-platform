@@ -10,14 +10,14 @@ const taskId = route.params.id
 
 // ===== 5条任务基本信息 =====
 const taskMap = {
-  'mt-000': { taskNo:'AQXJ20260730001', taskName:'高处作业安全检查', inspectionCategory:'安全', source:'任务下发', project:'飞行区跑道延长工程', projectId:'p-000', executor:'监理', inspector:'监理', companions:[], deadline:'2026-07-10', inspectionDate:'', status:'待执行', itemCount:10, hazardCount:0, result:'', normalPhotos:[], hazardItems:[] },
-  'mt-001': { taskNo:'AQXJ20260728001', taskName:'防台防汛安全检查', inspectionCategory:'安全', source:'任务下发', project:'飞行区跑道延长工程', projectId:'p-000', executor:'监理', inspector:'监理', companions:[], deadline:'2026-07-28', inspectionDate:'', status:'待执行', itemCount:12, hazardCount:0, result:'', normalPhotos:[], hazardItems:[] },
-  'mt-002': { taskNo:'AQXJ20260718001', taskName:'临时用电安全检查', inspectionCategory:'安全', source:'任务下发', project:'T3航站楼扩建工程', projectId:'p-001', executor:'监理', inspector:'监理', companions:[], deadline:'2026-07-20', inspectionDate:'2026-07-20', status:'已完成', itemCount:8, hazardCount:2, result:'hazard', normalPhotos:[],
+  'mt-000': { taskNo:'AQXJ20260730001', taskName:'高处作业安全检查', inspectionCategory:'安全', source:'任务下发', project:'飞行区跑道延长工程', project_id:'p-000', executor:'监理', inspector:'监理', companions:[], deadline:'2026-07-10', inspectionDate:'', status:'待执行', itemCount:10, hazardCount:0, result:'', normalPhotos:[], hazardItems:[] },
+  'mt-001': { taskNo:'AQXJ20260728001', taskName:'防台防汛安全检查', inspectionCategory:'安全', source:'任务下发', project:'飞行区跑道延长工程', project_id:'p-000', executor:'监理', inspector:'监理', companions:[], deadline:'2026-07-28', inspectionDate:'', status:'待执行', itemCount:12, hazardCount:0, result:'', normalPhotos:[], hazardItems:[] },
+  'mt-002': { taskNo:'AQXJ20260718001', taskName:'临时用电安全检查', inspectionCategory:'安全', source:'任务下发', project:'T3航站楼扩建工程', project_id:'p-001', executor:'监理', inspector:'监理', companions:[], deadline:'2026-07-20', inspectionDate:'2026-07-20', status:'已完成', itemCount:8, hazardCount:2, result:'hazard', normalPhotos:[],
     hazardItems:[
       { desc:'五芯电缆破损，线路未按规范敷设', photos:['📷 隐患照片1'], hasRectify:true, rectifyNo:'ZG202607001', rectifyId:'rec-001', rectifier:'刘工（专职安全员）', rectifyDeadline:'2026-07-30' },
       { desc:'电缆线路沿地明敷未做保护', photos:['📷 隐患照片1'], hasRectify:true, rectifyNo:'ZG202607002', rectifyId:'rec-002', rectifier:'刘工（专职安全员）', rectifyDeadline:'2026-07-30' },
     ] },
-  'mt-003': { taskNo:'AQXJ20260721003', taskName:'消防设施安全检查', inspectionCategory:'安全', source:'任务下发', project:'T3航站楼扩建工程', projectId:'p-001', executor:'监理', inspector:'监理', companions:[], deadline:'2026-07-21', inspectionDate:'2026-07-21', status:'已完成', itemCount:12, hazardCount:0, result:'normal', normalPhotos:['📷 巡检照片1','📷 巡检照片2'], hazardItems:[] },
+  'mt-003': { taskNo:'AQXJ20260721003', taskName:'消防设施安全检查', inspectionCategory:'安全', source:'任务下发', project:'T3航站楼扩建工程', project_id:'p-001', executor:'监理', inspector:'监理', companions:[], deadline:'2026-07-21', inspectionDate:'2026-07-21', status:'已完成', itemCount:12, hazardCount:0, result:'normal', normalPhotos:['📷 巡检照片1','📷 巡检照片2'], hazardItems:[] },
   'mt-004': { taskNo:'ZLXJ20260731004', taskName:'进场材料质量检查', inspectionCategory:'质量', source:'任务下发', project:'新货运站建设工程', executor:'王工', inspector:'王工', companions:[], deadline:'2026-07-31', inspectionDate:'2026-07-31', status:'已完成', itemCount:0, hazardCount:0, result:'normal', normalPhotos:['📷 巡检照片1','📷 巡检照片2'], hazardItems:[] },
   'mt-005': { taskNo:'ZLXJ20260728005', taskName:'关键工序质量检查', inspectionCategory:'质量', source:'系统自建', project:'飞行区跑道延长工程', executor:'王工', inspector:'王工', companions:['吴工'], deadline:'2026-07-28', inspectionDate:'2026-07-28', status:'已完成', itemCount:0, hazardCount:1, result:'hazard', normalPhotos:[],
     hazardItems:[

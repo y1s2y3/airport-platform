@@ -32,7 +32,7 @@ const treeDataWithCount = computed(() => {
   const root = projectTree[0]
   const children = root.children
     .map(node => {
-      const count = taskData.value.filter(t => t.projectId === node.id).length
+      const count = taskData.value.filter(t => t.project_id === node.id).length
       const label = treeSearch.value
         ? (node.label.includes(treeSearch.value) ? `${node.label}（${count}）` : '')
         : `${node.label}（${count}）`
@@ -45,7 +45,7 @@ const treeDataWithCount = computed(() => {
 // 与移动端共用任务数据，下发后立即出现在 Web 台账和移动端待办中。
 const taskData = computed(() => listMobileInspectionTasks().map(task => ({
   ...task,
-  inspector: task.inspector || task.executor || getProjectInspectorLabel(task.projectId) || DEFAULT_INSPECTOR_LABEL,
+  inspector: task.inspector || task.executor || getProjectInspectorLabel(task.project_id) || DEFAULT_INSPECTOR_LABEL,
   inspectionDate: task.inspectionDate || task.inspDate || '',
   hazardItems: task.hazardItems || [],
 })))
@@ -58,10 +58,10 @@ const filterForm = reactive({ keyword: '', category: '', status: '', source: '',
 
 const hqProjectKeyword = ref('')
 const hqProjectStats = computed(() => projectTree[0].children.map(project => {
-  const rows = taskData.value.filter(item => item.projectId === project.id)
+  const rows = taskData.value.filter(item => item.project_id === project.id)
   return {
-    projectId: project.id,
-    projectName: project.label,
+    project_id: project.id,
+    project_name: project.label,
     totalCount: rows.length,
     pendingCount: rows.filter(item => item.status === '待执行').length,
     completedCount: rows.filter(item => item.status === '已完成').length,
@@ -70,7 +70,7 @@ const hqProjectStats = computed(() => projectTree[0].children.map(project => {
   }
 }))
 const filteredHQProjects = computed(() => hqProjectStats.value.filter(item =>
-  !hqProjectKeyword.value || item.projectName.includes(hqProjectKeyword.value),
+  !hqProjectKeyword.value || item.project_name.includes(hqProjectKeyword.value),
 ))
 const hqTotalStats = computed(() => ({
   totalCount: filteredHQProjects.value.reduce((sum, item) => sum + item.totalCount, 0),
@@ -82,7 +82,7 @@ const hqTotalStats = computed(() => ({
 
 const filteredTasks = computed(() => {
   let list = taskData.value
-  if (!isHqSelected.value && scopeProjectId.value) list = list.filter(t => t.projectId === scopeProjectId.value)
+  if (!isHqSelected.value && scopeProjectId.value) list = list.filter(t => t.project_id === scopeProjectId.value)
   return list.filter(t => {
     if (filterForm.category && t.inspectionCategory !== filterForm.category) return false
     if (filterForm.status && t.status !== filterForm.status) return false
@@ -126,7 +126,7 @@ function goRectify(id) { router.push(`/safety-inspection/hazard/${id}`) }
 function handleReset() { Object.keys(filterForm).forEach(k => filterForm[k] = '') }
 function viewProjectDetail(row) {
   router.push({ path:'/safety-inspection/task', query:{ from:'hq' } }).then(() => {
-    selectedProjectId.value = row.projectId
+    selectedProjectId.value = row.project_id
   })
 }
 function goBackToHQ() {
@@ -157,7 +157,7 @@ function goBackToHQ() {
         </div>
         <el-table :data="filteredHQProjects" border stripe style="width:100%;margin-top:12px" class="hq-table">
           <el-table-column type="index" label="序号" width="55" align="center" />
-          <el-table-column prop="projectName" label="项目名称" min-width="180" />
+          <el-table-column prop="project_name" label="项目名称" min-width="180" />
           <el-table-column prop="totalCount" label="任务数量" align="center" />
           <el-table-column prop="pendingCount" label="待执行数量" align="center" />
           <el-table-column prop="completedCount" label="已完成数量" align="center" />

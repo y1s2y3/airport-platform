@@ -1,9 +1,9 @@
 /**
  * 项目级侧栏重组：
- * - 智慧工地监管：人员实名制 / 车辆 / 机械设备监管 / 视频监控（降级为二级）
- * - 施工现场管理：施工作业申报 + 巡检管理 + 危大工程 + 机械设备台账 + 告警配置
+ * - 智慧工地监管：人员实名制 / 车辆 / 机械设备监管 / 危大工程监测 / 告警配置 / 视频监控
+ * - 施工现场管理：施工作业申报 + 巡检管理 + 机械设备台账
  * - 施工质量管控：质量验评 / 品牌报审 / 样板管理 / 材料进场管理 / 设备进场管理 / 实模一致验收
- * 指挥部「施工现场管理」见 hqSiteConstructionMenuGroup
+ * 指挥部：「施工现场管理」见 hqSiteConstructionMenuGroup；「智慧工地监管」见 hqSmartSiteMenuGroup
  */
 import { vehicleMenuGroup } from './vehicleMenu.js'
 import { videoMonitorMenuGroup } from './videoMonitorMenu.js'
@@ -55,17 +55,61 @@ function nestGroup(source, nestedKey, extraChildren = []) {
   }
 }
 
-/**
- * 指挥部 · 施工现场管理（一级）
- * 顺序挂在：安全看板 → 质量看板 → 本菜单
- * 二级：人员实名制管理 / 车辆管理 / 巡检管理 / 机械设备监管 / 危大工程监测 / 施工作业管理
- */
 const HQ_WORK_MANAGE_KEYS = new Set(['major-hazard-daily-work', 'major-hazard-list'])
 
+/** 指挥部 · 车辆管理（看板 / 轨迹系统 / 轨迹配置） */
+const hqVehicleMenuChildren = [
+  {
+    key: 'vehicle-dashboard',
+    label: '车辆管理看板',
+    path: '/vehicle/dashboard',
+    description: '指挥部按项目汇总车辆进出场、在场情况。',
+  },
+  {
+    key: 'vehicle-track-system',
+    label: '车辆轨迹系统',
+    path: '/vehicle/track-system',
+    description: '指挥部查看已配置车辆轨迹外链的项目，并支持跳转。',
+  },
+  {
+    key: 'vehicle-track-config',
+    label: '车辆轨迹配置',
+    path: '/vehicle/track-config',
+    description: '指挥部按项目维护车辆定位系统外链；项目侧「车辆轨迹监管」点击后直接外跳。',
+  },
+]
+
+/**
+ * 指挥部 · 施工现场管理（一级）
+ * 顺序：安全看板 → 质量看板 → 本菜单 → 智慧工地监管
+ * 二级：巡检管理 / 施工作业管理
+ */
 export const hqSiteConstructionMenuGroup = {
   key: 'hq-site-construction',
   label: '施工现场管理',
   icon: 'MapLocation',
+  children: [
+    nestGroup(constructionSafetyMenuGroup, 'safety-inspection'),
+    {
+      key: 'hq-work-manage',
+      label: '施工作业管理',
+      icon: 'Document',
+      children: majorHazardMenuGroup.children
+        .filter((c) => HQ_WORK_MANAGE_KEYS.has(c.key))
+        .map((c) => ({ ...c })),
+    },
+  ],
+}
+
+/**
+ * 指挥部 · 智慧工地监管（一级）
+ * 排在「施工现场管理」之后
+ * 二级：人员实名制管理 / 车辆管理 / 机械设备监管 / 危大工程监测
+ */
+export const hqSmartSiteMenuGroup = {
+  key: 'hq-smart-site',
+  label: '智慧工地监管',
+  icon: 'Cpu',
   children: [
     {
       key: 'labor',
@@ -75,28 +119,8 @@ export const hqSiteConstructionMenuGroup = {
     {
       key: 'hq-vehicle',
       label: '车辆管理',
-      children: [
-        {
-          key: 'vehicle-dashboard',
-          label: '车辆管理看板',
-          path: '/vehicle/dashboard',
-          description: '指挥部按项目汇总车辆进出场、在场情况。',
-        },
-        {
-          key: 'vehicle-track-system',
-          label: '车辆轨迹系统',
-          path: '/vehicle/track-system',
-          description: '指挥部查看已配置车辆轨迹外链的项目，并支持跳转。',
-        },
-        {
-          key: 'vehicle-track-config',
-          label: '车辆轨迹配置',
-          path: '/vehicle/track-config',
-          description: '指挥部按项目维护车辆定位系统外链；项目侧「车辆轨迹监管」点击后直接外跳。',
-        },
-      ],
+      children: hqVehicleMenuChildren.map((c) => ({ ...c })),
     },
-    nestGroup(constructionSafetyMenuGroup, 'safety-inspection'),
     nestGroup(machineSuperviseMenuGroup, 'machine-supervise'),
     {
       key: 'major-hazard',
@@ -104,14 +128,6 @@ export const hqSiteConstructionMenuGroup = {
       icon: majorHazardMenuGroup.icon,
       children: majorHazardMenuGroup.children
         .filter((c) => !HQ_WORK_MANAGE_KEYS.has(c.key))
-        .map((c) => ({ ...c })),
-    },
-    {
-      key: 'hq-work-manage',
-      label: '施工作业管理',
-      icon: 'Document',
-      children: majorHazardMenuGroup.children
-        .filter((c) => HQ_WORK_MANAGE_KEYS.has(c.key))
         .map((c) => ({ ...c })),
     },
   ],
@@ -132,6 +148,22 @@ export const smartSiteMenuGroup = {
     nestGroup(machineSuperviseMenuGroup, 'smart-machine-supervise', [
       { key: 'alert-record', label: '告警记录', path: '/machine-supervise/alert-record' },
     ]),
+    {
+      key: 'site-major-hazard',
+      label: majorHazardMenuGroup.label,
+      icon: majorHazardMenuGroup.icon,
+      children: [
+        ...majorHazardMenuGroup.children
+          .filter((c) => !['major-hazard-daily-work', 'major-hazard-list'].includes(c.key))
+          .map((c) => ({ ...c })),
+        { key: 'alert-record-major', label: '告警记录', path: '/major-hazard/alert-record' },
+      ],
+    },
+    {
+      key: alertConfigMenuItem.key,
+      label: alertConfigMenuItem.label,
+      path: alertConfigMenuItem.path,
+    },
     nestGroup(videoMonitorMenuGroup, 'smart-video-monitor'),
   ],
 }
@@ -151,23 +183,7 @@ export const siteConstructionMenuGroup = {
         .map((c) => ({ ...c })),
     },
     nestGroup(constructionSafetyMenuGroup, 'site-safety-inspection'),
-    {
-      key: 'site-major-hazard',
-      label: majorHazardMenuGroup.label,
-      icon: majorHazardMenuGroup.icon,
-      children: [
-        ...majorHazardMenuGroup.children
-          .filter((c) => !['major-hazard-daily-work', 'major-hazard-list'].includes(c.key))
-          .map((c) => ({ ...c })),
-        { key: 'alert-record-major', label: '告警记录', path: '/major-hazard/alert-record' },
-      ],
-    },
     nestGroup(machineLedgerMenuGroup, 'machine-ledger'),
-    {
-      key: alertConfigMenuItem.key,
-      label: alertConfigMenuItem.label,
-      path: alertConfigMenuItem.path,
-    },
   ],
 }
 

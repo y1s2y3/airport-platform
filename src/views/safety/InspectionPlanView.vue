@@ -90,7 +90,7 @@ function goTaskDetail(row) {
           <template #default="{ row }">{{ getUpdatedByName(row) }}</template>
         </el-table-column>
         <el-table-column label="更新时间"  align="center">
-          <template #default="{ row }">{{ row.updatedAt }}</template>
+          <template #default="{ row }">{{ row.updated_at }}</template>
         </el-table-column>
         <el-table-column label="下发状态" width="90" align="center">
           <template #default="{ row }">

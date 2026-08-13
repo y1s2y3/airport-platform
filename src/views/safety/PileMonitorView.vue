@@ -40,7 +40,7 @@ const monitorData = ref([
       progress:'65%',
       pushTime:'2026-07-16 08:28:00',
       project:'飞行区跑道延长工程',
-      projectId:'p-000'
+      project_id:'p-000'
     },
     {
       id:'p-002',
@@ -55,7 +55,7 @@ const monitorData = ref([
       progress:'82%',
       pushTime:'2026-07-16 08:20:00',
       project:'T3航站楼扩建工程',
-      projectId:'p-001'
+      project_id:'p-001'
     },
     {
       id:'p-003',
@@ -70,7 +70,7 @@ const monitorData = ref([
       progress:'42%',
       pushTime:'2026-07-16 08:15:00',
       project:'飞行区跑道延长工程',
-      projectId:'p-000'
+      project_id:'p-000'
     },
     {
       id:'p-004',
@@ -85,7 +85,7 @@ const monitorData = ref([
       progress:'70%',
       pushTime:'2026-07-16 08:10:00',
       project:'T3航站楼扩建工程',
-      projectId:'p-001'
+      project_id:'p-001'
     },
 ])
 
@@ -94,7 +94,7 @@ const treeDataWithCount = computed(() => {
   if (!isHqSelected.value) return []
   const root = projectTree[0]
   const children = root.children.map(node => {
-    const count = monitorData.value.filter(d => d.projectId === node.id).length
+    const count = monitorData.value.filter(d => d.project_id === node.id).length
     const label = treeSearch.value ? (node.label.includes(treeSearch.value) ? `${node.label}（${count}）` : '') : `${node.label}（${count}）`
     return { ...node, label, _visible: !treeSearch.value || node.label.includes(treeSearch.value) }
   }).filter(n => n._visible)
@@ -102,20 +102,20 @@ const treeDataWithCount = computed(() => {
 })
 const filteredData = computed(() => {
   let list = monitorData.value
-  if (isHqSelected.value && localProjectId.value) list = list.filter(d => d.projectId === localProjectId.value)
+  if (isHqSelected.value && localProjectId.value) list = list.filter(d => d.project_id === localProjectId.value)
   return list.filter(d => { if (filterForm.keyword && !d.deviceName.includes(filterForm.keyword) && !d.deviceSN.includes(filterForm.keyword) && !d.project.includes(filterForm.keyword)) return false; return true })
 })
 function handleReset() { filterForm.keyword = '' }
 
 // 指挥部看板数据
 const hqProjectStats = ref([
-{ projectName:'飞行区跑道延长工程', projectId:'p-000', deviceCount:1, onlineCount:1, alertCount:1, todayAlertCount:1, pendingAlertCount:0 },
-    { projectName:'T3航站楼扩建工程', projectId:'p-001', deviceCount:1, onlineCount:1, alertCount:2, todayAlertCount:0, pendingAlertCount:1 }
+{ project_name:'飞行区跑道延长工程', project_id:'p-000', deviceCount:1, onlineCount:1, alertCount:1, todayAlertCount:1, pendingAlertCount:0 },
+    { project_name:'T3航站楼扩建工程', project_id:'p-001', deviceCount:1, onlineCount:1, alertCount:2, todayAlertCount:0, pendingAlertCount:1 }
 ])
 const hqProjectKeyword = ref('')
 const filteredHQProjects = computed(() => {
   let list = hqProjectStats.value
-  if (hqProjectKeyword.value) list = list.filter(d => d.projectName.includes(hqProjectKeyword.value))
+  if (hqProjectKeyword.value) list = list.filter(d => d.project_name.includes(hqProjectKeyword.value))
   return list
 })
 const hqTotalStats = computed(() => {
@@ -130,7 +130,7 @@ const hqTotalStats = computed(() => {
 
 function viewProjectDetail(row) {
   router.push({ path: '/machine-supervise/pile', query: { from: 'hq' } }).then(() => {
-    selectedProjectId.value = row.projectId
+    selectedProjectId.value = row.project_id
   })
 }
 </script>
@@ -153,7 +153,7 @@ function viewProjectDetail(row) {
         </div>
         <el-table :data="filteredHQProjects" border stripe class="ap-table" style="width:100%;margin-top:12px">
           <el-table-column type="index" label="序号" width="55" align="center" />
-          <el-table-column prop="projectName" label="项目名称" min-width="160" />
+          <el-table-column prop="project_name" label="项目名称" min-width="160" />
           <el-table-column prop="deviceCount" label="设备数量" align="center" />
           <el-table-column prop="onlineCount" label="在线设备数量" align="center" />
           <el-table-column prop="alertCount" label="告警数量" align="center"><template #default="{ row }"><span :class="row.alertCount > 0 ? 'text-alert' : ''">{{ row.alertCount }}</span></template></el-table-column>

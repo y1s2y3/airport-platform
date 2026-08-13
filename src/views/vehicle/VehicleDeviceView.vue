@@ -14,7 +14,7 @@ import {
 const menuItem = getVehicleMenuItem('vehicle-device')
 const { isHqSelected, treeProjectId, scopeProjectId, scopeProjectLabel, onTreeNodeClick } = useVehicleProjectScope()
 const keyword = ref('')
-const filters = ref({ deviceType: '', online: '' })
+const filters = ref({ device_type: '', online: '' })
 const list = ref([])
 const formVisible = ref(false)
 const formRef = ref(null)
@@ -36,10 +36,10 @@ const filteredList = computed(() => {
   const kw = keyword.value.trim()
   return list.value.filter((row) => {
     if (kw) {
-      const hay = `${row.name}${row.deviceNo}${row.location}${row.bindPlateNo}`
+      const hay = `${row.name}${row.device_no}${row.location}${row.bind_plate_no}`
       if (!hay.includes(kw)) return false
     }
-    if (filters.value.deviceType && row.deviceType !== filters.value.deviceType) return false
+    if (filters.value.device_type && row.device_type !== filters.value.device_type) return false
     if (filters.value.online === 'online' && !row.online) return false
     if (filters.value.online === 'offline' && row.online) return false
     return true
@@ -49,13 +49,13 @@ const filteredList = computed(() => {
 const stats = computed(() => ({
   total: list.value.length,
   online: list.value.filter((item) => item.online).length,
-  gate: list.value.filter((item) => item.deviceType === '道闸车牌识别设备').length,
+  gate: list.value.filter((item) => item.device_type === '道闸车牌识别设备').length,
 }))
 
 const formRules = {
   name: [{ required: true, message: '请输入设备名称', trigger: 'blur' }],
-  deviceType: [{ required: true, message: '请选择设备类型', trigger: 'change' }],
-  deviceNo: [{ required: true, message: '请输入设备编号', trigger: 'blur' }],
+  device_type: [{ required: true, message: '请选择设备类型', trigger: 'change' }],
+  device_no: [{ required: true, message: '请输入设备编号', trigger: 'blur' }],
   location: [{ required: true, message: '请输入安装位置', trigger: 'blur' }],
 }
 
@@ -65,13 +65,13 @@ function loadList() {
 
 watch(scopeProjectId, () => {
   keyword.value = ''
-  filters.value = { deviceType: '', online: '' }
+  filters.value = { device_type: '', online: '' }
   loadList()
 }, { immediate: true })
 
 function handleReset() {
   keyword.value = ''
-  filters.value = { deviceType: '', online: '' }
+  filters.value = { device_type: '', online: '' }
 }
 
 function openCreate() {
@@ -90,8 +90,8 @@ async function handleSubmit() {
   await formRef.value.validate()
   const payload = {
     ...formData.value,
-    projectId: scopeProjectId.value,
-    updatedAt: new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-'),
+    project_id: scopeProjectId.value,
+    updated_at: new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-'),
   }
   if (editingId.value) {
     const index = list.value.findIndex((item) => item.id === editingId.value)
@@ -160,7 +160,7 @@ async function handleDelete(row) {
             :prefix-icon="Search"
             class="search-input"
           />
-          <el-select v-model="filters.deviceType" placeholder="设备类型" clearable style="width: 150px">
+          <el-select v-model="filters.device_type" placeholder="设备类型" clearable style="width: 150px">
             <el-option v-for="opt in vehicleDeviceTypeOptions" :key="opt" :label="opt" :value="opt" />
           </el-select>
           <el-select v-model="filters.online" placeholder="在线状态" clearable style="width: 110px">
@@ -174,10 +174,10 @@ async function handleDelete(row) {
         <el-table :data="filteredList" border stripe class="ap-table">
           <el-table-column type="index" label="序号" width="60" align="center" />
           <el-table-column prop="name" label="设备名称" min-width="140" show-overflow-tooltip />
-          <el-table-column prop="deviceType" label="设备类型" min-width="140" />
-          <el-table-column prop="deviceNo" label="设备编号" width="130" show-overflow-tooltip />
+          <el-table-column prop="device_type" label="设备类型" min-width="140" />
+          <el-table-column prop="device_no" label="设备编号" width="130" show-overflow-tooltip />
           <el-table-column prop="location" label="安装位置" min-width="120" show-overflow-tooltip />
-          <el-table-column prop="bindPlateNo" label="绑定车牌" width="110" />
+          <el-table-column prop="bind_plate_no" label="绑定车牌" width="110" />
           <el-table-column label="在线状态" width="90" align="center">
             <template #default="{ row }">
               <span class="ap-status-tag" :class="row.online ? 'ap-tag-enabled' : 'ap-tag-disabled'">
@@ -185,7 +185,7 @@ async function handleDelete(row) {
               </span>
             </template>
           </el-table-column>
-          <el-table-column prop="updatedAt" label="更新时间" width="160" />
+          <el-table-column prop="updated_at" label="更新时间" width="160" />
           <el-table-column label="操作" width="130" fixed="right" align="center">
             <template #default="{ row }">
               <el-button link type="primary" size="small" @click="openEdit(row)">编辑</el-button>
@@ -206,19 +206,19 @@ async function handleDelete(row) {
         <el-form-item label="设备名称" prop="name">
           <el-input v-model="formData.name" />
         </el-form-item>
-        <el-form-item label="设备类型" prop="deviceType">
-          <el-select v-model="formData.deviceType" style="width: 100%">
+        <el-form-item label="设备类型" prop="device_type">
+          <el-select v-model="formData.device_type" style="width: 100%">
             <el-option v-for="opt in vehicleDeviceTypeOptions" :key="opt" :label="opt" :value="opt" />
           </el-select>
         </el-form-item>
-        <el-form-item label="设备编号" prop="deviceNo">
-          <el-input v-model="formData.deviceNo" />
+        <el-form-item label="设备编号" prop="device_no">
+          <el-input v-model="formData.device_no" />
         </el-form-item>
         <el-form-item label="安装位置" prop="location">
           <el-input v-model="formData.location" />
         </el-form-item>
         <el-form-item label="绑定车牌">
-          <el-input v-model="formData.bindPlateNo" placeholder="选填" />
+          <el-input v-model="formData.bind_plate_no" placeholder="选填" />
         </el-form-item>
         <el-form-item label="在线状态">
           <el-switch v-model="formData.online" active-text="在线" inactive-text="离线" />

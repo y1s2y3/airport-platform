@@ -29,25 +29,26 @@ export const PERSONNEL_IMPORT_HEADERS = [
   '在岗状态',
 ]
 
+/** 表头 → 中间行键（与 PRD 实体字段 snake_case 一致） */
 const HEADER_ALIASES = {
   姓名: 'name',
   手机号码: 'phone',
   手机号: 'phone',
-  证件号码: 'idNumber',
-  身份证号: 'idNumber',
+  证件号码: 'id_number',
+  身份证号: 'id_number',
   性别: 'gender',
-  '工种/职务': 'workType',
-  工种: 'workType',
-  参建单位名称: 'unitName',
-  参建单位: 'unitName',
-  参建单位类型: 'unitType',
+  '工种/职务': 'work_type',
+  工种: 'work_type',
+  参建单位名称: 'unit_name',
+  参建单位: 'unit_name',
+  参建单位类型: 'unit_type',
   所属班组: 'team',
   班组: 'team',
-  工人类型: 'personnelCategory',
-  人员类别: 'personnelCategory',
-  在岗状态: 'entryStatus',
-  入退场状态: 'entryStatus',
-  入场状态: 'entryStatus',
+  工人类型: 'personnel_category',
+  人员类别: 'personnel_category',
+  在岗状态: 'entry_status',
+  入退场状态: 'entry_status',
+  入场状态: 'entry_status',
 }
 
 function cellText(value) {
@@ -74,11 +75,11 @@ function validateRow(row, index, existingIdCards, existingPhones) {
   if (!row.phone) errors.push(`第 ${line} 行：手机号码不能为空`)
   else if (!/^1\d{10}$/.test(row.phone)) errors.push(`第 ${line} 行：手机号码格式不正确`)
 
-  if (!row.idNumber) errors.push(`第 ${line} 行：证件号码不能为空`)
-  else if (!/(^\d{15}$)|(^\d{17}[\dXx]$)/.test(row.idNumber)) {
+  if (!row.id_number) errors.push(`第 ${line} 行：证件号码不能为空`)
+  else if (!/(^\d{15}$)|(^\d{17}[\dXx]$)/.test(row.id_number)) {
     errors.push(`第 ${line} 行：证件号码格式不正确`)
-  } else if (existingIdCards.has(row.idNumber)) {
-    errors.push(`第 ${line} 行：证件号码 ${row.idNumber} 已在当前项目中存在`)
+  } else if (existingIdCards.has(row.id_number)) {
+    errors.push(`第 ${line} 行：证件号码 ${row.id_number} 已在当前项目中存在`)
   }
 
   if (row.phone && existingPhones.has(row.phone)) {
@@ -89,23 +90,23 @@ function validateRow(row, index, existingIdCards, existingPhones) {
     errors.push(`第 ${line} 行：性别应为「男」或「女」`)
   }
 
-  if (row.workType && !workTypeOptions.includes(row.workType)) {
-    errors.push(`第 ${line} 行：工种/职务「${row.workType}」不在可选范围内`)
+  if (row.work_type && !workTypeOptions.includes(row.work_type)) {
+    errors.push(`第 ${line} 行：工种/职务「${row.work_type}」不在可选范围内`)
   }
 
-  if (row.unitType && !unitTypeOptions.includes(row.unitType)) {
-    errors.push(`第 ${line} 行：参建单位类型「${row.unitType}」不在可选范围内`)
+  if (row.unit_type && !unitTypeOptions.includes(row.unit_type)) {
+    errors.push(`第 ${line} 行：参建单位类型「${row.unit_type}」不在可选范围内`)
   }
 
-  if (row.personnelCategory) {
+  if (row.personnel_category) {
     const allowed = [...personnelCategoryOptions, '劳务人员', '特种作业人员']
-    if (!allowed.includes(row.personnelCategory)) {
-      errors.push(`第 ${line} 行：工人类型「${row.personnelCategory}」不在可选范围内（管理人员 / 建筑工人）`)
+    if (!allowed.includes(row.personnel_category)) {
+      errors.push(`第 ${line} 行：工人类型「${row.personnel_category}」不在可选范围内（管理人员 / 建筑工人）`)
     }
   }
 
-  const entryStatus = parseEntryStatus(row.entryStatus)
-  if (![REALNAME_ENTRY_STATUS.ENTERED, REALNAME_ENTRY_STATUS.EXITED].includes(entryStatus)) {
+  const entry_status = parseEntryStatus(row.entry_status)
+  if (![REALNAME_ENTRY_STATUS.ENTERED, REALNAME_ENTRY_STATUS.EXITED].includes(entry_status)) {
     errors.push(`第 ${line} 行：在岗状态应为「在岗」或「离场」`)
   }
 
@@ -126,19 +127,19 @@ function buildHeaderKeys(headerRow) {
 }
 
 function rowToPreview(row, index) {
-  const entryStatus = parseEntryStatus(row.entryStatus)
+  const entry_status = parseEntryStatus(row.entry_status)
   return {
     _index: index + 1,
     name: row.name,
     phone: row.phone,
-    idNumber: row.idNumber,
+    id_number: row.id_number,
     gender: row.gender || '男',
-    workType: row.workType || '—',
-    unitName: row.unitName || '—',
-    unitType: row.unitType || '—',
+    work_type: row.work_type || '—',
+    unit_name: row.unit_name || '—',
+    unit_type: row.unit_type || '—',
     team: row.team || '—',
-    personnelCategory: normalizePersonnelCategory(row.personnelCategory || '建筑工人'),
-    entryStatus: entryStatus === REALNAME_ENTRY_STATUS.EXITED ? '离场' : '在岗',
+    personnel_category: normalizePersonnelCategory(row.personnel_category || '建筑工人'),
+    entry_status: entry_status === REALNAME_ENTRY_STATUS.EXITED ? '离场' : '在岗',
   }
 }
 
@@ -151,7 +152,7 @@ export function parsePersonnelImportWorkbook(arrayBuffer) {
   if (rows.length < 2) throw new Error('模板至少需要表头行和一行数据')
 
   const headerKeys = buildHeaderKeys(rows[0])
-  if (!headerKeys.includes('name') || !headerKeys.includes('phone') || !headerKeys.includes('idNumber')) {
+  if (!headerKeys.includes('name') || !headerKeys.includes('phone') || !headerKeys.includes('id_number')) {
     throw new Error('表头缺少必填列：姓名、手机号码、证件号码')
   }
 
@@ -172,9 +173,9 @@ export async function parsePersonnelImportFile(file) {
   return parsePersonnelImportWorkbook(buffer)
 }
 
-export function validatePersonnelImportRows(projectId, rows, existingList = []) {
+export function validatePersonnelImportRows(project_id, rows, existingList = []) {
   const existingIdCards = new Set(
-    existingList.map((item) => item.basic.idNumberRaw || item.basic.idNumber).filter(Boolean),
+    existingList.map((item) => item.basic.id_number_raw || item.basic.id_number).filter(Boolean),
   )
   const existingPhones = new Set(existingList.map((item) => item.basic.phone).filter(Boolean))
   const errors = []
@@ -186,7 +187,7 @@ export function validatePersonnelImportRows(projectId, rows, existingList = []) 
       errors.push(...rowErrors)
       return
     }
-    existingIdCards.add(row.idNumber)
+    existingIdCards.add(row.id_number)
     existingPhones.add(row.phone)
     validRows.push(row)
   })
@@ -198,39 +199,39 @@ export function validatePersonnelImportRows(projectId, rows, existingList = []) 
   }
 }
 
-function rowToPersonnel(projectId, row) {
-  const personnel = createEmptyPersonnel(projectId)
-  const unitName = row.unitName || ''
+function rowToPersonnel(project_id, row) {
+  const personnel = createEmptyPersonnel(project_id)
+  const unit_name = row.unit_name || ''
   personnel.basic.name = row.name
   personnel.basic.phone = row.phone
-  personnel.basic.idNumberRaw = row.idNumber
-  personnel.basic.idNumber = row.idNumber
+  personnel.basic.id_number_raw = row.id_number
+  personnel.basic.id_number = row.id_number
   personnel.basic.gender = row.gender || '男'
-  personnel.unit.unitName = unitName
-  personnel.unit.creditCode = unitName ? lookupCreditCode(unitName) : ''
-  personnel.unit.unitType = row.unitType || (unitName ? lookupUnitType(unitName) : '劳务分包')
+  personnel.unit.unit_name = unit_name
+  personnel.unit.credit_code = unit_name ? lookupCreditCode(unit_name) : ''
+  personnel.unit.unit_type = row.unit_type || (unit_name ? lookupUnitType(unit_name) : '劳务分包')
   personnel.unit.team = row.team || ''
-  personnel.unit.personnelCategory = normalizePersonnelCategory(row.personnelCategory || '建筑工人')
-  personnel.entryStatus = parseEntryStatus(row.entryStatus)
-  const workType = row.workType || '普工'
+  personnel.unit.personnel_category = normalizePersonnelCategory(row.personnel_category || '建筑工人')
+  personnel.entry_status = parseEntryStatus(row.entry_status)
+  const work_type = row.work_type || '普工'
   // 导入：工种以「特种-」开头，或历史「特种作业人员」类别，均识别为特种
   const treatAsSpecial =
-    isSpecialByWorkType(workType) || row.personnelCategory === '特种作业人员'
-  personnel.unit.workType = ensureSpecialWorkTypePrefix(workType, treatAsSpecial)
-  personnel.isSpecial = isSpecialByWorkType(personnel.unit.workType)
+    isSpecialByWorkType(work_type) || row.personnel_category === '特种作业人员'
+  personnel.unit.work_type = ensureSpecialWorkTypePrefix(work_type, treatAsSpecial)
+  personnel.is_special = isSpecialByWorkType(personnel.unit.work_type)
   return personnel
 }
 
-export function importPersonnelRows(projectId, rows, projectLabel = '') {
+export function importPersonnelRows(project_id, rows, projectLabel = '') {
   const imported = []
   rows.forEach((row) => {
-    imported.push(savePersonnel(rowToPersonnel(projectId, row), 'create'))
+    imported.push(savePersonnel(rowToPersonnel(project_id, row), 'create'))
   })
 
   appendOperationLog({
     module: '人员实名制管理',
     type: '导入',
-    content: `批量导入人员实名制：${projectLabel || projectId}，共 ${imported.length} 人`,
+    content: `批量导入人员实名制：${projectLabel || project_id}，共 ${imported.length} 人`,
     requestUrl: `/api/labor/realname/import`,
   })
 

@@ -30,7 +30,7 @@ const treeDataWithCount = computed(() => {
   const root = projectTree[0]
   const children = root.children
     .map(node => {
-      const count = rectifyData.filter(d => d.projectId === node.id).length
+      const count = rectifyData.filter(d => d.project_id === node.id).length
       const label = treeSearch.value
         ? (node.label.includes(treeSearch.value) ? `${node.label}（${count}）` : '')
         : `${node.label}（${count}）`
@@ -42,23 +42,23 @@ const treeDataWithCount = computed(() => {
 
 // 整改单状态：待整改 → 待复查 → 已复查（项目经理审批中）→ 已关闭
 const rectifyData = [
-  { id:'rec-001', rectifyNo:'ZG202607001', taskNo:'AQXJ20260728001', inspectionCategory:'安全', project:'飞行区跑道延长工程', projectId:'p-000', rectifier:getProjectRectifierLabel('p-000'), reviewer:getProjectReviewerLabel('p-000'), deadline:'2026-07-30', status:'待整改', rectDate:'', reviewDate:'' },
-  { id:'rec-006', rectifyNo:'ZG202607006', taskNo:'AQXJ20260721003', inspectionCategory:'安全', project:'T3航站楼扩建工程', projectId:'p-001', rectifier:getProjectRectifierLabel('p-001'), reviewer:getProjectReviewerLabel('p-001'), deadline:'2026-07-22', status:'待整改', rectDate:'2026-07-20', reviewDate:'2026-07-22' },
-  { id:'rec-002', rectifyNo:'ZG202607002', taskNo:'AQXJ20260728001', inspectionCategory:'安全', project:'飞行区跑道延长工程', projectId:'p-000', rectifier:getProjectRectifierLabel('p-000'), reviewer:getProjectReviewerLabel('p-000'), deadline:'2026-07-28', status:'待复查', rectDate:'2026-07-25', reviewDate:'' },
-  { id:'rec-003', rectifyNo:'ZG202607003', taskNo:'ZLXJ20260721003', inspectionCategory:'质量', project:'T3航站楼扩建工程', projectId:'p-001', rectifier:getProjectRectifierLabel('p-001'), reviewer:getProjectReviewerLabel('p-001'), deadline:'2026-07-28', status:'待复查', rectDate:'2026-07-27', reviewDate:'2026-07-25' },
-  { id:'rec-007', rectifyNo:'ZG202607007', taskNo:'AQXJ20260730001', inspectionCategory:'安全', project:'飞行区跑道延长工程', projectId:'p-000', rectifier:getProjectRectifierLabel('p-000'), reviewer:getProjectReviewerLabel('p-000'), deadline:'2026-07-31', status:'已复查', rectDate:'2026-07-29', reviewDate:'2026-07-30' },
-  { id:'rec-004', rectifyNo:'ZG202607004', taskNo:'ZLXJ20260728005', inspectionCategory:'质量', project:'飞行区跑道延长工程', projectId:'p-000', rectifier:getProjectRectifierLabel('p-000'), reviewer:getProjectReviewerLabel('p-000'), deadline:'2026-07-20', status:'已关闭', rectDate:'2026-07-22', reviewDate:'2026-07-25' },
-  { id:'rec-011', rectifyNo:'ZG202607011', taskNo:'AQXJ20260721003', inspectionCategory:'安全', project:'T3航站楼扩建工程', projectId:'p-001', rectifier:getProjectRectifierLabel('p-001'), reviewer:getProjectReviewerLabel('p-001'), deadline:'2026-07-25', status:'已关闭', rectDate:'2026-07-24', reviewDate:'2026-07-26' },
+  { id:'rec-001', rectifyNo:'ZG202607001', taskNo:'AQXJ20260728001', inspectionCategory:'安全', project:'飞行区跑道延长工程', project_id:'p-000', rectifier:getProjectRectifierLabel('p-000'), reviewer:getProjectReviewerLabel('p-000'), deadline:'2026-07-30', status:'待整改', rectDate:'', reviewDate:'' },
+  { id:'rec-006', rectifyNo:'ZG202607006', taskNo:'AQXJ20260721003', inspectionCategory:'安全', project:'T3航站楼扩建工程', project_id:'p-001', rectifier:getProjectRectifierLabel('p-001'), reviewer:getProjectReviewerLabel('p-001'), deadline:'2026-07-22', status:'待整改', rectDate:'2026-07-20', reviewDate:'2026-07-22' },
+  { id:'rec-002', rectifyNo:'ZG202607002', taskNo:'AQXJ20260728001', inspectionCategory:'安全', project:'飞行区跑道延长工程', project_id:'p-000', rectifier:getProjectRectifierLabel('p-000'), reviewer:getProjectReviewerLabel('p-000'), deadline:'2026-07-28', status:'待复查', rectDate:'2026-07-25', reviewDate:'' },
+  { id:'rec-003', rectifyNo:'ZG202607003', taskNo:'ZLXJ20260721003', inspectionCategory:'质量', project:'T3航站楼扩建工程', project_id:'p-001', rectifier:getProjectRectifierLabel('p-001'), reviewer:getProjectReviewerLabel('p-001'), deadline:'2026-07-28', status:'待复查', rectDate:'2026-07-27', reviewDate:'2026-07-25' },
+  { id:'rec-007', rectifyNo:'ZG202607007', taskNo:'AQXJ20260730001', inspectionCategory:'安全', project:'飞行区跑道延长工程', project_id:'p-000', rectifier:getProjectRectifierLabel('p-000'), reviewer:getProjectReviewerLabel('p-000'), deadline:'2026-07-31', status:'已复查', rectDate:'2026-07-29', reviewDate:'2026-07-30' },
+  { id:'rec-004', rectifyNo:'ZG202607004', taskNo:'ZLXJ20260728005', inspectionCategory:'质量', project:'飞行区跑道延长工程', project_id:'p-000', rectifier:getProjectRectifierLabel('p-000'), reviewer:getProjectReviewerLabel('p-000'), deadline:'2026-07-20', status:'已关闭', rectDate:'2026-07-22', reviewDate:'2026-07-25' },
+  { id:'rec-011', rectifyNo:'ZG202607011', taskNo:'AQXJ20260721003', inspectionCategory:'安全', project:'T3航站楼扩建工程', project_id:'p-001', rectifier:getProjectRectifierLabel('p-001'), reviewer:getProjectReviewerLabel('p-001'), deadline:'2026-07-25', status:'已关闭', rectDate:'2026-07-24', reviewDate:'2026-07-26' },
 ]
 
 const filterForm = reactive({ keyword: '', category: '', status: '', overdue: '' })
 
 const hqProjectKeyword = ref('')
 const hqProjectStats = computed(() => projectTree[0].children.map(project => {
-  const rows = rectifyData.filter(item => item.projectId === project.id)
+  const rows = rectifyData.filter(item => item.project_id === project.id)
   return {
-    projectId: project.id,
-    projectName: project.label,
+    project_id: project.id,
+    project_name: project.label,
     totalCount: rows.length,
     pendingCount: rows.filter(item => item.status === '待整改').length,
     reviewCount: rows.filter(item => item.status === '待复查').length,
@@ -68,7 +68,7 @@ const hqProjectStats = computed(() => projectTree[0].children.map(project => {
   }
 }))
 const filteredHQProjects = computed(() => hqProjectStats.value.filter(item =>
-  !hqProjectKeyword.value || item.projectName.includes(hqProjectKeyword.value),
+  !hqProjectKeyword.value || item.project_name.includes(hqProjectKeyword.value),
 ))
 const hqTotalStats = computed(() => ({
   totalCount: filteredHQProjects.value.reduce((sum, item) => sum + item.totalCount, 0),
@@ -83,7 +83,7 @@ const treeData = computed(() => projectTree)
 
 const filteredData = computed(() => {
   let list = rectifyData
-  if (!isHqSelected.value && scopeProjectId.value) list = list.filter(d => d.projectId === scopeProjectId.value)
+  if (!isHqSelected.value && scopeProjectId.value) list = list.filter(d => d.project_id === scopeProjectId.value)
   return list.filter(d => {
     if (filterForm.category && d.inspectionCategory !== filterForm.category) return false
     if (filterForm.status && d.status !== filterForm.status) return false
@@ -115,7 +115,7 @@ function viewDetail(row) { router.push(`/safety-inspection/hazard/${row.id}`) }
 function handleReset() { Object.keys(filterForm).forEach(k => filterForm[k] = '') }
 function viewProjectDetail(row) {
   router.push({ path:'/safety-inspection/hazard', query:{ from:'hq' } }).then(() => {
-    selectedProjectId.value = row.projectId
+    selectedProjectId.value = row.project_id
   })
 }
 function goBackToHQ() {
@@ -146,7 +146,7 @@ function goBackToHQ() {
         </div>
         <el-table :data="filteredHQProjects" border stripe style="width:100%;margin-top:12px" class="hq-table">
           <el-table-column type="index" label="序号" width="55" align="center" />
-          <el-table-column prop="projectName" label="项目名称" min-width="180" />
+          <el-table-column prop="project_name" label="项目名称" min-width="180" />
           <el-table-column prop="totalCount" label="隐患数量" align="center" />
           <el-table-column prop="pendingCount" label="待整改数量" align="center" />
           <el-table-column prop="reviewCount" label="待复查数量" align="center" />

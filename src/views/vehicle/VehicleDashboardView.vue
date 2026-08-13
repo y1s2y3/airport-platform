@@ -17,10 +17,10 @@ const projectLabel = computed(() => headerProjectLabel.value)
 const data = computed(() => getVehicleDashboardData(dashboardScopeId.value))
 
 async function viewProjectDetail(row) {
-  if (!row?.projectId) return
-  selectedProjectId.value = row.projectId
+  if (!row?.project_id) return
+  selectedProjectId.value = row.project_id
   await router.push('/vehicle/access')
-  ElMessage.success(`已切换至项目：${row.projectName}（进出场记录）`)
+  ElMessage.success(`已切换至项目：${row.project_name}（进出场记录）`)
 }
 </script>
 
@@ -45,15 +45,15 @@ async function viewProjectDetail(row) {
 
     <div class="summary-grid">
       <div class="summary-card">
-        <div class="summary-value">{{ data.summary.todayIn }}</div>
+        <div class="summary-value">{{ data.summary.today_in_count }}</div>
         <div class="summary-label">今日进场</div>
       </div>
       <div class="summary-card">
-        <div class="summary-value">{{ data.summary.todayOut }}</div>
+        <div class="summary-value">{{ data.summary.today_out_count }}</div>
         <div class="summary-label">今日出场</div>
       </div>
       <div class="summary-card">
-        <div class="summary-value">{{ data.summary.onSite }}</div>
+        <div class="summary-value">{{ data.summary.on_site_count }}</div>
         <div class="summary-label">在场车辆</div>
       </div>
     </div>
@@ -62,10 +62,10 @@ async function viewProjectDetail(row) {
       <div class="panel-title">各项目车辆统计</div>
       <el-table :data="data.projectStats" border stripe class="ap-table">
         <el-table-column type="index" label="序号" width="60" align="center" />
-        <el-table-column prop="projectName" label="项目" min-width="160" show-overflow-tooltip />
-        <el-table-column prop="todayIn" label="今日进场" width="90" align="center" />
-        <el-table-column prop="todayOut" label="今日出场" width="90" align="center" />
-        <el-table-column prop="onSite" label="在场" width="72" align="center" />
+        <el-table-column prop="project_name" label="项目" min-width="160" show-overflow-tooltip />
+        <el-table-column prop="today_in_count" label="今日进场" width="90" align="center" />
+        <el-table-column prop="today_out_count" label="今日出场" width="90" align="center" />
+        <el-table-column prop="on_site_count" label="在场" width="72" align="center" />
         <el-table-column v-if="isHqSelected" label="操作" width="130" min-width="130" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="viewProjectDetail(row)">查看项目详情</el-button>

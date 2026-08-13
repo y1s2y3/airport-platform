@@ -16,7 +16,7 @@ import {
 const menuItem = getVehicleMenuItem('vehicle-registry')
 const { isHqSelected, treeProjectId, scopeProjectId, scopeProjectLabel, onTreeNodeClick } = useVehicleProjectScope()
 const keyword = ref('')
-const filters = ref({ vehicleType: '', status: '' })
+const filters = ref({ vehicle_type: '', status: '' })
 const list = ref([])
 const formVisible = ref(false)
 const formRef = ref(null)
@@ -40,7 +40,7 @@ const gateAuthTitle = computed(() =>
 const gateAuthTargetPlates = computed(() =>
   list.value
     .filter((item) => gateAuthTargetIds.value.includes(item.id))
-    .map((item) => item.plateNo)
+    .map((item) => item.plate_no)
     .join('、'),
 )
 
@@ -59,21 +59,21 @@ const filteredList = computed(() => {
   const kw = keyword.value.trim()
   return list.value.filter((row) => {
     if (kw) {
-      const hay = `${row.plateNo}${row.unitName}${row.driverName}${row.driverPhone}${row.permitNo}`
+      const hay = `${row.plate_no}${row.unit_name}${row.driver_name}${row.driver_phone}${row.permit_no}`
       if (!hay.includes(kw)) return false
     }
-    if (filters.value.vehicleType && row.vehicleType !== filters.value.vehicleType) return false
+    if (filters.value.vehicle_type && row.vehicle_type !== filters.value.vehicle_type) return false
     if (filters.value.status && row.status !== filters.value.status) return false
     return true
   })
 })
 
 const formRules = {
-  plateNo: [{ required: true, message: '请输入车牌号', trigger: 'blur' }],
-  vehicleType: [{ required: true, message: '请选择车辆类型', trigger: 'change' }],
-  unitName: [{ required: true, message: '请输入所属单位', trigger: 'blur' }],
-  driverName: [{ required: true, message: '请输入司机姓名', trigger: 'blur' }],
-  driverPhone: [{ required: true, message: '请输入司机电话', trigger: 'blur' }],
+  plate_no: [{ required: true, message: '请输入车牌号', trigger: 'blur' }],
+  vehicle_type: [{ required: true, message: '请选择车辆类型', trigger: 'change' }],
+  unit_name: [{ required: true, message: '请输入所属单位', trigger: 'blur' }],
+  driver_name: [{ required: true, message: '请输入司机姓名', trigger: 'blur' }],
+  driver_phone: [{ required: true, message: '请输入司机电话', trigger: 'blur' }],
 }
 
 function loadList() {
@@ -82,7 +82,7 @@ function loadList() {
 
 watch(scopeProjectId, () => {
   keyword.value = ''
-  filters.value = { vehicleType: '', status: '' }
+  filters.value = { vehicle_type: '', status: '' }
   selectedRows.value = []
   loadList()
 }, { immediate: true })
@@ -94,7 +94,7 @@ function handleSelectionChange(rows) {
 function openGateAuth(row) {
   gateAuthMode.value = 'single'
   gateAuthTargetIds.value = [row.id]
-  gateAuthSelectedIds.value = [...(row.authorizedGateIds || [])]
+  gateAuthSelectedIds.value = [...(row.authorized_gate_ids || [])]
   gateAuthVisible.value = true
 }
 
@@ -113,9 +113,9 @@ function openBatchGateAuth() {
   }
   gateAuthMode.value = 'batch'
   gateAuthTargetIds.value = selectedRows.value.map((item) => item.id)
-  const firstIds = selectedRows.value[0]?.authorizedGateIds || []
+  const firstIds = selectedRows.value[0]?.authorized_gate_ids || []
   const sameForAll = selectedRows.value.every((row) => {
-    const ids = row.authorizedGateIds || []
+    const ids = row.authorized_gate_ids || []
     return ids.length === firstIds.length && ids.every((id) => firstIds.includes(id))
   })
   gateAuthSelectedIds.value = sameForAll ? [...firstIds] : []
@@ -132,8 +132,8 @@ function submitGateAuth() {
     gateAuthTargetIds.value.includes(item.id)
       ? {
           ...item,
-          authorizedGateIds: [...ids],
-          updatedAt: new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-'),
+          authorized_gate_ids: [...ids],
+          updated_at: new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-'),
         }
       : item,
   )
@@ -154,7 +154,7 @@ function getGateLabelText(row) {
 
 function handleReset() {
   keyword.value = ''
-  filters.value = { vehicleType: '', status: '' }
+  filters.value = { vehicle_type: '', status: '' }
 }
 
 function openCreate() {
@@ -173,15 +173,15 @@ async function handleSubmit() {
   await formRef.value.validate()
   const payload = {
     ...formData.value,
-    projectId: scopeProjectId.value,
-    updatedAt: new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-'),
+    project_id: scopeProjectId.value,
+    updated_at: new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-'),
   }
   if (editingId.value) {
     const index = list.value.findIndex((item) => item.id === editingId.value)
     if (index !== -1) list.value[index] = { ...list.value[index], ...payload, id: editingId.value }
     ElMessage.success('车辆信息已更新')
   } else {
-    const exists = list.value.some((item) => item.plateNo === payload.plateNo)
+    const exists = list.value.some((item) => item.plate_no === payload.plate_no)
     if (exists) {
       ElMessage.warning('该车牌号已存在')
       return
@@ -189,7 +189,7 @@ async function handleSubmit() {
     list.value.unshift({
       ...payload,
       id: `${scopeProjectId.value}-veh-${Date.now()}`,
-      authorizedGateIds: [],
+      authorized_gate_ids: [],
     })
     formVisible.value = false
     ElMessage.success('车辆已新增')
@@ -200,7 +200,7 @@ async function handleSubmit() {
 }
 
 async function handleDelete(row) {
-  await ElMessageBox.confirm(`确认删除车辆「${row.plateNo}」？`, '提示', { type: 'warning' })
+  await ElMessageBox.confirm(`确认删除车辆「${row.plate_no}」？`, '提示', { type: 'warning' })
   list.value = list.value.filter((item) => item.id !== row.id)
   ElMessage.success('已删除')
 }
@@ -250,7 +250,7 @@ async function handleDelete(row) {
             :prefix-icon="Search"
             class="search-input"
           />
-          <el-select v-model="filters.vehicleType" placeholder="车辆类型" clearable style="width: 120px">
+          <el-select v-model="filters.vehicle_type" placeholder="车辆类型" clearable style="width: 120px">
             <el-option v-for="opt in vehicleTypeOptions" :key="opt" :label="opt" :value="opt" />
           </el-select>
           <el-select v-model="filters.status" placeholder="状态" clearable style="width: 110px">
@@ -275,16 +275,16 @@ async function handleDelete(row) {
         >
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column type="index" label="序号" width="60" align="center" />
-          <el-table-column prop="plateNo" label="车牌号" width="110" />
-          <el-table-column prop="vehicleType" label="车辆类型" width="110" />
-          <el-table-column prop="unitName" label="所属单位" min-width="150" show-overflow-tooltip />
-          <el-table-column prop="driverName" label="司机" width="90" />
-          <el-table-column prop="driverPhone" label="联系电话" width="130" />
-          <el-table-column prop="permitNo" label="准入证明" min-width="130" show-overflow-tooltip />
-          <el-table-column prop="permitValidTo" label="证件有效期" width="110" />
+          <el-table-column prop="plate_no" label="车牌号" width="110" />
+          <el-table-column prop="vehicle_type" label="车辆类型" width="110" />
+          <el-table-column prop="unit_name" label="所属单位" min-width="150" show-overflow-tooltip />
+          <el-table-column prop="driver_name" label="司机" width="90" />
+          <el-table-column prop="driver_phone" label="联系电话" width="130" />
+          <el-table-column prop="permit_no" label="准入证明" min-width="130" show-overflow-tooltip />
+          <el-table-column prop="permit_valid_to" label="证件有效期" width="110" />
           <el-table-column label="授权道闸" min-width="160" show-overflow-tooltip>
             <template #default="{ row }">
-              <span :class="{ 'gate-empty': !row.authorizedGateIds?.length }">{{ getGateLabelText(row) }}</span>
+              <span :class="{ 'gate-empty': !row.authorized_gate_ids?.length }">{{ getGateLabelText(row) }}</span>
             </template>
           </el-table-column>
           <el-table-column label="状态" width="90" align="center">
@@ -312,28 +312,28 @@ async function handleDelete(row) {
       destroy-on-close
     >
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
-        <el-form-item label="车牌号" prop="plateNo">
-          <el-input v-model="formData.plateNo" placeholder="请输入车牌号" />
+        <el-form-item label="车牌号" prop="plate_no">
+          <el-input v-model="formData.plate_no" placeholder="请输入车牌号" />
         </el-form-item>
-        <el-form-item label="车辆类型" prop="vehicleType">
-          <el-select v-model="formData.vehicleType" style="width: 100%">
+        <el-form-item label="车辆类型" prop="vehicle_type">
+          <el-select v-model="formData.vehicle_type" style="width: 100%">
             <el-option v-for="opt in vehicleTypeOptions" :key="opt" :label="opt" :value="opt" />
           </el-select>
         </el-form-item>
-        <el-form-item label="所属单位" prop="unitName">
-          <el-input v-model="formData.unitName" placeholder="参建单位名称" />
+        <el-form-item label="所属单位" prop="unit_name">
+          <el-input v-model="formData.unit_name" placeholder="参建单位名称" />
         </el-form-item>
-        <el-form-item label="司机姓名" prop="driverName">
-          <el-input v-model="formData.driverName" />
+        <el-form-item label="司机姓名" prop="driver_name">
+          <el-input v-model="formData.driver_name" />
         </el-form-item>
-        <el-form-item label="司机电话" prop="driverPhone">
-          <el-input v-model="formData.driverPhone" />
+        <el-form-item label="司机电话" prop="driver_phone">
+          <el-input v-model="formData.driver_phone" />
         </el-form-item>
         <el-form-item label="准入证明">
-          <el-input v-model="formData.permitNo" placeholder="准入证明编号" />
+          <el-input v-model="formData.permit_no" placeholder="准入证明编号" />
         </el-form-item>
         <el-form-item label="证件有效期">
-          <el-input v-model="formData.permitValidTo" placeholder="YYYY-MM-DD" />
+          <el-input v-model="formData.permit_valid_to" placeholder="YYYY-MM-DD" />
         </el-form-item>
         <el-form-item label="状态">
           <el-radio-group v-model="formData.status">

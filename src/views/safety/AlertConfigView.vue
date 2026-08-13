@@ -20,7 +20,7 @@ const treeDataWithCount = computed(() => {
   if (!isHqSelected.value) return []
   const root = projectTree[0]
   const children = root.children.map(node => {
-    const count = configData.value.filter(d => d.projectId === node.id).length
+    const count = configData.value.filter(d => d.project_id === node.id).length
     const label = treeSearch.value ? (node.label.includes(treeSearch.value) ? `${node.label}（${count}）` : '') : `${node.label}（${count}）`
     return { ...node, label, _visible: !treeSearch.value || node.label.includes(treeSearch.value) }
   }).filter(n => n._visible)
@@ -33,7 +33,7 @@ const configData = ref([
   {
     alertType: '塔吊告警',
     deviceName: '塔吊QTZ160（#1）',
-    projectId: 'p-000',
+    project_id: 'p-000',
     handler: '王工',
     enabled: true,
     updateBy: '系统管理员',
@@ -42,7 +42,7 @@ const configData = ref([
   {
     alertType: '塔吊告警',
     deviceName: '塔吊QTZ80（#7）',
-    projectId: 'p-003',
+    project_id: 'p-003',
     handler: '李工',
     enabled: true,
     updateBy: '系统管理员',
@@ -51,7 +51,7 @@ const configData = ref([
   {
     alertType: '升降机告警',
     deviceName: '升降机SC200（#2）',
-    projectId: 'p-000',
+    project_id: 'p-000',
     handler: '张工',
     enabled: true,
     updateBy: '系统管理员',
@@ -60,7 +60,7 @@ const configData = ref([
   {
     alertType: '高支模监测',
     deviceName: '高支模检测设备01',
-    projectId: 'p-000',
+    project_id: 'p-000',
     handler: '唐美丽、王也',
     enabled: true,
     updateBy: '系统管理员',
@@ -69,7 +69,7 @@ const configData = ref([
   {
     alertType: '高支模监测',
     deviceName: '高支模检测设备02',
-    projectId: 'p-000',
+    project_id: 'p-000',
     handler: '唐美丽',
     enabled: true,
     updateBy: '系统管理员',
@@ -78,7 +78,7 @@ const configData = ref([
   {
     alertType: '桩基告警',
     deviceName: '桩基钻孔机#5',
-    projectId: 'p-000',
+    project_id: 'p-000',
     handler: '赵工',
     enabled: false,
     updateBy: '王工',

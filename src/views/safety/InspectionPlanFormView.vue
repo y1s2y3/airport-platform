@@ -18,7 +18,7 @@ const pageTitle = computed(() => isEdit.value ? '编辑巡检任务' : '下发�
 const form = reactive({
   name: '',
   inspectionCategory: '安全',
-  projectId: '',
+  project_id: '',
   responsiblePerson: '',
   ccPersons: [],
   deadlineDate: '',
@@ -114,7 +114,7 @@ onMounted(() => {
     if (plan) {
       form.name = plan.name
       form.inspectionCategory = plan.inspectionCategory || '安全'
-      form.projectId = plan.projectIds?.[0] || ''
+      form.project_id = plan.projectIds?.[0] || ''
       form.responsiblePerson = plan.responsiblePerson
       form.ccPersons = [...plan.ccPersons]
       form.deadlineDate = plan.deadlineDate || plan.endDate || ''
@@ -129,14 +129,14 @@ onMounted(() => {
 function handleSave() {
   if (!form.name.trim()) { ElMessage.warning('请输入任务名称'); return }
   if (!form.inspectionCategory) { ElMessage.warning('请选择巡检分类'); return }
-  if (!form.projectId) { ElMessage.warning('请选择所属项目'); return }
+  if (!form.project_id) { ElMessage.warning('请选择所属项目'); return }
   if (form.checkConfig.length === 0) { ElMessage.warning('请配置检查内容'); return }
   if (!form.deadlineDate) { ElMessage.warning('请选择截止日期'); return }
 
-  const projectLabel = projectOptions.find(p => p.id === form.projectId)?.label || ''
+  const projectLabel = projectOptions.find(p => p.id === form.project_id)?.label || ''
   const payload = {
     name: form.name.trim(), inspectionCategory: form.inspectionCategory,
-    projects: [projectLabel], projectIds: [form.projectId],
+    projects: [projectLabel], projectIds: [form.project_id],
     checkConfig: form.checkConfig.map(c => ({ categoryId: c.categoryId, itemIds: [...c.itemIds] })),
     responsiblePerson: form.responsiblePerson, ccPersons: [...form.ccPersons],
     deadlineDate: form.deadlineDate, remark: form.remark.trim(),
@@ -170,7 +170,7 @@ function handleCancel() { router.push('/safety-inspection/plan') }
         </el-radio-group>
       </el-form-item>
       <el-form-item label="所属项目" required>
-        <el-select v-model="form.projectId" placeholder="请选择项目" style="width: 100%">
+        <el-select v-model="form.project_id" placeholder="请选择项目" style="width: 100%">
           <el-option v-for="p in activeProjects" :key="p.id" :label="p.label" :value="p.id" />
         </el-select>
         <div class="form-tip">已竣工项目自动隐藏</div>

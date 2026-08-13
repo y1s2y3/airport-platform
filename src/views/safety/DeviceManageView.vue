@@ -23,18 +23,18 @@ function handleTreeNodeClick(data) {
 
 // ===== 机械设备台账数据 =====
 const deviceData = ref([
-  { id:'mac-001', deviceType:'塔吊', deviceName:'塔吊QTZ160（#1）', deviceSN:'TD-2026-001', region:'飞行区跑道延长工程-施工A区', regionId:'reg-a', bindTime:'2026-01-15', lastOnline:'2026-07-20 14:30:00', project:'飞行区跑道延长工程', projectId:'p-000', online:true, contact:'王工', contactPhone:'138****5621',
+  { id:'mac-001', deviceType:'塔吊', deviceName:'塔吊QTZ160（#1）', deviceSN:'TD-2026-001', region:'飞行区跑道延长工程-施工A区', regionId:'reg-a', bindTime:'2026-01-15', lastOnline:'2026-07-20 14:30:00', project:'飞行区跑道延长工程', project_id:'p-000', online:true, contact:'王工', contactPhone:'138****5621',
     craneHeight:'150', boomHeight:'64.5', jibLength:'50', counterJibLength:'24.9', hookHeight:'61', xCoord:'99.4', yCoord:'8.7', rotation:'90', remark:'',
     techChars:[{ range:'10', capacity:'12' }, { range:'20', capacity:'8' }, { range:'30', capacity:'5' }] },
-  { id:'mac-002', deviceType:'升降机', deviceName:'升降机SC200（#2）', deviceSN:'SJ-2026-002', region:'飞行区跑道延长工程-施工B区', regionId:'reg-b', bindTime:'2026-02-01', lastOnline:'2026-07-19 09:15:00', project:'飞行区跑道延长工程', projectId:'p-000', online:false, contact:'李工', contactPhone:'139****3344' },
-  { id:'mac-003', deviceType:'复合地基机械', deviceName:'复合地基桩机#3', deviceSN:'ZJ-2026-003', region:'T3航站楼扩建工程-基坑区', regionId:'reg-c', bindTime:'2026-03-10', lastOnline:'2026-07-20 10:00:00', project:'T3航站楼扩建工程', projectId:'p-001', online:true, contact:'陈工', contactPhone:'136****7788' },
-  { id:'mac-004', deviceType:'升降机', deviceName:'升降机SC200（#4）', deviceSN:'SJ-2026-004', region:'T3航站楼扩建工程-主体区', regionId:'reg-d', bindTime:'2026-03-20', lastOnline:'2026-07-20 08:45:00', project:'T3航站楼扩建工程', projectId:'p-001', online:true, contact:'陈工', contactPhone:'136****7788' },
-  { id:'mac-005', deviceType:'桩基机械', deviceName:'桩基钻孔机#5', deviceSN:'ZJ-2026-005', region:'飞行区跑道延长工程-跑道区', regionId:'reg-e', bindTime:'2026-04-01', lastOnline:'2026-07-18 16:20:00', project:'飞行区跑道延长工程', projectId:'p-000', online:true, contact:'王工', contactPhone:'138****5621' },
-  { id:'mac-006', deviceType:'复合地基机械', deviceName:'复合地基桩机#6', deviceSN:'ZJ-2026-006', region:'新货运站建设工程-基础区', regionId:'reg-f', bindTime:'2026-04-15', lastOnline:'2026-07-17 11:30:00', project:'新货运站建设工程', projectId:'p-003', online:false, contact:'张工', contactPhone:'137****9900' },
-  { id:'mac-007', deviceType:'塔吊', deviceName:'塔吊QTZ80（#7）', deviceSN:'TD-2026-007', region:'新货运站建设工程-堆场区', regionId:'reg-g', bindTime:'2026-05-01', lastOnline:'2026-07-20 13:00:00', project:'新货运站建设工程', projectId:'p-003', online:true, contact:'张工', contactPhone:'137****9900',
+  { id:'mac-002', deviceType:'升降机', deviceName:'升降机SC200（#2）', deviceSN:'SJ-2026-002', region:'飞行区跑道延长工程-施工B区', regionId:'reg-b', bindTime:'2026-02-01', lastOnline:'2026-07-19 09:15:00', project:'飞行区跑道延长工程', project_id:'p-000', online:false, contact:'李工', contactPhone:'139****3344' },
+  { id:'mac-003', deviceType:'复合地基机械', deviceName:'复合地基桩机#3', deviceSN:'ZJ-2026-003', region:'T3航站楼扩建工程-基坑区', regionId:'reg-c', bindTime:'2026-03-10', lastOnline:'2026-07-20 10:00:00', project:'T3航站楼扩建工程', project_id:'p-001', online:true, contact:'陈工', contactPhone:'136****7788' },
+  { id:'mac-004', deviceType:'升降机', deviceName:'升降机SC200（#4）', deviceSN:'SJ-2026-004', region:'T3航站楼扩建工程-主体区', regionId:'reg-d', bindTime:'2026-03-20', lastOnline:'2026-07-20 08:45:00', project:'T3航站楼扩建工程', project_id:'p-001', online:true, contact:'陈工', contactPhone:'136****7788' },
+  { id:'mac-005', deviceType:'桩基机械', deviceName:'桩基钻孔机#5', deviceSN:'ZJ-2026-005', region:'飞行区跑道延长工程-跑道区', regionId:'reg-e', bindTime:'2026-04-01', lastOnline:'2026-07-18 16:20:00', project:'飞行区跑道延长工程', project_id:'p-000', online:true, contact:'王工', contactPhone:'138****5621' },
+  { id:'mac-006', deviceType:'复合地基机械', deviceName:'复合地基桩机#6', deviceSN:'ZJ-2026-006', region:'新货运站建设工程-基础区', regionId:'reg-f', bindTime:'2026-04-15', lastOnline:'2026-07-17 11:30:00', project:'新货运站建设工程', project_id:'p-003', online:false, contact:'张工', contactPhone:'137****9900' },
+  { id:'mac-007', deviceType:'塔吊', deviceName:'塔吊QTZ80（#7）', deviceSN:'TD-2026-007', region:'新货运站建设工程-堆场区', regionId:'reg-g', bindTime:'2026-05-01', lastOnline:'2026-07-20 13:00:00', project:'新货运站建设工程', project_id:'p-003', online:true, contact:'张工', contactPhone:'137****9900',
     craneHeight:'120', boomHeight:'55', jibLength:'45', counterJibLength:'20', hookHeight:'52', xCoord:'78.2', yCoord:'15.3', rotation:'75', remark:'',
     techChars:[{ range:'8', capacity:'10' }, { range:'16', capacity:'6' }, { range:'25', capacity:'4' }] },
-  { id:'mac-008', deviceType:'桩基机械', deviceName:'桩基旋挖机#8', deviceSN:'ZJ-2026-008', region:'T3航站楼扩建工程-桩基区', regionId:'reg-h', bindTime:'2026-05-10', lastOnline:'2026-07-19 15:45:00', project:'T3航站楼扩建工程', projectId:'p-001', online:true, contact:'赵工', contactPhone:'135****2233' },
+  { id:'mac-008', deviceType:'桩基机械', deviceName:'桩基旋挖机#8', deviceSN:'ZJ-2026-008', region:'T3航站楼扩建工程-桩基区', regionId:'reg-h', bindTime:'2026-05-10', lastOnline:'2026-07-19 15:45:00', project:'T3航站楼扩建工程', project_id:'p-001', online:true, contact:'赵工', contactPhone:'135****2233' },
 ])
 
 // 区域选项
@@ -57,7 +57,7 @@ const treeDataWithCount = computed(() => {
   const root = projectTree[0]
   const children = root.children
     .map(node => {
-      const count = deviceData.value.filter(d => d.projectId === node.id).length
+      const count = deviceData.value.filter(d => d.project_id === node.id).length
       const label = treeSearch.value
         ? (node.label.includes(treeSearch.value) ? `${node.label}（${count}）` : '')
         : `${node.label}（${count}）`
@@ -70,7 +70,7 @@ const treeDataWithCount = computed(() => {
 const filteredData = computed(() => {
   let list = deviceData.value
   if (isHqSelected.value && localProjectId.value) {
-    list = list.filter(d => d.projectId === localProjectId.value)
+    list = list.filter(d => d.project_id === localProjectId.value)
   }
   return list.filter(d => {
     if (filterForm.deviceType && d.deviceType !== filterForm.deviceType) return false
@@ -132,7 +132,7 @@ function saveForm() {
   const baseData = {
     deviceType: formModel.deviceType,
     deviceName: formModel.deviceName, deviceSN: formModel.deviceSN,
-    region: formModel.regionName, project: '飞行区跑道延长工程', projectId: 'p-000',
+    region: formModel.regionName, project: '飞行区跑道延长工程', project_id: 'p-000',
     bindTime: new Date().toISOString().slice(0,10), lastOnline: new Date().toISOString().slice(0,10) + ' ' + new Date().toTimeString().slice(0,8),
     contact: formModel.contact, contactPhone: formModel.contactPhone
   }

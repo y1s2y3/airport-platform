@@ -31,14 +31,14 @@ function viewIdCard(row) {
 }
 
 function displayIdCard(row) {
-  const raw = row.idCardRaw || row.idCard
+  const raw = row.id_card_raw || row.id_card
   return isIdCardVisible(row.id) ? raw : maskIdCard(raw)
 }
 const filters = ref({
   date: '2026-06-29',
-  entryStatus: '',
-  onSiteStatus: '',
-  workType: '',
+  entry_status: '',
+  on_site_status: '',
+  work_type: '',
 })
 
 const treeData = computed(() =>
@@ -58,11 +58,11 @@ const filteredRecords = computed(() => {
   const kw = keyword.value.trim()
   return allRecords.value.filter((row) => {
     if (filters.value.date && row.date !== filters.value.date) return false
-    if (filters.value.entryStatus && row.entryStatus !== filters.value.entryStatus) return false
-    if (filters.value.onSiteStatus && row.onSiteStatus !== filters.value.onSiteStatus) return false
-    if (filters.value.workType && row.workType !== filters.value.workType) return false
+    if (filters.value.entry_status && row.entry_status !== filters.value.entry_status) return false
+    if (filters.value.on_site_status && row.on_site_status !== filters.value.on_site_status) return false
+    if (filters.value.work_type && row.work_type !== filters.value.work_type) return false
     if (kw) {
-      const hay = `${row.name}${row.idCardRaw || row.idCard}${row.subcontractor}${row.gateIn}`
+      const hay = `${row.name}${row.id_card_raw || row.id_card}${row.unit_name}${row.gate_in}`
       if (!hay.includes(kw)) return false
     }
     return true
@@ -71,21 +71,21 @@ const filteredRecords = computed(() => {
 
 const stats = computed(() => ({
   total: filteredRecords.value.length,
-  entered: filteredRecords.value.filter((r) => r.entryStatus === ATTENDANCE_ENTRY_STATUS.ENTERED).length,
-  exited: filteredRecords.value.filter((r) => r.entryStatus === ATTENDANCE_ENTRY_STATUS.EXITED).length,
-  onSite: filteredRecords.value.filter((r) => r.onSiteStatus === '在场').length,
-  offSite: filteredRecords.value.filter((r) => r.onSiteStatus === '不在场').length,
+  entered: filteredRecords.value.filter((r) => r.entry_status === ATTENDANCE_ENTRY_STATUS.ENTERED).length,
+  exited: filteredRecords.value.filter((r) => r.entry_status === ATTENDANCE_ENTRY_STATUS.EXITED).length,
+  on_site_count: filteredRecords.value.filter((r) => r.on_site_status === '在场').length,
+  offSite: filteredRecords.value.filter((r) => r.on_site_status === '不在场').length,
 }))
 
 watch(scopeProjectId, () => {
   keyword.value = ''
   visibleIdCardIds.value = new Set()
-  filters.value = { date: '2026-06-29', entryStatus: '', onSiteStatus: '', workType: '' }
+  filters.value = { date: '2026-06-29', entry_status: '', on_site_status: '', work_type: '' }
 })
 
 function handleReset() {
   keyword.value = ''
-  filters.value = { date: '2026-06-29', entryStatus: '', onSiteStatus: '', workType: '' }
+  filters.value = { date: '2026-06-29', entry_status: '', on_site_status: '', work_type: '' }
 }
 </script>
 
@@ -127,7 +127,7 @@ function handleReset() {
           <span>记录 {{ stats.total }} 条</span>
           <span>已进场 {{ stats.entered }}</span>
           <span>已出场 {{ stats.exited }}</span>
-          <span>在场 {{ stats.onSite }}</span>
+          <span>在场 {{ stats.on_site_count }}</span>
           <span>不在场 {{ stats.offSite }}</span>
         </div>
 
@@ -146,13 +146,13 @@ function handleReset() {
             :prefix-icon="Search"
             class="search-input"
           />
-          <el-select v-model="filters.entryStatus" :placeholder="ATTENDANCE_ENTRY_LABEL" clearable style="width: 110px">
+          <el-select v-model="filters.entry_status" :placeholder="ATTENDANCE_ENTRY_LABEL" clearable style="width: 110px">
             <el-option v-for="opt in ATTENDANCE_ENTRY_STATUS_OPTIONS" :key="opt" :label="opt" :value="opt" />
           </el-select>
-          <el-select v-model="filters.onSiteStatus" placeholder="在场状态" clearable style="width: 110px">
+          <el-select v-model="filters.on_site_status" placeholder="在场状态" clearable style="width: 110px">
             <el-option v-for="opt in ONSITE_STATUS_OPTIONS" :key="opt" :label="opt" :value="opt" />
           </el-select>
-          <el-select v-model="filters.workType" placeholder="工种" clearable style="width: 110px">
+          <el-select v-model="filters.work_type" placeholder="工种" clearable style="width: 110px">
             <el-option v-for="opt in workTypeOptions" :key="opt" :label="opt" :value="opt" />
           </el-select>
           <el-button class="ap-btn-primary" type="primary" :icon="Search">查询</el-button>
@@ -179,32 +179,32 @@ function handleReset() {
               </div>
             </template>
           </el-table-column>
-          <el-table-column prop="workType" label="工种" width="90" />
-          <el-table-column prop="subcontractor" label="分包单位" min-width="120" show-overflow-tooltip />
+          <el-table-column prop="work_type" label="工种" width="90" />
+          <el-table-column prop="unit_name" label="分包单位" min-width="120" show-overflow-tooltip />
           <el-table-column :label="ATTENDANCE_ENTRY_LABEL" width="90" align="center">
             <template #default="{ row }">
               <span
                 class="ap-status-tag"
                 :class="
-                  row.entryStatus === REALNAME_ENTRY_STATUS.EXITED
-                    ? realNameEntryStatusTagClass(row.entryStatus)
-                    : attendanceEntryStatusTagClass(row.entryStatus)
+                  row.entry_status === REALNAME_ENTRY_STATUS.EXITED
+                    ? realNameEntryStatusTagClass(row.entry_status)
+                    : attendanceEntryStatusTagClass(row.entry_status)
                 "
-              >{{ row.entryStatus }}</span>
+              >{{ row.entry_status }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="clockIn" :label="ATTENDANCE_CLOCK_IN_LABEL" width="160" />
-          <el-table-column prop="gateIn" label="进场闸机" width="100" />
-          <el-table-column prop="clockOut" :label="ATTENDANCE_CLOCK_OUT_LABEL" width="160" />
-          <el-table-column prop="gateOut" label="出场闸机" width="100" />
-          <el-table-column prop="workHours" label="工时(h)" width="80" align="center" />
+          <el-table-column prop="clock_in" :label="ATTENDANCE_CLOCK_IN_LABEL" width="160" />
+          <el-table-column prop="gate_in" label="进场闸机" width="100" />
+          <el-table-column prop="clock_out" :label="ATTENDANCE_CLOCK_OUT_LABEL" width="160" />
+          <el-table-column prop="gate_out" label="出场闸机" width="100" />
+          <el-table-column prop="work_hours" label="工时(h)" width="80" align="center" />
           <el-table-column label="在场状态" width="90" align="center">
             <template #default="{ row }">
               <span
-                v-if="row.onSiteStatus !== '—'"
+                v-if="row.on_site_status !== '—'"
                 class="ap-status-tag"
-                :class="onSiteStatusTagClass(row.onSiteStatus)"
-              >{{ row.onSiteStatus }}</span>
+                :class="onSiteStatusTagClass(row.on_site_status)"
+              >{{ row.on_site_status }}</span>
               <span v-else class="text-muted">—</span>
             </template>
           </el-table-column>

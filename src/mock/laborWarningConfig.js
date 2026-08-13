@@ -61,8 +61,8 @@ const LEGACY_TIER_KEY_TO_POSITION = {
 
 export const TIER_LEVEL_MAX = 8
 
-export function getTierPositionName(positionId) {
-  return tierPositionCatalog.find((p) => p.id === positionId)?.name || '—'
+export function getTierPositionName(position_id) {
+  return tierPositionCatalog.find((p) => p.id === position_id)?.name || '—'
 }
 
 export function getTierPerson(personId) {
@@ -76,28 +76,28 @@ export function getTierPersonLabel(personId) {
 }
 
 /** 按岗位筛选候选人；未选岗位时返回全部 */
-export function getTierPersonnelByPosition(positionId) {
-  if (!positionId) return [...tierPersonnelCatalog]
-  const matched = tierPersonnelCatalog.filter((u) => u.positionIds.includes(positionId))
+export function getTierPersonnelByPosition(position_id) {
+  if (!position_id) return [...tierPersonnelCatalog]
+  const matched = tierPersonnelCatalog.filter((u) => u.positionIds.includes(position_id))
   return matched.length ? matched : [...tierPersonnelCatalog]
 }
 
 export function createEmptyTierLevel(order = 1) {
   return {
     id: `tier-${Date.now()}-${order}`,
-    positionId: '',
-    recipientId: '',
-    reportDays: Math.min(1 + (order - 1) * 2, 30),
+    position_id: '',
+    recipient_id: '',
+    report_days: Math.min(1 + (order - 1) * 2, 30),
   }
 }
 
 /** 默认推送：安全员 → 施工方项目负责人 → 监理工程师 → 指挥部项目经理 */
 function createDefaultTierLevels() {
   return [
-    { id: 'tier-1', positionId: 'pos-safety-officer', recipientId: 'u-so-01', reportDays: 1 },
-    { id: 'tier-2', positionId: 'pos-contractor-pm', recipientId: 'u-cpm-01', reportDays: 3 },
-    { id: 'tier-3', positionId: 'pos-supervisor-engineer', recipientId: 'u-se-01', reportDays: 5 },
-    { id: 'tier-4', positionId: 'pos-hq-pm', recipientId: 'u-hqpm-01', reportDays: 7 },
+    { id: 'tier-1', position_id: 'pos-safety-officer', recipient_id: 'u-so-01', report_days: 1 },
+    { id: 'tier-2', position_id: 'pos-contractor-pm', recipient_id: 'u-cpm-01', report_days: 3 },
+    { id: 'tier-3', position_id: 'pos-supervisor-engineer', recipient_id: 'u-se-01', report_days: 5 },
+    { id: 'tier-4', position_id: 'pos-hq-pm', recipient_id: 'u-hqpm-01', report_days: 7 },
   ]
 }
 
@@ -105,9 +105,9 @@ function normalizeTierLevels(rawLevels) {
   if (Array.isArray(rawLevels)) {
     return rawLevels.map((item, index) => ({
       id: item.id || `tier-${index + 1}`,
-      positionId: item.positionId || '',
-      recipientId: item.recipientId || '',
-      reportDays: Number(item.reportDays) > 0 ? Number(item.reportDays) : 1,
+      position_id: item.position_id || '',
+      recipient_id: item.recipient_id || '',
+      report_days: Number(item.report_days) > 0 ? Number(item.report_days) : 1,
     }))
   }
   if (rawLevels && typeof rawLevels === 'object') {
@@ -115,9 +115,9 @@ function normalizeTierLevels(rawLevels) {
       const old = rawLevels[def.key] || {}
       return {
         id: `tier-${def.key}`,
-        positionId: LEGACY_TIER_KEY_TO_POSITION[def.key] || '',
-        recipientId: old.recipientId || '',
-        reportDays: Number(old.reportDays) > 0 ? Number(old.reportDays) : 1 + index * 2,
+        position_id: LEGACY_TIER_KEY_TO_POSITION[def.key] || '',
+        recipient_id: old.recipient_id || '',
+        report_days: Number(old.report_days) > 0 ? Number(old.report_days) : 1 + index * 2,
       }
     })
   }
@@ -126,22 +126,22 @@ function normalizeTierLevels(rawLevels) {
 
 function createDefaultRecipient() {
   return {
-    positionId: 'pos-safety-officer',
-    recipientId: 'u-so-01',
+    position_id: 'pos-safety-officer',
+    recipient_id: 'u-so-01',
   }
 }
 
 function normalizeDefaultRecipient(raw) {
   return {
-    positionId: raw?.positionId || '',
-    recipientId: raw?.recipientId || '',
+    position_id: raw?.position_id || '',
+    recipient_id: raw?.recipient_id || '',
   }
 }
 
 function normalizeConfig(data) {
   const cloned = structuredClone(data || defaultConfig)
-  cloned.defaultRecipient = normalizeDefaultRecipient(
-    cloned.defaultRecipient || cloned.tieredControl?.defaultRecipient,
+  cloned.default_recipient = normalizeDefaultRecipient(
+    cloned.default_recipient || cloned.tieredControl?.default_recipient,
   )
   cloned.tieredControl = {
     levels: normalizeTierLevels(cloned.tieredControl?.levels),
@@ -216,7 +216,7 @@ export function getWarningRuleLabel(key, config = {}) {
 }
 
 const defaultConfig = {
-  defaultRecipient: createDefaultRecipient(),
+  default_recipient: createDefaultRecipient(),
   tieredControl: {
     levels: createDefaultTierLevels(),
   },
@@ -250,52 +250,52 @@ function nowStamp() {
 const defaultProjectTrackJump = {
   'p-000': {
     enabled: true,
-    systemName: 'T2 现场人员定位系统',
+    system_name: 'T2 现场人员定位系统',
     url: 'https://example.com/track/p-000',
-    updatedAt: '2026-08-01 10:20:00',
+    updated_at: '2026-08-01 10:20:00',
   },
   'p-001': {
     enabled: true,
-    systemName: 'T1 安全帽定位平台',
+    system_name: 'T1 安全帽定位平台',
     url: 'https://example.com/track/p-001',
-    updatedAt: '2026-08-03 14:35:00',
+    updated_at: '2026-08-03 14:35:00',
   },
-  'p-003': { enabled: false, systemName: '', url: '', updatedAt: '' },
+  'p-003': { enabled: false, system_name: '', url: '', updated_at: '' },
   'p-004': {
     enabled: true,
-    systemName: '市政工程轨迹子系统',
+    system_name: '市政工程轨迹子系统',
     url: 'https://example.com/track/p-004',
-    updatedAt: '2026-07-28 09:12:00',
+    updated_at: '2026-07-28 09:12:00',
   },
   'p-005': {
     enabled: false,
-    systemName: '停用演示系统',
+    system_name: '停用演示系统',
     url: 'https://example.com/track/p-005',
-    updatedAt: '2026-06-15 16:40:00',
+    updated_at: '2026-06-15 16:40:00',
   },
 }
 
 let projectTrackJumpStore = structuredClone(defaultProjectTrackJump)
 
-export function getProjectTrackJump(projectId) {
-  const item = projectTrackJumpStore[projectId]
+export function getProjectTrackJump(project_id) {
+  const item = projectTrackJumpStore[project_id]
   return {
     enabled: Boolean(item?.enabled && item?.url),
-    systemName: item?.systemName || '',
+    system_name: item?.system_name || '',
     url: item?.url || '',
-    updatedAt: item?.updatedAt || '',
+    updated_at: item?.updated_at || '',
   }
 }
 
-export function saveProjectTrackJump(projectId, payload = {}) {
-  if (!projectId || projectId === 'hq') return null
-  projectTrackJumpStore[projectId] = {
+export function saveProjectTrackJump(project_id, payload = {}) {
+  if (!project_id || project_id === 'hq') return null
+  projectTrackJumpStore[project_id] = {
     enabled: Boolean(payload.enabled),
-    systemName: String(payload.systemName || '').trim(),
+    system_name: String(payload.system_name || '').trim(),
     url: String(payload.url || '').trim(),
-    updatedAt: nowStamp(),
+    updated_at: nowStamp(),
   }
-  return getProjectTrackJump(projectId)
+  return getProjectTrackJump(project_id)
 }
 
 /**
@@ -303,14 +303,14 @@ export function saveProjectTrackJump(projectId, payload = {}) {
  */
 export function listConfiguredPersonnelTrackSystems() {
   return Object.entries(projectTrackJumpStore)
-    .map(([projectId, raw]) => {
+    .map(([project_id, raw]) => {
       const url = String(raw?.url || '').trim()
       return {
-        projectId,
+        project_id,
         url,
         enabled: Boolean(raw?.enabled),
-        updatedAt: raw?.updatedAt || '',
-        systemName: raw?.systemName || '',
+        updated_at: raw?.updated_at || '',
+        system_name: raw?.system_name || '',
       }
     })
     .filter((row) => row.url)
@@ -328,24 +328,24 @@ export function saveProjectSiteIntegration() {
 
 /** 现场实名制对接同步字段说明（文档/提示用） */
 export const integratedFieldPaths = [
-  'basic.personnelNo',
+  'basic.personnel_no',
   'basic.photo',
   'basic.name',
   'basic.phone',
   'basic.gender',
   'basic.age',
-  'basic.idType',
-  'basic.idNumber',
-  'basic.idValidFrom',
-  'basic.idValidTo',
-  'basic.nativePlace',
+  'basic.id_type',
+  'basic.id_number',
+  'basic.id_valid_from',
+  'basic.id_valid_to',
+  'basic.native_place',
   'basic.address',
-  'unit.unitName',
-  'unit.creditCode',
-  'unit.unitType',
-  'unit.workType',
-  'unit.certValidTo',
-  'safetyEducation',
+  'unit.unit_name',
+  'unit.credit_code',
+  'unit.unit_type',
+  'unit.work_type',
+  'unit.cert_valid_to',
+  'safety_education',
 ]
 
 /** 恒为对接模式：平台不开放人员填报 */
@@ -362,27 +362,27 @@ export function isIntegratedField() {
   return true
 }
 
-export function getProjectWarningConfig(projectId) {
-  if (!projectId || projectId === 'hq') return normalizeConfig(defaultConfig)
-  if (!projectConfigStore[projectId]) {
-    projectConfigStore[projectId] = normalizeConfig(defaultConfig)
+export function getProjectWarningConfig(project_id) {
+  if (!project_id || project_id === 'hq') return normalizeConfig(defaultConfig)
+  if (!projectConfigStore[project_id]) {
+    projectConfigStore[project_id] = normalizeConfig(defaultConfig)
   }
-  return normalizeConfig(projectConfigStore[projectId])
+  return normalizeConfig(projectConfigStore[project_id])
 }
 
-export function saveProjectWarningConfig(projectId, data) {
-  if (!projectId || projectId === 'hq') return null
-  projectConfigStore[projectId] = normalizeConfig(data)
-  return structuredClone(projectConfigStore[projectId])
+export function saveProjectWarningConfig(project_id, data) {
+  if (!project_id || project_id === 'hq') return null
+  projectConfigStore[project_id] = normalizeConfig(data)
+  return structuredClone(projectConfigStore[project_id])
 }
 
-export function resetProjectWarningConfig(projectId) {
-  if (!projectId || projectId === 'hq') return normalizeConfig(defaultConfig)
-  projectConfigStore[projectId] = normalizeConfig(defaultConfig)
-  return structuredClone(projectConfigStore[projectId])
+export function resetProjectWarningConfig(project_id) {
+  if (!project_id || project_id === 'hq') return normalizeConfig(defaultConfig)
+  projectConfigStore[project_id] = normalizeConfig(defaultConfig)
+  return structuredClone(projectConfigStore[project_id])
 }
 
-/** @deprecated 请使用 getProjectWarningConfig(projectId) */
+/** @deprecated 请使用 getProjectWarningConfig(project_id) */
 export function getWarningConfig() {
   return getProjectWarningConfig('p-000')
 }

@@ -17,7 +17,7 @@ import { warningRuleDefinitions } from '../../mock/laborWarningConfig'
 const router = useRouter()
 const { isHqSelected, treeProjectId, scopeProjectId, scopeProjectLabel, onTreeNodeClick } = useLaborProjectScope()
 const keyword = ref('')
-const filters = ref({ status: '', handleMode: '', ruleKey: '' })
+const filters = ref({ status: '', handle_mode: '', rule_key: '' })
 
 const ruleTypeOptions = warningRuleDefinitions.map((item) => ({
   key: item.key,
@@ -41,10 +41,10 @@ const filteredWarnings = computed(() => {
   const kw = keyword.value.trim()
   return allWarnings.value.filter((row) => {
     if (filters.value.status && row.status !== filters.value.status) return false
-    if (filters.value.handleMode && row.handleMode !== filters.value.handleMode) return false
-    if (filters.value.ruleKey && row.ruleKey !== filters.value.ruleKey) return false
+    if (filters.value.handle_mode && row.handle_mode !== filters.value.handle_mode) return false
+    if (filters.value.rule_key && row.rule_key !== filters.value.rule_key) return false
     if (kw) {
-      const hay = `${row.warningNo}${row.ruleLabel}${row.name}${row.personnelNo}${row.unitName}`
+      const hay = `${row.warning_no}${row.rule_label}${row.name}${row.personnel_no}${row.unit_name}`
       if (!hay.includes(kw)) return false
     }
     return true
@@ -55,12 +55,12 @@ const stats = computed(() => getWarningStats(scopeProjectId.value))
 
 watch(scopeProjectId, () => {
   keyword.value = ''
-  filters.value = { status: '', handleMode: '', ruleKey: '' }
+  filters.value = { status: '', handle_mode: '', rule_key: '' }
 })
 
 function handleReset() {
   keyword.value = ''
-  filters.value = { status: '', handleMode: '', ruleKey: '' }
+  filters.value = { status: '', handle_mode: '', rule_key: '' }
 }
 
 function goDetail(row) {
@@ -106,13 +106,13 @@ function goHandle(row) {
 
         <div class="filter-bar">
           <el-input v-model="keyword" placeholder="预警编号/人员/单位" clearable style="width: 200px" />
-          <el-select v-model="filters.ruleKey" placeholder="预警类型" clearable style="width: 200px">
+          <el-select v-model="filters.rule_key" placeholder="预警类型" clearable style="width: 200px">
             <el-option v-for="item in ruleTypeOptions" :key="item.key" :label="item.label" :value="item.key" />
           </el-select>
           <el-select v-model="filters.status" placeholder="预警状态" clearable style="width: 120px">
             <el-option v-for="item in warningStatusOptions" :key="item" :label="item" :value="item" />
           </el-select>
-          <el-select v-model="filters.handleMode" placeholder="处置方式" clearable style="width: 140px">
+          <el-select v-model="filters.handle_mode" placeholder="处置方式" clearable style="width: 140px">
             <el-option v-for="item in handleModeOptions" :key="item" :label="item" :value="item" />
           </el-select>
           <el-button class="ap-btn-primary" type="primary" :icon="Search">查询</el-button>
@@ -126,20 +126,20 @@ function goHandle(row) {
 
         <el-table :data="filteredWarnings" border stripe class="ap-table">
           <el-table-column type="index" label="序号" width="60" align="center" />
-          <el-table-column prop="warningNo" label="预警编号" width="130" />
-          <el-table-column prop="ruleLabel" label="预警类型" min-width="200" show-overflow-tooltip />
+          <el-table-column prop="warning_no" label="预警编号" width="130" />
+          <el-table-column prop="rule_label" label="预警类型" min-width="200" show-overflow-tooltip />
           <el-table-column prop="name" label="人员姓名" width="90" />
-          <el-table-column prop="personnelNo" label="人员编号" width="130" />
-          <el-table-column prop="unitName" label="参建单位" min-width="160" show-overflow-tooltip />
-          <el-table-column prop="workType" label="工种" width="90" />
-          <el-table-column prop="handleMode" label="处置方式" width="120" align="center">
+          <el-table-column prop="personnel_no" label="人员编号" width="130" />
+          <el-table-column prop="unit_name" label="参建单位" min-width="160" show-overflow-tooltip />
+          <el-table-column prop="work_type" label="工种" width="90" />
+          <el-table-column prop="handle_mode" label="处置方式" width="120" align="center">
             <template #default="{ row }">
               <el-tag
                 size="small"
-                :type="row.handleMode === '系统自动关闭' ? 'success' : row.handleMode === '通知' ? 'info' : 'warning'"
+                :type="row.handle_mode === '系统自动关闭' ? 'success' : row.handle_mode === '通知' ? 'info' : 'warning'"
                 effect="plain"
               >
-                {{ row.handleMode }}
+                {{ row.handle_mode }}
               </el-tag>
             </template>
           </el-table-column>
@@ -148,15 +148,15 @@ function goHandle(row) {
               <span class="ap-status-tag" :class="warningStatusTagClass[row.status]">{{ row.status }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="currentLevel" label="当前层级" width="90" align="center">
-            <template #default="{ row }">{{ row.status === '已关闭' ? '-' : `${row.currentLevel}级` }}</template>
+          <el-table-column prop="current_level" label="当前层级" width="90" align="center">
+            <template #default="{ row }">{{ row.status === '已关闭' ? '-' : `${row.current_level}级` }}</template>
           </el-table-column>
-          <el-table-column prop="triggeredAt" label="触发时间" width="160" />
+          <el-table-column prop="triggered_at" label="触发时间" width="160" />
           <el-table-column label="操作" width="130" fixed="right" align="center">
             <template #default="{ row }">
               <el-button link type="primary" @click="goDetail(row)">详情</el-button>
               <el-button
-                v-if="row.handleMode === '手动处理' && row.status !== '已关闭'"
+                v-if="row.handle_mode === '手动处理' && row.status !== '已关闭'"
                 link
                 type="primary"
                 @click="goHandle(row)"

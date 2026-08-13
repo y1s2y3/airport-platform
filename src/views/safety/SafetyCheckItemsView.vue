@@ -44,7 +44,7 @@ allBaseCategories.forEach(cat => {
     checkPoint: item.label,
     inspectionCategory: cat.inspectionCategory,
     updatedBy: '系统',
-    updatedAt: '2026-07-13 10:00',
+    updated_at: '2026-07-13 10:00',
   }))
 })
 
@@ -142,14 +142,14 @@ function confirmItem() {
   const t = now()
   if (editingItemId.value) {
     const item = itemStore[catId].find(i => i.id === editingItemId.value)
-    if (item) { item.checkPoint = itemForm.checkPoint.trim(); item.updatedAt = t }
+    if (item) { item.checkPoint = itemForm.checkPoint.trim(); item.updated_at = t }
   } else {
     itemStore[catId].push({
       id: 'item-' + Date.now(),
       checkPoint: itemForm.checkPoint.trim(),
       inspectionCategory: inspectionCategory.value,
       updatedBy: '当前用户',
-      updatedAt: t,
+      updated_at: t,
     })
   }
   itemDialogVisible.value = false
@@ -216,7 +216,7 @@ function deleteItem(row) {
             <el-table-column type="index" label="序号" width="60" align="center" />
             <el-table-column prop="checkPoint" label="检查项" min-width="380" show-overflow-tooltip />
             <el-table-column prop="updatedBy" label="更新人" width="100" align="center" />
-            <el-table-column prop="updatedAt" label="更新时间" width="160" align="center" />
+            <el-table-column prop="updated_at" label="更新时间" width="160" align="center" />
             <el-table-column label="操作" width="130" align="center" fixed="right">
               <template #default="{ row }">
                 <el-button link type="primary" size="small" @click="openEditItem(row)">编辑</el-button>

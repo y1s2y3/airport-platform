@@ -20,7 +20,7 @@ import { REALNAME_ENTRY_LABEL } from '../../constants/laborPersonStatus'
 const router = useRouter()
 const { isHqSelected, treeProjectId, scopeProjectId, scopeProjectLabel, onTreeNodeClick } = useLaborProjectScope()
 const keyword = ref('')
-const filters = ref({ workType: '', personnelCategory: '', entryStatus: '', unitName: '' })
+const filters = ref({ work_type: '', personnel_category: '', entry_status: '', unit_name: '' })
 const visiblePhoneIds = ref(new Set())
 
 const allPersonnel = computed(() => getProjectPersonnel(scopeProjectId.value))
@@ -40,15 +40,15 @@ const filteredPersonnel = computed(() => {
   const kw = keyword.value.trim()
   return allPersonnel.value.filter((row) => {
     if (kw) {
-      const hay = `${row.basic.personnelNo}${row.basic.name}${row.basic.phone}${row.basic.idNumber}${row.unit.unitName}${row.unit.workType}`
+      const hay = `${row.basic.personnel_no}${row.basic.name}${row.basic.phone}${row.basic.id_number}${row.unit.unit_name}${row.unit.work_type}`
       if (!hay.includes(kw)) return false
     }
-    if (filters.value.workType && row.unit.workType !== filters.value.workType) return false
-    if (filters.value.personnelCategory && row.unit.personnelCategory !== filters.value.personnelCategory) {
+    if (filters.value.work_type && row.unit.work_type !== filters.value.work_type) return false
+    if (filters.value.personnel_category && row.unit.personnel_category !== filters.value.personnel_category) {
       return false
     }
-    if (filters.value.entryStatus && row.entryStatus !== filters.value.entryStatus) return false
-    if (filters.value.unitName && !row.unit.unitName.includes(filters.value.unitName.trim())) {
+    if (filters.value.entry_status && row.entry_status !== filters.value.entry_status) return false
+    if (filters.value.unit_name && !row.unit.unit_name.includes(filters.value.unit_name.trim())) {
       return false
     }
     return true
@@ -58,13 +58,13 @@ const filteredPersonnel = computed(() => {
 const stats = computed(() => getRealNameStats(scopeProjectId.value))
 watch(scopeProjectId, () => {
   keyword.value = ''
-  filters.value = { workType: '', personnelCategory: '', entryStatus: '', unitName: '' }
+  filters.value = { work_type: '', personnel_category: '', entry_status: '', unit_name: '' }
   visiblePhoneIds.value = new Set()
 })
 
 function handleReset() {
   keyword.value = ''
-  filters.value = { workType: '', personnelCategory: '', entryStatus: '', unitName: '' }
+  filters.value = { work_type: '', personnel_category: '', entry_status: '', unit_name: '' }
 }
 
 function goDetail(row) {
@@ -74,8 +74,8 @@ function goDetail(row) {
 function viewPhone(row) {
   visiblePhoneIds.value = new Set([...visiblePhoneIds.value, row.id])
   logPhoneView({
-    personnelId: row.id,
-    personnelNo: row.basic.personnelNo,
+    personnel_id: row.id,
+    personnel_no: row.basic.personnel_no,
     name: row.basic.name,
     scene: '列表',
   })
@@ -138,23 +138,23 @@ function isPhoneVisible(id) {
             :prefix-icon="Search"
             class="search-input"
           />
-          <el-select v-model="filters.workType" placeholder="工种/职务" clearable style="width: 110px">
+          <el-select v-model="filters.work_type" placeholder="工种/职务" clearable style="width: 110px">
             <el-option v-for="opt in workTypeOptions" :key="opt" :label="opt" :value="opt" />
           </el-select>
-          <el-select v-model="filters.personnelCategory" placeholder="工人类型" clearable style="width: 120px">
+          <el-select v-model="filters.personnel_category" placeholder="工人类型" clearable style="width: 120px">
             <el-option v-for="opt in personnelCategoryOptions" :key="opt" :label="opt" :value="opt" />
           </el-select>
-          <el-select v-model="filters.entryStatus" :placeholder="REALNAME_ENTRY_LABEL" clearable style="width: 100px">
+          <el-select v-model="filters.entry_status" :placeholder="REALNAME_ENTRY_LABEL" clearable style="width: 100px">
             <el-option v-for="opt in entryStatusOptions" :key="opt" :label="opt" :value="opt" />
           </el-select>
-          <el-input v-model="filters.unitName" placeholder="参建单位" clearable style="width: 160px" />
+          <el-input v-model="filters.unit_name" placeholder="参建单位" clearable style="width: 160px" />
           <el-button class="ap-btn-primary" type="primary" :icon="Search">查询</el-button>
           <el-button :icon="Refresh" @click="handleReset">重置</el-button>
         </div>
 
         <el-table :data="filteredPersonnel" border stripe class="ap-table">
           <el-table-column type="index" label="序号" width="60" align="center" />
-          <el-table-column prop="basic.personnelNo" label="人员编号" width="130" show-overflow-tooltip />
+          <el-table-column prop="basic.personnel_no" label="人员编号" width="130" show-overflow-tooltip />
           <el-table-column label="照片" width="70" align="center">
             <template #default="{ row }">
               <el-avatar :size="36" class="list-avatar">{{ row.basic.name.slice(0, 1) }}</el-avatar>
@@ -177,24 +177,24 @@ function isPhoneVisible(id) {
               </div>
             </template>
           </el-table-column>
-          <el-table-column prop="unit.personnelCategory" label="工人类型" width="110" />
-          <el-table-column prop="unit.workType" label="工种/职务" width="100" />
-          <el-table-column prop="unit.unitName" label="参建单位名称" min-width="180" show-overflow-tooltip />
-          <el-table-column prop="unit.certValidTo" label="特种资质有效期" width="130" align="center">
-            <template #default="{ row }">{{ row.unit.certValidTo || '—' }}</template>
+          <el-table-column prop="unit.personnel_category" label="工人类型" width="110" />
+          <el-table-column prop="unit.work_type" label="工种/职务" width="100" />
+          <el-table-column prop="unit.unit_name" label="参建单位名称" min-width="180" show-overflow-tooltip />
+          <el-table-column prop="unit.cert_valid_to" label="特种资质有效期" width="130" align="center">
+            <template #default="{ row }">{{ row.unit.cert_valid_to || '—' }}</template>
           </el-table-column>
           <el-table-column :label="REALNAME_ENTRY_LABEL" width="90" align="center">
             <template #default="{ row }">
-              <span class="ap-status-tag" :class="entryStatusTagClass(row.entryStatus)">{{ row.entryStatus }}</span>
+              <span class="ap-status-tag" :class="entryStatusTagClass(row.entry_status)">{{ row.entry_status }}</span>
             </template>
           </el-table-column>
           <el-table-column label="三级教育" width="110" align="center">
             <template #default="{ row }">
               <span
                 class="ap-status-tag"
-                :class="isSafetyEducationComplete(row.safetyEducation) ? 'ap-tag-enabled' : 'ap-tag-high'"
+                :class="isSafetyEducationComplete(row.safety_education) ? 'ap-tag-enabled' : 'ap-tag-high'"
               >
-                {{ isSafetyEducationComplete(row.safetyEducation) ? '已完成' : '未完成' }}
+                {{ isSafetyEducationComplete(row.safety_education) ? '已完成' : '未完成' }}
               </span>
             </template>
           </el-table-column>
