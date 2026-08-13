@@ -49,7 +49,6 @@ const filteredList = computed(() => {
 const stats = computed(() => ({
   total: list.value.length,
   online: list.value.filter((item) => item.online).length,
-  track: list.value.filter((item) => item.deviceType === '轨迹监测设备').length,
   gate: list.value.filter((item) => item.deviceType === '道闸车牌识别设备').length,
 }))
 
@@ -149,7 +148,6 @@ async function handleDelete(row) {
           <div class="panel-stats">
             <span>设备 {{ stats.total }} 台</span>
             <span>在线 {{ stats.online }}</span>
-            <span>轨迹监测 {{ stats.track }}</span>
             <span>道闸识别 {{ stats.gate }}</span>
           </div>
         </div>
@@ -220,7 +218,7 @@ async function handleDelete(row) {
           <el-input v-model="formData.location" />
         </el-form-item>
         <el-form-item label="绑定车牌">
-          <el-input v-model="formData.bindPlateNo" placeholder="轨迹监测设备可绑定车辆" />
+          <el-input v-model="formData.bindPlateNo" placeholder="选填" />
         </el-form-item>
         <el-form-item label="在线状态">
           <el-switch v-model="formData.online" active-text="在线" inactive-text="离线" />

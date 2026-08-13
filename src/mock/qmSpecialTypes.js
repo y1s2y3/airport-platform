@@ -1,8 +1,9 @@
 /**
- * 专项验收类型字典（无 ops 依赖，可供提交校验引用）
+ * 专项验收类型字典（无 ops 依赖）
+ * 法定资料按类型提供建议清单，份数可配；提交不强制上传。
  */
 
-/** 专项验收类型及必传资料清单 */
+/** 专项验收类型及建议法定资料清单（选填，非强制） */
 export const SPECIAL_ACCEPT_TYPES = [
   {
     code: 'fire',
@@ -20,7 +21,6 @@ export const SPECIAL_ACCEPT_TYPES = [
     form_template_id: 'ft-special-fire',
     requiredDocs: [
       { slot: 'cd_design', label: '人防设计审查文件' },
-      { slot: 'cd_quality', label: '人防工程质量监督报告' },
       { slot: 'cd_opinion', label: '人防验收意见书' },
     ],
   },
@@ -40,7 +40,6 @@ export const SPECIAL_ACCEPT_TYPES = [
     form_template_id: 'ft-special-fire',
     requiredDocs: [
       { slot: 'pl_permit', label: '建设工程规划许可证' },
-      { slot: 'pl_survey', label: '规划核实测量报告' },
       { slot: 'pl_opinion', label: '规划核实意见书' },
     ],
   },
@@ -52,6 +51,7 @@ export const SPECIAL_ACCEPT_TYPES = [
       { slot: 'se_cert', label: '特种设备制造/安装许可证' },
       { slot: 'se_inspect', label: '特种设备监督检验报告' },
       { slot: 'se_register', label: '特种设备使用登记证' },
+      { slot: 'se_notify', label: '特种设备安装告知书' },
     ],
   },
 ]
@@ -64,7 +64,10 @@ export function specialTypeLabel(code) {
   return getSpecialAcceptType(code)?.label || code || '—'
 }
 
-/** 专项任务必传资料缺失列表 */
+/**
+ * 专项建议资料未上传列表（仅供界面展示，不用于提交拦截）
+ * @deprecated 提交不再强制；保留供选填进度展示
+ */
 export function missingSpecialRequiredDocs(task, attachments = []) {
   if (!task || Number(task.task_type) !== 6 || !task.special_type) return []
   const meta = getSpecialAcceptType(task.special_type)

@@ -1,6 +1,8 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { getMobileInspectionTask } from '../../mock/mobileInspectionTasks'
+import { checkCategoryTree } from '../../composables/useInspectionPlan'
 
 const route = useRoute()
 const router = useRouter()
@@ -8,29 +10,38 @@ const taskId = route.params.id
 
 // ===== 5条任务基本信息 =====
 const taskMap = {
-  'mt-000': { taskNo:'XJ20260730001', planName:'6月底安全巡检', planNo:'JH2026007', planType:'周检', source:'任务推送', project:'飞行区跑道延长工程', executor:'', inspector:'', companions:[], deadline:'2026-07-10', inspectionDate:'', status:'待指派', itemCount:10, hazardCount:0, result:'', normalPhotos:[], hazardItems:[] },
-  'mt-001': { taskNo:'XJ20260728001', planName:'7月第4周安全巡检', planNo:'JH2026001', planType:'周检', source:'任务推送', project:'飞行区跑道延长工程', executor:'王工', inspector:'王工', companions:[], deadline:'2026-07-28', inspectionDate:'', status:'待执行', itemCount:12, hazardCount:0, result:'', normalPhotos:[], hazardItems:[] },
-  'mt-002': { taskNo:'XJ20260720002', planName:'临时用电专项检查', planNo:'JH2026002', planType:'专项巡检', source:'任务推送', project:'T3航站楼扩建工程', executor:'王工', inspector:'王工', companions:['刘工'], deadline:'2026-07-20', inspectionDate:'2026-07-20', status:'已完成', itemCount:8, hazardCount:2, result:'hazard', normalPhotos:[],
+  'mt-000': { taskNo:'AQXJ20260730001', taskName:'高处作业安全检查', inspectionCategory:'安全', source:'任务下发', project:'飞行区跑道延长工程', projectId:'p-000', executor:'监理', inspector:'监理', companions:[], deadline:'2026-07-10', inspectionDate:'', status:'待执行', itemCount:10, hazardCount:0, result:'', normalPhotos:[], hazardItems:[] },
+  'mt-001': { taskNo:'AQXJ20260728001', taskName:'防台防汛安全检查', inspectionCategory:'安全', source:'任务下发', project:'飞行区跑道延长工程', projectId:'p-000', executor:'监理', inspector:'监理', companions:[], deadline:'2026-07-28', inspectionDate:'', status:'待执行', itemCount:12, hazardCount:0, result:'', normalPhotos:[], hazardItems:[] },
+  'mt-002': { taskNo:'AQXJ20260718001', taskName:'临时用电安全检查', inspectionCategory:'安全', source:'任务下发', project:'T3航站楼扩建工程', projectId:'p-001', executor:'监理', inspector:'监理', companions:[], deadline:'2026-07-20', inspectionDate:'2026-07-20', status:'已完成', itemCount:8, hazardCount:2, result:'hazard', normalPhotos:[],
     hazardItems:[
-      { desc:'五芯电缆破损，线路未按规范敷设', photos:['📷 隐患照片1'], hasRectify:true, rectifyNo:'ZG202607001', rectifyId:'rec-001', rectifier:'赵工', rectifyDeadline:'2026-07-30' },
-      { desc:'电缆线路沿地明敷未做保护', photos:['📷 隐患照片1'], hasRectify:true, rectifyNo:'ZG202607002', rectifyId:'rec-002', rectifier:'赵工', rectifyDeadline:'2026-07-30' },
+      { desc:'五芯电缆破损，线路未按规范敷设', photos:['📷 隐患照片1'], hasRectify:true, rectifyNo:'ZG202607001', rectifyId:'rec-001', rectifier:'刘工（专职安全员）', rectifyDeadline:'2026-07-30' },
+      { desc:'电缆线路沿地明敷未做保护', photos:['📷 隐患照片1'], hasRectify:true, rectifyNo:'ZG202607002', rectifyId:'rec-002', rectifier:'刘工（专职安全员）', rectifyDeadline:'2026-07-30' },
     ] },
-  'mt-003': { taskNo:'XJ20260721003', planName:'7月第三周安全巡检', planNo:'JH2026001', planType:'周检', source:'任务推送', project:'T3航站楼扩建工程', executor:'王工', inspector:'王工', companions:['刘工','陈工'], deadline:'2026-07-21', inspectionDate:'2026-07-21', status:'已完成', itemCount:12, hazardCount:0, result:'normal', normalPhotos:['📷 巡检照片1','📷 巡检照片2'], hazardItems:[] },
-  'mt-004': { taskNo:'XJ20260731004', planName:'', planNo:'', planType:'月检', source:'系统自建', project:'新货运站建设工程', executor:'王工', inspector:'王工', companions:[], deadline:'', inspectionDate:'2026-07-31', status:'已完成', itemCount:0, hazardCount:0, result:'normal', normalPhotos:['📷 巡检照片1','📷 巡检照片2'], hazardItems:[] },
-  'mt-005': { taskNo:'XJ20260728005', planName:'', planNo:'', planType:'专项巡检', source:'系统自建', project:'飞行区跑道延长工程', executor:'王工', inspector:'王工', companions:['吴工'], deadline:'', inspectionDate:'2026-07-28', status:'已完成', itemCount:0, hazardCount:1, result:'hazard', normalPhotos:[],
+  'mt-003': { taskNo:'AQXJ20260721003', taskName:'消防设施安全检查', inspectionCategory:'安全', source:'任务下发', project:'T3航站楼扩建工程', projectId:'p-001', executor:'监理', inspector:'监理', companions:[], deadline:'2026-07-21', inspectionDate:'2026-07-21', status:'已完成', itemCount:12, hazardCount:0, result:'normal', normalPhotos:['📷 巡检照片1','📷 巡检照片2'], hazardItems:[] },
+  'mt-004': { taskNo:'ZLXJ20260731004', taskName:'进场材料质量检查', inspectionCategory:'质量', source:'任务下发', project:'新货运站建设工程', executor:'王工', inspector:'王工', companions:[], deadline:'2026-07-31', inspectionDate:'2026-07-31', status:'已完成', itemCount:0, hazardCount:0, result:'normal', normalPhotos:['📷 巡检照片1','📷 巡检照片2'], hazardItems:[] },
+  'mt-005': { taskNo:'ZLXJ20260728005', taskName:'关键工序质量检查', inspectionCategory:'质量', source:'系统自建', project:'飞行区跑道延长工程', executor:'王工', inspector:'王工', companions:['吴工'], deadline:'2026-07-28', inspectionDate:'2026-07-28', status:'已完成', itemCount:0, hazardCount:1, result:'hazard', normalPhotos:[],
     hazardItems:[
       { desc:'电缆破损，存在安全隐患', photos:['📷 隐患照片1','📷 隐患照片2'], hasRectify:true, rectifyNo:'ZG202607007', rectifyId:'rec-007', rectifier:'赵工', rectifyDeadline:'2026-08-05' },
     ] },
 }
-const taskInfo = computed(() => taskMap[taskId] || taskMap['mt-001'])
+const taskInfo = computed(() => {
+  const stored = getMobileInspectionTask(taskId)
+  const merged = stored ? { ...(taskMap[taskId] || {}), ...stored } : (taskMap[taskId] || taskMap['mt-001'])
+  return {
+    ...merged,
+    companions: Array.isArray(merged.companions) ? merged.companions : [],
+    deadline: merged.deadline || '',
+    inspectionDate: merged.inspectionDate || merged.inspDate || '',
+  }
+})
 
 // ===== 场景判断 =====
-const isPush   = taskId?.startsWith('mt-') && !taskId?.endsWith('-004') && !taskId?.endsWith('-005')
-const isSelf   = taskId === 'mt-004' || taskId === 'mt-005'
-const isPending = taskId === 'mt-001'
+const isPush = computed(() => taskInfo.value.source === '任务下发')
+const isSelf = computed(() => taskInfo.value.source === '系统自建')
+const isPending = computed(() => taskInfo.value.status === '待执行')
 // mt-002 有隐患已发整改单, mt-003 无隐患, mt-004 无隐患, mt-005 有隐患已发整改单
 
-// ===== mt-002 检查结果（任务推送·有隐患） =====
+// ===== mt-002 检查结果（任务下发·有隐患） =====
 const pushHazardTree = [
   { id:'cat-2', label:'临时用电',
     items:[
@@ -49,7 +60,7 @@ const pushHazardTree = [
     ]},
 ]
 
-// ===== mt-003 检查结果（任务推送·全部正常） =====
+// ===== mt-003 检查结果（任务下发·全部正常） =====
 const pushNormalTree = [
   { id:'cat-2', label:'临时用电',
     items:[
@@ -73,6 +84,14 @@ const pushNormalTree = [
 
 // ===== 根据场景使用对应的树 =====
 const categoryTree = computed(() => {
+  if (taskInfo.value.checkConfig?.length) {
+    return taskInfo.value.checkConfig.map(config => {
+      const category = checkCategoryTree.find(item => item.id === config.categoryId)
+      return category
+        ? { id: category.id, label: category.label, items: category.items.filter(item => config.itemIds.includes(item.id)) }
+        : null
+    }).filter(Boolean)
+  }
   if (taskId === 'mt-003') return pushNormalTree
   return pushHazardTree
 })
@@ -80,7 +99,9 @@ const activeId = ref(categoryTree.value[0]?.id || '')
 const activeCat = computed(() => categoryTree.value.find(c => c.id === activeId.value))
 const activeItems = computed(() => activeCat.value?.items || [])
 
-function goBack() { router.push('/safety-inspection/task') }
+function goBack() {
+  router.push(route.query.from === 'task-dispatch' ? '/safety-inspection/plan' : '/safety-inspection/task')
+}
 function goRectify(id) { if (id) router.push(`/safety-inspection/hazard/${id}`) }
 </script>
 
@@ -93,30 +114,21 @@ function goRectify(id) { if (id) router.push(`/safety-inspection/hazard/${id}`) 
 
     <!-- ===== 基本信息 ===== -->
     <div class="info-card">
-      <div class="info-row"><span class="il">任务单编号</span><span class="iv">{{ taskInfo.taskNo }}</span></div>
-      <!-- 任务推送显示计划名称/编号，系统自建不显示 -->
-      <template v-if="taskInfo.source === '任务推送'">
-        <div class="info-row"><span class="il">计划名称</span><span class="iv">{{ taskInfo.planName }}</span></div>
-        <div class="info-row"><span class="il">计划编号</span><span class="iv">{{ taskInfo.planNo }}</span></div>
-      </template>
-      <div class="info-row"><span class="il">来源</span><span class="iv">{{ taskInfo.source }}</span></div>
-      <div class="info-row"><span class="il">项目</span><span class="iv">{{ taskInfo.project }}</span></div>
-      <div class="info-row"><span class="il">巡检人</span><span class="iv">{{ taskInfo.inspector || '-' }}</span></div>
-      <div class="info-row"><span class="il">同行人</span><span class="iv">{{ taskInfo.companions.length ? taskInfo.companions.join('、') : '-' }}</span></div>
-      <div class="info-row"><span class="il">巡检类型</span><span class="iv">{{ taskInfo.planType }}</span></div>
-      <!-- 任务推送：已完成→巡检日期，待执行→截止日期 -->
-      <template v-if="taskInfo.source === '任务推送'">
-        <div class="info-row" v-if="taskInfo.status === '已完成'"><span class="il">巡检日期</span><span class="iv">{{ taskInfo.inspectionDate }}</span></div>
-        <div class="info-row" v-else><span class="il">截止日期</span><span class="iv">{{ taskInfo.deadline }}</span></div>
-      </template>
-      <!-- 系统自建：展示巡检日期 -->
-      <div class="info-row" v-if="taskInfo.source === '系统自建' && taskInfo.inspectionDate"><span class="il">巡检日期</span><span class="iv">{{ taskInfo.inspectionDate }}</span></div>
+      <div class="info-row"><span class="il">巡检任务单编号</span><span class="iv">{{ taskInfo.taskNo }}</span></div>
+      <div class="info-row"><span class="il">任务名称</span><span class="iv">{{ taskInfo.taskName || taskInfo.planName || '-' }}</span></div>
+      <div class="info-row"><span class="il">任务来源</span><span class="iv">{{ taskInfo.source }}</span></div>
+      <div class="info-row"><span class="il">项目名称</span><span class="iv">{{ taskInfo.project }}</span></div>
+      <div class="info-row"><span class="il">执行人</span><span class="iv">{{ taskInfo.executor || '-' }}</span></div>
+      <div class="info-row"><span class="il">巡检分类</span><span class="iv">{{ taskInfo.inspectionCategory }}</span></div>
+      <div class="info-row"><span class="il">同行人</span><span class="iv">{{ taskInfo.companions.length ? taskInfo.companions.join('、') : '' }}</span></div>
+      <div class="info-row"><span class="il">截止日期</span><span class="iv">{{ taskInfo.deadline }}</span></div>
+      <div class="info-row"><span class="il">巡检日期</span><span class="iv">{{ taskInfo.inspectionDate }}</span></div>
       <div class="info-row"><span class="il">状态</span>
-        <span class="iv" :style="{color:taskInfo.status==='已完成'?'#34a853':taskInfo.status==='待指派'?'#999':'#f5a623',fontWeight:600}">{{ taskInfo.status }}</span>
+        <span class="iv" :style="{color:taskInfo.status==='已完成'?'#34a853':'#f5a623',fontWeight:600}">{{ taskInfo.status }}</span>
       </div>
     </div>
 
-    <!-- ===== 任务推送：检查项（仅作查看，无标签/照片/说明） ===== -->
+    <!-- ===== 下发任务：检查项（仅作查看，无标签/照片/说明） ===== -->
     <template v-if="isPush">
       <div class="tree-layout">
         <div class="tree-side">
@@ -173,10 +185,11 @@ function goRectify(id) { if (id) router.push(`/safety-inspection/hazard/${id}`) 
 .page-title { font-size:18px; font-weight:600; color:#1f2329; margin:0; flex:1; }
 
 /* 基本信息 */
-.info-card { background:#fff; border-radius:10px; padding:16px 20px; margin-bottom:16px; box-shadow:0 1px 4px rgba(0,0,0,0.04); display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-.info-row { display:flex; gap:6px; font-size:13px; line-height:1.6; }
-.il { color:#999; flex-shrink:0; width:72px; }
-.iv { color:#1f2329; }
+.info-card { background:#fff; border:1px solid #dee2e6; border-radius:8px; overflow:hidden; margin-bottom:20px; display:grid; grid-template-columns:1fr 1fr; }
+.info-row { display:flex; min-height:38px; border-bottom:1px solid #f0f0f0; border-right:1px solid #f0f0f0; font-size:13px; line-height:1.6; }
+.info-row:nth-child(2n) { border-right:none; }
+.il { width:110px; flex-shrink:0; padding:9px 12px; background:#f8f9fa; border-right:1px solid #f0f0f0; color:#868e96; }
+.iv { padding:9px 12px; color:#212529; }
 
 /* 左树右项 */
 .tree-layout { display:flex; gap:0; background:#fff; border-radius:10px; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,0.04); min-height:300px; margin-bottom:16px; }

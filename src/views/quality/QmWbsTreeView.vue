@@ -3,15 +3,17 @@ import { computed, reactive, ref, watch, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useQmProjectScope } from '../../composables/useCurrentProject'
 import {
-  acceptancePlans,
   batchTypes,
   buildWbsTree,
+  ensureWbsScaffold,
   formTemplates,
-  getPlanCoverageLeaves,
   removeWbsNode,
   resolveBatchTypeName,
   resolveTemplateName,
+  SPECIAL_ACCEPT_TYPES,
   upsertWbsNode,
+  WBS_EDITABLE_NODE_TYPES,
+  WBS_SYSTEM_NODE_TYPES,
   WBS_TREE_NODE_TYPE_LABEL,
   WBS_TREE_NODE_TYPES,
   wbsNodes,
@@ -32,6 +34,7 @@ const form = reactive({
   batch_type_id: '',
   form_template_id: '',
   specialty: '结构',
+  special_type: '',
   is_hidden_work: 0,
   is_critical: 0,
   batch_scheme_id: '',
@@ -42,7 +45,30 @@ const canMaintain = computed(() => !isHqSelected.value && !!scopeProjectId.value
 
 const treeData = computed(() => {
   if (!canMaintain.value) return []
+  ensureWbsScaffold(scopeProjectId.value)
   return buildWbsTree(scopeProjectId.value)
+})
+
+/** 新增可选类型：按父节点约束 */
+const creatableTypeOptions = computed(() => {
+  const parent = wbsNodes.find((n) => n.id === form.parent_id)
+  if (!parent) {
+    return WBS_EDITABLE_NODE_TYPES.filter((t) => t === 1 || t === 7).map((t) => ({
+      value: t,
+      label: WBS_TREE_NODE_TYPE_LABEL[t],
+    }))
+  }
+  let allow = []
+  if (parent.node_type === 9) allow = [1]
+  else if (parent.node_type === 10) allow = [7]
+  else if (parent.node_type === 1) allow = [2, 3]
+  else if (parent.node_type === 2) allow = [3]
+  else if (parent.node_type === 3) allow = [4, 5]
+  else if (parent.node_type === 4) allow = [5]
+  else if (parent.node_type === 5) allow = [6]
+  else if (parent.node_type === 8) allow = []
+  else allow = WBS_EDITABLE_NODE_TYPES
+  return allow.map((t) => ({ value: t, label: WBS_TREE_NODE_TYPE_LABEL[t] }))
 })
 
 const selectedNode = computed(
@@ -77,7 +103,6 @@ const STAT_FILTERS = [
   { key: 'completed', label: '已完成数量', valueClass: 'success' },
   { key: 'pending', label: '未开始数量', valueClass: 'muted' },
   { key: 'rectifying', label: '整改中数量', valueClass: 'danger' },
-  { key: 'overdue', label: '逾期未验收数量', valueClass: 'warning' },
 ]
 
 function matchChildFilter(node, key) {
@@ -86,7 +111,6 @@ function matchChildFilter(node, key) {
   if (key === 'completed') return node.accept_status === 2
   if (key === 'pending') return node.accept_status === 0
   if (key === 'rectifying') return node.accept_status === 4
-  if (key === 'overdue') return isNodeOverduePending(node)
   return true
 }
 
@@ -101,26 +125,6 @@ function setListFilter(key) {
   listFilter.value = key
 }
 
-function todayStr() {
-  return new Date().toISOString().slice(0, 10)
-}
-
-function isPlanOverdue(plan) {
-  if (!plan || plan.status === 3) return false
-  return !!(plan.plan_date && todayStr() > plan.plan_date)
-}
-
-/** 待验收且关联验收计划已逾期 */
-function isNodeOverduePending(node) {
-  if (!node || node.accept_status !== 0) return false
-  return acceptancePlans.some((plan) => {
-    if (plan.project_id && plan.project_id !== node.project_id) return false
-    if (!isPlanOverdue(plan)) return false
-    if (plan.wbs_node_id === node.id) return true
-    return getPlanCoverageLeaves(plan).some((n) => n.id === node.id)
-  })
-}
-
 const stats = computed(() => {
   const children = directChildren.value
   return {
@@ -129,9 +133,12 @@ const stats = computed(() => {
     completed: children.filter((n) => n.accept_status === 2).length,
     pending: children.filter((n) => n.accept_status === 0).length,
     rectifying: children.filter((n) => n.accept_status === 4).length,
-    overdue: children.filter((n) => isNodeOverduePending(n)).length,
   }
 })
+
+function isSystemNode(node) {
+  return !!node && WBS_SYSTEM_NODE_TYPES.includes(node.node_type)
+}
 
 const acceptLabel = {
   0: '未开始',
@@ -157,21 +164,32 @@ const parentOptions = computed(() =>
     (n) =>
       n.project_id === form.project_id &&
       WBS_TREE_NODE_TYPES.includes(n.node_type) &&
+      n.node_type !== 6 &&
+      n.node_type !== 7 &&
       n.id !== form.id,
   ),
 )
 const formOptions = computed(() => formTemplates.filter((t) => t.status === 1))
 
 function pickDefaultNode() {
-  const roots = wbsNodes
-    .filter(
-      (n) =>
-        n.project_id === scopeProjectId.value &&
-        !n.parent_id &&
-        WBS_TREE_NODE_TYPES.includes(n.node_type),
-    )
-    .sort((a, b) => (a.sort_no || 0) - (b.sort_no || 0))
-  selectedNodeId.value = roots[0]?.id || ''
+  ensureWbsScaffold(scopeProjectId.value)
+  const root = wbsNodes.find(
+    (n) => n.project_id === scopeProjectId.value && n.node_type === 8 && !n.parent_id,
+  )
+  selectedNodeId.value = root?.id || ''
+}
+
+function defaultChildType(parent_id) {
+  const parent = wbsNodes.find((n) => n.id === parent_id)
+  if (!parent) return 1
+  if (parent.node_type === 9) return 1
+  if (parent.node_type === 10) return 7
+  if (parent.node_type === 1) return 3
+  if (parent.node_type === 2) return 3
+  if (parent.node_type === 3) return 5
+  if (parent.node_type === 4) return 5
+  if (parent.node_type === 5) return 6
+  return 6
 }
 
 watch(
@@ -218,15 +236,24 @@ function tableRowClassName({ row, rowIndex }) {
 
 function openCreate(parent_id = '') {
   if (!canMaintain.value) return ElMessage.warning('请切换到具体项目后再维护目录树')
+  const pid = parent_id || selectedNodeId.value || ''
+  const parent = wbsNodes.find((n) => n.id === pid)
+  if (parent && (parent.node_type === 6 || parent.node_type === 7 || parent.node_type === 8)) {
+    if (parent.node_type === 8) {
+      return ElMessage.warning('请在「实体工程验收」或「专项验收」下添加子节点')
+    }
+    return ElMessage.warning('该节点下不可再添加子节点')
+  }
   form.id = ''
   form.project_id = scopeProjectId.value
-  form.parent_id = parent_id || selectedNodeId.value || ''
-  form.node_type = 6
+  form.parent_id = pid
+  form.node_type = defaultChildType(pid)
   form.node_name = ''
   form.location_code = ''
-  form.batch_type_id = 'bt-rebar'
-  form.form_template_id = ''
-  form.specialty = '结构'
+  form.batch_type_id = form.node_type === 6 ? 'bt-rebar' : ''
+  form.form_template_id = form.node_type === 7 ? 'ft-special-fire' : ''
+  form.specialty = form.node_type === 7 ? '消防' : '结构'
+  form.special_type = form.node_type === 7 ? 'fire' : ''
   form.is_hidden_work = 0
   form.is_critical = 0
   form.batch_scheme_id = ''
@@ -246,6 +273,7 @@ function openEdit(row) {
     batch_type_id: row.batch_type_id || '',
     form_template_id: row.form_template_id || '',
     specialty: row.specialty || '',
+    special_type: row.special_type || '',
     is_hidden_work: row.is_hidden_work,
     is_critical: row.is_critical,
     batch_scheme_id: row.batch_scheme_id || '',
@@ -284,7 +312,9 @@ async function onRemove(row) {
       <div class="page-breadcrumb">质量验评 / 验评目录树</div>
       <h1 class="page-title">验评目录树</h1>
       <p class="page-tip">
-        由本项目维护工程验评目录。当前项目：{{ isHqSelected ? '请切换到具体项目' : scopeProjectLabel }}
+        树结构：项目竣工验收 → 实体工程验收(分类，不做验收) / 专项验收。当前项目：{{
+          isHqSelected ? '请切换到具体项目' : scopeProjectLabel
+        }}
       </p>
     </div>
 
@@ -382,14 +412,7 @@ async function onRemove(row) {
             <el-table-column prop="specialty" label="专业" width="80" />
             <el-table-column label="验收状态" width="110">
               <template #default="{ row }">
-                <el-tag
-                  v-if="isNodeOverduePending(row)"
-                  type="danger"
-                  size="small"
-                >
-                  逾期未验收
-                </el-tag>
-                <el-tag v-else :type="acceptStatusTagType(row.accept_status)" size="small">
+                <el-tag :type="acceptStatusTagType(row.accept_status)" size="small">
                   {{ acceptLabel[row.accept_status] }}
                 </el-tag>
               </template>
@@ -406,8 +429,22 @@ async function onRemove(row) {
             <el-table-column label="操作" width="220" fixed="right">
               <template #default="{ row }">
                 <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
-                <el-button link type="primary" @click="openCreate(row.id)">添加子节点</el-button>
-                <el-button link type="danger" @click="onRemove(row)">删除</el-button>
+                <el-button
+                  v-if="![6, 7].includes(row.node_type) && row.node_type !== 8"
+                  link
+                  type="primary"
+                  @click="openCreate(row.id)"
+                >
+                  添加子节点
+                </el-button>
+                <el-button
+                  v-if="!isSystemNode(row)"
+                  link
+                  type="danger"
+                  @click="onRemove(row)"
+                >
+                  删除
+                </el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -436,12 +473,21 @@ async function onRemove(row) {
           </el-select>
         </el-form-item>
         <el-form-item label="节点类型" required>
-          <el-select v-model="form.node_type" style="width: 100%">
+          <el-select
+            v-model="form.node_type"
+            style="width: 100%"
+            :disabled="!!form.id && isSystemNode({ node_type: form.node_type })"
+          >
             <el-option
-              v-for="(label, val) in WBS_TREE_NODE_TYPE_LABEL"
-              :key="val"
-              :label="label"
-              :value="Number(val)"
+              v-for="opt in form.id
+                ? Object.entries(WBS_TREE_NODE_TYPE_LABEL).map(([val, label]) => ({
+                    value: Number(val),
+                    label,
+                  }))
+                : creatableTypeOptions"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
             />
           </el-select>
         </el-form-item>
@@ -450,6 +496,16 @@ async function onRemove(row) {
         </el-form-item>
         <el-form-item label="部位编码">
           <el-input v-model="form.location_code" placeholder="可选" />
+        </el-form-item>
+        <el-form-item v-if="form.node_type === 7" label="专项类型" required>
+          <el-select v-model="form.special_type" style="width: 100%">
+            <el-option
+              v-for="t in SPECIAL_ACCEPT_TYPES"
+              :key="t.code"
+              :label="t.label"
+              :value="t.code"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item v-if="form.node_type === 6" label="检验批类型" required>
           <el-select v-model="form.batch_type_id" style="width: 100%">
@@ -461,7 +517,7 @@ async function onRemove(row) {
             />
           </el-select>
         </el-form-item>
-        <el-form-item v-if="[1, 2, 3, 4, 5].includes(form.node_type)" label="表单模板">
+        <el-form-item v-if="[1, 2, 3, 4, 5, 7].includes(form.node_type)" label="表单模板">
           <el-select v-model="form.form_template_id" clearable filterable style="width: 100%">
             <el-option
               v-for="t in formOptions"

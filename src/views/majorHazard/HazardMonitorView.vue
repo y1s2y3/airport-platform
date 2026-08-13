@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, Refresh, Download, DataAnalysis, DataLine, View } from '@element-plus/icons-vue'

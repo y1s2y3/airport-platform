@@ -8,8 +8,12 @@ import {
   ATTENDANCE_ENTRY_STATUS,
   ATTENDANCE_ENTRY_STATUS_OPTIONS,
   ATTENDANCE_ENTRY_LABEL,
+  ATTENDANCE_CLOCK_IN_LABEL,
+  ATTENDANCE_CLOCK_OUT_LABEL,
   ONSITE_STATUS_OPTIONS,
+  REALNAME_ENTRY_STATUS,
   attendanceEntryStatusTagClass,
+  realNameEntryStatusTagClass,
   onSiteStatusTagClass,
 } from '../../constants/laborPersonStatus'
 import { workTypeOptions, maskIdCard } from '../../mock/laborRealName'
@@ -58,7 +62,7 @@ const filteredRecords = computed(() => {
     if (filters.value.onSiteStatus && row.onSiteStatus !== filters.value.onSiteStatus) return false
     if (filters.value.workType && row.workType !== filters.value.workType) return false
     if (kw) {
-      const hay = `${row.name}${row.idCardRaw || row.idCard}${row.team}${row.subcontractor}${row.gateIn}`
+      const hay = `${row.name}${row.idCardRaw || row.idCard}${row.subcontractor}${row.gateIn}`
       if (!hay.includes(kw)) return false
     }
     return true
@@ -97,7 +101,8 @@ function handleReset() {
       </div>
       <p v-if="!isHqSelected" class="page-scope">当前项目：{{ scopeProjectLabel }}</p>
       <p class="page-tip">
-        进出场：当日进入工地为「已进场」，离开工地为「已出场」；在场：当日已打上班卡且未打下班卡视为「在场」。
+        考勤明细由一期经 ROMA 汇聚（考勤机刷脸进出场）。班组级明细由项目自有系统完成；平台不做班组维度统计。
+        进出场：当日进入工地为「已进场」，离开工地为「已出场」；在场：已进场且尚未出场（计入现场在场人数）。
       </p>
     </div>
 
@@ -136,7 +141,7 @@ function handleReset() {
           />
           <el-input
             v-model="keyword"
-            placeholder="姓名 / 身份证 / 班组 / 闸机"
+            placeholder="姓名 / 身份证 / 闸机"
             clearable
             :prefix-icon="Search"
             class="search-input"
@@ -175,16 +180,22 @@ function handleReset() {
             </template>
           </el-table-column>
           <el-table-column prop="workType" label="工种" width="90" />
-          <el-table-column prop="team" label="班组" min-width="110" show-overflow-tooltip />
           <el-table-column prop="subcontractor" label="分包单位" min-width="120" show-overflow-tooltip />
           <el-table-column :label="ATTENDANCE_ENTRY_LABEL" width="90" align="center">
             <template #default="{ row }">
-              <span class="ap-status-tag" :class="attendanceEntryStatusTagClass(row.entryStatus)">{{ row.entryStatus }}</span>
+              <span
+                class="ap-status-tag"
+                :class="
+                  row.entryStatus === REALNAME_ENTRY_STATUS.EXITED
+                    ? realNameEntryStatusTagClass(row.entryStatus)
+                    : attendanceEntryStatusTagClass(row.entryStatus)
+                "
+              >{{ row.entryStatus }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="clockIn" label="上班打卡" width="160" />
+          <el-table-column prop="clockIn" :label="ATTENDANCE_CLOCK_IN_LABEL" width="160" />
           <el-table-column prop="gateIn" label="进场闸机" width="100" />
-          <el-table-column prop="clockOut" label="下班打卡" width="160" />
+          <el-table-column prop="clockOut" :label="ATTENDANCE_CLOCK_OUT_LABEL" width="160" />
           <el-table-column prop="gateOut" label="出场闸机" width="100" />
           <el-table-column prop="workHours" label="工时(h)" width="80" align="center" />
           <el-table-column label="在场状态" width="90" align="center">

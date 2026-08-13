@@ -1,19 +1,12 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { mobileRectificationRecords } from '../../composables/useMobileRectification'
 
 const router = useRouter()
 const route = useRoute()
 
-// 6条记录：待整改1 + 待整改(被退回)1 + 待复查2 + 已关闭2
-const rectifyList = ref([
-  { id:'rec-001', rectifyNo:'ZG202607001', taskNo:'XJ20260728001', project:'飞行区跑道延长工程', rectifier:'赵工', reviewer:'张工', deadline:'2026-07-30', status:'待整改', overdue:false, isRejected:false },
-  { id:'rec-006', rectifyNo:'ZG202607006', taskNo:'XJ20260721003', project:'T3航站楼扩建工程', rectifier:'王工', reviewer:'张工', deadline:'2026-07-22', status:'待整改', overdue:true, isRejected:true, submitDate:'2026-07-20', rejectReason:'整改不彻底，电缆接头处仍有裸露' },
-  { id:'rec-002', rectifyNo:'ZG202607002', taskNo:'XJ20260728001', project:'飞行区跑道延长工程', rectifier:'李工', reviewer:'张工', deadline:'2026-07-28', status:'待复查', overdue:false, submitDate:'2026-07-25', isSecondRound:false },
-  { id:'rec-003', rectifyNo:'ZG202607003', taskNo:'XJ20260721003', project:'T3航站楼扩建工程', rectifier:'王工', reviewer:'张工', deadline:'2026-07-28', status:'待复查', overdue:false, submitDate:'2026-07-27', isSecondRound:true },
-  { id:'rec-004', rectifyNo:'ZG202607004', taskNo:'XJ20260728005', project:'飞行区跑道延长工程', rectifier:'赵工', reviewer:'李工', deadline:'2026-07-20', status:'已关闭', overdue:false, closeDate:'2026-07-25' },
-  { id:'rec-011', rectifyNo:'ZG202607011', taskNo:'XJ20260721003', project:'T3航站楼扩建工程', rectifier:'王工', reviewer:'张工', deadline:'2026-07-25', status:'已关闭', overdue:false, closeDate:'2026-07-30' },
-])
+const rectifyList = computed(() => mobileRectificationRecords)
 
 const activeTab = ref('全部')
 if (route.query.tab) activeTab.value = route.query.tab
@@ -25,7 +18,7 @@ const tabs = computed(() => {
     const label = t.isRejected ? '待整改' : t.status
     counts[label] = (counts[label] || 0) + 1
   }
-  return ['全部','待整改','待复查','已关闭'].filter(t => (counts[t]||0) > 0 || t === '全部').map(t => ({ label: t, count: counts[t]||0 }))
+  return ['全部','待整改','待复查','已复查','已关闭'].filter(t => (counts[t]||0) > 0 || t === '全部').map(t => ({ label: t, count: counts[t]||0 }))
 })
 
 const filteredList = computed(() => {
@@ -44,6 +37,7 @@ const filteredList = computed(() => {
 const statusStyles = {
   '待整改': { color:'#f5a623', bg:'#fff8e6' },
   '待复查': { color:'#4285f4', bg:'#e8f0fe' },
+  '已复查': { color:'#8f0045', bg:'#fceef4' },
   '已关闭': { color:'#34a853', bg:'#e8f5e9' },
 }
 
@@ -80,6 +74,7 @@ function goBack() { router.push('/mobile/tasks') }
               <span v-if="item.overdue&&item.status==='待整改'" class="rec-overdue">⚠ 已逾期</span>
             </div>
             <span class="rec-project">{{ item.project }}</span>
+            <span class="rec-project">巡检分类：{{ item.inspectionCategory }}</span>
           </div>
           <span class="rec-status" :style="{ color: statusStyles[item.status]?.color, background: statusStyles[item.status]?.bg }">{{ item.status }}</span>
         </div>
@@ -88,9 +83,11 @@ function goBack() { router.push('/mobile/tasks') }
           <span v-if="item.reviewer">复查人：{{ item.reviewer }}</span>
         </div>
         <div v-if="item.isRejected&&item.rejectReason" class="rec-reject">❌ 退回原因：{{ item.rejectReason }}</div>
+        <div v-if="item.approvalRejected&&item.approvalReason" class="rec-reject">❌ 审批退回：{{ item.approvalReason }}</div>
         <div class="rec-bottom">
           <span v-if="item.status==='待整改'">截止：{{ item.deadline }}</span>
           <span v-else-if="item.status==='待复查'">提交：{{ item.submitDate }}</span>
+          <span v-else-if="item.status==='已复查'">复查已通过，待 {{ item.manager }} 审批</span>
           <span v-else>已关闭：{{ item.closeDate }}</span>
         </div>
       </div>

@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ref, computed, watch } from 'vue'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -126,7 +126,7 @@ async function handleDelete(row) {
 <template>
   <div class="device-page page-card">
     <div class="page-header">
-      <div class="page-breadcrumb">危大工程监管 / 监测设备管理</div>
+      <div class="page-breadcrumb">危大工程监测 / 监测设备管理</div>
       <div class="page-heading">
         <h1 class="page-title">监测设备管理</h1>
         <el-button type="primary" class="ap-btn-primary" :icon="Plus" @click="openCreate">新增设备</el-button>

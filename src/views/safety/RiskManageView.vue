@@ -70,7 +70,7 @@ function editRecord(row) { router.push('/safety-inspection/risk/create') }
 <template>
   <div class="risk-page page-card">
     <div class="page-header">
-      <div class="page-breadcrumb">安全巡检 / 风险管理</div>
+      <div class="page-breadcrumb">巡检管理 / 风险管理</div>
       <div class="page-heading">
         <h1 class="page-title">风险管理台账</h1>
         <div style="display:flex;gap:8px">

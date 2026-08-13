@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Search, Refresh, ArrowDown } from '@element-plus/icons-vue'
@@ -12,10 +12,17 @@ import {
   PROCESS_CATEGORY_OPTIONS,
   READ_STATUS_OPTIONS,
   NOTICE_MODULE_OPTIONS,
+  ensureQmPersonalCenterSeeds,
 } from '../mock/personalCenter.js'
+import '../mock/mat.js'
+import '../mock/eq.js'
 
 const route = useRoute()
 const router = useRouter()
+
+onMounted(() => {
+  ensureQmPersonalCenterSeeds()
+})
 
 const activeTab = ref(
   ['todo', 'done', 'started', 'cc', 'notice'].includes(String(route.query.tab || ''))
@@ -69,19 +76,24 @@ function onSearch() {
 }
 
 const filteredTodos = computed(() => {
+  let rows = [...todos.value]
+  if (filters.processCategory) rows = rows.filter((r) => r.category === filters.processCategory)
   const kw = filters.processName.trim()
-  if (!kw) return todos.value
-  return todos.value.filter((r) => r.processName.includes(kw))
+  if (kw) rows = rows.filter((r) => r.processName.includes(kw))
+  return rows
 })
 
 const filteredDone = computed(() => {
+  let rows = [...doneList.value]
+  if (filters.processCategory) rows = rows.filter((r) => r.category === filters.processCategory)
   const kw = filters.processName.trim()
-  if (!kw) return doneList.value
-  return doneList.value.filter((r) => r.processName.includes(kw))
+  if (kw) rows = rows.filter((r) => r.processName.includes(kw))
+  return rows
 })
 
 const filteredStarted = computed(() => {
   let rows = [...startedList.value]
+  if (filters.processCategory) rows = rows.filter((r) => r.category === filters.processCategory)
   const kw = filters.processName.trim()
   if (kw) rows = rows.filter((r) => r.processName.includes(kw))
   if (filters.processStatus) rows = rows.filter((r) => r.status === filters.processStatus)
@@ -112,6 +124,22 @@ const pagedNotices = computed(() => {
 })
 
 function openProcessDetail(row, from) {
+  // 质量验评审批：跳转验评审批页（审批入口在个人中心）
+  if (row?.type === 'qm_inspect' && row.approvePath && row.qmTaskId) {
+    router.push({
+      path: row.approvePath,
+      query: { id: row.qmTaskId, from: 'personal-center', todoId: row.id },
+    })
+    return
+  }
+  // 质量验评整改：跳转整改详情页（提交整改入口在个人中心）
+  if (row?.type === 'qm_rectify' && row.rectifyPath && row.qmRectifyId) {
+    router.push({
+      path: row.rectifyPath,
+      query: { id: row.qmRectifyId, from: 'personal-center', todoId: row.id },
+    })
+    return
+  }
   router.push({
     path: '/personal-center/todo/handle',
     query: { id: row.id, from },
@@ -190,12 +218,20 @@ function onTabChange(name) {
     <!-- 我的待办 -->
     <template v-if="activeTab === 'todo'">
       <div class="filter-bar">
+        <span class="filter-label">所属模块</span>
+        <el-select v-model="filters.processCategory" clearable placeholder="请选择" style="width: 150px">
+          <el-option v-for="s in PROCESS_CATEGORY_OPTIONS" :key="s" :label="s" :value="s" />
+        </el-select>
         <span class="filter-label">流程名称</span>
         <el-input v-model="filters.processName" clearable placeholder="请输入流程名称" style="width: 240px" />
         <el-button type="primary" :icon="Search" @click="onSearch">搜索</el-button>
         <el-button :icon="Refresh" @click="resetFilters">重置</el-button>
       </div>
+      <div class="table-toolbar">
+        <span class="count-text">共 {{ filteredTodos.length }} 条</span>
+      </div>
       <el-table :data="filteredTodos" border stripe empty-text="暂无数据">
+        <el-table-column prop="category" label="所属模块" width="110" />
         <el-table-column prop="processName" label="流程名称" min-width="220" show-overflow-tooltip />
         <el-table-column prop="applicant" label="申请人" width="110" />
         <el-table-column prop="dept" label="申请人部门" width="140" />
@@ -211,6 +247,10 @@ function onTabChange(name) {
     <!-- 我的已办 -->
     <template v-else-if="activeTab === 'done'">
       <div class="filter-bar">
+        <span class="filter-label">所属模块</span>
+        <el-select v-model="filters.processCategory" clearable placeholder="请选择" style="width: 150px">
+          <el-option v-for="s in PROCESS_CATEGORY_OPTIONS" :key="s" :label="s" :value="s" />
+        </el-select>
         <span class="filter-label">流程名称</span>
         <el-input v-model="filters.processName" clearable placeholder="请输入流程名称" style="width: 240px" />
         <el-button type="primary" :icon="Search" @click="onSearch">搜索</el-button>
@@ -220,6 +260,7 @@ function onTabChange(name) {
         <span class="count-text">共 {{ filteredDone.length }} 条</span>
       </div>
       <el-table :data="filteredDone" border stripe empty-text="暂无数据">
+        <el-table-column prop="category" label="所属模块" width="110" />
         <el-table-column prop="processName" label="流程名称" min-width="220" show-overflow-tooltip />
         <el-table-column prop="applicant" label="申请人" width="110" />
         <el-table-column prop="dept" label="申请人部门" width="140" />
@@ -236,6 +277,10 @@ function onTabChange(name) {
     <!-- 我发起的 -->
     <template v-else-if="activeTab === 'started'">
       <div class="filter-bar">
+        <span class="filter-label">所属模块</span>
+        <el-select v-model="filters.processCategory" clearable placeholder="请选择" style="width: 150px">
+          <el-option v-for="s in PROCESS_CATEGORY_OPTIONS" :key="s" :label="s" :value="s" />
+        </el-select>
         <span class="filter-label">流程名称</span>
         <el-input v-model="filters.processName" clearable placeholder="请输入流程名称" style="width: 220px" />
         <span class="filter-label">处理状态</span>
@@ -257,6 +302,7 @@ function onTabChange(name) {
         @selection-change="(rows) => (startedSelection = rows)"
       >
         <el-table-column type="selection" width="48" />
+        <el-table-column prop="category" label="所属模块" width="110" />
         <el-table-column prop="status" label="处理状态" width="110" />
         <el-table-column prop="processName" label="流程名称" min-width="220" show-overflow-tooltip />
         <el-table-column prop="applyTime" label="申请时间" width="170" />
@@ -274,7 +320,7 @@ function onTabChange(name) {
     <!-- 抄送我的 -->
     <template v-else-if="activeTab === 'cc'">
       <div class="filter-bar">
-        <span class="filter-label">流程类别</span>
+        <span class="filter-label">所属模块</span>
         <el-select v-model="filters.processCategory" clearable placeholder="请选择" style="width: 150px">
           <el-option v-for="s in PROCESS_CATEGORY_OPTIONS" :key="s" :label="s" :value="s" />
         </el-select>
@@ -292,7 +338,7 @@ function onTabChange(name) {
       </div>
       <el-table :data="filteredCc" border stripe empty-text="暂无数据">
         <el-table-column type="index" label="序号" width="64" />
-        <el-table-column prop="category" label="流程类别" width="110" />
+        <el-table-column prop="category" label="所属模块" width="110" />
         <el-table-column prop="processName" label="流程名称" min-width="180" show-overflow-tooltip />
         <el-table-column prop="projectName" label="项目名称" min-width="140" show-overflow-tooltip />
         <el-table-column prop="applicant" label="申请人" width="100" />

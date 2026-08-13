@@ -143,12 +143,22 @@ function submitForm() {
     ElMessage.warning('请选择绑定项目')
     return
   }
+  if (!form.value.deviceAccount?.trim()) {
+    ElMessage.warning('请填写设备账号')
+    return
+  }
+  if (!form.value.devicePassword) {
+    ElMessage.warning('请填写设备密码')
+    return
+  }
   savePatrolDevice({
     ...form.value,
     deviceCode: form.value.deviceCode.trim(),
     name: form.value.name.trim(),
     project: form.value.project.trim(),
     bindPerson: form.value.bindPerson?.trim() || '',
+    deviceAccount: form.value.deviceAccount.trim(),
+    devicePassword: form.value.devicePassword,
   })
   load()
   formVisible.value = false
@@ -229,7 +239,7 @@ onMounted(load)
     </div>
 
     <el-dialog v-model="formVisible" :title="form.id ? '编辑巡检仪' : '注册巡检仪'" width="520px">
-      <el-form label-width="96px">
+      <el-form label-width="96px" autocomplete="off">
         <el-form-item v-if="form.id" label="设备编号">
           <el-input :model-value="form.id" disabled />
         </el-form-item>
@@ -265,6 +275,30 @@ onMounted(load)
               :value="item.value"
             />
           </el-select>
+        </el-form-item>
+        <el-form-item label="设备账号" required>
+          <el-input
+            v-model="form.deviceAccount"
+            placeholder="请输入设备账号"
+            clearable
+            name="patrol-device-account"
+            autocomplete="off"
+            readonly
+            @focus="($event) => $event.target.removeAttribute('readonly')"
+          />
+        </el-form-item>
+        <el-form-item label="设备密码" required>
+          <el-input
+            v-model="form.devicePassword"
+            type="password"
+            show-password
+            placeholder="请输入设备密码"
+            clearable
+            name="patrol-device-password"
+            autocomplete="new-password"
+            readonly
+            @focus="($event) => $event.target.removeAttribute('readonly')"
+          />
         </el-form-item>
       </el-form>
       <template #footer>

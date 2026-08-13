@@ -68,7 +68,7 @@ async function viewProjectDetail(row) {
 <template>
   <div class="vm-stats-page page-card">
     <div class="page-header">
-      <div class="page-breadcrumb">视频监控 / 视频监控统计</div>
+      <div class="page-breadcrumb">安全看板 / 视频监控统计</div>
       <h1 class="page-title">{{ title }}</h1>
       <p class="page-tip">
         {{

@@ -8,6 +8,9 @@ import {
   unitTypeOptions,
   personnelCategoryOptions,
   genderOptions,
+  ensureSpecialWorkTypePrefix,
+  normalizePersonnelCategory,
+  isSpecialByWorkType,
 } from '../mock/laborRealName'
 import { REALNAME_ENTRY_STATUS } from '../constants/laborPersonStatus'
 import { appendOperationLog } from '../mock/systemLogs'
@@ -22,8 +25,8 @@ export const PERSONNEL_IMPORT_HEADERS = [
   '参建单位名称',
   '参建单位类型',
   '所属班组',
-  '人员类别',
-  '入退场状态',
+  '工人类型',
+  '在岗状态',
 ]
 
 const HEADER_ALIASES = {
@@ -40,7 +43,9 @@ const HEADER_ALIASES = {
   参建单位类型: 'unitType',
   所属班组: 'team',
   班组: 'team',
+  工人类型: 'personnelCategory',
   人员类别: 'personnelCategory',
+  在岗状态: 'entryStatus',
   入退场状态: 'entryStatus',
   入场状态: 'entryStatus',
 }
@@ -56,8 +61,8 @@ function normalizeHeader(text) {
 
 function parseEntryStatus(text) {
   const val = cellText(text)
-  if (!val || val === '已入场') return REALNAME_ENTRY_STATUS.ENTERED
-  if (val === '已退场') return REALNAME_ENTRY_STATUS.EXITED
+  if (!val || val === '在岗' || val === '已入场') return REALNAME_ENTRY_STATUS.ENTERED
+  if (val === '离场' || val === '已退场') return REALNAME_ENTRY_STATUS.EXITED
   return val
 }
 
@@ -92,13 +97,16 @@ function validateRow(row, index, existingIdCards, existingPhones) {
     errors.push(`第 ${line} 行：参建单位类型「${row.unitType}」不在可选范围内`)
   }
 
-  if (row.personnelCategory && !personnelCategoryOptions.includes(row.personnelCategory)) {
-    errors.push(`第 ${line} 行：人员类别「${row.personnelCategory}」不在可选范围内`)
+  if (row.personnelCategory) {
+    const allowed = [...personnelCategoryOptions, '劳务人员', '特种作业人员']
+    if (!allowed.includes(row.personnelCategory)) {
+      errors.push(`第 ${line} 行：工人类型「${row.personnelCategory}」不在可选范围内（管理人员 / 建筑工人）`)
+    }
   }
 
   const entryStatus = parseEntryStatus(row.entryStatus)
   if (![REALNAME_ENTRY_STATUS.ENTERED, REALNAME_ENTRY_STATUS.EXITED].includes(entryStatus)) {
-    errors.push(`第 ${line} 行：入退场状态应为「已入场」或「已退场」`)
+    errors.push(`第 ${line} 行：在岗状态应为「在岗」或「离场」`)
   }
 
   return errors
@@ -129,8 +137,8 @@ function rowToPreview(row, index) {
     unitName: row.unitName || '—',
     unitType: row.unitType || '—',
     team: row.team || '—',
-    personnelCategory: row.personnelCategory || '劳务人员',
-    entryStatus: entryStatus === REALNAME_ENTRY_STATUS.EXITED ? '已退场' : '已入场',
+    personnelCategory: normalizePersonnelCategory(row.personnelCategory || '建筑工人'),
+    entryStatus: entryStatus === REALNAME_ENTRY_STATUS.EXITED ? '离场' : '在岗',
   }
 }
 
@@ -198,14 +206,18 @@ function rowToPersonnel(projectId, row) {
   personnel.basic.idNumberRaw = row.idNumber
   personnel.basic.idNumber = row.idNumber
   personnel.basic.gender = row.gender || '男'
-  personnel.unit.workType = row.workType || '普工'
   personnel.unit.unitName = unitName
   personnel.unit.creditCode = unitName ? lookupCreditCode(unitName) : ''
   personnel.unit.unitType = row.unitType || (unitName ? lookupUnitType(unitName) : '劳务分包')
   personnel.unit.team = row.team || ''
-  personnel.unit.personnelCategory = row.personnelCategory || '劳务人员'
+  personnel.unit.personnelCategory = normalizePersonnelCategory(row.personnelCategory || '建筑工人')
   personnel.entryStatus = parseEntryStatus(row.entryStatus)
-  personnel.isSpecial = personnel.unit.personnelCategory === '特种作业人员'
+  const workType = row.workType || '普工'
+  // 导入：工种以「特种-」开头，或历史「特种作业人员」类别，均识别为特种
+  const treatAsSpecial =
+    isSpecialByWorkType(workType) || row.personnelCategory === '特种作业人员'
+  personnel.unit.workType = ensureSpecialWorkTypePrefix(workType, treatAsSpecial)
+  personnel.isSpecial = isSpecialByWorkType(personnel.unit.workType)
   return personnel
 }
 
@@ -216,10 +228,10 @@ export function importPersonnelRows(projectId, rows, projectLabel = '') {
   })
 
   appendOperationLog({
-    module: '安全管理',
+    module: '人员实名制管理',
     type: '导入',
     content: `批量导入人员实名制：${projectLabel || projectId}，共 ${imported.length} 人`,
-    requestUrl: `/api/safety/labor/realname/import`,
+    requestUrl: `/api/labor/realname/import`,
   })
 
   return imported
@@ -228,8 +240,8 @@ export function importPersonnelRows(projectId, rows, projectLabel = '') {
 export function downloadPersonnelImportTemplate() {
   const ws = XLSX.utils.aoa_to_sheet([
     PERSONNEL_IMPORT_HEADERS,
-    ['张三', '13800138000', '440300199001011234', '男', '钢筋工', '中建三局第一建设工程有限责任公司', '劳务分包', '钢筋一班', '劳务人员', '已入场'],
-    ['李四', '13900139000', '440300199002021234', '男', '电工', '广东省建筑工程集团有限公司', '单位分包', '机电班组', '特种作业人员', '已入场'],
+    ['张三', '13800138000', '440300199001011234', '男', '钢筋工', '中建三局第一建设工程有限责任公司', '劳务分包', '钢筋一班', '建筑工人', '在岗'],
+    ['李四', '13900139000', '440300199002021234', '男', '特种-电工', '广东省建筑工程集团有限公司', '单位分包', '机电班组', '建筑工人', '在岗'],
   ])
   ws['!cols'] = PERSONNEL_IMPORT_HEADERS.map(() => ({ wch: 18 }))
   const wb = XLSX.utils.book_new()

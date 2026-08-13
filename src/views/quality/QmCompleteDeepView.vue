@@ -1,7 +1,7 @@
 <script setup>
 /**
- * 竣工验收（深度集成）— 本页直接展示填报表单
- * 顶部：实体/专项完成情况；表单内含验收计划、工程/部位、备注
+ * 竣工验收 — 本页直接展示填报表单
+ * 顶部：实体工程/专项完成情况；全部完成后可填报
  */
 import { computed, ref, watch } from 'vue'
 import { useQmProjectScope } from '../../composables/useCurrentProject'
@@ -40,11 +40,11 @@ watch(
 <template>
   <div class="qm-page page-card">
     <div class="page-header">
-      <div class="page-breadcrumb">质量验评 / 实体验收（深度集成） / 竣工验收</div>
+      <div class="page-breadcrumb">质量验评 / 竣工验收</div>
       <h1 class="page-title">竣工验收</h1>
       <p class="page-tip">
         当前：{{ isHqSelected ? '请切换到具体项目' : scopeProjectLabel }}
-        · 实体与专项均全部完成后，可在本页直接填报
+        · 实体工程验收与专项验收均全部完成后，可在本页直接填报
       </p>
     </div>
 
@@ -67,13 +67,12 @@ watch(
         :task-id="draftTaskId"
         title="竣工填报/报验"
         list-path="/qm/inspect/complete-deep"
-        approve-path="/qm/inspect/complete/approve"
         embedded
         hide-prereq
       />
       <el-empty
         v-else
-        description="实体与专项验收均全部完成后，本页将自动展开竣工填报表单"
+        description="实体工程与专项验收均全部完成后，本页将自动展开竣工填报表单"
         :image-size="72"
       />
     </template>

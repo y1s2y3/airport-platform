@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ref, computed, watch } from 'vue'
 import { Search, Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -82,7 +82,7 @@ function resetFilter() { keyword.value = ''; filterStatus.value = ''; filterDevi
 <template>
   <div class="page page-card">
     <div class="page-header">
-      <div class="page-breadcrumb">危大工程监管 / 设备绑定</div>
+      <div class="page-breadcrumb">危大工程监测 / 设备绑定</div>
       <div class="page-heading">
         <h1 class="page-title">设备绑定</h1>
         <el-button type="primary" class="ap-btn-primary" :icon="Plus" @click="openAdd" v-if="!isReadOnly">新增设备</el-button>

@@ -3,10 +3,103 @@ import { projectTree, getProjectLabel, getDefaultProjectId } from './laborRealNa
 export { projectTree, getProjectLabel, getDefaultProjectId }
 
 export const vehicleTypeOptions = ['渣土车', '混凝土车', '材料运输车', '特种车辆', '其他']
-export const vehicleDeviceTypeOptions = ['轨迹监测设备', '道闸车牌识别设备']
-export const geofenceTypeOptions = ['禁行区域', '允许区域']
+export const vehicleDeviceTypeOptions = ['道闸车牌识别设备']
 export const vehicleWarningStatusOptions = ['待处置', '处置中', '已关闭']
 export const vehicleRegulationWarningTypes = ['黑名单车辆', '证件过期', '无定位信号', '未授权道闸']
+
+/** 项目是否对接轨迹/定位子系统（无对接则不做轨迹硬性要求） */
+function nowStamp() {
+  const d = new Date()
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+}
+
+const defaultProjectTrackCapability = {
+  'p-000': {
+    enabled: true,
+    systemName: 'T2 车辆定位系统',
+    url: 'https://example.com/vehicle-track/p-000',
+    updatedAt: '2026-08-02 11:05:00',
+  },
+  'p-001': {
+    enabled: true,
+    systemName: 'T1 车辆定位系统',
+    url: 'https://example.com/vehicle-track/p-001',
+    updatedAt: '2026-08-04 09:48:00',
+  },
+  'p-003': { enabled: false, systemName: '', url: '', updatedAt: '' },
+  'p-004': {
+    enabled: true,
+    systemName: '市政车辆定位',
+    url: 'https://example.com/vehicle-track/p-004',
+    updatedAt: '2026-07-30 15:22:00',
+  },
+  'p-005': {
+    enabled: false,
+    systemName: '停用车辆定位演示',
+    url: 'https://example.com/vehicle-track/p-005',
+    updatedAt: '2026-06-20 13:10:00',
+  },
+}
+
+let projectTrackCapabilityStore = structuredClone(defaultProjectTrackCapability)
+
+export function getProjectVehicleTrackCapability(projectId) {
+  const item = projectTrackCapabilityStore[projectId]
+  return {
+    enabled: Boolean(item?.enabled),
+    systemName: item?.systemName || '',
+    url: item?.url || '',
+    updatedAt: item?.updatedAt || '',
+  }
+}
+
+export function saveProjectVehicleTrackCapability(projectId, payload = {}) {
+  if (!projectId || projectId === 'hq') return null
+  projectTrackCapabilityStore[projectId] = {
+    enabled: Boolean(payload.enabled),
+    systemName: String(payload.systemName || '').trim(),
+    url: String(payload.url || '').trim(),
+    updatedAt: nowStamp(),
+  }
+  return getProjectVehicleTrackCapability(projectId)
+}
+
+/** 车辆轨迹：平台仅提供按项目跳转至自有车辆定位系统，不做统一轨迹回放 */
+export function listProjectVehicleTrackJumpConfigs() {
+  return (projectTree[0]?.children || []).map((item) => {
+    const cfg = getProjectVehicleTrackCapability(item.id)
+    return {
+      projectId: item.id,
+      projectName: item.label.replace(/\(\d+\)$/, ''),
+      ...cfg,
+    }
+  })
+}
+
+/** 指挥部 · 车辆轨迹系统：有 URL 即展示（含停用） */
+export function listConfiguredVehicleTrackSystems() {
+  const nameMap = Object.fromEntries(
+    (projectTree[0]?.children || []).map((item) => [
+      item.id,
+      String(item.label || '').replace(/\(\d+\)$/, ''),
+    ]),
+  )
+  return Object.entries(projectTrackCapabilityStore)
+    .map(([projectId, raw]) => {
+      const url = String(raw?.url || '').trim()
+      return {
+        projectId,
+        projectName: nameMap[projectId] || projectId,
+        url,
+        enabled: Boolean(raw?.enabled),
+        updatedAt: raw?.updatedAt || '',
+        systemName: raw?.systemName || '',
+      }
+    })
+    .filter((row) => row.url)
+    .sort((a, b) => String(a.projectName).localeCompare(String(b.projectName), 'zh-CN'))
+}
 
 const units = ['中建三局', '深圳市政', '广东建工', '中铁建工', '城建集团']
 const drivers = ['王强', '李明', '张伟', '刘洋', '陈刚', '赵磊', '周杰']
@@ -25,25 +118,9 @@ function getProjectGateDeviceIds(projectId) {
 
 function buildDevices(projectId, vehicles = []) {
   const seed = Number(projectId.replace(/\D/g, '')) || 0
-  const activeVehicles = vehicles.filter((item) => item.status !== '已退场')
-  const trackCount = Math.min(activeVehicles.length, 18 + (seed % 8))
   const gateCount = 4 + (seed % 3)
   const locations = ['东门', '西门', '材料堆场', '拌合站', '南门', '北门']
   const devices = []
-
-  for (let i = 0; i < trackCount; i += 1) {
-    devices.push({
-      id: `${projectId}-dev-track-${i + 1}`,
-      projectId,
-      name: `轨迹终端-${i + 1}`,
-      deviceType: '轨迹监测设备',
-      deviceNo: `DEV-T-${projectId}-${String(i + 1).padStart(3, '0')}`,
-      location: locations[i % locations.length],
-      online: i % 5 !== 0,
-      bindPlateNo: activeVehicles[i]?.plateNo || '',
-      updatedAt: `2026-06-28 ${String(9 + (i % 14)).padStart(2, '0')}:30:00`,
-    })
-  }
 
   for (let i = 0; i < gateCount; i += 1) {
     devices.push({
@@ -137,13 +214,15 @@ const devicesByProject = Object.fromEntries(
   projectIds.map((id) => [id, buildDevices(id, vehiclesByProject[id] || [])]),
 )
 
+/** 轨迹类预警仅保留超速等非围栏类型；禁行偏离由施工方子系统处理 */
 function buildTrackAlerts(projectId) {
+  if (!getProjectVehicleTrackCapability(projectId).enabled) return []
   const vehicles = vehiclesByProject[projectId] || []
-  return vehicles.slice(0, 8).map((veh, i) => ({
+  return vehicles.slice(0, 3).map((veh, i) => ({
     id: `${projectId}-track-${i + 1}`,
     projectId,
     plateNo: veh.plateNo,
-    alertType: ['路线偏离', '进入禁行区', '超速提醒'][i % 3],
+    alertType: '超速提醒',
     routeName: `运输路线-${i + 1}`,
     status: i === 0 ? '处置中' : '待处置',
     alertTime: `2026-06-29 ${String(11 + i).padStart(2, '0')}:20:00`,
@@ -151,82 +230,6 @@ function buildTrackAlerts(projectId) {
 }
 
 const trackAlertsByProject = Object.fromEntries(projectIds.map((id) => [id, buildTrackAlerts(id)]))
-
-const defaultGeofenceStyles = {
-  禁行区域: { fill: 'rgba(229, 57, 53, 0.28)', stroke: '#e53935' },
-  允许区域: { fill: 'rgba(67, 160, 71, 0.22)', stroke: '#43a047' },
-}
-
-function buildDefaultGeofences(projectId) {
-  const seed = Number(projectId.replace(/\D/g, '')) || 0
-  const baseX = 18 + (seed % 6)
-  const baseY = 20 + (seed % 5)
-  return [
-    {
-      id: `${projectId}-gf-1`,
-      name: '东门禁行区',
-      fenceType: '禁行区域',
-      ...defaultGeofenceStyles['禁行区域'],
-      points: [
-        { x: baseX, y: baseY },
-        { x: baseX + 18, y: baseY - 2 },
-        { x: baseX + 20, y: baseY + 16 },
-        { x: baseX + 2, y: baseY + 18 },
-      ],
-    },
-    {
-      id: `${projectId}-gf-2`,
-      name: '西门禁行区',
-      fenceType: '禁行区域',
-      ...defaultGeofenceStyles['禁行区域'],
-      points: [
-        { x: baseX + 24, y: baseY + 8 },
-        { x: baseX + 42, y: baseY + 10 },
-        { x: baseX + 44, y: baseY + 26 },
-        { x: baseX + 26, y: baseY + 28 },
-      ],
-    },
-    {
-      id: `${projectId}-gf-3`,
-      name: '堆场作业区',
-      fenceType: '允许区域',
-      ...defaultGeofenceStyles['允许区域'],
-      points: [
-        { x: baseX + 8, y: baseY + 34 },
-        { x: baseX + 28, y: baseY + 32 },
-        { x: baseX + 30, y: baseY + 52 },
-        { x: baseX + 10, y: baseY + 54 },
-      ],
-    },
-  ]
-}
-
-let geofenceStore = Object.fromEntries(projectIds.map((id) => [id, buildDefaultGeofences(id)]))
-
-export function getProjectGeofences(projectId) {
-  return geofenceStore[projectId] ? [...geofenceStore[projectId]] : []
-}
-
-export function addProjectGeofence(projectId, payload) {
-  if (!projectId || projectId === 'hq') return null
-  const style = defaultGeofenceStyles[payload.fenceType] || defaultGeofenceStyles['禁行区域']
-  const seed = geofenceStore[projectId]?.length || 0
-  const offset = (seed % 4) * 6
-  const item = {
-    id: `${projectId}-gf-${Date.now()}`,
-    name: payload.name.trim(),
-    fenceType: payload.fenceType,
-    ...style,
-    points: [
-      { x: 22 + offset, y: 24 + offset },
-      { x: 38 + offset, y: 22 + offset },
-      { x: 40 + offset, y: 38 + offset },
-      { x: 20 + offset, y: 40 + offset },
-    ],
-  }
-  geofenceStore[projectId] = [...(geofenceStore[projectId] || []), item]
-  return item
-}
 
 export function vehicleWarningStatusTagClass(status) {
   if (status === '已关闭') return 'ap-tag-enabled'
@@ -263,13 +266,6 @@ export function getVehicleWarningStats(projectId) {
     closed: list.filter((item) => item.status === '已关闭').length,
     track: list.filter((item) => item.source === '轨迹监管').length,
     vehicle: list.filter((item) => item.source === '车辆监管').length,
-  }
-}
-
-export function emptyGeofenceForm() {
-  return {
-    name: '',
-    fenceType: geofenceTypeOptions[0],
   }
 }
 
@@ -313,6 +309,7 @@ export function getVehicleTrackHistory(vehicleId, dateStr) {
 }
 
 export function getProjectTrackVehicles(projectId) {
+  if (!getProjectVehicleTrackCapability(projectId).enabled) return []
   const devices = getProjectVehicleDevices(projectId)
   return getProjectVehicles(projectId)
     .filter((veh) => veh.status !== '已退场')

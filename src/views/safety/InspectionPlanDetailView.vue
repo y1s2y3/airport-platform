@@ -8,11 +8,6 @@ const route = useRoute()
 const router = useRouter()
 const plan = computed(() => getPlanById(route.params.id))
 
-const getExecLabel = computed(() => {
-  if (!plan.value) return ''
-  const u = userOptions.find(u => u.id === plan.value.responsiblePerson)
-  return u ? `${u.label}（${u.role}）` : ''
-})
 const getCcLabels = computed(() => {
   if (!plan.value) return '无'
   return plan.value.ccPersons.map(id => { const u = userOptions.find(u => u.id === id); return u ? `${u.label}（${u.role}）` : '' }).join('；') || '无'
@@ -21,13 +16,6 @@ const getProjLabels = computed(() => {
   if (!plan.value) return []
   return plan.value.projectIds.map(id => projectOptions.find(p => p.id === id)?.label || '').filter(Boolean)
 })
-const getPushRule = computed(() => {
-  if (!plan.value) return ''
-  const map = { day: '天', week: '周', month: '月', once: '' }
-  if (plan.value.cycleType === 'once') return '有效期内执行 1 次巡检'
-  return `每 ${plan.value.cycleInterval} ${map[plan.value.cycleType]} 需进行 ${plan.value.cycleTimes} 次巡检`
-})
-
 // 检查内容树形结构
 const checkConfigTree = computed(() => {
   if (!plan.value?.checkConfig) return []
@@ -56,13 +44,20 @@ watch(checkConfigTree, (val) => {
   }
 }, { immediate: true })
 
-function goBack() { router.push('/safety-inspection/plan') }
+const isFromPersonalCenterCc = computed(() => route.query.from === 'personal-center-cc')
+function goBack() {
+  if (isFromPersonalCenterCc.value) {
+    router.push({ path: '/personal-center', query: { tab: 'cc' } })
+    return
+  }
+  router.push('/safety-inspection/plan')
+}
 </script>
 
 <template>
   <div class="page-card detail-page">
     <div class="detail-nav">
-      <el-button text @click="goBack">← 返回巡检计划列表</el-button>
+      <el-button text @click="goBack">← {{ isFromPersonalCenterCc ? '返回抄送我的' : '返回任务下发列表' }}</el-button>
     </div>
     <el-divider />
 
@@ -70,46 +65,38 @@ function goBack() { router.push('/safety-inspection/plan') }
       <div class="detail-header">
         <div class="detail-title-row">
           <h3 class="detail-title">{{ plan.name }}</h3>
-          <el-tag :type="plan.enabled ? 'success' : 'info'" size="large" effect="light">
-            {{ plan.enabled ? '启用' : '禁用' }}
-          </el-tag>
+          <el-tag class="detail-tag" type="success" size="large" effect="light">{{ plan.status || '已下发' }}</el-tag>
         </div>
-        <span class="detail-meta">
-          更新人：{{ userOptions.find((u) => u.id === plan.updatedBy)?.label || plan.updatedBy || '-' }}
-          · 更新时间：{{ plan.updatedAt }}
-        </span>
+        <span class="detail-meta">更新人：{{ plan.updatedBy }} · 更新时间：{{ plan.updatedAt }}</span>
       </div>
 
       <!-- ===== 基本信息 ===== -->
       <div class="detail-card">
         <h4 class="section-title">基本信息</h4>
         <el-descriptions :column="2" border>
-          <el-descriptions-item label="计划名称" :span="2">{{ plan.name }}</el-descriptions-item>
-          <el-descriptions-item label="计划编号">{{ plan.planNo || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="计划类型">
-            <el-tag v-if="plan.type==='周检'" size="small" effect="plain">周检</el-tag>
-            <el-tag v-else-if="plan.type==='月检'" size="small" type="warning" effect="plain">月检</el-tag>
-            <el-tag v-else size="small" type="danger" effect="plain">专项巡检</el-tag>
+          <el-descriptions-item label="任务名称" :span="2">{{ plan.name }}</el-descriptions-item>
+          <el-descriptions-item label="任务单编号">{{ plan.planNo || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="巡检分类">
+            <el-tag class="detail-tag" :type="plan.inspectionCategory === '质量' ? 'warning' : 'success'" size="small" effect="plain">
+              {{ plan.inspectionCategory || '安全' }}
+            </el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="状态">
-            <el-tag :type="plan.enabled ? 'success' : 'info'" size="small" effect="light">{{ plan.enabled ? '启用' : '禁用' }}</el-tag>
+            <el-tag class="detail-tag" type="success" size="small" effect="light">{{ plan.status || '已下发' }}</el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="关联项目" :span="2">{{ getProjLabels.join('、') }}</el-descriptions-item>
-          <el-descriptions-item label="更新人">
-            {{ userOptions.find((u) => u.id === plan.updatedBy)?.label || plan.updatedBy || '-' }}
-          </el-descriptions-item>
+          <el-descriptions-item label="更新人">{{ plan.updatedBy }}</el-descriptions-item>
           <el-descriptions-item label="更新时间">{{ plan.updatedAt }}</el-descriptions-item>
         </el-descriptions>
       </div>
 
-      <!-- ===== 执行规则 ===== -->
+      <!-- ===== 下发信息 ===== -->
       <div class="detail-card">
-        <h4 class="section-title">执行规则</h4>
+        <h4 class="section-title">下发信息</h4>
         <el-descriptions :column="2" border>
-          <el-descriptions-item label="执行人">{{ getExecLabel }}</el-descriptions-item>
+        <el-descriptions-item label="任务接收人">监理</el-descriptions-item>
           <el-descriptions-item label="抄送人">{{ getCcLabels }}</el-descriptions-item>
-          <el-descriptions-item label="推送规则" :span="2">{{ getPushRule }}</el-descriptions-item>
-          <el-descriptions-item label="生效日期" :span="2">{{ plan.startDate }} ~ {{ plan.endDate }}</el-descriptions-item>
+          <el-descriptions-item label="截止日期" :span="2">{{ plan.deadlineDate || plan.endDate || '—' }}</el-descriptions-item>
           <el-descriptions-item label="备注" :span="2">{{ plan.remark || '无' }}</el-descriptions-item>
         </el-descriptions>
       </div>
@@ -146,8 +133,8 @@ function goBack() { router.push('/safety-inspection/plan') }
     </div>
 
     <div v-else class="empty-state">
-      <p>未找到该巡检计划</p>
-      <el-button @click="goBack">返回列表</el-button>
+      <p>未找到该巡检任务</p>
+        <el-button @click="goBack">{{ isFromPersonalCenterCc ? '返回抄送我的' : '返回列表' }}</el-button>
     </div>
   </div>
 </template>
@@ -177,4 +164,13 @@ function goBack() { router.push('/safety-inspection/plan') }
 .dt-num { color: var(--ap-text-muted); flex-shrink: 0; }
 .dt-text { flex: 1; }
 .dt-empty { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--ap-text-muted); font-size: 13px; min-height: 100px; }
+
+.detail-page :deep(.detail-tag.el-tag--primary) { color: #337ecc !important; background: #ecf5ff !important; border-color: #a0cfff !important; }
+.detail-page :deep(.detail-tag.el-tag--success) { color: #168f55 !important; background: #effaf4 !important; border-color: #b9e6cc !important; }
+.detail-page :deep(.detail-tag.el-tag--warning) { color: #b36b00 !important; background: #fdf6ec !important; border-color: #f3d19e !important; }
+.detail-page :deep(.detail-tag.el-tag--danger) { color: #c45656 !important; background: #fef0f0 !important; border-color: #fab6b6 !important; }
+.detail-page :deep(.detail-tag.el-tag--info) { color: #606266 !important; background: #f4f4f5 !important; border-color: #d3d4d6 !important; }
+
+.el-table { width:100% !important; }
+.el-table__header-wrapper table, .el-table__body-wrapper table { table-layout:fixed; width:100% !important; }
 </style>

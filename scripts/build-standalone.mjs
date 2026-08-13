@@ -65,9 +65,10 @@ for (const name of readdirSync(buildTmpDir)) {
 }
 rmSync(buildTmpDir, { recursive: true, force: true })
 
-console.log(`\n✓ 单文件 HTML 已输出：`)
+console.log(`\n✓ 单文件 HTML 已输出（后台 + COC 大屏）：`)
 console.log(`  ${releaseOutput}`)
 console.log('  使用 hash 路由，可直接双击用浏览器打开，无需启动服务器。')
+console.log('  进入大屏：顶栏「COC调度大屏」，或打开 #/coc')
 if (outputName !== baseOutputName) {
   console.log(`  历史文件已保留，未覆盖 ${baseOutputName}`)
 }

@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ref, computed } from 'vue'
 import { Search, Refresh, Plus, Download, ArrowDown } from '@element-plus/icons-vue'
 import { qualityInspectList, listStats } from '../../mock/qualityInspect.js'
@@ -116,7 +116,7 @@ function handleSelectionChange(rows) {
       <el-table-column prop="model" label="物料型号" min-width="180" show-overflow-tooltip />
       <el-table-column prop="unit" label="物料单位" width="90" align="center" />
       <el-table-column prop="quantity" label="数量" width="80" align="center" />
-      <el-table-column prop="location" label="使用部位" min-width="180" show-overflow-tooltip />
+      <el-table-column prop="location" label="施工部位" min-width="180" show-overflow-tooltip />
       <el-table-column prop="date" label="日期" width="110" align="center" />
       <el-table-column prop="supplier" label="供应商" min-width="160" show-overflow-tooltip />
       <el-table-column prop="receiver" label="收料人" width="90" align="center" />

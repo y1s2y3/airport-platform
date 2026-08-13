@@ -520,15 +520,15 @@ onUnmounted(() => {
 .detail-card {
   width: min(92vw, 640px);
   max-height: min(88vh, 720px);
-  background: rgba(82, 110, 131, 0.42);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(94, 238, 255, 0.28);
+  background: #162438;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid rgba(94, 238, 255, 0.35);
   border-radius: 12px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35), 0 0 16px rgba(94, 238, 255, 0.08);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45), 0 0 16px rgba(94, 238, 255, 0.08);
   color: #fff;
 }
 
@@ -546,8 +546,8 @@ onUnmounted(() => {
   justify-content: space-between;
   gap: 12px;
   padding: 14px 18px;
-  background: rgba(82, 110, 131, 0.38);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: #1c2c42;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
   flex-shrink: 0;
 }
 
@@ -648,7 +648,7 @@ onUnmounted(() => {
 .block-content {
   font-size: calc(13px + var(--coc-font-boost));
   line-height: 1.7;
-  background: rgba(16, 29, 55, 0.55);
+  background: #101d37;
   border: 1px solid rgba(94, 238, 255, 0.14);
   padding: 10px 12px;
   border-radius: 8px;
@@ -660,7 +660,7 @@ onUnmounted(() => {
 .detail-image-wrap {
   border-radius: 10px;
   overflow: hidden;
-  background: rgba(10, 18, 32, 0.75);
+  background: #0a1220;
   border: 1px solid rgba(94, 238, 255, 0.18);
   min-height: 180px;
 }

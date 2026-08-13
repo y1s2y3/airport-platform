@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ref, computed, watch } from 'vue'
 import { Search, Download, View } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -119,9 +119,11 @@ function handleExport() {
 <template>
   <div class="page page-card">
     <div class="page-header">
-      <div class="page-breadcrumb">危大工程监管 / 告警记录</div>
+      <div class="page-breadcrumb">
+        {{ isHqSelected ? '安全看板 / 危大监测告警' : '危大工程监测 / 告警记录' }}
+      </div>
       <div class="page-heading">
-        <h1 class="page-title">告警记录</h1>
+        <h1 class="page-title">{{ isHqSelected ? '危大监测告警' : '告警记录' }}</h1>
       </div>
       <p v-if="!isHqSelected" class="page-scope">当前项目：{{ scopeProjectLabel }}</p>
       <p class="page-tip">查看、处置告警记录。设备监测值超出配置阈值时自动生成告警并按配置推送。</p>

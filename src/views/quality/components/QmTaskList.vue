@@ -1,42 +1,38 @@
-<script setup>
-import { computed, reactive, ref } from 'vue'
+﻿<script setup>
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search, Refresh } from '@element-plus/icons-vue'
 import { useQmProjectScope } from '../../../composables/useCurrentProject'
 import {
-  acceptancePlans,
   buildWbsTree,
-  checkUnlock,
-  createSpecialTask,
   createTask,
+  deletePendingTask,
+  ELEC_ARCHIVE_STATUS,
+  elecArchiveStatusTagType,
+  getTaskDisplayStatus,
   inspectionTasks,
-  ORG_LABEL,
-  PLAN_TYPE,
+  nodeRequiredDocsEmpty,
+  reDeclareAcceptance,
   resolveProjectName,
-  SPECIAL_ACCEPT_TYPES,
+  saveTaskDraft,
   specialTypeLabel,
-  TASK_STATUS,
+  TASK_STATUS_FILTER_OPTIONS,
   TASK_TYPE_LABEL,
-  taskStatusTagType,
   wbsNodeTypeTagType,
   wbsNodes,
 } from '../../../mock/qm.js'
+import ConstructionLocationSelect from '../../../components/ConstructionLocationSelect.vue'
 
 const props = defineProps({
-  /** 过滤的 task_type 列表 */
   taskTypes: { type: Array, required: true },
   title: { type: String, default: '验评任务' },
   breadcrumb: { type: String, default: '质量验评' },
   editPath: { type: String, required: true },
-  approvePath: { type: String, required: true },
-  /** 创建任务时可选节点类型；allowAllNodes 时忽略禁用 */
   nodeTypes: { type: Array, default: () => [6] },
-  /** 允许目录树全部节点发起（下级须全部通过） */
   allowAllNodes: { type: Boolean, default: false },
-  /** 专项验收模式：不挂目录树，须挂计划并选择专项类型 */
   specialMode: { type: Boolean, default: false },
-  /** 实体验收：列表/选树仅到单位工程层级 */
+  entityMode: { type: Boolean, default: false },
   unitLevelOnly: { type: Boolean, default: false },
 })
 
@@ -51,31 +47,32 @@ const EDIT_PATH_BY_TASK_TYPE = {
   8: '/qm/inspect/unit/edit',
 }
 
-const APPROVE_PATH_BY_TASK_TYPE = {
-  1: '/qm/inspect/batch/approve',
-  2: '/qm/inspect/part/approve',
-  3: '/qm/inspect/part/approve',
-  4: '/qm/inspect/part/approve',
-  5: '/qm/inspect/unit/approve',
-  6: '/qm/inspect/special/approve',
-  7: '/qm/inspect/complete/approve',
-  8: '/qm/inspect/unit/approve',
-}
-
 const router = useRouter()
 const { isHqSelected, scopeProjectId, scopeProjectLabel } = useQmProjectScope()
 const keyword = ref('')
 const statusFilter = ref('')
+const listTick = ref(0)
+
 const createVisible = ref(false)
+const creating = ref(false)
+/** 空=发起；非空=编辑待提交单 */
+const editingTaskId = ref('')
 const createForm = reactive({
+  task_name: '',
   wbs_node_id: '',
-  plan_id: '',
-  special_type: '',
   location_name: '',
-  remark: '',
+  location_id: '',
+  location_ids: [],
+  is_hidden_work: 0,
+  need_archive: 0,
 })
+const archiveLocked = ref(false)
+/** 编辑回填时跳过「选节点带出隐蔽标记」 */
+const suppressNodePrefill = ref(false)
+const dialogTitle = computed(() => (editingTaskId.value ? '编辑验收' : '发起验收'))
 
 const list = computed(() => {
+  void listTick.value
   let rows = inspectionTasks.filter((t) => props.taskTypes.includes(t.task_type))
   if (!isHqSelected.value && scopeProjectId.value) {
     rows = rows.filter((t) => t.project_id === scopeProjectId.value)
@@ -88,75 +85,85 @@ const list = computed(() => {
     rows = rows.filter((t) => {
       const name = resolveProjectName(t.project_id)
       const typeName = specialTypeLabel(t.special_type)
-      return `${t.task_no}${name}${t.location_name || ''}${typeName}`.includes(kw)
+      return `${t.task_no}${t.task_name || ''}${name}${t.location_name || ''}${typeName}`.includes(kw)
     })
   }
   return rows
 })
 
-/** 验评目录树；单位工程模式仅展示单位工程；allowAllNodes 时全部可选 */
-const wbsTreeOptions = computed(() => {
-  const pid = !isHqSelected.value && scopeProjectId.value ? scopeProjectId.value : undefined
-  if (props.unitLevelOnly) {
-    return wbsNodes
-      .filter((n) => n.node_type === 1 && (!pid || n.project_id === pid))
-      .slice()
-      .sort((a, b) => (a.sort_no || 0) - (b.sort_no || 0))
-      .map((n) => ({
-        id: n.id,
-        label: n.node_name,
-        node_type: n.node_type,
-        type_label: '单位工程',
-        children: [],
-        disabled: false,
-        raw: n,
-      }))
+function takeEntityBranch(roots) {
+  const walk = (nodes) => {
+    for (const n of nodes || []) {
+      if (n.node_type === 9) return [n]
+      const hit = walk(n.children)
+      if (hit) return hit
+    }
+    return null
   }
+  return walk(roots) || []
+}
+
+function takeSpecialBranch(roots) {
+  const walk = (nodes) => {
+    for (const n of nodes || []) {
+      if (n.node_type === 10) return [n]
+      const hit = walk(n.children)
+      if (hit) return hit
+    }
+    return null
+  }
+  return walk(roots) || []
+}
+
+function isNodeSelectable(nodeType) {
+  const t = Number(nodeType)
+  if (props.specialMode) return t === 7
+  if (props.entityMode || props.allowAllNodes) return [1, 2, 3, 4, 5, 6].includes(t)
+  if (props.unitLevelOnly) return t === 1
+  return props.nodeTypes.includes(t)
+}
+
+function collectExpandKeys(nodes, expandTypes, acc = []) {
+  for (const n of nodes || []) {
+    if (expandTypes.includes(Number(n.node_type))) acc.push(n.id)
+    if (n.children?.length) collectExpandKeys(n.children, expandTypes, acc)
+  }
+  return acc
+}
+
+/** 发起验收：验收节点取验评目录树结构（实体/专项分支） */
+const createNodeTree = computed(() => {
+  const pid = scopeProjectId.value || undefined
+  const full = buildWbsTree(pid)
+  let source = full
+  if (props.specialMode) source = takeSpecialBranch(full)
+  else if (props.entityMode || props.allowAllNodes) source = takeEntityBranch(full)
+
   const mark = (nodes) =>
     (nodes || []).map((n) => ({
-      ...n,
-      disabled: props.allowAllNodes ? false : !props.nodeTypes.includes(n.node_type),
-      children: n.children?.length ? mark(n.children) : [],
+      id: n.id,
+      label: n.label,
+      node_type: n.node_type,
+      type_label: n.type_label,
+      disabled: !isNodeSelectable(n.node_type),
+      children: n.children?.length ? mark(n.children) : undefined,
     }))
-  return mark(buildWbsTree(pid))
+  return mark(source)
 })
 
-const selectedNodeLabel = computed(() => {
-  const n = wbsNodes.find((x) => x.id === createForm.wbs_node_id)
-  if (!n) return ''
-  return `${n.node_name}${n.location_code ? `（${n.location_code}）` : ''}`
+const createNodeExpandedKeys = computed(() => {
+  const expandTypes = props.specialMode ? [8, 10] : [8, 9]
+  return collectExpandKeys(createNodeTree.value, expandTypes)
 })
 
-const selectedNodeUnlock = computed(() => {
-  if (!createForm.wbs_node_id) return null
-  const n = wbsNodes.find((x) => x.id === createForm.wbs_node_id)
-  if (!n) return null
-  return checkUnlock(n)
-})
-
-const planOptions = computed(() => {
-  let plans = acceptancePlans.filter((p) => [1, 2].includes(p.status))
-  if (props.specialMode) {
-    plans = plans.filter((p) => Number(p.plan_type) === 2)
-  }
-  if (!isHqSelected.value && scopeProjectId.value) {
-    plans = plans.filter((p) => p.project_id === scopeProjectId.value)
-  }
-  return plans
-})
-
-const selectedSpecialMeta = computed(() =>
-  SPECIAL_ACCEPT_TYPES.find((t) => t.code === createForm.special_type) || null,
+const createNodeTreeKey = computed(
+  () =>
+    `create-wbs-${scopeProjectId.value || ''}-${props.specialMode ? 's' : 'e'}-${createNodeExpandedKeys.value.join('_')}`,
 )
 
 function nodeName(id) {
   if (!id) return '—'
   return wbsNodes.find((n) => n.id === id)?.node_name || id
-}
-
-function planNo(plan_id) {
-  if (!plan_id) return '—'
-  return acceptancePlans.find((p) => p.id === plan_id)?.plan_no || plan_id
 }
 
 function reset() {
@@ -166,64 +173,171 @@ function reset() {
 
 function openCreate() {
   if (isHqSelected.value) return ElMessage.warning('请先切换到具体项目')
+  editingTaskId.value = ''
+  createForm.task_name = ''
   createForm.wbs_node_id = ''
-  createForm.plan_id = ''
-  createForm.special_type = ''
   createForm.location_name = ''
-  createForm.remark = ''
+  createForm.location_id = ''
+  createForm.location_ids = []
+  createForm.is_hidden_work = 0
+  createForm.need_archive = 0
+  archiveLocked.value = false
   createVisible.value = true
 }
 
-function submitCreate() {
-  if (props.specialMode) {
-    if (!createForm.plan_id) return ElMessage.warning('请选择验收计划')
-    if (!createForm.special_type) return ElMessage.warning('请选择专项验收类型')
-    const r = createSpecialTask({
+function openEdit(row) {
+  if (Number(row.status) !== 0) return ElMessage.warning('仅待提交可编辑')
+  suppressNodePrefill.value = true
+  editingTaskId.value = row.id
+  createForm.task_name = row.task_name || ''
+  createForm.wbs_node_id = row.wbs_node_id || ''
+  const ids = Array.isArray(row.location_ids)
+    ? [...row.location_ids]
+    : row.location_id
+      ? [row.location_id]
+      : []
+  createForm.location_ids = ids
+  createForm.location_id = ids[0] || ''
+  createForm.location_name = row.location_name || ''
+  createForm.is_hidden_work = Number(row.is_hidden_work) === 1 ? 1 : 0
+  createForm.need_archive = Number(row.need_archive) === 1 ? 1 : 0
+  const empty = row.wbs_node_id ? nodeRequiredDocsEmpty(row.wbs_node_id) : false
+  archiveLocked.value = empty
+  if (empty) createForm.need_archive = 0
+  createVisible.value = true
+  nextTick(() => {
+    suppressNodePrefill.value = false
+  })
+}
+
+watch(
+  () => createForm.wbs_node_id,
+  (id) => {
+    if (!id) {
+      archiveLocked.value = false
+      createForm.need_archive = 0
+      if (!editingTaskId.value && !suppressNodePrefill.value) createForm.is_hidden_work = 0
+      // 无验收节点时不可选部位
+      if (!suppressNodePrefill.value) {
+        createForm.location_id = ''
+        createForm.location_ids = []
+        createForm.location_name = ''
+      }
+      return
+    }
+    const empty = nodeRequiredDocsEmpty(id)
+    archiveLocked.value = empty
+    if (empty) createForm.need_archive = 0
+    // 用户改选节点时带出目录树隐蔽标记（专项不展示）；部位一对多跨分项可选，不清空
+    if (!props.specialMode && !suppressNodePrefill.value) {
+      const n = wbsNodes.find((x) => x.id === id)
+      createForm.is_hidden_work = Number(n?.is_hidden_work) === 1 ? 1 : 0
+    }
+  },
+)
+
+async function confirmCreate() {
+  if (!createForm.task_name.trim()) return ElMessage.warning('请填写验收任务名称')
+  if (!createForm.wbs_node_id) return ElMessage.warning('请选择验收节点')
+  creating.value = true
+  try {
+    if (editingTaskId.value) {
+      const task = inspectionTasks.find((t) => t.id === editingTaskId.value)
+      if (!task) return ElMessage.error('验收单不存在')
+      const r = saveTaskDraft(task, {
+        task_name: createForm.task_name.trim(),
+        wbs_node_id: createForm.wbs_node_id,
+        location_name: createForm.location_name.trim(),
+        location_id: createForm.location_id || '',
+        location_ids: [...(createForm.location_ids || [])],
+        is_hidden_work: props.specialMode ? 0 : createForm.is_hidden_work,
+        need_archive: createForm.need_archive,
+      })
+      if (!r.ok) return ElMessage.error(r.msg)
+      createVisible.value = false
+      editingTaskId.value = ''
+      listTick.value += 1
+      ElMessage.success('已保存')
+      return
+    }
+    const r = createTask({
       project_id: scopeProjectId.value,
-      plan_id: createForm.plan_id,
-      special_type: createForm.special_type,
-      location_name: createForm.location_name,
-      remark: createForm.remark,
+      wbs_node_id: createForm.wbs_node_id,
+      task_name: createForm.task_name.trim(),
+      location_name: createForm.location_name.trim(),
+      location_id: createForm.location_id || '',
+      location_ids: [...(createForm.location_ids || [])],
+      is_hidden_work: props.specialMode ? 0 : createForm.is_hidden_work,
+      need_archive: createForm.need_archive,
     })
     if (!r.ok) return ElMessage.error(r.msg)
     createVisible.value = false
-    ElMessage.success(`已创建 ${r.task.task_no}，可点击「填报」继续`)
+    listTick.value += 1
+    ElMessage.success('已发起，进入填报')
+    const path = EDIT_PATH_BY_TASK_TYPE[r.task.task_type] || props.editPath
+    router.push(`${path}?id=${r.task.id}`)
+  } finally {
+    creating.value = false
+  }
+}
+
+async function onDelete(row) {
+  try {
+    await ElMessageBox.confirm(
+      `确认删除待提交验收单「${row.task_no}」？删除后不可恢复。`,
+      '删除验收单',
+      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' },
+    )
+  } catch {
     return
   }
-
-  if (!createForm.wbs_node_id) return ElMessage.warning('请选择验评节点')
-  const node = wbsNodes.find((n) => n.id === createForm.wbs_node_id)
-  if (!props.allowAllNodes && node && !props.nodeTypes.includes(node.node_type)) {
-    return ElMessage.warning('请选择适用的验评节点类型（如检验批）')
-  }
-  const r = createTask({
-    project_id: node?.project_id || scopeProjectId.value,
-    wbs_node_id: createForm.wbs_node_id,
-    plan_id: createForm.plan_id || '',
-    remark: createForm.remark,
-  })
+  const r = deletePendingTask(row)
   if (!r.ok) return ElMessage.error(r.msg)
-  createVisible.value = false
-  ElMessage.success(`已创建 ${r.task.task_no}，可点击「填报」继续`)
+  listTick.value += 1
+  ElMessage.success('已删除')
 }
 
 function resolveEditPath(row) {
-  if (props.allowAllNodes || props.specialMode || props.unitLevelOnly) return props.editPath
+  if (props.specialMode) return props.editPath
   return EDIT_PATH_BY_TASK_TYPE[row.task_type] || props.editPath
-}
-
-function resolveApprovePath(row) {
-  if (props.allowAllNodes || props.specialMode || props.unitLevelOnly) return props.approvePath
-  return APPROVE_PATH_BY_TASK_TYPE[row.task_type] || props.approvePath
 }
 
 function goEdit(row) {
   router.push(`${resolveEditPath(row)}?id=${row.id}`)
 }
 
-function goApprove(row) {
-  router.push(`${resolveApprovePath(row)}?id=${row.id}`)
+function goDetail(row) {
+  router.push(`${resolveEditPath(row)}?id=${row.id}`)
 }
+
+function goFillArchive(row) {
+  const href = router.resolve({
+    path: '/qm/inspect/archive-jump',
+    query: { node_id: row.wbs_node_id, task_id: row.id, from: 'list' },
+  }).href
+  window.open(href, '_blank', 'noopener,noreferrer')
+}
+
+async function onReDeclare(row) {
+  try {
+    await ElMessageBox.confirm(
+      `将基于「${row.task_no}」新建验收单并关联本驳回单，确认重新申报？`,
+      '重新申报验收',
+      { type: 'warning' },
+    )
+  } catch {
+    return
+  }
+  const r = reDeclareAcceptance(row)
+  if (!r.ok) return ElMessage.error(r.msg)
+  listTick.value += 1
+  ElMessage.success('已新建验收单')
+  router.push(`${resolveEditPath(r.task)}?id=${r.task.id}`)
+}
+
+onMounted(() => {
+  listTick.value += 1
+})
 </script>
 
 <template>
@@ -233,16 +347,7 @@ function goApprove(row) {
       <h1 class="page-title">{{ title }}</h1>
       <p class="page-tip">
         当前：{{ isHqSelected ? '请切换到项目查看业务单' : scopeProjectLabel }}
-        ·
-        {{
-          specialMode
-            ? '挂接专项验收计划 → 选择专项类型 → 按类型上传必传资料 → 报验签章'
-            : unitLevelOnly
-              ? '列表仅展示单位工程验收；下级分部/分项/检验批通过后方可发起单位工程报验'
-              : allowAllNodes
-                ? '目录树全节点可发起验评（下级须全部通过）→ 自检填报 → 审批签章'
-                : '自检填报 → 提交报验 → 审批签章'
-        }}
+        · 弹窗发起 → 待提交填报 → 提交时选审批人；审批在个人中心办理。一节点仅一张有效单。
       </p>
     </div>
 
@@ -250,173 +355,174 @@ function goApprove(row) {
       <el-input
         v-model="keyword"
         clearable
-        :placeholder="specialMode ? '任务单号/项目/类型/部位' : '任务单号/项目/部位'"
+        :placeholder="specialMode ? '验收单号/项目/类型/部位' : '验收单号/项目/部位'"
         style="width: 240px"
         :prefix-icon="Search"
       />
-      <el-select v-model="statusFilter" clearable placeholder="状态" style="width: 140px">
-        <el-option v-for="(label, val) in TASK_STATUS" :key="val" :label="label" :value="String(val)" />
+      <el-select v-model="statusFilter" clearable placeholder="验收状态" style="width: 140px">
+        <el-option
+          v-for="opt in TASK_STATUS_FILTER_OPTIONS"
+          :key="opt.value"
+          :label="opt.label"
+          :value="opt.value"
+        />
       </el-select>
       <el-button type="primary" :icon="Search">查询</el-button>
       <el-button :icon="Refresh" @click="reset">重置</el-button>
-      <el-button type="primary" :icon="Plus" @click="openCreate">新建任务</el-button>
+      <el-button type="primary" :icon="Plus" @click="openCreate">发起验收</el-button>
     </div>
 
     <el-table :data="list" stripe border>
-      <el-table-column prop="task_no" label="验评单号" width="130" fixed />
+      <el-table-column label="项目名称" min-width="150" fixed>
+        <template #default="{ row }">{{ resolveProjectName(row.project_id) }}</template>
+      </el-table-column>
+      <el-table-column prop="task_no" label="验收单号" width="130" />
+      <el-table-column label="验收任务名称" min-width="150">
+        <template #default="{ row }">{{ row.task_name || nodeName(row.wbs_node_id) }}</template>
+      </el-table-column>
       <el-table-column v-if="specialMode" label="专项类型" width="120">
         <template #default="{ row }">{{ specialTypeLabel(row.special_type) }}</template>
       </el-table-column>
-      <el-table-column v-else label="任务类型" width="120">
+      <el-table-column v-else label="验收任务类型" width="130">
         <template #default="{ row }">{{ TASK_TYPE_LABEL[row.task_type] }}</template>
       </el-table-column>
-      <el-table-column label="项目名称" min-width="150">
-        <template #default="{ row }">{{ resolveProjectName(row.project_id) }}</template>
-      </el-table-column>
-      <el-table-column v-if="!specialMode" label="节点" min-width="150">
+      <el-table-column label="验收节点" min-width="150">
         <template #default="{ row }">{{ nodeName(row.wbs_node_id) }}</template>
       </el-table-column>
-      <el-table-column prop="location_name" label="部位" min-width="120" />
-      <el-table-column label="计划" width="140">
+      <el-table-column prop="location_name" label="施工部位" min-width="120" />
+      <el-table-column label="验收状态" width="100">
         <template #default="{ row }">
-          <el-tag v-if="row.unplanned_flag === 1" type="warning" size="small">未挂计划</el-tag>
-          <span v-else>{{ planNo(row.plan_id) }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="当前状态" width="110">
-        <template #default="{ row }">
-          <el-tag :type="taskStatusTagType(row.status)" size="small">
-            {{ TASK_STATUS[row.status] }}
+          <el-tag :type="getTaskDisplayStatus(row).tagType" size="small">
+            {{ getTaskDisplayStatus(row).label }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="归档" width="90">
+      <el-table-column label="电子档案状态" width="120">
         <template #default="{ row }">
-          {{ { 0: '未归档', 1: '归档中', 2: '已归档', 3: '退回' }[row.archive_status] }}
+          <el-tag :type="elecArchiveStatusTagType(row.elec_archive_status)" size="small" effect="plain">
+            {{ ELEC_ARCHIVE_STATUS[row.elec_archive_status] || '—' }}
+          </el-tag>
         </template>
-      </el-table-column>
-      <el-table-column label="施工单位" min-width="140">
-        <template #default="{ row }">{{ ORG_LABEL[row.contractor_org_id] || row.contractor_org_id }}</template>
       </el-table-column>
       <el-table-column label="操作" width="220" fixed="right">
         <template #default="{ row }">
-          <el-button v-if="Number(row.status) === 0" link type="primary" @click="goEdit(row)">填报</el-button>
-          <el-button v-if="Number(row.status) === 1" link type="primary" @click="goApprove(row)">审批</el-button>
-          <el-button v-if="[3, 4, 5].includes(Number(row.status))" link type="warning" @click="goEdit(row)">
-            整改
-          </el-button>
-          <el-button link type="primary" @click="goEdit(row)">详情</el-button>
+          <div class="op-col">
+            <div class="op-row">
+              <template v-if="Number(row.status) === 0">
+                <el-button link type="primary" @click="goEdit(row)">
+                  {{ specialMode ? '填报' : '填报验收单' }}
+                </el-button>
+                <el-button
+                  v-if="Number(row.need_archive) === 1"
+                  link
+                  type="primary"
+                  @click="goFillArchive(row)"
+                >
+                  填报电子档案
+                </el-button>
+              </template>
+              <el-button
+                v-if="Number(row.status) === 3"
+                link
+                type="warning"
+                @click="onReDeclare(row)"
+              >
+                重新申报验收
+              </el-button>
+            </div>
+            <div class="op-row">
+              <el-button
+                v-if="Number(row.status) === 0"
+                link
+                type="primary"
+                @click="openEdit(row)"
+              >
+                编辑
+              </el-button>
+              <el-button
+                v-if="Number(row.status) === 0"
+                link
+                type="danger"
+                @click="onDelete(row)"
+              >
+                删除
+              </el-button>
+              <el-button link type="primary" @click="goDetail(row)">详情</el-button>
+            </div>
+          </div>
         </template>
       </el-table-column>
     </el-table>
 
-    <el-dialog
-      v-model="createVisible"
-      :title="specialMode ? '新建专项验收' : '新建验评任务'"
-      width="560px"
-      destroy-on-close
-    >
-      <el-form label-width="120px">
-        <template v-if="specialMode">
-          <el-form-item label="验收计划" required>
-            <el-select
-              v-model="createForm.plan_id"
-              filterable
-              placeholder="请选择专项验收计划"
-              style="width: 100%"
-            >
-              <el-option
-                v-for="p in planOptions"
-                :key="p.id"
-                :label="`${p.plan_no} ${p.plan_name}`"
-                :value="p.id"
-              >
-                <span>{{ p.plan_no }} {{ p.plan_name }}</span>
-                <span class="opt-sub">{{ PLAN_TYPE[p.plan_type] || '专项' }} · {{ p.plan_date }}</span>
-              </el-option>
-            </el-select>
-          </el-form-item>
-          <el-form-item label="专项类型" required>
-            <el-select
-              v-model="createForm.special_type"
-              filterable
-              placeholder="如：消防验收"
-              style="width: 100%"
-            >
-              <el-option
-                v-for="t in SPECIAL_ACCEPT_TYPES"
-                :key="t.code"
-                :label="t.label"
-                :value="t.code"
-              />
-            </el-select>
-            <p v-if="selectedSpecialMeta" class="node-tip">
-              填报时须上传：{{ selectedSpecialMeta.requiredDocs.map((d) => d.label).join('、') }}
-            </p>
-          </el-form-item>
-          <el-form-item label="验收部位">
-            <el-input v-model="createForm.location_name" placeholder="选填，如 T2航站楼全区域" />
-          </el-form-item>
-        </template>
-        <template v-else>
-          <el-form-item label="验评节点" required>
-            <el-tree-select
-              v-model="createForm.wbs_node_id"
-              :data="wbsTreeOptions"
-              node-key="id"
-              :props="{ label: 'label', children: 'children', value: 'id', disabled: 'disabled' }"
-              check-strictly
-              filterable
-              default-expand-all
-              clearable
-              placeholder="从验评目录树选择节点"
-              style="width: 100%"
-            >
-              <template #default="{ data }">
-                <span class="tree-node">
-                  <el-tag size="small" :type="wbsNodeTypeTagType(data.node_type)" effect="plain" class="type-tag">
-                    {{ data.type_label }}
-                  </el-tag>
-                  <span>{{ data.label }}</span>
-                </span>
-              </template>
-            </el-tree-select>
-            <p v-if="selectedNodeLabel" class="node-hint">已选：{{ selectedNodeLabel }}</p>
-            <p
-              v-if="selectedNodeUnlock && !selectedNodeUnlock.ok"
-              class="node-warn"
-            >
-              {{ selectedNodeUnlock.msg }}
-            </p>
-            <p v-else-if="selectedNodeUnlock?.ok" class="node-ok">下级已满足发起条件，可创建验评任务</p>
-            <p class="node-tip">
-              {{
-                unitLevelOnly
-                  ? '仅可选单位工程；须下级全通过后方可创建'
-                  : allowAllNodes
-                    ? '支持目录树全部节点发起验评；非叶子节点须下级全部通过后方可创建'
-                    : '灰色节点不可选；请选择本任务适用类型（如检验批）'
-              }}
-            </p>
-          </el-form-item>
-          <el-form-item label="验收计划">
-            <el-select v-model="createForm.plan_id" clearable placeholder="选填；空=不挂计划" style="width: 100%">
-              <el-option
-                v-for="p in planOptions"
-                :key="p.id"
-                :label="`${p.plan_no} ${p.plan_name}`"
-                :value="p.id"
-              />
-            </el-select>
-          </el-form-item>
-        </template>
-        <el-form-item label="备注">
-          <el-input v-model="createForm.remark" type="textarea" placeholder="备注说明" />
+    <el-dialog v-model="createVisible" :title="dialogTitle" width="520px" destroy-on-close>
+      <el-form label-width="130px">
+        <el-form-item label="验收任务名称" required>
+          <el-input v-model="createForm.task_name" maxlength="80" placeholder="请输入" />
+        </el-form-item>
+        <el-form-item label="验收节点" required>
+          <el-tree-select
+            :key="createNodeTreeKey"
+            v-model="createForm.wbs_node_id"
+            :data="createNodeTree"
+            node-key="id"
+            :props="{ label: 'label', children: 'children', value: 'id', disabled: 'disabled' }"
+            check-strictly
+            filterable
+            clearable
+            :render-after-expand="false"
+            :default-expanded-keys="createNodeExpandedKeys"
+            :placeholder="specialMode ? '从验评目录树·专项验收选择' : '从验评目录树·实体工程选择'"
+            style="width: 100%"
+          >
+            <template #default="{ data }">
+              <span class="tree-node">
+                <el-tag
+                  size="small"
+                  :type="wbsNodeTypeTagType(data.node_type)"
+                  effect="plain"
+                  class="type-tag"
+                >
+                  {{ data.type_label }}
+                </el-tag>
+                <span>{{ data.label }}</span>
+              </span>
+            </template>
+          </el-tree-select>
+        </el-form-item>
+        <el-form-item label="施工部位">
+          <ConstructionLocationSelect
+            v-model:location-id="createForm.location_id"
+            v-model:location-ids="createForm.location_ids"
+            v-model:location-name="createForm.location_name"
+            :project-id="scopeProjectId"
+            :scope-wbs-node-id="specialMode ? '' : createForm.wbs_node_id"
+            :require-scope="!specialMode"
+            scope-mode="focus"
+            multiple
+            :placeholder="
+              specialMode
+                ? '可多选施工部位（非必填）'
+                : '按验收节点定位所属分项，可多选且不限其他部位'
+            "
+          />
+        </el-form-item>
+        <el-form-item v-if="!specialMode" label="是否隐蔽工程">
+          <el-radio-group v-model="createForm.is_hidden_work">
+            <el-radio :value="1">是</el-radio>
+            <el-radio :value="0">否</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="是否电子档案归档">
+          <el-radio-group v-model="createForm.need_archive" :disabled="archiveLocked">
+            <el-radio :value="1">是</el-radio>
+            <el-radio :value="0">否</el-radio>
+          </el-radio-group>
+          <div v-if="archiveLocked" class="form-hint">该节点档案清单为空，默认否且不可改</div>
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="createVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitCreate">创建</el-button>
+        <el-button type="primary" :loading="creating" @click="confirmCreate">确定</el-button>
       </template>
     </el-dialog>
   </div>
@@ -428,11 +534,9 @@ function goApprove(row) {
 .page-title { margin: 4px 0; font-size: 20px; }
 .page-tip { margin: 0; font-size: 13px; color: #606266; }
 .filter-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.form-hint { font-size: 12px; color: #909399; margin-top: 4px; }
 .tree-node { display: inline-flex; align-items: center; gap: 6px; }
 .type-tag { flex-shrink: 0; }
-.node-hint { margin: 6px 0 0; font-size: 12px; color: #409eff; }
-.node-ok { margin: 4px 0 0; font-size: 12px; color: #67c23a; }
-.node-warn { margin: 4px 0 0; font-size: 12px; color: #e6a23c; line-height: 1.5; }
-.node-tip { margin: 4px 0 0; font-size: 12px; color: #909399; line-height: 1.5; }
-.opt-sub { float: right; color: #909399; font-size: 12px; margin-left: 12px; }
+.op-col { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.op-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0 4px; line-height: 1.4; }
 </style>

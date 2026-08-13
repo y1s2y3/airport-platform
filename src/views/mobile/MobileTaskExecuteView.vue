@@ -2,28 +2,48 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { getMobileInspectionTask, updateMobileInspectionTask } from '../../mock/mobileInspectionTasks'
 import { checkCategoryTree, getItemLabel } from '../../composables/useInspectionPlan'
+import {
+  inspectorCandidates,
+  getProjectRectifierLabel,
+  getProjectReviewerLabel,
+} from '../../composables/useInspectionPersonConfig'
 
 const route = useRoute()
 const router = useRouter()
 
 const taskInfo = {
   id: route.params.id,
-  planName: '7月第4周安全巡检',
+  taskNo: 'AQXJ20260728001',
+  source: '任务下发',
+  taskName: '防台防汛安全检查',
   project: '飞行区跑道延长工程',
   executor: '当前用户',
   deadline: '2026-07-28',
-  planType: '周检',
+  inspectionCategory: '安全',
+  status: '待执行',
+  ...(getMobileInspectionTask(route.params.id) || {}),
 }
 
 // 巡检结果
 const inspectResult = ref('') // '' | 'normal' | 'hazard'
 
 // 检查项列表（仅查看）
-const catTabs = computed(() => checkCategoryTree.map(c => ({ id: c.id, label: c.label })))
+const taskCategoryTree = computed(() =>
+  taskInfo.checkConfig?.length
+    ? taskInfo.checkConfig.map(config => {
+        const category = checkCategoryTree.find(item => item.id === config.categoryId)
+        return category
+          ? { ...category, items: category.items.filter(item => config.itemIds.includes(item.id)) }
+          : null
+      }).filter(Boolean)
+    : checkCategoryTree.filter(category => category.inspectionCategory === taskInfo.inspectionCategory)
+)
+const catTabs = computed(() => taskCategoryTree.value.map(c => ({ id: c.id, label: c.label })))
 const activeCat = ref(catTabs.value[0]?.id || '')
 const currentCatItems = computed(() => {
-  const cat = checkCategoryTree.find(c => c.id === activeCat.value)
+  const cat = taskCategoryTree.value.find(c => c.id === activeCat.value)
   return cat ? cat.items : []
 })
 
@@ -34,8 +54,8 @@ function addHazard() {
   hazardItems.value.push({
     desc: '',
     photos: [],
-    issueRectify: false,
-    rectifyPerson: '',
+    rectifyPerson: getProjectRectifierLabel(taskInfo.project),
+    reviewPerson: getProjectReviewerLabel(taskInfo.project),
     rectifyDeadline: '',
   })
 }
@@ -58,11 +78,10 @@ function removeHazardPhoto(itemIdx, photoIdx) {
   hazardItems.value[itemIdx].photos.splice(photoIdx, 1)
 }
 
-const personOptions = ['张工（安全总监）', '李工（安全主管）', '赵工（项目经理）']
+const personOptions = inspectorCandidates.map(p => `${p.name}（${p.role}）`)
 const companionOptions = ['刘工（安全员）', '陈工（技术员）', '周工（施工员）', '吴工（质检员）']
 const hasHazard = computed(() => hazardItems.value.length > 0)
 
-const inspector = ref('')
 const companions = ref([])
 const selectedCompanion = ref('')
 function addCompanion() {
@@ -86,18 +105,57 @@ function triggerNormalPhoto() {
 function removeNormalPhoto(idx) { normalPhotos.value.splice(idx, 1) }
 
 function submitCheck() {
-  if (!inspector.value) { ElMessage.warning('请选择巡检人'); return }
   if (!inspectResult.value) { ElMessage.warning('请选择巡检结果'); return }
   if (inspectResult.value === 'hazard') {
     if (hazardItems.value.length === 0) { ElMessage.warning('请至少新增一条隐患'); return }
     for (const [i, item] of hazardItems.value.entries()) {
       if (!item.desc.trim()) { ElMessage.warning(`第 ${i+1} 条隐患请填写说明`); return }
-      if (item.issueRectify && !item.rectifyPerson) { ElMessage.warning(`第 ${i+1} 条隐患请选择整改人`); return }
-      if (item.issueRectify && !item.rectifyDeadline) { ElMessage.warning(`第 ${i+1} 条隐患请选择整改截止日期`); return }
+      if (!item.rectifyPerson) { ElMessage.warning(`第 ${i+1} 条隐患请选择整改人`); return }
+      if (!item.reviewPerson) { ElMessage.warning(`第 ${i+1} 条隐患请选择复查人`); return }
+      if (!item.rectifyDeadline) { ElMessage.warning(`第 ${i+1} 条隐患请选择整改截止日期`); return }
     }
   }
-  ElMessage.success('检查结果已提交')
-  router.push(`/mobile/tasks/${route.params.id}`)
+
+  const taskId = String(route.params.id || '')
+  const dateKey = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+  const now = Date.now()
+  const savedHazards = inspectResult.value === 'hazard'
+    ? hazardItems.value.map((item, index) => {
+        const rectifyNo = `ZG${dateKey}${String(now).slice(-4)}${String(index + 1).padStart(2, '0')}`
+        return {
+          desc: item.desc,
+          photos: [...item.photos],
+          hasRectify: true,
+          rectifyNo,
+          rectifyId: rectifyNo ? `exec-${rectifyNo}` : '',
+          rectifyPerson: item.rectifyPerson,
+          reviewPerson: item.reviewPerson,
+          rectifyDeadline: item.rectifyDeadline,
+        }
+      })
+    : []
+  const rectifyCount = savedHazards.length
+
+  updateMobileInspectionTask(taskId, {
+    status: '已完成',
+    overdue: false,
+    companions: [...companions.value],
+    inspDate: new Date().toISOString().slice(0, 10),
+    submittedAt: new Date().toLocaleString('zh-CN', { hour12: false }),
+    result: inspectResult.value,
+    normalPhotos: inspectResult.value === 'normal' ? [...normalPhotos.value] : [],
+    hazardItems: savedHazards,
+    hazardCount: savedHazards.length,
+    hasRectify: rectifyCount > 0,
+    rectifyCount,
+  })
+
+  ElMessage.success(
+    inspectResult.value === 'hazard'
+      ? `检查结果已提交${rectifyCount ? `，已下发 ${rectifyCount} 份整改单` : ''}`
+      : '检查结果已提交',
+  )
+  router.push(`/mobile/tasks/${taskId}`)
 }
 
 function goBack() { router.push('/mobile/tasks') }
@@ -112,22 +170,19 @@ function goBack() { router.push('/mobile/tasks') }
 
     <div class="task-bar">
       <div class="task-bar-top">
-        <span class="task-bar-name">{{ taskInfo.planName }}</span>
-        <span class="task-bar-tag">{{ taskInfo.planType }}</span>
+        <span class="task-bar-name">{{ taskInfo.taskName }}</span>
       </div>
       <div class="task-bar-info">
-        <span>{{ taskInfo.project }}</span>
+        <span>巡检任务单编号：{{ taskInfo.taskNo }}</span>
+        <span>任务名称：{{ taskInfo.taskName }}</span>
+        <span>任务来源：{{ taskInfo.source }}</span>
+        <span>项目名称：{{ taskInfo.project }}</span>
+        <span>巡检分类：{{ taskInfo.inspectionCategory }}</span>
         <span>执行人：{{ taskInfo.executor }}</span>
-        <span>截止：{{ taskInfo.deadline }}</span>
+        <span>截止日期：{{ taskInfo.deadline }}</span>
+        <span>状态：{{ taskInfo.status }}</span>
       </div>
       <div class="task-bar-form">
-        <div class="tbf-row">
-          <span class="tbf-label">巡检人 <i class="req">*</i></span>
-          <select v-model="inspector" class="tbf-select">
-            <option value="" disabled>请选择</option>
-            <option v-for="p in personOptions" :key="p" :value="p">{{ p }}</option>
-          </select>
-        </div>
         <div class="tbf-row">
           <span class="tbf-label">同行人</span>
           <div class="tbf-tags">
@@ -193,19 +248,17 @@ function goBack() { router.push('/mobile/tasks') }
                 <button class="photo-add" @click="triggerHazardPhoto(idx)">+ 拍照</button>
               </div>
             </div>
-            <div class="rectify-toggle-row">
-              <label class="toggle-label">
-                <span>下发整改单</span>
-                <button type="button" class="toggle-btn" :class="{ on: item.issueRectify }" @click="item.issueRectify = !item.issueRectify">
-                  <span class="toggle-dot"></span>
-                </button>
-              </label>
+            <div class="rectify-required-tip">
+              发现隐患后将自动生成整改单，请完善整改信息
             </div>
-            <div v-show="item.issueRectify" class="rectify-fields">
+            <div class="rectify-fields">
               <div class="rf-row"><span class="rf-label">整改人 <i class="req">*</i></span>
                 <select v-model="item.rectifyPerson" class="rf-select"><option value="" disabled>请选择</option><option v-for="p in personOptions" :key="p" :value="p">{{ p }}</option></select>
               </div>
-              <div class="rf-row"><span class="rf-label">整改截止 <i class="req">*</i></span>
+              <div class="rf-row"><span class="rf-label">复查人 <i class="req">*</i></span>
+                <select v-model="item.reviewPerson" class="rf-select"><option value="" disabled>请选择</option><option v-for="p in personOptions" :key="p" :value="p">{{ p }}</option></select>
+              </div>
+              <div class="rf-row"><span class="rf-label">整改截止日期 <i class="req">*</i></span>
                 <input type="date" v-model="item.rectifyDeadline" class="rf-select" />
               </div>
             </div>
@@ -239,7 +292,8 @@ function goBack() { router.push('/mobile/tasks') }
 .tbf-tags { flex:1; display:flex; gap:4px; flex-wrap:wrap; align-items:center; }
 .tbf-tag { display:inline-flex; align-items:center; gap:2px; padding:2px 8px; background:#f0f0f0; border-radius:4px; font-size:12px; color:#333; }
 .tbf-tag-del { background:none; border:none; font-size:10px; color:#999; cursor:pointer; padding:0; margin-left:2px; }
-.task-bar-info { display:flex; gap:12px; font-size:12px; color:#999; flex-wrap:wrap; }
+.task-bar-info { display:grid; grid-template-columns:1fr 1fr; gap:4px 12px; font-size:12px; line-height:1.55; color:#777; }
+.task-bar-info > span { min-width:0; overflow-wrap:anywhere; }
 
 /* 检查项（仅查看） */
 .check-body { flex:1; min-height: 160px; display:flex; overflow:hidden; }
@@ -314,13 +368,7 @@ function goBack() { router.push('/mobile/tasks') }
 .photo-del { position:absolute; top:-4px; right:-4px; width:18px; height:18px; border-radius:50%; border:none; background:rgba(0,0,0,0.4); color:#fff; font-size:10px; cursor:pointer; }
 .photo-add { width:56px; height:56px; border:1.5px dashed #ddd; border-radius:8px; background:#fafafa; font-size:12px; color:#999; cursor:pointer; }
 
-.rectify-toggle-row { margin-bottom:8px; }
-.toggle-label { display:flex; align-items:center; gap:8px; font-size:13px; color:#666; cursor:pointer; }
-.toggle-btn { width:40px; height:22px; border-radius:11px; border:none; background:#ddd; cursor:pointer; position:relative; padding:0; }
-.toggle-btn.on { background:#8f0045; }
-.toggle-dot { position:absolute; top:2px; left:2px; width:18px; height:18px; border-radius:50%; background:#fff; transition:left 0.2s; box-shadow:0 1px 3px rgba(0,0,0,0.2); }
-.toggle-btn.on .toggle-dot { left:20px; }
-
+.rectify-required-tip { margin:8px 0; padding:7px 9px; border-radius:6px; background:#fff3e0; color:#b26a00; font-size:12px; }
 .rectify-fields { display:flex; flex-direction:column; gap:8px; padding-top:6px; border-top:1px solid #f0f0f0; }
 .rf-row { display:flex; align-items:center; gap:10px; }
 .rf-label { font-size:13px; color:#666; width:72px; flex-shrink:0; }

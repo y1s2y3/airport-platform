@@ -5,12 +5,13 @@ import { listMobileInspectionTasks } from '../../mock/mobileInspectionTasks'
 
 const router = useRouter()
 
+/** 直接读共享 reactive，提交后列表状态可即时刷新 */
 const tasks = computed(() => listMobileInspectionTasks())
 
 const activeTab = ref('全部')
 const searchKeyword = ref('')
 const sourceFilter = ref('')
-const typeFilter = ref('')
+const categoryFilter = ref('')
 const tabs = computed(() => {
   const counts = { '全部': tasks.value.length }
   for (const t of tasks.value) {
@@ -23,15 +24,13 @@ const filteredTasks = computed(() => {
   let list = tasks.value
   if (activeTab.value !== '全部') list = list.filter(t => t.status === activeTab.value)
   if (sourceFilter.value) list = list.filter(t => t.source === sourceFilter.value)
-  if (typeFilter.value) list = list.filter(t => t.planType && (t.planType === typeFilter.value || t.planType.startsWith(typeFilter.value)))
+  if (categoryFilter.value) list = list.filter(t => t.inspectionCategory === categoryFilter.value)
   if (searchKeyword.value.trim()) {
     const kw = searchKeyword.value.trim()
-    list = list.filter(t => t.taskNo.includes(kw) || t.planName.includes(kw) || t.project.includes(kw))
+    list = list.filter(t => t.taskNo.includes(kw) || (t.taskName || '').includes(kw) || t.project.includes(kw))
   }
   return list
 })
-
-const typeTagMap = { '周检': '#f5a623', '月检': '#4285f4', '专项': '#e53935', '专项巡检': '#e53935' }
 
 function goExecute(id) { router.push(`/mobile/tasks/${id}/execute`) }
 function goDetail(id) { router.push(`/mobile/tasks/${id}`) }
@@ -61,14 +60,13 @@ function goBack() { router.push('/') }
       <input v-model="searchKeyword" class="m-search-input" placeholder="搜索编号/名称/项目..." />
       <div class="m-source-chips">
         <button class="m-chip" :class="{ active: sourceFilter === '' }" @click="sourceFilter = ''">全部</button>
-        <button class="m-chip push" :class="{ active: sourceFilter === '任务推送' }" @click="sourceFilter = '任务推送'">任务推送</button>
+        <button class="m-chip push" :class="{ active: sourceFilter === '任务下发' }" @click="sourceFilter = '任务下发'">任务下发</button>
         <button class="m-chip self" :class="{ active: sourceFilter === '系统自建' }" @click="sourceFilter = '系统自建'">系统自建</button>
       </div>
       <div class="m-type-chips">
-        <button class="m-chip" :class="{ active: typeFilter === '' }" @click="typeFilter = ''">全部类型</button>
-        <button class="m-chip" :class="{ active: typeFilter === '周检' }" @click="typeFilter = '周检'">周检</button>
-        <button class="m-chip" :class="{ active: typeFilter === '月检' }" @click="typeFilter = '月检'">月检</button>
-        <button class="m-chip" :class="{ active: typeFilter === '专项巡检' }" @click="typeFilter = '专项巡检'">专项巡检</button>
+        <button class="m-chip" :class="{ active: categoryFilter === '' }" @click="categoryFilter = ''">全部分类</button>
+        <button class="m-chip" :class="{ active: categoryFilter === '安全' }" @click="categoryFilter = '安全'">安全</button>
+        <button class="m-chip" :class="{ active: categoryFilter === '质量' }" @click="categoryFilter = '质量'">质量</button>
       </div>
     </div>
 
@@ -85,19 +83,16 @@ function goBack() { router.push('/') }
           <div class="m-task-info">
             <div class="m-task-name-row">
               <span class="m-task-name">{{ task.taskNo }}</span>
-              <span class="m-task-source" style="font-size:10px;padding:1px 5px;border-radius:3px" :style="{ background: task.source==='任务推送'?'#e8f0fe':'#fceef4', color: task.source==='任务推送'?'#4285f4':'#8f0045' }">{{ task.source }}</span>
+              <span class="m-task-source" style="font-size:10px;padding:1px 5px;border-radius:3px" :style="{ background: task.source==='任务下发'?'#e8f0fe':'#fceef4', color: task.source==='任务下发'?'#4285f4':'#8f0045' }">{{ task.source }}</span>
               <span v-if="task.overdue" class="m-overdue-badge">⚠ 已逾期</span>
             </div>
             <span class="m-task-project">{{ task.project }}</span>
-            <div v-if="task.source==='任务推送'" style="display:flex;gap:6px;font-size:11px;color:#999;margin-top:2px">
-              <span>{{ task.planName }}</span>
-              <span v-if="task.planNo">· {{ task.planNo }}</span>
-            </div>
+            <div v-if="task.taskName" style="font-size:11px;color:#666;margin-top:2px">{{ task.taskName }}</div>
             <span v-if="task.hasRectify" class="m-rectify-badge">📋 已发整改单</span>
           </div>
         </div>
         <div class="m-task-mid">
-          <span class="m-type-tag" :style="{ background: typeTagMap[task.planType] + '20', color: typeTagMap[task.planType] }">{{ task.planType }}</span>
+          <span class="m-type-tag" :style="{ background: task.inspectionCategory === '质量' ? '#fff3e0' : '#e8f5e9', color: task.inspectionCategory === '质量' ? '#e67e22' : '#34a853' }">{{ task.inspectionCategory }}</span>
           <span class="m-task-status-label" :style="{ color: task.status === '待执行' ? '#f5a623' : '#34a853' }">{{ task.status === '待执行' ? '待执行' : '已完成' }}</span>
         </div>
         <div class="m-task-bottom">

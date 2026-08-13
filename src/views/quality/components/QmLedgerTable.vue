@@ -77,11 +77,6 @@ function viewProjectDetail(row) {
       <el-table-column label="整改完成率" width="100" align="center">
         <template #default="{ row }">{{ row.rectifyCompleteRate }}%</template>
       </el-table-column>
-      <el-table-column label="计划延期" width="96" align="center">
-        <template #default="{ row }">
-          <span :class="{ 'num-danger': row.planOverdueCount > 0 }">{{ row.planOverdueCount }}</span>
-        </template>
-      </el-table-column>
       <el-table-column label="整改延期" width="96" align="center">
         <template #default="{ row }">
           <span :class="{ 'num-danger': row.rectifyOverdueCount > 0 }">{{ row.rectifyOverdueCount }}</span>

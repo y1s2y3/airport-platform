@@ -479,7 +479,7 @@ function openCellFullscreen(device) {
           </div>
         </div>
         <div class="panel-body grid-body">
-          <div class="device-grid grid-3x3">
+          <div class="device-grid grid-3x3 grid-screen">
             <div
               v-for="(device, idx) in gridSlots"
               :key="device ? device.id : `empty-${idx}`"
@@ -518,17 +518,6 @@ function openCellFullscreen(device) {
                     <button
                       type="button"
                       class="cell-ctrl-btn"
-                      :class="{ active: getCellState(device.id).muted }"
-                      :title="getCellState(device.id).muted ? '开启声音' : '静音'"
-                      @click.stop="toggleCellMute(device.id)"
-                    >
-                      <el-icon :size="13">
-                        <component :is="getCellState(device.id).muted ? Mute : Microphone" />
-                      </el-icon>
-                    </button>
-                    <button
-                      type="button"
-                      class="cell-ctrl-btn"
                       :class="{ active: !getCellState(device.id).videoOn }"
                       :title="getCellState(device.id).videoOn ? '关闭画面' : '开启画面'"
                       @click.stop="toggleCellVideo(device.id)"
@@ -544,14 +533,6 @@ function openCellFullscreen(device) {
                       @click.stop="openCellSnapshot(device)"
                     >
                       <el-icon :size="13"><Camera /></el-icon>
-                    </button>
-                    <button
-                      type="button"
-                      class="cell-ctrl-btn"
-                      title="全屏查看"
-                      @click.stop="openCellFullscreen(device)"
-                    >
-                      <el-icon :size="13"><FullScreen /></el-icon>
                     </button>
                   </div>
                 </div>
@@ -645,6 +626,27 @@ function openCellFullscreen(device) {
                     <span class="status-tag" :class="isJoined(device) ? 'joined' : 'absent'">
                       {{ isJoined(device) ? '已参会' : '未参会' }}
                     </span>
+                    <div v-if="isJoined(device)" class="device-row-actions">
+                      <button
+                        type="button"
+                        class="device-act-btn"
+                        :class="{ active: getCellState(device.id).muted }"
+                        :title="getCellState(device.id).muted ? '开启声音' : '静音'"
+                        @click.stop="toggleCellMute(device.id)"
+                      >
+                        <el-icon :size="13">
+                          <component :is="getCellState(device.id).muted ? Mute : Microphone" />
+                        </el-icon>
+                      </button>
+                      <button
+                        type="button"
+                        class="device-act-btn"
+                        title="全屏查看"
+                        @click.stop="openCellFullscreen(device)"
+                      >
+                        <el-icon :size="13"><FullScreen /></el-icon>
+                      </button>
+                    </div>
                     <button
                       v-if="!isJoined(device)"
                       type="button"
@@ -936,11 +938,17 @@ function openCellFullscreen(device) {
   flex-direction: column;
 }
 
+/* 九宫格：一整块大画面，内部用分割线分格 */
 .device-grid {
   flex: 1;
   min-height: 0;
   display: grid;
-  gap: 8px;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--coc-border);
+  border-radius: 10px;
+  background: #1f2329;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
 }
 
 .grid-3x3 {
@@ -949,32 +957,46 @@ function openCellFullscreen(device) {
 }
 
 .grid-cell {
-  border: 1px solid var(--coc-border);
-  border-radius: 10px;
+  border: none;
+  border-radius: 0;
   overflow: hidden;
-  background: #f5f5f5;
+  background: #2a2a2a;
   display: flex;
   flex-direction: column;
   min-height: 0;
+  /* 内部分割线：右、下 */
+  box-shadow:
+    inset -1px 0 0 rgba(255, 255, 255, 0.14),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.14);
+}
+
+.grid-cell:nth-child(3n) {
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.14);
+}
+
+.grid-cell:nth-child(n + 7) {
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.14);
+}
+
+.grid-cell:nth-child(3n):nth-child(n + 7) {
+  box-shadow: none;
 }
 
 .grid-cell.empty {
-  border-style: dashed;
-  background: rgba(0, 0, 0, 0.02);
+  background: rgba(0, 0, 0, 0.28);
 }
 
 .grid-cell.joined {
-  border-color: rgba(103, 194, 58, 0.55);
+  background: #2a2a2a;
 }
 
-.grid-cell.host-cell {
-  border-color: rgba(201, 123, 99, 0.75);
-  box-shadow: 0 0 0 1px rgba(201, 123, 99, 0.15);
+/* 主持人 / 发言态：内描边，不破坏整屏分割线 */
+.grid-cell.host-cell .cell-video {
+  box-shadow: inset 0 0 0 2px rgba(201, 123, 99, 0.9);
 }
 
-.grid-cell.speaking:not(.host-cell) {
-  border-color: rgba(64, 158, 255, 0.75);
-  box-shadow: 0 0 0 1px rgba(64, 158, 255, 0.18);
+.grid-cell.speaking:not(.host-cell) .cell-video {
+  box-shadow: inset 0 0 0 2px rgba(64, 158, 255, 0.9);
 }
 
 .host-director-badge {
@@ -1074,14 +1096,15 @@ function openCellFullscreen(device) {
   justify-content: flex-end;
   gap: 8px;
   padding: 6px 8px;
-  background: rgba(255, 255, 255, 0.96);
+  background: rgba(20, 22, 26, 0.92);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
   flex-shrink: 0;
 }
 
 .cell-name {
   font-size: calc(11px + var(--coc-font-boost));
   font-weight: 600;
-  color: var(--coc-text);
+  color: rgba(255, 255, 255, 0.92);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1091,7 +1114,7 @@ function openCellFullscreen(device) {
 .cell-project {
   font-size: calc(10px + var(--coc-font-boost));
   font-weight: 600;
-  color: var(--coc-accent);
+  color: rgba(201, 123, 99, 0.95);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1277,5 +1300,35 @@ function openCellFullscreen(device) {
 .call-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.device-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-left: 2px;
+}
+
+.device-act-btn {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--coc-border);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--coc-text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.device-act-btn:hover,
+.device-act-btn.active {
+  border-color: var(--coc-accent);
+  color: var(--coc-accent);
+  background: rgba(201, 123, 99, 0.1);
 }
 </style>

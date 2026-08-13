@@ -190,7 +190,7 @@ function toggleEnabled(row) {
 <template>
   <div class="page">
     <div class="page-head">
-      <h3 class="page-title">登记进场设备</h3>
+      <h3 class="page-title">{{ isHqSelected ? '机械设备台账' : '登记进场设备' }}</h3>
       <span class="total-count">{{ isHqSelected ? `共 ${hqTotalStats.totalCount} 台` : `共 ${filteredData.length} 条` }}</span>
     </div>
 

@@ -1,5 +1,7 @@
 /**
- * 质量验评 · 状态机与业务操作 — 对齐 PRD §5.2.1 / data-model V1.16 不变量
+ * 质量验评 · 状态机与业务操作 — 对齐 data-model-for-验评 V2.3.1 不变量
+ * C1 档案登记=用户主动；C2 节点级拦截；C5 附件默认必填；C6 通过前档案签章实时校验；
+ * C7 状态以档案为准（退回先写档案）；D2 审批链快照锁定；D3 逐级解锁；D4 整改=驳回结果
  * 禁止后端；仅内存 Mock
  */
 import {
@@ -12,11 +14,17 @@ import {
   NODE_TYPE_LABEL,
   nowStr,
   resolveProjectName,
-  WBS_TREE_NODE_TYPES,
+  WBS_EDITABLE_NODE_TYPES,
+  WBS_SYSTEM_NODE_TYPES,
+  ensureWbsScaffold,
+  getCompleteRootNode,
+  getEntityRootNode,
+  getSpecialRootNode,
   rectificationOrders,
   reinspectRounds,
   wbsNodes,
 } from './qmInspect.js'
+import { joinLocationLabels } from './constructionLocation.js'
 import {
   batchTypeForms,
   defaultMaterialBinds,
@@ -27,7 +35,25 @@ import {
 } from './qmFormTemplates.js'
 
 import { attachments as attachStore, signatureRecords } from './qmAttachments.js'
-import { missingSpecialRequiredDocs } from './qmSpecialTypes.js'
+import {
+  archiveWriteFinish,
+  archiveWriteReject,
+  archiveWriteReinspect,
+  checkArchiveBlock,
+  getArchiveChain,
+  getLatestRejectRecord,
+  realtimeCheckArchiveSign,
+  RECTIFY_ARCHIVE_DOC_STATUS,
+} from './qmArchive.js'
+import { QM_APPROVER_CANDIDATES } from './qmApproverConfig.js'
+import {
+  canSubmitByElecArchive,
+  findActiveTaskOnNode,
+  getApprovalPostForNodeType,
+  listApproverCandidatesForNodeType,
+  nodeRequiredDocsEmpty,
+  refreshTaskElecArchiveStatus,
+} from './qmInspectV2.js'
 
 export const ARCHIVE_STATUS = {
   0: '未归档',
@@ -64,32 +90,120 @@ export const JUDGE_RESULT = { 0: '待判定', 1: '合格', 2: '不合格', 3: '�
 export const SELF_CHECK = { 0: '未自检', 1: '自检合格', 2: '自检不合格' }
 export const PLAN_TYPE = { 1: '实体验收', 2: '专项验收', 3: '竣工验收' }
 
-/** 按 task_type 的审批链角色序列 */
+/**
+ * 审批链：已配置手动流程 → 用手动级名称；否则回落档案回传链（兼容旧任务）。
+ */
 export function getApprovalChain(task) {
-  const base = {
-    1: ['监理'],
-    2: ['监理'],
-    3: ['监理'],
-    4: ['监理', '建设单位'],
-    5: ['监理', '勘察', '设计', '建设单位', '指挥长'],
-    6: ['监理', '建设单位'],
-    7: ['监理', '建设单位', '指挥长'],
-    8: ['监理', '勘察', '设计', '建设单位', '指挥长'],
+  const manual = getManualFlowNodes(task)
+  if (manual.length) return manual.map((n) => n.label)
+  return getArchiveChain(task)
+}
+
+/** 是否已用本系统手动审批链驱动（有配置级即走手动会签/或签） */
+export function usesManualApprovalFlow(task) {
+  return getManualFlowNodes(task).length > 0
+}
+
+/** 手动审批方式文案 */
+export const MANUAL_APPROVAL_MODE = { countersign: '会签', orsign: '或签' }
+
+export function defaultManualLevelLabel(level) {
+  const names = ['', '一级审批人', '二级审批人', '三级审批人', '四级审批人', '五级审批人']
+  return names[level] || `第${level}级审批人`
+}
+
+export function getManualApprovalFlow(task) {
+  return Array.isArray(task?.manual_approval_flow) ? task.manual_approval_flow : []
+}
+
+export function getManualFlowNodes(task) {
+  return getManualApprovalFlow(task)
+    .slice()
+    .sort((a, b) => Number(a.level) - Number(b.level))
+    .map((n, idx) => {
+      const level = Number(n.level) || idx + 1
+      return {
+        ...n,
+        level,
+        label: n.label || defaultManualLevelLabel(level),
+        role: n.role || '',
+        approver_ids: Array.isArray(n.approver_ids) ? n.approver_ids : [],
+        need_seal: Number(n.need_seal) === 1 ? 1 : 0,
+        cc_ids: Array.isArray(n.cc_ids) ? n.cc_ids : [],
+        mode: n.mode === 'orsign' ? 'orsign' : 'countersign',
+      }
+    })
+}
+
+export function validateManualApprovalFlow(flow) {
+  if (!Array.isArray(flow) || !flow.length) {
+    return { ok: false, msg: '请先配置至少一级审批人' }
   }
-  const chain = [...(base[task.task_type] || ['监理'])]
-  if (task.task_type === 1 && task.owner_final_required === 1) {
-    chain.push('业主/总监')
+  for (const raw of flow) {
+    const label = raw.label || defaultManualLevelLabel(raw.level)
+    if (!raw.role) {
+      return { ok: false, msg: `「${label}」请选择岗位` }
+    }
+    if (!Array.isArray(raw.approver_ids) || !raw.approver_ids.length) {
+      return { ok: false, msg: `「${label}」请至少选择一名审批人` }
+    }
   }
-  return chain
+  return { ok: true }
+}
+
+export function getLevelPassRecords(task_id, label) {
+  return approvalRecords.filter(
+    (r) => r.task_id === task_id && r.action === 2 && r.operator_role === label,
+  )
+}
+
+export function isManualLevelDone(task, node) {
+  if (!node) return true
+  const passedIds = getLevelPassRecords(task.id, node.label).map((r) => r.operator_id)
+  if (node.mode === 'orsign') {
+    return node.approver_ids.some((id) => passedIds.includes(id))
+  }
+  return node.approver_ids.every((id) => passedIds.includes(id))
+}
+
+export function getCurrentManualNode(task) {
+  for (const node of getManualFlowNodes(task)) {
+    if (!isManualLevelDone(task, node)) return node
+  }
+  return null
+}
+
+export function getManualLevelProgress(task, node) {
+  if (!task || !node) return { passed: 0, total: 0, mode: 'countersign' }
+  const passedIds = new Set(getLevelPassRecords(task.id, node.label).map((r) => r.operator_id))
+  const passed = node.approver_ids.filter((id) => passedIds.has(id)).length
+  return { passed, total: node.approver_ids.length, mode: node.mode }
+}
+
+export function resolveApproverName(userId) {
+  return QM_APPROVER_CANDIDATES.find((u) => u.id === userId)?.name || userId || '—'
 }
 
 export function getPassedApprovalRoles(task_id) {
+  const task = inspectionTasks.find((t) => t.id === task_id)
+  if (task && usesManualApprovalFlow(task)) {
+    const done = []
+    for (const node of getManualFlowNodes(task)) {
+      if (isManualLevelDone(task, node)) done.push(node.label)
+      else break
+    }
+    return done
+  }
   return approvalRecords
     .filter((r) => r.task_id === task_id && r.action === 2)
     .map((r) => r.operator_role)
 }
 
 export function getNextApprovalRole(task) {
+  if (usesManualApprovalFlow(task)) {
+    const node = getCurrentManualNode(task)
+    return node ? node.label : null
+  }
   const chain = getApprovalChain(task)
   const passed = getPassedApprovalRoles(task.id)
   for (const role of chain) {
@@ -98,11 +212,31 @@ export function getNextApprovalRole(task) {
   return null
 }
 
+/**
+ * 将任务状态同步到 WBS 节点验收状态。
+ * - 草稿（is_draft=1）不产生节点副作用
+ * - 同一节点多任务时按正式任务聚合，避免后写覆盖已通过状态
+ */
 export function syncNodeAccept(task) {
+  if (!task || Number(task.is_draft) === 1) return
   const node = wbsNodes.find((n) => n.id === task.wbs_node_id)
   if (!node) return
-  const map = { 0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5 }
-  node.accept_status = map[task.status] ?? node.accept_status
+
+  const formal = inspectionTasks.filter(
+    (t) => t.wbs_node_id === node.id && Number(t.is_draft) !== 1,
+  )
+  if (!formal.length) return
+
+  // 优先级：通过 > 验评中 > 待复验 > 整改中 > 不通过 > 待验评
+  let next = 0
+  if (formal.some((t) => Number(t.status) === 2)) next = 2
+  else if (formal.some((t) => Number(t.status) === 1)) next = 1
+  else if (formal.some((t) => Number(t.status) === 5)) next = 5
+  else if (formal.some((t) => Number(t.status) === 4)) next = 4
+  else if (formal.some((t) => Number(t.status) === 3)) next = 3
+  else next = 0
+
+  node.accept_status = next
   node.updated_at = nowStr()
 }
 
@@ -127,7 +261,7 @@ export function hasOnlyGeneralFail(task_id) {
   return hasGeneralFail && !hasBlockFailItems(task_id)
 }
 
-function missingPhotoItems(task_id) {
+export function missingPhotoItems(task_id) {
   const items = getItemsByTaskId(task_id).filter((i) => i.need_photo === 1)
   return items.filter((i) => {
     const atts = getAttachments('ITEM', i.id)
@@ -188,26 +322,51 @@ export function refreshPlanStatus(plan_id) {
   plan.status = 1
 }
 
-/** 上级报验解锁：下级 accept_status 须全部通过 */
+/**
+ * 上级报验解锁（D3 沿用 V1.16）：下级 accept_status 须全部通过。
+ * - node_type 9「实体工程验收」、10「专项验收」：仅目录分类，不可发起验收。
+ * - 专项叶子（7）与检验批（6）可直接发起。
+ */
 export function checkUnlock(node) {
   if (!node) return { ok: false, msg: '节点不存在' }
   if (node.node_type === 6) return { ok: true }
+  if (node.node_type === 7) return { ok: true }
 
+  // 「实体工程验收」「专项验收」仅为分类文件夹，不在此节点做验收
+  if (node.node_type === 9) {
+    return {
+      ok: false,
+      msg: '「实体工程验收」仅为目录分类，不可发起验收；请选择单位工程及以下节点',
+    }
+  }
+  if (node.node_type === 10) {
+    return {
+      ok: false,
+      msg: '「专项验收」仅为目录分类，不可发起验收；请选择消防、人防等专项节点',
+    }
+  }
+
+  // 竣工根：全部单位工程 + 全部专项节点通过
   if (node.node_type === 8) {
+    ensureWbsScaffold(node.project_id)
     const units = wbsNodes.filter((n) => n.project_id === node.project_id && n.node_type === 1)
     const specials = wbsNodes.filter((n) => n.project_id === node.project_id && n.node_type === 7)
     const missU = units.filter((n) => n.accept_status !== 2)
     const missS = specials.filter((n) => n.accept_status !== 2)
+    if (!units.length) {
+      return { ok: false, msg: '实体工程验收下尚无单位工程，不可发起竣工验收' }
+    }
+    if (!specials.length) {
+      return { ok: false, msg: '专项验收下尚无专项节点，请先维护消防/人防等专项节点' }
+    }
     if (missU.length || missS.length) {
       return {
         ok: false,
-        msg: `竣工双满足未齐：单位工程缺 ${missU.map((n) => n.node_name).join('、') || '无'}；专项缺 ${missS.map((n) => n.node_name).join('、') || '无'}`,
+        msg: `竣工前置未齐：单位工程缺 ${missU.map((n) => n.node_name).join('、') || '无'}；专项缺 ${missS.map((n) => n.node_name).join('、') || '无'}`,
       }
     }
     return { ok: true }
   }
-
-  if (node.node_type === 7) return { ok: true }
 
   const childTypeMap = {
     5: 6,
@@ -308,15 +467,36 @@ export function createTask({
   project_id,
   wbs_node_id,
   plan_id = '',
+  task_name = '',
+  location_name = '',
+  location_id = '',
+  location_ids = [],
+  is_hidden_work,
   remark = '',
   contractor_org_id = 'org-sg-01',
   supervisor_org_id = 'org-jl-01',
+  need_archive,
+  related_reject_id = '',
 }) {
   const node = wbsNodes.find((n) => n.id === wbs_node_id)
   if (!node) return { ok: false, msg: '验评节点不存在' }
+  if (Number(node.node_type) === 9) {
+    return { ok: false, msg: '「实体工程验收」仅为目录分类，不可发起验收；请选择单位工程及以下节点' }
+  }
+  if (Number(node.node_type) === 10) {
+    return { ok: false, msg: '「专项验收」仅为目录分类，不可发起验收；请选择消防、人防等专项节点' }
+  }
 
   const unlock = checkUnlock(node)
   if (!unlock.ok) return unlock
+
+  const active = findActiveTaskOnNode(wbs_node_id)
+  if (active) {
+    return {
+      ok: false,
+      msg: `该验收节点已有有效验收单（${active.task_no || active.id}），一节点仅允许一张有效单；已驳回单可并存`,
+    }
+  }
 
   if (node.node_type === 6) {
     if (!node.batch_type_id) return { ok: false, msg: '检验批节点须绑定检验批类型' }
@@ -325,9 +505,6 @@ export function createTask({
   } else if ([3, 4, 5].includes(node.node_type) && !node.form_template_id) {
     return { ok: false, msg: `${NODE_TYPE_LABEL[node.node_type]}节点须绑定表单模板` }
   }
-
-  const active = inspectionTasks.find((t) => t.wbs_node_id === wbs_node_id && t.status !== 2)
-  if (active) return { ok: false, msg: '该节点已有有效验评任务（一节点一有效任务）' }
 
   const task_type = NODE_TO_TASK_TYPE[node.node_type]
   if (!task_type) return { ok: false, msg: '任务类型与节点类型映射不存在' }
@@ -351,10 +528,23 @@ export function createTask({
         ? 1
         : 0
 
+  const docsEmpty = nodeRequiredDocsEmpty(wbs_node_id)
+  let needArchiveFlag = docsEmpty ? 0 : need_archive === undefined ? 1 : Number(need_archive) === 1 ? 1 : 0
+  if (docsEmpty) needArchiveFlag = 0
+
+  const locIds = Array.isArray(location_ids)
+    ? location_ids.map(String).filter(Boolean)
+    : location_id
+      ? [String(location_id)]
+      : []
+  const locName =
+    String(location_name || '').trim() || joinLocationLabels(locIds) || ''
+
   const id = `tk-${Date.now()}`
   const task = {
     id,
     task_no: `YS-2026-${String(inspectionTasks.length + 1).padStart(3, '0')}`,
+    task_name: task_name || node.node_name,
     project_id: project_id || node.project_id,
     wbs_node_id,
     plan_id: plan_id || '',
@@ -362,14 +552,21 @@ export function createTask({
     parent_task_id: '',
     task_type,
     specialty: node.specialty || '',
-    location_name: node.location_code || node.node_name,
+    location_name: locName,
+    location_id: locIds[0] || String(location_id || '').trim() || '',
+    location_ids: locIds,
     form_template_id,
     form_data: {},
     batch_type_id,
     status: 0,
     result: 0,
     self_check_result: null,
-    is_hidden_work: node.is_hidden_work || 0,
+    is_hidden_work:
+      is_hidden_work === undefined || is_hidden_work === null || is_hidden_work === ''
+        ? node.is_hidden_work || 0
+        : Number(is_hidden_work) === 1
+          ? 1
+          : 0,
     first_pass_flag: null,
     reinspect_count: 0,
     current_rectify_id: '',
@@ -381,20 +578,33 @@ export function createTask({
     finish_time: '',
     archive_status: 0,
     archive_pkg_no: '',
+    archive_instance_id: '',
+    is_draft: 0,
+    need_archive: needArchiveFlag,
+    elec_archive_status: 0,
+    related_reject_id: related_reject_id || '',
+    approval_post_id: '',
+    approval_post_name: '',
+    approver_id: '',
+    approver_name: '',
     owner_final_required,
     remark: remark || '',
+    manual_approval_flow: [],
     created_by: 'u-sg-01',
     created_at: nowStr(),
     updated_by: 'u-sg-01',
     updated_at: nowStr(),
   }
+  if (node.node_type === 7) {
+    task.special_type = node.special_type || ''
+  }
+  refreshTaskElecArchiveStatus(task)
 
   inspectionTasks.unshift(task)
   instantiateItems(task)
 
   if (plan_id) {
     const plan = acceptancePlans.find((p) => p.id === plan_id)
-    // 一计划可挂多任务：未开始/进行中均可继续发起
     if (plan && [1, 2].includes(plan.status)) {
       if (plan.status === 1) plan.status = 2
       refreshPlanStatus(plan_id)
@@ -427,6 +637,103 @@ export function setSelfCheck(task, self_check_result) {
   return { ok: true }
 }
 
+/**
+ * 保存草稿（§5.1）：is_draft=1，不计正式任务数、不产生节点状态副作用；
+ * 草稿与档案登记互不影响（C1：可以先登记档案再存草稿，也可反向）
+ */
+export function saveTaskDraft(task, patch = {}) {
+  // V2：待提交(status=0)可保存填报内容；不再强制 is_draft=1
+  if (Number(task.status) !== 0) {
+    return { ok: false, msg: '仅待提交任务可保存填报' }
+  }
+  if (patch.remark !== undefined) task.remark = String(patch.remark || '')
+  if (patch.task_name !== undefined) {
+    const name = String(patch.task_name || '').trim()
+    if (!name) return { ok: false, msg: '请填写任务名称' }
+    task.task_name = name
+  }
+  if (patch.location_name !== undefined) task.location_name = String(patch.location_name || '')
+  if (patch.location_id !== undefined) task.location_id = String(patch.location_id || '')
+  if (patch.location_ids !== undefined) {
+    task.location_ids = Array.isArray(patch.location_ids)
+      ? patch.location_ids.map(String).filter(Boolean)
+      : []
+    if (!task.location_id && task.location_ids[0]) task.location_id = task.location_ids[0]
+  }
+  if (patch.is_hidden_work !== undefined) {
+    task.is_hidden_work = Number(patch.is_hidden_work) === 1 ? 1 : 0
+  }
+  if (patch.wbs_node_id !== undefined) {
+    const newId = String(patch.wbs_node_id || '').trim()
+    if (!newId) return { ok: false, msg: '请选择验收节点' }
+    if (newId !== task.wbs_node_id) {
+      const node = wbsNodes.find((n) => n.id === newId)
+      if (!node) return { ok: false, msg: '验评节点不存在' }
+      if (Number(node.node_type) === 9) {
+        return { ok: false, msg: '「实体工程验收」仅为目录分类，不可发起验收；请选择单位工程及以下节点' }
+      }
+      if (Number(node.node_type) === 10) {
+        return { ok: false, msg: '「专项验收」仅为目录分类，不可发起验收；请选择消防、人防等专项节点' }
+      }
+      const isSpecialTask = Number(task.task_type) === 6
+      if (isSpecialTask) {
+        if (Number(node.node_type) !== 7) {
+          return { ok: false, msg: '专项验收任务请选择专项目录下的专项节点（消防/人防等）' }
+        }
+      } else if (![1, 2, 3, 4, 5, 6].includes(Number(node.node_type))) {
+        return { ok: false, msg: '实体工程验收请选择单位工程及以下节点' }
+      }
+      const unlock = checkUnlock(node)
+      if (!unlock.ok) return unlock
+      const active = findActiveTaskOnNode(newId, task.id)
+      if (active) {
+        return {
+          ok: false,
+          msg: `该验收节点已有有效验收单（${active.task_no || active.id}），一节点仅允许一张有效单`,
+        }
+      }
+      const task_type = NODE_TO_TASK_TYPE[node.node_type]
+      if (!task_type) return { ok: false, msg: '任务类型与节点类型映射不存在' }
+      if (node.node_type === 6) {
+        if (!node.batch_type_id) return { ok: false, msg: '检验批节点须绑定检验批类型' }
+      } else if ([3, 4, 5].includes(node.node_type) && !node.form_template_id) {
+        return { ok: false, msg: `${NODE_TYPE_LABEL[node.node_type]}节点须绑定表单模板` }
+      }
+      task.wbs_node_id = newId
+      task.task_type = task_type
+      task.specialty = node.specialty || task.specialty || ''
+      task.batch_type_id = node.batch_type_id || ''
+      task.form_template_id = node.form_template_id || task.form_template_id || ''
+      if (node.node_type === 7) {
+        task.special_type = node.special_type || task.special_type || ''
+      }
+      if (patch.is_hidden_work === undefined) {
+        task.is_hidden_work = Number(node.is_hidden_work) === 1 ? 1 : 0
+      }
+      task.owner_final_required =
+        task_type === 1
+          ? node.is_critical === 1
+            ? 1
+            : 0
+          : [4, 5, 7, 8].includes(task_type)
+            ? 1
+            : 0
+    }
+  }
+  if (patch.need_archive !== undefined) {
+    const docsEmpty = nodeRequiredDocsEmpty(task.wbs_node_id)
+    task.need_archive = docsEmpty ? 0 : Number(patch.need_archive) === 1 ? 1 : 0
+  }
+  if (patch.form_data) task.form_data = JSON.parse(JSON.stringify(patch.form_data))
+  if (patch.manual_approval_flow !== undefined) {
+    task.manual_approval_flow = JSON.parse(JSON.stringify(patch.manual_approval_flow || []))
+  }
+  task.is_draft = 0
+  task.updated_at = nowStr()
+  refreshTaskElecArchiveStatus(task)
+  return { ok: true }
+}
+
 function extFromName(name = '') {
   const i = String(name).lastIndexOf('.')
   return i >= 0 ? String(name).slice(i + 1).toLowerCase() : 'jpg'
@@ -444,12 +751,17 @@ export function addAttachment(row) {
     const rectify = rectificationOrders.find((o) => o.id === row.biz_id)
     task_id = rectify?.source_task_id || ''
   }
+  const file_category = row.file_category || 1
+  if (biz_type === 'TASK' && Number(file_category) === 3 && task_id) {
+    const docs = getAttachments('TASK', task_id).filter((a) => Number(a.file_category) === 3)
+    if (docs.length >= 30) return { ok: false, msg: '附件最多 30 个' }
+  }
   const att = {
     id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
     biz_type,
     biz_id: row.biz_id,
     task_id,
-    file_category: row.file_category || 1,
+    file_category,
     file_name,
     file_ext,
     file_url: row.file_url || `#mock-file/${Date.now()}.${file_ext}`,
@@ -463,7 +775,6 @@ export function addAttachment(row) {
     upload_time: nowStr(),
     archive_file_code: row.archive_file_code || '',
     is_required_met: row.is_required_met ?? 1,
-    /** 专项必传资料槽位（如 fire_design） */
     doc_slot: row.doc_slot || '',
   }
   attachStore.unshift(att)
@@ -478,34 +789,56 @@ export function removeAttachment(id) {
   return { ok: true }
 }
 
-/** 提交报验：0→1 */
-export function submitInspect(task) {
-  if (task.status !== 0) return { ok: false, msg: '仅待验评可提交报验' }
-  if (task.self_check_result !== 1) return { ok: false, msg: '自检未合格，禁止提交报验' }
-  const miss = missingPhotoItems(task.id)
-  if (miss.length) {
-    return {
-      ok: false,
-      msg: `必填影像缺失：${miss.map((i) => i.item_name).join('、')}`,
-    }
+/**
+ * 提交报验：待提交(0)→验评中(1)
+ * 闸门：工程影像≥1、附件≤30、电子档案状态、已选审批人
+ */
+export function submitInspect(task, { approver_id } = {}) {
+  if (Number(task.status) !== 0) return { ok: false, msg: '仅待提交可提交报验' }
+  refreshTaskElecArchiveStatus(task)
+  if (!canSubmitByElecArchive(task)) {
+    return { ok: false, msg: '电子档案状态为「未完成」时不可提交验收' }
   }
-  if (Number(task.task_type) === 6) {
-    const missDocs = missingSpecialRequiredDocs(task, getAttachments('TASK', task.id))
-    if (missDocs.length) {
-      return {
-        ok: false,
-        msg: `专项必传资料未齐：${missDocs.map((d) => d.label).join('、')}`,
-      }
-    }
-  }
-  const pending = getItemsByTaskId(task.id).filter(
-    (i) => i.is_required === 1 && i.judge_result === 0,
+  const siteMedia = getAttachments('TASK', task.id).filter((a) =>
+    [1, 2].includes(Number(a.file_category)),
   )
-  if (pending.length) {
-    return { ok: false, msg: `仍有未判定检查项：${pending.map((i) => i.item_name).join('、')}` }
+  if (!siteMedia.length) {
+    return { ok: false, msg: '工程影像为必填，请至少上传一份现场图片或视频' }
+  }
+  const docs = getAttachments('TASK', task.id).filter((a) => Number(a.file_category) === 3)
+  if (docs.length > 30) {
+    return { ok: false, msg: '附件最多 30 个' }
   }
 
+  const node = wbsNodes.find((n) => n.id === task.wbs_node_id)
+  const post = getApprovalPostForNodeType(node?.node_type)
+  if (!post) return { ok: false, msg: '当前节点类型未配置审批岗位（流程中心）' }
+  const candidates = listApproverCandidatesForNodeType(node.node_type)
+  const aid = String(approver_id || task.approver_id || '').trim()
+  if (!aid) return { ok: false, msg: '请选择审批人' }
+  const person = candidates.find((u) => u.id === aid) || QM_APPROVER_CANDIDATES.find((u) => u.id === aid)
+  if (!person) return { ok: false, msg: '审批人不在该岗位候选人范围内' }
+
+  task.approval_post_id = post.approval_post_id
+  task.approval_post_name = post.approval_post_name
+  task.approver_id = person.id
+  task.approver_name = person.name
+  task.manual_approval_flow = [
+    {
+      level: 1,
+      role: post.approval_post_id,
+      role_label: post.approval_post_name,
+      label: post.approval_post_name,
+      approver_ids: [person.id],
+      approver_names: [person.name],
+      need_seal: 0,
+      cc_ids: [],
+      mode: 'or',
+    },
+  ]
+
   task.status = 1
+  task.is_draft = 0
   task.applicant_id = task.applicant_id || 'u-sg-01'
   task.submit_time = nowStr()
   task.updated_at = nowStr()
@@ -529,12 +862,69 @@ export function startInspect(task) {
   return submitInspect(task)
 }
 
-/** 审批通过（当前链节点） */
-export function approveStep(task, { opinion = '', operator_role } = {}) {
+/** 审批通过（当前链节点）— 档案链走 C6 签章校验；手动链走会签/或签，跳过 C6 */
+export function approveStep(task, { opinion = '', operator_role, operator_id } = {}) {
   if (task.status !== 1) return { ok: false, msg: '仅验评中可审批' }
   if (hasBlockFailItems(task.id)) {
     return { ok: false, msg: '存在主控或观感不合格项，禁止办结通过' }
   }
+
+  if (usesManualApprovalFlow(task)) {
+    const node = getCurrentManualNode(task)
+    if (!node) return { ok: false, msg: '审批链已完成' }
+    const label = node.label
+    if (operator_role && operator_role !== label) {
+      return { ok: false, msg: `当前应由「${label}」审批` }
+    }
+    const uid = operator_id || ''
+    if (!uid || !node.approver_ids.includes(uid)) {
+      return { ok: false, msg: '请选择本级审批人后再通过' }
+    }
+    if (getLevelPassRecords(task.id, label).some((r) => r.operator_id === uid)) {
+      return { ok: false, msg: '该审批人已完成本级审批' }
+    }
+
+    const who = resolveApproverName(uid)
+    approvalRecords.push({
+      id: `ar-${Date.now()}`,
+      task_id: task.id,
+      node_name: label,
+      action: 2,
+      operator_id: uid,
+      operator_role: label,
+      opinion: opinion || '',
+      action_time: nowStr(),
+    })
+    signatureRecords.push({
+      id: `sig-${Date.now()}`,
+      task_id: task.id,
+      signer_id: uid,
+      signer_role: label,
+      ca_cert_id: `CA-DEMO-${uid}`,
+      seal_id: '',
+      sign_file_id: '',
+      timestamp_token: '',
+      sign_time: nowStr(),
+    })
+
+    const stillNode = getCurrentManualNode(task)
+    if (!stillNode) {
+      task.status = 2
+      task.result = 1
+      if (task.first_pass_flag == null) task.first_pass_flag = 1
+      task.finish_time = nowStr()
+      task.reviewer_id = uid
+      archiveWriteFinish(task)
+      syncNodeAccept(task)
+      if (task.plan_id) refreshPlanStatus(task.plan_id)
+      return { ok: true, finished: true }
+    }
+    task.reviewer_id = uid
+    task.updated_at = nowStr()
+    void who
+    return { ok: true, finished: false, next: stillNode.label }
+  }
+
   const next = getNextApprovalRole(task)
   if (!next) return { ok: false, msg: '审批链已完成' }
   const role = operator_role || next
@@ -543,6 +933,10 @@ export function approveStep(task, { opinion = '', operator_role } = {}) {
   if (hasOnlyGeneralFail(task.id) && role === '监理' && !String(opinion || '').trim()) {
     return { ok: false, msg: '一般项目不合格仍通过时，须填写审批意见' }
   }
+
+  // C6：档案该级签章实时校验（节点有档案文件配置时强制）
+  const signCheck = realtimeCheckArchiveSign(task, role)
+  if (!signCheck.ok) return signCheck
 
   approvalRecords.push({
     id: `ar-${Date.now()}`,
@@ -574,6 +968,7 @@ export function approveStep(task, { opinion = '', operator_role } = {}) {
     if (task.first_pass_flag == null) task.first_pass_flag = 1
     task.finish_time = nowStr()
     task.reviewer_id = 'u-approve'
+    archiveWriteFinish(task) // C7：办结状态先落档案（已办结），再同步回本系统
     syncNodeAccept(task)
     if (task.plan_id) refreshPlanStatus(task.plan_id)
     return { ok: true, finished: true }
@@ -603,16 +998,17 @@ export function passTask(task, { opinion = '', operator_role = '监理' } = {}) 
   return { ok: true }
 }
 
-export function rejectTask(task, opinion, operator_role = '监理') {
-  if (task.status !== 1) return { ok: false, msg: '仅验评中可判定不通过' }
-  if (!String(opinion || '').trim()) return { ok: false, msg: '退回意见不能为空' }
+/** 驳回：验评中 → 已驳回（流程结束；意见必填） */
+export function rejectTask(task, opinion, operator_role = '审批人') {
+  if (Number(task.status) !== 1) return { ok: false, msg: '仅验评中可驳回' }
+  if (!String(opinion || '').trim()) return { ok: false, msg: '驳回意见不能为空' }
   approvalRecords.push({
     id: `ar-${Date.now()}`,
     task_id: task.id,
-    node_name: operator_role,
+    node_name: operator_role || task.approval_post_name || '审批人',
     action: 3,
-    operator_id: 'u-jl-01',
-    operator_role,
+    operator_id: task.approver_id || 'u-jl-01',
+    operator_role: operator_role || task.approval_post_name || '审批人',
     opinion: String(opinion).trim(),
     action_time: nowStr(),
   })
@@ -623,6 +1019,30 @@ export function rejectTask(task, opinion, operator_role = '监理') {
   syncNodeAccept(task)
   if (task.plan_id) refreshPlanStatus(task.plan_id)
   return { ok: true }
+}
+
+/** 已驳回重新申报：新建验收单并关联旧单 */
+export function reDeclareAcceptance(rejectedTask) {
+  if (!rejectedTask || Number(rejectedTask.status) !== 3) {
+    return { ok: false, msg: '仅已驳回验收单可重新申报' }
+  }
+  return createTask({
+    project_id: rejectedTask.project_id,
+    wbs_node_id: rejectedTask.wbs_node_id,
+    task_name: rejectedTask.task_name,
+    location_name: rejectedTask.location_name || '',
+    location_id: rejectedTask.location_id || '',
+    location_ids: Array.isArray(rejectedTask.location_ids)
+      ? [...rejectedTask.location_ids]
+      : rejectedTask.location_id
+        ? [rejectedTask.location_id]
+        : [],
+    is_hidden_work: rejectedTask.is_hidden_work,
+    need_archive: rejectedTask.need_archive,
+    related_reject_id: rejectedTask.id,
+    contractor_org_id: rejectedTask.contractor_org_id,
+    supervisor_org_id: rejectedTask.supervisor_org_id,
+  })
 }
 
 /** 退回重报：回待验评，不新开任务 */
@@ -636,14 +1056,20 @@ export function rollbackToDraft(task) {
   return { ok: true }
 }
 
+/**
+ * 生成整改（D4）：整改=审批驳回的结果，不存在单独「下发整改单」动作；
+ * 谁提交的验收流程谁来整改（responsible=任务提交人）；issuer_id 语义=驳回人（取最近一条驳回记录）
+ */
 export function createRectify(task, problem_desc) {
-  if (task.status !== 3) return { ok: false, msg: '仅不通过可发起整改' }
+  if (task.status !== 3) return { ok: false, msg: '仅不通过可生成整改（整改为审批驳回的结果）' }
   const open = rectificationOrders.find(
     (o) => o.source_task_id === task.id && o.status !== 3,
   )
   if (open) return { ok: false, msg: '已有未关闭整改单' }
   const desc = String(problem_desc || '').trim()
   if (!desc) return { ok: false, msg: '问题描述不能为空' }
+  const rejectRec = getLatestRejectRecord(task.id)
+  const now = nowStr()
   const id = `rc-${Date.now()}`
   const order = {
     id,
@@ -655,10 +1081,12 @@ export function createRectify(task, problem_desc) {
     responsible_org_id: task.contractor_org_id,
     responsible_user_id: task.applicant_id || '',
     measure: '',
-    deadline: '2026-07-31 18:00:00',
+    deadline: '2026-08-15 18:00:00',
     status: 0,
-    issuer_id: 'u-jl-01',
-    issue_time: nowStr(),
+    issuer_id: rejectRec?.operator_id || 'u-jl-01',
+    issue_time: rejectRec?.action_time || now,
+    status_changed_at: now,
+    archive_doc_status: RECTIFY_ARCHIVE_DOC_STATUS.REJECTED,
     round_count: 0,
     close_time: '',
     close_result: 0,
@@ -667,7 +1095,7 @@ export function createRectify(task, problem_desc) {
   task.current_rectify_id = id
   task.status = 4
   task.first_pass_flag = 0
-  task.updated_at = nowStr()
+  task.updated_at = now
   syncNodeAccept(task)
   if (task.plan_id) refreshPlanStatus(task.plan_id)
   return { ok: true, order }
@@ -678,7 +1106,10 @@ export function saveRectifyMeasure(order, measure) {
   if (![0, 1, 4].includes(order.status)) return { ok: false, msg: '当前整改单不可编辑措施' }
   if (!String(measure || '').trim()) return { ok: false, msg: '整改措施不能为空' }
   order.measure = String(measure).trim()
-  if (order.status === 0) order.status = 1
+  if (order.status === 0) {
+    order.status = 1
+    order.status_changed_at = nowStr()
+  }
   return { ok: true }
 }
 
@@ -693,6 +1124,9 @@ export function submitReinspectRequest(task) {
     return { ok: false, msg: '缺整改后影像（file_category=8），禁止提交复验' }
   }
   rectify.status = 2
+  rectify.status_changed_at = nowStr()
+  rectify.archive_doc_status = RECTIFY_ARCHIVE_DOC_STATUS.REINSPECT
+  archiveWriteReinspect(task) // §4.7：档案文档置「可复验」
   task.status = 5
   task.updated_at = nowStr()
   syncNodeAccept(task)
@@ -732,14 +1166,22 @@ export function decideReinspect(task, { pass = true, opinion = '' } = {}) {
       rectify.close_time = nowStr()
       rectify.close_result = 1
       rectify.round_count = task.reinspect_count
+      rectify.status_changed_at = nowStr()
+      rectify.archive_doc_status = RECTIFY_ARCHIVE_DOC_STATUS.CLOSED
     }
+    archiveWriteFinish(task, { closed: true }) // §4.7：复验通过，档案文档「已关闭」
     task.status = 2
     task.result = 1
     task.first_pass_flag = 0
     task.finish_time = nowStr()
     task.current_rectify_id = ''
   } else {
-    if (rectify) rectify.status = 1
+    if (rectify) {
+      rectify.status = 1
+      rectify.status_changed_at = nowStr()
+      rectify.archive_doc_status = RECTIFY_ARCHIVE_DOC_STATUS.REJECTED
+    }
+    archiveWriteReject(task, {}) // C7：复验不通过同样先写档案「退回待补资料」
     task.status = 4
     task.result = 2
     task.first_pass_flag = 0
@@ -842,8 +1284,50 @@ export function upsertWbsNode(payload, id = '') {
     return { ok: false, msg: '节点名称、项目、类型必填' }
   }
   const node_type = Number(payload.node_type)
-  if (!WBS_TREE_NODE_TYPES.includes(node_type)) {
-    return { ok: false, msg: '目录树节点类型仅支持：单位工程/子单位工程/分部/子分部/分项/检验批' }
+  ensureWbsScaffold(payload.project_id)
+
+  // 系统骨架节点仅允许改名称等展示字段
+  if (id) {
+    const exist = wbsNodes.find((n) => n.id === id)
+    if (exist && WBS_SYSTEM_NODE_TYPES.includes(exist.node_type)) {
+      Object.assign(exist, {
+        node_name: payload.node_name || exist.node_name,
+        location_code: payload.location_code ?? exist.location_code,
+        specialty: payload.specialty ?? exist.specialty,
+        form_template_id:
+          exist.node_type === 8
+            ? payload.form_template_id || exist.form_template_id
+            : exist.form_template_id,
+        updated_at: nowStr(),
+        updated_by: 'u-sg-01',
+      })
+      return { ok: true, node: exist }
+    }
+  }
+
+  if (!WBS_EDITABLE_NODE_TYPES.includes(node_type)) {
+    return {
+      ok: false,
+      msg: '可维护类型：单位工程/子单位/分部/子分部/分项/检验批/专项节点',
+    }
+  }
+
+  let parent_id = payload.parent_id || ''
+  if (node_type === 1 && !parent_id) parent_id = getEntityRootNode(payload.project_id)?.id || ''
+  if (node_type === 7 && !parent_id) parent_id = getSpecialRootNode(payload.project_id)?.id || ''
+
+  const parent = parent_id ? wbsNodes.find((n) => n.id === parent_id) : null
+  if (node_type === 1 && (!parent || parent.node_type !== 9)) {
+    return { ok: false, msg: '单位工程须挂在「实体工程验收」下' }
+  }
+  if (node_type === 7 && (!parent || parent.node_type !== 10)) {
+    return { ok: false, msg: '专项节点须挂在「专项验收」下' }
+  }
+  if ([2, 3, 4, 5, 6].includes(node_type) && !parent) {
+    return { ok: false, msg: '请选择父节点' }
+  }
+  if (node_type === 7 && !payload.special_type) {
+    return { ok: false, msg: '专项节点须选择专项类型（消防/人防等）' }
   }
   if (node_type === 6 && !payload.batch_type_id) {
     return { ok: false, msg: '检验批须选择检验批类型' }
@@ -860,7 +1344,9 @@ export function upsertWbsNode(payload, id = '') {
     if (!node) return { ok: false, msg: '节点不存在' }
     Object.assign(node, {
       ...payload,
+      parent_id,
       node_type,
+      special_type: node_type === 7 ? payload.special_type || '' : '',
       is_critical: node_type === 6 ? Number(payload.is_critical) || 0 : 0,
       updated_at: nowStr(),
       updated_by: 'u-sg-01',
@@ -870,13 +1356,14 @@ export function upsertWbsNode(payload, id = '') {
   const node = {
     id: `wn-${Date.now()}`,
     project_id: payload.project_id,
-    parent_id: payload.parent_id || '',
+    parent_id,
     node_type,
     node_name: payload.node_name,
     location_code: payload.location_code || '',
     batch_type_id: payload.batch_type_id || '',
     form_template_id: payload.form_template_id || '',
     specialty: payload.specialty || '',
+    special_type: node_type === 7 ? payload.special_type || '' : '',
     is_hidden_work: Number(payload.is_hidden_work) || 0,
     is_critical: node_type === 6 ? Number(payload.is_critical) || 0 : 0,
     accept_status: 0,
@@ -892,15 +1379,21 @@ export function upsertWbsNode(payload, id = '') {
 }
 
 export function removeWbsNode(id) {
+  const node = wbsNodes.find((n) => n.id === id)
+  if (!node) return { ok: false, msg: '节点不存在' }
+  if (WBS_SYSTEM_NODE_TYPES.includes(node.node_type)) {
+    return { ok: false, msg: '系统骨架节点（竣工/实体工程/专项验收）不可删除' }
+  }
   const hasChild = wbsNodes.some((n) => n.parent_id === id)
   if (hasChild) return { ok: false, msg: '请先删除子节点' }
   const hasTask = inspectionTasks.some((t) => t.wbs_node_id === id)
   if (hasTask) return { ok: false, msg: '节点已关联验评任务，不可删除' }
   const idx = wbsNodes.findIndex((n) => n.id === id)
-  if (idx < 0) return { ok: false, msg: '节点不存在' }
   wbsNodes.splice(idx, 1)
   return { ok: true }
 }
+
+export { ensureWbsScaffold, getCompleteRootNode, getEntityRootNode, getSpecialRootNode }
 
 /* —— 表单/类型 —— */
 export function saveFormTemplate(payload, id = '') {
@@ -1040,7 +1533,7 @@ export function getDefaultMaterialsByNodeType(node_type) {
 /** 从验收单模板库导入到指定结构节点类型 */
 export function importDefaultMaterial(node_type, form_template_id) {
   const nt = Number(node_type)
-  if (!WBS_TREE_NODE_TYPES.includes(nt)) {
+  if (![1, 2, 3, 4, 5, 6].includes(nt)) {
     return { ok: false, msg: '仅支持单位工程～检验批节点类型' }
   }
   if (!form_template_id) return { ok: false, msg: '请选择模板' }
@@ -1141,7 +1634,7 @@ function buildDivisionPlanStats(project_id) {
 export const PHYSICAL_TASK_TYPES = [1, 2, 3, 4, 5, 7, 8]
 export const SPECIAL_TASK_TYPES = [6]
 /** 实体 / 专项节点类型（node_type） */
-export const PHYSICAL_NODE_TYPES = [1, 2, 3, 4, 5, 6, 8]
+export const PHYSICAL_NODE_TYPES = [1, 2, 3, 4, 5, 6]
 export const SPECIAL_NODE_TYPES = [7]
 
 /**
@@ -1317,7 +1810,36 @@ export function findTask(id) {
   return inspectionTasks.find((t) => t.id === id)
 }
 
-/** 按 task_type 解析编辑页路径 */
+/**
+ * 删除待提交验收单（status=0）；同步清理检查项与任务级附件。
+ * 兼容旧名 deleteDraftTask。
+ */
+export function deletePendingTask(taskOrId) {
+  const id = typeof taskOrId === 'string' ? taskOrId : taskOrId?.id
+  const task = findTask(id)
+  if (!task) return { ok: false, msg: '任务不存在' }
+  if (Number(task.status) !== 0) return { ok: false, msg: '仅待提交验收单可删除' }
+
+  const tIdx = inspectionTasks.findIndex((t) => t.id === id)
+  if (tIdx >= 0) inspectionTasks.splice(tIdx, 1)
+
+  for (let i = inspectionItems.length - 1; i >= 0; i -= 1) {
+    if (inspectionItems[i].task_id === id) inspectionItems.splice(i, 1)
+  }
+  for (let i = attachStore.length - 1; i >= 0; i -= 1) {
+    if (attachStore[i].task_id === id || (attachStore[i].biz_type === 'TASK' && attachStore[i].biz_id === id)) {
+      attachStore.splice(i, 1)
+    }
+  }
+  return { ok: true }
+}
+
+/** @deprecated 请用 deletePendingTask；待提交可删 */
+export function deleteDraftTask(taskOrId) {
+  return deletePendingTask(taskOrId)
+}
+
+/** 按 task_type 解析编辑页路径（9/10 为历史汇总类型兼容路径） */
 export function resolveTaskEditPath(task_type, task_id) {
   const map = {
     1: '/qm/inspect/batch/edit',
@@ -1328,6 +1850,8 @@ export function resolveTaskEditPath(task_type, task_id) {
     6: '/qm/inspect/special/edit',
     7: '/qm/inspect/complete/edit',
     8: '/qm/inspect/unit/edit',
+    9: '/qm/inspect/unit/edit',
+    10: '/qm/inspect/special/edit',
   }
   const base = map[task_type] || '/qm/inspect/batch/edit'
   return task_id ? `${base}?id=${task_id}` : base

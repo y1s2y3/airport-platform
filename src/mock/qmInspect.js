@@ -1,18 +1,36 @@
 /**
- * 质量验评 Mock — 字段名/枚举严格对齐 data-model-for-验评.md V1.16
+ * 质量验评 Mock — 字段名/枚举严格对齐 data-model-for-验评 V2.3.1
  * 禁止臆造字段；展示用项目名称通过 project_id 解析，不写入任务实体。
+ * V2.3.1 新增：is_draft / archive_instance_id（Q12 一任务一档案文档）、容器任务 9/10、
+ * 整改单 status_changed_at + archive_doc_status（§4.7、D4）、TASK_LINK_MATERIAL / TASK_LINK_SAMPLE
  */
 import { reactive } from 'vue'
 import { COC_PROJECT_OPTIONS } from '../config/projectOptions.js'
 
-/** 任务 status：0待验评 1验评中 2通过 3不通过 4整改中 5待复验 */
+/** 任务 status：0待提交 1验评中 2已通过 3已驳回（V2；旧草稿/整改复验主路径已废止） */
 export const TASK_STATUS = {
-  0: '待验评',
+  0: '待提交',
   1: '验评中',
-  2: '通过',
-  3: '不通过',
-  4: '整改中',
-  5: '待复验',
+  2: '已通过',
+  3: '已驳回',
+}
+
+/** 列表状态筛选项 */
+export const TASK_STATUS_FILTER_OPTIONS = Object.entries(TASK_STATUS).map(([value, label]) => ({
+  value,
+  label,
+}))
+
+/** 列表「当前状态」展示 */
+export function getTaskDisplayStatus(task) {
+  if (!task) return { key: '', label: '—', tagType: 'info' }
+  const s = Number(task.status)
+  const tagType = s === 0 ? 'info' : s === 1 ? 'warning' : s === 2 ? 'success' : s === 3 ? 'danger' : 'info'
+  return {
+    key: String(task.status),
+    label: TASK_STATUS[task.status] || '—',
+    tagType,
+  }
 }
 
 /** 计划 status：待复核 / 未开始 / 进行中 / 已完成 */
@@ -32,7 +50,11 @@ export const RECTIFY_STATUS = {
   4: '逾期未关闭',
 }
 
-/** 验评目录树可选节点类型（不含专项/竣工，二者走独立验收入口） */
+/**
+ * 验评目录树节点类型
+ * 树骨架：8 竣工验收(根) → 9 实体工程验收(分类) / 10 专项验收(分类) → 单位~检验批 / 专项节点
+ * 说明：node_type=9、10 仅作目录分类，不做验收；业务上单位工程上一级视为项目层级。
+ */
 export const WBS_TREE_NODE_TYPE_LABEL = {
   1: '单位工程',
   2: '子单位工程',
@@ -40,15 +62,25 @@ export const WBS_TREE_NODE_TYPE_LABEL = {
   4: '子分部',
   5: '分项',
   6: '检验批',
+  7: '专项节点',
+  8: '竣工验收',
+  9: '实体工程验收',
+  10: '专项验收',
 }
 
-export const NODE_TYPE_LABEL = {
-  ...WBS_TREE_NODE_TYPE_LABEL,
-  7: '专项',
-  8: '竣工',
-}
+export const NODE_TYPE_LABEL = { ...WBS_TREE_NODE_TYPE_LABEL }
 
+/** 用户可维护的业务节点（不含系统骨架 8/9/10） */
+export const WBS_EDITABLE_NODE_TYPES = [1, 2, 3, 4, 5, 6, 7]
+
+/** 系统固定骨架节点：根竣工 + 实体/专项二级容器，不可删除 */
+export const WBS_SYSTEM_NODE_TYPES = [8, 9, 10]
+
+/** 目录树展示的全部节点类型 */
 export const WBS_TREE_NODE_TYPES = Object.keys(WBS_TREE_NODE_TYPE_LABEL).map(Number)
+
+/** 实体验收链：单位工程 → … → 检验批 */
+export const WBS_ENTITY_NODE_TYPES = [1, 2, 3, 4, 5, 6]
 
 export const TASK_TYPE_LABEL = {
   1: '检验批验收',
@@ -59,9 +91,12 @@ export const TASK_TYPE_LABEL = {
   6: '专项验收',
   7: '竣工验收',
   8: '子单位工程验收',
+  /** 历史类型：实体/专项分类节点已不可发起，仅兼容旧数据展示 */
+  9: '实体验收汇总',
+  10: '专项验收汇总',
 }
 
-/** node_type → task_type（§2.4.1.1） */
+/** node_type → task_type（分类节点 9/10 无有效创建映射，创建接口会拦截） */
 export const NODE_TO_TASK_TYPE = {
   6: 1,
   5: 2,
@@ -71,6 +106,7 @@ export const NODE_TO_TASK_TYPE = {
   1: 5,
   7: 6,
   8: 7,
+  // 9、10 仅为分类，不映射可创建任务类型
 }
 
 export function resolveProjectName(project_id) {
@@ -86,12 +122,72 @@ export function nowStr() {
 
 const pid = 'p-000'
 
-/** WBS_NODE */
+/** WBS_NODE — 骨架：竣工验收 → 实体工程验收 / 专项验收 → 业务节点 */
 export const wbsNodes = reactive([
+  {
+    id: 'wn-complete-1',
+    project_id: pid,
+    parent_id: '',
+    node_type: 8,
+    node_name: '项目竣工验收',
+    location_code: 'T2',
+    batch_type_id: '',
+    form_template_id: 'ft-complete',
+    specialty: '通用',
+    is_hidden_work: 0,
+    is_critical: 0,
+    accept_status: 0,
+    batch_scheme_id: '',
+    sort_no: 0,
+    created_by: 'hq_admin',
+    created_at: '2026-06-01 08:00:00',
+    updated_by: 'hq_admin',
+    updated_at: '2026-06-01 08:00:00',
+  },
+  {
+    id: 'wn-entity-root',
+    project_id: pid,
+    parent_id: 'wn-complete-1',
+    node_type: 9,
+    node_name: '实体工程验收',
+    location_code: '',
+    batch_type_id: '',
+    form_template_id: '',
+    specialty: '通用',
+    is_hidden_work: 0,
+    is_critical: 0,
+    accept_status: 0,
+    batch_scheme_id: '',
+    sort_no: 1,
+    created_by: 'hq_admin',
+    created_at: '2026-06-01 08:00:00',
+    updated_by: 'hq_admin',
+    updated_at: '2026-06-01 08:00:00',
+  },
+  {
+    id: 'wn-special-root',
+    project_id: pid,
+    parent_id: 'wn-complete-1',
+    node_type: 10,
+    node_name: '专项验收',
+    location_code: '',
+    batch_type_id: '',
+    form_template_id: '',
+    specialty: '通用',
+    is_hidden_work: 0,
+    is_critical: 0,
+    accept_status: 0,
+    batch_scheme_id: '',
+    sort_no: 2,
+    created_by: 'hq_admin',
+    created_at: '2026-06-01 08:00:00',
+    updated_by: 'hq_admin',
+    updated_at: '2026-06-01 08:00:00',
+  },
   {
     id: 'wn-unit-1',
     project_id: pid,
-    parent_id: '',
+    parent_id: 'wn-entity-root',
     node_type: 1,
     node_name: 'T2航站楼主体单位工程',
     location_code: 'T2-主体',
@@ -111,7 +207,7 @@ export const wbsNodes = reactive([
   {
     id: 'wn-unit-2',
     project_id: pid,
-    parent_id: '',
+    parent_id: 'wn-entity-root',
     node_type: 1,
     node_name: 'T2航站楼机电单位工程',
     location_code: 'T2-机电',
@@ -131,7 +227,7 @@ export const wbsNodes = reactive([
   {
     id: 'wn-unit-3',
     project_id: pid,
-    parent_id: '',
+    parent_id: 'wn-entity-root',
     node_type: 1,
     node_name: '空侧捷运线单位工程',
     location_code: 'AGT',
@@ -151,7 +247,7 @@ export const wbsNodes = reactive([
   {
     id: 'wn-unit-4',
     project_id: pid,
-    parent_id: '',
+    parent_id: 'wn-entity-root',
     node_type: 1,
     node_name: '飞行区下穿通道单位工程',
     location_code: 'TUN',
@@ -611,42 +707,107 @@ export const wbsNodes = reactive([
   {
     id: 'wn-special-fire',
     project_id: pid,
-    parent_id: '',
+    parent_id: 'wn-special-root',
     node_type: 7,
-    node_name: '消防专项验收',
+    node_name: '消防验收',
     location_code: 'T2',
     batch_type_id: '',
     form_template_id: 'ft-special-fire',
     specialty: '消防',
+    special_type: 'fire',
     is_hidden_work: 0,
     is_critical: 0,
     accept_status: 2,
     batch_scheme_id: '',
-    sort_no: 20,
+    sort_no: 1,
     created_by: 'hq_admin',
     created_at: '2026-06-01 10:00:00',
     updated_by: 'hq_admin',
     updated_at: '2026-07-19 16:00:00',
   },
   {
-    id: 'wn-complete-1',
+    id: 'wn-special-cd',
     project_id: pid,
-    parent_id: '',
-    node_type: 8,
-    node_name: 'T2航站楼扩建竣工验收',
-    location_code: 'T2',
+    parent_id: 'wn-special-root',
+    node_type: 7,
+    node_name: '人防验收',
+    location_code: 'T2-B1',
     batch_type_id: '',
-    form_template_id: 'ft-complete',
-    specialty: '通用',
+    form_template_id: 'ft-special-fire',
+    specialty: '人防',
+    special_type: 'civil_defense',
     is_hidden_work: 0,
     is_critical: 0,
-    accept_status: 0,
+    accept_status: 2,
     batch_scheme_id: '',
-    sort_no: 99,
+    sort_no: 2,
+    created_by: 'hq_admin',
+    created_at: '2026-06-01 10:10:00',
+    updated_by: 'hq_admin',
+    updated_at: '2026-07-14 15:00:00',
+  },
+  {
+    id: 'wn-special-energy',
+    project_id: pid,
+    parent_id: 'wn-special-root',
+    node_type: 7,
+    node_name: '节能验收',
+    location_code: 'T2',
+    batch_type_id: '',
+    form_template_id: 'ft-special-fire',
+    specialty: '节能',
+    special_type: 'energy',
+    is_hidden_work: 0,
+    is_critical: 0,
+    accept_status: 2,
+    batch_scheme_id: '',
+    sort_no: 3,
+    created_by: 'hq_admin',
+    created_at: '2026-06-01 10:20:00',
+    updated_by: 'hq_admin',
+    updated_at: '2026-07-13 11:00:00',
+  },
+  {
+    id: 'wn-special-planning',
+    project_id: pid,
+    parent_id: 'wn-special-root',
+    node_type: 7,
+    node_name: '规划验收',
+    location_code: 'T2',
+    batch_type_id: '',
+    form_template_id: 'ft-special-fire',
+    specialty: '规划',
+    special_type: 'planning',
+    is_hidden_work: 0,
+    is_critical: 0,
+    accept_status: 2,
+    batch_scheme_id: '',
+    sort_no: 4,
     created_by: 'hq_admin',
     created_at: '2026-06-01 10:30:00',
     updated_by: 'hq_admin',
-    updated_at: '2026-06-01 10:30:00',
+    updated_at: '2026-07-20 09:00:00',
+  },
+  {
+    id: 'wn-special-equip',
+    project_id: pid,
+    parent_id: 'wn-special-root',
+    node_type: 7,
+    node_name: '特种设备验收',
+    location_code: 'T2-电梯',
+    batch_type_id: '',
+    form_template_id: 'ft-special-fire',
+    specialty: '特种设备',
+    special_type: 'special_equip',
+    is_hidden_work: 0,
+    is_critical: 0,
+    accept_status: 2,
+    batch_scheme_id: '',
+    sort_no: 5,
+    created_by: 'hq_admin',
+    created_at: '2026-06-01 10:40:00',
+    updated_by: 'hq_admin',
+    updated_at: '2026-07-21 10:00:00',
   },
 ])
 
@@ -790,6 +951,8 @@ export const inspectionTasks = reactive([
     task_type: 1,
     specialty: '结构',
     location_name: 'T2-F3-A区 轴1~5',
+    location_id: 'loc-rebar-a1',
+    location_ids: ['loc-rebar-a1', 'loc-rebar-a2'],
     form_template_id: 'ft-batch-rebar',
     form_data: {},
     batch_type_id: 'bt-rebar',
@@ -844,6 +1007,7 @@ export const inspectionTasks = reactive([
     finish_time: '',
     archive_status: 0,
     archive_pkg_no: '',
+    is_draft: 1,
     owner_final_required: 0,
     remark: '',
     created_by: 'u-sg-01',
@@ -1009,35 +1173,36 @@ export const inspectionTasks = reactive([
     form_template_id: 'ft-item-record',
     form_data: { 'ft-item-record': { 分项工程名称: '模板分项工程', 检验批数量: '1' } },
     batch_type_id: '',
-    status: 0,
+    status: 1,
     result: 0,
-    self_check_result: 0,
+    self_check_result: 1,
     is_hidden_work: 0,
     first_pass_flag: 1,
     reinspect_count: 0,
     current_rectify_id: '',
     contractor_org_id: 'org-sg-01',
     supervisor_org_id: 'org-jl-01',
-    applicant_id: '',
-    submit_time: '',
-    reviewer_id: '',
+    applicant_id: 'u-sg-01',
+    submit_time: '2026-07-17 09:10:00',
+    reviewer_id: 'u-jl-01',
     finish_time: '',
     archive_status: 0,
     archive_pkg_no: '',
     owner_final_required: 0,
-    remark: '下级检验批已全部通过，可发起分项报验',
+    remark: '分项已报验，个人中心待审批演示',
     created_by: 'u-sg-01',
     created_at: '2026-07-17 09:00:00',
     updated_by: 'u-sg-01',
-    updated_at: '2026-07-17 09:00:00',
+    updated_at: '2026-07-17 09:10:00',
   },
   {
     id: 'tk-008',
-    task_no: 'YS-2026-008',
+    task_no: 'ZX-2026-001',
+    task_name: '消防专项验收',
     project_id: pid,
     wbs_node_id: 'wn-special-fire',
-    plan_id: 'pl-special-001',
-    unplanned_flag: 0,
+    plan_id: '',
+    unplanned_flag: 1,
     parent_task_id: '',
     task_type: 6,
     special_type: 'fire',
@@ -1062,11 +1227,393 @@ export const inspectionTasks = reactive([
     archive_status: 2,
     archive_pkg_no: 'DA-ZX-008',
     owner_final_required: 1,
-    remark: '消防专项已通过（竣工前置演示）',
+    remark: '消防专项已通过（各状态演示·通过）',
     created_by: 'u-sg-01',
     created_at: '2026-07-17 14:00:00',
     updated_by: 'u-jl-01',
     updated_at: '2026-07-19 16:00:00',
+  },
+  {
+    id: 'tk-zx-draft',
+    task_no: 'ZX-2026-002',
+    task_name: '规划专项验收（草稿）',
+    project_id: pid,
+    wbs_node_id: 'wn-special-planning',
+    plan_id: '',
+    unplanned_flag: 1,
+    parent_task_id: '',
+    task_type: 6,
+    special_type: 'planning',
+    specialty: '规划',
+    location_name: 'T2规划核实',
+    form_template_id: 'ft-special-fire',
+    form_data: { 'ft-special-fire': { 专项名称: '规划专项验收' } },
+    batch_type_id: '',
+    status: 0,
+    result: 0,
+    self_check_result: null,
+    is_hidden_work: 0,
+    first_pass_flag: null,
+    reinspect_count: 0,
+    current_rectify_id: '',
+    contractor_org_id: 'org-sg-01',
+    supervisor_org_id: 'org-jl-01',
+    applicant_id: '',
+    submit_time: '',
+    reviewer_id: '',
+    finish_time: '',
+    archive_status: 0,
+    archive_pkg_no: '',
+    is_draft: 1,
+    owner_final_required: 1,
+    remark: '规划专项草稿，尚未提交报验（各状态演示·草稿）',
+    created_by: 'u-sg-01',
+    created_at: '2026-07-22 09:00:00',
+    updated_by: 'u-sg-01',
+    updated_at: '2026-07-22 09:00:00',
+  },
+  {
+    id: 'tk-zx-pending',
+    task_no: 'ZX-2026-003',
+    task_name: '人防专项验收',
+    project_id: pid,
+    wbs_node_id: 'wn-special-cd',
+    plan_id: '',
+    unplanned_flag: 1,
+    parent_task_id: '',
+    task_type: 6,
+    special_type: 'civil_defense',
+    specialty: '人防',
+    location_name: 'T2-B1人防',
+    form_template_id: 'ft-special-fire',
+    form_data: { 'ft-special-fire': { 专项名称: '人防专项验收' } },
+    batch_type_id: '',
+    status: 0,
+    result: 0,
+    self_check_result: 1,
+    is_hidden_work: 0,
+    first_pass_flag: null,
+    reinspect_count: 0,
+    current_rectify_id: '',
+    contractor_org_id: 'org-sg-01',
+    supervisor_org_id: 'org-jl-01',
+    applicant_id: '',
+    submit_time: '',
+    reviewer_id: '',
+    finish_time: '',
+    archive_status: 0,
+    archive_pkg_no: '',
+    is_draft: 0,
+    owner_final_required: 1,
+    remark: '人防资料已齐，待提交报验（各状态演示·待验评）',
+    created_by: 'u-sg-01',
+    created_at: '2026-07-21 10:00:00',
+    updated_by: 'u-sg-01',
+    updated_at: '2026-07-21 15:00:00',
+  },
+  {
+    id: 'tk-zx-reviewing',
+    task_no: 'ZX-2026-004',
+    task_name: '节能专项验收',
+    project_id: pid,
+    wbs_node_id: 'wn-special-energy',
+    plan_id: '',
+    unplanned_flag: 1,
+    parent_task_id: '',
+    task_type: 6,
+    special_type: 'energy',
+    specialty: '节能',
+    location_name: 'T2节能专项',
+    form_template_id: 'ft-special-fire',
+    form_data: { 'ft-special-fire': { 专项名称: '节能专项验收' } },
+    batch_type_id: '',
+    status: 1,
+    result: 0,
+    self_check_result: 1,
+    is_hidden_work: 0,
+    first_pass_flag: 1,
+    reinspect_count: 0,
+    current_rectify_id: '',
+    contractor_org_id: 'org-sg-01',
+    supervisor_org_id: 'org-jl-01',
+    applicant_id: 'u-sg-01',
+    submit_time: '2026-07-20 11:00:00',
+    reviewer_id: 'u-jl-01',
+    finish_time: '',
+    archive_status: 0,
+    archive_pkg_no: '',
+    owner_final_required: 1,
+    remark: '节能专项已报验，审批中（各状态演示·验评中）',
+    created_by: 'u-sg-01',
+    created_at: '2026-07-19 09:00:00',
+    updated_by: 'u-sg-01',
+    updated_at: '2026-07-20 11:00:00',
+  },
+  {
+    id: 'tk-zx-fail',
+    task_no: 'ZX-2026-005',
+    task_name: '特种设备专项验收',
+    project_id: pid,
+    wbs_node_id: 'wn-special-equip',
+    plan_id: '',
+    unplanned_flag: 1,
+    parent_task_id: '',
+    task_type: 6,
+    special_type: 'special_equip',
+    specialty: '特种设备',
+    location_name: 'T2客梯/扶梯',
+    form_template_id: 'ft-special-fire',
+    form_data: { 'ft-special-fire': { 专项名称: '特种设备专项验收' } },
+    batch_type_id: '',
+    status: 3,
+    result: 2,
+    self_check_result: 1,
+    is_hidden_work: 0,
+    first_pass_flag: 0,
+    reinspect_count: 0,
+    current_rectify_id: '',
+    contractor_org_id: 'org-sg-01',
+    supervisor_org_id: 'org-jl-01',
+    applicant_id: 'u-sg-01',
+    submit_time: '2026-07-16 09:30:00',
+    reviewer_id: 'u-jl-01',
+    finish_time: '2026-07-17 14:00:00',
+    archive_status: 0,
+    archive_pkg_no: '',
+    owner_final_required: 1,
+    remark: '监督检验报告缺项，验收不通过（各状态演示·不通过）',
+    created_by: 'u-sg-01',
+    created_at: '2026-07-15 10:00:00',
+    updated_by: 'u-jl-01',
+    updated_at: '2026-07-17 14:00:00',
+  },
+  {
+    id: 'tk-zx-rectify',
+    task_no: 'ZX-2026-006',
+    task_name: '人防专项验收（整改）',
+    project_id: pid,
+    wbs_node_id: 'wn-special-cd',
+    plan_id: '',
+    unplanned_flag: 1,
+    parent_task_id: '',
+    task_type: 6,
+    special_type: 'civil_defense',
+    specialty: '人防',
+    location_name: 'T2-B1人防口部',
+    form_template_id: 'ft-special-fire',
+    form_data: { 'ft-special-fire': { 专项名称: '人防专项验收' } },
+    batch_type_id: '',
+    status: 4,
+    result: 2,
+    self_check_result: 1,
+    is_hidden_work: 0,
+    first_pass_flag: 0,
+    reinspect_count: 0,
+    current_rectify_id: 'rc-zx-001',
+    contractor_org_id: 'org-sg-01',
+    supervisor_org_id: 'org-jl-01',
+    applicant_id: 'u-sg-01',
+    submit_time: '2026-07-14 10:00:00',
+    reviewer_id: 'u-jl-01',
+    finish_time: '',
+    archive_status: 0,
+    archive_pkg_no: '',
+    owner_final_required: 1,
+    remark: '口部防护密闭门安装偏差，整改中（各状态演示·整改中）',
+    created_by: 'u-sg-01',
+    created_at: '2026-07-13 09:00:00',
+    updated_by: 'u-jl-01',
+    updated_at: '2026-07-15 16:00:00',
+  },
+  {
+    id: 'tk-zx-reinspect',
+    task_no: 'ZX-2026-007',
+    task_name: '节能专项验收（复验）',
+    project_id: pid,
+    wbs_node_id: 'wn-special-energy',
+    plan_id: '',
+    unplanned_flag: 1,
+    parent_task_id: '',
+    task_type: 6,
+    special_type: 'energy',
+    specialty: '节能',
+    location_name: 'T2外围护结构',
+    form_template_id: 'ft-special-fire',
+    form_data: { 'ft-special-fire': { 专项名称: '节能专项验收' } },
+    batch_type_id: '',
+    status: 5,
+    result: 0,
+    self_check_result: 1,
+    is_hidden_work: 0,
+    first_pass_flag: 0,
+    reinspect_count: 1,
+    current_rectify_id: '',
+    contractor_org_id: 'org-sg-01',
+    supervisor_org_id: 'org-jl-01',
+    applicant_id: 'u-sg-01',
+    submit_time: '2026-07-12 09:00:00',
+    reviewer_id: 'u-jl-01',
+    finish_time: '',
+    archive_status: 0,
+    archive_pkg_no: '',
+    owner_final_required: 1,
+    remark: '外墙保温整改完成，待复验（各状态演示·待复验）',
+    created_by: 'u-sg-01',
+    created_at: '2026-07-10 09:00:00',
+    updated_by: 'u-sg-01',
+    updated_at: '2026-07-18 10:00:00',
+  },
+  {
+    id: 'tk-zx-cd-pass',
+    task_no: 'ZX-2026-008',
+    task_name: '人防专项验收（已通过）',
+    project_id: pid,
+    wbs_node_id: 'wn-special-cd',
+    plan_id: '',
+    unplanned_flag: 1,
+    parent_task_id: '',
+    task_type: 6,
+    special_type: 'civil_defense',
+    specialty: '人防',
+    location_name: 'T2-B1人防主体',
+    form_template_id: 'ft-special-fire',
+    form_data: { 'ft-special-fire': { 专项名称: '人防专项验收' } },
+    batch_type_id: '',
+    status: 2,
+    result: 1,
+    self_check_result: 1,
+    is_hidden_work: 0,
+    first_pass_flag: 1,
+    reinspect_count: 0,
+    current_rectify_id: '',
+    contractor_org_id: 'org-sg-01',
+    supervisor_org_id: 'org-jl-01',
+    applicant_id: 'u-sg-01',
+    submit_time: '2026-07-08 10:00:00',
+    reviewer_id: 'u-jl-01',
+    finish_time: '2026-07-09 17:00:00',
+    archive_status: 2,
+    archive_pkg_no: 'DA-ZX-008-CD',
+    owner_final_required: 1,
+    remark: '人防主体已通过（竣工前置·节点通过样例）',
+    created_by: 'u-sg-01',
+    created_at: '2026-07-07 09:00:00',
+    updated_by: 'u-jl-01',
+    updated_at: '2026-07-09 17:00:00',
+  },
+  {
+    id: 'tk-zx-en-pass',
+    task_no: 'ZX-2026-009',
+    task_name: '节能专项验收（已通过）',
+    project_id: pid,
+    wbs_node_id: 'wn-special-energy',
+    plan_id: '',
+    unplanned_flag: 1,
+    parent_task_id: '',
+    task_type: 6,
+    special_type: 'energy',
+    specialty: '节能',
+    location_name: 'T2屋面保温',
+    form_template_id: 'ft-special-fire',
+    form_data: { 'ft-special-fire': { 专项名称: '节能专项验收' } },
+    batch_type_id: '',
+    status: 2,
+    result: 1,
+    self_check_result: 1,
+    is_hidden_work: 0,
+    first_pass_flag: 1,
+    reinspect_count: 0,
+    current_rectify_id: '',
+    contractor_org_id: 'org-sg-01',
+    supervisor_org_id: 'org-jl-01',
+    applicant_id: 'u-sg-01',
+    submit_time: '2026-07-06 10:00:00',
+    reviewer_id: 'u-jl-01',
+    finish_time: '2026-07-07 16:00:00',
+    archive_status: 2,
+    archive_pkg_no: 'DA-ZX-009-EN',
+    owner_final_required: 1,
+    remark: '屋面保温节能已通过（竣工前置·节点通过样例）',
+    created_by: 'u-sg-01',
+    created_at: '2026-07-05 09:00:00',
+    updated_by: 'u-jl-01',
+    updated_at: '2026-07-07 16:00:00',
+  },
+  {
+    id: 'tk-zx-pl-pass',
+    task_no: 'ZX-2026-010',
+    task_name: '规划专项验收（已通过）',
+    project_id: pid,
+    wbs_node_id: 'wn-special-planning',
+    plan_id: '',
+    unplanned_flag: 1,
+    parent_task_id: '',
+    task_type: 6,
+    special_type: 'planning',
+    specialty: '规划',
+    location_name: 'T2规划核实',
+    form_template_id: 'ft-special-fire',
+    form_data: { 'ft-special-fire': { 专项名称: '规划专项验收' } },
+    batch_type_id: '',
+    status: 2,
+    result: 1,
+    self_check_result: 1,
+    is_hidden_work: 0,
+    first_pass_flag: 1,
+    reinspect_count: 0,
+    current_rectify_id: '',
+    contractor_org_id: 'org-sg-01',
+    supervisor_org_id: 'org-jl-01',
+    applicant_id: 'u-sg-01',
+    submit_time: '2026-07-04 10:00:00',
+    reviewer_id: 'u-jl-01',
+    finish_time: '2026-07-05 15:00:00',
+    archive_status: 2,
+    archive_pkg_no: 'DA-ZX-010-PL',
+    owner_final_required: 1,
+    remark: '规划核实已通过（竣工前置·节点通过样例）',
+    created_by: 'u-sg-01',
+    created_at: '2026-07-03 09:00:00',
+    updated_by: 'u-jl-01',
+    updated_at: '2026-07-05 15:00:00',
+  },
+  {
+    id: 'tk-zx-se-pass',
+    task_no: 'ZX-2026-011',
+    task_name: '特种设备专项验收（已通过）',
+    project_id: pid,
+    wbs_node_id: 'wn-special-equip',
+    plan_id: '',
+    unplanned_flag: 1,
+    parent_task_id: '',
+    task_type: 6,
+    special_type: 'special_equip',
+    specialty: '特种设备',
+    location_name: 'T2货梯',
+    form_template_id: 'ft-special-fire',
+    form_data: { 'ft-special-fire': { 专项名称: '特种设备专项验收' } },
+    batch_type_id: '',
+    status: 2,
+    result: 1,
+    self_check_result: 1,
+    is_hidden_work: 0,
+    first_pass_flag: 1,
+    reinspect_count: 0,
+    current_rectify_id: '',
+    contractor_org_id: 'org-sg-01',
+    supervisor_org_id: 'org-jl-01',
+    applicant_id: 'u-sg-01',
+    submit_time: '2026-07-02 10:00:00',
+    reviewer_id: 'u-jl-01',
+    finish_time: '2026-07-03 11:00:00',
+    archive_status: 2,
+    archive_pkg_no: 'DA-ZX-011-SE',
+    owner_final_required: 1,
+    remark: '货梯监督检验已通过（竣工前置·节点通过样例）',
+    created_by: 'u-sg-01',
+    created_at: '2026-07-01 09:00:00',
+    updated_by: 'u-jl-01',
+    updated_at: '2026-07-03 11:00:00',
   },
   {
     id: 'tk-009',
@@ -1214,6 +1761,107 @@ export const inspectionTasks = reactive([
   },
 ])
 
+/**
+ * V2.3.1 新增字段归一：历史 seed 默认非草稿；
+ * archive_instance_id 与 qmArchive.js 的 ARCHIVE_FORM_INSTANCE seed 对应（一任务一档案文档 Q12）
+ */
+const ARCHIVE_INSTANCE_BY_TASK = {
+  'tk-001': 'afi-001',
+  'tk-003': 'afi-003',
+  'tk-004': 'afi-004',
+  'tk-008': 'afi-008',
+  'tk-unit-3': 'afi-u3',
+}
+inspectionTasks.forEach((t) => {
+  if (t.is_draft === undefined) t.is_draft = 0
+  if (t.archive_instance_id === undefined) {
+    t.archive_instance_id = ARCHIVE_INSTANCE_BY_TASK[t.id] || ''
+  }
+  if (t.task_name === undefined) {
+    t.task_name = wbsNodes.find((n) => n.id === t.wbs_node_id)?.node_name || ''
+  }
+})
+
+/** TASK_LINK_MATERIAL — 任务关联材料（填报③材料/定版定样区块，可选关联） */
+export const taskMaterialLinks = reactive([
+  {
+    id: 'tml-001',
+    task_id: 'tk-001',
+    material_id: 'mat-001',
+    material_name: 'HRB400E 螺纹钢 Φ25',
+    batch_no: 'PC-20260710-01',
+    supplier: '某钢铁集团',
+    link_time: '2026-07-14 09:30:00',
+  },
+  {
+    id: 'tml-002',
+    task_id: 'tk-001',
+    material_id: 'mat-002',
+    material_name: '直螺纹套筒 Φ25',
+    batch_no: 'PC-20260711-02',
+    supplier: '某连接技术公司',
+    link_time: '2026-07-14 09:35:00',
+  },
+  {
+    id: 'tml-003',
+    task_id: 'tk-006',
+    material_id: 'mat-001',
+    material_name: 'HRB400E 螺纹钢 Φ25',
+    batch_no: 'PC-20260615-03',
+    supplier: '某钢铁集团',
+    link_time: '2026-06-19 10:00:00',
+  },
+])
+
+/** TASK_LINK_SAMPLE — 任务关联定版定样（可选关联） */
+export const taskSampleLinks = reactive([
+  {
+    id: 'tsl-001',
+    task_id: 'tk-unit-1',
+    sample_id: 'spl-001',
+    sample_name: '航站楼幕墙单元板块定样',
+    sample_category: '材料定样',
+    link_time: '2026-07-20 09:10:00',
+  },
+  {
+    id: 'tsl-002',
+    task_id: 'tk-008',
+    sample_id: 'spl-002',
+    sample_name: '防火门实样封样',
+    sample_category: '实样封样',
+    link_time: '2026-07-17 14:30:00',
+  },
+])
+
+/** 任务材料关联查询 */
+export function getTaskMaterialLinks(task_id) {
+  return taskMaterialLinks.filter((l) => l.task_id === task_id)
+}
+
+/** 任务定样关联查询 */
+export function getTaskSampleLinks(task_id) {
+  return taskSampleLinks.filter((l) => l.task_id === task_id)
+}
+
+/** TASK_LINK_ASBUILT — 任务关联实模一致验收（引用其报告/对比地址作附件） */
+export const taskAsbuiltLinks = reactive([
+  {
+    id: 'tal-001',
+    task_id: 'tk-001',
+    acceptance_id: 'AB-003',
+    biz_no: 'AB-202607-003',
+    title: '电缆敷设分项实模一致',
+    compare_url: 'https://example.com/asbuilt-compare/p-000/ab-003',
+    report_names: '实模一致性报告-电缆敷设.pdf',
+    status: 'approved',
+    link_time: '2026-07-22 14:00:00',
+  },
+])
+
+export function getTaskAsbuiltLinks(task_id) {
+  return taskAsbuiltLinks.filter((l) => l.task_id === task_id)
+}
+
 /** INSPECTION_ITEM — 挂在任务上，支撑主控/观感卡死与方案B */
 export const inspectionItems = reactive([
   {
@@ -1308,7 +1956,10 @@ export const approvalRecords = reactive([
   },
 ])
 
-/** RECTIFICATION_ORDER */
+/**
+ * RECTIFICATION_ORDER — V2.3.1（D4）：整改=审批驳回的结果，不存在单独「下发整改单」动作；
+ * issuer_id 语义为「驳回人」；status_changed_at 状态变更时间；archive_doc_status 关联档案文档状态（§4.7）
+ */
 export const rectificationOrders = reactive([
   {
     id: 'rc-001',
@@ -1324,6 +1975,8 @@ export const rectificationOrders = reactive([
     status: 1,
     issuer_id: 'u-jl-01',
     issue_time: '2026-07-13 10:00:00',
+    status_changed_at: '2026-07-13 10:00:00',
+    archive_doc_status: '退回待补资料',
     round_count: 0,
     close_time: '',
     close_result: 0,
@@ -1342,6 +1995,28 @@ export const rectificationOrders = reactive([
     status: 0,
     issuer_id: 'u-jl-01',
     issue_time: '2026-07-12 17:00:00',
+    status_changed_at: '2026-07-12 17:00:00',
+    archive_doc_status: '退回待补资料',
+    round_count: 0,
+    close_time: '',
+    close_result: 0,
+  },
+  {
+    id: 'rc-zx-001',
+    order_no: 'ZG-ZX-2026-001',
+    source_task_id: 'tk-zx-rectify',
+    project_id: pid,
+    problem_desc: '人防口部防护密闭门安装偏差超限，密封条破损',
+    problem_category: 3,
+    responsible_org_id: 'org-sg-01',
+    responsible_user_id: 'u-sg-01',
+    measure: '已更换密封条并重新调校门扇，待监理复核',
+    deadline: '2026-07-28 18:00:00',
+    status: 1,
+    issuer_id: 'u-jl-01',
+    issue_time: '2026-07-15 16:00:00',
+    status_changed_at: '2026-07-16 09:00:00',
+    archive_doc_status: '退回待补资料',
     round_count: 0,
     close_time: '',
     close_result: 0,
@@ -1357,7 +2032,7 @@ export const ORG_LABEL = {
   'org-jl-02': '华南监理咨询公司',
 }
 
-/** 目录树节点类型标签色（单位工程～检验批） */
+/** 目录树节点类型标签色 */
 export function wbsNodeTypeTagType(node_type) {
   const map = {
     1: 'danger',
@@ -1366,12 +2041,134 @@ export function wbsNodeTypeTagType(node_type) {
     4: 'success',
     5: 'info',
     6: 'primary',
+    7: 'warning',
+    8: 'danger',
+    9: '',
+    10: 'success',
   }
   return map[node_type] ?? 'info'
 }
 
-/** 验评目录树：仅工程层级节点（单位工程～检验批）；名称不含类型文案，由 UI 用标签展示 */
+function pushScaffoldNode(partial) {
+  const now = nowStr()
+  const node = {
+    location_code: '',
+    batch_type_id: '',
+    form_template_id: '',
+    specialty: '通用',
+    special_type: '',
+    is_hidden_work: 0,
+    is_critical: 0,
+    accept_status: 0,
+    batch_scheme_id: '',
+    sort_no: 0,
+    created_by: 'system',
+    created_at: now,
+    updated_by: 'system',
+    updated_at: now,
+    ...partial,
+  }
+  wbsNodes.push(node)
+  return node
+}
+
+/**
+ * 确保项目具备验评树骨架：竣工验收(根) → 实体工程验收 / 专项验收
+ * 并将历史「无父单位工程 / 无父专项节点」挂到对应二级容器下
+ */
+export function ensureWbsScaffold(project_id) {
+  if (!project_id) return null
+  let complete = wbsNodes.find(
+    (n) => n.project_id === project_id && n.node_type === 8 && !n.parent_id,
+  )
+  if (!complete) {
+    complete = pushScaffoldNode({
+      id: `wn-complete-${project_id}`,
+      project_id,
+      parent_id: '',
+      node_type: 8,
+      node_name: '项目竣工验收',
+      form_template_id: 'ft-complete',
+      sort_no: 0,
+    })
+  } else if (!String(complete.node_name || '').includes('竣工')) {
+    complete.node_name = '项目竣工验收'
+  }
+
+  let entity = wbsNodes.find(
+    (n) => n.project_id === project_id && n.node_type === 9 && n.parent_id === complete.id,
+  )
+  if (!entity) {
+    entity = pushScaffoldNode({
+      id: `wn-entity-${project_id}`,
+      project_id,
+      parent_id: complete.id,
+      node_type: 9,
+      node_name: '实体工程验收',
+      sort_no: 1,
+    })
+  }
+
+  let special = wbsNodes.find(
+    (n) => n.project_id === project_id && n.node_type === 10 && n.parent_id === complete.id,
+  )
+  if (!special) {
+    special = pushScaffoldNode({
+      id: `wn-special-root-${project_id}`,
+      project_id,
+      parent_id: complete.id,
+      node_type: 10,
+      node_name: '专项验收',
+      sort_no: 2,
+    })
+  }
+
+  wbsNodes
+    .filter(
+      (n) =>
+        n.project_id === project_id &&
+        n.node_type === 1 &&
+        (!n.parent_id || n.parent_id === complete.id),
+    )
+    .forEach((n) => {
+      n.parent_id = entity.id
+    })
+
+  wbsNodes
+    .filter(
+      (n) =>
+        n.project_id === project_id &&
+        n.node_type === 7 &&
+        (!n.parent_id || n.parent_id === complete.id),
+    )
+    .forEach((n) => {
+      n.parent_id = special.id
+    })
+
+  return { complete, entity, special }
+}
+
+export function getCompleteRootNode(project_id) {
+  if (!project_id) return null
+  ensureWbsScaffold(project_id)
+  return wbsNodes.find((n) => n.project_id === project_id && n.node_type === 8 && !n.parent_id) || null
+}
+
+export function getEntityRootNode(project_id) {
+  if (!project_id) return null
+  const s = ensureWbsScaffold(project_id)
+  return s?.entity || null
+}
+
+export function getSpecialRootNode(project_id) {
+  if (!project_id) return null
+  const s = ensureWbsScaffold(project_id)
+  return s?.special || null
+}
+
+/** 验评目录树：竣工验收为根，含实体/专项二级及全部业务节点 */
 export function buildWbsTree(project_id) {
+  if (project_id) ensureWbsScaffold(project_id)
   let list = wbsNodes.filter((n) => WBS_TREE_NODE_TYPES.includes(n.node_type))
   if (project_id) list = list.filter((n) => n.project_id === project_id)
   const map = new Map()

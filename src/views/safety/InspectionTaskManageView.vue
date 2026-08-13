@@ -1,55 +1,18 @@
 <script setup>
 import { ref, reactive, computed } from 'vue'
-import { useRouter } from 'vue-router'
-import { Search } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
-import { useLaborProjectScope } from '../../composables/useCurrentProject'
+import { useRouter, useRoute } from 'vue-router'
+import { Search, View, ArrowLeft } from '@element-plus/icons-vue'
+import { useLaborProjectScope, selectedProjectId } from '../../composables/useCurrentProject'
+import { HQ_PROJECT_OPTION } from '../../config/projectOptions'
+import { getProjectInspectorLabel } from '../../composables/useInspectionPersonConfig'
+import { DEFAULT_INSPECTOR_LABEL } from '../../config/inspectionManagement'
 import { projectTree } from '../../mock/laborRealName.js'
+import { listMobileInspectionTasks } from '../../mock/mobileInspectionTasks'
 
 const router = useRouter()
+const route = useRoute()
 const { isHqSelected, treeProjectId, scopeProjectId, onTreeNodeClick: _treeClick } = useLaborProjectScope()
-
-// 任务指派
-const selectedRows = ref([])
-const assignDialogVisible = ref(false)
-const assignForm = reactive({ inspector: '' })
-const inspectorOptions = [
-  { label: '王工', value: '王工' },
-  { label: '李工', value: '李工' },
-  { label: '赵工', value: '赵工' },
-  { label: '陈工', value: '陈工' },
-  { label: '张工', value: '张工' },
-  { label: '刘工', value: '刘工' },
-  { label: '吴工', value: '吴工' },
-]
-
-function handleSelectionChange(rows) {
-  selectedRows.value = rows
-}
-
-function openAssignDialog() {
-  if (selectedRows.value.length === 0) {
-    ElMessage.warning('请先勾选需要指派的巡检任务单')
-    return
-  }
-  assignForm.inspector = ''
-  assignDialogVisible.value = true
-}
-
-function confirmAssign() {
-  if (!assignForm.inspector) { ElMessage.warning('请选择巡检人'); return }
-  const ins = assignForm.inspector
-  const count = selectedRows.value.length
-  selectedRows.value.forEach(row => {
-    const found = taskData.value.find(t => t.id === row.id)
-    if (found) {
-      found.inspector = ins
-    }
-  })
-  selectedRows.value = []
-  assignDialogVisible.value = false
-  ElMessage.success(`已将 ${count} 个任务单指派给 ${ins}`)
-}
+const fromHq = computed(() => route.query.from === 'hq')
 
 // 项目树搜索与选中
 const treeSearch = ref('')
@@ -79,81 +42,51 @@ const treeDataWithCount = computed(() => {
   return [{ ...root, label: treeSearch.value ? '搜索结果' : root.label, children }]
 })
 
-// ===== 5条示例（响应式数组，可修改） =====
-const taskData = ref([
-  {
-    id:'mt-000', taskNo:'XJ20260730001', planNo:'JH2026007', source:'任务推送',
-    planName:'6月底安全巡检', planType:'周检',
-    project:'飞行区跑道延长工程', projectId:'p-000',
-    inspector:'', companions:[],
-    deadline:'2026-07-10', status:'待指派',
-    itemCount:0, hazardCount:0, hazardItems:[],
-  },
-  {
-    id:'mt-001', taskNo:'XJ20260728001', planNo:'JH2026001', source:'任务推送',
-    planName:'7月第4周安全巡检', planType:'周检',
-    project:'飞行区跑道延长工程', projectId:'p-000',
-    inspector:'王工', companions:[],
-    deadline:'2026-07-28', status:'待执行',
-    itemCount:12, hazardCount:0, hazardItems:[],
-  },
-  {
-    id:'mt-002', taskNo:'XJ20260720002', planNo:'JH2026002', source:'任务推送',
-    planName:'临时用电专项检查', planType:'专项巡检',
-    project:'T3航站楼扩建工程', projectId:'p-001',
-    inspector:'王工', companions:['刘工'],
-    deadline:'2026-07-20', inspectionDate:'2026-07-20', status:'已完成',
-    itemCount:8, hazardCount:2,
-    hazardItems:[
-      { desc:'五芯电缆破损', hasRectify:true, rectifyNo:'ZG202607001', rectifyId:'rec-001' },
-      { desc:'电缆线路沿地明敷', hasRectify:true, rectifyNo:'ZG202607002', rectifyId:'rec-002' },
-    ],
-  },
-  {
-    id:'mt-003', taskNo:'XJ20260721003', planNo:'JH2026001', source:'任务推送',
-    planName:'7月第三周安全巡检', planType:'周检',
-    project:'T3航站楼扩建工程', projectId:'p-001',
-    inspector:'王工', companions:['刘工','陈工'],
-    deadline:'2026-07-21', inspectionDate:'2026-07-21', status:'已完成',
-    itemCount:12, hazardCount:0, hazardItems:[],
-  },
-  {
-    id:'mt-004', taskNo:'XJ20260731004', planNo:'', source:'系统自建',
-    planName:'', planType:'月检',
-    project:'新货运站建设工程', projectId:'p-003',
-    inspector:'王工', companions:[],
-    deadline:'', inspectionDate:'2026-07-31', status:'已完成',
-    itemCount:0, hazardCount:0, hazardItems:[],
-  },
-  {
-    id:'mt-005', taskNo:'XJ20260728005', planNo:'', source:'系统自建',
-    planName:'', planType:'专项巡检',
-    project:'飞行区跑道延长工程', projectId:'p-000',
-    inspector:'王工', companions:['吴工'],
-    deadline:'', inspectionDate:'2026-07-28', status:'已完成',
-    itemCount:0, hazardCount:1,
-    hazardItems:[
-      { desc:'电缆破损', hasRectify:true, rectifyNo:'ZG202607007', rectifyId:'rec-007' },
-    ],
-  },
-])
+// 与移动端共用任务数据，下发后立即出现在 Web 台账和移动端待办中。
+const taskData = computed(() => listMobileInspectionTasks().map(task => ({
+  ...task,
+  inspector: task.inspector || task.executor || getProjectInspectorLabel(task.projectId) || DEFAULT_INSPECTOR_LABEL,
+  inspectionDate: task.inspectionDate || task.inspDate || '',
+  hazardItems: task.hazardItems || [],
+})))
 
 // ===== 项目树数据 =====
 const treeData = computed(() => projectTree)
 
 // ===== 筛选 =====
-const filterForm = reactive({ keyword: '', status: '', source: '', planType: '', result: '', overdue: '' })
+const filterForm = reactive({ keyword: '', category: '', status: '', source: '', result: '', overdue: '' })
+
+const hqProjectKeyword = ref('')
+const hqProjectStats = computed(() => projectTree[0].children.map(project => {
+  const rows = taskData.value.filter(item => item.projectId === project.id)
+  return {
+    projectId: project.id,
+    projectName: project.label,
+    totalCount: rows.length,
+    pendingCount: rows.filter(item => item.status === '待执行').length,
+    completedCount: rows.filter(item => item.status === '已完成').length,
+    overdueCount: rows.filter(item => isOverdue(item)).length,
+    hazardCount: rows.reduce((sum, item) => sum + (item.hazardCount || 0), 0),
+  }
+}))
+const filteredHQProjects = computed(() => hqProjectStats.value.filter(item =>
+  !hqProjectKeyword.value || item.projectName.includes(hqProjectKeyword.value),
+))
+const hqTotalStats = computed(() => ({
+  totalCount: filteredHQProjects.value.reduce((sum, item) => sum + item.totalCount, 0),
+  pendingCount: filteredHQProjects.value.reduce((sum, item) => sum + item.pendingCount, 0),
+  completedCount: filteredHQProjects.value.reduce((sum, item) => sum + item.completedCount, 0),
+  overdueCount: filteredHQProjects.value.reduce((sum, item) => sum + item.overdueCount, 0),
+  hazardCount: filteredHQProjects.value.reduce((sum, item) => sum + item.hazardCount, 0),
+}))
 
 const filteredTasks = computed(() => {
   let list = taskData.value
-  // HQ模式：按项目树过滤（localProjectId为空时显示全部）
-  if (isHqSelected.value && localProjectId.value) {
-    list = list.filter(t => t.projectId === localProjectId.value)
-  }
+  if (!isHqSelected.value && scopeProjectId.value) list = list.filter(t => t.projectId === scopeProjectId.value)
   return list.filter(t => {
+    if (filterForm.category && t.inspectionCategory !== filterForm.category) return false
     if (filterForm.status && t.status !== filterForm.status) return false
     if (filterForm.source && t.source !== filterForm.source) return false
-    if (filterForm.planType && t.planType !== filterForm.planType) return false
     if (filterForm.result === '正常' && (t.status !== '已完成' || t.hazardCount > 0)) return false
     if (filterForm.result === '有隐患' && (t.status !== '已完成' || t.hazardCount === 0)) return false
     if (filterForm.overdue === '是') {
@@ -168,7 +101,7 @@ const filteredTasks = computed(() => {
     }
     if (filterForm.keyword) {
       const kw = filterForm.keyword
-      if (!t.taskNo.includes(kw) && !t.planName.includes(kw) && !t.planNo.includes(kw) && !t.project.includes(kw)) return false
+      if (!t.taskNo.includes(kw) && !(t.taskName || '').includes(kw) && !t.project.includes(kw)) return false
     }
     return true
   })
@@ -180,9 +113,26 @@ function isOverdue(row) {
   return new Date(row.deadline) < new Date('2026-07-16')
 }
 
+function getTaskExecutor(row) {
+  return row.executor || row.inspector || '-'
+}
+
+function getTaskCompanions(row) {
+  return row.companions || []
+}
+
 function viewDetail(row) { router.push(`/safety-inspection/task/${row.id}`) }
 function goRectify(id) { router.push(`/safety-inspection/hazard/${id}`) }
 function handleReset() { Object.keys(filterForm).forEach(k => filterForm[k] = '') }
+function viewProjectDetail(row) {
+  router.push({ path:'/safety-inspection/task', query:{ from:'hq' } }).then(() => {
+    selectedProjectId.value = row.projectId
+  })
+}
+function goBackToHQ() {
+  selectedProjectId.value = HQ_PROJECT_OPTION.id
+  router.push('/safety-inspection/task')
+}
 </script>
 
 <template>
@@ -190,40 +140,53 @@ function handleReset() { Object.keys(filterForm).forEach(k => filterForm[k] = ''
     <div class="page-head">
       <h3 class="page-title">巡检任务管理</h3>
       <div class="page-actions" v-if="isHqSelected">
-        <el-button type="primary" size="default" @click="openAssignDialog">任务指派</el-button>
       </div>
     </div>
 
-    <div class="page-layout" :class="{ 'with-tree': isHqSelected }">
-      <!-- 项目树（仅指挥部） -->
-      <aside v-if="isHqSelected" class="project-tree-panel">
-        <div class="panel-title">项目列表</div>
-        <el-input v-model="treeSearch" placeholder="搜索项目..." clearable size="small" style="margin-bottom:8px" :prefix-icon="Search" />
-        <el-tree
-          :data="treeDataWithCount"
-          node-key="id"
-          highlight-current
-          default-expand-all
-          :current-node-key="localProjectId || 'hq'"
-          :expand-on-click-node="false"
-          class="project-tree"
-          @node-click="handleTreeNodeClick"
-        />
-      </aside>
+    <template v-if="isHqSelected">
+      <div class="hq-dashboard">
+        <div class="stat-cards">
+          <div class="stat-card"><div class="sc-value">{{ hqTotalStats.totalCount }}</div><div class="sc-label">任务总数</div></div>
+          <div class="stat-card"><div class="sc-value text-warn">{{ hqTotalStats.pendingCount }}</div><div class="sc-label">待执行</div></div>
+          <div class="stat-card"><div class="sc-value text-success">{{ hqTotalStats.completedCount }}</div><div class="sc-label">已完成</div></div>
+          <div class="stat-card"><div class="sc-value text-danger">{{ hqTotalStats.overdueCount }}</div><div class="sc-label">逾期任务</div></div>
+          <div class="stat-card"><div class="sc-value text-danger">{{ hqTotalStats.hazardCount }}</div><div class="sc-label">隐患总数</div></div>
+        </div>
+        <div class="hq-filter-bar">
+          <el-input v-model="hqProjectKeyword" placeholder="搜索项目名称..." clearable style="width:240px" :prefix-icon="Search" />
+        </div>
+        <el-table :data="filteredHQProjects" border stripe style="width:100%;margin-top:12px" class="hq-table">
+          <el-table-column type="index" label="序号" width="55" align="center" />
+          <el-table-column prop="projectName" label="项目名称" min-width="180" />
+          <el-table-column prop="totalCount" label="任务数量" align="center" />
+          <el-table-column prop="pendingCount" label="待执行数量" align="center" />
+          <el-table-column prop="completedCount" label="已完成数量" align="center" />
+          <el-table-column prop="overdueCount" label="逾期数量" align="center" />
+          <el-table-column prop="hazardCount" label="隐患数量" align="center" />
+          <el-table-column label="操作" width="110" align="center">
+            <template #default="{ row }"><el-button link type="primary" :icon="View" @click="viewProjectDetail(row)">查看详情</el-button></template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </template>
 
-      <!-- 台账区域 -->
+    <template v-else>
+      <div v-if="fromHq" class="back-bar">
+        <el-button link type="primary" :icon="ArrowLeft" @click="goBackToHQ">返回</el-button>
+        <span>当前项目巡检任务台账</span>
+      </div>
       <div class="page-panel">
         <!-- 筛选栏 -->
         <div class="filter-bar">
           <el-input v-model="filterForm.keyword" placeholder="搜索编号/名称/整改单..." clearable style="width:240px" :prefix-icon="Search" />
+          <el-select v-model="filterForm.category" placeholder="巡检分类" clearable style="width:100px">
+            <el-option label="安全" value="安全" /><el-option label="质量" value="质量" />
+          </el-select>
           <el-select v-model="filterForm.status" placeholder="任务状态" clearable style="width:100px">
-            <el-option label="待指派" value="待指派" /><el-option label="待执行" value="待执行" /><el-option label="已完成" value="已完成" />
+            <el-option label="待执行" value="待执行" /><el-option label="已完成" value="已完成" />
           </el-select>
-          <el-select v-model="filterForm.source" placeholder="单据来源" clearable style="width:110px">
-            <el-option label="任务推送" value="任务推送" /><el-option label="系统自建" value="系统自建" />
-          </el-select>
-          <el-select v-model="filterForm.planType" placeholder="巡检类型" clearable style="width:100px">
-            <el-option label="周检" value="周检" /><el-option label="月检" value="月检" /><el-option label="专项巡检" value="专项巡检" />
+          <el-select v-model="filterForm.source" placeholder="任务来源" clearable style="width:110px">
+            <el-option label="任务下发" value="任务下发" /><el-option label="系统自建" value="系统自建" />
           </el-select>
           <el-select v-model="filterForm.result" placeholder="巡检结果" clearable style="width:100px">
             <el-option label="正常" value="正常" /><el-option label="有隐患" value="有隐患" />
@@ -235,34 +198,37 @@ function handleReset() { Object.keys(filterForm).forEach(k => filterForm[k] = ''
         </div>
 
         <!-- 台账表格 -->
-        <el-table :data="filteredTasks" stripe border style="width:100%" v-if="filteredTasks.length" class="task-table" @selection-change="handleSelectionChange">
-          <el-table-column type="selection" width="40" v-if="isHqSelected" />
+        <el-table :data="filteredTasks" stripe border style="width:100%" v-if="filteredTasks.length" class="task-table">
           <el-table-column type="index" label="序号" width="55" align="center" />
-          <el-table-column prop="taskNo" label="任务单编号" min-width="120" />
-          <el-table-column prop="project" label="所属项目" min-width="120" show-overflow-tooltip />
-          <el-table-column label="计划名称" min-width="120">
+          <el-table-column prop="taskNo" label="任务单编号" min- />
+          <el-table-column prop="project" label="所属项目" min- show-overflow-tooltip />
+          <el-table-column prop="inspectionCategory" label="巡检分类" min- align="center">
+            <template #default="{ row }"><el-tag size="small" :type="row.inspectionCategory === '质量' ? 'warning' : 'success'">{{ row.inspectionCategory }}</el-tag></template>
+          </el-table-column>
+          <el-table-column label="任务名称" min-width="160">
             <template #default="{ row }">
-              <span v-if="row.planName">{{ row.planName }}</span>
+              <span v-if="row.taskName">{{ row.taskName }}</span>
               <span v-else style="color:#999">-</span>
             </template>
           </el-table-column>
-          <el-table-column prop="planType" label="巡检类型" min-width="70" align="center" />
-          <el-table-column prop="inspector" label="巡检人" min-width="60" align="center" />
-          <el-table-column label="同行人" min-width="80" align="center">
+          <el-table-column label="执行人" min- align="center">
+            <template #default="{ row }">{{ getTaskExecutor(row) }}</template>
+          </el-table-column>
+          <el-table-column label="同行人" min- align="center">
             <template #default="{ row }">
-              <span v-if="row.companions?.length">{{ row.companions.join('、') }}</span>
+              <span v-if="getTaskCompanions(row).length">{{ getTaskCompanions(row).join('、') }}</span>
               <span v-else style="color:#999">-</span>
             </template>
           </el-table-column>
-          <el-table-column label="巡检日期" min-width="90" align="center">
+          <el-table-column label="巡检日期" min- align="center">
             <template #default="{ row }">
-              <span v-if="row.status === '待执行' || row.status === '待指派'" style="color:#999">--</span>
+              <span v-if="row.status === '待执行'" style="color:#999">--</span>
               <span v-else-if="row.inspectionDate">{{ row.inspectionDate }}</span>
               <span v-else style="color:#999">-</span>
             </template>
           </el-table-column>
-          <el-table-column prop="status" label="状态" min-width="55" align="center" />
-          <el-table-column label="结果" min-width="55" align="center">
+          <el-table-column prop="status" label="状态" min- align="center" />
+          <el-table-column label="结果" min- align="center">
             <template #default="{ row }">
               <span v-if="row.status === '已完成'">
                 <span v-if="row.hazardCount > 0">有隐患</span>
@@ -271,19 +237,19 @@ function handleReset() { Object.keys(filterForm).forEach(k => filterForm[k] = ''
               <span v-else style="color:#999">-</span>
             </template>
           </el-table-column>
-          <el-table-column label="隐患数量" min-width="55" align="center">
+          <el-table-column label="隐患数量" min- align="center">
             <template #default="{ row }">
               <span v-if="row.hazardCount > 0">{{ row.hazardCount }}</span>
               <span v-else style="color:#999">-</span>
             </template>
           </el-table-column>
-          <el-table-column label="是否逾期" min-width="65" align="center">
+          <el-table-column label="是否逾期" min- align="center">
             <template #default="{ row }">
               <span v-if="isOverdue(row)" style="color:#e53935;font-weight:600">是</span>
               <span v-else style="color:#999">-</span>
             </template>
           </el-table-column>
-          <el-table-column label="整改单" min-width="100" align="center">
+          <el-table-column label="整改单" min- align="center">
             <template #default="{ row }">
               <template v-if="row.hazardItems?.some(h => h.hasRectify)">
                 <div style="display:flex;flex-direction:column;gap:2px">
@@ -306,26 +272,9 @@ function handleReset() { Object.keys(filterForm).forEach(k => filterForm[k] = ''
         </el-table>
         <div v-else class="empty-state">暂无数据</div>
       </div>
-    </div>
+    </template>
   </div>
 
-  <!-- 任务指派对话框 -->
-  <el-dialog v-model="assignDialogVisible" title="任务指派" width="480px" destroy-on-close>
-    <el-form label-width="80px">
-      <el-form-item label="已选任务">
-        <el-tag v-for="row in selectedRows" :key="row.id" style="margin:2px 4px 2px 0">{{ row.taskNo }}</el-tag>
-      </el-form-item>
-      <el-form-item label="巡检人" required>
-        <el-select v-model="assignForm.inspector" placeholder="请选择巡检人" style="width:100%">
-          <el-option v-for="opt in inspectorOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
-        </el-select>
-      </el-form-item>
-    </el-form>
-    <template #footer>
-      <el-button @click="assignDialogVisible=false">取消</el-button>
-      <el-button type="primary" @click="confirmAssign">确认指派</el-button>
-    </template>
-  </el-dialog>
 </template>
 
 <style scoped>
@@ -335,6 +284,16 @@ function handleReset() { Object.keys(filterForm).forEach(k => filterForm[k] = ''
 .filter-bar { display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
 .empty-state { text-align:center; padding:60px 0; color:#999; font-size:14px; }
 .el-table { font-size:13px; }
+.hq-dashboard { background:#f5f7fa; border-radius:10px; padding:20px; }
+.stat-cards { display:flex; gap:14px; margin-bottom:16px; }
+.stat-card { flex:1; background:#fff; border-radius:8px; padding:16px 20px; box-shadow:0 1px 4px rgba(0,0,0,.06); text-align:center; }
+.sc-value { font-size:26px; font-weight:700; color:#1f2329; }
+.sc-label { margin-top:4px; font-size:12px; color:#999; }
+.text-warn { color:#f5a623; }
+.text-success { color:#34a853; }
+.text-danger { color:#e53935; }
+.hq-filter-bar { display:flex; justify-content:flex-end; }
+.back-bar { display:flex; align-items:center; gap:10px; margin-bottom:12px; padding:8px 12px; background:#f5f7fa; border-radius:6px; font-size:14px; font-weight:600; }
 
 /* 左树右表布局 */
 .page-layout { display:flex; gap:0; width:100%; }
@@ -344,4 +303,7 @@ function handleReset() { Object.keys(filterForm).forEach(k => filterForm[k] = ''
 .project-tree { font-size:13px; }
 .project-tree :deep(.el-tree-node__content) { height:36px; }
 .project-tree :deep(.el-tree-node.is-current > .el-tree-node__content) { background:#fceef4; color:#8f0045; font-weight:600; }
+
+.el-table { width:100% !important; }
+.el-table__header-wrapper table, .el-table__body-wrapper table { table-layout:fixed; width:100% !important; }
 </style>

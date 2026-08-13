@@ -131,7 +131,11 @@ async function submitHandle(close = false) {
             <span>{{ detail.warningNo }}</span>
             <span>{{ getProjectLabel(detail.projectId) }}</span>
             <span class="ap-status-tag" :class="warningStatusTagClass[detail.status]">{{ detail.status }}</span>
-            <el-tag size="small" :type="detail.handleMode === '系统自动关闭' ? 'success' : 'warning'" effect="plain">
+            <el-tag
+              size="small"
+              :type="detail.handleMode === '系统自动关闭' ? 'success' : detail.handleMode === '通知' ? 'info' : 'warning'"
+              effect="plain"
+            >
               {{ detail.handleMode }}
             </el-tag>
             <span v-if="detail.status !== '已关闭'">当前 {{ detail.currentLevel }} 级</span>

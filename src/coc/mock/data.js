@@ -214,7 +214,7 @@ function buildPunchRecords(rand, ri, isFocus) {
   }
 }
 
-/** 在场：今日有上班打卡且无下班打卡 */
+/** 在场：今日已进场且尚未出场 */
 export function isPersonOnSite(person) {
   return Boolean(person.clockIn) && !person.clockOut
 }
@@ -1348,20 +1348,32 @@ export function hazardImageStyle(hue = 20) {
 function withHazardDetail(item, type) {
   const hues = [12, 22, 32, 18, 28]
   const idx = parseInt(item.id.replace(/\D/g, ''), 10) || 0
+  const ticketType = item.ticketType || HAZARD_TICKET_TYPES[idx % HAZARD_TICKET_TYPES.length]
+  const isSupervisionMeeting = ticketType === '监理会议隐患'
   return {
     ...item,
     type,
+    ticketType,
+    // 监理会议隐患：上报人 / 整改人 / 图片均为空
+    reporter: isSupervisionMeeting ? '' : item.reporter,
+    rectifier: isSupervisionMeeting ? '' : item.rectifier,
     detail: {
       unit: '中建三局',
       deadline: '2026-06-18',
       measure: '限期完成整改并上传闭环照片',
       requirement: item.desc,
-      reporter: item.reporter,
+      ticketType,
+      reporter: isSupervisionMeeting ? '' : item.reporter,
+      rectifier: isSupervisionMeeting
+        ? ''
+        : item.rectifier || HAZARD_RECTIFIERS[idx % HAZARD_RECTIFIERS.length],
       reportTime: `${item.date} 09:30`,
-      images: [
-        { id: `${item.id}-img1`, label: '隐患现场图', ...hazardImageStyle(hues[idx % hues.length]) },
-        { id: `${item.id}-img2`, label: '整改参照图', ...hazardImageStyle(hues[(idx + 2) % hues.length]) },
-      ],
+      images: isSupervisionMeeting
+        ? []
+        : [
+            { id: `${item.id}-img1`, label: '隐患现场图', ...hazardImageStyle(hues[idx % hues.length]) },
+            { id: `${item.id}-img2`, label: '整改参照图', ...hazardImageStyle(hues[(idx + 2) % hues.length]) },
+          ],
     },
   }
 }
@@ -1369,6 +1381,9 @@ function withHazardDetail(item, type) {
 export const HAZARD_LEVELS = ['一般', '较大', '重大']
 const HAZARD_STATUSES = ['待整改', '整改中', '已闭合']
 export const HAZARD_REPORTERS = ['张安全', '李巡检', '王强', '赵军', '陈磊', '刘洋', '周质量', '吴检', '郑伟', '孙涛', '钱鹏', '马检']
+export const HAZARD_RECTIFIERS = ['王强', '赵军', '陈磊', '刘洋', '周质量', '吴检', '郑伟', '孙涛', '钱鹏', '马检', '张安全', '李巡检']
+/** 隐患单号类型 */
+export const HAZARD_TICKET_TYPES = ['调度隐患', '监理会议隐患']
 
 /** 任务单/提示函 · 执行人候选（姓名 + 岗位） */
 export const TASK_EXECUTOR_OPTIONS = [
@@ -1450,6 +1465,8 @@ function buildIssuesForType(type, projectsCount = 36) {
         status: statusWeights[(i + j + pIdx) % statusWeights.length],
         location: parts[(i + pIdx + j) % parts.length].name,
         reporter: HAZARD_REPORTERS[(i + j) % HAZARD_REPORTERS.length],
+        rectifier: HAZARD_RECTIFIERS[(i + j + 3) % HAZARD_RECTIFIERS.length],
+        ticketType: HAZARD_TICKET_TYPES[(i + j) % HAZARD_TICKET_TYPES.length],
       }, type))
       seq += 1
     }
@@ -1504,6 +1521,37 @@ export const QUALITY_INSPECTION_STATS = {
 export const SAFETY_HAZARDS = buildSafetyHazards()
 
 export const QUALITY_HAZARDS = buildQualityHazards()
+
+/**
+ * COC 隐患清单 · 确认关闭（仅「监理会议隐患」）
+ * 状态与后台对齐：待整改 → 已闭合（后台侧为「已关闭」）
+ */
+export function closeCocSupervisionMeetingHazard(hazardId, payload = {}) {
+  const id = String(hazardId || '')
+  if (!id) return { ok: false, msg: '隐患不存在' }
+
+  const target =
+    SAFETY_HAZARDS.find((item) => item.id === id) ||
+    QUALITY_HAZARDS.find((item) => item.id === id)
+  if (!target) return { ok: false, msg: '隐患不存在' }
+
+  const ticket = target.ticketType || target.detail?.ticketType || ''
+  if (ticket !== '监理会议隐患') {
+    return { ok: false, msg: '仅监理会议隐患支持确认关闭' }
+  }
+  if (target.status !== '待整改') {
+    return { ok: false, msg: '仅「待整改」状态可确认关闭' }
+  }
+
+  target.status = '已闭合'
+  if (target.detail && typeof target.detail === 'object') {
+    target.detail.closedAt =
+      payload.closedAt ||
+      new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-')
+    target.detail.closedBy = payload.operator || '指挥部用户'
+  }
+  return { ok: true, hazard: target }
+}
 
 export function getProjectIssuesByType(type, projectId) {
   const list = type === 'safety' ? SAFETY_HAZARDS : QUALITY_HAZARDS

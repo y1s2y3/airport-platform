@@ -1,5 +1,9 @@
 import { projectTree } from './laborRealName.js'
-import { ATTENDANCE_ENTRY_STATUS, getOnSiteStatus } from '../constants/laborPersonStatus.js'
+import {
+  REALNAME_ENTRY_STATUS,
+  ATTENDANCE_ENTRY_STATUS,
+  getOnSiteStatus,
+} from '../constants/laborPersonStatus.js'
 
 export { projectTree }
 
@@ -9,14 +13,14 @@ const detailTemplates = [
   { name: '张强', workType: '钢筋工', team: '钢筋一班', subcontractor: '中建三局' },
   { name: '李华', workType: '木工', team: '木工二班', subcontractor: '中建三局' },
   { name: '王芳', workType: '普工', team: '综合班组', subcontractor: '深圳市政' },
-  { name: '赵磊', workType: '电工', team: '机电班组', subcontractor: '广东建工' },
-  { name: '刘洋', workType: '焊工', team: '钢结构班', subcontractor: '广东建工' },
+  { name: '赵磊', workType: '特种-电工', team: '机电班组', subcontractor: '广东建工' },
+  { name: '刘洋', workType: '特种-焊工', team: '钢结构班', subcontractor: '广东建工' },
   { name: '陈静', workType: '安全员', team: '安全管理组', subcontractor: '中建三局' },
-  { name: '周杰', workType: '架子工', team: '脚手架班', subcontractor: '中铁建工' },
+  { name: '周杰', workType: '特种-架子工', team: '脚手架班', subcontractor: '中铁建工' },
   { name: '吴敏', workType: '测量员', team: '测量组', subcontractor: '深圳市政' },
   { name: '郑伟', workType: '混凝土工', team: '混凝土班', subcontractor: '中建三局' },
-  { name: '孙涛', workType: '起重工', team: '塔吊班', subcontractor: '广东建工' },
-  { name: '马超', workType: '普工', team: '杂工班', subcontractor: '中铁建工', entryStatus: ATTENDANCE_ENTRY_STATUS.EXITED },
+  { name: '孙涛', workType: '特种-起重工', team: '塔吊班', subcontractor: '广东建工' },
+  { name: '马超', workType: '普工', team: '杂工班', subcontractor: '中铁建工', dutyStatus: REALNAME_ENTRY_STATUS.EXITED },
   { name: '黄丽', workType: '钢筋工', team: '钢筋二班', subcontractor: '深圳市政' },
 ]
 
@@ -28,14 +32,14 @@ function buildPunchRecord(projectId, projectName, index, tpl, date) {
   const seq = index + 1
   const idBase = 440300199001010000 + seq * 137
   const idCardRaw = String(idBase).padStart(18, '0')
-  const entryStatus = tpl.entryStatus || ATTENDANCE_ENTRY_STATUS.ENTERED
+  const dutyStatus = tpl.dutyStatus || REALNAME_ENTRY_STATUS.ENTERED
 
   let clockIn = ''
   let clockOut = ''
   let gateIn = ''
   let gateOut = ''
 
-  if (entryStatus === ATTENDANCE_ENTRY_STATUS.ENTERED) {
+  if (dutyStatus === REALNAME_ENTRY_STATUS.ENTERED) {
     const pattern = seq % 5
     if (pattern <= 2) {
       clockIn = `${date} 07:${String(30 + (seq % 25)).padStart(2, '0')}:00`
@@ -48,9 +52,18 @@ function buildPunchRecord(projectId, projectName, index, tpl, date) {
     }
   }
 
-  const onSiteStatus = entryStatus === ATTENDANCE_ENTRY_STATUS.ENTERED
-    ? getOnSiteStatus(clockIn ? clockIn.split(' ')[1] : '', clockOut ? clockOut.split(' ')[1] : '')
-    : '—'
+  const onSiteStatus =
+    dutyStatus === REALNAME_ENTRY_STATUS.EXITED
+      ? '—'
+      : getOnSiteStatus(clockIn ? clockIn.split(' ')[1] : '', clockOut ? clockOut.split(' ')[1] : '')
+
+  // 进出场列：在岗人员按打卡派生；离场人员展示「离场」
+  let entryStatus = REALNAME_ENTRY_STATUS.EXITED
+  if (dutyStatus === REALNAME_ENTRY_STATUS.ENTERED) {
+    entryStatus = clockOut
+      ? ATTENDANCE_ENTRY_STATUS.EXITED
+      : ATTENDANCE_ENTRY_STATUS.ENTERED
+  }
 
   return {
     id: `${projectId}-${date}-${seq}`,
@@ -63,6 +76,7 @@ function buildPunchRecord(projectId, projectName, index, tpl, date) {
     workType: tpl.workType,
     team: tpl.team,
     subcontractor: tpl.subcontractor,
+    dutyStatus,
     entryStatus,
     clockIn: clockIn || '—',
     clockOut: clockOut || '—',

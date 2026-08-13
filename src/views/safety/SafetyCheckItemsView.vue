@@ -1,20 +1,48 @@
 <script setup>
-import { ref, computed, reactive } from 'vue'
+import { ref, computed, reactive, watch } from 'vue'
 import { FolderOpened, Plus, Edit, Delete } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { checkCategoryTree as baseTree } from '../../composables/useInspectionPlan'
 
 // 一级分类（扁平）
-const categoryTree = ref(baseTree.map(c => ({ id: c.id, label: c.label })))
+const inspectionCategory = ref('安全')
+const qualityCategories = [
+  {
+    id: 'quality-cat-1',
+    label: '材料质量',
+    items: [
+      { id: 'quality-item-1-1', label: '进场材料合格证、检测报告是否齐全' },
+      { id: 'quality-item-1-2', label: '材料规格、型号及外观质量是否符合要求' },
+    ],
+  },
+  {
+    id: 'quality-cat-2',
+    label: '施工工艺',
+    items: [
+      { id: 'quality-item-2-1', label: '关键工序是否按施工方案和技术交底实施' },
+      { id: 'quality-item-2-2', label: '实测实量结果是否符合质量验收标准' },
+    ],
+  },
+]
+const allBaseCategories = [
+  ...baseTree.map(c => ({ ...c, inspectionCategory: '安全' })),
+  ...qualityCategories.map(c => ({ ...c, inspectionCategory: '质量' })),
+]
+const categoryTree = ref(allBaseCategories.map(c => ({
+  id: c.id,
+  label: c.label,
+  inspectionCategory: c.inspectionCategory,
+})))
 const selectedCategory = ref(baseTree[0]?.id || null)
 const filterText = ref('')
 
 // 检查项数据（合并基础数据 + 用户新增）
 const itemStore = reactive({})
-baseTree.forEach(cat => {
+allBaseCategories.forEach(cat => {
   itemStore[cat.id] = cat.items.map(item => ({
     id: item.id,
     checkPoint: item.label,
+    inspectionCategory: cat.inspectionCategory,
     updatedBy: '系统',
     updatedAt: '2026-07-13 10:00',
   }))
@@ -28,8 +56,14 @@ const checkItems = computed(() => {
 })
 
 const filteredTreeData = computed(() => {
-  if (!filterText.value) return categoryTree.value
-  return categoryTree.value.filter(c => c.label.includes(filterText.value))
+  return categoryTree.value.filter(c =>
+    c.inspectionCategory === inspectionCategory.value
+    && (!filterText.value || c.label.includes(filterText.value)),
+  )
+})
+
+watch(inspectionCategory, () => {
+  selectedCategory.value = filteredTreeData.value[0]?.id || null
 })
 
 function now() {
@@ -60,7 +94,11 @@ function confirmCat() {
     editingCat.value = null
   } else {
     const newId = 'cat-' + Date.now()
-    categoryTree.value.push({ id: newId, label: catForm.label.trim() })
+    categoryTree.value.push({
+      id: newId,
+      label: catForm.label.trim(),
+      inspectionCategory: inspectionCategory.value,
+    })
     itemStore[newId] = []
   }
   catDialogVisible.value = false
@@ -106,7 +144,13 @@ function confirmItem() {
     const item = itemStore[catId].find(i => i.id === editingItemId.value)
     if (item) { item.checkPoint = itemForm.checkPoint.trim(); item.updatedAt = t }
   } else {
-    itemStore[catId].push({ id: 'item-' + Date.now(), checkPoint: itemForm.checkPoint.trim(), updatedBy: '当前用户', updatedAt: t })
+    itemStore[catId].push({
+      id: 'item-' + Date.now(),
+      checkPoint: itemForm.checkPoint.trim(),
+      inspectionCategory: inspectionCategory.value,
+      updatedBy: '当前用户',
+      updatedAt: t,
+    })
   }
   itemDialogVisible.value = false
   ElMessage.success(editingItemId.value ? '已更新' : '已添加')
@@ -127,7 +171,13 @@ function deleteItem(row) {
 <template>
   <div class="check-items-page">
     <div class="page-head">
-      <h3 class="page-title">安全检查项</h3>
+      <div class="page-heading">
+        <h3 class="page-title">巡检检查项</h3>
+        <el-radio-group v-model="inspectionCategory" size="large" class="category-tabs">
+          <el-radio-button value="安全">安全</el-radio-button>
+          <el-radio-button value="质量">质量</el-radio-button>
+        </el-radio-group>
+      </div>
       <div class="page-actions">
         <el-button type="primary" size="default" @click="openAddItem"><el-icon><Plus /></el-icon>新增检查项</el-button>
         <el-input v-model="filterText" placeholder="搜索分类..." clearable size="default" style="width: 200px" />
@@ -181,6 +231,9 @@ function deleteItem(row) {
     <!-- 分类新增/编辑对话框 -->
     <el-dialog v-model="catDialogVisible" :title="editingCat ? '编辑分类' : '新增分类'" width="400px" destroy-on-close @close="editingCat=null">
       <el-form label-width="80px">
+        <el-form-item label="巡检分类" required>
+          <el-input :model-value="inspectionCategory" disabled />
+        </el-form-item>
         <el-form-item label="分类名称" required>
           <el-input v-model="catForm.label" placeholder="请输入分类名称" maxlength="50" />
         </el-form-item>
@@ -194,6 +247,9 @@ function deleteItem(row) {
     <!-- 检查项新增/编辑对话框 -->
     <el-dialog v-model="itemDialogVisible" :title="editingItemId ? '编辑检查项' : '新增检查项'" width="540px" destroy-on-close>
       <el-form label-width="80px">
+        <el-form-item label="巡检分类" required>
+          <el-input :model-value="inspectionCategory" disabled />
+        </el-form-item>
         <el-form-item label="所属分类">
           <el-input :model-value="currentCategoryName" disabled />
         </el-form-item>
@@ -211,8 +267,10 @@ function deleteItem(row) {
 
 <style scoped>
 .check-items-page { display:flex; flex-direction:column; gap:16px; height:100%; }
-.page-head { display:flex; align-items:center; justify-content:space-between; }
+.page-head { display:flex; align-items:flex-end; justify-content:space-between; }
+.page-heading { display:flex; flex-direction:column; align-items:flex-start; gap:12px; }
 .page-title { font-size:18px; font-weight:700; color:var(--ap-text); margin:0; }
+.category-tabs :deep(.el-radio-button__inner) { min-width:104px; padding:11px 30px; font-size:15px; font-weight:600; }
 .page-actions { display:flex; align-items:center; gap:12px; }
 .check-items-body { display:flex; gap:16px; flex:1; min-height:0; }
 .category-panel { width:220px; flex-shrink:0; background:var(--ap-card); border:1px solid var(--ap-border); border-radius:8px; display:flex; flex-direction:column; overflow:hidden; }

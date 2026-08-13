@@ -14,7 +14,7 @@ defineProps({
     <div class="prereq-grid">
       <div class="prereq-card" :class="{ ok: gate.physical.done, bad: !gate.physical.done }">
         <div class="prereq-head">
-          <span class="prereq-title">实体验收情况</span>
+          <span class="prereq-title">实体工程验收情况</span>
           <el-tag :type="gate.physical.done ? 'success' : 'warning'" size="small">
             {{ gate.physical.done ? '全部完成' : '未完成' }}
           </el-tag>
@@ -25,17 +25,17 @@ defineProps({
           :data="compact ? gate.physical.rows.slice(0, 5) : gate.physical.rows"
           size="small"
           border
-          max-height="220"
+          max-height="280"
         >
-          <el-table-column prop="name" label="节点/部位" min-width="160" show-overflow-tooltip />
-          <el-table-column prop="specialty" label="专业" width="90" />
-          <el-table-column label="状态" width="100">
+          <el-table-column prop="name" label="单位工程" min-width="180" show-overflow-tooltip />
+          <el-table-column v-if="!compact" prop="task_no" label="验收单号" width="130" />
+          <el-table-column label="完成状态" width="100">
             <template #default="{ row }">
               <el-tag :type="row.passed ? 'success' : 'info'" size="small">{{ row.statusLabel }}</el-tag>
             </template>
           </el-table-column>
         </el-table>
-        <p v-else class="prereq-empty">暂无实体验收节点</p>
+        <p v-else class="prereq-empty">暂无单位工程，请先在验评目录树维护</p>
         <p v-if="compact && gate.physical.rows.length > 5" class="prereq-more">
           另有 {{ gate.physical.rows.length - 5 }} 项…
         </p>
@@ -56,16 +56,14 @@ defineProps({
           border
           max-height="220"
         >
-          <el-table-column prop="name" label="专项名称" min-width="140" show-overflow-tooltip />
-          <el-table-column prop="specialty" label="类型" width="100" />
-          <el-table-column v-if="!compact" prop="task_no" label="单号" width="120" />
+          <el-table-column prop="name" label="专项名称" min-width="160" show-overflow-tooltip />
           <el-table-column label="状态" width="100">
             <template #default="{ row }">
               <el-tag :type="row.passed ? 'success' : 'info'" size="small">{{ row.statusLabel }}</el-tag>
             </template>
           </el-table-column>
         </el-table>
-        <p v-else class="prereq-empty">暂无专项验收记录（不阻塞竣工）</p>
+        <p v-else class="prereq-empty">暂无专项节点，请先在目录树维护</p>
         <p v-if="compact && gate.special.rows.length > 5" class="prereq-more">
           另有 {{ gate.special.rows.length - 5 }} 项…
         </p>
@@ -78,7 +76,7 @@ defineProps({
       :closable="false"
       show-icon
       class="prereq-alert"
-      :title="gate.blockReason || '实体与专项验收均须全部完成后，方可发起竣工验收'"
+      :title="gate.blockReason || '实体工程与专项验收均须全部完成后，方可发起竣工验收'"
     />
     <el-alert
       v-else
@@ -86,7 +84,7 @@ defineProps({
       :closable="false"
       show-icon
       class="prereq-alert"
-      title="实体验收、专项验收均已完成，可发起竣工验收"
+      title="实体工程验收、专项验收均已完成，可发起竣工验收"
     />
   </div>
 </template>

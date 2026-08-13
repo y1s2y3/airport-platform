@@ -19,10 +19,40 @@ export {
   realNameEntryStatusTagClass as statusTagClass,
 }
 
-export const workTypeOptions = ['钢筋工', '木工', '混凝土工', '架子工', '电工', '焊工', '起重工', '普工', '安全员', '测量员']
+export const workTypeOptions = [
+  '钢筋工',
+  '木工',
+  '混凝土工',
+  '特种-架子工',
+  '特种-电工',
+  '特种-焊工',
+  '特种-起重工',
+  '普工',
+  '安全员',
+  '测量员',
+]
 export const genderOptions = ['男', '女']
-export const salaryTypeOptions = ['计时', '计件', '计量', '月薪', '其他']
-export const personnelCategoryOptions = ['管理人员', '劳务人员', '特种作业人员']
+export const personnelCategoryOptions = ['管理人员', '建筑工人']
+
+/** 是否特种作业：工种/职务以「特种-」开头 */
+export function isSpecialByWorkType(workType) {
+  return String(workType || '').trim().startsWith('特种-')
+}
+
+/** 特种作业人员的工种/职务统一带「特种-」前缀 */
+export function ensureSpecialWorkTypePrefix(workType, isSpecial) {
+  const wt = String(workType || '').trim()
+  if (!isSpecial || !wt) return wt
+  return wt.startsWith('特种-') ? wt : `特种-${wt}`
+}
+
+/** 兼容旧 mock/导入值 → 工人类型两值 */
+export function normalizePersonnelCategory(category) {
+  const c = String(category || '').trim()
+  if (c === '管理人员') return '管理人员'
+  if (c === '建筑工人' || c === '劳务人员' || c === '特种作业人员') return '建筑工人'
+  return personnelCategoryOptions.includes(c) ? c : '建筑工人'
+}
 export const unitTypeOptions = ['建设单位', '勘察单位', '设计单位', '监理单位', '总包单位', '劳务分包', '单位分包']
 export const educationTypeOptions = ['三级教育', '岗前培训']
 export const idTypeOptions = ['居民身份证', '护照', '港澳居民来往内地通行证', '台湾居民来往大陆通行证']
@@ -50,26 +80,23 @@ const unitProfiles = {
 }
 
 const personnelTemplates = [
-  { name: '张强', gender: '男', workType: '钢筋工', team: '钢筋一班', unitKey: '中建三局', category: '劳务人员', special: false, isTeamLeader: true },
-  { name: '李华', gender: '男', workType: '木工', team: '木工二班', unitKey: '中建三局', category: '劳务人员', special: false, isTeamLeader: false },
-  { name: '王芳', gender: '女', workType: '普工', team: '综合班组', unitKey: '深圳市政', category: '劳务人员', special: false, isTeamLeader: false },
-  { name: '赵磊', gender: '男', workType: '电工', team: '机电班组', unitKey: '中建三局', category: '特种作业人员', special: true, certNo: 'T4403002023001234', isTeamLeader: false },
-  { name: '刘洋', gender: '男', workType: '焊工', team: '钢结构班', unitKey: '广东建工', category: '特种作业人员', special: true, certNo: 'T4403002023005678', isTeamLeader: false },
+  { name: '张强', gender: '男', workType: '钢筋工', team: '钢筋一班', unitKey: '中建三局', category: '建筑工人', special: false, isTeamLeader: true },
+  { name: '李华', gender: '男', workType: '木工', team: '木工二班', unitKey: '中建三局', category: '建筑工人', special: false, isTeamLeader: false },
+  { name: '王芳', gender: '女', workType: '普工', team: '综合班组', unitKey: '深圳市政', category: '建筑工人', special: false, isTeamLeader: false },
+  { name: '赵磊', gender: '男', workType: '特种-电工', team: '机电班组', unitKey: '中建三局', category: '建筑工人', special: true, certNo: 'T4403002023001234', isTeamLeader: false },
+  { name: '刘洋', gender: '男', workType: '特种-焊工', team: '钢结构班', unitKey: '广东建工', category: '建筑工人', special: true, certNo: 'T4403002023005678', isTeamLeader: false },
   { name: '陈静', gender: '女', workType: '安全员', team: '安全管理组', unitKey: '中建三局', category: '管理人员', special: false, isTeamLeader: false },
-  { name: '周杰', gender: '男', workType: '架子工', team: '脚手架班', unitKey: '中铁建工', category: '特种作业人员', special: true, certNo: 'T4403002023009012', isTeamLeader: false },
+  { name: '周杰', gender: '男', workType: '特种-架子工', team: '脚手架班', unitKey: '中铁建工', category: '建筑工人', special: true, certNo: 'T4403002023009012', isTeamLeader: false },
   { name: '吴敏', gender: '女', workType: '测量员', team: '测量组', unitKey: '深圳市政', category: '管理人员', special: false, isTeamLeader: false },
-  { name: '郑伟', gender: '男', workType: '混凝土工', team: '混凝土班', unitKey: '中建三局', category: '劳务人员', special: false, isTeamLeader: false },
-  { name: '孙涛', gender: '男', workType: '起重工', team: '塔吊班', unitKey: '广东建工', category: '特种作业人员', special: true, certNo: 'T4403002023003456', isTeamLeader: true },
-  { name: '马超', gender: '男', workType: '普工', team: '杂工班', unitKey: '中铁建工', category: '劳务人员', special: false, isTeamLeader: false, entryStatus: REALNAME_ENTRY_STATUS.EXITED },
-  { name: '黄丽', gender: '女', workType: '钢筋工', team: '钢筋二班', unitKey: '深圳市政', category: '劳务人员', special: false, isTeamLeader: false },
+  { name: '郑伟', gender: '男', workType: '混凝土工', team: '混凝土班', unitKey: '中建三局', category: '建筑工人', special: false, isTeamLeader: false },
+  { name: '孙涛', gender: '男', workType: '特种-起重工', team: '塔吊班', unitKey: '广东建工', category: '建筑工人', special: true, certNo: 'T4403002023003456', isTeamLeader: true },
+  { name: '马超', gender: '男', workType: '普工', team: '杂工班', unitKey: '中铁建工', category: '建筑工人', special: false, isTeamLeader: false, entryStatus: REALNAME_ENTRY_STATUS.EXITED },
+  { name: '黄丽', gender: '女', workType: '钢筋工', team: '钢筋二班', unitKey: '深圳市政', category: '建筑工人', special: false, isTeamLeader: false },
 ]
 
 const nativePlaces = ['湖北省武汉市', '湖南省长沙市', '广东省深圳市', '四川省成都市', '河南省郑州市', '江西省南昌市']
 const educations = ['小学', '初中', '高中', '中专', '大专', '本科']
 const politicalStatuses = ['群众', '共青团员', '中共党员']
-const salaryTypes = ['计时', '计件', '计量', '月薪', '其他']
-const salaryUnits = { 计时: '元/天', 计件: '元/件', 计量: '元/m³', 月薪: '元/月', 其他: '元/天' }
-
 export const educationLevelOptions = ['小学', '初中', '高中', '中专', '大专', '本科', '硕士', '博士']
 export const politicalStatusOptions = ['群众', '共青团员', '中共党员', '民主党派']
 export const healthStatusOptions = ['健康', '一般', '需关注']
@@ -146,10 +173,9 @@ function buildPersonnel(projectId, index, tpl, offset = 0) {
   const punch = buildTodayPunch(seq, entryStatus)
   const onSiteStatus = getRealNameOnSiteStatus(entryStatus, punch.clockIn, punch.clockOut)
   const unitProfile = unitProfiles[tpl.unitKey] || { fullName: tpl.unitKey, creditCode: '91440000000000000X' }
-  const salaryType = salaryTypes[seq % salaryTypes.length]
-  const entryDate = `2025-${String((seq % 12) + 1).padStart(2, '0')}-${String((seq % 28) + 1).padStart(2, '0')}`
   const personnelNo = `RN-${projectId.toUpperCase()}-${String(seq).padStart(4, '0')}`
 
+  // 监管采集口径：①基本身份（只读）②特种作业证书（只读）③三级安全教育（可编辑）；日常考勤不在人员详情展示
   const basic = {
     personnelNo,
     photo: '',
@@ -170,21 +196,18 @@ function buildPersonnel(projectId, index, tpl, offset = 0) {
     medicalHistory: seq % 9 === 0 ? '高血压（可控）' : '无',
   }
 
+  const workType = ensureSpecialWorkTypePrefix(tpl.workType, tpl.special || isSpecialByWorkType(tpl.workType))
+  const isSpecial = isSpecialByWorkType(workType)
   const unit = {
     unitName: unitProfile.fullName,
     creditCode: unitProfile.creditCode,
     unitType: unitTypeByKey[tpl.unitKey] || '劳务分包',
-    personnelCategory: tpl.category,
-    workType: tpl.workType,
+    personnelCategory: normalizePersonnelCategory(tpl.category),
+    workType,
     team: tpl.team,
     isTeamLeader: tpl.isTeamLeader,
-    specialCertAttachment: tpl.special ? `${tpl.workType}操作证.pdf` : '',
-    certValidTo: tpl.special ? '2027-06-30' : '',
-    contractAttachment: '劳动合同.pdf',
-    contractStartDate: entryDate,
-    contractEndDate: entryStatus === REALNAME_ENTRY_STATUS.EXITED ? '2026-05-30' : '2026-12-31',
-    salaryType,
-    unitPrice: `${220 + (seq % 8) * 20}${salaryUnits[salaryType]}`,
+    specialCertAttachment: isSpecial ? `${workType}操作证.pdf` : '',
+    certValidTo: isSpecial ? '2027-06-30' : '',
   }
 
   const safetyEducation = buildSafetyEducation(seq, entryStatus)
@@ -196,9 +219,8 @@ function buildPersonnel(projectId, index, tpl, offset = 0) {
     onSiteStatus,
     clockIn: punch.clockIn,
     clockOut: punch.clockOut,
-    isSpecial: tpl.special,
+    isSpecial,
     certNo: tpl.certNo || '',
-    accessStatus: entryStatus === REALNAME_ENTRY_STATUS.ENTERED ? '正常通行' : '已注销',
     basic,
     unit,
     safetyEducation,
@@ -259,14 +281,14 @@ export function getProjectLabel(projectId) {
 
 export function getRealNameStats(projectId) {
   const list = getProjectPersonnel(projectId)
+  const enteredList = list.filter((r) => r.entryStatus === REALNAME_ENTRY_STATUS.ENTERED)
   return {
     total: list.length,
-    entered: list.filter((r) => r.entryStatus === REALNAME_ENTRY_STATUS.ENTERED).length,
+    entered: enteredList.length,
     exited: list.filter((r) => r.entryStatus === REALNAME_ENTRY_STATUS.EXITED).length,
-    onSite: list.filter(
-      (r) => r.entryStatus === REALNAME_ENTRY_STATUS.ENTERED && r.onSiteStatus === ONSITE_STATUS.ON_SITE,
-    ).length,
-    special: list.filter((r) => r.isSpecial && r.entryStatus === REALNAME_ENTRY_STATUS.ENTERED).length,
+    manage: enteredList.filter((r) => r.unit?.personnelCategory === '管理人员').length,
+    onSite: enteredList.filter((r) => r.onSiteStatus === ONSITE_STATUS.ON_SITE).length,
+    special: enteredList.filter((r) => r.isSpecial).length,
   }
 }
 
@@ -288,8 +310,8 @@ export function buildHqRealNameStatsByProject() {
     const list = getProjectPersonnel(opt.id)
     const entered = list.filter((r) => r.entryStatus === REALNAME_ENTRY_STATUS.ENTERED)
     const manage = entered.filter((r) => r.unit?.personnelCategory === '管理人员').length
-    const labor = entered.filter((r) => r.unit?.personnelCategory === '劳务人员').length
-    const special = entered.filter((r) => r.unit?.personnelCategory === '特种作业人员').length
+    const labor = entered.filter((r) => r.unit?.personnelCategory === '建筑工人').length
+    const special = entered.filter((r) => r.isSpecial).length
     return {
       project_id: opt.id,
       project_name: opt.label,
@@ -328,7 +350,6 @@ export function createEmptyPersonnel(projectId) {
     clockOut: '',
     isSpecial: false,
     certNo: '',
-    accessStatus: '正常通行',
     basic: {
       personnelNo,
       photo: '',
@@ -352,17 +373,12 @@ export function createEmptyPersonnel(projectId) {
       unitName: '',
       creditCode: '',
       unitType: '劳务分包',
-      personnelCategory: '劳务人员',
+      personnelCategory: '建筑工人',
       workType: '',
       team: '',
       isTeamLeader: false,
       specialCertAttachment: '',
       certValidTo: '',
-      contractAttachment: '',
-      contractStartDate: '',
-      contractEndDate: '',
-      salaryType: '计时',
-      unitPrice: '',
     },
     safetyEducation: [createEmptySafetyEducation()],
   }
@@ -379,7 +395,18 @@ export function clonePersonnel(source) {
 function normalizePersonnel(data) {
   const idNumberRaw = data.basic.idNumberRaw || data.basic.idNumber
   const entryStatus = data.entryStatus || REALNAME_ENTRY_STATUS.ENTERED
-  const isSpecial = data.unit.personnelCategory === '特种作业人员'
+  const personnelCategory = normalizePersonnelCategory(data.unit?.personnelCategory)
+  const workTypeRaw = data.unit?.workType || ''
+  // 先按工种识别；若显式要求特种则补前缀后再识别
+  let workType = workTypeRaw
+  let isSpecial = isSpecialByWorkType(workType)
+  if (!isSpecial && data.isSpecial === true) {
+    workType = ensureSpecialWorkTypePrefix(workType, true)
+    isSpecial = isSpecialByWorkType(workType)
+  } else {
+    workType = ensureSpecialWorkTypePrefix(workType, isSpecial)
+    isSpecial = isSpecialByWorkType(workType)
+  }
   const onSiteStatus = getRealNameOnSiteStatus(entryStatus, data.clockIn || '', data.clockOut || '')
 
   return {
@@ -387,14 +414,17 @@ function normalizePersonnel(data) {
     entryStatus,
     isSpecial,
     onSiteStatus,
-    accessStatus: entryStatus === REALNAME_ENTRY_STATUS.ENTERED ? '正常通行' : '已注销',
     basic: {
       ...data.basic,
       idNumberRaw,
       idNumber: maskIdCard(idNumberRaw),
       age: data.basic.age ? Number(data.basic.age) : null,
     },
-    unit: { ...data.unit },
+    unit: {
+      ...data.unit,
+      personnelCategory,
+      workType,
+    },
   }
 }
 
@@ -450,19 +480,19 @@ export function lookupUnitType(unitName) {
 /** 查看手机号并写入操作日志 */
 export function logPhoneView({ personnelId, personnelNo, name, scene = '列表' }) {
   appendOperationLog({
-    module: '安全管理',
+    module: '人员实名制管理',
     type: '查询',
     content: `查看人员实名制手机号：${name}（${personnelNo}）· ${scene}`,
-    requestUrl: `/api/safety/labor/realname/${personnelId}/phone/view`,
+    requestUrl: `/api/labor/realname/${personnelId}/phone/view`,
   })
 }
 
 /** 查看证件号码并写入操作日志 */
 export function logIdCardView({ personnelId, personnelNo, name, scene = '列表' }) {
   appendOperationLog({
-    module: '安全管理',
+    module: '人员实名制管理',
     type: '查询',
     content: `查看人员实名制证件号码：${name}（${personnelNo}）· ${scene}`,
-    requestUrl: `/api/safety/labor/realname/${personnelId}/id-number/view`,
+    requestUrl: `/api/labor/realname/${personnelId}/id-number/view`,
   })
 }

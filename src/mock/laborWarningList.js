@@ -3,8 +3,8 @@ import { projectTree, getProjectLabel, getDefaultProjectId } from './laborRealNa
 
 export { projectTree, getProjectLabel, getDefaultProjectId }
 
-export const warningStatusOptions = ['待处理', '处理中', '已关闭']
-export const handleModeOptions = ['手动处理', '系统自动关闭']
+export const warningStatusOptions = ['待处理', '已关闭', '已通知']
+export const handleModeOptions = ['手动处理', '系统自动关闭', '通知']
 
 /** 各预警规则默认处置方式 */
 export const warningHandleModeMap = {
@@ -12,13 +12,11 @@ export const warningHandleModeMap = {
   specialCertMissing: '系统自动关闭',
   workOver12h: '手动处理',
   ageLimit: '手动处理',
-  elderlyReminder: '系统自动关闭',
-  idCardExpired: '手动处理',
+  elderlyReminder: '通知',
+  idCardExpired: '通知',
   absentDays: '手动处理',
-  multiSiteOnSite: '手动处理',
   managerAttendance: '手动处理',
   blacklistEntry: '手动处理',
-  salaryAbnormal: '手动处理',
 }
 
 /** 各预警类型处置方法说明 */
@@ -28,23 +26,19 @@ export const warningHandleGuideMap = {
   specialCertMissing:
     '本预警为系统自动关闭类型。请在人员实名制中上传有效特种作业操作证并填写证书有效期；系统校验证书有效后将自动关闭预警，无需人工关闭操作。',
   elderlyReminder:
-    '本预警为系统自动关闭类型，仅在施工方端提示，不向监管方上报。系统完成提示推送并留档后自动关闭，无需人工处置。',
+    '本预警为通知类型。超过设定年龄时在施工方端提示，需做好工人健康情况排查工作，不强制要求退场。状态为已通知，无需关闭，不参与分级上报；详情只读。',
   workOver12h:
-    '本预警需手动处理。请核实连续作业情况，督促人员休息并规范打卡；在下方填写处置说明，确认整改完成后点击「处置并关闭」，可上传相关证明材料。',
+    '本预警需手动处理。请核实连续作业情况，督促人员休息并规范进出场；在下方填写处置说明，确认整改完成后点击「处置并关闭」，可上传相关证明材料。',
   ageLimit:
     '本预警需手动处理。请核实人员年龄及身份证信息，纠正登记错误或按规定办理退场；填写处置说明后关闭预警，建议上传核实材料。',
   idCardExpired:
-    '本预警需手动处理。请督促人员及时换领身份证并在实名制中更新证件信息及有效期；完成更新并核实后填写处置说明关闭预警。',
+    '本预警为通知类型。人员身份证已过期时提示相关责任人关注换证与信息更新。状态为已通知，无需关闭，不参与分级上报；详情只读。',
   absentDays:
-    '本预警需手动处理。请联系参建单位核实未出勤原因（请假、退场、漏打卡等），督促整改；填写处置说明后关闭预警，可上传考勤补录或请假证明。',
-  multiSiteOnSite:
-    '本预警需手动处理。请核实人员是否真实多地同时在场，排查考勤设备误识别或违规跨项目作业；处置完成后填写说明并关闭预警。',
+    '本预警需手动处理。请联系参建单位核实未出勤原因（请假、退场、漏记进出场等），督促整改；填写处置说明后关闭预警，可上传考勤补录或请假证明。',
   managerAttendance:
-    '本预警需手动处理。请督促参建单位提升管理人员出勤率，落实考勤要求；填写整改措施及结果后关闭预警，可上传考勤统计表等附件。',
+    '本预警需手动处理。请督促参建单位落实管理人员月度出勤要求（当月出勤天数不少于配置阈值）；填写整改措施及结果后关闭预警，可上传考勤统计表等附件。',
   blacklistEntry:
-    '本预警需手动处理。请确认黑名单人员已被拦截且未安排入场，通报相关责任单位；填写处置说明并关闭预警，建议上传通报记录或现场处置照片。',
-  salaryAbnormal:
-    '本预警需手动处理。请核对工资发放与考勤、合同信息，督促参建单位整改异常；填写核实结果后关闭预警，可上传工资发放明细等证明材料。',
+    '本预警需手动处理。请核实黑名单人员是否已被安排进场或现场作业，通报相关责任单位并督促退场/清退；填写处置说明并关闭预警，建议上传通报记录或现场处置照片。平台不做闸机强制拦截，需持续跟进直至问题消除。',
 }
 
 export function getWarningHandleGuide(ruleKey) {
@@ -53,15 +47,16 @@ export function getWarningHandleGuide(ruleKey) {
 
 export const warningStatusTagClass = {
   待处理: 'ap-tag-high',
-  处理中: 'ap-tag-medium',
   已关闭: 'ap-tag-enabled',
+  已通知: 'ap-tag-low',
 }
 
 const ruleConfigSnapshot = {
   workOver12h: { hours: 12 },
   ageLimit: { minAge: 16 },
-  elderlyReminder: { maleAge: 60, femaleAge: 50 },
+  elderlyReminder: { maleAge: 65, femaleAge: 60 },
   absentDays: { days: 3 },
+  managerAttendance: { days: 20 },
 }
 
 function buildWarning({
@@ -135,7 +130,7 @@ const warningList = [
     status: '待处理',
     currentLevel: 2,
     triggeredAt: '2026-06-29 21:05:00',
-    triggerReason: '2026-06-29 上班打卡 07:02，截至 21:05 未打下班卡，连续作业时长 14 小时，超过阈值 12 小时。',
+    triggerReason: '2026-06-29 进场 07:02，截至 21:05 未出场，连续作业时长 14 小时，超过阈值 12 小时。',
     disposalRecords: [
       { time: '2026-06-29 21:05:00', type: 'trigger', operator: '系统', content: '触发连续工作超12小时预警' },
       { time: '2026-06-30 09:00:00', type: 'escalate', operator: '系统', content: '超 1 天未处置，自动上报至一级责任人（总监理）' },
@@ -150,7 +145,7 @@ const warningList = [
     personnelNo: 'RN-P-001-0004',
     name: '赵磊',
     unitName: '中建三局第一建设工程有限责任公司',
-    workType: '电工',
+    workType: '特种-电工',
     status: '已关闭',
     currentLevel: 1,
     triggeredAt: '2026-06-20 08:00:00',
@@ -171,12 +166,12 @@ const warningList = [
     name: '吴某',
     unitName: '广东建工集团有限公司',
     workType: '普工',
-    status: '处理中',
+    status: '待处理',
     currentLevel: 1,
     triggeredAt: '2026-06-28 06:45:00',
-    triggerReason: '黑名单人员于北门闸机尝试刷卡进场，系统自动拦截。',
+    triggerReason: '黑名单人员于北门闸机尝试刷卡进场，系统生成黑名单人员进场预警（二期不做强制拦截）。',
     disposalRecords: [
-      { time: '2026-06-28 06:45:00', type: 'trigger', operator: '系统', content: '触发黑名单人员进场预警，闸机已拦截' },
+      { time: '2026-06-28 06:45:00', type: 'trigger', operator: '系统', content: '触发黑名单人员进场预警' },
       { time: '2026-06-28 07:10:00', type: 'handle', operator: '张安全', content: '已核实为黑名单人员，通知施工单位禁止安排入场，现场已驱离' },
       { time: '2026-06-28 09:00:00', type: 'handle', operator: '张安全', content: '已向项目经理及监理单位通报，等待联审确认后关闭预警' },
     ],
@@ -193,7 +188,7 @@ const warningList = [
     status: '待处理',
     currentLevel: 1,
     triggeredAt: '2026-06-29 00:00:00',
-    triggerReason: '已入场人员连续 3 天（2026-06-27 至 2026-06-29）无考勤记录。',
+    triggerReason: '在岗人员连续 3 天（2026-06-27 至 2026-06-29）无考勤记录。',
     disposalRecords: [
       { time: '2026-06-29 00:00:00', type: 'trigger', operator: '系统', content: '触发连续3天未出勤预警' },
     ],
@@ -207,33 +202,13 @@ const warningList = [
     name: '老马',
     unitName: '中铁建工集团有限公司',
     workType: '普工',
-    status: '已关闭',
+    status: '已通知',
     currentLevel: 1,
     triggeredAt: '2026-06-27 08:30:00',
-    closedAt: '2026-06-27 08:30:00',
-    triggerReason: '男性人员年龄 62 岁，超过高龄提醒阈值（60 岁），仅在施工方端提示。',
+    closedAt: '',
+    triggerReason: '男性人员年龄 66 岁，超过高龄提醒阈值（65 岁），已通知施工方端排查健康情况。',
     disposalRecords: [
-      { time: '2026-06-27 08:30:00', type: 'trigger', operator: '系统', content: '触发高龄提醒（男60岁/女50岁），已向施工方推送提示' },
-      { time: '2026-06-27 08:30:00', type: 'auto_close', operator: '系统', content: '高龄提醒为施工方内部提示类预警，记录留档后自动关闭' },
-    ],
-  }),
-  buildWarning({
-    id: 'w-007',
-    ruleKey: 'multiSiteOnSite',
-    projectId: 'p-001',
-    personnelId: 'rn-p-001-0002',
-    personnelNo: 'RN-P-001-0002',
-    name: '李华',
-    unitName: '中建三局第一建设工程有限责任公司',
-    workType: '木工',
-    status: '处理中',
-    currentLevel: 2,
-    triggeredAt: '2026-06-28 14:20:00',
-    triggerReason: '同一人员同时在 T1航站区配套工程、T2航站区及配套工程处于在场状态。',
-    disposalRecords: [
-      { time: '2026-06-28 14:20:00', type: 'trigger', operator: '系统', content: '触发人员多地同时在场预警' },
-      { time: '2026-06-29 09:00:00', type: 'escalate', operator: '系统', content: '超 1 天未处置，自动上报至一级责任人（总监理）' },
-      { time: '2026-06-30 10:15:00', type: 'handle', operator: '姚远东', content: '已联系施工单位核实，确认为考勤设备误识别，正在排查设备异常' },
+      { time: '2026-06-27 08:30:00', type: 'trigger', operator: '系统', content: '触发高龄提醒（男65岁/女60岁），已向施工方推送提示（通知类，无需关闭）' },
     ],
   }),
   buildWarning({
@@ -268,9 +243,9 @@ const warningList = [
     status: '待处理',
     currentLevel: 1,
     triggeredAt: '2026-06-29 08:00:00',
-    triggerReason: '管理人员 6 月出勤率 72%，低于项目要求 80%。',
+    triggerReason: '管理人员 6 月出勤 15 天，少于配置阈值 20 天。',
     disposalRecords: [
-      { time: '2026-06-29 08:00:00', type: 'trigger', operator: '系统', content: '触发管理人员考勤不达标预警' },
+      { time: '2026-06-29 08:00:00', type: 'trigger', operator: '系统', content: '触发管理人员考勤不达标，每月出勤少于20天预警' },
     ],
   }),
   buildWarning({
@@ -281,13 +256,13 @@ const warningList = [
     personnelNo: 'RN-P-000-0005',
     name: '刘洋',
     unitName: '广东建工集团有限公司',
-    workType: '焊工',
-    status: '待处理',
+    workType: '特种-焊工',
+    status: '已通知',
     currentLevel: 1,
     triggeredAt: '2026-06-28 00:00:00',
-    triggerReason: '身份证有效期至 2026-06-30，距到期不足 30 天。',
+    triggerReason: '身份证有效期已过期，已通知相关责任人关注换证。',
     disposalRecords: [
-      { time: '2026-06-28 00:00:00', type: 'trigger', operator: '系统', content: '触发身份证过期提醒' },
+      { time: '2026-06-28 00:00:00', type: 'trigger', operator: '系统', content: '触发身份证过期提醒（通知类，无需关闭）' },
     ],
   }),
   buildWarning({
@@ -302,7 +277,7 @@ const warningList = [
     status: '已关闭',
     triggeredAt: '2026-06-18 08:20:00',
     closedAt: '2026-06-19 16:45:00',
-    triggerReason: '人员已入场，实名制档案中无三级安全教育记录。',
+    triggerReason: '人员在岗，实名制档案中无三级安全教育记录。',
     disposalRecords: [
       { time: '2026-06-18 08:20:00', type: 'trigger', operator: '系统', content: '触发未进行入场三级教育预警' },
       { time: '2026-06-19 16:43:00', type: 'auto_close', operator: '系统', content: '检测到已录入三级安全教育（2026-06-19，4学时，合格），预警自动关闭' },
@@ -317,7 +292,7 @@ const warningList = [
     personnelNo: 'RN-P-003-0007',
     name: '周杰',
     unitName: '中铁建工集团有限公司',
-    workType: '架子工',
+    workType: '特种-架子工',
     status: '已关闭',
     triggeredAt: '2026-06-10 07:30:00',
     closedAt: '2026-06-11 09:15:00',
@@ -337,13 +312,12 @@ const warningList = [
     name: '李大姐',
     unitName: '深圳市政集团有限公司',
     workType: '普工',
-    status: '已关闭',
+    status: '已通知',
     triggeredAt: '2026-06-26 07:55:00',
-    closedAt: '2026-06-26 07:55:00',
-    triggerReason: '女性人员年龄 52 岁，超过高龄提醒阈值（50 岁），仅在施工方端提示。',
+    closedAt: '',
+    triggerReason: '女性人员年龄 61 岁，超过高龄提醒阈值（60 岁），已通知施工方端排查健康情况。',
     disposalRecords: [
-      { time: '2026-06-26 07:55:00', type: 'trigger', operator: '系统', content: '触发高龄提醒（男60岁/女50岁），已向施工方推送提示' },
-      { time: '2026-06-26 07:55:00', type: 'auto_close', operator: '系统', content: '高龄提醒为施工方内部提示类预警，记录留档后自动关闭' },
+      { time: '2026-06-26 07:55:00', type: 'trigger', operator: '系统', content: '触发高龄提醒（男65岁/女60岁），已向施工方推送提示（通知类，无需关闭）' },
     ],
   }),
   buildWarning({
@@ -373,7 +347,7 @@ const warningList = [
     personnelNo: 'RN-P-005-0004',
     name: '赵磊',
     unitName: '中建三局第一建设工程有限责任公司',
-    workType: '电工',
+    workType: '特种-电工',
     status: '已关闭',
     triggeredAt: '2026-06-24 08:00:00',
     closedAt: '2026-06-24 15:20:00',
@@ -393,13 +367,12 @@ const warningList = [
     name: '老周',
     unitName: '中铁建工集团有限公司',
     workType: '钢筋工',
-    status: '已关闭',
+    status: '已通知',
     triggeredAt: '2026-06-30 06:40:00',
-    closedAt: '2026-06-30 06:40:00',
-    triggerReason: '男性人员年龄 61 岁，超过高龄提醒阈值（60 岁），仅在施工方端提示。',
+    closedAt: '',
+    triggerReason: '男性人员年龄 66 岁，超过高龄提醒阈值（65 岁），已通知施工方端排查健康情况。',
     disposalRecords: [
-      { time: '2026-06-30 06:40:00', type: 'trigger', operator: '系统', content: '触发高龄提醒（男60岁/女50岁），已向施工方推送提示' },
-      { time: '2026-06-30 06:40:00', type: 'auto_close', operator: '系统', content: '高龄提醒为施工方内部提示类预警，记录留档后自动关闭' },
+      { time: '2026-06-30 06:40:00', type: 'trigger', operator: '系统', content: '触发高龄提醒（男65岁/女60岁），已向施工方推送提示（通知类，无需关闭）' },
     ],
   }),
   buildWarning({
@@ -413,7 +386,7 @@ const warningList = [
     workType: '普工',
     status: '待处理',
     triggeredAt: '2026-06-30 09:00:00',
-    triggerReason: '人员已入场，尚未录入三级安全教育记录，等待补录后系统自动关闭。',
+    triggerReason: '人员在岗，尚未录入三级安全教育记录，等待补录后系统自动关闭。',
     disposalRecords: [
       { time: '2026-06-30 09:00:00', type: 'trigger', operator: '系统', content: '触发未进行入场三级教育预警' },
     ],
@@ -441,16 +414,15 @@ export function getWarningStats(projectId) {
   return {
     total: list.length,
     pending: list.filter((item) => item.status === '待处理').length,
-    processing: list.filter((item) => item.status === '处理中').length,
     closed: list.filter((item) => item.status === '已关闭').length,
-    manual: list.filter((item) => item.handleMode === '手动处理' && item.status !== '已关闭').length,
+    manual: list.filter((item) => item.handleMode === '手动处理' && item.status === '待处理').length,
   }
 }
 
 export function handleWarning(id, { content, operator = '当前用户', close = false, attachments = [] }) {
   const item = warningList.find((row) => row.id === id)
   if (!item) return null
-  if (item.status === '已关闭') return item
+  if (item.status === '已关闭' || item.status === '已通知') return item
   if (item.handleMode !== '手动处理') return item
 
   const now = new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-')
@@ -464,8 +436,12 @@ export function handleWarning(id, { content, operator = '当前用户', close = 
     record.attachments = attachments.map((file) => (typeof file === 'string' ? file : file.name))
   }
   item.disposalRecords.push(record)
-  item.status = close ? '已关闭' : '处理中'
-  if (close) item.closedAt = now
+  if (close) {
+    item.status = '已关闭'
+    item.closedAt = now
+  } else if (item.status !== '待处理') {
+    item.status = '待处理'
+  }
   return { ...item, disposalRecords: [...item.disposalRecords] }
 }
 

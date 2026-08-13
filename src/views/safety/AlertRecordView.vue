@@ -122,7 +122,10 @@ function submitRuleConfig() {
 <template>
   <div class="page">
     <div class="page-head">
-      <h3 class="page-title">告警记录</h3>
+      <div class="page-head-main">
+        <div v-if="isHqSelected" class="page-breadcrumb">安全看板 / 机械设备告警</div>
+        <h3 class="page-title">{{ isHqSelected ? '机械设备告警' : '告警记录' }}</h3>
+      </div>
       <span class="total-count">共 {{ filteredData.length }} 条</span>
       <el-button v-if="isHqSelected" type="primary" size="default" :icon="Setting" @click="openRuleConfig" style="margin-left:auto">告警规则配置</el-button>
     </div>
@@ -303,7 +306,9 @@ function submitRuleConfig() {
 
 <style scoped>
 .page { padding:0; }
-.page-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+.page-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; gap: 12px; }
+.page-head-main { display:flex; flex-direction:column; gap:4px; min-width:0; }
+.page-breadcrumb { font-size:13px; color:var(--ap-text-muted, #909399); }
 .page-title { font-size:18px; font-weight:600; color:#1f2329; margin:0; }
 .total-count { font-size:12px; color:#999; }
 .filter-bar { display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap; align-items:center; }

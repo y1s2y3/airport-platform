@@ -14,8 +14,8 @@ const props = defineProps({
   },
   /** 居右时是否显示半透明遮罩（可点击遮罩关闭） */
   rightBackdrop: { type: Boolean, default: false },
-  /** 面板不透明（无毛玻璃/半透底色） */
-  opaque: { type: Boolean, default: false },
+  /** 面板不透明（无毛玻璃/半透底色）；COC 弹出层默认实底 */
+  opaque: { type: Boolean, default: true },
 })
 
 const emit = defineEmits(['close'])
@@ -186,8 +186,8 @@ function onPointerUp() {
   flex-direction: column;
   overflow: hidden;
   color: var(--coc-text);
-  backdrop-filter: blur(9px);
-  -webkit-backdrop-filter: blur(9px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .drag-panel.placement-right {

@@ -1,7 +1,11 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
+// GitHub Pages 项目站需要子路径；本地 / Vercel 仍用根路径
+const base = process.env.VITE_BASE || '/'
+
 export default defineConfig({
+  base,
   plugins: [vue()],
   server: {
     host: true,

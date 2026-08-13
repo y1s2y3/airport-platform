@@ -11,7 +11,7 @@ export const MENU_SCOPE_ROOTS = [
 
 /**
  * 仅指挥部/企业层级展示的菜单（项目级侧栏与项目角色授权树均不展示）
- * 含：任务单、提示函、处罚单、黑红榜单、日志管理、菜单管理、视频离线通知配置
+ * 含：任务单、提示函、处罚单、黑红榜单、日志管理、菜单管理
  */
 export const HQ_ONLY_MENU_KEYS = new Set([
   'coc-admin-notice',
@@ -23,67 +23,142 @@ export const HQ_ONLY_MENU_KEYS = new Set([
   'log-login',
   'log-operation',
   'sys-menu',
-  'video-monitor-offline-notify',
   /** 视频监控 · 指挥部统计 */
   'video-monitor-stats',
-  /** 安全巡检：看板 / 计划 / 检查项仅指挥部维护 */
+  /** 巡检管理：看板 / 任务下发 / 检查项仅指挥部维护 */
   'safety-dashboard',
   'safety-plan',
   'safety-check-items',
-  /** 人员实名制 · 指挥部 */
+  /** 人员实名制 · 指挥部仅保留：实名制统计 / 实名制配置 / 劳务黑名单 */
   'labor-realname-stats',
+  'labor-warning-config',
+  'labor-blacklist',
+  /** 质量看板（指挥部专属一级菜单） */
+  'quality-board',
+  'brand-approval-stats',
+  'qm-dashboard',
+  /** 指挥部轨迹系统列表（挂在施工现场管理下） */
+  'labor-track-system',
+  'vehicle-track-system',
+  /** 安全看板（指挥部专属一级菜单） */
+  'safety-board',
+  /** 指挥部 · 施工现场管理（一级；二级为人员/车辆/巡检/机械/危大） */
+  'hq-site-construction',
+  'hq-vehicle',
+  'hq-work-manage',
+  'vehicle-track-config',
+  /**
+   * 原指挥部「视频监控」「车辆管理」一级已删除；
+   * 实名制统计 / 人员轨迹系统挂在「施工现场管理 / 人员实名制管理」；
+   * 车辆管理看板 / 车辆轨迹系统挂在「施工现场管理 / 车辆管理」（看板仅指挥部）；其余统计/告警挂在安全看板。
+   * 项目侧能力在「智慧工地监管」下。
+   */
+  'video-monitor',
+  'vehicle',
+  /**
+   * 以下原一级在指挥部已降为「施工现场管理」二级；项目侧用 smart-* / site-* 包装，
+   * 仍用 HQ_ONLY 隐藏这些根 key，避免与项目包装重复。
+   */
+  'labor',
+  'safety-inspection',
+  'machine-supervise',
+  'major-hazard',
 ])
 
 /**
  * 仅项目层级展示的菜单（企业/指挥部侧栏与指挥部角色授权树均不展示）
- * 含：视频预览/台账/分组等项目级视频能力（「视频监控」父级两端可见）
+ * 含：视频预览/台账/分组/离线通知配置等项目级视频能力
  */
 export const PROJECT_ONLY_MENU_KEYS = new Set([
   'video-monitor-preview',
   'video-monitor-ledger',
   'video-monitor-group',
+  'video-monitor-offline-notify',
   'app-video',
   'app-video-list',
   'app-video-device',
   'app-video-group',
-  /** 质量验评 · 项目执行 */
+  /** 质量验评 · 项目执行（指挥部取消「质量验评」一级；「质量验评看板」仅指挥部「质量看板」可见） */
+  'quality-inspect',
   'qm-wbs-tree',
   'qm-plan-list',
   'qm-form-fill',
-  'qm-physical-deep',
   'qm-form-fill-deep',
   'qm-special-deep',
   'qm-complete-deep',
+  'qm-archive-mgmt',
+  'qm-archive-fill',
+  'qm-node-archive-list',
   'qm-approver-config',
   'qm-app-approve',
-  /** 人员实名制 · 项目执行（指挥部仅留统计/配置/黑名单；劳务看板两端可见） */
+  'qm-seal-user',
+  /** 品牌报审（一级菜单）· 项目执行；审批走个人中心待办 */
+  'brand-approval',
+  'brand-ledger',
+  'brand-application',
+  'brand-library',
+  'brand-material',
+  /** 样板管理 · 项目执行（指挥部改由「质量看板」看样板台账） */
+  'sample-mgmt',
+  'sample-material-app',
+  'sample-material-approve',
+  'sample-process-app',
+  'sample-process-approve',
+  /** 材料进场管理 · 项目执行（看板仅指挥部「质量看板」） */
+  'mat-entry-mgmt',
+  'mat-ledger',
+  'mat-application',
+  'mat-exit',
+  /** 设备进场管理 · 项目执行（看板仅指挥部「质量看板」） */
+  'eq-entry-mgmt',
+  'eq-ledger',
+  'eq-application',
+  /** 实模一致验收 · 仅项目级（指挥部本期无入口；单层菜单） */
+  'asbuilt-list',
+  'asbuilt-edit',
+  'asbuilt-detail',
+  /** 人员实名制 · 项目执行（指挥部仅留：统计 / 配置 / 黑名单） */
+  'labor-dashboard',
   'labor-realname',
   'labor-personnel-track',
   'labor-attendance-detail',
-  'labor-salary-compare',
   'labor-warning-list',
   'labor-device-manage',
-  /** 车辆管理 · 项目执行（指挥部仅留看板） */
+  /** 车辆管理 · 项目执行（指挥部：施工现场管理 / 车辆管理看看板与轨迹系统；轨迹跳转仅项目侧菜单） */
   'vehicle-access',
   'vehicle-track',
   'vehicle-registry',
   'vehicle-device',
-  'vehicle-warning-list',
   'app-vehicle-access',
   'app-vehicle-warning',
-  /** 安全巡检 · 整改复查(移动端)仅项目层；安全巡检(移动端)指挥部/项目均可见 */
+  /** 巡检管理 · 人员配置 / 整改复查(移动端)仅项目层；巡检管理(移动端)/消息中心(移动端)指挥部/项目均可见 */
+  'safety-inspector-config',
   'mobile-rectify',
   'app-mobile-rectify',
-  /** 机械设备台账 · 项目维护 */
+  /** 机械设备台账 · 项目维护（登记进场 machine-entry-manage 两端共用：指挥部在安全看板） */
   'machine-ledger',
-  'machine-entry-manage',
   'machine-type-maintain',
   /** 机械设备监管 · 项目维护（指挥部隐藏监测设备管理、告警配置） */
   'device-manage',
   'alert-config',
-  /** 危大工程监管 · 项目维护（指挥部隐藏管理/设备绑定） */
+  /** 危大工程监测 · 项目维护（指挥部隐藏监测区域/设备绑定） */
   'hazard-manage',
   'device-binding',
+  /** 项目级菜单包装：智慧工地监管 / 施工现场管理 / 施工质量管控 */
+  'smart-site',
+  'smart-labor',
+  'smart-vehicle',
+  'smart-machine-supervise',
+  'smart-video-monitor',
+  'site-construction',
+  'site-work-declare',
+  'site-safety-inspection',
+  'site-major-hazard',
+  'construction-quality',
+  'ai-app',
+  /** 基础数据 · 项目级工程分解与施工部位 */
+  'bd-entity-breakdown',
+  'bd-construction-location',
 ])
 
 export function isHqOnlyMenuKey(key) {

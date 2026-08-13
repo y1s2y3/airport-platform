@@ -24,6 +24,13 @@ import {
   SetUp,
   Document,
   Bell,
+  Goods,
+  PictureFilled,
+  DocumentChecked,
+  WarnTriangleFilled,
+  DataAnalysis,
+  Cpu,
+  MapLocation,
 } from '@element-plus/icons-vue'
 import { sidebarMenu } from '../config/menu'
 import {
@@ -31,6 +38,7 @@ import {
   COC_PROJECT_OPTIONS,
 } from '../config/projectOptions'
 import { selectedProjectId, useCurrentProject } from '../composables/useCurrentProject'
+import { TRACK_EXTERNAL_MENU_KEYS, openTrackExternalByMenuKey } from '../utils/trackExternalJump'
 import {
   MENU_SCOPE_HQ,
   MENU_SCOPE_PROJECT,
@@ -38,9 +46,21 @@ import {
   isHqOnlyMenuKey,
   isProjectOnlyMenuKey,
 } from '../utils/menuPermissionTree'
+import {
+  SAMPLE_APPROVE_MENU_KEYS,
+} from '../utils/sampleDemoRole.js'
+import {
+  APP_VERSION,
+  getChangelogByVersion,
+  getPublishedChangelogs,
+} from '../config/appVersion'
 
 const route = useRoute()
 const router = useRouter()
+const changelogVisible = ref(false)
+const changelogHistoryVisible = ref(false)
+const changelog = computed(() => getChangelogByVersion(APP_VERSION))
+const publishedChangelogs = computed(() => getPublishedChangelogs())
 const collapsed = ref(false)
 const expandedKeys = ref([])
 /** 收起侧栏时当前展开的悬浮子菜单 key */
@@ -53,13 +73,35 @@ const { isHqSelected } = useCurrentProject()
 
 const projectOptions = COC_PROJECT_OPTIONS
 
-/** 企业级隐藏视频监控；项目级隐藏指挥部专属菜单 */
-const visibleSidebarMenu = computed(() =>
-  filterMenuByScope(
+/** 新标签页带 ?project_id= 时切到对应项目层级（如施工部位「去配置」） */
+watch(
+  () => route.query.project_id || route.query.projectId,
+  (raw) => {
+    if (!raw) return
+    const pid = String(Array.isArray(raw) ? raw[0] : raw).trim()
+    if (!pid || pid === HQ_PROJECT_OPTION.id) return
+    const known = COC_PROJECT_OPTIONS.some((p) => p.id === pid)
+    if (!known && !/^p-/.test(pid)) return
+    if (selectedProjectId.value !== pid) selectedProjectId.value = pid
+  },
+  { immediate: true },
+)
+
+/** 企业级隐藏视频监控；项目级隐藏指挥部专属菜单；样板审批入口已迁个人中心，侧栏始终隐藏 */
+const visibleSidebarMenu = computed(() => {
+  const scoped = filterMenuByScope(
     sidebarMenu,
     isHqSelected.value ? MENU_SCOPE_HQ : MENU_SCOPE_PROJECT,
-  ),
-)
+  )
+  const stripApprove = (items = []) =>
+    items
+      .filter((item) => !SAMPLE_APPROVE_MENU_KEYS.has(item.key))
+      .map((item) =>
+        item.children?.length ? { ...item, children: stripApprove(item.children) } : item,
+      )
+      .filter((item) => !item.children || item.children.length > 0)
+  return stripApprove(scoped)
+})
 
 function collectMenuPathsBy(pred, items = sidebarMenu, acc = []) {
   for (const item of items) {
@@ -75,10 +117,17 @@ const projectOnlyPaths = collectMenuPathsBy(isProjectOnlyMenuKey)
 /** 离开指挥部专属页时，尽量落到对应项目能力页，避免一律踢回工作台 */
 const HQ_LEAVE_REDIRECT = {
   '/labor/realname-stats': '/labor/realname',
+  '/labor/track-system': '/labor/personnel-track',
+  '/vehicle/track-system': '/vehicle/track',
+  '/labor/warning-config': '/labor/warning-list',
+  '/labor/blacklist': '/labor/warning-list',
+  '/vehicle/track-config': '/vehicle/dashboard',
   '/video-monitor/stats': '/video-monitor/preview',
   '/safety-inspection/dashboard': '/mobile/tasks',
   '/safety-inspection/plan': '/mobile/tasks',
   '/safety-inspection/check-items': '/mobile/tasks',
+  '/qm/quality-board/brand-stats': '/qm/brand/ledger',
+  '/safety-board': '/workbench',
 }
 
 function resolveLeaveTarget(paths) {
@@ -125,6 +174,13 @@ const iconMap = {
   SetUp,
   Document,
   Bell,
+  Goods,
+  PictureFilled,
+  DocumentChecked,
+  WarnTriangleFilled,
+  DataAnalysis,
+  Cpu,
+  MapLocation,
 }
 
 const activeMenu = computed(() => route.meta.sidebarKey || 'workbench')
@@ -134,15 +190,17 @@ const openTabs = ref([
 const activeTab = computed(() => route.meta.tabKey || 'workbench')
 
 /** Hash 路由下稳定指向 COC 大屏，避免 resolve href 拼接异常导致打不开 */
-const cocScreenHref = computed(() => {
-  const { href, fullPath } = router.resolve({ name: 'CocScreen' })
+function resolveScreenHref(routeName, fallbackPath) {
+  const { href, fullPath } = router.resolve({ name: routeName })
   if (/^https?:\/\//i.test(href)) return href
   const hash = href.startsWith('#')
     ? href
-    : `#${fullPath.startsWith('/') ? fullPath : `/${fullPath || 'coc'}`}`
+    : `#${fullPath.startsWith('/') ? fullPath : `/${fullPath || fallbackPath}`}`
   const path = window.location.pathname || '/'
   return `${window.location.origin}${path}${hash.startsWith('#') ? hash : `#${hash}`}`
-})
+}
+
+const cocScreenHref = computed(() => resolveScreenHref('CocScreen', 'coc'))
 
 function isGroupActive(item) {
   if (item.path && route.path === item.path) return true
@@ -155,17 +213,23 @@ function isChildActive(child) {
 }
 
 function ensureExpandedForRoute() {
-  for (const group of visibleSidebarMenu.value) {
-    if (!group.children?.length) continue
-    if (isGroupActive(group) && !expandedKeys.value.includes(group.key)) {
-      expandedKeys.value.push(group.key)
-    }
-    for (const child of group.children) {
-      if (child.children?.length && isGroupActive(child) && !expandedKeys.value.includes(child.key)) {
-        expandedKeys.value.push(child.key)
+  const walk = (nodes) => {
+    for (const node of nodes || []) {
+      if (!node.children?.length) continue
+      if (isGroupActive(node) && !expandedKeys.value.includes(node.key)) {
+        expandedKeys.value.push(node.key)
       }
+      walk(node.children)
     }
   }
+  walk(visibleSidebarMenu.value)
+}
+
+function resolveCurrentTabLabel() {
+  if (isHqSelected.value && route.path === '/machine-supervise/ledger') {
+    return '机械设备台账'
+  }
+  return route.meta?.title || '页面'
 }
 
 watch(
@@ -174,7 +238,7 @@ watch(
     closeFlyout()
     ensureExpandedForRoute()
     const key = route.meta?.tabKey || route.name || route.path
-    const label = route.meta?.title || '页面'
+    const label = resolveCurrentTabLabel()
     const path = route.path
     const existing = openTabs.value.find((t) => t.key === key)
     if (existing) {
@@ -224,8 +288,20 @@ function positionFlyout(key) {
   }
 }
 
-function navigate(path) {
-  router.push(path)
+function navigate(path, menuKey = '', item = null) {
+  if (menuKey && TRACK_EXTERNAL_MENU_KEYS.has(menuKey)) {
+    openTrackExternalByMenuKey(menuKey)
+    closeFlyout()
+    return
+  }
+  const openBlank = item?.openInNewTab || menuKey === 'qm-archive-fill'
+  if (openBlank && path) {
+    const href = router.resolve({ path }).href
+    window.open(href, '_blank', 'noopener,noreferrer')
+    closeFlyout()
+    return
+  }
+  if (path) router.push(path)
   closeFlyout()
 }
 
@@ -280,6 +356,16 @@ function closeTab(tab, e) {
           </svg>
         </div>
         <span class="brand-title">智慧工程建设管控一体化平台</span>
+        <span class="brand-version">
+          <span class="brand-version-text">{{ APP_VERSION }}</span>
+          <button
+            type="button"
+            class="brand-version-help"
+            title="查看本版更新说明"
+            aria-label="查看本版更新说明"
+            @click="changelogVisible = true"
+          >?</button>
+        </span>
         <el-select
           v-model="selectedProjectId"
           class="project-select"
@@ -331,6 +417,59 @@ function closeTab(tab, e) {
       </div>
     </header>
 
+    <el-dialog
+      v-model="changelogVisible"
+      :title="`${changelog?.version || APP_VERSION} 更新说明`"
+      width="460px"
+      append-to-body
+      destroy-on-close
+    >
+      <p v-if="changelog" class="changelog-meta">
+        发布日期：{{ changelog.date }}
+        <template v-if="changelog.version !== APP_VERSION">
+          （当前页头为 {{ APP_VERSION }}，展示最近一版说明）
+        </template>
+      </p>
+      <ul v-if="changelog?.highlights?.length" class="changelog-list">
+        <li v-for="(item, idx) in changelog.highlights" :key="idx">{{ item }}</li>
+      </ul>
+      <p v-else class="changelog-empty">暂无更新说明</p>
+      <template #footer>
+        <div class="changelog-footer">
+          <el-button @click="changelogHistoryVisible = true">更新日志</el-button>
+          <el-button type="primary" @click="changelogVisible = false">知道了</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="changelogHistoryVisible"
+      title="更新日志"
+      width="520px"
+      append-to-body
+      destroy-on-close
+      class="changelog-history-dialog"
+    >
+      <p class="changelog-history-tip">仅展示已发布到线上的版本记录</p>
+      <div v-if="publishedChangelogs.length" class="changelog-history-list">
+        <section
+          v-for="entry in publishedChangelogs"
+          :key="entry.version"
+          class="changelog-history-item"
+        >
+          <header class="changelog-history-head">
+            <span class="changelog-history-version">{{ entry.version }}</span>
+            <span class="changelog-history-date">{{ entry.date }}</span>
+          </header>
+          <ul v-if="entry.highlights?.length" class="changelog-list">
+            <li v-for="(item, idx) in entry.highlights" :key="idx">{{ item }}</li>
+          </ul>
+          <p v-else class="changelog-empty">暂无更新说明</p>
+        </section>
+      </div>
+      <p v-else class="changelog-empty">暂无已发布的更新记录</p>
+    </el-dialog>
+
     <div class="admin-body">
       <aside class="sidebar" :class="{ collapsed }">
         <nav class="sidebar-nav">
@@ -362,17 +501,42 @@ function closeTab(tab, e) {
                       <span class="expand-arrow">{{ expandedKeys.includes(child.key) ? '▾' : '▸' }}</span>
                     </button>
                     <div v-if="expandedKeys.includes(child.key)" class="sub-menu nested">
-                      <button
-                        v-for="leaf in child.children"
-                        :key="leaf.key"
-                        type="button"
-                        class="menu-item sub-item nested-item"
-                        :class="{ active: isChildActive(leaf) }"
-                        @click="navigate(leaf.path)"
-                      >
-                        <span>{{ leaf.label }}</span>
-                        <span v-if="leaf.badge" class="menu-badge" />
-                      </button>
+                      <template v-for="leaf in child.children" :key="leaf.key">
+                        <div v-if="leaf.children?.length" class="sub-group deep-group">
+                          <button
+                            type="button"
+                            class="menu-item sub-item nested-item sub-group-title"
+                            :class="{ active: isChildActive(leaf) }"
+                            @click="toggleGroup(leaf.key)"
+                          >
+                            <span>{{ leaf.label }}</span>
+                            <span class="expand-arrow">{{ expandedKeys.includes(leaf.key) ? '▾' : '▸' }}</span>
+                          </button>
+                          <div v-if="expandedKeys.includes(leaf.key)" class="sub-menu nested deep">
+                            <button
+                              v-for="deep in leaf.children"
+                              :key="deep.key"
+                              type="button"
+                              class="menu-item sub-item deep-item"
+                              :class="{ active: isChildActive(deep) }"
+                              @click="navigate(deep.path, deep.key, deep)"
+                            >
+                              <span>{{ deep.label }}</span>
+                              <span v-if="deep.badge" class="menu-badge" />
+                            </button>
+                          </div>
+                        </div>
+                        <button
+                          v-else
+                          type="button"
+                          class="menu-item sub-item nested-item"
+                          :class="{ active: isChildActive(leaf) }"
+                          @click="navigate(leaf.path, leaf.key, leaf)"
+                        >
+                          <span>{{ leaf.label }}</span>
+                          <span v-if="leaf.badge" class="menu-badge" />
+                        </button>
+                      </template>
                     </div>
                   </div>
                   <button
@@ -380,7 +544,7 @@ function closeTab(tab, e) {
                     type="button"
                     class="menu-item sub-item"
                     :class="{ active: isChildActive(child) }"
-                    @click="navigate(child.path)"
+                    @click="navigate(child.path, child.key, child)"
                   >
                     <span>{{ child.label }}</span>
                     <span v-if="child.badge" class="menu-badge" />
@@ -393,7 +557,7 @@ function closeTab(tab, e) {
               type="button"
               class="menu-item"
               :class="{ active: activeMenu === item.key }"
-              @click="navigate(item.path)"
+              @click="navigate(item.path, item.key)"
             >
               <el-icon :size="16"><component :is="iconMap[item.icon]" /></el-icon>
               <span v-if="!collapsed">{{ item.label }}</span>
@@ -439,23 +603,37 @@ function closeTab(tab, e) {
         <template v-for="child in flyoutItem.children" :key="child.key">
           <div v-if="child.children?.length" class="flyout-subgroup">
             <div class="flyout-sub-label">{{ child.label }}</div>
-            <button
-              v-for="leaf in child.children"
-              :key="leaf.key"
-              type="button"
-              class="flyout-item"
-              :class="{ active: isChildActive(leaf) }"
-              @click="navigate(leaf.path)"
-            >
-              {{ leaf.label }}
-            </button>
+            <template v-for="leaf in child.children" :key="leaf.key">
+              <div v-if="leaf.children?.length" class="flyout-deep-group">
+                <div class="flyout-deep-label">{{ leaf.label }}</div>
+                <button
+                  v-for="deep in leaf.children"
+                  :key="deep.key"
+                  type="button"
+                  class="flyout-item flyout-deep-item"
+                  :class="{ active: isChildActive(deep) }"
+                  @click="navigate(deep.path, deep.key, deep)"
+                >
+                  {{ deep.label }}
+                </button>
+              </div>
+              <button
+                v-else
+                type="button"
+                class="flyout-item"
+                :class="{ active: isChildActive(leaf) }"
+                @click="navigate(leaf.path, leaf.key, leaf)"
+              >
+                {{ leaf.label }}
+              </button>
+            </template>
           </div>
           <button
             v-else
             type="button"
             class="flyout-item"
             :class="{ active: isChildActive(child) }"
-            @click="navigate(child.path)"
+            @click="navigate(child.path, child.key, child)"
           >
             {{ child.label }}
           </button>
@@ -499,6 +677,117 @@ function closeTab(tab, e) {
   font-weight: 700;
   color: var(--ap-text);
   white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.brand-version {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-left: -4px;
+}
+
+.brand-version-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: #8f0045;
+  letter-spacing: 0.02em;
+}
+
+.brand-version-help {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid #c9cdd4;
+  background: #fff;
+  color: #646a73;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.brand-version-help:hover {
+  border-color: #8f0045;
+  color: #8f0045;
+}
+
+.changelog-meta {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: #8f959e;
+}
+
+.changelog-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: #1f2329;
+}
+
+.changelog-empty {
+  margin: 0;
+  color: #8f959e;
+  font-size: 14px;
+}
+
+.changelog-footer {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.changelog-history-tip {
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: #8f959e;
+}
+
+.changelog-history-list {
+  max-height: min(60vh, 480px);
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-right: 4px;
+}
+
+.changelog-history-item {
+  padding-bottom: 16px;
+  border-bottom: 1px solid #eef0f3;
+}
+
+.changelog-history-item:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.changelog-history-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.changelog-history-version {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f2329;
+}
+
+.changelog-history-date {
+  font-size: 13px;
+  color: #8f959e;
   flex-shrink: 0;
 }
 
@@ -758,6 +1047,34 @@ function closeTab(tab, e) {
 .nested-item {
   padding-left: 56px;
   font-size: 13px;
+}
+
+.deep-group .sub-group-title.nested-item {
+  padding-left: 56px;
+}
+
+.sub-menu.nested.deep {
+  padding: 0;
+}
+
+.deep-item {
+  padding-left: 72px;
+  font-size: 12px;
+}
+
+.flyout-deep-group {
+  padding-left: 4px;
+}
+
+.flyout-deep-label {
+  font-size: 11px;
+  color: var(--ap-text-muted);
+  padding: 4px 10px 2px 16px;
+}
+
+.flyout-deep-item {
+  padding-left: 22px;
+  font-size: 12px;
 }
 
 .sub-item.active {

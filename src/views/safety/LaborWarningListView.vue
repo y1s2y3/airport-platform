@@ -79,7 +79,7 @@ function goHandle(row) {
       <h1 class="page-title">预警清单</h1>
       <p v-if="!isHqSelected" class="page-scope">当前项目：{{ scopeProjectLabel }}</p>
       <p class="page-tip">
-        展示人员预警列表及处置进度。部分预警需手动处理，部分预警在条件满足后由系统自动关闭（如录入三级教育后关闭「未进行入场三级教育预警」）。
+        展示人员预警列表及处置进度。预警分自动关闭、手动关闭、通知三类；通知类（如高龄提醒、身份证过期提醒）状态为已通知、无需关闭。
       </p>
     </div>
 
@@ -100,7 +100,6 @@ function goHandle(row) {
         <div class="stats-row">
           <div class="stat-card"><span class="stat-label">预警总数</span><span class="stat-value">{{ stats.total }}</span></div>
           <div class="stat-card"><span class="stat-label">待处理</span><span class="stat-value warn">{{ stats.pending }}</span></div>
-          <div class="stat-card"><span class="stat-label">处理中</span><span class="stat-value">{{ stats.processing }}</span></div>
           <div class="stat-card"><span class="stat-label">已关闭</span><span class="stat-value ok">{{ stats.closed }}</span></div>
           <div class="stat-card"><span class="stat-label">待人工处置</span><span class="stat-value warn">{{ stats.manual }}</span></div>
         </div>
@@ -135,7 +134,11 @@ function goHandle(row) {
           <el-table-column prop="workType" label="工种" width="90" />
           <el-table-column prop="handleMode" label="处置方式" width="120" align="center">
             <template #default="{ row }">
-              <el-tag size="small" :type="row.handleMode === '系统自动关闭' ? 'success' : 'warning'" effect="plain">
+              <el-tag
+                size="small"
+                :type="row.handleMode === '系统自动关闭' ? 'success' : row.handleMode === '通知' ? 'info' : 'warning'"
+                effect="plain"
+              >
                 {{ row.handleMode }}
               </el-tag>
             </template>

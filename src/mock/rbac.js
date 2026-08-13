@@ -43,7 +43,7 @@ export const permissionList = [
   { id: 'perm-004', code: 'quality:inspect:export', name: '质量检查导出', type: '按钮', module: '质量管理', description: '导出质量检查数据' },
   { id: 'perm-005', code: 'safety:labor:view', name: '劳务管理查看', type: '菜单', module: '安全管理', description: '访问劳务管理模块' },
   { id: 'perm-006', code: 'coc:screen:view', name: 'COC大屏访问', type: '菜单', module: 'COC调度', description: '打开COC调度指挥大屏' },
-  { id: 'perm-007', code: 'coc:admin:manage', name: 'COC后台管理', type: '菜单', module: 'COC调度', description: 'COC后台配置与管理' },
+  { id: 'perm-007', code: 'coc:admin:manage', name: '调度后台管理', type: '菜单', module: 'COC调度', description: '调度后台配置与管理' },
   { id: 'perm-008', code: 'archive:search', name: '档案检索', type: '菜单', module: '档案系统', description: '档案全文检索' },
   { id: 'perm-009', code: 'archive:borrow:approve', name: '借阅审批', type: '按钮', module: '档案系统', description: '审批档案借阅申请' },
   { id: 'perm-010', code: 'sys:user:manage', name: '用户管理', type: 'API', module: '组织管理', description: '用户增删改查接口' },

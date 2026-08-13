@@ -20,14 +20,13 @@ const keyword = ref('')
 const statusFilter = ref('全部')
 const gridSize = ref(4)
 const activeSlot = ref(0)
-const slots = ref(Array.from({ length: 16 }, () => null))
+const slots = ref(Array.from({ length: 9 }, () => null))
 const expandedAreas = ref([])
 
 const gridOptions = [
   { size: 1, label: '1屏', cols: 1 },
   { size: 4, label: '4屏', cols: 2 },
   { size: 9, label: '9屏', cols: 3 },
-  { size: 16, label: '16屏', cols: 4 },
 ]
 
 const areaGroups = computed(() => {
@@ -73,7 +72,7 @@ function clearSlot(index) {
 
 watch(selectedProjectId, () => {
   keyword.value = ''
-  slots.value = Array.from({ length: 16 }, () => null)
+  slots.value = Array.from({ length: 9 }, () => null)
   activeSlot.value = 0
   load()
 })

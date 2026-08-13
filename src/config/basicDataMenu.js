@@ -15,6 +15,23 @@ export const basicDataMenuGroup = {
       path: '/basic-data/project/subcontractor',
       description: '按项目维护分包单位登记信息：安全生产许可、项目负责人、安全管理人员及资质证书。',
     },
+    {
+      key: 'bd-entity-breakdown',
+      label: '实体工程分解',
+      path: '/basic-data/entity-breakdown',
+      description:
+        '项目级维护单位工程→子单位工程→分部→子分部→分项，与质量验评实体工程目录树同源。',
+      name: 'EntityBreakdown',
+      component: 'EntityBreakdownView',
+    },
+    {
+      key: 'bd-construction-location',
+      label: '施工部位管理',
+      path: '/basic-data/construction-location',
+      description: '按实体工程结构树浏览；仅分项可挂接多级施工部位，上级节点可查询下级已挂部位。',
+      name: 'ConstructionLocation',
+      component: 'ConstructionLocationView',
+    },
   ],
 }
 

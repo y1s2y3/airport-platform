@@ -7,7 +7,6 @@ import QmTaskList from './components/QmTaskList.vue'
     title="分部分项验收"
     breadcrumb="质量验评 / 分部分项验收"
     edit-path="/qm/inspect/part/edit"
-    approve-path="/qm/inspect/part/approve"
     :node-types="[5,4,3]"
   />
 </template>

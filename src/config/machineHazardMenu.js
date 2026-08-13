@@ -1,5 +1,5 @@
 /**
- * 机械设备监管 / 机械设备台账 / 危大工程监管 / 告警配置
+ * 机械设备监管 / 机械设备台账 / 危大工程监测 / 告警配置
  * 一级菜单 + 路由元数据（页面由 router 懒加载）
  */
 
@@ -14,7 +14,6 @@ export const machineSuperviseMenuGroup = {
     { key: 'lift-monitor', label: '升降机监管', path: '/machine-supervise/lift' },
     { key: 'pile-monitor', label: '桩基机械施工监管', path: '/machine-supervise/pile' },
     { key: 'composite-monitor', label: '复合地基机械施工监管', path: '/machine-supervise/composite' },
-    { key: 'alert-record', label: '告警记录', path: '/machine-supervise/alert-record' },
   ],
 }
 
@@ -29,18 +28,19 @@ export const machineLedgerMenuGroup = {
   ],
 }
 
-/** ③ 危大工程监管 */
+/** ③ 危大工程监测（原「危大工程监管」「危大工程管理」） */
 export const majorHazardMenuGroup = {
   key: 'major-hazard',
-  label: '危大工程监管',
-  icon: 'Warning',
+  label: '危大工程监测',
+  icon: 'WarnTriangleFilled',
   children: [
+    { key: 'major-hazard-daily-work', label: '每日施工作业', path: '/major-hazard/daily-work' },
+    { key: 'major-hazard-list', label: '危大工程清单', path: '/major-hazard/hazard-list' },
     { key: 'deep-foundation-pit', label: '深基坑安全监管', path: '/major-hazard/deep-foundation-pit' },
     { key: 'subway-protection', label: '地铁铁路安全监管', path: '/major-hazard/subway-protection' },
     { key: 'high-formwork', label: '高支模变形监管', path: '/major-hazard/high-formwork' },
-    { key: 'hazard-manage', label: '危大工程管理', path: '/major-hazard/hazard-manage' },
+    { key: 'hazard-manage', label: '监测区域管理', path: '/major-hazard/hazard-manage' },
     { key: 'device-binding', label: '监测设备管理', path: '/major-hazard/device-binding' },
-    { key: 'alert-record-major', label: '告警记录', path: '/major-hazard/alert-record' },
   ],
 }
 
@@ -145,6 +145,18 @@ export const machineHazardRoutes = [
     sidebarKey: 'machine-entry-manage',
   },
   {
+    key: 'major-hazard-daily-work',
+    name: 'MajorHazardDailyWork',
+    label: '每日施工作业',
+    path: '/major-hazard/daily-work',
+  },
+  {
+    key: 'major-hazard-list',
+    name: 'MajorHazardList',
+    label: '危大工程清单',
+    path: '/major-hazard/hazard-list',
+  },
+  {
     key: 'deep-foundation-pit',
     name: 'DeepFoundationPit',
     label: '深基坑安全监管',
@@ -165,7 +177,7 @@ export const machineHazardRoutes = [
   {
     key: 'hazard-manage',
     name: 'HazardManage',
-    label: '危大工程管理',
+    label: '监测区域管理',
     path: '/major-hazard/hazard-manage',
   },
   {

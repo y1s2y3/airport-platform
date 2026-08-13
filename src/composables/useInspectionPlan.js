@@ -1,4 +1,6 @@
 import { reactive, computed } from 'vue'
+import { buildInspectionTaskNo, resolveInspectionProjectId, DEFAULT_INSPECTOR_LABEL } from '../config/inspectionManagement'
+import { addMobileInspectionTask, updateMobileInspectionTaskByNo } from '../mock/mobileInspectionTasks'
 
 // ========== 项目列表 ==========
 export const projectOptions = [
@@ -30,7 +32,7 @@ export function getUserLabel(id) {
 // ========== 检查分类 & 检查项（最多二级） ==========
 export const checkCategoryTree = [
   {
-    id: 'cat-1', label: '安全管理行为',
+    id: 'cat-1', label: '安全管理行为', inspectionCategory: '安全',
     items: [
       { id: 'item-1-1', label: '是否建立安全生产责任制并逐级签订责任书' },
       { id: 'item-1-2', label: '是否设置安全管理机构并配备专职安全管理人员' },
@@ -44,7 +46,7 @@ export const checkCategoryTree = [
     ],
   },
   {
-    id: 'cat-2', label: '临时用电',
+    id: 'cat-2', label: '临时用电', inspectionCategory: '安全',
     items: [
       { id: 'item-2-1', label: '在建工程与外电线路的距离是否符合规范要求' },
       { id: 'item-2-2', label: '外电防护设施是否设置到位并有效' },
@@ -57,7 +59,7 @@ export const checkCategoryTree = [
     ],
   },
   {
-    id: 'cat-3', label: '高处作业',
+    id: 'cat-3', label: '高处作业', inspectionCategory: '安全',
     items: [
       { id: 'item-3-1', label: '临边防护栏杆是否按规范设置' },
       { id: 'item-3-2', label: '洞口是否设置盖板或防护栏杆' },
@@ -69,7 +71,7 @@ export const checkCategoryTree = [
     ],
   },
   {
-    id: 'cat-4', label: '脚手架工程',
+    id: 'cat-4', label: '脚手架工程', inspectionCategory: '安全',
     items: [
       { id: 'item-4-1', label: '脚手架施工方案是否经审批' },
       { id: 'item-4-2', label: '立杆基础是否平整、夯实，有无排水措施' },
@@ -82,7 +84,7 @@ export const checkCategoryTree = [
     ],
   },
   {
-    id: 'cat-5', label: '机械设备',
+    id: 'cat-5', label: '机械设备', inspectionCategory: '安全',
     items: [
       { id: 'item-5-1', label: '起重机械是否办理使用登记' },
       { id: 'item-5-2', label: '限位装置和保险装置是否齐全有效' },
@@ -93,7 +95,7 @@ export const checkCategoryTree = [
     ],
   },
   {
-    id: 'cat-6', label: '消防安全',
+    id: 'cat-6', label: '消防安全', inspectionCategory: '安全',
     items: [
       { id: 'item-6-1', label: '是否按规范配备消防器材' },
       { id: 'item-6-2', label: '消防设施是否定期检查并保持完好有效' },
@@ -104,7 +106,7 @@ export const checkCategoryTree = [
     ],
   },
   {
-    id: 'cat-7', label: '基坑工程',
+    id: 'cat-7', label: '基坑工程', inspectionCategory: '安全',
     items: [
       { id: 'item-7-1', label: '基坑支护方案是否经审批和专家论证' },
       { id: 'item-7-2', label: '支护结构是否按方案施工' },
@@ -115,13 +117,29 @@ export const checkCategoryTree = [
     ],
   },
   {
-    id: 'cat-8', label: '文明施工',
+    id: 'cat-8', label: '文明施工', inspectionCategory: '安全',
     items: [
       { id: 'item-8-1', label: '施工现场是否设置连续封闭围挡' },
       { id: 'item-8-2', label: '出入口是否设置门卫及车辆冲洗设施' },
       { id: 'item-8-3', label: '施工道路是否硬化' },
       { id: 'item-8-4', label: '施工现场是否洒水降尘' },
       { id: 'item-8-5', label: '建筑材料是否分类堆放' },
+    ],
+  },
+  {
+    id: 'cat-q1', label: '材料质量', inspectionCategory: '质量',
+    items: [
+      { id: 'item-q1-1', label: '进场材料是否具备合格证及检验报告' },
+      { id: 'item-q1-2', label: '见证取样与复试结果是否符合设计要求' },
+      { id: 'item-q1-3', label: '材料规格、型号及外观质量是否符合要求' },
+    ],
+  },
+  {
+    id: 'cat-q2', label: '施工工艺', inspectionCategory: '质量',
+    items: [
+      { id: 'item-q2-1', label: '关键工序是否按施工方案和技术交底执行' },
+      { id: 'item-q2-2', label: '实测实量结果是否符合验收标准' },
+      { id: 'item-q2-3', label: '隐蔽工程验收记录是否完整' },
     ],
   },
 ]
@@ -138,7 +156,7 @@ export function getItemLabel(catId, itemId) {
   return item ? item.label : ''
 }
 
-// ========== 巡检计划数据 ==========
+// ========== 巡检任务下发记录 ==========
 // 生成时间戳工具
 function now() {
   return new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-')
@@ -146,184 +164,51 @@ function now() {
 
 export const planData = reactive([
   {
-    id: 'plan-001',
-    planNo: 'JH2026001',
-    name: '7月第3周联合周检',
-    type: '周检',
-    projects: ['T3 航站楼扩建工程', '飞行区跑道延长工程'],
-    projectIds: ['proj-1', 'proj-2'],
-    checkConfig: [
-      { categoryId: 'cat-1', itemIds: ['item-1-1', 'item-1-2', 'item-1-3', 'item-1-4'] },
-      { categoryId: 'cat-2', itemIds: ['item-2-1', 'item-2-3', 'item-2-6'] },
-    ],
-    responsiblePerson: 'user-1',
-    ccPersons: ['user-3', 'user-4'],
-    cycleType: 'week',
-    cycleInterval: 1,
-    cycleTimes: 3,
-    startDate: '2026-07-15',
-    endDate: '2026-07-21',
-    enabled: true,
-    status: '启用',
-    remark: '例行周检，覆盖安全管理行为与临时用电重点项',
-    createdBy: 'user-1',
-    updatedBy: 'user-1',
-    createdAt: '2026-07-14 09:00',
-    updatedAt: '2026-07-15 08:30',
-  },
-  {
-    id: 'plan-002',
-    planNo: 'JH2026002',
-    name: '7月全项目月度安全检查',
-    type: '月检',
-    projects: ['T3 航站楼扩建工程', '新货运站建设工程'],
-    projectIds: ['proj-1', 'proj-3'],
-    checkConfig: [
-      { categoryId: 'cat-1', itemIds: ['item-1-1', 'item-1-2', 'item-1-3', 'item-1-4', 'item-1-5'] },
-      { categoryId: 'cat-3', itemIds: ['item-3-1', 'item-3-4', 'item-3-5'] },
-      { categoryId: 'cat-6', itemIds: ['item-6-1', 'item-6-3', 'item-6-4'] },
-    ],
-    responsiblePerson: 'user-2',
-    ccPersons: ['user-6'],
-    cycleType: 'month',
-    cycleInterval: 1,
-    cycleTimes: 1,
-    startDate: '2026-07-01',
-    endDate: '2026-07-31',
-    enabled: true,
-    status: '启用',
-    remark: '全项目覆盖月度检查，重点高处作业与消防',
-    createdBy: 'user-2',
-    updatedBy: 'user-6',
-    createdAt: '2026-06-28 14:00',
-    updatedAt: '2026-07-01 09:00',
-  },
-  {
     id: 'plan-003',
-    planNo: 'JH2026003',
-    name: '雨季临时用电专项巡检',
-    type: '专项巡检',
+    inspectionCategory: '安全',
+    assigned: true, executors: ['user-2', 'user-3'], planNo: 'AQXJ20260718001', name: '雨季临时用电检查',
     projects: ['T3 航站楼扩建工程'],
     projectIds: ['proj-1'],
     checkConfig: [
-      {
-        categoryId: 'cat-2',
-        itemIds: [
-          'item-2-1', 'item-2-2', 'item-2-3', 'item-2-4',
-          'item-2-5', 'item-2-6', 'item-2-7', 'item-2-8',
-        ],
-      },
+      { categoryId: 'cat-2', itemIds: ['item-2-1','item-2-2','item-2-3','item-2-4','item-2-5','item-2-6','item-2-7','item-2-8'] },
     ],
-    responsiblePerson: 'user-3',
-    ccPersons: ['user-1', 'user-5'],
-    cycleType: 'once',
-    cycleInterval: 1,
-    cycleTimes: 1,
-    startDate: '2026-07-20',
-    endDate: '2026-07-20',
-    enabled: true,
-    status: '启用',
-    remark: '针对雨季临时用电安全专项检查',
-    createdBy: 'user-3',
-    updatedBy: 'user-1',
-    createdAt: '2026-07-18 16:30',
-    updatedAt: '2026-07-18 16:30',
+    responsiblePerson: 'user-3', ccPersons: ['user-1', 'user-5'],
+    deadlineDate: '2026-07-20',
+    status: '已下发', remark: '针对雨季临时用电安全检查',
+    createdBy: 'admin', updatedBy: 'admin',
+    createdAt: '2026-07-18 16:30', updatedAt: '2026-07-18 16:30',
   },
   {
     id: 'plan-004',
-    planNo: 'JH2026004',
-    name: '上半年综合安全大检查',
-    type: '专项巡检',
-    projects: ['T3 航站楼扩建工程', '飞行区跑道延长工程', '新货运站建设工程'],
-    projectIds: ['proj-1', 'proj-2', 'proj-3'],
+    inspectionCategory: '质量',
+    assigned: true, executors: ['user-2'], planNo: 'ZLXJ20260731004', name: '材料进场质量检查',
+    projects: ['新货运站建设工程'],
+    projectIds: ['proj-3'],
     checkConfig: [
-      {
-        categoryId: 'cat-1',
-        itemIds: [
-          'item-1-1', 'item-1-2', 'item-1-3', 'item-1-4', 'item-1-5',
-          'item-1-6', 'item-1-7', 'item-1-8', 'item-1-9',
-        ],
-      },
-      { categoryId: 'cat-4', itemIds: ['item-4-1', 'item-4-2', 'item-4-3', 'item-4-4'] },
-      {
-        categoryId: 'cat-6',
-        itemIds: ['item-6-1', 'item-6-2', 'item-6-3', 'item-6-4', 'item-6-5', 'item-6-6'],
-      },
+      { categoryId: 'cat-q1', itemIds: ['item-q1-1','item-q1-2','item-q1-3'] },
+      { categoryId: 'cat-q2', itemIds: ['item-q2-1','item-q2-2','item-q2-3'] },
     ],
-    responsiblePerson: 'user-6',
-    ccPersons: ['user-1', 'user-2', 'user-4'],
-    cycleType: 'once',
-    cycleInterval: 1,
-    cycleTimes: 1,
-    startDate: '2026-06-15',
-    endDate: '2026-06-30',
-    enabled: false,
-    status: '禁用',
-    remark: '上半年综合检查（已结束，已禁用）',
-    createdBy: 'user-6',
-    updatedBy: 'user-2',
-    createdAt: '2026-06-10 10:00',
-    updatedAt: '2026-06-30 17:00',
+    responsiblePerson: 'user-6', ccPersons: ['user-1', 'user-2', 'user-4'],
+    deadlineDate: '2026-07-31',
+    status: '已下发', remark: '检查进场材料质量证明及复试资料',
+    createdBy: 'admin', updatedBy: 'admin',
+    createdAt: '2026-06-10 10:00', updatedAt: '2026-06-30 17:00',
   },
   {
     id: 'plan-005',
-    planNo: 'JH2026005',
-    name: '7月第4周安全巡检',
-    type: '周检',
+    inspectionCategory: '安全',
+    assigned: true, executors: ['user-2'], planNo: 'AQXJ20260728001', name: '防台防汛安全检查',
     projects: ['飞行区跑道延长工程'],
     projectIds: ['proj-2'],
     checkConfig: [
-      { categoryId: 'cat-2', itemIds: ['item-2-1', 'item-2-6', 'item-2-7'] },
-      { categoryId: 'cat-3', itemIds: ['item-3-1', 'item-3-4', 'item-3-5', 'item-3-7'] },
-      { categoryId: 'cat-5', itemIds: ['item-5-1', 'item-5-2', 'item-5-6'] },
+      { categoryId: 'cat-1', itemIds: ['item-1-7', 'item-1-8'] },
+      { categoryId: 'cat-3', itemIds: ['item-3-1', 'item-3-2'] },
     ],
-    responsiblePerson: 'user-3',
-    ccPersons: ['user-1', 'user-5'],
-    cycleType: 'week',
-    cycleInterval: 1,
-    cycleTimes: 2,
-    startDate: '2026-07-22',
-    endDate: '2026-07-28',
-    enabled: true,
-    status: '启用',
-    remark: '跑道延长段周检，补充机械设备检查项',
-    createdBy: 'user-3',
-    updatedBy: 'user-3',
-    createdAt: '2026-07-19 11:20',
-    updatedAt: '2026-07-19 11:20',
-  },
-  {
-    id: 'plan-006',
-    planNo: 'JH2026006',
-    name: '基坑与脚手架专项巡检',
-    type: '专项巡检',
-    projects: ['机场北片区路网工程', 'T3 航站楼扩建工程'],
-    projectIds: ['proj-4', 'proj-1'],
-    checkConfig: [
-      {
-        categoryId: 'cat-4',
-        itemIds: ['item-4-1', 'item-4-2', 'item-4-3', 'item-4-4', 'item-4-7', 'item-4-8'],
-      },
-      {
-        categoryId: 'cat-7',
-        itemIds: ['item-7-1', 'item-7-2', 'item-7-3', 'item-7-5', 'item-7-6'],
-      },
-      { categoryId: 'cat-8', itemIds: ['item-8-1', 'item-8-3', 'item-8-5'] },
-    ],
-    responsiblePerson: 'user-4',
-    ccPersons: ['user-1', 'user-2', 'user-5'],
-    cycleType: 'once',
-    cycleInterval: 1,
-    cycleTimes: 1,
-    startDate: '2026-07-25',
-    endDate: '2026-08-05',
-    enabled: true,
-    status: '启用',
-    remark: '深基坑开挖高峰期专项检查，同步核查文明施工',
-    createdBy: 'user-4',
-    updatedBy: 'user-1',
-    createdAt: '2026-07-20 09:45',
-    updatedAt: '2026-07-21 10:12',
+    responsiblePerson: 'user-3', ccPersons: ['user-1'],
+    deadlineDate: '2026-08-12',
+    status: '已下发', remark: '检查防台防汛措施及现场临边防护',
+    createdBy: 'admin', updatedBy: 'admin',
+    createdAt: '2026-08-06 09:30', updatedAt: '2026-08-06 09:30',
   },
 ])
 
@@ -334,11 +219,36 @@ export function getPlanById(id) {
 export function addPlan(plan) {
   const newId = 'plan-' + String(Date.now()).slice(-6)
   const t = now()
+  const date = new Date()
+  const dateText = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`
+  const prefix = plan.inspectionCategory === '质量' ? 'ZLXJ' : 'AQXJ'
+  const sequence = planData.filter(item => item.planNo?.startsWith(`${prefix}${dateText}`)).length + 1
+  const taskNo = buildInspectionTaskNo(plan.inspectionCategory, date, sequence)
   planData.unshift({
-    id: newId, ...plan,
-    enabled: true, status: '启用',
+    id: newId, planNo: taskNo, ...plan,
+    assigned: true, status: '已下发',
     createdBy: '当前用户', updatedBy: '当前用户',
     createdAt: t, updatedAt: t,
+  })
+
+  const itemCount = plan.checkConfig.reduce((sum, item) => sum + item.itemIds.length, 0)
+  addMobileInspectionTask({
+    id: `mt-${String(Date.now()).slice(-8)}`,
+    taskNo,
+    taskName: plan.name,
+    source: '任务下发',
+    inspectionCategory: plan.inspectionCategory,
+    project: plan.projects[0] || '',
+    projectId: resolveInspectionProjectId(plan.projects[0] || ''),
+    executor: DEFAULT_INSPECTOR_LABEL,
+    companions: [],
+    deadline: plan.deadlineDate,
+    status: '待执行',
+    overdue: false,
+    hasRectify: false,
+    itemCount,
+    hazardCount: 0,
+    checkConfig: plan.checkConfig.map(item => ({ categoryId: item.categoryId, itemIds: [...item.itemIds] })),
   })
   return newId
 }
@@ -347,6 +257,15 @@ export function updatePlan(id, data) {
   const item = planData.find(p => p.id === id)
   if (item) {
     Object.assign(item, data, { updatedAt: now(), updatedBy: '当前用户' })
+    updateMobileInspectionTaskByNo(item.planNo, {
+      taskName: item.name,
+      inspectionCategory: item.inspectionCategory,
+      project: item.projects[0] || '',
+      projectId: resolveInspectionProjectId(item.projects[0] || ''),
+      deadline: item.deadlineDate,
+      itemCount: item.checkConfig.reduce((sum, config) => sum + config.itemIds.length, 0),
+      checkConfig: item.checkConfig.map(config => ({ categoryId: config.categoryId, itemIds: [...config.itemIds] })),
+    })
   }
 }
 
@@ -358,8 +277,8 @@ export function deletePlan(id) {
 export function togglePlanEnabled(id) {
   const item = planData.find(p => p.id === id)
   if (item) {
-    item.enabled = !item.enabled
-    item.status = item.enabled ? '启用' : '禁用'
+    item.assigned = !item.assigned
+    item.status = item.assigned ? '已下发' : '未下发'
     item.updatedAt = now()
     item.updatedBy = '当前用户'
   }

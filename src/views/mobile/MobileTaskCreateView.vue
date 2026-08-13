@@ -1,41 +1,31 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { useCurrentProject } from '../../composables/useCurrentProject'
-import { COC_PROJECT_OPTIONS } from '../../config/projectOptions'
 import { addMobileInspectionTask } from '../../mock/mobileInspectionTasks'
+import { INSPECTION_CATEGORIES, buildInspectionTaskNo } from '../../config/inspectionManagement'
+import {
+  inspectorCandidates,
+  getProjectRectifierLabel,
+  getProjectReviewerLabel,
+} from '../../composables/useInspectionPersonConfig'
 
 const router = useRouter()
-const { isHqSelected, headerProjectLabel } = useCurrentProject()
-
-/** 项目层级新建：默认带入当前项目 */
-const defaultProject = !isHqSelected.value ? headerProjectLabel.value : ''
 
 const form = ref({
-  inspType: '周检',
+  inspectionCategory: '安全',
   inspDate: new Date().toISOString().slice(0, 10),
-  project: defaultProject,
-  inspector: '',
+  project: '',
+  inspector: '当前用户',
   companions: [],
   photos: [],
-  inspContent: '',
   result: '',
-  hazardItems: [],  // [{ desc: '', photos: [] }]
-  hasRectify: false,
-  rectifyNote: '',
-  rectifyPerson: '',
-  rectifyDeadline: '',
+  // 每条隐患独立配置整改单，巡检单：隐患：整改单 = 1：n：n
+  hazardItems: [],
 })
 
-const inspectTypes = ['周检', '月检', '专项巡检']
-const projectOptions = computed(() => {
-  const names = COC_PROJECT_OPTIONS.map((p) => p.label).filter(Boolean)
-  const cur = form.value.project
-  if (cur && !names.includes(cur)) return [cur, ...names]
-  return names
-})
-const personOptions = ['张工（安全总监）', '李工（安全主管）', '王工（安全员）', '赵工（项目经理）']
+const projectOptions = ['T3 航站楼扩建工程', '飞行区跑道延长工程', '新货运站建设工程', '机场北片区路网工程', '员工宿舍楼工程']
+const personOptions = inspectorCandidates.map(p => `${p.name}（${p.role}）`)
 const companionOptions = ['刘工（安全员）', '陈工（技术员）', '周工（施工员）', '吴工（质检员）']
 
 const selectedCompanion = ref('')
@@ -47,8 +37,23 @@ function addCompanion() {
 }
 
 function addHazard() {
-  form.value.hazardItems.push({ desc: '', photos: [] })
+  const defaultRectifier = getProjectRectifierLabel(form.value.project)
+  const defaultReviewer = getProjectReviewerLabel(form.value.project)
+  form.value.hazardItems.push({
+    desc: '',
+    photos: [],
+    rectifyPerson: defaultRectifier,
+    reviewPerson: defaultReviewer,
+    rectifyDeadline: '',
+  })
 }
+
+watch(() => form.value.project, project => {
+  form.value.hazardItems.forEach(item => {
+    item.rectifyPerson = getProjectRectifierLabel(project)
+    item.reviewPerson = getProjectReviewerLabel(project)
+  })
+})
 function removeHazard(idx) {
   form.value.hazardItems.splice(idx, 1)
 }
@@ -78,51 +83,68 @@ function triggerPhoto() {
 function removePhoto(i) { form.value.photos.splice(i, 1) }
 
 function submitInspection() {
+  if (!form.value.inspectionCategory) { ElMessage.warning('请选择巡检分类'); return }
   if (!form.value.inspDate) { ElMessage.warning('请选择巡检日期'); return }
   if (!form.value.project) { ElMessage.warning('请选择所属项目'); return }
-  if (!form.value.inspector) { ElMessage.warning('请选择巡检人'); return }
-  if (!form.value.inspContent.trim()) { ElMessage.warning('请填写巡检内容'); return }
   if (!form.value.result) { ElMessage.warning('请选择巡检结果'); return }
   if (form.value.result === 'hazard') {
     if (form.value.hazardItems.length === 0) { ElMessage.warning('请至少添加一条隐患'); return }
     for (const [i,item] of form.value.hazardItems.entries()) {
       if (!item.desc.trim()) { ElMessage.warning(`第 ${i+1} 条隐患请填写说明`); return }
+      if (!item.rectifyPerson) {
+        ElMessage.warning(`第 ${i+1} 条隐患请选择整改人`)
+        return
+      }
+      if (!item.reviewPerson) {
+        ElMessage.warning(`第 ${i+1} 条隐患请选择复查人`)
+        return
+      }
+      if (!item.rectifyDeadline) {
+        ElMessage.warning(`第 ${i+1} 条隐患请选择整改截止日期`)
+        return
+      }
     }
   }
-  if (form.value.hasRectify && !form.value.rectifyPerson) { ElMessage.warning('请选择整改人'); return }
-  if (form.value.hasRectify && !form.value.rectifyDeadline) { ElMessage.warning('请选择整改截止日期'); return }
 
-  const taskNo = `XJ${new Date().toISOString().slice(0,10).replace(/-/g,'')}${String(Date.now()).slice(-4)}`
-  const selfRectifyNo = form.value.hasRectify ? `ZG${String(Date.now()).slice(-6)}` : ''
+  const now = Date.now()
+  const dateKey = new Date().toISOString().slice(0,10).replace(/-/g,'')
+  const taskNo = buildInspectionTaskNo(form.value.inspectionCategory, form.value.inspDate, Number(String(now).slice(-3)))
+  const hazardItems = form.value.hazardItems.map((item, index) => {
+    const rectifyNo = `ZG${dateKey}${String(now).slice(-4)}${String(index + 1).padStart(2, '0')}`
+    return {
+      desc: item.desc,
+      photos: [...item.photos],
+      hasRectify: true,
+      rectifyNo,
+      rectifyId: `self-${rectifyNo}`,
+      rectifyPerson: item.rectifyPerson,
+      reviewPerson: item.reviewPerson,
+      rectifyDeadline: item.rectifyDeadline,
+    }
+  })
+  const rectifyCount = hazardItems.length
 
   const newTask = {
-    id: `self-${Date.now()}`,
+    id: `self-${now}`,
     taskNo,
-    planNo: '',
-    source: '系统自建',
-    inspType: form.value.inspType,
-    planType: form.value.inspType,
-    planName: `【自建】${form.value.inspType}巡检`,
-    project: form.value.project,
-    executor: form.value.inspector || '当前用户',
-    deadline: form.value.inspDate,
-    status: '已完成',
-    overdue: false,
-    itemCount: 0,
-    hazardCount: form.value.hazardItems.length,
+    source: '系统自建', inspectionCategory: form.value.inspectionCategory,
+    taskName: `${form.value.project}${form.value.inspectionCategory}检查`,
+    project: form.value.project, executor: form.value.inspector,
+    inspector: form.value.inspector, companions: [...form.value.companions],
+    deadline: form.value.inspDate, status: '已完成',
+    inspDate: form.value.inspDate,
+    submittedAt: new Date().toLocaleString('zh-CN', { hour12: false }),
+    itemCount: 0, hazardCount: form.value.hazardItems.length,
     photos: form.value.photos,
-    inspContent: form.value.inspContent.trim(),
     result: form.value.result,
-    hazardItems: form.value.hazardItems.map((h) => ({ desc: h.desc, photos: [...h.photos] })),
-    hasRectify: form.value.hasRectify,
-    rectifyNo: selfRectifyNo,
-    rectifyId: selfRectifyNo ? `self-${selfRectifyNo}` : '',
-    rectifyPerson: form.value.rectifyPerson,
-    rectifyDeadline: form.value.rectifyDeadline,
+    normalPhotos: form.value.result === 'normal' ? [...form.value.photos] : [],
+    hazardItems,
+    hasRectify: rectifyCount > 0,
+    rectifyCount,
   }
 
   addMobileInspectionTask(newTask)
-  ElMessage.success(`巡检记录已提交${form.value.hasRectify ? '，已下发整改单' : ''}`)
+  ElMessage.success(`巡检记录已提交${rectifyCount ? `，已下发 ${rectifyCount} 份整改单` : ''}`)
   router.push('/mobile/tasks')
 }
 
@@ -141,31 +163,28 @@ function goBack() { router.push('/mobile/tasks') }
         <div class="fs-title">巡检信息</div>
 
         <div class="form-row">
-          <span class="form-label">巡检类型 <i class="req">*</i></span>
+          <span class="form-label">巡检分类<span class="required-mark">*</span></span>
           <div class="form-tags">
-            <button v-for="t in inspectTypes" :key="t" class="tag-btn" :class="{ active: form.inspType === t }" @click="form.inspType = t">{{ t }}</button>
+            <button v-for="category in INSPECTION_CATEGORIES" :key="category" class="tag-btn" :class="{ active: form.inspectionCategory === category }" @click="form.inspectionCategory = category">{{ category }}</button>
           </div>
         </div>
 
         <div class="form-row">
-          <span class="form-label">巡检日期 <i class="req">*</i></span>
+          <span class="form-label">巡检日期<span class="required-mark">*</span></span>
           <input type="date" v-model="form.inspDate" class="form-input" />
         </div>
 
         <div class="form-row">
-          <span class="form-label">所属项目 <i class="req">*</i></span>
-          <select v-model="form.project" class="form-input" :disabled="!isHqSelected">
+          <span class="form-label">所属项目<span class="required-mark">*</span></span>
+          <select v-model="form.project" class="form-input">
             <option value="" disabled>请选择项目</option>
             <option v-for="p in projectOptions" :key="p" :value="p">{{ p }}</option>
           </select>
         </div>
 
         <div class="form-row">
-          <span class="form-label">巡检人 <i class="req">*</i></span>
-          <select v-model="form.inspector" class="form-input">
-            <option value="" disabled>请选择</option>
-            <option v-for="p in personOptions" :key="p" :value="p">{{ p }}</option>
-          </select>
+          <span class="form-label">执行人</span>
+          <input :value="form.inspector" class="form-input" disabled />
         </div>
 
         <div class="form-row">
@@ -183,79 +202,68 @@ function goBack() { router.push('/mobile/tasks') }
       <div class="form-section">
         <div class="fs-title">巡检结果</div>
 
-        <div class="form-row">
-          <span class="form-label">巡检内容 <i class="req">*</i></span>
-          <textarea
-            v-model="form.inspContent"
-            class="form-textarea"
-            placeholder="请填写本次巡检内容..."
-            rows="3"
-          ></textarea>
+        <div v-if="form.result === 'normal'" class="form-row">
+          <span class="form-label">巡检照片</span>
+          <div class="photo-group">
+            <div v-for="(url,i) in form.photos" :key="i" class="photo-box"><span>📷 已拍</span><button class="photo-del" @click="removePhoto(i)">✕</button></div>
+            <button class="photo-add" @click="triggerPhoto">+ 拍照</button>
+          </div>
         </div>
 
         <div class="form-row">
-          <span class="form-label">是否有隐患 <i class="req">*</i></span>
+          <span class="form-label">是否有隐患<span class="required-mark">*</span></span>
           <div class="result-group">
-            <button class="result-btn ok" :class="{ active: form.result === 'normal' }" @click="form.result = 'normal'; form.hasRectify = false">✓ 全部正常</button>
-            <button class="result-btn hazard" :class="{ active: form.result === 'hazard' }" @click="form.result = 'hazard'; form.hasRectify = false; if (form.hazardItems.length===0) addHazard()">⚠ 有隐患</button>
+            <button class="result-btn ok" :class="{ active: form.result === 'normal' }" @click="form.result = 'normal'; form.hazardItems = []">✓ 全部正常</button>
+            <button class="result-btn hazard" :class="{ active: form.result === 'hazard' }" @click="form.result = 'hazard'; if (form.hazardItems.length===0) addHazard()">⚠ 有隐患</button>
           </div>
         </div>
 
-        <!-- 结果明细区：按钮下方固定占位，避免内容插在按钮上方跳动 -->
-        <div class="result-detail" :class="{ idle: !form.result }">
-          <div v-show="!form.result" class="result-placeholder">请选择是否有隐患后填写结果明细</div>
-
-          <div v-show="form.result === 'normal'" class="form-row result-block">
-            <span class="form-label">巡检照片</span>
-            <div class="photo-group">
-              <div v-for="(url,i) in form.photos" :key="i" class="photo-box"><span>📷 已拍</span><button class="photo-del" @click="removePhoto(i)">✕</button></div>
-              <button class="photo-add" @click="triggerPhoto">+ 拍照</button>
+        <!-- 隐患列表（可新增多条） -->
+        <div v-if="form.result === 'hazard'" class="hazard-list">
+          <div v-for="(item, idx) in form.hazardItems" :key="idx" class="hazard-item-row">
+            <div class="hi-header">
+              <span class="hi-num">⚠ 隐患 {{ idx + 1 }}</span>
+              <button v-if="form.hazardItems.length > 1" class="hi-remove" @click="removeHazard(idx)">✕</button>
+            </div>
+            <div class="form-row">
+              <span class="form-label" style="width:56px">说明<span class="required-mark">*</span></span>
+              <textarea v-model="item.desc" class="form-textarea" placeholder="请描述隐患情况..." rows="2"></textarea>
+            </div>
+            <div class="form-row">
+              <span class="form-label" style="width:56px">照片</span>
+              <div class="photo-group">
+                <div v-for="(url,pi) in item.photos" :key="pi" class="photo-box"><span>📷</span><button class="photo-del" @click="removeHazardPhoto(idx, pi)">✕</button></div>
+                <button class="photo-add" @click="triggerHazardPhoto(idx)">+ 拍照</button>
+              </div>
+            </div>
+            <div class="rectify-section">
+              <div class="rectify-required-tip">
+                发现隐患后将自动生成整改单，请完善整改信息
+              </div>
+              <div class="form-row">
+                <span class="form-label">整改人<span class="required-mark">*</span></span>
+                <select v-model="item.rectifyPerson" class="form-input">
+                  <option value="" disabled>请选择整改人</option>
+                  <option v-for="p in personOptions" :key="p" :value="p">{{ p }}</option>
+                </select>
+              </div>
+              <div class="form-row">
+                <span class="form-label">复查人<span class="required-mark">*</span></span>
+                <select v-model="item.reviewPerson" class="form-input">
+                  <option value="" disabled>请选择复查人</option>
+                  <option v-for="p in personOptions" :key="p" :value="p">{{ p }}</option>
+                </select>
+              </div>
+              <div class="form-row">
+                  <span class="form-label">整改截止日期<span class="required-mark">*</span></span>
+                <input type="date" v-model="item.rectifyDeadline" class="form-input" />
+              </div>
             </div>
           </div>
-
-          <div v-show="form.result === 'hazard'" class="result-block">
-            <div class="hazard-list">
-              <div v-for="(item, idx) in form.hazardItems" :key="idx" class="hazard-item-row">
-                <div class="hi-header">
-                  <span class="hi-num">⚠ 隐患 {{ idx + 1 }}</span>
-                  <button v-if="form.hazardItems.length > 1" class="hi-remove" @click="removeHazard(idx)">✕</button>
-                </div>
-                <div class="form-row">
-                  <span class="form-label" style="width:56px">说明 <i class="req">*</i></span>
-                  <textarea v-model="item.desc" class="form-textarea" placeholder="请描述隐患情况..." rows="2"></textarea>
-                </div>
-                <div class="form-row">
-                  <span class="form-label" style="width:56px">照片</span>
-                  <div class="photo-group">
-                    <div v-for="(url,pi) in item.photos" :key="pi" class="photo-box"><span>📷</span><button class="photo-del" @click="removeHazardPhoto(idx, pi)">✕</button></div>
-                    <button class="photo-add" @click="triggerHazardPhoto(idx)">+ 拍照</button>
-                  </div>
-                </div>
-              </div>
-              <button type="button" class="add-hazard-btn" @click="addHazard">+ 新增隐患项</button>
-            </div>
-
-            <div class="form-row">
-              <span class="form-label">下发整改单</span>
-              <label class="switch-row">
-                <input type="checkbox" v-model="form.hasRectify" class="switch-input" />
-                <span class="switch-track"><span class="switch-dot"></span></span>
-                <span>{{ form.hasRectify ? '已下发' : '不下发' }}</span>
-              </label>
-            </div>
-
-            <div v-show="form.hasRectify" class="form-row">
-              <span class="form-label">整改人 <i class="req">*</i></span>
-              <select v-model="form.rectifyPerson" class="form-input">
-                <option value="" disabled>请选择整改人</option>
-                <option v-for="p in personOptions" :key="p" :value="p">{{ p }}</option>
-              </select>
-            </div>
-
-            <div v-show="form.hasRectify" class="form-row">
-              <span class="form-label">整改截止 <i class="req">*</i></span>
-              <input type="date" v-model="form.rectifyDeadline" class="form-input" />
-            </div>
+          <button class="add-hazard-btn" @click="addHazard">+ 新增隐患项</button>
+          <div class="rectify-summary">
+            已录入 {{ form.hazardItems.length }} 条隐患，将下发
+            {{ form.hazardItems.length }} 份整改单
           </div>
         </div>
       </div>
@@ -281,15 +289,8 @@ function goBack() { router.push('/mobile/tasks') }
 .fs-title { font-size:14px; font-weight:600; color:#1f2329; margin-bottom:12px; padding-left:8px; border-left:3px solid #8f0045; }
 .form-row { display:flex; gap:8px; margin-bottom:14px; align-items:flex-start; }
 .form-row:last-child { margin-bottom:0; }
-.form-label { color:#666; flex-shrink:0; width:auto; min-width:84px; max-width:100px; font-size:13px; padding-top:4px; line-height:1.35; }
-.req { color:#e53935; font-style:normal; margin-left:2px; }
-.form-input:disabled {
-  background:#f5f5f5;
-  color:#333;
-  opacity:1;
-  border-color:#e0e0e0;
-  cursor:not-allowed;
-}
+.form-label { color:#666; flex-shrink:0; width:72px; font-size:13px; padding-top:4px; }
+.required-mark { color:#e53935; margin-left:2px; font-weight:600; }
 .form-input { flex:1; padding:8px 10px; border:1px solid #ddd; border-radius:8px; font-size:13px; font-family:inherit; background:#fff; }
 .form-textarea { flex:1; padding:8px 10px; border:1px solid #ddd; border-radius:8px; font-size:13px; font-family:inherit; resize:none; background:#fff; }
 .form-tags { flex:1; display:flex; gap:6px; flex-wrap:wrap; }
@@ -307,42 +308,15 @@ function goBack() { router.push('/mobile/tasks') }
 .hi-num { font-size:12px; font-weight:600; color:#e53935; }
 .hi-remove { margin-left:auto; width:20px; height:20px; border-radius:50%; border:none; background:#ffebee; color:#e53935; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
 .add-hazard-btn { width:100%; padding:10px; border:1.5px dashed #ddd; border-radius:8px; background:#fafafa; font-size:13px; color:#999; cursor:pointer; }
+.rectify-section { margin-top:10px; padding-top:10px; border-top:1px solid #eee; }
+.rectify-section .form-label { width:72px !important; }
+.rectify-required-tip { margin-bottom:10px; padding:7px 9px; border-radius:6px; background:#fff3e0; color:#b26a00; font-size:12px; }
+.rectify-summary { margin-top:8px; padding:8px 10px; border-radius:6px; background:#fceef4; color:#8f0045; font-size:12px; text-align:center; }
 
 .result-group { flex:1; display:flex; gap:8px; }
 .result-btn { flex:1; padding:10px; border:1.5px solid #ddd; border-radius:8px; background:#fff; font-size:13px; font-weight:500; cursor:pointer; }
 .result-btn.ok.active { border-color:#34a853; color:#34a853; background:#e8f5e9; }
 .result-btn.hazard.active { border-color:#e53935; color:#e53935; background:#ffebee; }
-.result-detail {
-  margin-top: 4px;
-  min-height: 88px;
-  border: 1px dashed #eee;
-  border-radius: 10px;
-  padding: 10px;
-  background: #fafafa;
-  transition: min-height 0.2s ease;
-}
-.result-detail:not(.idle) {
-  border-style: solid;
-  border-color: #f0e0e4;
-  background: #fff;
-  min-height: 120px;
-}
-.result-placeholder {
-  min-height: 68px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  color: #bbb;
-}
-.result-block { width: 100%; }
-.result-block .form-row:last-child { margin-bottom: 0; }
-.switch-row { display:flex; align-items:center; gap:8px; cursor:pointer; }
-.switch-input { display:none; }
-.switch-track { width:44px; height:24px; border-radius:12px; background:#ddd; position:relative; transition:background 0.2s; }
-.switch-input:checked + .switch-track { background:#8f0045; }
-.switch-dot { position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%; background:#fff; transition:left 0.2s; }
-.switch-input:checked + .switch-track .switch-dot { left:22px; }
 .bottom-bar { position:sticky; bottom:0; background:#fff; border-top:1px solid #eee; padding:10px 16px; padding-bottom:calc(10px + env(safe-area-inset-bottom,0)); }
 .submit-btn { width:100%; padding:14px; border:none; border-radius:10px; background:#8f0045; color:#fff; font-size:16px; font-weight:600; cursor:pointer; }
 </style>

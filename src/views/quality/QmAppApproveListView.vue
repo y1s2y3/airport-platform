@@ -7,7 +7,6 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useQmProjectScope } from '../../composables/useCurrentProject'
 import {
-  acceptancePlans,
   ARCHIVE_STATUS,
   getNextApprovalRole,
   inspectionTasks,
@@ -86,18 +85,8 @@ function nodeName(task) {
   return wbsNodes.find((n) => n.id === task.wbs_node_id)?.node_name || task.location_name || '—'
 }
 
-function planLabel(task) {
-  if (task.unplanned_flag === 1 || !task.plan_id) return '未挂计划'
-  return acceptancePlans.find((p) => p.id === task.plan_id)?.plan_no || task.plan_id
-}
-
 function orgLabel(task) {
   return ORG_LABEL[task.contractor_org_id] || task.contractor_org_id || '—'
-}
-
-function formatSelfCheck(val) {
-  if (val == null || val === '') return '—'
-  return { 0: '未自检', 1: '自检合格', 2: '自检不合格' }[val] || '—'
 }
 
 function formatFirstPass(flag) {
@@ -253,10 +242,9 @@ function onTabChange(key) {
           <div class="card-node">{{ nodeName(row) }}</div>
           <div class="card-fields">
             <div class="field"><span class="k">部位</span><span class="v">{{ row.location_name || '—' }}</span></div>
-            <div class="field"><span class="k">计划</span><span class="v">{{ planLabel(row) }}</span></div>
+            <div class="field"><span class="k">节点</span><span class="v">{{ nodeName(row) }}</span></div>
             <div class="field"><span class="k">施工单位</span><span class="v">{{ orgLabel(row) }}</span></div>
             <div class="field"><span class="k">归档</span><span class="v">{{ ARCHIVE_STATUS[row.archive_status] || '—' }}</span></div>
-            <div class="field"><span class="k">自检</span><span class="v">{{ formatSelfCheck(row.self_check_result) }}</span></div>
             <div class="field"><span class="k">一次通过</span><span class="v">{{ formatFirstPass(row.first_pass_flag) }}</span></div>
           </div>
           <div class="card-meta">

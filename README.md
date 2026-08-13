@@ -20,9 +20,11 @@ npm run dev
 
 ```bash
 npm run build              # 标准 Web 构建
-npm run build:html         # 一体化平台单文件 HTML
-npm run build:coc-html     # COC 调度大屏单文件 HTML（三视图）
+npm run build:html         # 默认：一个 HTML（后台 + 内嵌 COC 大屏）
+npm run build:coc-html     # 可选：仅当需要独立大屏文件时再执行
 ```
+
+产物目录：`release/`。日常演示只跑 `build:html` 即可，打开后经顶栏或 `#/coc` 进入大屏。
 
 ## 已实现模块
 

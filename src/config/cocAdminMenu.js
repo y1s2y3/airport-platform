@@ -1,5 +1,4 @@
 ﻿import AdminScreenshotList from '../coc/admin/AdminScreenshotList.vue'
-import AdminDailyWorkEntry from '../coc/admin/AdminDailyWorkEntry.vue'
 import AdminDispatchNoticeList from '../coc/admin/AdminDispatchNoticeList.vue'
 import AdminDispatchReminderList from '../coc/admin/AdminDispatchReminderList.vue'
 import AdminDispatchPenaltyList from '../coc/admin/AdminDispatchPenaltyList.vue'
@@ -21,15 +20,6 @@ const cocAdminItems = [
     description: '保存问题截图及相关字段。',
     component: AdminScreenshotList,
     hiddenInMenu: true,
-  },
-  {
-    key: 'coc-admin-daily-work',
-    name: 'CocAdminDailyWork',
-    label: '每日施工作业',
-    path: '/coc-admin/daily-work',
-    roles: ['COC调度室', '项目经理', '施工'],
-    description: '',
-    component: AdminDailyWorkEntry,
   },
   {
     key: 'coc-admin-notice',
@@ -101,6 +91,8 @@ const cocAdminItems = [
     description:
       '管理智能安全帽设备台账、绑定人员、在线/定位状态，支撑远程调度与现场抽检。',
     component: SmartHelmetManageView,
+    /** 侧栏暂隐藏；路由保留，便于后续恢复 */
+    hiddenInMenu: true,
   },
   {
     key: 'coc-admin-supervision-meeting',
@@ -119,14 +111,14 @@ const cocAdminItems = [
     path: '/coc-admin/dispatch-hazard',
     roles: ['COC调度室', '安质部', '项目经理', '施工'],
     description:
-      '保存 COC 调度大屏问题截图登记的安全隐患与质量隐患；施工方提交整改、安质部验收；指挥部只读查看。',
+      '汇集 COC 调度大屏问题截图登记的安全/质量隐患台账；整改与验收在个人中心待办处理；指挥部可查看全部项目。',
     component: DispatchHazardListView,
   },
 ]
 
 export const cocAdminMenuGroup = {
   key: 'coc-admin',
-  label: 'COC后台管理',
+  label: '调度后台管理',
   icon: 'Connection',
   children: cocAdminItems
     .filter((item) => !item.hiddenInMenu)
