@@ -25,6 +25,11 @@ export const laborMenuChildren = [
   { key: 'labor-personnel-track', label: '人员轨迹', path: '/labor/personnel-track' },
   { key: 'labor-attendance-detail', label: '考勤明细', path: '/labor/attendance-detail' },
   { key: 'labor-warning-list', label: '预警清单', path: '/labor/warning-list' },
+  {
+    key: 'labor-mobile-personal-center',
+    label: '个人中心（移动端）',
+    path: '/labor/mobile/personal-center',
+  },
 ]
 
 /** 指挥部 · 人员实名制管理：实名制统计第一，其次人员轨迹系统，再配置/黑名单等 */

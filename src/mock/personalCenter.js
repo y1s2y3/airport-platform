@@ -2239,3 +2239,34 @@ export const personalNotices = [
     readStatus: '已读',
   },
 ]
+
+/** 个人中心 · 人员实名制预警待办（移动端只读列表同源） */
+export function listLaborPersonalTodos() {
+  ensureLaborPersonalCenterSeeds()
+  return personalTodoStore.todos.filter((row) => row.type === 'labor_warning')
+}
+
+/** 个人中心 · 人员实名制预警已办 */
+export function listLaborPersonalDone() {
+  ensureLaborPersonalCenterSeeds()
+  return personalTodoStore.done.filter((row) => row.type === 'labor_warning')
+}
+
+/** 个人中心 · 人员实名制通知（移动端消息提醒同源） */
+export function listLaborPersonalNotices() {
+  return personalNotices.filter((row) => row.module === '人员实名' || !!row.laborWarningId)
+}
+
+/** 个人中心 · 人员实名制「我发起的」（本期预警流程无发起态，预留同源过滤） */
+export function listLaborPersonalStarted() {
+  return personalStarted.filter(
+    (row) => row.type === 'labor_warning' || row.category === '人员实名' || !!row.laborWarningId,
+  )
+}
+
+/** 个人中心 · 人员实名制「抄送我的」（本期预警流程无抄送态，预留同源过滤） */
+export function listLaborPersonalCc() {
+  return personalCc.filter(
+    (row) => row.type === 'labor_warning' || row.category === '人员实名' || !!row.laborWarningId,
+  )
+}

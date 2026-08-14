@@ -7,7 +7,7 @@
 export const APP_VERSION_BASE = '2.2.1'
 
 /** GitHub Pages 发布序号（从 0 开始；仓库内为「当前即将发布 / 下一版」序号） */
-export const APP_VERSION_PATCH = 2
+export const APP_VERSION_PATCH = 3
 
 export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
 
@@ -16,6 +16,14 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  * highlights 宜短句，便于页头问号弹窗快速阅读
  */
 export const VERSION_CHANGELOG = [
+  {
+    version: 'v2.2.1.3',
+    date: '2026-08-14',
+    highlights: [
+      '细化人员管理、车辆管理相关原型',
+      '补充移动端-个人中心，人员实名制代办及通知展示内容',
+    ],
+  },
   {
     version: 'v2.2.1.1',
     date: '2026-08-13',

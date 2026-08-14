@@ -50,6 +50,26 @@ const laborRoutes = [
   { path: 'labor/salary-compare', redirect: '/labor/dashboard' },
   { path: 'labor/device-manage', name: 'LaborDeviceManage', component: () => import('../views/safety/LaborDeviceManageView.vue'), meta: { sidebarKey: 'labor-device-manage', tabKey: 'labor-device-manage', title: '设备管理' } },
   { path: 'labor/blacklist', name: 'LaborBlacklist', component: () => import('../views/safety/LaborBlacklistView.vue'), meta: { sidebarKey: 'labor-blacklist', tabKey: 'labor-blacklist', title: '劳务黑名单' } },
+  {
+    path: 'labor/mobile/personal-center',
+    name: 'LaborMobilePersonalCenter',
+    component: () => import('../views/mobile/LaborMobilePersonalCenterView.vue'),
+    meta: {
+      sidebarKey: 'labor-mobile-personal-center',
+      tabKey: 'labor-mobile-personal-center',
+      title: '个人中心（移动端）',
+    },
+  },
+  {
+    path: 'labor/mobile/personal-center/warning/:id',
+    name: 'LaborMobileWarningDetail',
+    component: () => import('../views/mobile/LaborMobileWarningDetailView.vue'),
+    meta: {
+      sidebarKey: 'labor-mobile-personal-center',
+      tabKey: 'labor-mobile-personal-center',
+      title: '预警详情',
+    },
+  },
   { path: 'labor', redirect: '/labor/realname-stats' },
 ]
 

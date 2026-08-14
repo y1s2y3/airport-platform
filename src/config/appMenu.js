@@ -8,6 +8,7 @@ export const appMenu = [
       { key: 'app-labor-dashboard', label: '人员实名制看板' },
       { key: 'app-labor-realname', label: '人员实名制' },
       { key: 'app-labor-warning', label: '预警清单' },
+      { key: 'app-labor-mobile-personal-center', label: '个人中心（移动端）' },
     ],
   },
   {

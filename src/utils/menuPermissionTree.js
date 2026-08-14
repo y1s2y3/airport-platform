@@ -135,7 +135,7 @@ export const PROJECT_ONLY_MENU_KEYS = new Set([
   'vehicle-device',
   'app-vehicle-access',
   'app-vehicle-warning',
-  /** 巡检管理 · 人员配置 / 整改复查(移动端)仅项目层；巡检管理(移动端)/消息中心(移动端)指挥部/项目均可见 */
+  /** 巡检管理 · 人员配置 / 整改复查(移动端)仅项目层；巡检管理(移动端)/消息中心(移动端)/人员个人中心(移动端)指挥部/项目均可见 */
   'safety-inspector-config',
   'mobile-rectify',
   'app-mobile-rectify',
