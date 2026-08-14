@@ -14,7 +14,11 @@ import {
   isAutoCloseGuidable,
   getAutoCloseActionPrompt,
 } from '../../mock/laborWarningList'
-import { finishPersonalTodo, findPersonalProcess } from '../../mock/personalCenter.js'
+import {
+  finishPersonalTodo,
+  findPersonalProcess,
+  markWarningCenterDisposed,
+} from '../../mock/personalCenter.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -28,7 +32,7 @@ const fromPersonalCenter = computed(() => String(route.query.from || '') === 'pe
 const personalTodoId = computed(() => String(route.query.todoId || ''))
 const personalTab = computed(() => {
   const tab = String(route.query.tab || 'todo')
-  return ['todo', 'done', 'notice'].includes(tab) ? tab : 'todo'
+  return ['todo', 'done', 'notice', 'warning-center'].includes(tab) ? tab : 'todo'
 })
 
 const canHandle = computed(() => {
@@ -168,6 +172,9 @@ function previewAttachment(name) {
 }
 
 function syncPersonalTodoOnClose() {
+  if (detail.value?.id) {
+    markWarningCenterDisposed(detail.value.id, '张明')
+  }
   if (!fromPersonalCenter.value || !personalTodoId.value) return
   if (!findPersonalProcess(personalTodoId.value, 'todo')) return
   finishPersonalTodo(personalTodoId.value, '处置并关闭')

@@ -21,6 +21,8 @@ export const PROCESS_CATEGORY_OPTIONS = [
   'COC调度',
 ]
 export const READ_STATUS_OPTIONS = ['未读', '已读']
+export const WARNING_CENTER_TYPE_OPTIONS = ['处置任务', '通知']
+export const WARNING_CENTER_STATUS_OPTIONS = ['待处置', '已处置', '未读', '已读']
 export const NOTICE_MODULE_OPTIONS = [
   '待办通知',
   '环境监测',
@@ -1006,12 +1008,125 @@ const inspectionStartedExamples = INSPECTION_BIZ_TYPE_OPTIONS.map((type, index) 
   buildInspectionExample(type, 'started', index),
 )
 
+/** 人员实名制项目简称（演示口径） */
+const LABOR_PROJECT_SHORT_NAME = {
+  'p-000': 'T2项目',
+  'p-001': 'T1项目',
+  'p-003': '三跑道扩建',
+  'p-004': '综合配套区',
+  'p-005': '捷运延长段',
+}
+
+/** 预警中心处理人假数据（直接写姓名） */
+const WARNING_CENTER_HANDLER = {
+  'w-001': '王建国',
+  'w-002': '李安全',
+  'w-003': '郑经理',
+  'w-004': '陈监理',
+  'w-005': '赵敏',
+  'w-006': '黄丽',
+  'w-008': '刘洋',
+  'w-009': '孙涛',
+  'w-010': '周杰',
+  'w-013': '吴敏',
+  'w-017': '马超',
+}
+
+function getLaborProjectShortName(projectId) {
+  if (!projectId) return '—'
+  if (LABOR_PROJECT_SHORT_NAME[projectId]) return LABOR_PROJECT_SHORT_NAME[projectId]
+  const full = getProjectLabel(projectId) || ''
+  return full.replace(/工程$/, '') || projectId
+}
+
 /**
- * 人员实名制预警 → 个人中心待办/已办
- * 口径（对齐 Word PRD 6.10）：
- * - 我的待办：任务类待处理 =「手动处理」+「系统自动关闭」（自动类点处置→引导跳转实名制）
- * - 通知类：进「通知信息」；自动关闭类触发时同步推送通知
- * - 已办：手动处理已关闭
+ * 人员实名制预警 → 预警中心归一化条目
+ * @param {'pending'|'closed'|'notify'} kind
+ */
+function buildLaborWarningCenterItem(warningId, kind, extra = {}) {
+  const w = getWarningDetail(warningId)
+  if (!w) return null
+  const projectName = getLaborProjectShortName(w.project_id)
+  const description = `${w.rule_label}：${w.name}。${w.trigger_reason}`
+  const handler = WARNING_CENTER_HANDLER[warningId] || '李安全'
+
+  if (kind === 'notify') {
+    if (w.handle_mode !== '通知') return null
+    return {
+      id: extra.id || `wc-notify-${warningId}`,
+      module: '人员实名',
+      projectName,
+      description,
+      handler,
+      warnType: '通知',
+      status: extra.readStatus === '已读' ? '已读' : '未读',
+      time: w.triggered_at,
+      laborWarningId: w.id,
+      readStatus: extra.readStatus === '已读' ? '已读' : '未读',
+      dismissed: false,
+    }
+  }
+
+  if (w.handle_mode === '通知') return null
+  if (kind === 'pending') {
+    if (w.status !== '待处理') return null
+    if (w.handle_mode !== '手动处理' && w.handle_mode !== '系统自动关闭') return null
+    return {
+      id: `wc-task-${warningId}`,
+      module: '人员实名',
+      projectName,
+      description,
+      handler,
+      warnType: '处置任务',
+      status: '待处置',
+      time: w.triggered_at,
+      laborWarningId: w.id,
+      dismissed: false,
+    }
+  }
+
+  // closed
+  if (w.status !== '已关闭') return null
+  const closeRec = [...(w.disposal_records || [])].reverse().find((r) => r.type === 'close' || r.type === 'auto_close')
+  const closeHandler =
+    closeRec?.operator && closeRec.operator !== '系统' ? closeRec.operator : handler
+  return {
+    id: `wc-task-done-${warningId}`,
+    module: '人员实名',
+    projectName,
+    description,
+    handler: closeHandler,
+    warnType: '处置任务',
+    status: '已处置',
+    time: w.closed_at || w.triggered_at,
+    laborWarningId: w.id,
+    dismissed: false,
+  }
+}
+
+/**
+ * 预警中心种子：任务类（待处置/已处置）+ 通知类（未读/已读）
+ * 不含「任务触发同步通知」重复条，避免与任务类双挂
+ */
+export function seedLaborWarningCenter() {
+  const pendingIds = ['w-002', 'w-005', 'w-009', 'w-017', 'w-004', 'w-008']
+  const closedIds = ['w-001', 'w-003']
+  const notifySpecs = [
+    { id: 'wc-notify-w-006', warningId: 'w-006', readStatus: '未读' },
+    { id: 'wc-notify-w-010', warningId: 'w-010', readStatus: '未读' },
+    { id: 'wc-notify-w-013', warningId: 'w-013', readStatus: '已读' },
+  ]
+  return [
+    ...pendingIds.map((id) => buildLaborWarningCenterItem(id, 'pending')),
+    ...closedIds.map((id) => buildLaborWarningCenterItem(id, 'closed')),
+    ...notifySpecs.map((s) =>
+      buildLaborWarningCenterItem(s.warningId, 'notify', { id: s.id, readStatus: s.readStatus }),
+    ),
+  ].filter(Boolean)
+}
+
+/**
+ * 人员实名制预警 → 个人中心待办/已办（已迁出至预警中心，保留函数供兼容，默认不再写入待办）
  * @param {'todo'|'done'} listType
  */
 function buildLaborWarningProcess(warningId, listType = 'todo') {
@@ -1082,71 +1197,22 @@ function buildLaborWarningProcess(warningId, listType = 'todo') {
 }
 
 /**
- * 待办预警：任务类待处理
- * - 手动：w-002 连续超12h / w-005 连续未出勤 / w-009 管理人员考勤
- * - 自动关闭：w-017 三级教育 / w-004 黑名单 / w-008 年龄下限
+ * @deprecated 人员预警已迁至预警中心；保留空实现兼容旧调用
  */
 export function seedLaborWarningTodos() {
-  return ['w-002', 'w-005', 'w-009', 'w-017', 'w-004', 'w-008']
-    .map((id) => buildLaborWarningProcess(id, 'todo'))
-    .filter(Boolean)
+  return []
 }
 
-/** 已办：手动处理已关闭（演示无种子时可为 []；关闭后由 finishPersonalTodo 写入） */
+/** @deprecated 人员预警已迁至预警中心 */
 export function seedLaborWarningDone() {
   return []
 }
 
 /**
- * 通知信息：通知类 + 系统自动关闭类（含年龄下限、黑名单进场）；手动类触发时同步推送一条消息
- * - 通知：elderlyReminder / idCardExpired
- * - 自动关闭：三级教育、特种证、年龄下限、黑名单进场
+ * @deprecated 人员预警通知已迁至预警中心；保留空实现兼容旧调用
  */
 export function seedLaborWarningNotices() {
-  const specs = [
-    // 通知类
-    { id: 'nt-labor-notify-1', warningId: 'w-006', readStatus: '未读' },
-    { id: 'nt-labor-notify-2', warningId: 'w-010', readStatus: '未读' },
-    { id: 'nt-labor-notify-3', warningId: 'w-013', readStatus: '已读' },
-    // 系统自动关闭类（含 Word PRD 调整后的年龄下限、黑名单进场）
-    { id: 'nt-labor-auto-1', warningId: 'w-017', readStatus: '未读' },
-    { id: 'nt-labor-auto-2', warningId: 'w-001', readStatus: '已读' },
-    { id: 'nt-labor-auto-3', warningId: 'w-003', readStatus: '已读' },
-    { id: 'nt-labor-auto-4', warningId: 'w-004', readStatus: '未读' },
-    { id: 'nt-labor-auto-5', warningId: 'w-008', readStatus: '已读' },
-    // 手动类触发消息（与待办并存）
-    { id: 'nt-labor-manual-1', warningId: 'w-002', readStatus: '未读' },
-    { id: 'nt-labor-manual-2', warningId: 'w-005', readStatus: '未读' },
-  ]
-  return specs
-    .map(({ id, warningId, readStatus }) => {
-      const w = getWarningDetail(warningId)
-      if (!w) return null
-      const project = getProjectLabel(w.project_id) || '—'
-      const modeHint =
-        w.handle_mode === '通知'
-          ? '通知类（无需关闭）'
-          : w.handle_mode === '系统自动关闭'
-            ? '系统自动关闭'
-            : '手动处理（请至待办/预警清单处置）'
-      const titlePrefix =
-        w.handle_mode === '通知'
-          ? '人员预警通知'
-          : w.handle_mode === '系统自动关闭'
-            ? '人员预警（自动关闭）'
-            : '人员预警待处置'
-      return {
-        id,
-        module: '人员实名',
-        title: `${titlePrefix}：${w.rule_label}`,
-        content: `${w.warning_no} · ${project} · ${w.name}（${w.personnel_no}）· ${modeHint} · 状态「${w.status}」。${w.trigger_reason}`,
-        time: w.triggered_at,
-        readStatus,
-        laborWarningId: w.id,
-        handleMode: w.handle_mode,
-      }
-    })
-    .filter(Boolean)
+  return []
 }
 
 /** 质量验评专用待办（置顶；与业务任务 id 对齐，可点处理进审批/整改页） */
@@ -1312,17 +1378,20 @@ export function seedQmInspectStarted() {
   ]
 }
 
-/** 共享响应式：待办 / 已办 */
+/** 共享响应式：预警中心（人员实名制任务类 + 通知类） */
+export const personalWarningCenterStore = reactive({
+  items: seedLaborWarningCenter(),
+})
+
+/** 共享响应式：待办 / 已办（人员预警已迁出至预警中心） */
 export const personalTodoStore = reactive({
   todos: [
     ...seedQmInspectTodos(),
-    ...seedLaborWarningTodos(),
     ...inspectionTodoExamples,
     ...seedTodos(),
   ],
   done: [
     ...seedQmInspectDone(),
-    ...seedLaborWarningDone(),
     ...inspectionDoneExamples,
     {
       id: 'done-1',
@@ -1508,17 +1577,87 @@ export function ensureQmPersonalCenterSeeds() {
   }
 }
 
+/**
+ * 补齐预警中心种子（热更新/办理后缺失时不重复插入；已有条目同步描述/项目简称等展示字段）
+ */
+export function ensureLaborWarningCenterSeeds() {
+  for (const row of [...seedLaborWarningCenter()].reverse()) {
+    const existing = personalWarningCenterStore.items.find((t) => t.id === row.id)
+    if (!existing) {
+      personalWarningCenterStore.items.unshift(row)
+      continue
+    }
+    existing.module = row.module
+    existing.projectName = row.projectName
+    existing.description = row.description
+    existing.warnType = row.warnType
+    // 未人工处置关闭前，同步演示处理人姓名
+    if (existing.status === '待处置' || existing.status === '未读' || existing.status === '已读') {
+      if (existing.status !== '已读' || existing.warnType === '通知') {
+        existing.handler = row.handler
+      }
+    }
+  }
+}
+
+/** @deprecated 请改用 ensureLaborWarningCenterSeeds */
 export function ensureLaborPersonalCenterSeeds() {
-  for (const row of [...seedLaborWarningTodos()].reverse()) {
-    if (!personalTodoStore.todos.some((t) => t.id === row.id)) {
-      personalTodoStore.todos.unshift(row)
-    }
+  ensureLaborWarningCenterSeeds()
+}
+
+/** 预警中心列表（未消除） */
+export function listPersonalWarningCenter() {
+  ensureLaborWarningCenterSeeds()
+  return personalWarningCenterStore.items.filter((row) => !row.dismissed)
+}
+
+/** 批量已读：仅「通知」且状态为「未读」的条目 */
+export function markWarningCenterRead(ids) {
+  const idSet = new Set((ids || []).map(String))
+  let n = 0
+  for (const row of personalWarningCenterStore.items) {
+    if (!idSet.has(String(row.id))) continue
+    if (row.dismissed) continue
+    if (row.warnType !== '通知') continue
+    if (row.status !== '未读') continue
+    row.status = '已读'
+    row.readStatus = '已读'
+    n += 1
   }
-  for (const row of seedLaborWarningDone()) {
-    if (!personalTodoStore.done.some((t) => t.id === row.id)) {
-      personalTodoStore.done.unshift(row)
-    }
+  return n
+}
+
+/** 批量消除：从预警中心列表软删（不关闭业务预警） */
+export function dismissWarningCenter(ids) {
+  const idSet = new Set((ids || []).map(String))
+  let n = 0
+  for (const row of personalWarningCenterStore.items) {
+    if (!idSet.has(String(row.id))) continue
+    if (row.dismissed) continue
+    row.dismissed = true
+    n += 1
   }
+  return n
+}
+
+/**
+ * 业务侧处置关闭后，同步预警中心任务类为「已处置」（不消除列表）
+ */
+export function markWarningCenterDisposed(laborWarningId, handler = '张明') {
+  if (!laborWarningId) return null
+  const now = new Date().toLocaleString('zh-CN', { hour12: false })
+  const row = personalWarningCenterStore.items.find(
+    (item) =>
+      !item.dismissed &&
+      item.laborWarningId === laborWarningId &&
+      item.warnType === '处置任务' &&
+      item.status === '待处置',
+  )
+  if (!row) return null
+  row.status = '已处置'
+  row.handler = handler || '张明'
+  row.time = now
+  return row
 }
 
 /** 抄送我的 */
@@ -2171,9 +2310,8 @@ export function finishAsbuiltOpenTodos(acceptanceId, handleLabel) {
   ids.forEach((id) => finishPersonalTodo(id, handleLabel))
 }
 
-/** 通知信息 */
+/** 通知信息（人员预警已迁出至预警中心） */
 export const personalNotices = [
-  ...seedLaborWarningNotices(),
   {
     id: 'nt-qm-1',
     module: '质量验评',
@@ -2240,33 +2378,29 @@ export const personalNotices = [
   },
 ]
 
-/** 个人中心 · 人员实名制预警待办（移动端只读列表同源） */
+/**
+ * 兼容：人员预警已迁至预警中心，流程中心待办不再返回人员预警
+ */
 export function listLaborPersonalTodos() {
-  ensureLaborPersonalCenterSeeds()
-  return personalTodoStore.todos.filter((row) => row.type === 'labor_warning')
+  return []
 }
 
-/** 个人中心 · 人员实名制预警已办 */
+/** 兼容：人员预警已迁至预警中心 */
 export function listLaborPersonalDone() {
-  ensureLaborPersonalCenterSeeds()
-  return personalTodoStore.done.filter((row) => row.type === 'labor_warning')
+  return []
 }
 
-/** 个人中心 · 人员实名制通知（移动端消息提醒同源） */
+/** 兼容：人员预警通知已迁至预警中心，消息提醒不再返回 */
 export function listLaborPersonalNotices() {
-  return personalNotices.filter((row) => row.module === '人员实名' || !!row.laborWarningId)
+  return []
 }
 
-/** 个人中心 · 人员实名制「我发起的」（本期预警流程无发起态，预留同源过滤） */
+/** 兼容：本期预警流程无发起态 */
 export function listLaborPersonalStarted() {
-  return personalStarted.filter(
-    (row) => row.type === 'labor_warning' || row.category === '人员实名' || !!row.laborWarningId,
-  )
+  return []
 }
 
-/** 个人中心 · 人员实名制「抄送我的」（本期预警流程无抄送态，预留同源过滤） */
+/** 兼容：本期预警流程无抄送态 */
 export function listLaborPersonalCc() {
-  return personalCc.filter(
-    (row) => row.type === 'labor_warning' || row.category === '人员实名' || !!row.laborWarningId,
-  )
+  return []
 }

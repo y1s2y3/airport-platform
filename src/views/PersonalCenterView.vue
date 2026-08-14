@@ -12,9 +12,13 @@ import {
   PROCESS_CATEGORY_OPTIONS,
   READ_STATUS_OPTIONS,
   NOTICE_MODULE_OPTIONS,
+  WARNING_CENTER_TYPE_OPTIONS,
+  WARNING_CENTER_STATUS_OPTIONS,
   ensureQmPersonalCenterSeeds,
-  ensureLaborPersonalCenterSeeds,
-  findPersonalProcess,
+  ensureLaborWarningCenterSeeds,
+  listPersonalWarningCenter,
+  markWarningCenterRead,
+  dismissWarningCenter,
 } from '../mock/personalCenter.js'
 import '../mock/mat.js'
 import '../mock/eq.js'
@@ -22,22 +26,22 @@ import '../mock/eq.js'
 const route = useRoute()
 const router = useRouter()
 
+const TAB_NAMES = ['todo', 'done', 'started', 'cc', 'warning-center', 'notice']
+
 onMounted(() => {
   ensureQmPersonalCenterSeeds()
-  ensureLaborPersonalCenterSeeds()
+  ensureLaborWarningCenterSeeds()
 })
 
 const activeTab = ref(
-  ['todo', 'done', 'started', 'cc', 'notice'].includes(String(route.query.tab || ''))
-    ? String(route.query.tab)
-    : 'todo',
+  TAB_NAMES.includes(String(route.query.tab || '')) ? String(route.query.tab) : 'todo',
 )
 
 watch(
   () => route.query.tab,
   (tab) => {
-    if (tab === 'todo' || tab === 'done' || tab === 'started' || tab === 'cc' || tab === 'notice') {
-      activeTab.value = tab
+    if (TAB_NAMES.includes(String(tab || ''))) {
+      activeTab.value = String(tab)
     }
   },
 )
@@ -49,6 +53,9 @@ const filters = reactive({
   readStatus: '',
   noticeTitle: '',
   noticeModule: '',
+  warnType: '',
+  warnStatus: '',
+  warnKeyword: '',
 })
 
 const todos = computed(() => personalTodoStore.todos)
@@ -56,12 +63,18 @@ const doneList = computed(() => personalTodoStore.done)
 const startedList = computed(() => personalStarted)
 const ccList = computed(() => personalCc)
 const notices = ref([...personalNotices])
+const warningCenterTick = ref(0)
+const warningCenterList = computed(() => {
+  warningCenterTick.value
+  return listPersonalWarningCenter()
+})
 
 const startedSelection = ref([])
 const noticeSelection = ref([])
+const warningSelection = ref([])
 
-const noticePage = ref(1)
-const noticePageSize = ref(10)
+const page = ref(1)
+const pageSize = ref(10)
 
 function resetFilters() {
   filters.processName = ''
@@ -70,12 +83,20 @@ function resetFilters() {
   filters.readStatus = ''
   filters.noticeTitle = ''
   filters.noticeModule = ''
-  noticePage.value = 1
+  filters.warnType = ''
+  filters.warnStatus = ''
+  filters.warnKeyword = ''
+  page.value = 1
 }
 
 function onSearch() {
-  noticePage.value = 1
+  page.value = 1
   ElMessage.success('已按条件筛选')
+}
+
+function slicePage(rows) {
+  const start = (page.value - 1) * pageSize.value
+  return rows.slice(start, start + pageSize.value)
 }
 
 const filteredTodos = computed(() => {
@@ -121,10 +142,41 @@ const filteredNotices = computed(() => {
   return rows
 })
 
-const pagedNotices = computed(() => {
-  const start = (noticePage.value - 1) * noticePageSize.value
-  return filteredNotices.value.slice(start, start + noticePageSize.value)
+const filteredWarningCenter = computed(() => {
+  let rows = [...warningCenterList.value]
+  if (filters.warnType) rows = rows.filter((r) => r.warnType === filters.warnType)
+  if (filters.warnStatus) rows = rows.filter((r) => r.status === filters.warnStatus)
+  const kw = filters.warnKeyword.trim()
+  if (kw) {
+    rows = rows.filter((r) =>
+      [r.description, r.projectName, r.handler, r.module].some((v) => String(v || '').includes(kw)),
+    )
+  }
+  return rows
 })
+
+const pagedTodos = computed(() => slicePage(filteredTodos.value))
+const pagedDone = computed(() => slicePage(filteredDone.value))
+const pagedStarted = computed(() => slicePage(filteredStarted.value))
+const pagedCc = computed(() => slicePage(filteredCc.value))
+const pagedNotices = computed(() => slicePage(filteredNotices.value))
+const pagedWarningCenter = computed(() => slicePage(filteredWarningCenter.value))
+
+const activeTotal = computed(() => {
+  if (activeTab.value === 'todo') return filteredTodos.value.length
+  if (activeTab.value === 'done') return filteredDone.value.length
+  if (activeTab.value === 'started') return filteredStarted.value.length
+  if (activeTab.value === 'cc') return filteredCc.value.length
+  if (activeTab.value === 'warning-center') return filteredWarningCenter.value.length
+  return filteredNotices.value.length
+})
+
+function ccIndexMethod(index) {
+  return (page.value - 1) * pageSize.value + index + 1
+}
+function refreshWarningCenter() {
+  warningCenterTick.value += 1
+}
 
 function openProcessDetail(row, from) {
   // 质量验评审批：跳转验评审批页（审批入口在个人中心）
@@ -143,14 +195,14 @@ function openProcessDetail(row, from) {
     })
     return
   }
-  // 人员实名制预警：与预警清单「处置预警」详情页同一路由
+  // 人员实名制预警：与预警清单「处置预警」详情页同一路由（兼容旧待办入口）
   if (row?.type === 'labor_warning' && row.laborWarningId) {
     router.push({
       name: 'LaborWarningDetail',
       params: { id: row.laborWarningId },
       query: {
         from: 'personal-center',
-        tab: from === 'done' ? 'done' : 'todo',
+        tab: 'warning-center',
         todoId: row.id,
       },
     })
@@ -160,6 +212,38 @@ function openProcessDetail(row, from) {
     path: '/personal-center/todo/handle',
     query: { id: row.id, from },
   })
+}
+
+function viewWarningCenter(row) {
+  if (!row?.laborWarningId) {
+    ElMessage.warning('未关联预警详情')
+    return
+  }
+  router.push({
+    name: 'LaborWarningDetail',
+    params: { id: row.laborWarningId },
+    query: {
+      from: 'personal-center',
+      tab: 'warning-center',
+    },
+  })
+}
+
+function batchMarkWarningRead() {
+  if (!warningSelection.value.length) return ElMessage.warning('请先勾选要标为已读的预警')
+  const n = markWarningCenterRead(warningSelection.value.map((r) => r.id))
+  warningSelection.value = []
+  refreshWarningCenter()
+  if (!n) return ElMessage.warning('所选条目中没有可标为已读的「未读」通知')
+  ElMessage.success(`已将 ${n} 条通知标为已读`)
+}
+
+function batchDismissWarning() {
+  if (!warningSelection.value.length) return ElMessage.warning('请先勾选要消除的预警')
+  const n = dismissWarningCenter(warningSelection.value.map((r) => r.id))
+  warningSelection.value = []
+  refreshWarningCenter()
+  ElMessage.success(`已消除 ${n} 条预警（仅从预警中心移除，未关闭业务预警）`)
 }
 
 function handleTodo(row) {
@@ -208,20 +292,6 @@ function batchDeleteNotices() {
 
 function viewNotice(row) {
   row.readStatus = '已读'
-  if (row.laborWarningId) {
-    const todoId = `todo-labor-warning-${row.laborWarningId}`
-    const query = { from: 'personal-center', tab: 'notice' }
-    if (findPersonalProcess(todoId, 'todo')) {
-      query.todoId = todoId
-      query.tab = 'todo'
-    }
-    router.push({
-      name: 'LaborWarningDetail',
-      params: { id: row.laborWarningId },
-      query,
-    })
-    return
-  }
   ElMessage.info(`通知详情：${row.title}`)
 }
 
@@ -229,8 +299,14 @@ function onTabChange(name) {
   resetFilters()
   startedSelection.value = []
   noticeSelection.value = []
+  warningSelection.value = []
   router.replace({ path: '/personal-center', query: name === 'todo' ? {} : { tab: name } })
 }
+
+watch([activeTotal, pageSize], () => {
+  const maxPage = Math.max(1, Math.ceil(activeTotal.value / pageSize.value) || 1)
+  if (page.value > maxPage) page.value = maxPage
+})
 </script>
 
 <template>
@@ -242,6 +318,7 @@ function onTabChange(name) {
       <el-tab-pane label="我的已办" name="done" />
       <el-tab-pane label="我发起的" name="started" />
       <el-tab-pane label="抄送我的" name="cc" />
+      <el-tab-pane label="预警中心" name="warning-center" />
       <el-tab-pane label="通知信息" name="notice" />
     </el-tabs>
 
@@ -260,7 +337,7 @@ function onTabChange(name) {
       <div class="table-toolbar">
         <span class="count-text">共 {{ filteredTodos.length }} 条</span>
       </div>
-      <el-table :data="filteredTodos" border stripe empty-text="暂无数据">
+      <el-table :data="pagedTodos" border stripe empty-text="暂无数据">
         <el-table-column prop="category" label="所属模块" width="110" />
         <el-table-column prop="processName" label="流程名称" min-width="220" show-overflow-tooltip />
         <el-table-column prop="applicant" label="申请人" width="110" />
@@ -289,7 +366,7 @@ function onTabChange(name) {
       <div class="table-toolbar">
         <span class="count-text">共 {{ filteredDone.length }} 条</span>
       </div>
-      <el-table :data="filteredDone" border stripe empty-text="暂无数据">
+      <el-table :data="pagedDone" border stripe empty-text="暂无数据">
         <el-table-column prop="category" label="所属模块" width="110" />
         <el-table-column prop="processName" label="流程名称" min-width="220" show-overflow-tooltip />
         <el-table-column prop="applicant" label="申请人" width="110" />
@@ -325,7 +402,7 @@ function onTabChange(name) {
         <el-button type="primary" plain @click="urgeStarted">批量催办</el-button>
       </div>
       <el-table
-        :data="filteredStarted"
+        :data="pagedStarted"
         border
         stripe
         empty-text="暂无数据"
@@ -366,8 +443,8 @@ function onTabChange(name) {
         <span class="count-text">共 {{ filteredCc.length }} 条</span>
         <el-button type="primary" @click="markAllCcRead">全部已读</el-button>
       </div>
-      <el-table :data="filteredCc" border stripe empty-text="暂无数据">
-        <el-table-column type="index" label="序号" width="64" />
+      <el-table :data="pagedCc" border stripe empty-text="暂无数据">
+        <el-table-column type="index" label="序号" width="64" :index="ccIndexMethod" />
         <el-table-column prop="category" label="所属模块" width="110" />
         <el-table-column prop="processName" label="流程名称" min-width="180" show-overflow-tooltip />
         <el-table-column prop="projectName" label="项目名称" min-width="140" show-overflow-tooltip />
@@ -385,8 +462,54 @@ function onTabChange(name) {
       </el-table>
     </template>
 
+    <!-- 预警中心 -->
+    <template v-else-if="activeTab === 'warning-center'">
+      <div class="filter-bar">
+        <span class="filter-label">类型</span>
+        <el-select v-model="filters.warnType" clearable placeholder="请选择" style="width: 150px">
+          <el-option v-for="s in WARNING_CENTER_TYPE_OPTIONS" :key="s" :label="s" :value="s" />
+        </el-select>
+        <span class="filter-label">状态</span>
+        <el-select v-model="filters.warnStatus" clearable placeholder="请选择" style="width: 150px">
+          <el-option v-for="s in WARNING_CENTER_STATUS_OPTIONS" :key="s" :label="s" :value="s" />
+        </el-select>
+        <span class="filter-label">预警描述</span>
+        <el-input v-model="filters.warnKeyword" clearable placeholder="请输入关键词" style="width: 240px" />
+        <el-button type="primary" :icon="Search" @click="onSearch">搜索</el-button>
+        <el-button :icon="Refresh" @click="resetFilters">重置</el-button>
+      </div>
+      <div class="table-toolbar">
+        <span class="count-text">共 {{ filteredWarningCenter.length }} 条</span>
+        <div class="toolbar-actions">
+          <el-button type="primary" plain @click="batchMarkWarningRead">批量已读</el-button>
+          <el-button type="danger" plain @click="batchDismissWarning">批量消除预警</el-button>
+        </div>
+      </div>
+      <el-table
+        :data="pagedWarningCenter"
+        border
+        stripe
+        empty-text="暂无数据"
+        @selection-change="(rows) => (warningSelection = rows)"
+      >
+        <el-table-column type="selection" width="48" />
+        <el-table-column prop="module" label="所属模块" width="110" />
+        <el-table-column prop="projectName" label="项目名称" width="120" show-overflow-tooltip />
+        <el-table-column prop="description" label="预警描述" min-width="280" show-overflow-tooltip />
+        <el-table-column prop="handler" label="处理人" width="100" />
+        <el-table-column prop="warnType" label="类型" width="120" />
+        <el-table-column prop="status" label="状态" width="100" />
+        <el-table-column prop="time" label="消息时间" width="170" />
+        <el-table-column label="操作" width="90" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="viewWarningCenter(row)">详情</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </template>
+
     <!-- 通知信息 -->
-    <template v-else>
+    <template v-else-if="activeTab === 'notice'">
       <div class="filter-bar filter-bar-notice">
         <span class="filter-label">消息名称</span>
         <el-input v-model="filters.noticeTitle" clearable placeholder="请输入消息名称" style="width: 200px" />
@@ -431,17 +554,18 @@ function onTabChange(name) {
           </template>
         </el-table-column>
       </el-table>
-      <div class="pager">
-        <el-pagination
-          v-model:current-page="noticePage"
-          v-model:page-size="noticePageSize"
-          :total="filteredNotices.length"
-          :page-sizes="[10, 20, 50]"
-          layout="total, sizes, prev, pager, next, jumper"
-          background
-        />
-      </div>
     </template>
+
+    <div class="pager">
+      <el-pagination
+        v-model:current-page="page"
+        v-model:page-size="pageSize"
+        :total="activeTotal"
+        :page-sizes="[10, 20, 50]"
+        layout="total, sizes, prev, pager, next, jumper"
+        background
+      />
+    </div>
   </div>
 </template>
 

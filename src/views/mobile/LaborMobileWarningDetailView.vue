@@ -18,7 +18,9 @@ const detail = ref(null)
 
 const backTab = computed(() => {
   const tab = String(route.query.tab || 'todo')
-  return ['todo', 'done', 'notice', 'initiated', 'copied'].includes(tab) ? tab : 'todo'
+  return ['todo', 'done', 'notice', 'initiated', 'copied', 'warning-center'].includes(tab)
+    ? tab
+    : 'todo'
 })
 
 onMounted(() => {

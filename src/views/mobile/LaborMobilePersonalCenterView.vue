@@ -1,17 +1,21 @@
 <script setup>
 /**
  * 人员实名制 · 个人中心（移动端）
- * 样式对齐巡检「消息中心(移动端)」；数据同源 Web 个人中心人员预警；仅查看不可处置。
+ * 样式对齐巡检「消息中心(移动端)」；预警数据同源 Web「预警中心」；仅查看不可处置。
  */
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import {
   listLaborPersonalTodos,
   listLaborPersonalDone,
   listLaborPersonalStarted,
   listLaborPersonalCc,
   listLaborPersonalNotices,
-  ensureLaborPersonalCenterSeeds,
+  ensureLaborWarningCenterSeeds,
+  listPersonalWarningCenter,
+  markWarningCenterRead,
+  dismissWarningCenter,
 } from '../../mock/personalCenter.js'
 
 const router = useRouter()
@@ -21,12 +25,18 @@ const activeTab = ref('todo')
 const keyword = ref('')
 const showFilter = ref(false)
 const nodeFilter = ref('')
+const warnTypeFilter = ref('')
+const warnStatusFilter = ref('')
+const selectedWarningIds = ref([])
+const warningTick = ref(0)
 
 onMounted(() => {
-  ensureLaborPersonalCenterSeeds()
+  ensureLaborWarningCenterSeeds()
   document.querySelector('.page-viewport')?.scrollTo({ top: 0 })
   const tab = String(route.query.tab || '')
-  if (tab === 'notice') {
+  if (tab === 'warning-center') {
+    activeCenter.value = '预警中心'
+  } else if (tab === 'notice') {
     activeCenter.value = '消息提醒'
   } else if (['todo', 'done', 'initiated', 'copied'].includes(tab)) {
     activeTab.value = tab
@@ -39,6 +49,15 @@ const startedList = computed(() => listLaborPersonalStarted())
 const ccList = computed(() => listLaborPersonalCc())
 const notices = computed(() => listLaborPersonalNotices())
 const unreadNoticeCount = computed(() => notices.value.filter((n) => n.readStatus === '未读').length)
+
+const warningList = computed(() => {
+  warningTick.value
+  return listPersonalWarningCenter()
+})
+
+const pendingWarningCount = computed(
+  () => warningList.value.filter((r) => r.status === '待处置' || r.status === '未读').length,
+)
 
 const flowByTab = computed(() => ({
   todo: todos.value,
@@ -88,6 +107,18 @@ const noticeMessages = computed(() => {
   })
 })
 
+const warningMessages = computed(() => {
+  const text = keyword.value.trim()
+  return warningList.value.filter((item) => {
+    if (warnTypeFilter.value && item.warnType !== warnTypeFilter.value) return false
+    if (warnStatusFilter.value && item.status !== warnStatusFilter.value) return false
+    if (!text) return true
+    return [item.description, item.module, item.projectName, item.handler, item.warnType, item.status].some(
+      (value) => String(value || '').includes(text),
+    )
+  })
+})
+
 function resolveCurrentNode(item) {
   if (activeTab.value === 'done' || item.handleLabel) return item.handleLabel || '已关闭'
   if (activeTab.value === 'initiated' && item.status) return item.status
@@ -113,8 +144,49 @@ function statusTagClass(item) {
   return 'moving'
 }
 
+function warnStatusTagClass(status) {
+  if (status === '待处置' || status === '未读') return 'todo'
+  if (status === '已处置' || status === '已读') return 'done'
+  return 'moving'
+}
+
 function applyDate(item) {
   return String(item.applyTime || item.handleTime || item.endTime || '').slice(0, 10)
+}
+
+function refreshWarnings() {
+  warningTick.value += 1
+}
+
+function isWarningSelected(id) {
+  return selectedWarningIds.value.includes(id)
+}
+
+function toggleWarningSelect(id) {
+  const idx = selectedWarningIds.value.indexOf(id)
+  if (idx >= 0) selectedWarningIds.value.splice(idx, 1)
+  else selectedWarningIds.value.push(id)
+}
+
+function clearWarningSelection() {
+  selectedWarningIds.value = []
+}
+
+function switchCenter(name) {
+  activeCenter.value = name
+  clearWarningSelection()
+  keyword.value = ''
+  showFilter.value = false
+  nodeFilter.value = ''
+  warnTypeFilter.value = ''
+  warnStatusFilter.value = ''
+  if (name === '预警中心') {
+    router.replace({ query: { tab: 'warning-center' } })
+  } else if (name === '消息提醒') {
+    router.replace({ query: { tab: 'notice' } })
+  } else {
+    router.replace({ query: activeTab.value === 'todo' ? {} : { tab: activeTab.value } })
+  }
 }
 
 function openFlowDetail(item) {
@@ -146,17 +218,59 @@ function openNoticeDetail(item) {
   })
 }
 
+function openWarningDetail(item) {
+  if (!item.laborWarningId) {
+    ElMessage.warning('未关联预警详情')
+    return
+  }
+  if (item.warnType === '通知' && item.status === '未读') {
+    markWarningCenterRead([item.id])
+    refreshWarnings()
+  }
+  router.push({
+    name: 'LaborMobileWarningDetail',
+    params: { id: item.laborWarningId },
+    query: { tab: 'warning-center' },
+  })
+}
+
+function batchMarkWarningRead() {
+  if (!selectedWarningIds.value.length) {
+    ElMessage.warning('请先勾选要标为已读的预警')
+    return
+  }
+  const n = markWarningCenterRead(selectedWarningIds.value)
+  clearWarningSelection()
+  refreshWarnings()
+  if (!n) {
+    ElMessage.warning('所选条目中没有可标为已读的「未读」通知')
+    return
+  }
+  ElMessage.success(`已将 ${n} 条通知标为已读`)
+}
+
+function batchDismissWarning() {
+  if (!selectedWarningIds.value.length) {
+    ElMessage.warning('请先勾选要消除的预警')
+    return
+  }
+  const n = dismissWarningCenter(selectedWarningIds.value)
+  clearWarningSelection()
+  refreshWarnings()
+  ElMessage.success(`已消除 ${n} 条预警`)
+}
+
 function goBack() {
   router.push('/labor/warning-list')
 }
 </script>
 
 <template>
-  <div class="message-page">
+  <div class="message-page" :class="{ 'has-action-bar': activeCenter === '预警中心' && selectedWarningIds.length }">
     <header class="mobile-header">
       <button class="back-button" type="button" @click="goBack">‹</button>
       <h1>个人中心</h1>
-      <span class="header-count">{{ todos.length }} 条待办</span>
+      <span class="header-count">{{ pendingWarningCount }} 条待关注</span>
     </header>
 
     <section class="center-switcher">
@@ -164,17 +278,18 @@ function goBack() {
         v-for="item in [
           { name: '流程中心', icon: '⇄' },
           { name: '消息提醒', icon: '◷' },
-          { name: '告警中心', icon: '⚠' },
+          { name: '预警中心', icon: '⚠' },
         ]"
         :key="item.name"
         type="button"
         :class="{ active: activeCenter === item.name }"
-        @click="activeCenter = item.name"
+        @click="switchCenter(item.name)"
       >
         <span class="center-icon">{{ item.icon }}</span>
         <span>{{ item.name }}</span>
         <i v-if="item.name === '流程中心' && todos.length">{{ todos.length }}</i>
         <i v-else-if="item.name === '消息提醒' && unreadNoticeCount">{{ unreadNoticeCount }}</i>
+        <i v-else-if="item.name === '预警中心' && pendingWarningCount">{{ pendingWarningCount }}</i>
       </button>
     </section>
 
@@ -265,11 +380,81 @@ function goBack() {
       </main>
     </template>
 
-    <div v-else class="empty-center">
-      <span>⚠</span>
-      <strong>告警中心</strong>
-      <p>暂无新消息</p>
-    </div>
+    <template v-else>
+      <section class="search-row">
+        <div class="search-box">
+          <span>⌕</span>
+          <input v-model="keyword" placeholder="搜索预警描述、处理人" />
+        </div>
+        <button
+          class="filter-button"
+          type="button"
+          :class="{ active: showFilter }"
+          @click="showFilter = !showFilter"
+        >
+          筛选
+        </button>
+      </section>
+      <section v-if="showFilter" class="filter-panel dual">
+        <label>
+          <span>类型</span>
+          <select v-model="warnTypeFilter">
+            <option value="">全部</option>
+            <option value="处置任务">处置任务</option>
+            <option value="通知">通知</option>
+          </select>
+        </label>
+        <label>
+          <span>状态</span>
+          <select v-model="warnStatusFilter">
+            <option value="">全部</option>
+            <option value="待处置">待处置</option>
+            <option value="已处置">已处置</option>
+            <option value="未读">未读</option>
+            <option value="已读">已读</option>
+          </select>
+        </label>
+      </section>
+
+      <main class="message-list warning-list">
+        <article
+          v-for="item in warningMessages"
+          :key="item.id"
+          class="message-card"
+          :class="{ unread: item.status === '未读' || item.status === '待处置', selected: isWarningSelected(item.id) }"
+        >
+          <div class="message-card-head">
+            <label class="select-row">
+              <input
+                type="checkbox"
+                :checked="isWarningSelected(item.id)"
+                @change="toggleWarningSelect(item.id)"
+              />
+              <strong>{{ item.description }}</strong>
+            </label>
+            <span :class="['status-tag', warnStatusTagClass(item.status)]">{{ item.status }}</span>
+          </div>
+          <div class="message-field"><span>所属模块：</span><b>{{ item.module }}</b></div>
+          <div class="message-field"><span>项目名称：</span><b>{{ item.projectName || '—' }}</b></div>
+          <div class="message-field"><span>处理人：</span><b>{{ item.handler }}</b></div>
+          <div class="message-field"><span>类型：</span><b>{{ item.warnType }}</b></div>
+          <div class="message-field"><span>消息时间：</span><b>{{ item.time }}</b></div>
+          <footer>
+            <button type="button" @click="openWarningDetail(item)">详情</button>
+          </footer>
+        </article>
+        <div v-if="warningMessages.length === 0" class="empty-state">暂无预警消息</div>
+      </main>
+
+      <div v-if="selectedWarningIds.length" class="batch-action-bar">
+        <span>已选 {{ selectedWarningIds.length }} 条</span>
+        <div class="batch-actions">
+          <button type="button" class="ghost" @click="clearWarningSelection">取消</button>
+          <button type="button" class="plain" @click="batchMarkWarningRead">批量已读</button>
+          <button type="button" class="danger" @click="batchDismissWarning">批量消除</button>
+        </div>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -282,6 +467,9 @@ function goBack() {
   background: #f4f5f7;
   font-family: 'PingFang SC', -apple-system, sans-serif;
   color: #1f2329;
+}
+.message-page.has-action-bar {
+  padding-bottom: 72px;
 }
 .mobile-header {
   display: flex;
@@ -418,6 +606,16 @@ function goBack() {
   border-radius: 7px;
   background: #fff;
 }
+.filter-panel.dual {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.filter-panel.dual label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
 .flow-tabs {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -462,6 +660,9 @@ function goBack() {
 .message-card.unread {
   box-shadow: 0 1px 4px rgba(143, 0, 69, 0.12);
 }
+.message-card.selected {
+  outline: 1px solid rgba(143, 0, 69, 0.35);
+}
 .message-card-head {
   display: flex;
   justify-content: space-between;
@@ -472,6 +673,24 @@ function goBack() {
 .message-card-head strong {
   font-size: 15px;
   line-height: 1.4;
+}
+.select-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+.select-row input {
+  margin-top: 4px;
+  flex: none;
+}
+.select-row strong {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .status-tag {
   flex: none;
@@ -537,21 +756,49 @@ function goBack() {
   color: #aaa;
   font-size: 13px;
 }
-.empty-center {
+.batch-action-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 0;
+  z-index: 20;
+  width: 100%;
+  max-width: 402px;
+  transform: translateX(-50%);
   display: flex;
-  flex-direction: column;
   align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0));
+  background: #fff;
+  border-top: 1px solid #eee;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.06);
+}
+.batch-action-bar > span {
+  font-size: 12px;
+  color: #666;
+  white-space: nowrap;
+}
+.batch-actions {
+  display: flex;
   gap: 8px;
 }
-.empty-center > span {
-  font-size: 38px;
+.batch-actions button {
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 0;
+  font-size: 12px;
+  cursor: pointer;
+}
+.batch-actions .ghost {
+  background: #f5f5f5;
+  color: #666;
+}
+.batch-actions .plain {
+  background: #fceef4;
   color: #8f0045;
-  opacity: 0.45;
 }
-.empty-center strong {
-  color: #555;
-}
-.empty-center p {
-  margin: 0;
+.batch-actions .danger {
+  background: #8f0045;
+  color: #fff;
 }
 </style>

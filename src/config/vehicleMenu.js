@@ -54,9 +54,12 @@ export const vehicleWarningMenuItem = {
   description: '汇总车辆进出等对接类监管预警；电子围栏/禁行偏离类告警由施工方子系统处理，本平台不维护围栏。',
 }
 
-/** 项目侧栏车辆子菜单：无看板、无指挥部「车辆轨迹配置」（看板仅指挥部） */
+/** 项目侧栏车辆子菜单：无看板、无指挥部「车辆轨迹配置」、无「设备管理」（看板/配置仅指挥部） */
 export const vehicleProjectMenuItems = vehicleMenuItems.filter(
-  (item) => item.key !== 'vehicle-track-config' && item.key !== 'vehicle-dashboard',
+  (item) =>
+    item.key !== 'vehicle-track-config' &&
+    item.key !== 'vehicle-dashboard' &&
+    item.key !== 'vehicle-device',
 )
 
 export const vehicleMenuGroup = {
