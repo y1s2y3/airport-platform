@@ -279,9 +279,6 @@ function goWarningList() {
     <div class="page-header">
       <div class="page-breadcrumb">人员实名制管理 / 人员实名制看板</div>
       <h1 class="page-title">人员实名制看板</h1>
-      <p v-if="isHqSelected" class="page-tip">
-        指挥部监管看板：指标卡与「实名制统计」汇总口径一致；上半为结构占比与出勤趋势，下半为预警趋势与预警清单。
-      </p>
     </div>
 
     <div class="dash-content">
@@ -369,7 +366,6 @@ function goWarningList() {
 .page-header { margin-bottom: 16px; }
 .page-breadcrumb { font-size: 13px; color: var(--ap-text-muted); margin-bottom: 8px; }
 .page-title { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
-.page-tip { margin: 0 0 8px; font-size: 12px; color: var(--ap-text-muted); }
 .stats-row { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
 .stat-card { border: 1px solid var(--ap-border); border-radius: 8px; background: #fff; padding: 12px 10px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .stat-label { font-size: 12px; color: var(--ap-text-muted); line-height: 1.3; word-break: break-all; }

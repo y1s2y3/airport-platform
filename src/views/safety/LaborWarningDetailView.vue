@@ -11,7 +11,10 @@ import {
   disposalTypeLabels,
   disposalTypeTagClass,
   getWarningHandleGuide,
+  isAutoCloseGuidable,
+  getAutoCloseActionPrompt,
 } from '../../mock/laborWarningList'
+import { finishPersonalTodo, findPersonalProcess } from '../../mock/personalCenter.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -21,32 +24,73 @@ const attachmentList = ref([])
 const submitting = ref(false)
 const showHandleForm = ref(false)
 
+const fromPersonalCenter = computed(() => String(route.query.from || '') === 'personal-center')
+const personalTodoId = computed(() => String(route.query.todoId || ''))
+const personalTab = computed(() => {
+  const tab = String(route.query.tab || 'todo')
+  return ['todo', 'done', 'notice'].includes(tab) ? tab : 'todo'
+})
+
 const canHandle = computed(() => {
   if (!detail.value) return false
   return detail.value.handle_mode === '手动处理' && detail.value.status !== '已关闭'
 })
+
+/** 系统自动关闭类：Web 端可点「处置预警」弹出 Word 提示并「去处理」跳转实名制 */
+const canGuideAuto = computed(() => isAutoCloseGuidable(detail.value))
+
+const showDisposeEntry = computed(() => canHandle.value || canGuideAuto.value)
 
 const handleGuide = computed(() => {
   if (!detail.value) return ''
   return getWarningHandleGuide(detail.value.rule_key)
 })
 
+const backButtonLabel = computed(() =>
+  fromPersonalCenter.value ? '返回个人中心' : '返回列表',
+)
+
 onMounted(() => {
   loadDetail()
-  if (route.query.handle === '1') {
-    openHandleForm()
-  }
+  nextTick(() => {
+    // 个人中心手动类：默认展开「新增处置」
+    if (canHandle.value && fromPersonalCenter.value) {
+      showHandleForm.value = true
+    }
+    if (route.query.handle === '1') {
+      if (canHandle.value) {
+        showHandleForm.value = true
+        scrollToHandleForm()
+      } else if (canGuideAuto.value) {
+        openAutoGuide()
+      }
+    }
+  })
 })
 
 function loadDetail() {
   detail.value = getWarningDetail(route.params.id)
   if (!detail.value) {
     ElMessage.warning('未找到预警信息')
-    router.replace({ name: 'LaborWarningList' })
+    if (fromPersonalCenter.value) {
+      router.replace({
+        path: '/personal-center',
+        query: personalTab.value === 'todo' ? {} : { tab: personalTab.value },
+      })
+    } else {
+      router.replace({ name: 'LaborWarningList' })
+    }
   }
 }
 
 function goBack() {
+  if (fromPersonalCenter.value) {
+    router.push({
+      path: '/personal-center',
+      query: personalTab.value === 'todo' ? {} : { tab: personalTab.value },
+    })
+    return
+  }
   router.push({ name: 'LaborWarningList' })
 }
 
@@ -60,10 +104,54 @@ function resetHandleForm() {
   attachmentList.value = []
 }
 
-function openHandleForm() {
-  showHandleForm.value = true
+function scrollToHandleForm() {
   nextTick(() => {
     document.querySelector('.handle-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
+}
+
+function openHandleForm() {
+  showHandleForm.value = true
+  scrollToHandleForm()
+}
+
+function onDisposeClick() {
+  if (canGuideAuto.value) {
+    openAutoGuide()
+    return
+  }
+  if (!canHandle.value) return
+  // 手动类：表单已展示时仅滚动；清单入口未展开时先展开再滚
+  if (!showHandleForm.value) showHandleForm.value = true
+  scrollToHandleForm()
+}
+
+/** Word PRD：自动处理弹窗提示 +「去处理」跳转人员实名制并筛选姓名 */
+async function openAutoGuide() {
+  if (!detail.value || !canGuideAuto.value) return
+  const message = getAutoCloseActionPrompt(detail.value)
+  try {
+    await ElMessageBox.confirm(message, '处置预警', {
+      confirmButtonText: '去处理',
+      cancelButtonText: '关闭',
+      type: 'warning',
+      distinguishCancelAndClose: true,
+      customClass: 'labor-auto-close-guide-box',
+    })
+    goRealNameListFiltered()
+  } catch {
+    // 用户关闭弹窗
+  }
+}
+
+function goRealNameListFiltered() {
+  if (!detail.value) return
+  router.push({
+    name: 'RealNamePersonnel',
+    query: {
+      keyword: detail.value.name || '',
+      projectId: detail.value.project_id || '',
+    },
   })
 }
 
@@ -77,6 +165,12 @@ function removeFile(_uploadFile, uploadFiles) {
 
 function previewAttachment(name) {
   ElMessage.info(`预览附件：${name}`)
+}
+
+function syncPersonalTodoOnClose() {
+  if (!fromPersonalCenter.value || !personalTodoId.value) return
+  if (!findPersonalProcess(personalTodoId.value, 'todo')) return
+  finishPersonalTodo(personalTodoId.value, '处置并关闭')
 }
 
 async function submitHandle(close = false) {
@@ -98,7 +192,10 @@ async function submitHandle(close = false) {
     resetHandleForm()
     loadDetail()
     if (!close) showHandleForm.value = true
-    else showHandleForm.value = false
+    else {
+      showHandleForm.value = false
+      syncPersonalTodoOnClose()
+    }
     ElMessage.success(close ? '预警已关闭' : '处置记录已提交')
   } finally {
     submitting.value = false
@@ -112,14 +209,14 @@ async function submitHandle(close = false) {
       <div class="page-breadcrumb">人员实名制管理 / 预警清单 / 详情</div>
       <div class="page-toolbar">
         <div class="toolbar-left">
-          <el-button size="small" :icon="ArrowLeft" class="back-btn" @click="goBack">返回列表</el-button>
+          <el-button size="small" :icon="ArrowLeft" class="back-btn" @click="goBack">{{ backButtonLabel }}</el-button>
           <h1 class="page-title">预警详情</h1>
         </div>
         <el-button
-          v-if="canHandle"
+          v-if="showDisposeEntry"
           type="primary"
           class="ap-btn-primary"
-          @click="openHandleForm"
+          @click="onDisposeClick"
         >
           处置预警
         </el-button>
@@ -239,7 +336,6 @@ async function submitHandle(close = false) {
               </el-upload>
             </el-form-item>
             <el-form-item>
-              <el-button :loading="submitting" @click="submitHandle(false)">提交处置</el-button>
               <el-button type="primary" class="ap-btn-primary" :loading="submitting" @click="submitHandle(true)">
                 处置并关闭
               </el-button>

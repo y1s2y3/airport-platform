@@ -13,6 +13,8 @@ import {
   READ_STATUS_OPTIONS,
   NOTICE_MODULE_OPTIONS,
   ensureQmPersonalCenterSeeds,
+  ensureLaborPersonalCenterSeeds,
+  findPersonalProcess,
 } from '../mock/personalCenter.js'
 import '../mock/mat.js'
 import '../mock/eq.js'
@@ -22,6 +24,7 @@ const router = useRouter()
 
 onMounted(() => {
   ensureQmPersonalCenterSeeds()
+  ensureLaborPersonalCenterSeeds()
 })
 
 const activeTab = ref(
@@ -140,6 +143,19 @@ function openProcessDetail(row, from) {
     })
     return
   }
+  // 人员实名制预警：与预警清单「处置预警」详情页同一路由
+  if (row?.type === 'labor_warning' && row.laborWarningId) {
+    router.push({
+      name: 'LaborWarningDetail',
+      params: { id: row.laborWarningId },
+      query: {
+        from: 'personal-center',
+        tab: from === 'done' ? 'done' : 'todo',
+        todoId: row.id,
+      },
+    })
+    return
+  }
   router.push({
     path: '/personal-center/todo/handle',
     query: { id: row.id, from },
@@ -192,6 +208,20 @@ function batchDeleteNotices() {
 
 function viewNotice(row) {
   row.readStatus = '已读'
+  if (row.laborWarningId) {
+    const todoId = `todo-labor-warning-${row.laborWarningId}`
+    const query = { from: 'personal-center', tab: 'notice' }
+    if (findPersonalProcess(todoId, 'todo')) {
+      query.todoId = todoId
+      query.tab = 'todo'
+    }
+    router.push({
+      name: 'LaborWarningDetail',
+      params: { id: row.laborWarningId },
+      query,
+    })
+    return
+  }
   ElMessage.info(`通知详情：${row.title}`)
 }
 

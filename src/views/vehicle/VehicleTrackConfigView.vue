@@ -80,9 +80,6 @@ function handleSave() {
     <div class="page-header">
       <div class="page-breadcrumb">车辆管理 / 车辆轨迹配置</div>
       <h1 class="page-title">车辆轨迹配置</h1>
-      <p class="page-tip">
-        指挥部按项目维护车辆定位系统外链；项目侧点击「车辆轨迹监管」将直接打开外链，平台不做统一轨迹回放与电子围栏。
-      </p>
     </div>
 
     <div class="config-layout">
@@ -138,7 +135,6 @@ function handleSave() {
 .page-header { margin-bottom: 16px; }
 .page-breadcrumb { font-size: 13px; color: var(--ap-text-muted); margin-bottom: 8px; }
 .page-title { font-size: 20px; font-weight: 600; margin: 0 0 8px; }
-.page-tip { margin: 0; font-size: 12px; color: var(--ap-text-muted); line-height: 1.6; }
 .config-layout { display: flex; gap: 16px; min-height: 420px; }
 .project-aside {
   width: 240px;

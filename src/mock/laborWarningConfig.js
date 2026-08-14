@@ -170,7 +170,8 @@ export const warningRuleDefinitions = [
   {
     key: 'ageLimit',
     labelTemplate: 'minAge',
-    description: '人员年龄低于设定下限时触发预警',
+    description:
+      '人员登记年龄低于项目配置的实名制年龄下限时触发（系统自动关闭类；次日定时任务在年龄经 ROMA 回写正确或人员退场后自动关闭）',
     extra: 'minAge',
   },
   {
@@ -192,7 +193,12 @@ export const warningRuleDefinitions = [
     description: '管理人员当月出勤天数少于设定阈值时触发预警',
     extra: 'managerDays',
   },
-  { key: 'blacklistEntry', label: '黑名单人员进场预警', description: '黑名单人员尝试刷卡或登记进场时触发预警（二期仅预警，不做强制拦截）' },
+  {
+    key: 'blacklistEntry',
+    label: '黑名单人员进场预警',
+    description:
+      '每日定时扫描：在岗且证件号命中全平台劳务黑名单时触发（二期仅预警不做强制拦截；系统自动关闭类，移出黑名单或退场后次日自动关闭）',
+  },
 ]
 
 /** 根据当前配置生成预警规则展示名称 */
@@ -221,14 +227,14 @@ const defaultConfig = {
     levels: createDefaultTierLevels(),
   },
   warningRules: {
-    noLevel3Education: { enabled: true },
-    specialCertMissing: { enabled: true },
+    noLevel3Education: { enabled: false },
+    specialCertMissing: { enabled: false },
     workOver12h: { enabled: true, hours: 12 },
     ageLimit: { enabled: true, minAge: 16 },
     elderlyReminder: { enabled: true, maleAge: 65, femaleAge: 60 },
-    idCardExpired: { enabled: true },
-    absentDays: { enabled: true, days: 3 },
-    managerAttendance: { enabled: true, days: 20 },
+    idCardExpired: { enabled: false },
+    absentDays: { enabled: false, days: 3 },
+    managerAttendance: { enabled: false, days: 20 },
     blacklistEntry: { enabled: true },
   },
 }

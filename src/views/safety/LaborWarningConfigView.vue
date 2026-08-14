@@ -16,7 +16,7 @@ import {
   warningRuleDefinitions,
 } from '../../mock/laborWarningConfig'
 
-const { isHqSelected, projectLabel, laborProjectId } = useCurrentProject()
+const { isHqSelected, laborProjectId } = useCurrentProject()
 const form = ref(null)
 const saving = ref(false)
 const selectedProjectId = ref('')
@@ -225,10 +225,6 @@ function removeTierLevel(index) {
           <el-button class="ap-btn-primary" type="primary" :loading="saving" @click="handleSave">保存配置</el-button>
         </div>
       </div>
-      <p v-if="!isHqSelected" class="page-scope">当前项目：{{ projectLabel }}</p>
-      <p class="page-tip">
-        默认接收人、分级管控、预警规则与人员轨迹外链均按项目单独配置；平台不做人员填报，工资明细本期不采集。
-      </p>
     </div>
 
     <div class="config-layout" :class="{ 'with-tree': isHqSelected }">
@@ -528,8 +524,6 @@ function removeTierLevel(index) {
 .page-breadcrumb { font-size: 13px; color: var(--ap-text-muted); margin-bottom: 8px; }
 .page-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .page-title { font-size: 20px; font-weight: 600; margin: 0; }
-.page-scope { margin: 8px 0; font-size: 14px; font-weight: 600; color: var(--ap-text); }
-.page-tip { margin: 8px 0 0; font-size: 12px; color: var(--ap-text-muted); }
 .header-actions { display: flex; gap: 8px; }
 .config-layout {
   display: grid;

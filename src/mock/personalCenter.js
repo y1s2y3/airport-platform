@@ -2,6 +2,11 @@
  * 个人中心 · 待办/已办/发起/抄送/通知 Mock（含共享响应式列表）
  */
 import { reactive } from 'vue'
+import {
+  getWarningDetail,
+  getProjectLabel,
+  disposalTypeLabels,
+} from './laborWarningList.js'
 
 export const PROCESS_STATUS_OPTIONS = ['审批中', '已通过', '已驳回', '已撤回']
 export const PROCESS_CATEGORY_OPTIONS = [
@@ -22,6 +27,7 @@ export const NOTICE_MODULE_OPTIONS = [
   '质量验评',
   '品牌报审',
   '巡检管理',
+  '人员实名',
   '系统通知',
 ]
 export const INSPECTION_BIZ_TYPE_OPTIONS = ['巡检', '整改', '复查', '审批']
@@ -1000,6 +1006,149 @@ const inspectionStartedExamples = INSPECTION_BIZ_TYPE_OPTIONS.map((type, index) 
   buildInspectionExample(type, 'started', index),
 )
 
+/**
+ * 人员实名制预警 → 个人中心待办/已办
+ * 口径（对齐 Word PRD 6.10）：
+ * - 我的待办：任务类待处理 =「手动处理」+「系统自动关闭」（自动类点处置→引导跳转实名制）
+ * - 通知类：进「通知信息」；自动关闭类触发时同步推送通知
+ * - 已办：手动处理已关闭
+ * @param {'todo'|'done'} listType
+ */
+function buildLaborWarningProcess(warningId, listType = 'todo') {
+  const w = getWarningDetail(warningId)
+  if (!w) return null
+  if (w.handle_mode === '通知') return null
+  if (listType === 'todo') {
+    if (w.status !== '待处理') return null
+    if (w.handle_mode !== '手动处理' && w.handle_mode !== '系统自动关闭') return null
+  }
+  if (listType === 'done') {
+    if (w.handle_mode !== '手动处理' || w.status !== '已关闭') return null
+  }
+
+  const project = getProjectLabel(w.project_id) || w.project_id || '—'
+  const timeline = (w.disposal_records || []).map((r) => ({
+    title: disposalTypeLabels[r.type] || r.type,
+    time: r.time,
+    user: r.operator,
+    remark: r.content + (r.attachments?.length ? `（附件：${r.attachments.join('、')}）` : ''),
+    status: 'done',
+  }))
+  if (listType === 'todo') {
+    const isAuto = w.handle_mode === '系统自动关闭'
+    timeline.push({
+      title: isAuto ? '引导处理' : '责任人处置',
+      time: '',
+      user: '当前用户',
+      remark: isAuto
+        ? '待前往人员实名制引导处理（条件满足后次日自动关闭）'
+        : '待处置并关闭（预警清单详情）',
+      status: 'current',
+    })
+  }
+  return {
+    id: `${listType === 'done' ? 'done' : 'todo'}-labor-warning-${warningId}`,
+    type: 'labor_warning',
+    sourceLabel: '人员实名制',
+    category: '人员实名',
+    bizType: '预警处置',
+    laborWarningId: w.id,
+    processName: `人员预警·${w.rule_label}（${w.warning_no}）`,
+    applicant: '系统',
+    dept: '人员实名制管理',
+    applyTime: w.triggered_at,
+    handleTime: listType === 'done' ? w.closed_at || w.triggered_at : undefined,
+    handleLabel: listType === 'done' ? '处置并关闭' : undefined,
+    detail: {
+      project,
+      warningNo: w.warning_no,
+      ruleLabel: w.rule_label,
+      ruleKey: w.rule_key,
+      status: w.status,
+      handleMode: w.handle_mode,
+      triggerReason: w.trigger_reason,
+      name: w.name,
+      personnelNo: w.personnel_no,
+      personnelId: w.personnel_id,
+      unitName: w.unit_name,
+      workType: w.work_type,
+      currentLevel: w.current_level,
+      closedAt: w.closed_at,
+      summary: w.trigger_reason,
+      disposalTimeline: w.disposal_records || [],
+    },
+    approvalFlow: timeline,
+  }
+}
+
+/**
+ * 待办预警：任务类待处理
+ * - 手动：w-002 连续超12h / w-005 连续未出勤 / w-009 管理人员考勤
+ * - 自动关闭：w-017 三级教育 / w-004 黑名单 / w-008 年龄下限
+ */
+export function seedLaborWarningTodos() {
+  return ['w-002', 'w-005', 'w-009', 'w-017', 'w-004', 'w-008']
+    .map((id) => buildLaborWarningProcess(id, 'todo'))
+    .filter(Boolean)
+}
+
+/** 已办：手动处理已关闭（演示无种子时可为 []；关闭后由 finishPersonalTodo 写入） */
+export function seedLaborWarningDone() {
+  return []
+}
+
+/**
+ * 通知信息：通知类 + 系统自动关闭类（含年龄下限、黑名单进场）；手动类触发时同步推送一条消息
+ * - 通知：elderlyReminder / idCardExpired
+ * - 自动关闭：三级教育、特种证、年龄下限、黑名单进场
+ */
+export function seedLaborWarningNotices() {
+  const specs = [
+    // 通知类
+    { id: 'nt-labor-notify-1', warningId: 'w-006', readStatus: '未读' },
+    { id: 'nt-labor-notify-2', warningId: 'w-010', readStatus: '未读' },
+    { id: 'nt-labor-notify-3', warningId: 'w-013', readStatus: '已读' },
+    // 系统自动关闭类（含 Word PRD 调整后的年龄下限、黑名单进场）
+    { id: 'nt-labor-auto-1', warningId: 'w-017', readStatus: '未读' },
+    { id: 'nt-labor-auto-2', warningId: 'w-001', readStatus: '已读' },
+    { id: 'nt-labor-auto-3', warningId: 'w-003', readStatus: '已读' },
+    { id: 'nt-labor-auto-4', warningId: 'w-004', readStatus: '未读' },
+    { id: 'nt-labor-auto-5', warningId: 'w-008', readStatus: '已读' },
+    // 手动类触发消息（与待办并存）
+    { id: 'nt-labor-manual-1', warningId: 'w-002', readStatus: '未读' },
+    { id: 'nt-labor-manual-2', warningId: 'w-005', readStatus: '未读' },
+  ]
+  return specs
+    .map(({ id, warningId, readStatus }) => {
+      const w = getWarningDetail(warningId)
+      if (!w) return null
+      const project = getProjectLabel(w.project_id) || '—'
+      const modeHint =
+        w.handle_mode === '通知'
+          ? '通知类（无需关闭）'
+          : w.handle_mode === '系统自动关闭'
+            ? '系统自动关闭'
+            : '手动处理（请至待办/预警清单处置）'
+      const titlePrefix =
+        w.handle_mode === '通知'
+          ? '人员预警通知'
+          : w.handle_mode === '系统自动关闭'
+            ? '人员预警（自动关闭）'
+            : '人员预警待处置'
+      return {
+        id,
+        module: '人员实名',
+        title: `${titlePrefix}：${w.rule_label}`,
+        content: `${w.warning_no} · ${project} · ${w.name}（${w.personnel_no}）· ${modeHint} · 状态「${w.status}」。${w.trigger_reason}`,
+        time: w.triggered_at,
+        readStatus,
+        laborWarningId: w.id,
+        handleMode: w.handle_mode,
+      }
+    })
+    .filter(Boolean)
+}
+
 /** 质量验评专用待办（置顶；与业务任务 id 对齐，可点处理进审批/整改页） */
 export function seedQmInspectTodos() {
   return [
@@ -1165,9 +1314,15 @@ export function seedQmInspectStarted() {
 
 /** 共享响应式：待办 / 已办 */
 export const personalTodoStore = reactive({
-  todos: [...seedQmInspectTodos(), ...inspectionTodoExamples, ...seedTodos()],
+  todos: [
+    ...seedQmInspectTodos(),
+    ...seedLaborWarningTodos(),
+    ...inspectionTodoExamples,
+    ...seedTodos(),
+  ],
   done: [
     ...seedQmInspectDone(),
+    ...seedLaborWarningDone(),
     ...inspectionDoneExamples,
     {
       id: 'done-1',
@@ -1334,7 +1489,7 @@ export const personalStarted = reactive([
   },
 ])
 
-/** 热更新/办理后若缺失，补回质量验评假数据（不重复插入） */
+/** 热更新/办理后若缺失，补回质量验评 / 人员实名制预警假数据（不重复插入） */
 export function ensureQmPersonalCenterSeeds() {
   for (const row of [...seedQmInspectTodos()].reverse()) {
     if (!personalTodoStore.todos.some((t) => t.id === row.id)) {
@@ -1349,6 +1504,19 @@ export function ensureQmPersonalCenterSeeds() {
   for (const row of seedQmInspectStarted()) {
     if (!personalStarted.some((t) => t.id === row.id)) {
       personalStarted.unshift(row)
+    }
+  }
+}
+
+export function ensureLaborPersonalCenterSeeds() {
+  for (const row of [...seedLaborWarningTodos()].reverse()) {
+    if (!personalTodoStore.todos.some((t) => t.id === row.id)) {
+      personalTodoStore.todos.unshift(row)
+    }
+  }
+  for (const row of seedLaborWarningDone()) {
+    if (!personalTodoStore.done.some((t) => t.id === row.id)) {
+      personalTodoStore.done.unshift(row)
     }
   }
 }
@@ -1496,6 +1664,7 @@ export function finishPersonalTodo(id, handleLabel) {
     asbuiltNode: row.asbuiltNode,
     matEntryId: row.matEntryId,
     eqEntryId: row.eqEntryId,
+    laborWarningId: row.laborWarningId,
     inspectionBizType: row.inspectionBizType,
     rectifyId: row.rectifyId,
     approvalFlow: flow,
@@ -2004,6 +2173,7 @@ export function finishAsbuiltOpenTodos(acceptanceId, handleLabel) {
 
 /** 通知信息 */
 export const personalNotices = [
+  ...seedLaborWarningNotices(),
   {
     id: 'nt-qm-1',
     module: '质量验评',

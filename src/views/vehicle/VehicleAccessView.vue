@@ -2,10 +2,8 @@
 import { ref, computed, watch } from 'vue'
 import { Search, Refresh } from '@element-plus/icons-vue'
 import { useVehicleProjectScope } from '../../composables/useCurrentProject'
-import { getVehicleMenuItem } from '../../config/vehicleMenu.js'
 import { projectTree, getProjectAccessRecords } from '../../mock/vehicleManagement'
 
-const menuItem = getVehicleMenuItem('vehicle-access')
 const { isHqSelected, treeProjectId, scopeProjectId, scopeProjectLabel, onTreeNodeClick } = useVehicleProjectScope()
 const keyword = ref('')
 const filters = ref({ direction: '' })
@@ -62,8 +60,6 @@ function handleReset() {
       <div class="page-heading">
         <h1 class="page-title">进出场记录</h1>
       </div>
-      <p v-if="!isHqSelected" class="page-scope">当前项目：{{ scopeProjectLabel }}</p>
-      <p class="page-tip">{{ menuItem?.description }}</p>
     </div>
 
     <div class="page-layout" :class="{ 'with-tree': isHqSelected }">
@@ -136,20 +132,6 @@ function handleReset() {
   font-size: 20px;
   font-weight: 600;
   color: var(--ap-text);
-}
-
-.page-scope {
-  margin: 4px 0 8px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ap-text);
-}
-
-.page-tip {
-  margin-top: 0;
-  font-size: 12px;
-  color: var(--ap-text-muted);
-  line-height: 1.5;
 }
 
 .page-panel {

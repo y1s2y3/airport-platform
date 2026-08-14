@@ -315,6 +315,18 @@ function resetForms() {
 watch(
   todo,
   (row) => {
+    if (row?.type === 'labor_warning' && row.laborWarningId) {
+      router.replace({
+        name: 'LaborWarningDetail',
+        params: { id: row.laborWarningId },
+        query: {
+          from: 'personal-center',
+          tab: fromTab.value === 'done' ? 'done' : 'todo',
+          todoId: row.id,
+        },
+      })
+      return
+    }
     if (row) resetForms()
   },
   { immediate: true },

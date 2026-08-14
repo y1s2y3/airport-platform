@@ -1,8 +1,8 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, watch, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { Search, Refresh, Download } from '@element-plus/icons-vue'
-import { useLaborProjectScope } from '../../composables/useCurrentProject'
+import { useLaborProjectScope, selectedProjectId } from '../../composables/useCurrentProject'
 import {
   projectTree,
   getProjectPersonnel,
@@ -17,11 +17,28 @@ import {
 } from '../../mock/laborRealName'
 import { REALNAME_ENTRY_LABEL } from '../../constants/laborPersonStatus'
 
+const route = useRoute()
 const router = useRouter()
 const { isHqSelected, treeProjectId, scopeProjectId, scopeProjectLabel, onTreeNodeClick } = useLaborProjectScope()
 const keyword = ref('')
 const filters = ref({ work_type: '', personnel_category: '', entry_status: '', unit_name: '' })
 const visiblePhoneIds = ref(new Set())
+
+/** 预警「去处理」跳转：自动带入姓名关键词，并切到对应项目 */
+function applyRouteFilters() {
+  const kw = String(route.query.keyword || route.query.name || '').trim()
+  if (kw) keyword.value = kw
+  const pid = String(route.query.projectId || '').trim()
+  if (!pid) return
+  if (isHqSelected.value) {
+    treeProjectId.value = pid
+  } else {
+    selectedProjectId.value = pid
+  }
+}
+
+onMounted(applyRouteFilters)
+watch(() => [route.query.keyword, route.query.name, route.query.projectId], applyRouteFilters)
 
 const allPersonnel = computed(() => getProjectPersonnel(scopeProjectId.value))
 
@@ -57,7 +74,9 @@ const filteredPersonnel = computed(() => {
 
 const stats = computed(() => getRealNameStats(scopeProjectId.value))
 watch(scopeProjectId, () => {
-  keyword.value = ''
+  // 从预警「去处理」带 keyword 跳入时，保留姓名筛选，避免切项目时被清空
+  const routeKw = String(route.query.keyword || route.query.name || '').trim()
+  keyword.value = routeKw || ''
   filters.value = { work_type: '', personnel_category: '', entry_status: '', unit_name: '' }
   visiblePhoneIds.value = new Set()
 })
@@ -96,11 +115,6 @@ function isPhoneVisible(id) {
           <el-button :icon="Download">导出</el-button>
         </div>
       </div>
-      <p v-if="!isHqSelected" class="page-scope">当前项目：{{ scopeProjectLabel }}</p>
-      <p class="page-tip">
-        人员主档（基本身份、特种作业证书）由一期经 ROMA 同步只读展示；三级安全教育完成情况可由施工方在详情中填报编辑。
-        进出场请在「考勤明细」查看；本期不采集工资明细。
-      </p>
     </div>
 
     <div class="page-layout" :class="{ 'with-tree': isHqSelected }">
@@ -215,8 +229,6 @@ function isPhoneVisible(id) {
 .page-breadcrumb { font-size: 13px; color: var(--ap-text-muted); margin-bottom: 8px; }
 .page-heading { display: flex; align-items: center; justify-content: space-between; }
 .page-title { font-size: 20px; font-weight: 600; color: var(--ap-text); }
-.page-scope { margin: 4px 0 8px; font-size: 14px; font-weight: 600; color: var(--ap-text); }
-.page-tip { margin-top: 0; font-size: 12px; color: var(--ap-text-muted); line-height: 1.5; }
 .page-panel { border: 1px solid var(--ap-border); border-radius: 8px; background: #fff; padding: 16px; }
 .page-layout.with-tree {
   display: grid;

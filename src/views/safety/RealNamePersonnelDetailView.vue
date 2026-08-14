@@ -136,9 +136,6 @@ function saveEducation() {
           </div>
         </div>
       </div>
-      <p class="page-tip">
-        基本身份信息、特种作业证书由一期经 ROMA 同步（只读）；三级安全教育完成情况由施工方填报（可编辑）。当日进出场请在「考勤明细」查看。
-      </p>
     </div>
 
     <div class="detail-body">
@@ -311,7 +308,6 @@ function saveEducation() {
   font-size: 13px;
   color: var(--ap-text-secondary);
 }
-.page-tip { margin: 8px 0 0; font-size: 12px; color: var(--ap-text-muted); }
 .sensitive-cell { display: flex; align-items: center; gap: 8px; }
 .detail-body { max-width: 1120px; }
 .detail-section {

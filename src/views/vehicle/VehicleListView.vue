@@ -3,7 +3,6 @@ import { ref, computed, watch } from 'vue'
 import { Search, Refresh, Plus, Download, Upload } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useVehicleProjectScope } from '../../composables/useCurrentProject'
-import { getVehicleMenuItem } from '../../config/vehicleMenu.js'
 import {
   projectTree,
   getProjectVehicles,
@@ -13,7 +12,6 @@ import {
   emptyVehicleForm,
 } from '../../mock/vehicleManagement'
 
-const menuItem = getVehicleMenuItem('vehicle-registry')
 const { isHqSelected, treeProjectId, scopeProjectId, scopeProjectLabel, onTreeNodeClick } = useVehicleProjectScope()
 const keyword = ref('')
 const filters = ref({ vehicle_type: '', status: '' })
@@ -220,8 +218,6 @@ async function handleDelete(row) {
           <el-button :icon="Download">导出</el-button>
         </div>
       </div>
-      <p v-if="!isHqSelected" class="page-scope">当前项目：{{ scopeProjectLabel }}</p>
-      <p class="page-tip">{{ menuItem?.description }}</p>
     </div>
 
     <div class="page-layout" :class="{ 'with-tree': isHqSelected }">
@@ -392,20 +388,6 @@ async function handleDelete(row) {
   font-size: 20px;
   font-weight: 600;
   color: var(--ap-text);
-}
-
-.page-scope {
-  margin: 4px 0 8px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ap-text);
-}
-
-.page-tip {
-  margin-top: 0;
-  font-size: 12px;
-  color: var(--ap-text-muted);
-  line-height: 1.5;
 }
 
 .page-actions {

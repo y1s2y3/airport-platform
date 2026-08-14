@@ -121,8 +121,6 @@ async function handleDelete(row) {
         <h1 class="page-title">设备管理</h1>
         <el-button type="primary" class="ap-btn-primary" :icon="Plus" @click="openCreate">新增设备</el-button>
       </div>
-      <p v-if="!isHqSelected" class="page-scope">当前项目：{{ scopeProjectLabel }}</p>
-      <p class="page-tip">管理考勤机设备、GPS 定位设备，维护设备编号、安装位置、在线状态及绑定关系。</p>
     </div>
 
     <div class="page-layout" :class="{ 'with-tree': isHqSelected }">
@@ -225,7 +223,6 @@ async function handleDelete(row) {
 .page-breadcrumb { font-size: 13px; color: var(--ap-text-muted); margin-bottom: 4px; }
 .page-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 8px; }
 .page-title { font-size: 20px; font-weight: 600; margin: 0; }
-.page-scope, .page-tip { font-size: 13px; color: var(--ap-text-secondary); margin: 0 0 8px; }
 .page-layout.with-tree { display: grid; grid-template-columns: 240px 1fr; gap: 16px; }
 .project-tree-panel, .content-panel { border: 1px solid var(--ap-border); border-radius: 8px; background: #fff; padding: 16px; }
 .panel-title { font-size: 14px; font-weight: 600; margin-bottom: 8px; }

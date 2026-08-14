@@ -9,7 +9,6 @@ import { ElMessage } from 'element-plus'
 import { Search, Refresh } from '@element-plus/icons-vue'
 import { selectedProjectId } from '../../composables/useCurrentProject'
 import {
-  LABOR_HQ_STATS_TODAY,
   buildHqRealNameSupervisionStatsByProject,
   buildHqRealNameSupervisionSummary,
 } from '../../mock/laborManagement'
@@ -52,9 +51,6 @@ async function viewProjectDetail(row) {
     <div class="page-header">
       <div class="page-breadcrumb">人员实名制管理 / 实名制统计</div>
       <h1 class="page-title">实名制统计</h1>
-      <p class="page-tip">
-        指挥部监管看板：顶部为全项目汇总指标；表格按项目明细。统计日（演示）：{{ LABOR_HQ_STATS_TODAY }}。
-      </p>
     </div>
 
     <div class="kpi-row">
@@ -144,7 +140,6 @@ async function viewProjectDetail(row) {
 .qm-page { display: flex; flex-direction: column; gap: 12px; }
 .page-breadcrumb { font-size: 12px; color: #909399; }
 .page-title { margin: 4px 0; font-size: 20px; }
-.page-tip { margin: 0; font-size: 13px; color: #606266; line-height: 1.5; }
 
 .kpi-row {
   display: grid;

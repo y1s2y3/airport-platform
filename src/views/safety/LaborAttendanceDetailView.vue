@@ -99,11 +99,6 @@ function handleReset() {
           <el-button :icon="Download">导出</el-button>
         </div>
       </div>
-      <p v-if="!isHqSelected" class="page-scope">当前项目：{{ scopeProjectLabel }}</p>
-      <p class="page-tip">
-        考勤明细由一期经 ROMA 汇聚（考勤机刷脸进出场）。班组级明细由项目自有系统完成；平台不做班组维度统计。
-        进出场：当日进入工地为「已进场」，离开工地为「已出场」；在场：已进场且尚未出场（计入现场在场人数）。
-      </p>
     </div>
 
     <div class="page-layout" :class="{ 'with-tree': isHqSelected }">
@@ -239,20 +234,6 @@ function handleReset() {
   font-size: 20px;
   font-weight: 600;
   color: var(--ap-text);
-}
-
-.page-scope {
-  margin: 8px 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ap-text);
-}
-
-.page-tip {
-  margin-top: 8px;
-  font-size: 12px;
-  color: var(--ap-text-muted);
-  line-height: 1.5;
 }
 
 .page-layout.with-tree {

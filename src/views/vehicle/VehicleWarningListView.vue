@@ -2,7 +2,6 @@
 import { ref, computed, watch } from 'vue'
 import { Search, Refresh } from '@element-plus/icons-vue'
 import { useVehicleProjectScope } from '../../composables/useCurrentProject'
-import { vehicleWarningMenuItem } from '../../config/vehicleMenu.js'
 import {
   projectTree,
   getProjectVehicleWarnings,
@@ -11,7 +10,7 @@ import {
   vehicleWarningStatusTagClass,
 } from '../../mock/vehicleManagement'
 
-const { isHqSelected, treeProjectId, scopeProjectId, scopeProjectLabel, onTreeNodeClick } = useVehicleProjectScope()
+const { isHqSelected, treeProjectId, scopeProjectId, onTreeNodeClick } = useVehicleProjectScope()
 const keyword = ref('')
 const filters = ref({ status: '', source: '' })
 
@@ -62,8 +61,6 @@ function handleReset() {
     <div class="page-header">
       <div class="page-breadcrumb">车辆管理 / 预警清单</div>
       <h1 class="page-title">预警清单</h1>
-      <p v-if="!isHqSelected" class="page-scope">当前项目：{{ scopeProjectLabel }}</p>
-      <p class="page-tip">{{ vehicleWarningMenuItem.description }}</p>
     </div>
 
     <div class="page-layout" :class="{ 'with-tree': isHqSelected }">
@@ -149,20 +146,6 @@ function handleReset() {
   font-weight: 600;
   color: var(--ap-text);
   margin: 0 0 8px;
-}
-
-.page-scope {
-  margin: 0 0 8px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ap-text);
-}
-
-.page-tip {
-  margin: 0;
-  font-size: 12px;
-  color: var(--ap-text-muted);
-  line-height: 1.5;
 }
 
 .page-panel {

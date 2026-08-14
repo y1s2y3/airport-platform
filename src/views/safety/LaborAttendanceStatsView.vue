@@ -19,7 +19,7 @@ import {
 } from '../../mock/laborAttendanceStats'
 
 const router = useRouter()
-const { isHqSelected, scopeProjectId, scopeProjectLabel } = useLaborProjectScope()
+const { isHqSelected, scopeProjectId } = useLaborProjectScope()
 
 const hqDate = ref('2026-07-20')
 const hqKeyword = ref('')
@@ -95,7 +95,6 @@ function formatRate(n) {
     <div class="page-header">
       <div class="page-breadcrumb">人员实名制管理 / 考勤统计</div>
       <h1 class="page-title">考勤统计</h1>
-      <p class="page-tip">按项目汇总出勤率（含管理人员/建筑工人/特种）；班组级明细不在平台统计。</p>
     </div>
 
     <div class="filter-bar">
@@ -144,8 +143,6 @@ function formatRate(n) {
     <div class="page-header">
       <div class="page-breadcrumb">人员实名制管理 / 考勤统计</div>
       <h1 class="page-title">考勤统计</h1>
-      <p class="page-scope">当前项目：{{ scopeProjectLabel }}</p>
-      <p class="page-tip">按人员汇总出勤（对接闸机数据）。班组级明细由项目自有系统完成，平台不做班组排行。</p>
     </div>
 
     <div class="page-layout">
@@ -197,8 +194,6 @@ function formatRate(n) {
 .page-header { margin-bottom: 16px; }
 .page-breadcrumb { font-size: 13px; color: var(--ap-text-muted); margin-bottom: 8px; }
 .page-title { font-size: 20px; font-weight: 600; }
-.page-scope { margin: 0 0 8px; font-size: 14px; font-weight: 600; color: var(--ap-text); }
-.page-tip { margin-top: 0; font-size: 12px; color: var(--ap-text-muted); }
 .stats-panel {
   border: 1px solid var(--ap-border);
   border-radius: 8px;

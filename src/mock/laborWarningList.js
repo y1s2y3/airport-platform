@@ -1,36 +1,42 @@
 import { getWarningRuleLabel } from './laborWarningConfig.js'
-import { projectTree, getProjectLabel, getDefaultProjectId } from './laborRealName.js'
+import {
+  projectTree,
+  getProjectLabel,
+  getDefaultProjectId,
+  getPersonnelDetail,
+  maskIdCard,
+} from './laborRealName.js'
 
 export { projectTree, getProjectLabel, getDefaultProjectId }
 
 export const warningStatusOptions = ['待处理', '已关闭', '已通知']
 export const handleModeOptions = ['手动处理', '系统自动关闭', '通知']
 
-/** 各预警规则默认处置方式 */
+/** 各预警规则默认处置方式（对齐 Word PRD 规则清单） */
 export const warningHandleModeMap = {
   noLevel3Education: '系统自动关闭',
   specialCertMissing: '系统自动关闭',
   workOver12h: '手动处理',
-  ageLimit: '手动处理',
+  ageLimit: '系统自动关闭',
   elderlyReminder: '通知',
   idCardExpired: '通知',
   absentDays: '手动处理',
   managerAttendance: '手动处理',
-  blacklistEntry: '手动处理',
+  blacklistEntry: '系统自动关闭',
 }
 
 /** 各预警类型处置方法说明 */
 export const warningHandleGuideMap = {
   noLevel3Education:
-    '本预警为系统自动关闭类型。请在人员实名制中补录完整三级安全教育信息（培训类型、日期、时长、合格结果）；系统检测到合格记录后将自动关闭预警，无需人工关闭操作。',
+    '本预警为系统自动关闭类型。请在人员实名制中补录三级安全教育信息；只要存在教育记录（不校验是否合格/类型），次日定时任务将自动关闭预警，无需人工关闭操作。',
   specialCertMissing:
-    '本预警为系统自动关闭类型。请在人员实名制中上传有效特种作业操作证并填写证书有效期；系统校验证书有效后将自动关闭预警，无需人工关闭操作。',
+    '本预警为系统自动关闭类型。请在人员实名制中关注特种作业操作证；ROMA/一期回写有效证书及有效期后，次日定时任务校验通过即自动关闭，无需人工关闭操作。',
   elderlyReminder:
     '本预警为通知类型。超过设定年龄时在施工方端提示，需做好工人健康情况排查工作，不强制要求退场。状态为已通知，无需关闭，不参与分级上报；详情只读。',
   workOver12h:
     '本预警需手动处理。请核实连续作业情况，督促人员休息并规范进出场；在下方填写处置说明，确认整改完成后点击「处置并关闭」，可上传相关证明材料。',
   ageLimit:
-    '本预警需手动处理。请核实人员年龄及身份证信息，纠正登记错误或按规定办理退场；填写处置说明后关闭预警，建议上传核实材料。',
+    '本预警为系统自动关闭类型。人员年龄低于设定下限时触发；请联系闸机系统更新人员信息或办理退场。次日定时任务检测：年龄信息正确（经 ROMA 回写）或人员退场后，自动关闭预警，无需人工关闭操作。',
   idCardExpired:
     '本预警为通知类型。人员身份证已过期时提示相关责任人关注换证与信息更新。状态为已通知，无需关闭，不参与分级上报；详情只读。',
   absentDays:
@@ -38,11 +44,53 @@ export const warningHandleGuideMap = {
   managerAttendance:
     '本预警需手动处理。请督促参建单位落实管理人员月度出勤要求（当月出勤天数不少于配置阈值）；填写整改措施及结果后关闭预警，可上传考勤统计表等附件。',
   blacklistEntry:
-    '本预警需手动处理。请核实黑名单人员是否已被安排进场或现场作业，通报相关责任单位并督促退场/清退；填写处置说明并关闭预警，建议上传通报记录或现场处置照片。平台不做闸机强制拦截，需持续跟进直至问题消除。',
+    '本预警为系统自动关闭类型。平台不做闸机强制拦截；请联系闸机系统办理退场或确认是否误录入。次日定时任务检测：人员移出黑名单或人员退场（离场）后，自动关闭预警，无需人工关闭操作。',
 }
 
 export function getWarningHandleGuide(rule_key) {
   return warningHandleGuideMap[rule_key] || '请根据预警类型落实相应处置措施。'
+}
+
+/**
+ * 个人中心 / 详情「处置预警」弹窗文案（对齐 Word PRD 6.10 提示文字表）
+ * 占位符：#姓名#、#身份证号（脱敏）#
+ */
+export const autoCloseActionPromptTemplates = {
+  noLevel3Education:
+    '#姓名#未按要求录入三级教育，请前往人员实名制页面补录信息；有教育记录后，次日将自动关闭预警。',
+  specialCertMissing:
+    '#姓名#特种作业证书缺失/过期，请联系闸机系统更新人员信息；信息回写后，次日将自动关闭预警。',
+  ageLimit:
+    '#姓名#年龄低于16周岁，请联系闸机系统更新人员信息或办理退场；条件满足后，次日将自动关闭预警。',
+  blacklistEntry:
+    '#姓名#，身份证号:#身份证号（脱敏）#，属于指挥部规定黑名单人员，请联系闸机系统办理退场或确认是否误录入；引导处理到位后，次日将自动关闭预警。',
+}
+
+/** 是否为可「去处理」跳转实名制的系统自动关闭类（待处理） */
+export function isAutoCloseGuidable(warning) {
+  return (
+    !!warning &&
+    warning.handle_mode === '系统自动关闭' &&
+    warning.status === '待处理' &&
+    !!autoCloseActionPromptTemplates[warning.rule_key]
+  )
+}
+
+/** 生成自动关闭类处置弹窗提示（替换姓名 / 脱敏证件号） */
+export function getAutoCloseActionPrompt(warning) {
+  if (!warning) return ''
+  const tpl = autoCloseActionPromptTemplates[warning.rule_key]
+  if (!tpl) return ''
+  const name = warning.name || '—'
+  let idMasked = '—'
+  if (warning.rule_key === 'blacklistEntry') {
+    const person = getPersonnelDetail(warning.personnel_id)
+    idMasked =
+      person?.basic?.id_number ||
+      maskIdCard(person?.basic?.id_number_raw || '') ||
+      '—'
+  }
+  return tpl.replace(/#姓名#/g, name).replace(/#身份证号（脱敏）#/g, idMasked)
 }
 
 export const warningStatusTagClass = {
@@ -161,19 +209,24 @@ const warningList = [
     id: 'w-004',
     rule_key: 'blacklistEntry',
     project_id: 'p-003',
-    personnel_id: 'rn-p-003-0008',
+    personnel_id: 'p-003-8',
     personnel_no: 'RN-P-003-0008',
-    name: '吴某',
+    name: '吴敏',
     unit_name: '广东建工集团有限公司',
     work_type: '普工',
     status: '待处理',
     current_level: 1,
     triggered_at: '2026-06-28 06:45:00',
-    trigger_reason: '黑名单人员于北门闸机尝试刷卡进场，系统生成黑名单人员进场预警（二期不做强制拦截）。',
+    trigger_reason:
+      '每日定时扫描：人员在岗且证件号命中全平台劳务黑名单，生成黑名单人员进场预警（二期不做强制拦截，系统自动关闭类）。',
     disposal_records: [
       { time: '2026-06-28 06:45:00', type: 'trigger', operator: '系统', content: '触发黑名单人员进场预警' },
-      { time: '2026-06-28 07:10:00', type: 'handle', operator: '张安全', content: '已核实为黑名单人员，通知施工单位禁止安排入场，现场已驱离' },
-      { time: '2026-06-28 09:00:00', type: 'handle', operator: '张安全', content: '已向项目经理及监理单位通报，等待联审确认后关闭预警' },
+      {
+        time: '2026-06-29 00:05:00',
+        type: 'escalate',
+        operator: '系统',
+        content: '超 1 天未关闭，自动上报至一级责任人（仍待移出黑名单或退场后次日自动关闭）',
+      },
     ],
   }),
   buildWarning({
@@ -215,20 +268,18 @@ const warningList = [
     id: 'w-008',
     rule_key: 'ageLimit',
     project_id: 'p-004',
-    personnel_id: 'rn-p-004-0012',
-    personnel_no: 'RN-P-004-0012',
-    name: '小明',
+    personnel_id: 'p-004-5',
+    personnel_no: 'RN-P-004-0005',
+    name: '刘洋',
     unit_name: '深圳市政集团有限公司',
     work_type: '普工',
-    status: '已关闭',
+    status: '待处理',
     current_level: 1,
     triggered_at: '2026-06-15 10:00:00',
-    closed_at: '2026-06-16 16:40:00',
+    closed_at: '',
     trigger_reason: '人员年龄 15 岁，低于实名制年龄下限 16 周岁。',
     disposal_records: [
       { time: '2026-06-15 10:00:00', type: 'trigger', operator: '系统', content: '触发实名制年龄低于16周岁预警' },
-      { time: '2026-06-16 16:30:00', type: 'handle', operator: '刘安全', content: '经核实身份证信息录入错误，已更正为 18 岁并重新审核' },
-      { time: '2026-06-16 16:40:00', type: 'close', operator: '刘安全', content: '处置完成，预警关闭', attachments: ['年龄更正说明.pdf', '身份证扫描件.jpg'] },
     ],
   }),
   buildWarning({
@@ -379,9 +430,9 @@ const warningList = [
     id: 'w-017',
     rule_key: 'noLevel3Education',
     project_id: 'p-000',
-    personnel_id: 'rn-p-000-0008',
-    personnel_no: 'RN-P-000-0008',
-    name: '钱进',
+    personnel_id: 'p-000-9',
+    personnel_no: 'RN-P-000-0009',
+    name: '郑伟',
     unit_name: '中建三局第一建设工程有限责任公司',
     work_type: '普工',
     status: '待处理',

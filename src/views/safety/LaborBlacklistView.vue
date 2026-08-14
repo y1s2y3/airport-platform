@@ -5,7 +5,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { laborBlacklist as initialList, maskIdCard } from '../../mock/laborBlacklist'
 import { useCurrentProject } from '../../composables/useCurrentProject'
 
-const { isHqSelected, projectLabel } = useCurrentProject()
+const { isHqSelected } = useCurrentProject()
 const list = ref(initialList.map((row) => ({ ...row })))
 const filters = ref({ name: '', id_card: '' })
 const formVisible = ref(false)
@@ -72,7 +72,6 @@ async function handleRemove(row) {
         <h1 class="page-title">劳务黑名单</h1>
         <el-button class="ap-btn-primary" type="primary" :icon="Plus" @click="openForm">新增</el-button>
       </div>
-      <p v-if="!isHqSelected" class="page-scope">当前项目：{{ projectLabel }}</p>
     </div>
 
     <div class="filter-bar">
@@ -147,13 +146,6 @@ async function handleRemove(row) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-
-.page-scope {
-  margin: 8px 0 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ap-text);
 }
 
 .page-title {

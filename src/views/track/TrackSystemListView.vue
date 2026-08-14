@@ -71,11 +71,6 @@ function handleJump(row) {
     <div class="page-header">
       <div class="page-breadcrumb">{{ parentBreadcrumb }} / {{ pageTitle }}</div>
       <h1 class="page-title">{{ pageTitle }}</h1>
-      <p class="page-tip">
-        按项目展示已配置轨迹系统地址的外链（含已停用）；点击「跳转」在新窗口打开对应系统。配置维护入口：{{
-          trackKind === 'vehicle' ? '车辆管理 / 车辆轨迹配置' : '人员实名制管理 / 实名制配置'
-        }}。
-      </p>
     </div>
 
     <div class="toolbar">
@@ -136,12 +131,6 @@ function handleJump(row) {
   font-size: 20px;
   font-weight: 600;
   margin: 0 0 8px;
-}
-.page-tip {
-  margin: 0;
-  font-size: 12px;
-  color: var(--ap-text-muted);
-  line-height: 1.6;
 }
 .toolbar {
   display: flex;

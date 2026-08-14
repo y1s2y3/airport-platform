@@ -7,12 +7,11 @@ import { HQ_PROJECT_OPTION } from '../../config/projectOptions'
 import { getVehicleDashboardData } from '../../mock/vehicleManagement'
 
 const router = useRouter()
-const { isHqSelected, headerProjectLabel } = useCurrentProject()
+const { isHqSelected } = useCurrentProject()
 
 const dashboardScopeId = computed(() =>
   isHqSelected.value ? HQ_PROJECT_OPTION.id : selectedProjectId.value,
 )
-const projectLabel = computed(() => headerProjectLabel.value)
 
 const data = computed(() => getVehicleDashboardData(dashboardScopeId.value))
 
@@ -31,16 +30,8 @@ async function viewProjectDetail(row) {
         车辆管理 / 车辆管理看板
       </div>
       <div class="page-heading">
-        <h1 class="page-title">车辆管理看板</h1>
+      <h1 class="page-title">车辆管理看板</h1>
       </div>
-      <p v-if="!isHqSelected" class="page-scope">当前项目：{{ projectLabel }}</p>
-      <p class="page-tip">
-        {{
-          isHqSelected
-            ? '按项目汇总车辆进出场与在场情况；点击「查看项目详情」进入该项目进出场记录（项目侧无车辆管理看板）'
-            : '车辆管理看板仅指挥部提供；请切换至指挥部查看汇总，或前往「进出场记录」。'
-        }}
-      </p>
     </div>
 
     <div class="summary-grid">
@@ -97,20 +88,6 @@ async function viewProjectDetail(row) {
   font-size: 20px;
   font-weight: 600;
   color: var(--ap-text);
-}
-
-.page-scope {
-  margin: 4px 0 8px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ap-text);
-}
-
-.page-tip {
-  margin-top: 0;
-  font-size: 12px;
-  color: var(--ap-text-muted);
-  line-height: 1.5;
 }
 
 .summary-grid {

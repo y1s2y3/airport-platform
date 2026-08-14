@@ -15,7 +15,7 @@ import {
 import { warningRuleDefinitions } from '../../mock/laborWarningConfig'
 
 const router = useRouter()
-const { isHqSelected, treeProjectId, scopeProjectId, scopeProjectLabel, onTreeNodeClick } = useLaborProjectScope()
+const { isHqSelected, treeProjectId, scopeProjectId, onTreeNodeClick } = useLaborProjectScope()
 const keyword = ref('')
 const filters = ref({ status: '', handle_mode: '', rule_key: '' })
 
@@ -66,10 +66,6 @@ function handleReset() {
 function goDetail(row) {
   router.push({ name: 'LaborWarningDetail', params: { id: row.id } })
 }
-
-function goHandle(row) {
-  router.push({ name: 'LaborWarningDetail', params: { id: row.id }, query: { handle: '1' } })
-}
 </script>
 
 <template>
@@ -77,10 +73,6 @@ function goHandle(row) {
     <div class="page-header">
       <div class="page-breadcrumb">人员实名制管理 / 预警清单</div>
       <h1 class="page-title">预警清单</h1>
-      <p v-if="!isHqSelected" class="page-scope">当前项目：{{ scopeProjectLabel }}</p>
-      <p class="page-tip">
-        展示人员预警列表及处置进度。预警分自动关闭、手动关闭、通知三类；通知类（如高龄提醒、身份证过期提醒）状态为已通知、无需关闭。
-      </p>
     </div>
 
     <div class="page-layout" :class="{ 'with-tree': isHqSelected }">
@@ -119,10 +111,7 @@ function goHandle(row) {
           <el-button :icon="Refresh" @click="handleReset">重置</el-button>
         </div>
 
-        <div class="table-meta">
-          <template v-if="isHqSelected">当前项目：{{ scopeProjectLabel }}，</template>
-          共 {{ filteredWarnings.length }} 条
-        </div>
+        <div class="table-meta">共 {{ filteredWarnings.length }} 条</div>
 
         <el-table :data="filteredWarnings" border stripe class="ap-table">
           <el-table-column type="index" label="序号" width="60" align="center" />
@@ -152,17 +141,9 @@ function goHandle(row) {
             <template #default="{ row }">{{ row.status === '已关闭' ? '-' : `${row.current_level}级` }}</template>
           </el-table-column>
           <el-table-column prop="triggered_at" label="触发时间" width="160" />
-          <el-table-column label="操作" width="130" fixed="right" align="center">
+          <el-table-column label="操作" width="90" fixed="right" align="center">
             <template #default="{ row }">
               <el-button link type="primary" @click="goDetail(row)">详情</el-button>
-              <el-button
-                v-if="row.handle_mode === '手动处理' && row.status !== '已关闭'"
-                link
-                type="primary"
-                @click="goHandle(row)"
-              >
-                处置预警
-              </el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -176,8 +157,6 @@ function goHandle(row) {
 .page-header { margin-bottom: 16px; }
 .page-breadcrumb { font-size: 13px; color: var(--ap-text-muted); margin-bottom: 8px; }
 .page-title { font-size: 20px; font-weight: 600; margin: 0 0 8px; }
-.page-scope { margin: 0 0 8px; font-size: 14px; font-weight: 600; color: var(--ap-text); }
-.page-tip { font-size: 12px; color: var(--ap-text-muted); margin: 0; }
 .page-layout.with-tree { display: flex; gap: 16px; }
 .project-tree-panel {
   width: 240px;
