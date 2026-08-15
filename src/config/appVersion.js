@@ -7,7 +7,7 @@
 export const APP_VERSION_BASE = '2.2.1'
 
 /** GitHub Pages 发布序号（从 0 开始；仓库内为「当前即将发布 / 下一版」序号） */
-export const APP_VERSION_PATCH = 3
+export const APP_VERSION_PATCH = 4
 
 export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
 
@@ -16,6 +16,14 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  * highlights 宜短句，便于页头问号弹窗快速阅读
  */
 export const VERSION_CHANGELOG = [
+  {
+    version: 'v2.2.1.4',
+    date: '2026-08-15',
+    highlights: [
+      '预警中心：批量消除改为批量处置（填说明+附件，待处理任务关闭为已关闭）',
+      '预警清单与个人中心状态统一为待处理/已关闭/未读/已读',
+    ],
+  },
   {
     version: 'v2.2.1.3',
     date: '2026-08-14',

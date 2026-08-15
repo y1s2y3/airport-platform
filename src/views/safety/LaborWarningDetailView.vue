@@ -242,7 +242,7 @@ async function submitHandle(close = false) {
             >
               {{ detail.handle_mode }}
             </el-tag>
-            <span v-if="detail.status !== '已关闭'">当前 {{ detail.current_level }} 级</span>
+            <span v-if="detail.status !== '已关闭' && detail.status !== '未读' && detail.status !== '已读'">当前 {{ detail.current_level }} 级</span>
           </div>
         </div>
       </div>
@@ -258,7 +258,7 @@ async function submitHandle(close = false) {
           <el-descriptions-item label="关闭时间">{{ detail.closed_at || '-' }}</el-descriptions-item>
           <el-descriptions-item label="处置方式">{{ detail.handle_mode }}</el-descriptions-item>
           <el-descriptions-item label="当前层级">
-            {{ detail.status === '已关闭' ? '-' : `${detail.current_level} 级` }}
+            {{ detail.status === '已关闭' || detail.status === '未读' || detail.status === '已读' ? '-' : `${detail.current_level} 级` }}
           </el-descriptions-item>
           <el-descriptions-item label="触发原因" :span="2">{{ detail.trigger_reason }}</el-descriptions-item>
         </el-descriptions>

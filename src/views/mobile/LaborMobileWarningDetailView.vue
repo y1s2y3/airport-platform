@@ -67,7 +67,7 @@ function typeLabel(type) {
       <div class="field"><span>所属项目</span><b>{{ getProjectLabel(detail.project_id) || '—' }}</b></div>
       <div class="field"><span>触发时间</span><b>{{ detail.triggered_at }}</b></div>
       <div class="field"><span>关闭时间</span><b>{{ detail.closed_at || '—' }}</b></div>
-      <div class="field"><span>当前层级</span><b>{{ detail.status === '已关闭' || detail.status === '已通知' ? '—' : `${detail.current_level} 级` }}</b></div>
+      <div class="field"><span>当前层级</span><b>{{ detail.status === '已关闭' || detail.status === '未读' || detail.status === '已读' ? '—' : `${detail.current_level} 级` }}</b></div>
       <div class="field"><span>触发原因</span><b>{{ detail.trigger_reason }}</b></div>
     </section>
 

@@ -9,7 +9,7 @@ import {
 
 export { projectTree, getProjectLabel, getDefaultProjectId }
 
-export const warningStatusOptions = ['待处理', '已关闭', '已通知']
+export const warningStatusOptions = ['待处理', '已关闭', '未读', '已读']
 export const handleModeOptions = ['手动处理', '系统自动关闭', '通知']
 
 /** 各预警规则默认处置方式（对齐 Word PRD 规则清单） */
@@ -32,13 +32,13 @@ export const warningHandleGuideMap = {
   specialCertMissing:
     '本预警为系统自动关闭类型。请在人员实名制中关注特种作业操作证；ROMA/一期回写有效证书及有效期后，次日定时任务校验通过即自动关闭，无需人工关闭操作。',
   elderlyReminder:
-    '本预警为通知类型。超过设定年龄时在施工方端提示，需做好工人健康情况排查工作，不强制要求退场。状态为已通知，无需关闭，不参与分级上报；详情只读。',
+    '本预警为通知类型。超过设定年龄时在施工方端提示，需做好工人健康情况排查工作，不强制要求退场。状态为未读/已读，无需关闭，不参与分级上报；详情只读。',
   workOver12h:
     '本预警需手动处理。请核实连续作业情况，督促人员休息并规范进出场；在下方填写处置说明，确认整改完成后点击「处置并关闭」，可上传相关证明材料。',
   ageLimit:
     '本预警为系统自动关闭类型。人员年龄低于设定下限时触发；请联系闸机系统更新人员信息或办理退场。次日定时任务检测：年龄信息正确（经 ROMA 回写）或人员退场后，自动关闭预警，无需人工关闭操作。',
   idCardExpired:
-    '本预警为通知类型。人员身份证已过期时提示相关责任人关注换证与信息更新。状态为已通知，无需关闭，不参与分级上报；详情只读。',
+    '本预警为通知类型。人员身份证已过期时提示相关责任人关注换证与信息更新。状态为未读/已读，无需关闭，不参与分级上报；详情只读。',
   absentDays:
     '本预警需手动处理。请联系参建单位核实未出勤原因（请假、退场、漏记进出场等），督促整改；填写处置说明后关闭预警，可上传考勤补录或请假证明。',
   managerAttendance:
@@ -96,7 +96,8 @@ export function getAutoCloseActionPrompt(warning) {
 export const warningStatusTagClass = {
   待处理: 'ap-tag-high',
   已关闭: 'ap-tag-enabled',
-  已通知: 'ap-tag-low',
+  未读: 'ap-tag-medium',
+  已读: 'ap-tag-low',
 }
 
 const ruleConfigSnapshot = {
@@ -255,7 +256,7 @@ const warningList = [
     name: '老马',
     unit_name: '中铁建工集团有限公司',
     work_type: '普工',
-    status: '已通知',
+    status: '未读',
     current_level: 1,
     triggered_at: '2026-06-27 08:30:00',
     closed_at: '',
@@ -308,7 +309,7 @@ const warningList = [
     name: '刘洋',
     unit_name: '广东建工集团有限公司',
     work_type: '特种-焊工',
-    status: '已通知',
+    status: '未读',
     current_level: 1,
     triggered_at: '2026-06-28 00:00:00',
     trigger_reason: '身份证有效期已过期，已通知相关责任人关注换证。',
@@ -363,7 +364,7 @@ const warningList = [
     name: '李大姐',
     unit_name: '深圳市政集团有限公司',
     work_type: '普工',
-    status: '已通知',
+    status: '已读',
     triggered_at: '2026-06-26 07:55:00',
     closed_at: '',
     trigger_reason: '女性人员年龄 61 岁，超过高龄提醒阈值（60 岁），已通知施工方端排查健康情况。',
@@ -418,7 +419,7 @@ const warningList = [
     name: '老周',
     unit_name: '中铁建工集团有限公司',
     work_type: '钢筋工',
-    status: '已通知',
+    status: '未读',
     triggered_at: '2026-06-30 06:40:00',
     closed_at: '',
     trigger_reason: '男性人员年龄 66 岁，超过高龄提醒阈值（65 岁），已通知施工方端排查健康情况。',
@@ -470,10 +471,14 @@ export function getWarningStats(project_id) {
   }
 }
 
+function isNotifyStatus(status) {
+  return status === '未读' || status === '已读'
+}
+
 export function handleWarning(id, { content, operator = '当前用户', close = false, attachments = [] }) {
   const item = warningList.find((row) => row.id === id)
   if (!item) return null
-  if (item.status === '已关闭' || item.status === '已通知') return item
+  if (item.status === '已关闭' || isNotifyStatus(item.status)) return item
   if (item.handle_mode !== '手动处理') return item
 
   const now = new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-')
@@ -494,6 +499,48 @@ export function handleWarning(id, { content, operator = '当前用户', close = 
     item.status = '待处理'
   }
   return { ...item, disposal_records: [...item.disposal_records] }
+}
+
+/**
+ * 批量处置关单：仅「待处理」的处置任务（手动/自动关闭类）→「已关闭」
+ * 与详情处置一致写入说明与附件
+ */
+export function batchDisposeWarnings(
+  ids,
+  { content, operator = '当前用户', attachments = [] } = {},
+) {
+  const idSet = new Set((ids || []).map(String))
+  const now = new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-')
+  const attachNames = (attachments || []).map((file) =>
+    typeof file === 'string' ? file : file.name,
+  )
+  let n = 0
+  for (const item of warningList) {
+    if (!idSet.has(String(item.id))) continue
+    if (item.status !== '待处理') continue
+    if (item.handle_mode !== '手动处理' && item.handle_mode !== '系统自动关闭') continue
+    const record = {
+      time: now,
+      type: 'close',
+      operator,
+      content: content || '批量处置并关闭',
+    }
+    if (attachNames.length) record.attachments = attachNames
+    item.disposal_records.push(record)
+    item.status = '已关闭'
+    item.closed_at = now
+    n += 1
+  }
+  return n
+}
+
+/** 通知类标为已读（同步业务预警状态） */
+export function markNotifyWarningRead(id) {
+  const item = warningList.find((row) => row.id === id)
+  if (!item || item.handle_mode !== '通知') return null
+  if (item.status === '已读') return item
+  item.status = '已读'
+  return item
 }
 
 export const disposalTypeLabels = {

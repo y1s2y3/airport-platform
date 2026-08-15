@@ -1,8 +1,8 @@
 <script setup>
 import { computed, reactive, ref, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { Search, Refresh, ArrowDown } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Search, Refresh, ArrowDown, Upload } from '@element-plus/icons-vue'
 import {
   personalTodoStore,
   personalStarted,
@@ -18,7 +18,7 @@ import {
   ensureLaborWarningCenterSeeds,
   listPersonalWarningCenter,
   markWarningCenterRead,
-  dismissWarningCenter,
+  batchDisposeWarningCenter,
 } from '../mock/personalCenter.js'
 import '../mock/mat.js'
 import '../mock/eq.js'
@@ -238,12 +238,52 @@ function batchMarkWarningRead() {
   ElMessage.success(`已将 ${n} 条通知标为已读`)
 }
 
-function batchDismissWarning() {
-  if (!warningSelection.value.length) return ElMessage.warning('请先勾选要消除的预警')
-  const n = dismissWarningCenter(warningSelection.value.map((r) => r.id))
-  warningSelection.value = []
-  refreshWarningCenter()
-  ElMessage.success(`已消除 ${n} 条预警（仅从预警中心移除，未关闭业务预警）`)
+const batchDisposeVisible = ref(false)
+const batchDisposeContent = ref('')
+const batchDisposeFiles = ref([])
+const batchDisposeSubmitting = ref(false)
+
+function openBatchDispose() {
+  if (!warningSelection.value.length) return ElMessage.warning('请先勾选要处置的预警')
+  const pendingTasks = warningSelection.value.filter(
+    (r) => r.warnType === '处置任务' && r.status === '待处理',
+  )
+  if (!pendingTasks.length) {
+    return ElMessage.warning('所选条目中没有可批量处置的「待处理」处置任务')
+  }
+  batchDisposeContent.value = ''
+  batchDisposeFiles.value = []
+  batchDisposeVisible.value = true
+}
+
+function onBatchDisposeFileChange(file, fileList) {
+  batchDisposeFiles.value = fileList
+}
+
+async function confirmBatchDispose() {
+  const content = batchDisposeContent.value.trim()
+  if (!content) return ElMessage.warning('请填写处置说明')
+  await ElMessageBox.confirm('确认将所选「待处理」处置任务批量关闭为「已关闭」？', '批量处置预警', {
+    type: 'warning',
+  })
+  batchDisposeSubmitting.value = true
+  try {
+    const n = batchDisposeWarningCenter(
+      warningSelection.value.map((r) => r.id),
+      {
+        content,
+        attachments: batchDisposeFiles.value.map((f) => f.name || f),
+        operator: '张明',
+      },
+    )
+    batchDisposeVisible.value = false
+    warningSelection.value = []
+    refreshWarningCenter()
+    if (!n) return ElMessage.warning('没有可关闭的待处理处置任务')
+    ElMessage.success(`已批量处置并关闭 ${n} 条预警`)
+  } finally {
+    batchDisposeSubmitting.value = false
+  }
 }
 
 function handleTodo(row) {
@@ -482,7 +522,7 @@ watch([activeTotal, pageSize], () => {
         <span class="count-text">共 {{ filteredWarningCenter.length }} 条</span>
         <div class="toolbar-actions">
           <el-button type="primary" plain @click="batchMarkWarningRead">批量已读</el-button>
-          <el-button type="danger" plain @click="batchDismissWarning">批量消除预警</el-button>
+          <el-button type="danger" plain @click="openBatchDispose">批量处置预警</el-button>
         </div>
       </div>
       <el-table
@@ -506,6 +546,42 @@ watch([activeTotal, pageSize], () => {
           </template>
         </el-table-column>
       </el-table>
+
+      <el-dialog
+        v-model="batchDisposeVisible"
+        title="批量处置预警"
+        width="520px"
+        destroy-on-close
+      >
+        <el-form label-width="96px">
+          <el-form-item label="处置说明" required>
+            <el-input
+              v-model="batchDisposeContent"
+              type="textarea"
+              :rows="4"
+              maxlength="500"
+              show-word-limit
+              placeholder="请填写处置说明（与详情处置一致）"
+            />
+          </el-form-item>
+          <el-form-item label="处置附件">
+            <el-upload
+              :auto-upload="false"
+              multiple
+              :on-change="onBatchDisposeFileChange"
+              :file-list="batchDisposeFiles"
+            >
+              <el-button size="small" :icon="Upload">上传附件</el-button>
+            </el-upload>
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="batchDisposeVisible = false">取消</el-button>
+          <el-button type="primary" :loading="batchDisposeSubmitting" @click="confirmBatchDispose">
+            确认处置并关闭
+          </el-button>
+        </template>
+      </el-dialog>
     </template>
 
     <!-- 通知信息 -->

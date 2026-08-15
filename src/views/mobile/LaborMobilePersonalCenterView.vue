@@ -15,7 +15,6 @@ import {
   ensureLaborWarningCenterSeeds,
   listPersonalWarningCenter,
   markWarningCenterRead,
-  dismissWarningCenter,
 } from '../../mock/personalCenter.js'
 
 const router = useRouter()
@@ -56,7 +55,7 @@ const warningList = computed(() => {
 })
 
 const pendingWarningCount = computed(
-  () => warningList.value.filter((r) => r.status === '待处置' || r.status === '未读').length,
+  () => warningList.value.filter((r) => r.status === '待处理' || r.status === '未读').length,
 )
 
 const flowByTab = computed(() => ({
@@ -145,8 +144,8 @@ function statusTagClass(item) {
 }
 
 function warnStatusTagClass(status) {
-  if (status === '待处置' || status === '未读') return 'todo'
-  if (status === '已处置' || status === '已读') return 'done'
+  if (status === '待处理' || status === '未读') return 'todo'
+  if (status === '已关闭' || status === '已读') return 'done'
   return 'moving'
 }
 
@@ -247,17 +246,6 @@ function batchMarkWarningRead() {
     return
   }
   ElMessage.success(`已将 ${n} 条通知标为已读`)
-}
-
-function batchDismissWarning() {
-  if (!selectedWarningIds.value.length) {
-    ElMessage.warning('请先勾选要消除的预警')
-    return
-  }
-  const n = dismissWarningCenter(selectedWarningIds.value)
-  clearWarningSelection()
-  refreshWarnings()
-  ElMessage.success(`已消除 ${n} 条预警`)
 }
 
 function goBack() {
@@ -408,8 +396,8 @@ function goBack() {
           <span>状态</span>
           <select v-model="warnStatusFilter">
             <option value="">全部</option>
-            <option value="待处置">待处置</option>
-            <option value="已处置">已处置</option>
+            <option value="待处理">待处理</option>
+            <option value="已关闭">已关闭</option>
             <option value="未读">未读</option>
             <option value="已读">已读</option>
           </select>
@@ -421,7 +409,7 @@ function goBack() {
           v-for="item in warningMessages"
           :key="item.id"
           class="message-card"
-          :class="{ unread: item.status === '未读' || item.status === '待处置', selected: isWarningSelected(item.id) }"
+          :class="{ unread: item.status === '未读' || item.status === '待处理', selected: isWarningSelected(item.id) }"
         >
           <div class="message-card-head">
             <label class="select-row">
@@ -451,7 +439,6 @@ function goBack() {
         <div class="batch-actions">
           <button type="button" class="ghost" @click="clearWarningSelection">取消</button>
           <button type="button" class="plain" @click="batchMarkWarningRead">批量已读</button>
-          <button type="button" class="danger" @click="batchDismissWarning">批量消除</button>
         </div>
       </div>
     </template>

@@ -6,6 +6,8 @@ import {
   getWarningDetail,
   getProjectLabel,
   disposalTypeLabels,
+  batchDisposeWarnings,
+  markNotifyWarningRead,
 } from './laborWarningList.js'
 
 export const PROCESS_STATUS_OPTIONS = ['审批中', '已通过', '已驳回', '已撤回']
@@ -22,7 +24,7 @@ export const PROCESS_CATEGORY_OPTIONS = [
 ]
 export const READ_STATUS_OPTIONS = ['未读', '已读']
 export const WARNING_CENTER_TYPE_OPTIONS = ['处置任务', '通知']
-export const WARNING_CENTER_STATUS_OPTIONS = ['待处置', '已处置', '未读', '已读']
+export const WARNING_CENTER_STATUS_OPTIONS = ['待处理', '已关闭', '未读', '已读']
 export const NOTICE_MODULE_OPTIONS = [
   '待办通知',
   '环境监测',
@@ -1052,6 +1054,8 @@ function buildLaborWarningCenterItem(warningId, kind, extra = {}) {
 
   if (kind === 'notify') {
     if (w.handle_mode !== '通知') return null
+    const read =
+      w.status === '已读' || extra.readStatus === '已读' ? '已读' : '未读'
     return {
       id: extra.id || `wc-notify-${warningId}`,
       module: '人员实名',
@@ -1059,10 +1063,10 @@ function buildLaborWarningCenterItem(warningId, kind, extra = {}) {
       description,
       handler,
       warnType: '通知',
-      status: extra.readStatus === '已读' ? '已读' : '未读',
+      status: read,
       time: w.triggered_at,
       laborWarningId: w.id,
-      readStatus: extra.readStatus === '已读' ? '已读' : '未读',
+      readStatus: read,
       dismissed: false,
     }
   }
@@ -1078,7 +1082,7 @@ function buildLaborWarningCenterItem(warningId, kind, extra = {}) {
       description,
       handler,
       warnType: '处置任务',
-      status: '待处置',
+      status: '待处理',
       time: w.triggered_at,
       laborWarningId: w.id,
       dismissed: false,
@@ -1097,7 +1101,7 @@ function buildLaborWarningCenterItem(warningId, kind, extra = {}) {
     description,
     handler: closeHandler,
     warnType: '处置任务',
-    status: '已处置',
+    status: '已关闭',
     time: w.closed_at || w.triggered_at,
     laborWarningId: w.id,
     dismissed: false,
@@ -1105,7 +1109,7 @@ function buildLaborWarningCenterItem(warningId, kind, extra = {}) {
 }
 
 /**
- * 预警中心种子：任务类（待处置/已处置）+ 通知类（未读/已读）
+ * 预警中心种子：任务类（待处理/已关闭）+ 通知类（未读/已读）
  * 不含「任务触发同步通知」重复条，避免与任务类双挂
  */
 export function seedLaborWarningCenter() {
@@ -1157,7 +1161,7 @@ function buildLaborWarningProcess(warningId, listType = 'todo') {
       user: '当前用户',
       remark: isAuto
         ? '待前往人员实名制引导处理（条件满足后次日自动关闭）'
-        : '待处置并关闭（预警清单详情）',
+        : '待处理并关闭（预警清单详情）',
       status: 'current',
     })
   }
@@ -1591,12 +1595,15 @@ export function ensureLaborWarningCenterSeeds() {
     existing.projectName = row.projectName
     existing.description = row.description
     existing.warnType = row.warnType
-    // 未人工处置关闭前，同步演示处理人姓名
-    if (existing.status === '待处置' || existing.status === '未读' || existing.status === '已读') {
+    // 未关闭前，同步演示处理人姓名
+    if (existing.status === '待处理' || existing.status === '未读' || existing.status === '已读') {
       if (existing.status !== '已读' || existing.warnType === '通知') {
         existing.handler = row.handler
       }
     }
+    // 兼容旧种子状态名
+    if (existing.status === '待处置') existing.status = '待处理'
+    if (existing.status === '已处置') existing.status = '已关闭'
   }
 }
 
@@ -1611,7 +1618,7 @@ export function listPersonalWarningCenter() {
   return personalWarningCenterStore.items.filter((row) => !row.dismissed)
 }
 
-/** 批量已读：仅「通知」且状态为「未读」的条目 */
+/** 批量已读：仅「通知」且状态为「未读」的条目（同步业务预警） */
 export function markWarningCenterRead(ids) {
   const idSet = new Set((ids || []).map(String))
   let n = 0
@@ -1622,26 +1629,49 @@ export function markWarningCenterRead(ids) {
     if (row.status !== '未读') continue
     row.status = '已读'
     row.readStatus = '已读'
-    n += 1
-  }
-  return n
-}
-
-/** 批量消除：从预警中心列表软删（不关闭业务预警） */
-export function dismissWarningCenter(ids) {
-  const idSet = new Set((ids || []).map(String))
-  let n = 0
-  for (const row of personalWarningCenterStore.items) {
-    if (!idSet.has(String(row.id))) continue
-    if (row.dismissed) continue
-    row.dismissed = true
+    if (row.laborWarningId) markNotifyWarningRead(row.laborWarningId)
     n += 1
   }
   return n
 }
 
 /**
- * 业务侧处置关闭后，同步预警中心任务类为「已处置」（不消除列表）
+ * 批量处置预警：弹窗填报说明+附件后，
+ * 仅「待处理」处置任务关闭为「已关闭」（同步业务预警，不软删）
+ */
+export function batchDisposeWarningCenter(ids, { content, attachments = [], operator = '张明' } = {}) {
+  const idSet = new Set((ids || []).map(String))
+  const targets = personalWarningCenterStore.items.filter(
+    (row) =>
+      idSet.has(String(row.id)) &&
+      !row.dismissed &&
+      row.warnType === '处置任务' &&
+      row.status === '待处理' &&
+      row.laborWarningId,
+  )
+  if (!targets.length) return 0
+
+  const warningIds = targets.map((row) => row.laborWarningId)
+  batchDisposeWarnings(warningIds, { content, attachments, operator })
+
+  const now = new Date().toLocaleString('zh-CN', { hour12: false })
+  let n = 0
+  for (const row of targets) {
+    row.status = '已关闭'
+    row.handler = operator
+    row.time = now
+    n += 1
+  }
+  return n
+}
+
+/** @deprecated 请改用 batchDisposeWarningCenter */
+export function dismissWarningCenter(ids) {
+  return batchDisposeWarningCenter(ids, { content: '批量处置并关闭' })
+}
+
+/**
+ * 业务侧处置关闭后，同步预警中心任务类为「已关闭」
  */
 export function markWarningCenterDisposed(laborWarningId, handler = '张明') {
   if (!laborWarningId) return null
@@ -1651,10 +1681,10 @@ export function markWarningCenterDisposed(laborWarningId, handler = '张明') {
       !item.dismissed &&
       item.laborWarningId === laborWarningId &&
       item.warnType === '处置任务' &&
-      item.status === '待处置',
+      (item.status === '待处理' || item.status === '待处置'),
   )
   if (!row) return null
-  row.status = '已处置'
+  row.status = '已关闭'
   row.handler = handler || '张明'
   row.time = now
   return row
