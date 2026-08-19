@@ -4,7 +4,7 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, Refresh } from '@element-plus/icons-vue'
 import { useQmProjectScope } from '../../../composables/useCurrentProject'
-import { listProcessPending, STATUS_LABEL, statusTagType } from '../../../mock/sample.js'
+import { listProcessPending, statusLabel, statusTagType } from '../../../mock/sample.js'
 
 const router = useRouter()
 const { isHqSelected, scopeProjectId } = useQmProjectScope()
@@ -49,7 +49,7 @@ function reset() {
         <el-table-column prop="use_part" label="施工部位" min-width="130" />
         <el-table-column label="状态" width="90">
           <template #default="{ row }">
-            <el-tag size="small" :type="statusTagType(row.status)">{{ STATUS_LABEL[row.status] }}</el-tag>
+            <el-tag size="small" :type="statusTagType(row.status)">{{ statusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="submit_time" label="提交时间" width="170" />

@@ -10,7 +10,7 @@ export const brandMenuGroup = {
       key: 'brand-ledger',
       label: '品牌报审台账',
       path: '/qm/brand/ledger',
-      description: '本项目已通过报审台账；按品牌/厂家/材料名称查询。',
+      description: '本项目审批通过写入的品牌台账；按品牌/厂家/材料名称查询。',
       name: 'BrandLedger',
       component: 'BrandLedgerView',
     },
@@ -18,26 +18,9 @@ export const brandMenuGroup = {
       key: 'brand-application',
       label: '报审申请',
       path: '/qm/brand/applications',
-      description: '施工单位新建并直接提交品牌报审；支持撤回与重提。',
+      description: '施工单位新建并直接提交品牌报审；已撤回 / 已驳回可重新申报；审批在个人中心待办处理。',
       name: 'BrandApplication',
       component: 'BrandApplicationListView',
-    },
-    // 报审审批已下线独立菜单：监理/项目经理统一在个人中心待办处理
-    {
-      key: 'brand-library',
-      label: '品牌库管理',
-      path: '/qm/brand/library',
-      description: '本项目品牌库维护；报审匹配与通过后入库均归属当前项目。',
-      name: 'BrandLibrary',
-      component: 'BrandLibraryView',
-    },
-    {
-      key: 'brand-material',
-      label: '材料规格库',
-      path: '/qm/brand/materials',
-      description: '本项目材料与规格主数据；报审导入仅可选本项目启用材料。',
-      name: 'BrandMaterial',
-      component: 'BrandMaterialView',
     },
   ],
 }
@@ -59,6 +42,14 @@ export const brandExtraRoutes = [
     component: 'BrandApplicationDetailView',
     sidebarKey: 'brand-application',
   },
+  {
+    key: 'brand-ledger-detail',
+    path: '/qm/brand/ledger/detail',
+    name: 'BrandLedgerDetail',
+    label: '报审详情',
+    component: 'BrandApplicationDetailView',
+    sidebarKey: 'brand-ledger',
+  },
 ]
 
 function flattenMenuLeaves(items = []) {
@@ -77,6 +68,4 @@ export const brandViewLoaders = {
   BrandApplicationListView: () => import('../views/quality/brand/BrandApplicationListView.vue'),
   BrandApplicationEditView: () => import('../views/quality/brand/BrandApplicationEditView.vue'),
   BrandApplicationDetailView: () => import('../views/quality/brand/BrandApplicationDetailView.vue'),
-  BrandLibraryView: () => import('../views/quality/brand/BrandLibraryView.vue'),
-  BrandMaterialView: () => import('../views/quality/brand/BrandMaterialView.vue'),
 }

@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Edit, CircleClose, Promotion } from '@element-plus/icons-vue'
-import { TASK_WORK_SOURCES, buildProjects } from '../mock/data.js'
+import { TASK_WORK_SOURCES, TASK_WORK_TYPES, buildProjects } from '../mock/data.js'
 import {
   getDispatchNoticeRecords,
   saveDispatchNoticeRecord,
@@ -105,7 +105,7 @@ function validateForm() {
     return false
   }
   if (!form.value.workType?.trim()) {
-    ElMessage.warning('请填写工作类型')
+    ElMessage.warning('请选择工作类型')
     return false
   }
   if (!form.value.workRequirement?.trim()) {
@@ -253,7 +253,9 @@ onMounted(load)
           </el-select>
         </el-form-item>
         <el-form-item label="工作类型" required>
-          <el-input v-model="form.workType" placeholder="如：安全检查、质量复检" />
+          <el-radio-group v-model="form.workType" class="work-type-tags">
+            <el-radio-button v-for="item in TASK_WORK_TYPES" :key="item" :value="item">{{ item }}</el-radio-button>
+          </el-radio-group>
         </el-form-item>
         <el-form-item label="工作要求" required>
           <el-input
@@ -375,5 +377,41 @@ onMounted(load)
 .detail-empty-text {
   color: var(--el-text-color-secondary, #909399);
   font-size: 13px;
+}
+
+.work-type-tags {
+  display: inline-flex;
+  gap: 8px;
+  --work-type-color: var(--coc-accent, var(--ap-primary, var(--el-color-primary)));
+}
+
+.work-type-tags :deep(.el-radio-button__inner) {
+  height: 32px;
+  padding: 0 16px;
+  border-radius: 999px !important;
+  border: 1px solid var(--coc-border, var(--el-border-color, #dcdfe6)) !important;
+  background: transparent;
+  box-shadow: none;
+  color: var(--coc-text-secondary, var(--ap-text-secondary, #606266));
+  font-weight: 500;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.work-type-tags :deep(.el-radio-button:first-child .el-radio-button__inner),
+.work-type-tags :deep(.el-radio-button:last-child .el-radio-button__inner) {
+  border-radius: 999px !important;
+}
+
+.work-type-tags :deep(.el-radio-button__inner:hover) {
+  color: var(--work-type-color);
+  border-color: var(--work-type-color) !important;
+}
+
+.work-type-tags :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
+  background: transparent;
+  border-color: var(--work-type-color) !important;
+  color: var(--work-type-color);
+  box-shadow: none;
+  font-weight: 600;
 }
 </style>

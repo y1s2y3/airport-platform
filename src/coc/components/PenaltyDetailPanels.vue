@@ -181,8 +181,6 @@ watch(
       </div>
       <div class="summary-meta">
         <span>{{ record.project || '—' }}</span>
-        <span class="dot">·</span>
-        <span>{{ record.unit || '—' }}</span>
       </div>
     </div>
 
@@ -194,8 +192,8 @@ watch(
           <span class="panel-sub">开单事实</span>
         </template>
         <el-descriptions :column="2" border size="small">
-          <el-descriptions-item label="事由" :span="2">{{ record.penaltyReason || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="内容" :span="2">{{ record.penaltyContent || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="类型" :span="2">{{ record.workType || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="处罚内容" :span="2">{{ record.penaltyContent || '—' }}</el-descriptions-item>
           <el-descriptions-item label="指派人">
             {{ resolveExecutorDisplay(record.assignee || record.executor) }}
           </el-descriptions-item>

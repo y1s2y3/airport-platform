@@ -15,6 +15,7 @@ import {
 import { saveScreenshotRecord } from '../utils/videoStorage.js'
 import { saveDispatchDocFromScreenshot } from '../utils/dispatchMeetingStorage.js'
 import { buildExecutorOptions } from '../utils/executorDisplay.js'
+import { TASK_WORK_TYPES } from '../config/screenshotTaskOrderFields.js'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -49,7 +50,6 @@ const form = reactive({
   deadline: '',
   remark: '',
   matterDescription: '',
-  penaltyReason: '',
   penaltyContent: '',
   unit: '',
 })
@@ -124,7 +124,6 @@ function resetForm() {
   form.deadline = defaultDeadline()
   form.remark = ''
   form.matterDescription = ''
-  form.penaltyReason = ''
   form.penaltyContent = ''
   form.unit = ''
 }
@@ -337,7 +336,7 @@ function handleSubmit() {
       return
     }
     if (!form.workType.trim()) {
-      ElMessage.warning('请填写工作类型')
+      ElMessage.warning('请选择工作类型')
       return
     }
     if (!form.workRequirement.trim()) {
@@ -374,16 +373,12 @@ function handleSubmit() {
       ElMessage.warning('请填写项目名称')
       return
     }
-    if (!form.unit?.trim()) {
-      ElMessage.warning('请填写责任单位')
-      return
-    }
-    if (!form.penaltyReason.trim()) {
-      ElMessage.warning('请填写事由')
+    if (!form.workType.trim()) {
+      ElMessage.warning('请选择类型')
       return
     }
     if (!form.penaltyContent.trim()) {
-      ElMessage.warning('请填写内容')
+      ElMessage.warning('请填写处罚内容')
       return
     }
     if (!form.executor?.trim()) {
@@ -432,6 +427,7 @@ function handleSubmit() {
     cameraId: props.camera?.id,
     sourceType: props.sourceType,
     unit: form.docType === 'penalty' ? (form.unit?.trim() || '') : MOCK_NOTICE.unit,
+    penaltyReason: form.docType === 'penalty' ? form.workType : '',
   }
   saveScreenshotRecord(payload)
   if (form.docType === 'notice' || form.docType === 'penalty' || form.docType === 'reminder') {
@@ -540,7 +536,7 @@ watch(
           <section class="form-fields-panel">
             <div class="form-context">{{ formContextText }}</div>
 
-            <el-form label-width="88px" size="default" class="issue-fields">
+            <el-form label-width="96px" size="default" class="issue-fields">
               <template v-if="form.docType === 'notice'">
                 <el-form-item label="项目名称" required>
                   <el-select
@@ -556,7 +552,9 @@ watch(
                   </el-select>
                 </el-form-item>
                 <el-form-item label="工作类型" required>
-                  <el-input v-model="form.workType" placeholder="如：安全检查、质量复检" />
+                  <el-radio-group v-model="form.workType" class="work-type-tags">
+                    <el-radio-button v-for="item in TASK_WORK_TYPES" :key="item" :value="item">{{ item }}</el-radio-button>
+                  </el-radio-group>
                 </el-form-item>
                 <el-form-item label="工作要求" required>
                   <el-input
@@ -665,13 +663,12 @@ watch(
                     <el-option v-for="item in projectOptions" :key="item" :label="item" :value="item" />
                   </el-select>
                 </el-form-item>
-                <el-form-item label="责任单位" required>
-                  <el-input v-model="form.unit" placeholder="如：中建三局（施工总承包）" />
+                <el-form-item label="类型" required>
+                  <el-radio-group v-model="form.workType" class="work-type-tags">
+                    <el-radio-button v-for="item in TASK_WORK_TYPES" :key="item" :value="item">{{ item }}</el-radio-button>
+                  </el-radio-group>
                 </el-form-item>
-                <el-form-item label="事由" required>
-                  <el-input v-model="form.penaltyReason" placeholder="如：塔吊作业区警戒标识不足" />
-                </el-form-item>
-                <el-form-item label="内容" required>
+                <el-form-item label="处罚内容" required>
                   <el-input
                     v-model="form.penaltyContent"
                     type="textarea"
@@ -992,6 +989,42 @@ watch(
 .issue-fields :deep(.el-select),
 .issue-fields :deep(.el-date-editor) {
   width: 100%;
+}
+
+.work-type-tags {
+  display: inline-flex;
+  gap: 8px;
+  --work-type-color: var(--coc-accent, var(--ap-primary, var(--el-color-primary)));
+}
+
+.work-type-tags :deep(.el-radio-button__inner) {
+  height: 32px;
+  padding: 0 16px;
+  border-radius: 999px !important;
+  border: 1px solid var(--coc-border, var(--el-border-color, #dcdfe6)) !important;
+  background: transparent;
+  box-shadow: none;
+  color: var(--coc-text-secondary, var(--ap-text-secondary, #606266));
+  font-weight: 500;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.work-type-tags :deep(.el-radio-button:first-child .el-radio-button__inner),
+.work-type-tags :deep(.el-radio-button:last-child .el-radio-button__inner) {
+  border-radius: 999px !important;
+}
+
+.work-type-tags :deep(.el-radio-button__inner:hover) {
+  color: var(--work-type-color);
+  border-color: var(--work-type-color) !important;
+}
+
+.work-type-tags :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
+  background: transparent;
+  border-color: var(--work-type-color) !important;
+  color: var(--work-type-color);
+  box-shadow: none;
+  font-weight: 600;
 }
 </style>
 

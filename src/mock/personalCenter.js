@@ -274,7 +274,9 @@ function seedTodos() {
         title: '室内地砖 800×800',
         usePart: '商业区公区',
         currentNode: '待监理审',
-        briefing: '两款对比，耐磨与色差达标。',
+        briefing: '通体瓷砖 800×800；吸水率≤0.5%；耐磨等级 4 级。',
+        indicatorDesc: '通体瓷砖 800×800；吸水率≤0.5%；耐磨等级 4 级。',
+        supplier: '某陶瓷集团',
       },
       approvalFlow: [
         {
@@ -331,18 +333,11 @@ function seedTodos() {
           status: 'done',
         },
         {
-          title: '监理审批',
+          title: '监理审批（终审）',
           time: '',
           user: '当前用户',
           remark: '待审批',
           status: 'current',
-        },
-        {
-          title: '项目经理终审',
-          time: '',
-          user: '项目经理',
-          remark: '待流转',
-          status: 'pending',
         },
       ],
     },
@@ -366,7 +361,9 @@ function seedTodos() {
         title: '铝单板幕墙',
         usePart: '连廊立面',
         currentNode: '待项目经理审',
-        briefing: '色差与平整度已现场确认。',
+        briefing: '氟碳喷涂铝单板 2.5mm；色号 RAL9006；板面平整度≤2mm。',
+        indicatorDesc: '氟碳喷涂铝单板 2.5mm；色号 RAL9006；板面平整度≤2mm。',
+        supplier: '某幕墙材料厂',
       },
       approvalFlow: [
         {
@@ -379,52 +376,6 @@ function seedTodos() {
         {
           title: '监理审批',
           time: '2026-07-21 11:00:00',
-          user: '监理用户',
-          remark: '同意',
-          status: 'done',
-        },
-        {
-          title: '项目经理终审',
-          time: '',
-          user: '当前用户',
-          remark: '待审批',
-          status: 'current',
-        },
-      ],
-    },
-    {
-      id: 'todo-sample-4',
-      type: 'sample',
-      sourceLabel: '样板管理',
-      category: '样板管理',
-      bizType: '工序样板',
-      sampleBizType: 'process',
-      sampleApplicationId: 'PS-003',
-      sampleNode: 'pm',
-      processName: '工序样板终审·砌体样板墙（PS-003）',
-      applicant: '施工-赵工',
-      dept: '总包项目部',
-      applyTime: '2026-07-22 15:20:00',
-      detail: {
-        project: '空侧捷运线',
-        applicationId: 'PS-003',
-        bizType: '工序样板',
-        title: '砌体样板墙',
-        usePart: '办公区隔墙',
-        currentNode: '待项目经理审',
-        briefing: '灰缝厚度、拉结筋、洞口加强。',
-      },
-      approvalFlow: [
-        {
-          title: '施工提交',
-          time: '2026-07-22 15:20:00',
-          user: '施工-赵工',
-          remark: '直接提交',
-          status: 'done',
-        },
-        {
-          title: '监理审批',
-          time: '2026-07-23 10:00:00',
           user: '监理用户',
           remark: '同意',
           status: 'done',
@@ -519,7 +470,8 @@ function seedTodos() {
         id: 'CF-20260612-001',
         project: '捷运线延长段',
         unit: '中建三局（捷运线施工总承包）',
-        penaltyReason: '塔吊警戒标识不足',
+        workType: '安全',
+        penaltyReason: '安全',
         penaltyContent:
           '3号塔吊作业区警戒标识不足，存在人员误入风险。限期 24 小时内整改，逾期将按合同条款追加处罚并通报。',
         assignee: '李巡检（巡检工程师）',
@@ -545,7 +497,8 @@ function seedTodos() {
         id: 'CF-PENDING-001',
         project: '捷运线延长段',
         unit: '中建三局（捷运线施工总承包）',
-        penaltyReason: '临边防护缺失限期整改',
+        workType: '安全',
+        penaltyReason: '安全',
         penaltyContent: '基坑周边临边防护缺失（较大隐患），要求今日内完成加固并提交闭环材料。',
         assignee: '王强（项目经理）',
         deadline: '2026-06-18',
@@ -570,7 +523,8 @@ function seedTodos() {
         id: 'CF-20260612-002',
         project: '飞行区5号通道',
         unit: '中建八局',
-        penaltyReason: '混凝土养护措施不到位',
+        workType: '质量',
+        penaltyReason: '质量',
         penaltyContent: '浇筑完成后未按规范覆盖养护，存在开裂风险，限期整改。',
         assignee: '陈磊（质量员）',
         deadline: '2026-06-15',
@@ -601,7 +555,8 @@ function seedTodos() {
         id: 'CF-20260611-003',
         project: 'T2主体结构',
         unit: '中建二局',
-        penaltyReason: '文明施工违规',
+        workType: '安全',
+        penaltyReason: '安全',
         penaltyContent: '材料堆放占用消防通道，违反文明施工管理规定，处以违约金并限期清场。',
         assignee: '赵军（安全员）',
         deadline: '2026-06-14',
@@ -1973,8 +1928,51 @@ function buildSampleTodo(payload) {
   const node = payload.sampleNode === 'pm' ? 'pm' : 'supervisor'
   const isPm = node === 'pm'
   const isMaterial = payload.bizType === 'material'
+  const isProcess = payload.bizType === 'process'
   const bizLabel = isMaterial ? '材料定样' : '工序样板'
   sampleTodoSeq += 1
+
+  const supervisorFlow = isProcess
+    ? [
+        {
+          title: '施工提交',
+          time: payload.applyTime || '',
+          user: payload.applicantName || '施工',
+          remark: '直接提交',
+          status: 'done',
+        },
+        {
+          title: '监理审批（终审）',
+          time: '',
+          user: '当前用户',
+          remark: '待审批',
+          status: 'current',
+        },
+      ]
+    : [
+        {
+          title: '施工提交',
+          time: payload.applyTime || '',
+          user: payload.applicantName || '施工',
+          remark: '直接提交',
+          status: 'done',
+        },
+        {
+          title: '监理审批',
+          time: '',
+          user: '当前用户',
+          remark: '待审批',
+          status: 'current',
+        },
+        {
+          title: '项目经理终审',
+          time: '',
+          user: '项目经理',
+          remark: '待流转',
+          status: 'pending',
+        },
+      ]
+
   return {
     id: `todo-sample-${sampleTodoSeq}`,
     type: 'sample',
@@ -1996,8 +1994,12 @@ function buildSampleTodo(payload) {
       bizType: bizLabel,
       title: payload.title || '—',
       usePart: payload.usePart || '—',
-      currentNode: isPm ? '待项目经理审' : '待监理审',
+      currentNode: isPm ? '待项目经理审' : isProcess ? '待监理审（终审）' : '待监理审',
       briefing: payload.briefing || '',
+      indicatorDesc: payload.indicatorDesc || payload.briefing || '',
+      supplier: payload.supplier || '',
+      effectImages: payload.effectImages || [],
+      approvalFiles: payload.approvalFiles || [],
     },
     approvalFlow: isPm
       ? [
@@ -2023,29 +2025,7 @@ function buildSampleTodo(payload) {
             status: 'current',
           },
         ]
-      : [
-          {
-            title: '施工提交',
-            time: payload.applyTime || '',
-            user: payload.applicantName || '施工',
-            remark: '直接提交',
-            status: 'done',
-          },
-          {
-            title: '监理审批',
-            time: '',
-            user: '当前用户',
-            remark: '待审批',
-            status: 'current',
-          },
-          {
-            title: '项目经理终审',
-            time: '',
-            user: '项目经理',
-            remark: '待流转',
-            status: 'pending',
-          },
-        ],
+      : supervisorFlow,
   }
 }
 
@@ -2106,8 +2086,8 @@ function buildMatEntryTodo(payload) {
   return {
     id: `todo-mat-${matEntryTodoSeq}`,
     type: 'mat_entry',
-    sourceLabel: '材料进场管理',
-    category: '材料进场',
+    sourceLabel: '材料设备进场管理',
+    category: '材料设备进场',
     bizType: '进场审批',
     matEntryId: payload.entryId,
     processName: `材料进场审批·${payload.materialName}（${payload.entryId}）`,
@@ -2172,8 +2152,8 @@ function buildEqEntryTodo(payload) {
   return {
     id: `todo-eq-${eqEntryTodoSeq}`,
     type: 'eq_entry',
-    sourceLabel: '设备进场管理',
-    category: '设备进场',
+    sourceLabel: '材料设备进场管理',
+    category: '材料设备进场',
     bizType: '进场审批',
     eqEntryId: payload.entryId,
     processName: `设备进场审批·${payload.equipmentName}（${payload.entryId}）`,

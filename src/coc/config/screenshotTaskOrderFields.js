@@ -1,4 +1,15 @@
-export const TASK_WORK_TYPES = ['安全', '质量', '综合']
+export const TASK_WORK_TYPES = ['安全', '质量']
+
+const QUALITY_WORK_TYPE_HINT = /质量|混凝土|养护|钢筋|模板|浇筑|开裂/
+
+/** 将历史自由文本映射为工作类型枚举；空值保持为空，供表单必选。 */
+export function resolveTaskWorkType(value, extraText = '') {
+  if (TASK_WORK_TYPES.includes(value)) return value
+  const blob = `${value || ''}${extraText || ''}`
+  if (!blob.trim()) return ''
+  if (QUALITY_WORK_TYPE_HINT.test(blob)) return '质量'
+  return '安全'
+}
 
 export const TASK_WORK_SOURCES = ['视频监控', '监控回放', '调度会议', '远程对讲', '现场抽检']
 

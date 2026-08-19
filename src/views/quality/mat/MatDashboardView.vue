@@ -1,11 +1,18 @@
 <script setup>
 import './mat-page.css'
+import '../qm-hq-stats.css'
 import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Search, Refresh } from '@element-plus/icons-vue'
 import { selectedProjectId, useQmProjectScope } from '../../../composables/useCurrentProject'
-import { buildHqDashboardByProject, getDashboard } from '../../../mock/mat.js'
+import {
+  buildHqDashboardByProject,
+  buildHqDashboardSummary,
+  getDashboard,
+} from '../../../mock/mat.js'
 
+const router = useRouter()
 const { isHqSelected, scopeProjectId, scopeProjectLabel } = useQmProjectScope()
 const tick = ref(0)
 const keyword = ref('')
@@ -15,9 +22,15 @@ const dash = computed(() => {
   if (isHqSelected.value || !scopeProjectId.value) {
     return {
       total_batches: 0,
+      material_count: 0,
+      equipment_count: 0,
       pending_count: 0,
       approved_count: 0,
+      rejected_count: 0,
+      withdrawn_count: 0,
       exited_count: 0,
+      material_exited_count: 0,
+      equipment_exited_count: 0,
     }
   }
   return getDashboard(scopeProjectId.value)
@@ -26,6 +39,11 @@ const dash = computed(() => {
 const hqRows = computed(() => {
   void tick.value
   return buildHqDashboardByProject()
+})
+
+const hqSummary = computed(() => {
+  void tick.value
+  return buildHqDashboardSummary()
 })
 
 const hqFiltered = computed(() => {
@@ -38,8 +56,13 @@ function resetKw() {
   keyword.value = ''
 }
 
-function viewProjectDetail(row) {
+function handleSearch() {
+  ElMessage.success(`已按条件查询，共 ${hqFiltered.value.length} 个项目`)
+}
+
+async function viewProjectDetail(row) {
   if (!row?.project_id) return
+  await router.push('/qm/mat/ledger')
   selectedProjectId.value = row.project_id
   ElMessage.success(`已切换至项目：${row.project_name}`)
 }
@@ -49,61 +72,127 @@ function viewProjectDetail(row) {
   <div class="qm-page page-card">
     <div class="page-header">
       <div class="page-breadcrumb">
-        {{ isHqSelected ? '质量看板' : '材料进场管理' }} / 材料进场看板
+        {{ isHqSelected ? '质量看板' : '材料设备进场管理' }} / 材料设备进场
       </div>
-      <h1 class="page-title">材料进场看板</h1>
+      <h1 class="page-title">材料设备进场</h1>
       <p class="page-tip">
-        <template v-if="isHqSelected">指挥部：按项目汇总进场指标</template>
+        <template v-if="isHqSelected">
+          指挥部按项目汇总材料与设备进场数据。操作仅支持查看项目详情（进入该项目材料设备台账）。
+        </template>
         <template v-else>当前：{{ scopeProjectLabel }}</template>
       </p>
     </div>
 
     <template v-if="isHqSelected">
-      <el-card shadow="never">
-        <template #header>
-          <div class="title-row">
-            <strong>项目进场汇总</strong>
-            <span class="muted">点击「查看项目详情」进入该项目看板</span>
-          </div>
-        </template>
-        <div class="filter-bar mb">
-          <el-input
-            v-model="keyword"
-            clearable
-            placeholder="项目名称"
-            style="width: 260px"
-            :prefix-icon="Search"
-          />
-          <el-button type="primary" :icon="Search">查询</el-button>
-          <el-button :icon="Refresh" @click="resetKw">重置</el-button>
+      <div class="hq-stat-row">
+        <div class="hq-stat-card">
+          <span class="hq-stat-label">覆盖项目数</span>
+          <span class="hq-stat-value">{{ hqSummary.projectCount }}</span>
         </div>
-        <el-table :data="hqFiltered" stripe border empty-text="暂无项目数据">
-          <el-table-column
-            prop="project_name"
-            label="项目名称"
-            min-width="220"
-            fixed
-            show-overflow-tooltip
-          />
-          <el-table-column prop="entry_count" label="进场登记次数" width="130" align="center" />
-          <el-table-column prop="exit_count" label="退场登记次数" width="130" align="center" />
-          <el-table-column label="操作" width="130" fixed="right">
-            <template #default="{ row }">
-              <el-button link type="primary" @click="viewProjectDetail(row)">查看项目详情</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-      </el-card>
+        <div class="hq-stat-card">
+          <span class="hq-stat-label">进场合计</span>
+          <span class="hq-stat-value">{{ hqSummary.total_batches }}</span>
+        </div>
+        <div class="hq-stat-card">
+          <span class="hq-stat-label">材料进场</span>
+          <span class="hq-stat-value">{{ hqSummary.material_count }}</span>
+        </div>
+        <div class="hq-stat-card">
+          <span class="hq-stat-label">材料退场</span>
+          <span class="hq-stat-value">{{ hqSummary.material_exited_count }}</span>
+        </div>
+        <div class="hq-stat-card">
+          <span class="hq-stat-label">设备进场</span>
+          <span class="hq-stat-value">{{ hqSummary.equipment_count }}</span>
+        </div>
+        <div class="hq-stat-card">
+          <span class="hq-stat-label">设备退场</span>
+          <span class="hq-stat-value">{{ hqSummary.equipment_exited_count }}</span>
+        </div>
+        <div class="hq-stat-card">
+          <span class="hq-stat-label">待审批</span>
+          <span class="hq-stat-value warn">{{ hqSummary.pending_count }}</span>
+        </div>
+        <div class="hq-stat-card">
+          <span class="hq-stat-label">已通过</span>
+          <span class="hq-stat-value ok">{{ hqSummary.approved_count }}</span>
+        </div>
+        <div class="hq-stat-card">
+          <span class="hq-stat-label">已驳回</span>
+          <span class="hq-stat-value danger">{{ hqSummary.rejected_count }}</span>
+        </div>
+      </div>
+
+      <div class="filter-bar">
+        <el-input
+          v-model="keyword"
+          clearable
+          placeholder="项目名称 / 编号"
+          style="width: 260px"
+          :prefix-icon="Search"
+        />
+        <el-button type="primary" :icon="Search" @click="handleSearch">查询</el-button>
+        <el-button :icon="Refresh" @click="resetKw">重置</el-button>
+      </div>
+
+      <el-table :data="hqFiltered" stripe border empty-text="暂无项目数据">
+        <el-table-column type="index" label="序号" width="64" align="center" />
+        <el-table-column
+          prop="project_name"
+          label="项目名称"
+          min-width="200"
+          show-overflow-tooltip
+        />
+        <el-table-column prop="project_id" label="项目编号" width="100" />
+        <el-table-column prop="total_batches" label="进场合计" width="100" align="center" />
+        <el-table-column prop="material_count" label="材料进场" width="100" align="center" />
+        <el-table-column prop="material_exited_count" label="材料退场" width="100" align="center" />
+        <el-table-column prop="equipment_count" label="设备进场" width="100" align="center" />
+        <el-table-column prop="equipment_exited_count" label="设备退场" width="100" align="center" />
+        <el-table-column label="待审批" width="90" align="center">
+          <template #default="{ row }">
+            <span :class="{ 'warn-num': row.pending_count > 0 }">{{ row.pending_count }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="approved_count" label="已通过" width="90" align="center" />
+        <el-table-column label="已驳回" width="90" align="center">
+          <template #default="{ row }">
+            <span :class="{ 'danger-num': row.rejected_count > 0 }">{{ row.rejected_count }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="withdrawn_count" label="已撤回" width="90" align="center" />
+        <el-table-column label="操作" width="130" fixed="right" align="center">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="viewProjectDetail(row)">查看项目详情</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
     </template>
 
     <template v-else>
       <div class="stat-grid mb">
         <div class="stat-card">
-          <div class="label">进场批次</div>
+          <div class="label">进场合计</div>
           <div class="value">{{ dash.total_batches }}</div>
         </div>
         <div class="stat-card">
-          <div class="label">审核中</div>
+          <div class="label">材料进场</div>
+          <div class="value">{{ dash.material_count }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">材料退场</div>
+          <div class="value">{{ dash.material_exited_count }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">设备进场</div>
+          <div class="value">{{ dash.equipment_count }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">设备退场</div>
+          <div class="value">{{ dash.equipment_exited_count }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">待审批</div>
           <div class="value">{{ dash.pending_count }}</div>
         </div>
         <div class="stat-card">
@@ -111,8 +200,12 @@ function viewProjectDetail(row) {
           <div class="value">{{ dash.approved_count }}</div>
         </div>
         <div class="stat-card">
-          <div class="label">已退场</div>
-          <div class="value">{{ dash.exited_count }}</div>
+          <div class="label">已驳回</div>
+          <div class="value">{{ dash.rejected_count }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">已撤回</div>
+          <div class="value">{{ dash.withdrawn_count }}</div>
         </div>
       </div>
     </template>

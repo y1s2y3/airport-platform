@@ -287,7 +287,7 @@ export function removeRedBlackBoardRecord(id) {
 }
 
 export function importPenaltyToBlackBoard(penalty, period) {
-  const reason = penalty.penaltyReason || penalty.title || ''
+  const reason = penalty.workType || penalty.penaltyReason || penalty.title || ''
   const contentText = penalty.penaltyContent || penalty.content?.split('\n').find((line) => line.trim()) || ''
   const description = [
     reason,
@@ -301,7 +301,7 @@ export function importPenaltyToBlackBoard(penalty, period) {
     period: normalizePeriodKey(period),
     boardType: 'black',
     shortName: penalty.project || penalty.executeDept || '未知项目',
-    fullName: penalty.unit ? `${penalty.project || penalty.executeDept}（${penalty.unit}）` : penalty.project || penalty.executeDept || '',
+    fullName: penalty.project || penalty.executeDept || '',
     description,
     image: penalty.snapshot || buildPlaceholderImage(8, '处罚关联'),
     imageHue: 8,

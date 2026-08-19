@@ -1,8 +1,10 @@
 /**
- * 品牌报审 Mock — 对齐 research-brand V1.43；材料/品牌库为项目级主数据；审批入口为个人中心待办
+ * 品牌报审 Mock — 对齐 research-brand V2.0
+ * 无品牌库/材料规格库；台账 BRAND_LEDGER 独立只读，审批通过后写入
  */
 import { reactive } from 'vue'
 import { getProjectLabel } from './laborRealName.js'
+import { COC_PROJECT_OPTIONS } from '../config/projectOptions.js'
 import {
   createBrandPmTodo,
   createBrandSupervisorTodo,
@@ -10,11 +12,17 @@ import {
 } from './personalCenter.js'
 
 export const MATERIAL_TYPE = { material: '材料', equipment: '设备' }
+/** 业务状态：待审批=待监理审；审批中=监理已通过、待项目经理审 */
 export const STATUS_LABEL = {
+  pending: '待审批',
   in_approval: '审批中',
   approved: '已通过',
   rejected: '已驳回',
   withdrawn: '已撤回',
+}
+
+export function statusLabel(status) {
+  return STATUS_LABEL[status] || status || '—'
 }
 export const NODE_LABEL = {
   supervisor: '待监理审',
@@ -28,221 +36,169 @@ export const ATTACH_TYPE = {
   sample_photo: '材料样品照片',
   other: '其他附件资料',
 }
+export const ROLE_TAG = { primary: '主选', alternate: '备选' }
 
 export const ATTACH_TYPE_KEYS = Object.keys(ATTACH_TYPE)
 
-/** 新建备选时的附件勾选槽位（自行勾选后上传） */
+/** 新建备选时的附件勾选槽位（勾选后可上传多个文件） */
 export function createEmptyAttachSlots() {
   return ATTACH_TYPE_KEYS.map((attach_type) => ({
     attach_type,
     is_checked: false,
-    file_name: '',
-    file_url: '',
+    files: [],
   }))
 }
 
 export function createEmptyCandidate() {
   return {
-    brand_lib_id: '',
+    ledger_id: '',
     brand_name: '',
     manufacturer: '',
     remark: '',
+    is_primary: false,
     attachSlots: createEmptyAttachSlots(),
   }
 }
-export const SOURCE_TYPE = {
-  project_manual: '项目新增',
-  project_approval: '项目报审通过',
-  /** @deprecated 历史数据展示；新数据不再使用 */
-  hq_manual: '指挥部新增',
-}
 
 const store = reactive({
-  materials: [
+  ledger: [
     {
-      material_id: 'M-001',
-      material_name: '混凝土',
-      material_type: 'material',
-      status: 'active',
-      remark: '',
-    },
-    {
-      material_id: 'M-002',
-      material_name: '钢筋',
-      material_type: 'material',
-      status: 'active',
-      remark: '',
-    },
-    {
-      material_id: 'M-003',
-      material_name: '电缆',
-      material_type: 'equipment',
-      status: 'inactive',
-      remark: '停用示例',
-    },
-    // 以下启用材料用于「从材料库导入」分页演示
-    {
-      material_id: 'M-004',
-      material_name: '防水卷材',
-      material_type: 'material',
-      status: 'active',
-      remark: '',
-    },
-    {
-      material_id: 'M-005',
-      material_name: '开关柜',
-      material_type: 'equipment',
-      status: 'active',
-      remark: '',
-    },
-    {
-      material_id: 'M-006',
-      material_name: '水泥',
-      material_type: 'material',
-      status: 'active',
-      remark: '',
-    },
-    {
-      material_id: 'M-007',
-      material_name: '砂石',
-      material_type: 'material',
-      status: 'active',
-      remark: '',
-    },
-    {
-      material_id: 'M-008',
-      material_name: '模板',
-      material_type: 'material',
-      status: 'active',
-      remark: '',
-    },
-    {
-      material_id: 'M-009',
-      material_name: '配电箱',
-      material_type: 'equipment',
-      status: 'active',
-      remark: '',
-    },
-    {
-      material_id: 'M-010',
-      material_name: '给水管',
-      material_type: 'material',
-      status: 'active',
-      remark: '',
-    },
-    {
-      material_id: 'M-011',
-      material_name: '防火涂料',
-      material_type: 'material',
-      status: 'active',
-      remark: '',
-    },
-    {
-      material_id: 'M-012',
-      material_name: '变压器',
-      material_type: 'equipment',
-      status: 'active',
-      remark: '',
-    },
-  ],
-  specs: [
-    { spec_id: 'S-001', material_id: 'M-001', spec_model: 'C30' },
-    { spec_id: 'S-002', material_id: 'M-001', spec_model: 'C40' },
-    { spec_id: 'S-003', material_id: 'M-002', spec_model: 'Φ12' },
-    { spec_id: 'S-004', material_id: 'M-002', spec_model: 'Φ16' },
-    { spec_id: 'S-005', material_id: 'M-004', spec_model: 'SBS-3mm' },
-    { spec_id: 'S-006', material_id: 'M-005', spec_model: '10kV' },
-    { spec_id: 'S-007', material_id: 'M-006', spec_model: 'P.O42.5' },
-    { spec_id: 'S-008', material_id: 'M-007', spec_model: '中砂' },
-    { spec_id: 'S-009', material_id: 'M-008', spec_model: '木模' },
-    { spec_id: 'S-010', material_id: 'M-009', spec_model: 'XL-21' },
-    { spec_id: 'S-011', material_id: 'M-010', spec_model: 'DN100' },
-    { spec_id: 'S-012', material_id: 'M-011', spec_model: '薄型' },
-    { spec_id: 'S-013', material_id: 'M-012', spec_model: '1000kVA' },
-  ],
-  brands: [
-    {
-      brand_lib_id: 'B-001',
+      ledger_id: 'BL-001',
+      project_id: 'p-000',
       brand_name: '海螺',
       manufacturer: '安徽海螺水泥股份有限公司',
-      source_type: 'hq_manual',
-      application_id: '',
-      status: 'active',
-    },
-    // 同一生产厂家可对应多个品牌（厂家≠品牌唯一键）
-    {
-      brand_lib_id: 'B-004',
-      brand_name: '海螺新材',
-      manufacturer: '安徽海螺水泥股份有限公司',
-      source_type: 'hq_manual',
-      application_id: '',
-      status: 'active',
+      material_name: '混凝土',
+      material_type: 'material',
+      role_tag: 'primary',
+      application_id: 'PP-2026-001',
+      use_part: '主体结构',
+      updated_at: '2026-07-12 16:00:00',
     },
     {
-      brand_lib_id: 'B-002',
+      ledger_id: 'BL-002',
+      project_id: 'p-000',
       brand_name: '华润',
       manufacturer: '华润水泥控股有限公司',
-      source_type: 'hq_manual',
-      application_id: '',
-      status: 'active',
+      material_name: '混凝土',
+      material_type: 'material',
+      role_tag: 'alternate',
+      application_id: 'PP-2026-001',
+      use_part: '主体结构',
+      updated_at: '2026-07-12 16:00:00',
     },
     {
-      brand_lib_id: 'B-003',
+      ledger_id: 'BL-003',
+      project_id: 'p-000',
+      brand_name: '台泥',
+      manufacturer: '台湾水泥股份有限公司',
+      material_name: '混凝土',
+      material_type: 'material',
+      role_tag: 'alternate',
+      application_id: 'PP-2026-001',
+      use_part: '主体结构',
+      updated_at: '2026-07-12 16:00:00',
+    },
+    {
+      ledger_id: 'BL-004',
+      project_id: 'p-011',
+      brand_name: '海螺',
+      manufacturer: '安徽海螺水泥股份有限公司',
+      material_name: '混凝土',
+      material_type: 'material',
+      role_tag: 'primary',
+      application_id: 'PP-2026-005',
+      use_part: '桩基',
+      updated_at: '2026-07-09 17:20:00',
+    },
+    {
+      ledger_id: 'BL-005',
+      project_id: 'p-011',
+      brand_name: '华润',
+      manufacturer: '华润水泥控股有限公司',
+      material_name: '混凝土',
+      material_type: 'material',
+      role_tag: 'alternate',
+      application_id: 'PP-2026-005',
+      use_part: '桩基',
+      updated_at: '2026-07-09 17:20:00',
+    },
+    {
+      ledger_id: 'BL-006',
+      project_id: 'p-011',
+      brand_name: '台泥',
+      manufacturer: '台湾水泥股份有限公司',
+      material_name: '混凝土',
+      material_type: 'material',
+      role_tag: 'alternate',
+      application_id: 'PP-2026-005',
+      use_part: '桩基',
+      updated_at: '2026-07-09 17:20:00',
+    },
+    {
+      ledger_id: 'BL-007',
+      project_id: 'p-000',
+      brand_name: '海螺',
+      manufacturer: '安徽海螺水泥股份有限公司',
+      material_name: '砂浆',
+      material_type: 'material',
+      role_tag: 'primary',
+      application_id: 'PP-2026-001',
+      use_part: '砌体',
+      updated_at: '2026-07-12 16:05:00',
+    },
+    {
+      ledger_id: 'BL-008',
+      project_id: 'p-000',
+      brand_name: '东方雨虹',
+      manufacturer: '北京东方雨虹防水技术股份有限公司',
+      material_name: '防水卷材',
+      material_type: 'material',
+      role_tag: 'primary',
+      application_id: 'PP-2026-007',
+      use_part: '屋面',
+      updated_at: '2026-07-14 10:00:00',
+    },
+    {
+      ledger_id: 'BL-009',
+      project_id: 'p-000',
+      brand_name: '东方雨虹',
+      manufacturer: '北京东方雨虹防水技术股份有限公司',
+      material_name: '防水涂料',
+      material_type: 'material',
+      role_tag: 'alternate',
+      application_id: 'PP-2026-007',
+      use_part: '厨卫',
+      updated_at: '2026-07-14 10:00:00',
+    },
+    {
+      ledger_id: 'BL-EQ-001',
+      project_id: 'p-000',
+      brand_name: '施耐德',
+      manufacturer: '施耐德电气（中国）有限公司',
+      material_name: '低压开关柜',
+      material_type: 'equipment',
+      role_tag: 'primary',
+      application_id: 'PP-2026-008',
+      use_part: '配电房',
+      updated_at: '2026-07-15 11:00:00',
+    },
+    {
+      ledger_id: 'BL-EQ-002',
+      project_id: 'p-000',
       brand_name: '正泰',
-      manufacturer: '正泰电气股份有限公司',
-      source_type: 'hq_manual',
-      application_id: '',
-      status: 'inactive',
-    },
-  ],
-  /**
-   * 品牌库 ↔ 材料 ↔ 规格
-   * 列表粒度：一条数据 = 一个品牌 + 一个材料 + 多个规格
-   * 同一品牌可有多条数据（不同材料各一行）
-   */
-  brandSpecs: [
-    {
-      brand_lib_spec_id: 'BS-001',
-      brand_lib_id: 'B-001',
-      material_id: 'M-001',
-      material_spec_id: 'S-001',
-    },
-    {
-      brand_lib_spec_id: 'BS-002',
-      brand_lib_id: 'B-001',
-      material_id: 'M-001',
-      material_spec_id: 'S-002',
-    },
-    {
-      brand_lib_spec_id: 'BS-003',
-      brand_lib_id: 'B-001',
-      material_id: 'M-002',
-      material_spec_id: 'S-003',
-    },
-    {
-      brand_lib_spec_id: 'BS-004',
-      brand_lib_id: 'B-001',
-      material_id: 'M-002',
-      material_spec_id: 'S-004',
-    },
-    {
-      brand_lib_spec_id: 'BS-005',
-      brand_lib_id: 'B-002',
-      material_id: 'M-001',
-      material_spec_id: 'S-001',
-    },
-    {
-      brand_lib_spec_id: 'BS-006',
-      brand_lib_id: 'B-004',
-      material_id: 'M-001',
-      material_spec_id: 'S-002',
+      manufacturer: '正泰电器股份有限公司',
+      material_name: '配电箱',
+      material_type: 'equipment',
+      role_tag: 'alternate',
+      application_id: 'PP-2026-008',
+      use_part: '配电房',
+      updated_at: '2026-07-15 11:00:00',
     },
   ],
   applications: [
     {
       application_id: 'PP-2026-001',
       project_id: 'p-000',
-      material_id: 'M-001',
       material_name: '混凝土',
       material_type: 'material',
       use_part: '主体结构',
@@ -253,26 +209,26 @@ const store = reactive({
       submit_time: '2026-07-10 09:20:00',
       finish_time: '2026-07-12 16:00:00',
       remark: '',
+      copy_from_application_id: '',
     },
     {
       application_id: 'PP-2026-002',
       project_id: 'p-000',
-      material_id: '',
       material_name: '防水卷材',
       material_type: 'material',
       use_part: '屋面',
-      status: 'in_approval',
+      status: 'pending',
       current_node: 'supervisor',
       applicant_user_id: 'u-contractor',
       applicant_name: '张工',
       submit_time: '2026-07-20 11:00:00',
       finish_time: '',
       remark: '',
+      copy_from_application_id: '',
     },
     {
       application_id: 'PP-2026-003',
       project_id: 'p-000',
-      material_id: 'M-002',
       material_name: '钢筋',
       material_type: 'material',
       use_part: '梁板',
@@ -283,11 +239,11 @@ const store = reactive({
       submit_time: '2026-07-18 14:30:00',
       finish_time: '',
       remark: '',
+      copy_from_application_id: '',
     },
     {
       application_id: 'PP-2026-004',
       project_id: 'p-001',
-      material_id: '',
       material_name: '开关柜',
       material_type: 'equipment',
       use_part: '配电房',
@@ -298,11 +254,11 @@ const store = reactive({
       submit_time: '2026-07-15 10:00:00',
       finish_time: '2026-07-16 09:00:00',
       remark: '',
+      copy_from_application_id: '',
     },
     {
       application_id: 'PP-2026-005',
       project_id: 'p-011',
-      material_id: 'M-001',
       material_name: '混凝土',
       material_type: 'material',
       use_part: '桩基',
@@ -313,166 +269,294 @@ const store = reactive({
       submit_time: '2026-07-08 08:30:00',
       finish_time: '2026-07-09 17:20:00',
       remark: '重点项目示例数据',
+      copy_from_application_id: '',
     },
-  ],
-  appSpecs: [
-    { app_spec_id: 'AS-001', application_id: 'PP-2026-001', spec_model: 'C30', material_spec_id: 'S-001', seq_no: 1 },
-    { app_spec_id: 'AS-002', application_id: 'PP-2026-002', spec_model: 'SBS-3mm', material_spec_id: '', seq_no: 1 },
-    { app_spec_id: 'AS-003', application_id: 'PP-2026-003', spec_model: 'Φ12', material_spec_id: 'S-003', seq_no: 1 },
-    { app_spec_id: 'AS-004', application_id: 'PP-2026-003', spec_model: 'Φ16', material_spec_id: 'S-004', seq_no: 2 },
-    { app_spec_id: 'AS-005', application_id: 'PP-2026-004', spec_model: '10kV', material_spec_id: '', seq_no: 1 },
-    { app_spec_id: 'AS-006', application_id: 'PP-2026-005', spec_model: 'C35', material_spec_id: 'S-001', seq_no: 1 },
+    {
+      application_id: 'PP-2026-006',
+      project_id: 'p-000',
+      material_name: '给水管',
+      material_type: 'material',
+      use_part: '生活区',
+      status: 'withdrawn',
+      current_node: 'none',
+      applicant_user_id: 'u-contractor',
+      applicant_name: '张工',
+      submit_time: '2026-07-05 10:00:00',
+      finish_time: '2026-07-05 14:00:00',
+      remark: '',
+      copy_from_application_id: '',
+    },
+    {
+      application_id: 'PP-2026-007',
+      project_id: 'p-000',
+      material_name: '防水卷材',
+      material_type: 'material',
+      use_part: '屋面',
+      status: 'approved',
+      current_node: 'none',
+      applicant_user_id: 'u-contractor',
+      applicant_name: '张工',
+      submit_time: '2026-07-12 09:00:00',
+      finish_time: '2026-07-14 10:00:00',
+      remark: '',
+      copy_from_application_id: '',
+    },
+    {
+      application_id: 'PP-2026-008',
+      project_id: 'p-000',
+      material_name: '低压开关柜',
+      material_type: 'equipment',
+      use_part: '配电房',
+      status: 'approved',
+      current_node: 'none',
+      applicant_user_id: 'u-contractor',
+      applicant_name: '张工',
+      submit_time: '2026-07-13 09:10:00',
+      finish_time: '2026-07-15 11:00:00',
+      remark: '',
+      copy_from_application_id: '',
+    },
   ],
   candidates: [
     {
       candidate_id: 'C-001',
       application_id: 'PP-2026-001',
-      brand_lib_id: 'B-001',
+      ledger_id: 'BL-001',
       seq_no: 1,
       brand_name: '海螺',
       manufacturer: '安徽海螺水泥股份有限公司',
       remark: '市场占有率高，供货稳定',
-      is_selected: true,
+      is_primary: true,
     },
     {
       candidate_id: 'C-002',
       application_id: 'PP-2026-001',
-      brand_lib_id: 'B-002',
+      ledger_id: '',
       seq_no: 2,
       brand_name: '华润',
       manufacturer: '华润水泥控股有限公司',
       remark: '',
-      is_selected: false,
+      is_primary: false,
     },
     {
       candidate_id: 'C-003',
       application_id: 'PP-2026-001',
-      brand_lib_id: '',
+      ledger_id: '',
       seq_no: 3,
       brand_name: '台泥',
       manufacturer: '台湾水泥股份有限公司',
       remark: '备选对比',
-      is_selected: false,
+      is_primary: false,
     },
     {
       candidate_id: 'C-011',
       application_id: 'PP-2026-002',
-      brand_lib_id: '',
+      ledger_id: '',
       seq_no: 1,
       brand_name: '东方雨虹',
       manufacturer: '北京东方雨虹防水技术股份有限公司',
       remark: '合同推荐品牌，样品已送检',
-      is_selected: false,
+      is_primary: true,
     },
     {
       candidate_id: 'C-012',
       application_id: 'PP-2026-002',
-      brand_lib_id: '',
+      ledger_id: '',
       seq_no: 2,
       brand_name: '科顺',
       manufacturer: '科顺防水科技股份有限公司',
       remark: '价格适中',
-      is_selected: false,
+      is_primary: false,
     },
     {
       candidate_id: 'C-013',
       application_id: 'PP-2026-002',
-      brand_lib_id: '',
+      ledger_id: '',
       seq_no: 3,
       brand_name: '雨中情',
       manufacturer: '雨中情防水技术集团股份公司',
       remark: '',
-      is_selected: false,
+      is_primary: false,
     },
     {
       candidate_id: 'C-021',
       application_id: 'PP-2026-003',
-      brand_lib_id: '',
+      ledger_id: '',
       seq_no: 1,
       brand_name: '沙钢',
       manufacturer: '江苏沙钢集团有限公司',
       remark: '工期保障较好',
-      is_selected: false,
+      is_primary: true,
     },
     {
       candidate_id: 'C-022',
       application_id: 'PP-2026-003',
-      brand_lib_id: '',
+      ledger_id: '',
       seq_no: 2,
       brand_name: '河钢',
       manufacturer: '河钢集团有限公司',
       remark: '',
-      is_selected: false,
+      is_primary: false,
     },
     {
       candidate_id: 'C-023',
       application_id: 'PP-2026-003',
-      brand_lib_id: '',
+      ledger_id: '',
       seq_no: 3,
       brand_name: '宝钢',
       manufacturer: '中国宝武钢铁集团有限公司',
       remark: '质量口碑佳',
-      is_selected: false,
+      is_primary: false,
     },
     {
       candidate_id: 'C-031',
       application_id: 'PP-2026-004',
-      brand_lib_id: 'B-003',
+      ledger_id: '',
       seq_no: 1,
       brand_name: '正泰',
       manufacturer: '正泰电气股份有限公司',
       remark: '',
-      is_selected: false,
+      is_primary: true,
     },
     {
       candidate_id: 'C-032',
       application_id: 'PP-2026-004',
-      brand_lib_id: '',
+      ledger_id: '',
       seq_no: 2,
       brand_name: '施耐德',
       manufacturer: '施耐德电气',
       remark: '',
-      is_selected: false,
+      is_primary: false,
     },
     {
       candidate_id: 'C-033',
       application_id: 'PP-2026-004',
-      brand_lib_id: '',
+      ledger_id: '',
       seq_no: 3,
       brand_name: 'ABB',
       manufacturer: 'ABB集团',
       remark: '',
-      is_selected: false,
+      is_primary: false,
     },
     {
       candidate_id: 'C-041',
       application_id: 'PP-2026-005',
-      brand_lib_id: 'B-001',
+      ledger_id: 'BL-004',
       seq_no: 1,
       brand_name: '海螺',
       manufacturer: '安徽海螺水泥股份有限公司',
       remark: '',
-      is_selected: true,
+      is_primary: true,
     },
     {
       candidate_id: 'C-042',
       application_id: 'PP-2026-005',
-      brand_lib_id: 'B-002',
+      ledger_id: '',
       seq_no: 2,
       brand_name: '华润',
       manufacturer: '华润水泥控股有限公司',
       remark: '',
-      is_selected: false,
+      is_primary: false,
     },
     {
       candidate_id: 'C-043',
       application_id: 'PP-2026-005',
-      brand_lib_id: '',
+      ledger_id: '',
       seq_no: 3,
       brand_name: '台泥',
       manufacturer: '台湾水泥股份有限公司',
       remark: '',
-      is_selected: false,
+      is_primary: false,
+    },
+    {
+      candidate_id: 'C-051',
+      application_id: 'PP-2026-006',
+      ledger_id: '',
+      seq_no: 1,
+      brand_name: '联塑',
+      manufacturer: '中国联塑集团控股有限公司',
+      remark: '',
+      is_primary: true,
+    },
+    {
+      candidate_id: 'C-052',
+      application_id: 'PP-2026-006',
+      ledger_id: '',
+      seq_no: 2,
+      brand_name: '日丰',
+      manufacturer: '日丰企业集团有限公司',
+      remark: '',
+      is_primary: false,
+    },
+    {
+      candidate_id: 'C-053',
+      application_id: 'PP-2026-006',
+      ledger_id: '',
+      seq_no: 3,
+      brand_name: '伟星',
+      manufacturer: '伟星新材股份有限公司',
+      remark: '',
+      is_primary: false,
+    },
+    {
+      candidate_id: 'C-071',
+      application_id: 'PP-2026-007',
+      ledger_id: 'BL-008',
+      seq_no: 1,
+      brand_name: '东方雨虹',
+      manufacturer: '北京东方雨虹防水技术股份有限公司',
+      remark: '',
+      is_primary: true,
+    },
+    {
+      candidate_id: 'C-072',
+      application_id: 'PP-2026-007',
+      ledger_id: '',
+      seq_no: 2,
+      brand_name: '科顺',
+      manufacturer: '科顺防水科技股份有限公司',
+      remark: '',
+      is_primary: false,
+    },
+    {
+      candidate_id: 'C-073',
+      application_id: 'PP-2026-007',
+      ledger_id: '',
+      seq_no: 3,
+      brand_name: '雨中情',
+      manufacturer: '雨中情防水技术集团股份公司',
+      remark: '',
+      is_primary: false,
+    },
+    {
+      candidate_id: 'C-081',
+      application_id: 'PP-2026-008',
+      ledger_id: 'BL-EQ-001',
+      seq_no: 1,
+      brand_name: '施耐德',
+      manufacturer: '施耐德电气（中国）有限公司',
+      remark: '',
+      is_primary: true,
+    },
+    {
+      candidate_id: 'C-082',
+      application_id: 'PP-2026-008',
+      ledger_id: 'BL-EQ-002',
+      seq_no: 2,
+      brand_name: '正泰',
+      manufacturer: '正泰电器股份有限公司',
+      remark: '',
+      is_primary: false,
+    },
+    {
+      candidate_id: 'C-083',
+      application_id: 'PP-2026-008',
+      ledger_id: '',
+      seq_no: 3,
+      brand_name: '西门子',
+      manufacturer: '西门子（中国）有限公司',
+      remark: '',
+      is_primary: false,
     },
   ],
   approvals: [
@@ -491,7 +575,7 @@ const store = reactive({
       application_id: 'PP-2026-001',
       node_code: 'pm',
       action: 'agree',
-      opinion: '选定海螺',
+      opinion: '同意报审，全部品牌写入台账',
       operator_user_id: 'u-pm',
       operator_name: '赵经理',
       operate_time: '2026-07-12 16:00:00',
@@ -515,6 +599,76 @@ const store = reactive({
       operator_user_id: 'u-supervisor',
       operator_name: '王监理',
       operate_time: '2026-07-16 09:00:00',
+    },
+    {
+      record_id: 'AR-005',
+      application_id: 'PP-2026-006',
+      node_code: 'applicant',
+      action: 'withdraw',
+      opinion: '申请人撤回',
+      operator_user_id: 'u-contractor',
+      operator_name: '张工',
+      operate_time: '2026-07-05 14:00:00',
+    },
+    {
+      record_id: 'AR-006',
+      application_id: 'PP-2026-005',
+      node_code: 'supervisor',
+      action: 'agree',
+      opinion: '资料齐全，同意',
+      operator_user_id: 'u-supervisor',
+      operator_name: '王监理',
+      operate_time: '2026-07-09 09:00:00',
+    },
+    {
+      record_id: 'AR-007',
+      application_id: 'PP-2026-005',
+      node_code: 'pm',
+      action: 'agree',
+      opinion: '同意报审，全部品牌写入台账',
+      operator_user_id: 'u-pm',
+      operator_name: '赵经理',
+      operate_time: '2026-07-09 17:20:00',
+    },
+    {
+      record_id: 'AR-008',
+      application_id: 'PP-2026-007',
+      node_code: 'supervisor',
+      action: 'agree',
+      opinion: '同意报审',
+      operator_user_id: 'u-supervisor',
+      operator_name: '王监理',
+      operate_time: '2026-07-13 10:00:00',
+    },
+    {
+      record_id: 'AR-009',
+      application_id: 'PP-2026-007',
+      node_code: 'pm',
+      action: 'agree',
+      opinion: '同意，全部品牌写入台账',
+      operator_user_id: 'u-pm',
+      operator_name: '赵经理',
+      operate_time: '2026-07-14 10:00:00',
+    },
+    {
+      record_id: 'AR-010',
+      application_id: 'PP-2026-008',
+      node_code: 'supervisor',
+      action: 'agree',
+      opinion: '设备品牌符合合同约定',
+      operator_user_id: 'u-supervisor',
+      operator_name: '王监理',
+      operate_time: '2026-07-14 15:00:00',
+    },
+    {
+      record_id: 'AR-011',
+      application_id: 'PP-2026-008',
+      node_code: 'pm',
+      action: 'agree',
+      opinion: '同意报审，全部品牌写入台账',
+      operator_user_id: 'u-pm',
+      operator_name: '赵经理',
+      operate_time: '2026-07-15 11:00:00',
     },
   ],
   attachments: [
@@ -567,72 +721,8 @@ const store = reactive({
       file_url: '#mock/baosteel-sample.jpg',
     },
   ],
-  seq: { app: 5, cand: 43, spec: 13, brand: 4, material: 12, bs: 6, ar: 4, att: 6 },
+  seq: { app: 16, cand: 107, ledger: 9, ar: 18, att: 8 },
 })
-
-/** 种子主数据默认归属 p-000；并为 p-001 克隆一份演示数据 */
-;(function seedProjectScopedMasterData() {
-  store.materials.forEach((m) => {
-    if (!m.project_id) m.project_id = 'p-000'
-  })
-  store.brands.forEach((b) => {
-    if (!b.project_id) b.project_id = 'p-000'
-    if (b.source_type === 'hq_manual') b.source_type = 'project_manual'
-  })
-
-  const cloneProjectId = 'p-001'
-  const materialIdMap = new Map()
-  const specIdMap = new Map()
-  const brandIdMap = new Map()
-
-  store.materials
-    .filter((m) => m.project_id === 'p-000')
-    .slice(0, 4)
-    .forEach((m) => {
-      store.seq.material += 1
-      const nid = `M-${String(store.seq.material).padStart(3, '0')}`
-      materialIdMap.set(m.material_id, nid)
-      store.materials.push({ ...m, material_id: nid, project_id: cloneProjectId })
-    })
-
-  store.specs.forEach((s) => {
-    const newMid = materialIdMap.get(s.material_id)
-    if (!newMid) return
-    store.seq.spec += 1
-    const nid = `S-${String(store.seq.spec).padStart(3, '0')}`
-    specIdMap.set(s.spec_id, nid)
-    store.specs.push({ ...s, spec_id: nid, material_id: newMid })
-  })
-
-  store.brands
-    .filter((b) => b.project_id === 'p-000')
-    .slice(0, 2)
-    .forEach((b) => {
-      store.seq.brand += 1
-      const nid = `B-${String(store.seq.brand).padStart(3, '0')}`
-      brandIdMap.set(b.brand_lib_id, nid)
-      store.brands.push({
-        ...b,
-        brand_lib_id: nid,
-        project_id: cloneProjectId,
-        source_type: 'project_manual',
-      })
-    })
-
-  store.brandSpecs.forEach((link) => {
-    const newBid = brandIdMap.get(link.brand_lib_id)
-    const newMid = materialIdMap.get(link.material_id)
-    const newSid = specIdMap.get(link.material_spec_id)
-    if (!newBid || !newMid || !newSid) return
-    store.seq.bs += 1
-    store.brandSpecs.push({
-      brand_lib_spec_id: `BS-${String(store.seq.bs).padStart(3, '0')}`,
-      brand_lib_id: newBid,
-      material_id: newMid,
-      material_spec_id: newSid,
-    })
-  })
-})()
 
 function timestamp() {
   const d = new Date()
@@ -640,378 +730,123 @@ function timestamp() {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
 }
 
-export function listMaterials({ keyword = '', status = '', projectId = '' } = {}) {
-  let rows = [...store.materials]
-  if (projectId) rows = rows.filter((m) => m.project_id === projectId)
-  if (status) rows = rows.filter((m) => m.status === status)
-  const kw = keyword.trim()
-  if (kw) rows = rows.filter((m) => `${m.material_name}${m.remark || ''}`.includes(kw))
-  return rows
+function ledgerUniqueKey(projectId, brandName, manufacturer, materialName) {
+  return [
+    projectId,
+    (brandName || '').trim(),
+    (manufacturer || '').trim(),
+    (materialName || '').trim(),
+  ].join('\0')
 }
 
-export function listSpecsByMaterial(materialId) {
-  return store.specs.filter((s) => s.material_id === materialId)
-}
-
-export function saveMaterial(payload) {
-  const name = (payload.material_name || '').trim()
-  if (!name) return { ok: false, msg: '材料名称必填' }
-  if (!payload.material_type) return { ok: false, msg: '材料类型必填' }
-  if (payload.material_id) {
-    const row = store.materials.find((m) => m.material_id === payload.material_id)
-    if (!row) return { ok: false, msg: '材料不存在' }
-    Object.assign(row, {
-      material_name: name,
-      material_type: payload.material_type,
-      status: payload.status || row.status,
-      remark: payload.remark || '',
-      project_id: payload.project_id || row.project_id,
+function upsertLedgerFromCandidate(app, candidate) {
+  const key = ledgerUniqueKey(
+    app.project_id,
+    candidate.brand_name,
+    candidate.manufacturer,
+    app.material_name,
+  )
+  const role_tag = candidate.is_primary ? 'primary' : 'alternate'
+  const now = timestamp()
+  const existing = store.ledger.find(
+    (row) =>
+      ledgerUniqueKey(row.project_id, row.brand_name, row.manufacturer, row.material_name) === key,
+  )
+  if (existing) {
+    Object.assign(existing, {
+      material_type: app.material_type,
+      role_tag,
+      application_id: app.application_id,
+      use_part: app.use_part || '',
+      updated_at: now,
     })
-    return { ok: true, data: row }
+    return existing
   }
-  const project_id = payload.project_id
-  if (!project_id) return { ok: false, msg: '请切换到具体项目' }
-  store.seq.material += 1
+  store.seq.ledger += 1
   const row = {
-    material_id: `M-${String(store.seq.material).padStart(3, '0')}`,
-    material_name: name,
-    material_type: payload.material_type,
-    status: payload.status || 'active',
-    remark: payload.remark || '',
-    project_id,
+    ledger_id: `BL-${String(store.seq.ledger).padStart(3, '0')}`,
+    project_id: app.project_id,
+    brand_name: candidate.brand_name.trim(),
+    manufacturer: candidate.manufacturer.trim(),
+    material_name: app.material_name.trim(),
+    material_type: app.material_type,
+    role_tag,
+    application_id: app.application_id,
+    use_part: app.use_part || '',
+    updated_at: now,
   }
-  store.materials.push(row)
-  return { ok: true, data: row }
+  store.ledger.push(row)
+  return row
 }
 
-export function saveSpec(materialId, specModel, specId = '') {
-  const model = (specModel || '').trim()
-  if (!materialId || !model) return { ok: false, msg: '材料与规格型号必填' }
-  const dup = store.specs.find(
-    (s) =>
-      s.material_id === materialId &&
-      s.spec_model.trim() === model &&
-      s.spec_id !== specId,
-  )
-  if (dup) return { ok: false, msg: '该材料下已存在相同规格型号' }
-
-  if (specId) {
-    const row = store.specs.find((s) => s.spec_id === specId)
-    if (!row) return { ok: false, msg: '规格不存在' }
-    if (row.material_id !== materialId) return { ok: false, msg: '规格不属于该材料' }
-    row.spec_model = model
-    return { ok: true, data: row }
-  }
-
-  store.seq.spec += 1
-  const row = {
-    spec_id: `S-${String(store.seq.spec).padStart(3, '0')}`,
-    material_id: materialId,
-    spec_model: model,
-  }
-  store.specs.push(row)
-  return { ok: true, data: row }
+/** 兼容桩：材料规格库菜单已隐藏 */
+export function listMaterials() {
+  return []
 }
 
-/** 删除规格；同步清理品牌库规格关联；报审单上引用的 material_spec_id 置空（保留手填型号） */
-export function deleteSpec(specId) {
-  if (!specId) return { ok: false, msg: '规格ID必填' }
-  const idx = store.specs.findIndex((s) => s.spec_id === specId)
-  if (idx < 0) return { ok: false, msg: '规格不存在' }
-  store.specs.splice(idx, 1)
-  for (let i = store.brandSpecs.length - 1; i >= 0; i -= 1) {
-    if (store.brandSpecs[i].material_spec_id === specId) {
-      store.brandSpecs.splice(i, 1)
-    }
-  }
-  store.appSpecs.forEach((s) => {
-    if (s.material_spec_id === specId) s.material_spec_id = ''
-  })
-  return { ok: true }
+export function listSpecsByMaterial() {
+  return []
 }
 
-export function toggleMaterialStatus(materialId) {
-  const row = store.materials.find((m) => m.material_id === materialId)
-  if (!row) return { ok: false, msg: '材料不存在' }
-  row.status = row.status === 'active' ? 'inactive' : 'active'
-  return { ok: true, data: row }
+export function saveMaterial() {
+  return { ok: false, msg: '材料规格库已下线' }
 }
 
-export function listBrands({ keyword = '', status = 'active', projectId = '' } = {}) {
-  let rows = [...store.brands]
-  if (projectId) rows = rows.filter((b) => b.project_id === projectId)
-  if (status) rows = rows.filter((b) => b.status === status)
-  const kw = keyword.trim()
-  if (kw) rows = rows.filter((b) => `${b.brand_name}${b.manufacturer}`.includes(kw))
-  return rows
+export function saveSpec() {
+  return { ok: false, msg: '材料规格库已下线' }
 }
 
-/** 品牌下按材料聚合的规格关联 */
-export function getBrandMaterialSpecGroups(brandLibId) {
-  const links = store.brandSpecs.filter((x) => x.brand_lib_id === brandLibId)
-  const byMaterial = new Map()
-  for (const link of links) {
-    if (!byMaterial.has(link.material_id)) {
-      const material = store.materials.find((m) => m.material_id === link.material_id)
-      byMaterial.set(link.material_id, {
-        material_id: link.material_id,
-        material_name: material?.material_name || link.material_id,
-        material_type: material?.material_type || '',
-        specs: [],
-      })
-    }
-    const group = byMaterial.get(link.material_id)
-    const spec = store.specs.find((s) => s.spec_id === link.material_spec_id)
-    if (spec && !group.specs.some((s) => s.spec_id === spec.spec_id)) {
-      group.specs.push({ spec_id: spec.spec_id, spec_model: spec.spec_model })
-    }
-  }
-  return [...byMaterial.values()]
+export function deleteSpec() {
+  return { ok: false, msg: '材料规格库已下线' }
 }
 
-/**
- * 品牌库列表行：一条数据 = 品牌 + 一个材料 + 多个规格
- * 同一品牌可对应多行（不同材料）
- */
-export function listBrandMaterialRows({ keyword = '', status = '', projectId = '' } = {}) {
-  const brands = listBrands({ keyword: '', status, projectId })
-  const kw = keyword.trim()
-  const rows = []
-  for (const b of brands) {
-    const groups = getBrandMaterialSpecGroups(b.brand_lib_id)
-    if (!groups.length) {
-      rows.push({
-        row_key: `${b.brand_lib_id}__`,
-        brand_lib_id: b.brand_lib_id,
-        brand_name: b.brand_name,
-        manufacturer: b.manufacturer,
-        source_type: b.source_type,
-        status: b.status,
-        project_id: b.project_id,
-        material_id: '',
-        material_name: '',
-        material_type: '',
-        specs: [],
-      })
-      continue
-    }
-    for (const g of groups) {
-      rows.push({
-        row_key: `${b.brand_lib_id}__${g.material_id}`,
-        brand_lib_id: b.brand_lib_id,
-        brand_name: b.brand_name,
-        manufacturer: b.manufacturer,
-        source_type: b.source_type,
-        status: b.status,
-        project_id: b.project_id,
-        material_id: g.material_id,
-        material_name: g.material_name,
-        material_type: g.material_type,
-        specs: g.specs,
-      })
-    }
-  }
-  if (!kw) return rows
-  return rows.filter((r) =>
-    `${r.brand_name}${r.manufacturer}${r.material_name}${r.specs.map((s) => s.spec_model).join('')}`.includes(
-      kw,
-    ),
-  )
+export function toggleMaterialStatus() {
+  return { ok: false, msg: '材料规格库已下线' }
 }
 
-export function findBrandByNameManufacturer(
-  brandName,
-  manufacturer,
-  { includeInactive = false, projectId = '' } = {},
-) {
-  const name = (brandName || '').trim()
-  const mfr = (manufacturer || '').trim()
-  return (
-    store.brands.find((b) => {
-      if (projectId && b.project_id !== projectId) return false
-      if (b.brand_name.trim() !== name || b.manufacturer.trim() !== mfr) return false
-      if (!includeInactive && b.status !== 'active') return false
-      return true
-    }) || null
-  )
+/** 兼容桩：品牌库已取消 */
+export function listBrands() {
+  return []
 }
 
-/** 删除某品牌下某一材料的全部规格关联（删掉该列表行） */
-export function removeBrandMaterial(brandLibId, materialId) {
-  if (!brandLibId || !materialId) return { ok: false, msg: '参数不完整' }
-  let removed = 0
-  for (let i = store.brandSpecs.length - 1; i >= 0; i -= 1) {
-    const x = store.brandSpecs[i]
-    if (x.brand_lib_id === brandLibId && x.material_id === materialId) {
-      store.brandSpecs.splice(i, 1)
-      removed += 1
-    }
-  }
-  if (!removed) return { ok: false, msg: '未找到该品牌材料关联' }
-  return { ok: true }
+export function getBrandMaterialSpecGroups() {
+  return []
 }
 
-/** @deprecated 兼容旧调用：返回品牌关联过的材料列表 */
-export function getBrandMaterials(brandLibId) {
-  return getBrandMaterialSpecGroups(brandLibId).map((g) => ({
-    material_id: g.material_id,
-    material_name: g.material_name,
-    material_type: g.material_type,
-  }))
+export function listBrandMaterialRows() {
+  return []
 }
 
-export function saveBrand(payload) {
-  const brand_name = (payload.brand_name || '').trim()
-  const manufacturer = (payload.manufacturer || '').trim()
-  if (!brand_name || !manufacturer) return { ok: false, msg: '品牌名称与生产厂家必填' }
-
-  // 编辑某一「品牌+材料」数据行：可改品牌名/厂家，并重设该材料下规格
-  if (payload.brand_lib_id && payload.editMaterialId) {
-    const row = store.brands.find((b) => b.brand_lib_id === payload.brand_lib_id)
-    if (!row) return { ok: false, msg: '品牌不存在' }
-    Object.assign(row, { brand_name, manufacturer, status: payload.status || row.status })
-    const materialId = payload.material_id || payload.editMaterialId
-    const specIds = Array.isArray(payload.spec_ids) ? payload.spec_ids.filter(Boolean) : []
-    if (!materialId) return { ok: false, msg: '请选择材料' }
-    if (!specIds.length) return { ok: false, msg: '请至少选择 1 个材料规格' }
-    // 若改了材料：目标材料不能已有另一条数据
-    if (materialId !== payload.editMaterialId) {
-      const conflict = store.brandSpecs.some(
-        (x) => x.brand_lib_id === payload.brand_lib_id && x.material_id === materialId,
-      )
-      if (conflict) return { ok: false, msg: '该品牌下已有目标材料数据，请直接编辑那一行' }
-      removeBrandMaterial(payload.brand_lib_id, payload.editMaterialId)
-      const link = linkBrandMaterialSpecs(payload.brand_lib_id, materialId, specIds)
-      if (!link.ok) return link
-    } else {
-      const r = replaceBrandMaterialSpecs(payload.brand_lib_id, materialId, specIds)
-      if (!r.ok) return r
-    }
-    return { ok: true, data: row }
-  }
-
-  if (payload.brand_lib_id && !payload.editMaterialId) {
-    const row = store.brands.find((b) => b.brand_lib_id === payload.brand_lib_id)
-    if (!row) return { ok: false, msg: '品牌不存在' }
-    Object.assign(row, { brand_name, manufacturer, status: payload.status || row.status })
-    if (payload.material_id && Array.isArray(payload.spec_ids)) {
-      const r = replaceBrandMaterialSpecs(payload.brand_lib_id, payload.material_id, payload.spec_ids)
-      if (!r.ok) return r
-    }
-    return { ok: true, data: row }
-  }
-
-  // 项目手工新增一条数据：品牌 + 一个材料 + 多规格
-  // 同项目内同名同厂家品牌已存在则复用；否则新建品牌
-  // 项目报审入库：skipSpecLink 可先建品牌再补关联
-  const skipSpecLink = payload.skipSpecLink === true
-  const materialId = payload.material_id || ''
-  const specIds = Array.isArray(payload.spec_ids) ? payload.spec_ids.filter(Boolean) : []
-  const project_id = payload.project_id || ''
-  if (!skipSpecLink) {
-    if (!materialId) return { ok: false, msg: '请选择材料' }
-    if (!specIds.length) return { ok: false, msg: '请至少选择 1 个材料规格' }
-    const material = store.materials.find(
-      (m) =>
-        m.material_id === materialId &&
-        m.status === 'active' &&
-        (!project_id || m.project_id === project_id),
-    )
-    if (!material) return { ok: false, msg: '材料不存在或已停用' }
-    for (const sid of specIds) {
-      const sp = store.specs.find((s) => s.spec_id === sid)
-      if (!sp || sp.material_id !== materialId) {
-        return { ok: false, msg: '所选规格必须属于该材料' }
-      }
-    }
-  }
-
-  let row = findBrandByNameManufacturer(brand_name, manufacturer, { projectId: project_id })
-  if (!row) {
-    if (!project_id && !payload.brand_lib_id) return { ok: false, msg: '请切换到具体项目' }
-    store.seq.brand += 1
-    row = {
-      brand_lib_id: `B-${String(store.seq.brand).padStart(3, '0')}`,
-      brand_name,
-      manufacturer,
-      source_type: payload.source_type || 'project_manual',
-      application_id: payload.application_id || '',
-      status: 'active',
-      project_id: project_id || payload.project_id || '',
-    }
-    store.brands.push(row)
-  }
-
-  if (!skipSpecLink) {
-    // 同一品牌下同一材料只允许一条数据；已存在则提示去编辑，避免「新增」误覆盖
-    const materialExists = store.brandSpecs.some(
-      (x) => x.brand_lib_id === row.brand_lib_id && x.material_id === materialId,
-    )
-    if (materialExists) {
-      return { ok: false, msg: '该品牌下已有该材料数据，请编辑原行或选择其他材料' }
-    }
-    const r = replaceBrandMaterialSpecs(row.brand_lib_id, materialId, specIds)
-    if (!r.ok) return r
-  }
-  return { ok: true, data: row }
+export function findBrandByNameManufacturer() {
+  return null
 }
 
-export function toggleBrandStatus(brandLibId) {
-  const row = store.brands.find((b) => b.brand_lib_id === brandLibId)
-  if (!row) return { ok: false, msg: '品牌不存在' }
-  row.status = row.status === 'active' ? 'inactive' : 'active'
-  return { ok: true, data: row }
+export function removeBrandMaterial() {
+  return { ok: false, msg: '品牌库已取消' }
 }
 
-/** 品牌关联材料下的若干规格（多选追加，已存在则跳过） */
-export function linkBrandMaterialSpecs(brandLibId, materialId, specIds = []) {
-  if (!brandLibId || !materialId) return { ok: false, msg: '参数不完整' }
-  const ids = Array.isArray(specIds) ? [...new Set(specIds.filter(Boolean))] : []
-  if (!ids.length) return { ok: false, msg: '请至少选择 1 个材料规格' }
-  const material = store.materials.find((m) => m.material_id === materialId)
-  if (!material) return { ok: false, msg: '材料不存在' }
-  for (const sid of ids) {
-    const sp = store.specs.find((s) => s.spec_id === sid)
-    if (!sp || sp.material_id !== materialId) {
-      return { ok: false, msg: '所选规格必须属于该材料' }
-    }
-    const exists = store.brandSpecs.some(
-      (x) =>
-        x.brand_lib_id === brandLibId &&
-        x.material_id === materialId &&
-        x.material_spec_id === sid,
-    )
-    if (exists) continue
-    store.seq.bs += 1
-    store.brandSpecs.push({
-      brand_lib_spec_id: `BS-${String(store.seq.bs).padStart(3, '0')}`,
-      brand_lib_id: brandLibId,
-      material_id: materialId,
-      material_spec_id: sid,
-    })
-  }
-  return { ok: true }
+export function getBrandMaterials() {
+  return []
 }
 
-/** 兼容旧调用：仅关联材料时，挂该材料下全部规格 */
-export function linkBrandMaterial(brandLibId, materialId) {
-  const specIds = listSpecsByMaterial(materialId).map((s) => s.spec_id)
-  if (!specIds.length) return { ok: false, msg: '该材料暂无规格，请先在材料规格库维护' }
-  return linkBrandMaterialSpecs(brandLibId, materialId, specIds)
+export function saveBrand() {
+  return { ok: false, msg: '品牌库已取消' }
 }
 
-/** 用指定规格集合替换某品牌在某材料下的关联 */
-export function replaceBrandMaterialSpecs(brandLibId, materialId, specIds = []) {
-  if (!brandLibId || !materialId) return { ok: false, msg: '参数不完整' }
-  const ids = Array.isArray(specIds) ? [...new Set(specIds.filter(Boolean))] : []
-  if (!ids.length) return { ok: false, msg: '请至少选择 1 个材料规格' }
-  for (let i = store.brandSpecs.length - 1; i >= 0; i -= 1) {
-    const x = store.brandSpecs[i]
-    if (x.brand_lib_id === brandLibId && x.material_id === materialId) {
-      store.brandSpecs.splice(i, 1)
-    }
-  }
-  return linkBrandMaterialSpecs(brandLibId, materialId, ids)
+export function toggleBrandStatus() {
+  return { ok: false, msg: '品牌库已取消' }
+}
+
+export function linkBrandMaterialSpecs() {
+  return { ok: false, msg: '品牌库已取消' }
+}
+
+export function linkBrandMaterial() {
+  return { ok: false, msg: '品牌库已取消' }
+}
+
+export function replaceBrandMaterialSpecs() {
+  return { ok: false, msg: '品牌库已取消' }
 }
 
 export function listApplications(projectId, { keyword = '', status = '' } = {}) {
@@ -1029,41 +864,72 @@ export function listApplications(projectId, { keyword = '', status = '' } = {}) 
   return rows.sort((a, b) => (a.submit_time < b.submit_time ? 1 : -1))
 }
 
+/** 品牌台账：按台账行展示（非按报审单） */
 export function listLedger(projectId, { keyword = '' } = {}) {
-  return listApplications(projectId, { keyword, status: 'approved' }).map((a) => {
-    const selected = store.candidates.find((c) => c.application_id === a.application_id && c.is_selected)
-    const specs = store.appSpecs
-      .filter((s) => s.application_id === a.application_id)
-      .map((s) => s.spec_model)
-      .join('、')
-    return {
-      ...a,
-      selected_brand: selected?.brand_name || '—',
-      selected_manufacturer: selected?.manufacturer || '—',
-      spec_text: specs || '—',
-    }
-  })
+  let rows = [...store.ledger]
+  if (projectId) rows = rows.filter((r) => r.project_id === projectId)
+  const kw = keyword.trim()
+  if (kw) {
+    rows = rows.filter((r) =>
+      `${r.brand_name}${r.manufacturer}${r.material_name}${r.application_id}${r.use_part}`.includes(kw),
+    )
+  }
+  return rows.sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1))
 }
 
-/** 指挥部 · 品牌报审按项目统计 */
-export function buildHqBrandApprovalStatsByProject() {
-  const idSet = new Set(store.applications.map((a) => a.project_id).filter(Boolean))
-  ;['p-000', 'p-001', 'p-011'].forEach((id) => idSet.add(id))
-  return [...idSet]
-    .map((project_id) => {
-      const apps = listApplications(project_id)
-      const count = (status) => apps.filter((a) => a.status === status).length
-      return {
-        project_id,
-        project_name: getProjectLabel(project_id) || project_id,
-        total: apps.length,
-        in_approval: count('in_approval'),
-        approved: count('approved'),
-        rejected: count('rejected'),
-        withdrawn: count('withdrawn'),
-      }
+/** 台账联想：按台账行返回（同品牌不同材料为多条，不合并） */
+export function searchLedgerBrands(keyword = '', projectId = '', { materialType = '' } = {}) {
+  if (!projectId) return []
+  const kw = keyword.trim()
+  let rows = store.ledger.filter((r) => r.project_id === projectId)
+  if (materialType) {
+    rows = rows.filter((r) => (r.material_type || 'material') === materialType)
+  }
+  if (kw) {
+    rows = rows.filter((r) => `${r.brand_name}${r.manufacturer}${r.material_name}`.includes(kw))
+  }
+  const map = new Map()
+  for (const row of rows) {
+    const key = `${row.brand_name.trim()}\0${row.manufacturer.trim()}\0${row.material_name.trim()}`
+    if (map.has(key)) continue
+    map.set(key, {
+      ledger_id: row.ledger_id,
+      brand_name: row.brand_name,
+      manufacturer: row.manufacturer,
+      material_name: row.material_name,
+      material_type: row.material_type,
+      label: `${row.brand_name} · ${row.manufacturer} · ${row.material_name}`,
     })
-    .sort((a, b) => b.total - a.total || a.project_name.localeCompare(b.project_name, 'zh-CN'))
+  }
+  return [...map.values()].slice(0, 40)
+}
+
+/** @deprecated 兼容旧调用，改走台账联想 */
+export function searchActiveBrands(keyword = '', projectId = '') {
+  return searchLedgerBrands(keyword, projectId)
+}
+
+/** @deprecated 兼容旧调用 */
+export function searchActiveMaterials() {
+  return []
+}
+
+export function buildHqBrandApprovalStatsByProject() {
+  return COC_PROJECT_OPTIONS.map((opt) => {
+    const apps = listApplications(opt.id)
+    const count = (status) => apps.filter((a) => a.status === status).length
+    return {
+      project_id: opt.id,
+      project_name: opt.label,
+      total: apps.length,
+      pending: count('pending'),
+      in_approval: count('in_approval'),
+      approved: count('approved'),
+      rejected: count('rejected'),
+      withdrawn: count('withdrawn'),
+      ledger_count: listLedger(opt.id).length,
+    }
+  }).sort((a, b) => b.total - a.total || a.project_name.localeCompare(b.project_name, 'zh-CN'))
 }
 
 export function buildHqBrandApprovalSummary() {
@@ -1072,29 +938,44 @@ export function buildHqBrandApprovalSummary() {
     (acc, row) => {
       acc.projectCount += 1
       acc.total += row.total
+      acc.pending += row.pending
       acc.in_approval += row.in_approval
       acc.approved += row.approved
       acc.rejected += row.rejected
       acc.withdrawn += row.withdrawn
+      acc.ledger_count += row.ledger_count
       return acc
     },
-    { projectCount: 0, total: 0, in_approval: 0, approved: 0, rejected: 0, withdrawn: 0 },
+    {
+      projectCount: 0,
+      total: 0,
+      pending: 0,
+      in_approval: 0,
+      approved: 0,
+      rejected: 0,
+      withdrawn: 0,
+      ledger_count: 0,
+    },
   )
 }
 
-/** 将附件行展开为与新建页一致的勾选槽位（只读展示用） */
 export function buildAttachSlotsFromRecords(records = []) {
-  const byType = new Map((records || []).map((r) => [r.attach_type, r]))
+  const byType = new Map()
+  for (const r of records || []) {
+    if (!r?.attach_type) continue
+    if (!byType.has(r.attach_type)) byType.set(r.attach_type, [])
+    byType.get(r.attach_type).push({
+      file_name: r.file_name || '',
+      file_url: r.file_url || '',
+      attachment_id: r.attachment_id || '',
+    })
+  }
   return ATTACH_TYPE_KEYS.map((attach_type) => {
-    const hit = byType.get(attach_type)
-    if (!hit) {
-      return { attach_type, is_checked: false, file_name: '', file_url: '' }
-    }
+    const files = (byType.get(attach_type) || []).filter((f) => (f.file_name || '').trim())
     return {
       attach_type,
-      is_checked: !!hit.is_checked,
-      file_name: hit.file_name || '',
-      file_url: hit.file_url || '',
+      is_checked: files.length > 0,
+      files,
     }
   })
 }
@@ -1119,7 +1000,7 @@ export function getApplicationDetail(applicationId) {
     })
   return {
     app,
-    specs: store.appSpecs.filter((s) => s.application_id === applicationId).sort((a, b) => a.seq_no - b.seq_no),
+    specs: [],
     candidates,
     approvals: store.approvals
       .filter((r) => r.application_id === applicationId)
@@ -1128,23 +1009,15 @@ export function getApplicationDetail(applicationId) {
   }
 }
 
-export function searchActiveBrands(keyword = '', projectId = '') {
-  return listBrands({ keyword, status: 'active', projectId })
-}
-
-export function searchActiveMaterials(keyword = '', projectId = '') {
-  return listMaterials({ keyword, status: 'active', projectId })
-}
-
-/** 组装个人中心品牌待办所需字段 */
 function buildBrandTodoPayload(app) {
   const detail = getApplicationDetail(app.application_id)
   const candidates = detail?.candidates || []
+  const primary = candidates.find((c) => c.is_primary)
+  const alternates = candidates.filter((c) => !c.is_primary)
   return {
     applicationId: app.application_id,
     materialName: app.material_name,
     materialType: MATERIAL_TYPE[app.material_type] || app.material_type,
-    specsText: (detail?.specs || []).map((s) => s.spec_model).join('、'),
     brandsText: candidates.map((c) => c.brand_name).join(' / '),
     projectId: app.project_id,
     projectLabel: getProjectLabel(app.project_id) || app.project_id,
@@ -1156,143 +1029,194 @@ function buildBrandTodoPayload(app) {
       brand_name: c.brand_name,
       manufacturer: c.manufacturer,
       remark: c.remark || '',
-      brand_lib_id: c.brand_lib_id || '',
+      is_primary: !!c.is_primary,
+      ledger_id: c.ledger_id || '',
     })),
+    primaryBrand: primary?.brand_name || '',
+    alternateBrands: alternates.map((c) => c.brand_name).join('、'),
     supervisorTime: timestamp(),
     supervisorName: '监理用户',
   }
 }
 
-function dupMaterialHint(projectId, materialName, excludeId = '') {
-  const name = materialName.trim()
-  return store.applications.some(
-    (a) =>
-      a.project_id === projectId &&
-      a.status === 'approved' &&
-      a.application_id !== excludeId &&
-      a.material_name.trim() === name,
+function validateCandidates(candidates) {
+  const filled = candidates.filter(
+    (c) => (c.brand_name || '').trim() && (c.manufacturer || '').trim(),
   )
+  const primaryCount = filled.filter((c) => c.is_primary).length
+  const alternateCount = filled.filter((c) => !c.is_primary).length
+  if (primaryCount !== 1) return { ok: false, msg: '须恰好标记 1 个主选品牌' }
+  if (alternateCount < 2) return { ok: false, msg: '备选品牌至少 2 条' }
+  return { ok: true, data: filled }
 }
 
-export function submitApplication(payload) {
+export function getRejectedApplicationsForCopy(projectId) {
+  if (!projectId) return []
+  return store.applications
+    .filter((a) => a.project_id === projectId && a.status === 'rejected')
+    .sort((a, b) => (a.submit_time < b.submit_time ? 1 : -1))
+}
+
+export function buildCopyPayloadFromRejected(applicationId) {
+  const detail = getApplicationDetail(applicationId)
+  if (!detail) return null
+  if (detail.app.status !== 'rejected') return null
+  return {
+    material_name: detail.app.material_name,
+    material_type: detail.app.material_type,
+    use_part: detail.app.use_part || '',
+    copy_from_application_id: applicationId,
+    candidates: detail.candidates.map((c) => ({
+      ledger_id: '',
+      brand_name: c.brand_name,
+      manufacturer: c.manufacturer,
+      remark: c.remark || '',
+      is_primary: !!c.is_primary,
+      attachSlots: buildAttachSlotsFromRecords(c.attachments),
+    })),
+  }
+}
+
+/** 已撤回原单重新编辑预填（保留 ledger_id） */
+export function buildReEditPayloadFromWithdrawn(applicationId) {
+  const detail = getApplicationDetail(applicationId)
+  if (!detail) return null
+  if (detail.app.status !== 'withdrawn') return null
+  return {
+    application_id: applicationId,
+    material_name: detail.app.material_name,
+    material_type: detail.app.material_type,
+    use_part: detail.app.use_part || '',
+    remark: detail.app.remark || '',
+    candidates: detail.candidates.map((c) => ({
+      ledger_id: c.ledger_id || '',
+      brand_name: c.brand_name,
+      manufacturer: c.manufacturer,
+      remark: c.remark || '',
+      is_primary: !!c.is_primary,
+      attachSlots: buildAttachSlotsFromRecords(c.attachments),
+    })),
+  }
+}
+
+function replaceBrandCandidates(application_id, project_id, validCandidates) {
+  const oldCandIds = store.candidates
+    .filter((c) => c.application_id === application_id)
+    .map((c) => c.candidate_id)
+  store.attachments = store.attachments.filter((a) => !oldCandIds.includes(a.candidate_id))
+  store.candidates = store.candidates.filter((c) => c.application_id !== application_id)
+
+  validCandidates.forEach((c, i) => {
+    store.seq.cand += 1
+    const candidate_id = `C-${String(store.seq.cand).padStart(3, '0')}`
+    store.candidates.push({
+      candidate_id,
+      application_id,
+      ledger_id: c.ledger_id || '',
+      seq_no: i + 1,
+      brand_name: c.brand_name.trim(),
+      manufacturer: c.manufacturer.trim(),
+      remark: (c.remark || '').trim(),
+      is_primary: !!c.is_primary,
+    })
+    const slots = Array.isArray(c.attachSlots) ? c.attachSlots : []
+    slots.forEach((slot) => {
+      if (!slot.is_checked) return
+      const files = Array.isArray(slot.files) ? slot.files : []
+      files.forEach((f) => {
+        const name = (f.file_name || '').trim()
+        if (!name) return
+        store.seq.att += 1
+        store.attachments.push({
+          attachment_id: `BA-${String(store.seq.att).padStart(3, '0')}`,
+          candidate_id,
+          attach_type: slot.attach_type,
+          is_checked: true,
+          file_name: name,
+          file_url: f.file_url || `#mock/${name}`,
+        })
+      })
+    })
+  })
+  void project_id
+}
+
+function validateBrandSubmitPayload(payload) {
   const project_id = payload.project_id
   const material_name = (payload.material_name || '').trim()
   const material_type = payload.material_type
-  const specs = (payload.specs || []).filter((s) => (s.spec_model || '').trim())
-  const candidates = (payload.candidates || []).filter(
-    (c) => (c.brand_name || '').trim() && (c.manufacturer || '').trim(),
-  )
+  const candidates = payload.candidates || []
   if (!project_id) return { ok: false, msg: '请切换到具体项目' }
   if (!material_name || !material_type) return { ok: false, msg: '材料名称与材料类型必填' }
-  if (specs.length < 1) return { ok: false, msg: '本单规格至少 1 条' }
-  if (candidates.length < 3) return { ok: false, msg: '备选品牌至少 3 条' }
-  if (payload.material_id) {
-    const m = store.materials.find((x) => x.material_id === payload.material_id)
-    if (!m || m.project_id !== project_id || m.status !== 'active') {
-      return { ok: false, msg: '导入材料不可用，请重新从本项目规格库导入' }
-    }
-  }
 
-  // 库选入：有 brand_lib_id 时校验仍为启用且属本项目；勾选附件须上传文件
-  for (const c of candidates) {
-    if (c.brand_lib_id) {
-      const b = store.brands.find((x) => x.brand_lib_id === c.brand_lib_id)
-      if (!b || b.status !== 'active' || b.project_id !== project_id) {
-        return { ok: false, msg: `品牌「${c.brand_name}」不可用，请删除后重选` }
+  const candCheck = validateCandidates(candidates)
+  if (!candCheck.ok) return candCheck
+  const validCandidates = candCheck.data
+
+  for (const c of validCandidates) {
+    if (c.ledger_id) {
+      const ledger = store.ledger.find(
+        (r) => r.ledger_id === c.ledger_id && r.project_id === project_id,
+      )
+      if (!ledger) {
+        return { ok: false, msg: `台账品牌「${c.brand_name}」不可用，请删除后重选` }
       }
     }
     const slots = Array.isArray(c.attachSlots) ? c.attachSlots : []
     for (const slot of slots) {
-      if (slot.is_checked && !(slot.file_name || '').trim()) {
+      const files = Array.isArray(slot.files) ? slot.files.filter((f) => (f.file_name || '').trim()) : []
+      if (slot.is_checked && !files.length) {
         return {
           ok: false,
-          msg: `品牌「${c.brand_name}」已勾选「${ATTACH_TYPE[slot.attach_type] || '附件'}」，请上传文件`,
+          msg: `品牌「${c.brand_name}」已勾选「${ATTACH_TYPE[slot.attach_type] || '附件'}」，请至少上传 1 个文件`,
         }
       }
     }
   }
-  if (payload.material_id) {
-    const m = store.materials.find((x) => x.material_id === payload.material_id)
-    if (!m || m.status !== 'active') return { ok: false, msg: '导入材料须为启用状态' }
-    for (const s of specs) {
-      if (s.material_spec_id) {
-        const sp = store.specs.find((x) => x.spec_id === s.material_spec_id)
-        if (!sp || sp.material_id !== payload.material_id) {
-          return { ok: false, msg: '勾选规格必须属于已导入企业材料' }
-        }
-      }
+  return { ok: true, project_id, material_name, material_type, validCandidates }
+}
+
+export function submitApplication(payload) {
+  const checked = validateBrandSubmitPayload(payload)
+  if (!checked.ok) return checked
+  const { project_id, material_name, material_type, validCandidates } = checked
+
+  if (payload.copy_from_application_id) {
+    const src = store.applications.find((a) => a.application_id === payload.copy_from_application_id)
+    if (!src || src.status !== 'rejected' || src.project_id !== project_id) {
+      return { ok: false, msg: '复制来源须为本项目已驳回报审单' }
     }
   }
 
-  const hint = dupMaterialHint(project_id, material_name)
   store.seq.app += 1
   const application_id = `PP-2026-${String(store.seq.app).padStart(3, '0')}`
   const app = {
     application_id,
     project_id,
-    material_id: payload.material_id || '',
     material_name,
     material_type,
     use_part: payload.use_part || '',
-    status: 'in_approval',
+    status: 'pending',
     current_node: 'supervisor',
     applicant_user_id: 'u-contractor',
     applicant_name: '当前用户',
     submit_time: timestamp(),
     finish_time: '',
     remark: payload.remark || '',
+    copy_from_application_id: payload.copy_from_application_id || '',
   }
   store.applications.push(app)
-  specs.forEach((s, i) => {
-    store.seq.spec += 1
-    store.appSpecs.push({
-      app_spec_id: `AS-${String(store.seq.spec).padStart(3, '0')}`,
-      application_id,
-      spec_model: s.spec_model.trim(),
-      material_spec_id: s.material_spec_id || '',
-      seq_no: i + 1,
-    })
-  })
-  candidates.forEach((c, i) => {
-    store.seq.cand += 1
-    const candidate_id = `C-${String(store.seq.cand).padStart(3, '0')}`
-    store.candidates.push({
-      candidate_id,
-      application_id,
-      brand_lib_id: c.brand_lib_id || '',
-      seq_no: i + 1,
-      brand_name: c.brand_name.trim(),
-      manufacturer: c.manufacturer.trim(),
-      remark: (c.remark || '').trim(),
-      is_selected: false,
-    })
-    const slots = Array.isArray(c.attachSlots) ? c.attachSlots : []
-    slots.forEach((slot) => {
-      if (!slot.is_checked || !(slot.file_name || '').trim()) return
-      store.seq.att += 1
-      store.attachments.push({
-        attachment_id: `BA-${String(store.seq.att).padStart(3, '0')}`,
-        candidate_id,
-        attach_type: slot.attach_type,
-        is_checked: true,
-        file_name: slot.file_name.trim(),
-        file_url: slot.file_url || `#mock/${slot.file_name.trim()}`,
-      })
-    })
-  })
+  replaceBrandCandidates(application_id, project_id, validCandidates)
+
   createBrandSupervisorTodo(buildBrandTodoPayload(app))
-  return {
-    ok: true,
-    data: app,
-    warn: hint ? `提示：本项目已存在同名材料「${material_name}」的已通过报审，可继续提交` : '',
-  }
+  return { ok: true, data: app }
 }
 
 export function withdrawApplication(applicationId) {
   const app = store.applications.find((a) => a.application_id === applicationId)
   if (!app) return { ok: false, msg: '单据不存在' }
-  if (app.status !== 'in_approval' || app.current_node !== 'supervisor') {
-    return { ok: false, msg: '仅待监理审时可撤回' }
+  if (app.status !== 'pending') {
+    return { ok: false, msg: '仅待审批时可撤回' }
   }
   app.status = 'withdrawn'
   app.current_node = 'none'
@@ -1312,28 +1236,57 @@ export function withdrawApplication(applicationId) {
   return { ok: true }
 }
 
-export function resubmitApplication(applicationId) {
+/** 已撤回原单重新提交 → 待审批（同单号） */
+export function resubmitWithdrawnBrand(applicationId, payload) {
   const app = store.applications.find((a) => a.application_id === applicationId)
   if (!app) return { ok: false, msg: '单据不存在' }
-  if (!['rejected', 'withdrawn'].includes(app.status)) return { ok: false, msg: '仅已驳回/已撤回可重提' }
-  store.candidates
-    .filter((c) => c.application_id === applicationId)
-    .forEach((c) => {
-      c.is_selected = false
-    })
-  app.status = 'in_approval'
+  if (app.status !== 'withdrawn') return { ok: false, msg: '仅已撤回单可重新编辑提交' }
+
+  const checked = validateBrandSubmitPayload({
+    ...payload,
+    project_id: payload.project_id || app.project_id,
+  })
+  if (!checked.ok) return checked
+  const { project_id, material_name, material_type, validCandidates } = checked
+  if (project_id !== app.project_id) return { ok: false, msg: '不可跨项目重提' }
+
+  app.material_name = material_name
+  app.material_type = material_type
+  app.use_part = payload.use_part || ''
+  app.remark = payload.remark || ''
+  app.status = 'pending'
   app.current_node = 'supervisor'
   app.submit_time = timestamp()
   app.finish_time = ''
+  replaceBrandCandidates(applicationId, project_id, validCandidates)
+
+  store.seq.ar += 1
+  store.approvals.push({
+    record_id: `AR-${String(store.seq.ar).padStart(3, '0')}`,
+    application_id: applicationId,
+    node_code: 'applicant',
+    action: 'submit',
+    opinion: '撤回后重新提交',
+    operator_user_id: 'u-contractor',
+    operator_name: '当前用户',
+    operate_time: timestamp(),
+  })
+  discardBrandTodos(applicationId)
   createBrandSupervisorTodo(buildBrandTodoPayload(app))
-  return { ok: true }
+  return { ok: true, data: app }
+}
+
+/** @deprecated 请使用 resubmitWithdrawnBrand */
+export function resubmitApplication(applicationId, payload) {
+  if (applicationId && payload) return resubmitWithdrawnBrand(applicationId, payload)
+  return { ok: false, msg: '请使用重新编辑提交已撤回单' }
 }
 
 export function supervisorApprove(applicationId, { action, opinion }) {
   const app = store.applications.find((a) => a.application_id === applicationId)
   if (!app) return { ok: false, msg: '单据不存在' }
-  if (app.status !== 'in_approval' || app.current_node !== 'supervisor') {
-    return { ok: false, msg: '当前不在待监理审节点' }
+  if (app.status !== 'pending' || app.current_node !== 'supervisor') {
+    return { ok: false, msg: '当前不在待审批（待监理审）节点' }
   }
   if (action === 'reject' && !(opinion || '').trim()) return { ok: false, msg: '退回意见必填' }
   store.seq.ar += 1
@@ -1348,6 +1301,7 @@ export function supervisorApprove(applicationId, { action, opinion }) {
     operate_time: timestamp(),
   })
   if (action === 'agree') {
+    app.status = 'in_approval'
     app.current_node = 'pm'
     createBrandPmTodo(buildBrandTodoPayload(app))
   } else {
@@ -1358,7 +1312,7 @@ export function supervisorApprove(applicationId, { action, opinion }) {
   return { ok: true }
 }
 
-export function pmApprove(applicationId, { action, opinion, selectedCandidateId, resolveMaterialId }) {
+export function pmApprove(applicationId, { action, opinion }) {
   const app = store.applications.find((a) => a.application_id === applicationId)
   if (!app) return { ok: false, msg: '单据不存在' }
   if (app.status !== 'in_approval' || app.current_node !== 'pm') {
@@ -1382,125 +1336,17 @@ export function pmApprove(applicationId, { action, opinion, selectedCandidateId,
     app.status = 'rejected'
     app.current_node = 'none'
     app.finish_time = timestamp()
-    store.candidates.filter((c) => c.application_id === applicationId).forEach((c) => {
-      c.is_selected = false
-    })
     return { ok: true }
   }
 
   const cands = store.candidates.filter((c) => c.application_id === applicationId)
+  const primaryCount = cands.filter((c) => c.is_primary).length
+  if (primaryCount !== 1) return { ok: false, msg: '报审单主选品牌数据异常' }
+
   cands.forEach((c) => {
-    c.is_selected = c.candidate_id === selectedCandidateId
+    upsertLedgerFromCandidate(app, c)
   })
-  const selectedCount = cands.filter((c) => c.is_selected).length
-  if (selectedCount !== 1) return { ok: false, msg: '终审同意须恰好选定 1 个入选品牌' }
-  const selected = cands.find((c) => c.is_selected)
 
-  // 入库步骤（简化完整规则）——材料/品牌库均按本项目隔离
-  let materialId = app.material_id
-  if (!materialId) {
-    const hits = store.materials.filter(
-      (m) =>
-        m.project_id === app.project_id &&
-        m.status === 'active' &&
-        m.material_name.trim() === app.material_name.trim(),
-    )
-    if (hits.length === 0) {
-      const created = saveMaterial({
-        material_name: app.material_name,
-        material_type: app.material_type,
-        status: 'active',
-        project_id: app.project_id,
-      })
-      materialId = created.data.material_id
-      store.appSpecs
-        .filter((s) => s.application_id === applicationId)
-        .forEach((s) => {
-          const r = saveSpec(materialId, s.spec_model)
-          if (r.ok) s.material_spec_id = r.data.spec_id
-        })
-    } else if (hits.length === 1) {
-      materialId = hits[0].material_id
-    } else {
-      if (!resolveMaterialId) {
-        return {
-          ok: false,
-          msg: '存在多条同名启用材料，请选择一条',
-          needChooseMaterial: true,
-          materials: hits,
-        }
-      }
-      materialId = resolveMaterialId
-    }
-    app.material_id = materialId
-  } else {
-    const owned = store.materials.find(
-      (m) => m.material_id === materialId && m.project_id === app.project_id,
-    )
-    if (!owned) return { ok: false, msg: '报审引用的材料不属于本项目规格库' }
-  }
-
-  let brandLibId = selected.brand_lib_id
-  if (brandLibId) {
-    const brand = store.brands.find((b) => b.brand_lib_id === brandLibId)
-    if (brand && brand.project_id && brand.project_id !== app.project_id) {
-      return { ok: false, msg: '入选品牌不属于本项目品牌库' }
-    }
-    if (brand && brand.status === 'inactive') {
-      // 中途停用仍入选 → 新建启用品牌
-      const created = saveBrand({
-        brand_name: selected.brand_name,
-        manufacturer: selected.manufacturer,
-        source_type: 'project_approval',
-        application_id: applicationId,
-        project_id: app.project_id,
-        skipSpecLink: true,
-      })
-      if (!created.ok) return created
-      brandLibId = created.data.brand_lib_id
-      selected.brand_lib_id = brandLibId
-    }
-  } else {
-    const name = selected.brand_name.trim()
-    const mfr = selected.manufacturer.trim()
-    const hits = store.brands.filter(
-      (b) =>
-        b.project_id === app.project_id &&
-        b.brand_name.trim() === name &&
-        b.manufacturer.trim() === mfr,
-    )
-    const activeHit = hits.find((b) => b.status === 'active')
-    const inactiveHit = hits.find((b) => b.status === 'inactive')
-    if (inactiveHit && !activeHit) {
-      return { ok: false, msg: '该品牌已停用，不可入库' }
-    }
-    if (activeHit) {
-      brandLibId = activeHit.brand_lib_id
-      selected.brand_lib_id = brandLibId
-    } else {
-      const created = saveBrand({
-        brand_name: name,
-        manufacturer: mfr,
-        source_type: 'project_approval',
-        application_id: applicationId,
-        project_id: app.project_id,
-        skipSpecLink: true,
-      })
-      if (!created.ok) return created
-      brandLibId = created.data.brand_lib_id
-      selected.brand_lib_id = brandLibId
-    }
-  }
-
-  // 入库：挂本单规格（有企业规格ID的优先）；否则挂材料下全部规格
-  const appSpecIds = store.appSpecs
-    .filter((s) => s.application_id === applicationId && s.material_spec_id)
-    .map((s) => s.material_spec_id)
-  if (appSpecIds.length) {
-    linkBrandMaterialSpecs(brandLibId, materialId, appSpecIds)
-  } else {
-    linkBrandMaterial(brandLibId, materialId)
-  }
   app.status = 'approved'
   app.current_node = 'none'
   app.finish_time = timestamp()
@@ -1509,59 +1355,40 @@ export function pmApprove(applicationId, { action, opinion, selectedCandidateId,
 
 export function statusTagType(status) {
   if (status === 'approved') return 'success'
-  if (status === 'in_approval') return 'warning'
+  if (status === 'pending') return 'warning'
+  if (status === 'in_approval') return ''
   if (status === 'rejected') return 'danger'
   return 'info'
 }
 
-export function getInactiveSelectedHint(applicationId) {
-  return store.candidates
-    .filter((c) => c.application_id === applicationId && c.brand_lib_id)
-    .map((c) => {
-      const b = store.brands.find((x) => x.brand_lib_id === c.brand_lib_id)
-      return b && b.status === 'inactive' ? c : null
-    })
-    .filter(Boolean)
+/** V2.0 无品牌库，停用提示恒为空 */
+export function getInactiveSelectedHint() {
+  return []
 }
 
-/**
- * 材料定样 · 从本项目「已通过」品牌报审取可选行
- * 供应商字段对应报审选定生产厂家（manufacturer）
- */
+/** 材料定样 · 从品牌台账取可选行 */
 export function listSamplePickRowsFromBrand(projectId) {
   if (!projectId) return []
-  return store.applications
-    .filter(
-      (a) =>
-        a.project_id === projectId &&
-        a.status === 'approved' &&
-        (a.material_type === 'material' || !a.material_type),
-    )
-    .map((app) => {
-      const selected = store.candidates.find(
-        (c) => c.application_id === app.application_id && c.is_selected,
-      )
-      if (!selected || !(selected.manufacturer || '').trim()) return null
-      const specs = store.appSpecs
-        .filter((s) => s.application_id === app.application_id)
-        .map((s) => ({
-          spec_id: s.app_spec_id || s.material_spec_id || s.spec_model,
-          spec_model: s.spec_model,
-        }))
-        .filter((s) => s.spec_model)
-      return {
-        application_id: app.application_id,
-        supplier: selected.manufacturer.trim(),
-        brand_name: selected.brand_name || '',
-        material_id: app.material_id || '',
-        material_name: app.material_name || '',
-        specs,
-      }
-    })
-    .filter(Boolean)
+  const map = new Map()
+  for (const row of store.ledger.filter((r) => r.project_id === projectId)) {
+    if (row.material_type !== 'material' && row.material_type) continue
+    const supplier = (row.manufacturer || '').trim()
+    if (!supplier) continue
+    const key = `${supplier}\0${row.material_name.trim()}\0${row.brand_name.trim()}`
+    if (!map.has(key)) {
+      map.set(key, {
+        application_id: row.application_id,
+        supplier,
+        brand_name: row.brand_name,
+        material_id: '',
+        material_name: row.material_name,
+        specs: [],
+      })
+    }
+  }
+  return [...map.values()]
 }
 
-/** 定样可选供应商（品牌报审选定厂家，去重） */
 export function listSampleSuppliersFromBrand(projectId) {
   const map = new Map()
   for (const row of listSamplePickRowsFromBrand(projectId)) {
@@ -1581,7 +1408,6 @@ export function listSampleSuppliersFromBrand(projectId) {
     .sort((a, b) => a.label.localeCompare(b.label, 'zh-CN'))
 }
 
-/** 选定供应商后的可选材料 */
 export function listSampleMaterialsFromBrand(projectId, supplier) {
   const mfr = String(supplier || '').trim()
   if (!mfr) return []
@@ -1592,25 +1418,304 @@ export function listSampleMaterialsFromBrand(projectId, supplier) {
       map.set(row.material_name, {
         material_id: row.material_id,
         material_name: row.material_name,
+        brand_name: row.brand_name || '',
+        brands: new Set(row.brand_name ? [row.brand_name] : []),
       })
-    }
-  }
-  return [...map.values()].sort((a, b) =>
-    a.material_name.localeCompare(b.material_name, 'zh-CN'),
-  )
-}
-
-/** 选定供应商 + 材料后的可选规格 */
-export function listSampleSpecsFromBrand(projectId, supplier, materialName) {
-  const mfr = String(supplier || '').trim()
-  const name = String(materialName || '').trim()
-  if (!mfr || !name) return []
-  const map = new Map()
-  for (const row of listSamplePickRowsFromBrand(projectId)) {
-    if (row.supplier !== mfr || row.material_name !== name) continue
-    for (const spec of row.specs || []) {
-      if (!map.has(spec.spec_model)) map.set(spec.spec_model, spec)
+    } else if (row.brand_name) {
+      map.get(row.material_name).brands.add(row.brand_name)
     }
   }
   return [...map.values()]
+    .map((item) => ({
+      material_id: item.material_id,
+      material_name: item.material_name,
+      brand_name: [...item.brands].join('/') || item.brand_name || '',
+    }))
+    .sort((a, b) => a.material_name.localeCompare(b.material_name, 'zh-CN'))
 }
+
+/** V2.0 报审不带规格，定样规格选项为空 */
+export function listSampleSpecsFromBrand() {
+  return []
+}
+
+/** 报审申请列表：默认项目补齐全部业务状态示例数据 */
+function seedDemoApplicationsForAllStatus() {
+  const project_id = 'p-000'
+  const applicant_user_id = 'u-contractor'
+  const applicant_name = '张工'
+  const rows = [
+    {
+      application_id: 'PP-2026-009',
+      material_name: '外墙真石漆',
+      material_type: 'material',
+      use_part: '外墙饰面',
+      status: 'pending',
+      current_node: 'supervisor',
+      submit_time: '2026-08-16 09:20:00',
+      brands: [
+        { id: 'C-084', brand_name: '立邦', manufacturer: '立邦涂料（中国）有限公司', is_primary: true, remark: '覆盖率高' },
+        { id: 'C-085', brand_name: '多乐士', manufacturer: '阿克苏诺贝尔涂料（中国）有限公司', is_primary: false },
+        { id: 'C-086', brand_name: '三棵树', manufacturer: '三棵树涂料股份有限公司', is_primary: false },
+      ],
+    },
+    {
+      application_id: 'PP-2026-010',
+      material_name: '电缆桥架',
+      material_type: 'equipment',
+      use_part: '机电竖井',
+      status: 'pending',
+      current_node: 'supervisor',
+      submit_time: '2026-08-15 14:10:00',
+      brands: [
+        { id: 'C-087', brand_name: '日海', manufacturer: '日海智能科技股份有限公司', is_primary: true },
+        { id: 'C-088', brand_name: '镇江桥架', manufacturer: '江苏镇江桥架有限公司', is_primary: false },
+        { id: 'C-089', brand_name: '华鹏', manufacturer: '江苏华鹏变压器有限公司', is_primary: false },
+      ],
+    },
+    {
+      application_id: 'PP-2026-011',
+      material_name: '铝合金型材',
+      material_type: 'material',
+      use_part: '幕墙',
+      status: 'in_approval',
+      current_node: 'pm',
+      submit_time: '2026-08-14 10:00:00',
+      brands: [
+        { id: 'C-090', brand_name: '凤铝', manufacturer: '广东凤铝铝业有限公司', is_primary: true, remark: '合同推荐' },
+        { id: 'C-091', brand_name: '坚美', manufacturer: '广东坚美铝型材厂（集团）有限公司', is_primary: false },
+        { id: 'C-092', brand_name: '兴发', manufacturer: '广东兴发铝业有限公司', is_primary: false },
+      ],
+      approvals: [
+        {
+          id: 'AR-012',
+          node_code: 'supervisor',
+          action: 'agree',
+          opinion: '资料齐全，同意报审',
+          operator_user_id: 'u-supervisor',
+          operator_name: '王监理',
+          operate_time: '2026-08-15 09:00:00',
+        },
+      ],
+    },
+    {
+      application_id: 'PP-2026-012',
+      material_name: '消防水泵',
+      material_type: 'equipment',
+      use_part: '消防泵房',
+      status: 'in_approval',
+      current_node: 'pm',
+      submit_time: '2026-08-13 11:30:00',
+      brands: [
+        { id: 'C-093', brand_name: '南消', manufacturer: '南安市消防器材有限公司', is_primary: true },
+        { id: 'C-094', brand_name: '威乐', manufacturer: '威乐水泵系统（中国）有限公司', is_primary: false },
+        { id: 'C-095', brand_name: '格兰富', manufacturer: '格兰富水泵（上海）有限公司', is_primary: false },
+      ],
+      approvals: [
+        {
+          id: 'AR-013',
+          node_code: 'supervisor',
+          action: 'agree',
+          opinion: '设备参数符合设计，同意',
+          operator_user_id: 'u-supervisor',
+          operator_name: '王监理',
+          operate_time: '2026-08-14 16:00:00',
+        },
+      ],
+    },
+    {
+      application_id: 'PP-2026-013',
+      material_name: '室内地砖',
+      material_type: 'material',
+      use_part: '商业区公区',
+      status: 'rejected',
+      current_node: 'none',
+      submit_time: '2026-08-12 09:00:00',
+      finish_time: '2026-08-13 10:00:00',
+      brands: [
+        { id: 'C-096', brand_name: '东鹏', manufacturer: '东鹏控股股份有限公司', is_primary: true },
+        { id: 'C-097', brand_name: '马可波罗', manufacturer: '广东马可波罗陶瓷有限公司', is_primary: false },
+        { id: 'C-098', brand_name: '诺贝尔', manufacturer: '杭州诺贝尔陶瓷有限公司', is_primary: false },
+      ],
+      approvals: [
+        {
+          id: 'AR-014',
+          node_code: 'supervisor',
+          action: 'reject',
+          opinion: '样品照片不足，请补充现场比对资料后重报',
+          operator_user_id: 'u-supervisor',
+          operator_name: '王监理',
+          operate_time: '2026-08-13 10:00:00',
+        },
+      ],
+    },
+    {
+      application_id: 'PP-2026-014',
+      material_name: '干式变压器',
+      material_type: 'equipment',
+      use_part: '变电所',
+      status: 'rejected',
+      current_node: 'none',
+      submit_time: '2026-08-10 09:00:00',
+      finish_time: '2026-08-12 15:20:00',
+      brands: [
+        { id: 'C-099', brand_name: '特变电工', manufacturer: '特变电工股份有限公司', is_primary: true, remark: '供货周期较短' },
+        { id: 'C-100', brand_name: '西门子', manufacturer: '西门子（中国）有限公司', is_primary: false },
+        { id: 'C-101', brand_name: 'ABB', manufacturer: 'ABB（中国）有限公司', is_primary: false },
+      ],
+      approvals: [
+        {
+          id: 'AR-015',
+          node_code: 'supervisor',
+          action: 'agree',
+          opinion: '监理审核通过，请项目经理终审',
+          operator_user_id: 'u-supervisor',
+          operator_name: '王监理',
+          operate_time: '2026-08-11 11:00:00',
+        },
+        {
+          id: 'AR-016',
+          node_code: 'pm',
+          action: 'reject',
+          opinion: '主选品牌与合同推荐不一致，请调整后重新报审',
+          operator_user_id: 'u-pm',
+          operator_name: '赵经理',
+          operate_time: '2026-08-12 15:20:00',
+        },
+      ],
+    },
+    {
+      application_id: 'PP-2026-015',
+      material_name: '保温岩棉',
+      material_type: 'material',
+      use_part: '外墙保温',
+      status: 'withdrawn',
+      current_node: 'none',
+      submit_time: '2026-08-09 10:00:00',
+      finish_time: '2026-08-09 15:00:00',
+      brands: [
+        { id: 'C-102', brand_name: '欧文斯科宁', manufacturer: '欧文斯科宁（中国）投资有限公司', is_primary: true },
+        { id: 'C-103', brand_name: '圣戈班', manufacturer: '圣戈班集团', is_primary: false },
+        { id: 'C-104', brand_name: '华能中天', manufacturer: '华能中天节能科技集团有限公司', is_primary: false },
+      ],
+      approvals: [
+        {
+          id: 'AR-017',
+          node_code: 'applicant',
+          action: 'withdraw',
+          opinion: '申请人撤回，拟调整备选品牌',
+          operator_user_id: 'u-contractor',
+          operator_name: '张工',
+          operate_time: '2026-08-09 15:00:00',
+        },
+      ],
+    },
+    {
+      application_id: 'PP-2026-016',
+      material_name: 'LED灯具',
+      material_type: 'equipment',
+      use_part: '公共区照明',
+      status: 'withdrawn',
+      current_node: 'none',
+      submit_time: '2026-08-08 09:30:00',
+      finish_time: '2026-08-08 11:00:00',
+      brands: [
+        { id: 'C-105', brand_name: '飞利浦', manufacturer: '昕诺飞（中国）投资有限公司', is_primary: true },
+        { id: 'C-106', brand_name: '欧普', manufacturer: '欧普照明股份有限公司', is_primary: false },
+        { id: 'C-107', brand_name: '三雄极光', manufacturer: '广东三雄极光照明股份有限公司', is_primary: false },
+      ],
+      approvals: [
+        {
+          id: 'AR-018',
+          node_code: 'applicant',
+          action: 'withdraw',
+          opinion: '申请人撤回',
+          operator_user_id: 'u-contractor',
+          operator_name: '张工',
+          operate_time: '2026-08-08 11:00:00',
+        },
+      ],
+    },
+  ]
+
+  for (const row of rows) {
+    if (store.applications.some((a) => a.application_id === row.application_id)) continue
+    store.applications.push({
+      application_id: row.application_id,
+      project_id,
+      material_name: row.material_name,
+      material_type: row.material_type,
+      use_part: row.use_part,
+      status: row.status,
+      current_node: row.current_node,
+      applicant_user_id,
+      applicant_name,
+      submit_time: row.submit_time,
+      finish_time: row.finish_time || '',
+      remark: row.remark || '',
+      copy_from_application_id: row.copy_from_application_id || '',
+    })
+    row.brands.forEach((b, i) => {
+      store.candidates.push({
+        candidate_id: b.id,
+        application_id: row.application_id,
+        ledger_id: '',
+        seq_no: i + 1,
+        brand_name: b.brand_name,
+        manufacturer: b.manufacturer,
+        remark: b.remark || '',
+        is_primary: !!b.is_primary,
+      })
+    })
+    for (const ar of row.approvals || []) {
+      store.approvals.push({
+        record_id: ar.id,
+        application_id: row.application_id,
+        node_code: ar.node_code,
+        action: ar.action,
+        opinion: ar.opinion,
+        operator_user_id: ar.operator_user_id,
+        operator_name: ar.operator_name,
+        operate_time: ar.operate_time,
+      })
+    }
+  }
+
+  const extraAtts = [
+    {
+      attachment_id: 'BA-007',
+      candidate_id: 'C-084',
+      attach_type: 'vendor_profile',
+      is_checked: true,
+      file_name: '立邦-厂商资料.pdf',
+      file_url: '#mock/nippon-vendor.pdf',
+    },
+    {
+      attachment_id: 'BA-008',
+      candidate_id: 'C-096',
+      attach_type: 'sample_photo',
+      is_checked: true,
+      file_name: '东鹏地砖样品.jpg',
+      file_url: '#mock/dongpeng-sample.jpg',
+    },
+  ]
+  for (const att of extraAtts) {
+    if (!store.attachments.some((a) => a.attachment_id === att.attachment_id)) {
+      store.attachments.push(att)
+    }
+  }
+}
+
+seedDemoApplicationsForAllStatus()
+
+function seedOpenBrandTodos() {
+  for (const app of store.applications) {
+    if (app.status === 'pending' && app.current_node === 'supervisor') {
+      createBrandSupervisorTodo(buildBrandTodoPayload(app))
+    } else if (app.status === 'in_approval' && app.current_node === 'pm') {
+      createBrandPmTodo(buildBrandTodoPayload(app))
+    }
+  }
+}
+
+seedOpenBrandTodos()

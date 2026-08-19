@@ -37,6 +37,7 @@ export const HQ_ONLY_MENU_KEYS = new Set([
   'quality-board',
   'brand-approval-stats',
   'qm-dashboard',
+  'mat-dashboard',
   /** 指挥部轨迹系统列表（挂在智慧工地监管下） */
   'labor-track-system',
   'vehicle-track-system',
@@ -108,12 +109,17 @@ export const PROJECT_ONLY_MENU_KEYS = new Set([
   'sample-material-approve',
   'sample-process-app',
   'sample-process-approve',
-  /** 材料进场管理 · 项目执行（看板仅指挥部「质量看板」） */
+  /** 材料设备进场 · 项目执行（进场统计仅指挥部「质量看板」） */
   'mat-entry-mgmt',
   'mat-ledger',
   'mat-application',
   'mat-exit',
-  /** 设备进场管理 · 项目执行（看板仅指挥部「质量看板」） */
+  'mobile-mat-entry',
+  'mobile-mat-exit',
+  'app-mat-entry',
+  'app-mobile-mat-entry',
+  'app-mobile-mat-exit',
+  /** 设备进场（已并入材料设备进场；旧入口下线） */
   'eq-entry-mgmt',
   'eq-ledger',
   'eq-application',

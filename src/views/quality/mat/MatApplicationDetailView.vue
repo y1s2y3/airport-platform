@@ -2,7 +2,7 @@
 import './mat-page.css'
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getEntryDetail, STATUS_LABEL, statusTagType } from '../../../mock/mat.js'
+import { getEntryDetail, ENTRY_TYPE_LABEL, STATUS_LABEL, statusTagType } from '../../../mock/mat.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -31,7 +31,7 @@ const lineItems = computed(() => {
 <template>
   <div class="qm-page page-card">
     <div class="page-header">
-      <div class="page-breadcrumb">材料进场管理 / 进场详情</div>
+      <div class="page-breadcrumb">材料设备进场管理 / 进场详情</div>
       <div class="title-row">
         <h1 class="page-title">进场详情 {{ detail?.entry_id || '' }}</h1>
         <el-tag v-if="detail?.exited" type="warning" effect="plain">已退场</el-tag>
@@ -42,47 +42,54 @@ const lineItems = computed(() => {
     <el-empty v-if="!detail" description="未找到进场单" />
 
     <template v-else>
-      <h3 class="section-title">定样与品牌</h3>
+      <h3 class="section-title">品牌与定样</h3>
       <el-descriptions :column="2" border size="small" class="mb">
         <el-descriptions-item label="进场单号">{{ detail.entry_id }}</el-descriptions-item>
+        <el-descriptions-item label="进场类型">
+          {{ ENTRY_TYPE_LABEL[detail.entry_type] || '材料' }}
+        </el-descriptions-item>
         <el-descriptions-item label="审批状态">
           <el-tag size="small" :type="statusTagType(detail.status)">
             {{ STATUS_LABEL[detail.status] }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item v-if="detail.related_reject_id" label="关联驳回原单">
-          <el-button
-            link
-            type="primary"
-            @click="router.push(`/qm/mat/applications/detail?id=${detail.related_reject_id}`)"
-          >
-            {{ detail.related_reject_id }}
-          </el-button>
+        <el-descriptions-item v-if="detail.copy_from_entry_id" label="复制来源">
+          {{ detail.copy_from_entry_id }}
         </el-descriptions-item>
-        <el-descriptions-item label="关联定样">{{ detail.sample_id || '—' }}</el-descriptions-item>
+        <el-descriptions-item v-else-if="detail.related_reject_id" label="关联驳回原单">
+          {{ detail.related_reject_id }}
+        </el-descriptions-item>
+        <el-descriptions-item label="关联定样">{{
+          detail.sample_application_id || detail.sample_id || '—'
+        }}</el-descriptions-item>
         <el-descriptions-item label="项目">{{ detail.project_label }}</el-descriptions-item>
-        <el-descriptions-item label="材料名称">{{ detail.material_name }}</el-descriptions-item>
+        <el-descriptions-item label="名称">
+          {{ detail.entry_type === 'equipment' ? detail.equipment_name : detail.material_name }}
+        </el-descriptions-item>
         <el-descriptions-item label="施工部位">{{ detail.use_part || '—' }}</el-descriptions-item>
         <el-descriptions-item label="品牌">{{ detail.brand_name }}</el-descriptions-item>
-        <el-descriptions-item label="品牌一致">
-          <el-tag size="small" :type="detail.brand_match ? 'success' : 'danger'">
-            {{ detail.brand_match ? '一致' : '不一致' }}
-          </el-tag>
-        </el-descriptions-item>
         <el-descriptions-item label="生产厂家">{{ detail.manufacturer || '—' }}</el-descriptions-item>
         <el-descriptions-item label="供应商">{{ detail.supplier || '—' }}</el-descriptions-item>
         <el-descriptions-item label="申请人">{{ detail.applicant_name }}</el-descriptions-item>
         <el-descriptions-item label="提交时间">{{ detail.submit_time }}</el-descriptions-item>
         <el-descriptions-item label="办结时间">{{ detail.finish_time || '—' }}</el-descriptions-item>
-        <el-descriptions-item label="退场状态">
+        <el-descriptions-item v-if="detail.entry_type === 'material'" label="退场状态">
           <el-tag size="small" :type="detail.exited ? 'warning' : 'info'" effect="plain">
             {{ detail.exited ? '已退场' : '未退场' }}
           </el-tag>
         </el-descriptions-item>
       </el-descriptions>
 
-      <h3 class="section-title">进场信息</h3>
-      <el-table :data="lineItems" border stripe size="small" empty-text="无进场明细" class="mb">
+      <h3 v-if="detail.entry_type !== 'equipment'" class="section-title">进场明细</h3>
+      <el-table
+        v-if="detail.entry_type !== 'equipment'"
+        :data="lineItems"
+        border
+        stripe
+        size="small"
+        empty-text="无进场明细"
+        class="mb"
+      >
         <el-table-column type="index" label="#" width="50" />
         <el-table-column prop="material_name" label="材料名称" min-width="120" show-overflow-tooltip />
         <el-table-column prop="material_spec" label="材料规格" min-width="140" show-overflow-tooltip>
@@ -100,6 +107,34 @@ const lineItems = computed(() => {
         </el-table-column>
       </el-table>
 
+      <template v-if="detail.entry_type === 'equipment'">
+        <h3 class="section-title">设备信息</h3>
+        <el-descriptions :column="2" border size="small" class="mb">
+          <el-descriptions-item label="型号">{{ detail.model || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="数量">{{ detail.quantity }}{{ detail.unit }}</el-descriptions-item>
+          <el-descriptions-item label="序列号">{{ detail.serial_no || '—' }}</el-descriptions-item>
+        </el-descriptions>
+        <h3 class="section-title">开箱清单</h3>
+        <el-table
+          :data="detail.unpack_items || []"
+          border
+          stripe
+          size="small"
+          empty-text="无开箱记录"
+          class="mb"
+        >
+          <el-table-column prop="label" label="检查项" min-width="140" />
+          <el-table-column label="是否合格" width="100">
+            <template #default="{ row }">
+              <el-tag size="small" :type="row.ok ? 'success' : 'danger'">
+                {{ row.ok ? '合格' : '不合格' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
+        </el-table>
+      </template>
+
       <h3 class="section-title">附件</h3>
       <el-descriptions :column="2" border size="small" class="mb">
         <el-descriptions-item label="合格证">{{ detail.cert_file || '—' }}</el-descriptions-item>
@@ -114,7 +149,12 @@ const lineItems = computed(() => {
         </el-descriptions-item>
       </el-descriptions>
 
-      <el-card shadow="never" class="mb" :class="{ 'exit-card': detail.exited }">
+      <el-card
+        v-if="detail.entry_type !== 'equipment'"
+        shadow="never"
+        class="mb"
+        :class="{ 'exit-card': detail.exited }"
+      >
         <template #header>
           <div class="title-row">
             <span>退场信息</span>

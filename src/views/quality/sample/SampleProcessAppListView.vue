@@ -8,8 +8,9 @@ import { useQmProjectScope } from '../../../composables/useCurrentProject'
 import {
   listProcessApps,
   STATUS_LABEL,
+  statusLabel,
   statusTagType,
-  resubmitSample,
+  withdrawSampleApp,
 } from '../../../mock/sample.js'
 
 const router = useRouter()
@@ -32,18 +33,26 @@ function reset() {
   statusFilter.value = ''
 }
 
-async function onResubmit(row) {
+async function onWithdraw(row) {
   try {
-    await ElMessageBox.confirm(`确认重提 ${row.application_id}？`, '重提', {
+    await ElMessageBox.confirm(`确认撤回报审单 ${row.application_id}？仅待审批时可撤。`, '撤回', {
       type: 'warning',
     })
   } catch {
     return
   }
-  const r = resubmitSample('process', row.application_id)
+  const r = withdrawSampleApp('process', row.application_id)
   if (!r.ok) return ElMessage.error(r.msg)
   tick.value += 1
-  ElMessage.success('已重提，进入待监理审')
+  ElMessage.success('已撤回')
+}
+
+function onCopyNew(row) {
+  router.push(`/qm/sample/process/applications/edit?copyFrom=${row.application_id}`)
+}
+
+function onReEdit(row) {
+  router.push(`/qm/sample/process/applications/edit?id=${row.application_id}&reEdit=1`)
 }
 </script>
 
@@ -52,6 +61,7 @@ async function onResubmit(row) {
     <div class="page-header">
       <div class="page-breadcrumb">样板管理 / 关键工序样板报审</div>
       <h1 class="page-title">关键工序样板报审</h1>
+      <p class="page-tip">已撤回可重新编辑回待审批 · 已驳回请复制新建</p>
     </div>
 
     <el-alert
@@ -98,11 +108,11 @@ async function onResubmit(row) {
         />
         <el-table-column label="状态" width="90">
           <template #default="{ row }">
-            <el-tag size="small" :type="statusTagType(row.status)">{{ STATUS_LABEL[row.status] }}</el-tag>
+            <el-tag size="small" :type="statusTagType(row.status)">{{ statusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="submit_time" label="提交时间" width="170" />
-        <el-table-column label="操作" width="160" fixed="right">
+        <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
             <el-button
               link
@@ -112,12 +122,28 @@ async function onResubmit(row) {
               详情
             </el-button>
             <el-button
+              v-if="row.status === 'pending'"
+              link
+              type="warning"
+              @click="onWithdraw(row)"
+            >
+              撤回
+            </el-button>
+            <el-button
+              v-if="row.status === 'withdrawn'"
+              link
+              type="success"
+              @click="onReEdit(row)"
+            >
+              重新编辑
+            </el-button>
+            <el-button
               v-if="row.status === 'rejected'"
               link
-              type="primary"
-              @click="onResubmit(row)"
+              type="success"
+              @click="onCopyNew(row)"
             >
-              重提
+              复制新建
             </el-button>
           </template>
         </el-table-column>

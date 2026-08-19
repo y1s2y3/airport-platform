@@ -1004,9 +1004,9 @@ export function buildPenaltyDraft(device) {
     date: new Date().toISOString().slice(0, 10),
     status: 'draft',
     aiGenerated: true,
-    penaltyReason: `${label} 现场文明施工违规`,
+    workType: '安全',
     penaltyContent:
-      '基坑周边临边防护缺失，塔吊作业区警戒标识不足；钢筋绑扎间距偏差超标，混凝土养护时间不足。请责任单位限期整改并上传闭环材料。',
+      `根据 ${label} 现场巡检情况：基坑周边临边防护缺失，塔吊作业区警戒标识不足；钢筋绑扎间距偏差超标，混凝土养护时间不足。请限期整改并上传闭环材料。`,
     amount: '5000 元',
     unit: '中建三局（捷运线施工总承包）',
     assignee: '项目经理',
@@ -1050,7 +1050,7 @@ export function buildSamplingNoticeDraft(device) {
     project: getProjectShortName('T2航站区及配套设施工程空侧捷运线(延长段)项目'),
     status: 'draft',
     aiGenerated: true,
-    workType: '',
+    workType: '安全',
     workRequirement: `根据 ${label} 现场抽检视频对讲记录，1 项分部分项验收未通过须组织复检；2 名特种作业人员证件即将过期须 7 日内换证；1 台塔吊未接入安全监测须 3 日内完成接入。`,
     executor: '',
     executeDept: '',
@@ -1402,7 +1402,7 @@ export const TASK_EXECUTOR_OPTIONS = [
   { name: '马检', position: '试验员' },
 ]
 
-export const TASK_WORK_TYPES = ['安全', '质量', '综合']
+export const TASK_WORK_TYPES = ['安全', '质量']
 export const TASK_WORK_SOURCES = ['实时监控', '视频回放', '调度会议', '视频截屏']
 export const TASK_EXECUTE_DEPARTMENTS = ['安监部', '质量部', '工程管理部', 'COC调度室', '责任单位']
 export const TASK_LEDGER_HANDLING_OPTIONS = ['纳入任务单台账', '同步隐患台账', '仅问题截图存档']

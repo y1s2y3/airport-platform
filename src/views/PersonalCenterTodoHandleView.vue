@@ -227,9 +227,6 @@ watch(personalCheckTree, (tree) => {
 const activePersonalCheckCategory = computed(() =>
   personalCheckTree.value.find((item) => item.id === activePersonalCheckCategoryId.value),
 )
-/** 品牌报审终审：入选备选 */
-const brandSelectedCandidateId = ref('')
-
 const brandLiveDetail = computed(() => {
   const appId = todo.value?.brandApplicationId
   if (!appId || todo.value?.type !== 'brand') return null
@@ -244,18 +241,6 @@ const brandCandidates = computed(() => {
     remark: c.remark || '',
     attachSlots: c.attachSlots || [],
   }))
-})
-
-const brandSpecList = computed(() => {
-  const specs = brandLiveDetail.value?.specs
-  if (specs?.length) return specs.map((s) => s.spec_model).filter(Boolean)
-  const text = todo.value?.detail?.specs || ''
-  return text
-    ? text
-        .split(/[、,，]/)
-        .map((s) => s.trim())
-        .filter(Boolean)
-    : []
 })
 
 const brandNodeLabel = computed(() => {
@@ -309,7 +294,6 @@ function resetForms() {
     reviewer: todo.value?.detail?.reviewer || '',
     rectifyDeadline: todo.value?.detail?.deadline?.slice?.(0, 10) || '',
   })
-  brandSelectedCandidateId.value = brandCandidates.value[0]?.candidate_id || ''
 }
 
 watch(
@@ -584,13 +568,9 @@ function submitCommonHandle() {
       )
     }
     if (row.brandNode === 'pm') {
-      if (approved && !brandSelectedCandidateId.value) {
-        return ElMessage.warning('请选定恰好 1 个入选品牌')
-      }
       const r = pmApprove(row.brandApplicationId, {
         action,
         opinion,
-        selectedCandidateId: brandSelectedCandidateId.value,
       })
       if (!r.ok) return ElMessage.error(r.msg)
       return afterSubmit(
@@ -817,26 +797,12 @@ function submitInspectionHandle() {
             <el-descriptions-item label="申请时间">
               {{ todo.applyTime || '—' }}
             </el-descriptions-item>
-            <el-descriptions-item label="材料规格" :span="2">
-              <div v-if="brandSpecList.length" class="spec-tags">
-                <el-tag
-                  v-for="(spec, i) in brandSpecList"
-                  :key="`${spec}-${i}`"
-                  size="small"
-                  effect="plain"
-                  type="info"
-                >
-                  {{ spec }}
-                </el-tag>
-              </div>
-              <span v-else class="muted">—</span>
-            </el-descriptions-item>
           </el-descriptions>
         </section>
 
         <section class="block block--panel">
           <div class="block-head">
-            <div class="block-title">备选品牌</div>
+            <div class="block-title">报审品牌</div>
             <el-tag size="small" type="info" effect="plain">共 {{ brandCandidates.length }} 条</el-tag>
           </div>
           <div class="brand-cand-list">
@@ -848,12 +814,27 @@ function submitInspectionHandle() {
               <div class="brand-cand-card-head">
                 <div class="brand-cand-card-title">
                   <span class="cand-badge">{{ idx + 1 }}</span>
-                  <span class="cand-name">{{ c.brand_name || '—' }}</span>
-                  <el-tag v-if="c.brand_lib_id" size="small" type="success" effect="light">库选入</el-tag>
-                  <el-tag v-else size="small" type="info" effect="plain">手填</el-tag>
+                  <el-tag
+                    v-if="c.is_primary || idx === 0"
+                    size="small"
+                    type="success"
+                    effect="plain"
+                  >
+                    主选品牌
+                  </el-tag>
+                  <el-tag v-else size="small" type="info" effect="plain">备选品牌</el-tag>
                 </div>
               </div>
-              <div class="cand-mfr">生产厂家：{{ c.manufacturer || '—' }}</div>
+              <div class="cand-fields">
+                <div class="cand-field-row">
+                  <span class="cand-label">品牌名称</span>
+                  <span class="cand-value">{{ c.brand_name || '—' }}</span>
+                </div>
+                <div class="cand-field-row">
+                  <span class="cand-label">生产厂家</span>
+                  <span class="cand-value">{{ c.manufacturer || '—' }}</span>
+                </div>
+              </div>
               <BrandCandidateAttachBlock :candidate="c" :editable="false" />
             </div>
           </div>
@@ -888,8 +869,39 @@ function submitInspectionHandle() {
             <el-descriptions-item label="申请人">
               {{ todo.applicant || '—' }}
             </el-descriptions-item>
-            <el-descriptions-item label="定样说明/样板说明" :span="2">
+            <el-descriptions-item
+              v-if="todo.sampleBizType === 'material'"
+              label="供应商"
+            >
+              {{ todo.detail?.supplier || '—' }}
+            </el-descriptions-item>
+            <el-descriptions-item
+              v-if="todo.sampleBizType === 'material'"
+              label="材料指标说明"
+              :span="2"
+            >
+              {{ todo.detail?.indicatorDesc || todo.detail?.briefing || '—' }}
+            </el-descriptions-item>
+            <el-descriptions-item
+              v-else
+              label="关键工序样板说明"
+              :span="2"
+            >
               {{ todo.detail?.briefing || '—' }}
+            </el-descriptions-item>
+            <el-descriptions-item
+              v-if="todo.sampleBizType === 'material' && todo.detail?.effectImages?.length"
+              label="效果图"
+              :span="2"
+            >
+              {{ todo.detail.effectImages.map((f) => f.name || f).join('、') }}
+            </el-descriptions-item>
+            <el-descriptions-item
+              v-if="todo.sampleBizType === 'material' && todo.detail?.approvalFiles?.length"
+              label="审批文件"
+              :span="2"
+            >
+              {{ todo.detail.approvalFiles.map((f) => f.name || f).join('、') }}
             </el-descriptions-item>
           </el-descriptions>
         </section>
@@ -972,16 +984,6 @@ function submitInspectionHandle() {
             </el-descriptions-item>
             <el-descriptions-item label="供应商">
               {{ matEntryDetail?.supplier || '—' }}
-            </el-descriptions-item>
-            <el-descriptions-item label="品牌一致">
-              <el-tag
-                v-if="matEntryDetail"
-                size="small"
-                :type="matEntryDetail.brand_match ? 'success' : 'danger'"
-              >
-                {{ matEntryDetail.brand_match ? '一致' : '不一致' }}
-              </el-tag>
-              <span v-else>—</span>
             </el-descriptions-item>
             <el-descriptions-item label="合格证">{{ matEntryDetail?.cert_file || '—' }}</el-descriptions-item>
             <el-descriptions-item label="质检报告">{{ matEntryDetail?.inspect_file || '—' }}</el-descriptions-item>
@@ -1542,27 +1544,6 @@ function submitInspectionHandle() {
               </el-radio-group>
             </el-form-item>
             <el-form-item
-              v-if="todo.type === 'brand' && todo.brandNode === 'pm' && commonForm.decision === 'pass'"
-              label="入选品牌"
-              required
-            >
-              <el-radio-group v-model="brandSelectedCandidateId" class="brand-pick-group">
-                <div
-                  v-for="c in brandCandidates"
-                  :key="c.candidate_id"
-                  class="brand-pick-card"
-                  :class="{ 'is-active': brandSelectedCandidateId === c.candidate_id }"
-                  @click="brandSelectedCandidateId = c.candidate_id"
-                >
-                  <el-radio :value="c.candidate_id" class="brand-pick-radio">
-                    <span class="brand-pick-main">{{ c.brand_name }}</span>
-                    <span class="brand-pick-mfr">{{ c.manufacturer }}</span>
-                    <span v-if="c.remark" class="brand-pick-remark">备注：{{ c.remark }}</span>
-                  </el-radio>
-                </div>
-              </el-radio-group>
-            </el-form-item>
-            <el-form-item
               label="说明"
               :required="
                 !(
@@ -1772,23 +1753,43 @@ function submitInspectionHandle() {
   justify-content: center;
   width: 22px;
   height: 22px;
-  border-radius: 6px;
-  background: var(--el-color-primary);
-  color: #fff;
+  border-radius: 50%;
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
   font-size: 12px;
   font-weight: 600;
 }
 
-.cand-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: #303133;
+.cand-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  background: #fafbfc;
+  border: 1px solid #eef0f3;
+  border-radius: 8px;
 }
 
-.cand-mfr {
-  margin-bottom: 8px;
+.cand-field-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  line-height: 1.5;
+}
+
+.cand-label {
+  flex: 0 0 72px;
   font-size: 13px;
-  color: #606266;
+  color: #909399;
+}
+
+.cand-value {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  color: #303133;
+  word-break: break-all;
 }
 
 .brand-pick-group {

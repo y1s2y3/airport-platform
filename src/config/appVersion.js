@@ -7,7 +7,7 @@
 export const APP_VERSION_BASE = '2.2.1'
 
 /** GitHub Pages 发布序号（从 0 开始；仓库内为「当前即将发布 / 下一版」序号） */
-export const APP_VERSION_PATCH = 4
+export const APP_VERSION_PATCH = 5
 
 export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
 
@@ -16,6 +16,16 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  * highlights 宜短句，便于页头问号弹窗快速阅读
  */
 export const VERSION_CHANGELOG = [
+  {
+    version: 'v2.2.1.5',
+    date: '2026-08-19',
+    highlights: [
+      '质量看板：品牌报审、样板台账、材料设备进场按项目汇总，仅查看项目详情',
+      '材料与设备合并为材料设备进场管理；补充移动端进场申请与退场登记',
+      '品牌报审：重新提交、台账列调整、指挥部品牌总数',
+      '处罚单「工作类型」改为「类型」',
+    ],
+  },
   {
     version: 'v2.2.1.4',
     date: '2026-08-15',

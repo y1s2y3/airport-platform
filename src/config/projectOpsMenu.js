@@ -2,7 +2,7 @@
  * 项目级侧栏重组：
  * - 智慧工地监管：人员实名制 / 车辆 / 机械设备监管 / 危大工程监测 / 告警配置 / 视频监控
  * - 施工现场管理：施工作业申报 + 巡检管理 + 机械设备台账
- * - 施工质量管控：质量验评 / 品牌报审 / 样板管理 / 材料进场管理 / 设备进场管理 / 实模一致验收
+ * - 施工质量管控：质量验评 / 品牌报审 / 样板管理 / 材料设备进场管理 / 实模一致验收
  * 指挥部：「施工现场管理」见 hqSiteConstructionMenuGroup；「智慧工地监管」见 hqSmartSiteMenuGroup
  */
 import { vehicleMenuGroup } from './vehicleMenu.js'
@@ -13,7 +13,7 @@ import { qualityMenuGroup, qualityArchiveMenuGroup } from './qualityMenu.js'
 import { brandMenuGroup } from './brandMenu.js'
 import { sampleMenuGroup } from './sampleMenu.js'
 import { matMenuGroup } from './matMenu.js'
-import { eqMenuGroup } from './eqMenu.js'
+
 import { asbuiltMenuItem } from './asbuiltMenu.js'
 
 /** 人员实名制子项（项目侧完整能力；指挥部另在 hq 菜单前置统计/轨迹系统） */
@@ -206,7 +206,6 @@ export const constructionQualityMenuGroup = {
     nestGroup(brandMenuGroup, 'brand-approval'),
     nestGroup(sampleMenuGroup, 'sample-mgmt'),
     nestGroup(matMenuGroup, 'mat-entry-mgmt'),
-    nestGroup(eqMenuGroup, 'eq-entry-mgmt'),
     asbuiltMenuItem,
   ],
 }

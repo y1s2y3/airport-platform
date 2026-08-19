@@ -4,7 +4,7 @@ import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   getMaterialDetail,
-  STATUS_LABEL,
+  statusLabel,
   statusTagType,
 } from '../../../mock/sample.js'
 
@@ -19,10 +19,11 @@ const detail = computed(() => {
   return id.value ? getMaterialDetail(id.value) : null
 })
 
-const sampleSpec = computed(() => detail.value?.sample_spec || null)
-const compareItems = computed(() =>
-  Array.isArray(detail.value?.compare_items) ? detail.value.compare_items : [],
-)
+function fileNames(list) {
+  if (!Array.isArray(list)) return '—'
+  const names = list.map((f) => (typeof f === 'string' ? f : f?.name)).filter(Boolean)
+  return names.length ? names.join('、') : '—'
+}
 </script>
 
 <template>
@@ -41,53 +42,30 @@ const compareItems = computed(() =>
         <el-descriptions-item label="报审编号">{{ detail.application_id }}</el-descriptions-item>
         <el-descriptions-item label="项目">{{ detail.project_label }}</el-descriptions-item>
         <el-descriptions-item label="材料名称">{{ detail.material_name }}</el-descriptions-item>
+        <el-descriptions-item label="品牌">{{ detail.brand_name || '—' }}</el-descriptions-item>
+        <el-descriptions-item label="供应商">{{ detail.supplier || '—' }}</el-descriptions-item>
         <el-descriptions-item label="施工部位">{{ detail.use_part }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag size="small" :type="statusTagType(detail.status)">{{
-            STATUS_LABEL[detail.status]
+            statusLabel(detail.status)
           }}</el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="申请人">{{ detail.applicant_name }}</el-descriptions-item>
         <el-descriptions-item label="提交时间">{{ detail.submit_time }}</el-descriptions-item>
+        <el-descriptions-item v-if="detail.copy_from_application_id" label="复制来源">
+          {{ detail.copy_from_application_id }}
+        </el-descriptions-item>
         <el-descriptions-item label="备注" :span="2">{{ detail.remark || '—' }}</el-descriptions-item>
       </el-descriptions>
 
-      <h3 class="section-title">定版定样</h3>
-      <el-descriptions v-if="sampleSpec" :column="2" border class="mb" size="small">
-        <el-descriptions-item label="材料规格" :span="2">
-          {{ sampleSpec.material_spec || '—' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="供应商" :span="2">
-          {{ sampleSpec.supplier || '—' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="效果图" :span="2">
-          <span v-if="sampleSpec.effect_images?.length">{{
-            sampleSpec.effect_images.join('、')
-          }}</span>
-          <span v-else>—</span>
-        </el-descriptions-item>
-      </el-descriptions>
-      <el-empty v-else description="无定版定样资料" :image-size="48" class="mb" />
+      <h3 class="section-title">材料指标说明</h3>
+      <div class="text-block mb">{{ detail.indicator_desc || '—' }}</div>
 
-      <h3 class="section-title">比选记录</h3>
-      <el-table
-        :data="compareItems"
-        border
-        stripe
-        size="small"
-        empty-text="无比选记录"
-        class="mb"
-      >
-        <el-table-column type="index" label="#" width="50" />
-        <el-table-column prop="material_name" label="材料名称" min-width="140" show-overflow-tooltip />
-        <el-table-column prop="material_spec" label="材料规格" min-width="180" show-overflow-tooltip />
-        <el-table-column prop="supplier" label="供应商" min-width="140" show-overflow-tooltip />
-        <el-table-column label="效果图" min-width="180">
-          <template #default="{ row }">
-            {{ row.effect_images?.length ? row.effect_images.join('、') : '—' }}
-          </template>
-        </el-table-column>
-      </el-table>
+      <h3 class="section-title">效果图</h3>
+      <div class="text-block mb">{{ fileNames(detail.effect_images) }}</div>
+
+      <h3 class="section-title">审批文件</h3>
+      <div class="text-block mb">{{ fileNames(detail.approval_files) }}</div>
 
       <h3 class="section-title">审批记录</h3>
       <el-table :data="detail.approvals || []" border stripe size="small" empty-text="暂无">
@@ -112,5 +90,15 @@ const compareItems = computed(() =>
 }
 .mb {
   margin-bottom: 12px;
+}
+.text-block {
+  padding: 10px 12px;
+  background: #fafbfc;
+  border: 1px solid #ebeef5;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #606266;
+  white-space: pre-wrap;
 }
 </style>

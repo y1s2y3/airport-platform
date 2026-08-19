@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Edit, CircleClose, Upload, Promotion } from '@element-plus/icons-vue'
+import { Plus, Edit, CircleClose, Upload, Promotion, Download } from '@element-plus/icons-vue'
 import {
   buildProjects,
 } from '../mock/data.js'
@@ -25,6 +25,7 @@ import {
 import DispatchImageAttachments from '../components/DispatchImageAttachments.vue'
 import PenaltyDetailPanels from '../components/PenaltyDetailPanels.vue'
 import { buildExecutorOptions, resolveExecutorDisplay } from '../utils/executorDisplay.js'
+import { TASK_WORK_TYPES } from '../config/screenshotTaskOrderFields.js'
 
 defineProps({
   title: { type: String, default: '处罚单' },
@@ -56,7 +57,7 @@ const filtered = computed(() => {
   const q = keyword.value.trim()
   if (!q) return rows
   return rows.filter((r) =>
-    [r.id, r.project, r.unit, r.penaltyReason, r.penaltyContent, r.assignee, r.executor, r.deadline, r.penaltyClause, r.amount]
+    [r.id, r.project, r.workType, r.penaltyContent, r.assignee, r.executor, r.deadline, r.penaltyClause, r.amount]
       .some((f) => String(f || '').includes(q)),
   )
 })
@@ -66,7 +67,7 @@ function displayValue(value) {
 }
 
 function penaltyLabel(row) {
-  return row?.penaltyReason || row?.title || row?.id || '处罚单'
+  return row?.title || row?.penaltyContent || row?.id || '处罚单'
 }
 
 function load() {
@@ -107,16 +108,12 @@ function validateForm() {
     ElMessage.warning('请填写项目名称')
     return false
   }
-  if (!form.value.unit?.trim()) {
-    ElMessage.warning('请填写责任单位')
-    return false
-  }
-  if (!form.value.penaltyReason?.trim()) {
-    ElMessage.warning('请填写事由')
+  if (!form.value.workType?.trim()) {
+    ElMessage.warning('请选择类型')
     return false
   }
   if (!form.value.penaltyContent?.trim()) {
-    ElMessage.warning('请填写内容')
+    ElMessage.warning('请填写处罚内容')
     return false
   }
   if (!form.value.assignee?.trim()) {
@@ -136,8 +133,8 @@ function submitForm() {
   const payload = {
     ...form.value,
     project: form.value.project.trim(),
-    unit: form.value.unit.trim(),
-    penaltyReason: form.value.penaltyReason.trim(),
+    workType: form.value.workType.trim(),
+    penaltyReason: form.value.workType.trim(),
     penaltyContent: form.value.penaltyContent.trim(),
     assignee,
     executor: assignee,
@@ -168,13 +165,17 @@ function handleClose(row) {
 
 function handleIssue(row) {
   if (row.status !== PENALTY_STATUSES.PENDING) return
-  ElMessageBox.confirm(`确定下发处罚单「${penaltyLabel(row)}」至责任单位？`, '下发确认', { type: 'info' })
+  ElMessageBox.confirm(`确定下发处罚单「${penaltyLabel(row)}」？`, '下发确认', { type: 'info' })
     .then(() => {
       issueDispatchPenaltyRecord(row.id)
       load()
       ElMessage.success('处罚单已下发，状态更新为处理中')
     })
     .catch(() => {})
+}
+
+function handleExport(row) {
+  ElMessage.success(`已按模板导出处罚单「${penaltyLabel(row)}」`)
 }
 
 function canBlackBoard(row) {
@@ -242,7 +243,7 @@ onMounted(load)
           <el-option label="申诉中" :value="PENALTY_STATUSES.APPEALING" />
           <el-option label="已关闭" :value="PENALTY_STATUSES.CLOSED" />
         </el-select>
-        <el-input v-model="keyword" placeholder="搜索编号、项目、事由…" clearable class="search-input" />
+        <el-input v-model="keyword" placeholder="搜索编号、项目、处罚内容…" clearable class="search-input" />
         <el-button type="primary" :icon="Plus" @click="openCreate">新增</el-button>
       </div>
     </div>
@@ -252,9 +253,8 @@ onMounted(load)
         <el-table-column type="index" label="序号" width="56" />
         <el-table-column prop="id" label="编号" width="148" show-overflow-tooltip />
         <el-table-column prop="project" label="项目名称" min-width="120" show-overflow-tooltip />
-        <el-table-column prop="unit" label="责任单位" min-width="140" show-overflow-tooltip />
-        <el-table-column prop="penaltyReason" label="事由" min-width="140" show-overflow-tooltip />
-        <el-table-column prop="penaltyContent" label="内容" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="workType" label="类型" width="96" />
+        <el-table-column prop="penaltyContent" label="处罚内容" min-width="180" show-overflow-tooltip />
         <el-table-column label="指派人" min-width="140" show-overflow-tooltip>
           <template #default="{ row }">
             {{ resolveExecutorDisplay(row.assignee || row.executor) }}
@@ -280,9 +280,10 @@ onMounted(load)
             <span v-else class="muted">—</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column label="操作" width="340" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openDetail(row)">详情</el-button>
+            <el-button link type="primary" :icon="Download" @click="handleExport(row)">导出处罚单</el-button>
             <el-button
               v-if="row.status === PENALTY_STATUSES.PENDING"
               link
@@ -326,7 +327,7 @@ onMounted(load)
 
     <el-dialog v-model="formVisible" :title="formMode === 'create' ? '新增处罚单' : '编辑处罚单'" width="640px" destroy-on-close>
       <p v-if="formMode === 'create'" class="dialog-tip">以下字段由指挥部填报；条款与金额由接收人在处理阶段填报。</p>
-      <el-form label-width="96px">
+      <el-form label-width="108px">
         <el-form-item v-if="formMode === 'edit' && form.id" label="编号">
           <el-input :model-value="form.id" disabled />
         </el-form-item>
@@ -342,13 +343,12 @@ onMounted(load)
             <el-option v-for="item in projectOptions" :key="item" :label="item" :value="item" />
           </el-select>
         </el-form-item>
-        <el-form-item label="责任单位" required>
-          <el-input v-model="form.unit" placeholder="如：中建三局（施工总承包）" />
+        <el-form-item label="类型" required>
+          <el-radio-group v-model="form.workType" class="work-type-tags">
+            <el-radio-button v-for="item in TASK_WORK_TYPES" :key="item" :value="item">{{ item }}</el-radio-button>
+          </el-radio-group>
         </el-form-item>
-        <el-form-item label="事由" required>
-          <el-input v-model="form.penaltyReason" placeholder="如：塔吊作业区警戒标识不足" />
-        </el-form-item>
-        <el-form-item label="内容" required>
+        <el-form-item label="处罚内容" required>
           <el-input
             v-model="form.penaltyContent"
             type="textarea"
@@ -402,9 +402,8 @@ onMounted(load)
         <el-form-item label="同步说明">
           <div class="sync-preview">
             <div>项目：{{ blackBoardTarget?.project || '—' }}</div>
-            <div>责任单位：{{ blackBoardTarget?.unit || '—' }}</div>
-            <div>事由：{{ blackBoardTarget?.penaltyReason || blackBoardTarget?.title || '—' }}</div>
-            <div>内容：{{ blackBoardTarget?.penaltyContent || '—' }}</div>
+            <div>类型：{{ blackBoardTarget?.workType || '—' }}</div>
+            <div>处罚内容：{{ blackBoardTarget?.penaltyContent || '—' }}</div>
             <div>金额：{{ displayValue(blackBoardTarget?.amount) }}</div>
             <div v-if="blackBoardTarget?.snapshot">将携带关联图片作为黑榜图片</div>
           </div>
@@ -571,5 +570,41 @@ onMounted(load)
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.work-type-tags {
+  display: inline-flex;
+  gap: 8px;
+  --work-type-color: var(--coc-accent, var(--ap-primary, var(--el-color-primary)));
+}
+
+.work-type-tags :deep(.el-radio-button__inner) {
+  height: 32px;
+  padding: 0 16px;
+  border-radius: 999px !important;
+  border: 1px solid var(--coc-border, var(--el-border-color, #dcdfe6)) !important;
+  background: transparent;
+  box-shadow: none;
+  color: var(--coc-text-secondary, var(--ap-text-secondary, #606266));
+  font-weight: 500;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.work-type-tags :deep(.el-radio-button:first-child .el-radio-button__inner),
+.work-type-tags :deep(.el-radio-button:last-child .el-radio-button__inner) {
+  border-radius: 999px !important;
+}
+
+.work-type-tags :deep(.el-radio-button__inner:hover) {
+  color: var(--work-type-color);
+  border-color: var(--work-type-color) !important;
+}
+
+.work-type-tags :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
+  background: transparent;
+  border-color: var(--work-type-color) !important;
+  color: var(--work-type-color);
+  box-shadow: none;
+  font-weight: 600;
 }
 </style>

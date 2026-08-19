@@ -1,0 +1,69 @@
+/* 指挥部质量看板：按项目汇总指标（对齐实名制统计页布局） */
+.hq-stat-row {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.hq-stat-row.cols-7 {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.hq-stat-card {
+  border: 1px solid var(--ap-border, #ebeef5);
+  border-radius: 8px;
+  background: #fff;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+}
+
+.hq-stat-label {
+  font-size: 13px;
+  color: var(--ap-text-muted, #909399);
+}
+
+.hq-stat-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ap-primary, #91003d);
+  line-height: 1.2;
+}
+
+.hq-stat-value.warn {
+  color: var(--ap-warning, #e6a23c);
+}
+
+.hq-stat-value.danger {
+  color: var(--ap-danger, #f56c6c);
+}
+
+.hq-stat-value.ok {
+  color: var(--ap-success, #67c23a);
+}
+
+.warn-num {
+  color: var(--ap-warning, #e6a23c);
+  font-weight: 600;
+}
+
+.danger-num {
+  color: var(--ap-danger, #f56c6c);
+  font-weight: 600;
+}
+
+@media (max-width: 1400px) {
+  .hq-stat-row,
+  .hq-stat-row.cols-7 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .hq-stat-row,
+  .hq-stat-row.cols-7 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

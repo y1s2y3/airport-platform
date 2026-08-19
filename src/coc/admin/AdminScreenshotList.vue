@@ -24,7 +24,7 @@ const filtered = computed(() => {
       item.executeDept,
       item.matterDescription,
       item.remark,
-      item.penaltyReason,
+      item.workType,
       item.penaltyContent,
       item.hazardLevel,
       item.hazardDeadline,
@@ -52,13 +52,13 @@ function isHazardRow(row) {
 function rowSummary(row) {
   if (isNoticeRow(row)) return row.workRequirement || row.description
   if (isReminderRow(row)) return row.matterDescription || row.description
-  if (isPenaltyRow(row)) return row.penaltyReason || row.penaltyContent || row.description
+  if (isPenaltyRow(row)) return row.penaltyContent || row.description
   return row.description
 }
 
 function rowHandler(row) {
   if (isNoticeRow(row) || isReminderRow(row)) return row.executor || row.executeDept || row.rectifier
-  if (isPenaltyRow(row)) return row.penaltyReason
+  if (isPenaltyRow(row)) return row.assignee || row.executor || row.rectifier
   if (isHazardRow(row)) return row.hazardDeadline || row.rectifier
   return row.rectifier
 }
@@ -187,8 +187,8 @@ onMounted(load)
             <el-descriptions-item label="完成时限">{{ current.deadline || '—' }}</el-descriptions-item>
           </template>
           <template v-else-if="isPenaltyRow(current)">
-            <el-descriptions-item label="事由">{{ current.penaltyReason || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="内容">{{ current.penaltyContent || current.description || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="类型">{{ current.workType || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="处罚内容">{{ current.penaltyContent || current.description || '—' }}</el-descriptions-item>
             <el-descriptions-item label="指派人">
               {{ resolveExecutorDisplay(current.assignee || current.executor || current.rectifier) }}
             </el-descriptions-item>

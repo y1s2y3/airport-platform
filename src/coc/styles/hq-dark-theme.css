@@ -1629,6 +1629,26 @@
   color: rgba(255, 255, 255, 0.72);
 }
 
+.coc-hq-mode .project-dispatch-layout .work-type-tags {
+  gap: 8px;
+}
+
+.coc-hq-mode .project-dispatch-layout .work-type-tags .el-radio-button__inner {
+  background: transparent;
+  box-shadow: none;
+  border-radius: 999px !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.coc-hq-mode .project-dispatch-layout .work-type-tags .el-radio-button__inner:hover,
+.coc-hq-mode .project-dispatch-layout .work-type-tags .el-radio-button__original-radio:checked + .el-radio-button__inner {
+  background: transparent;
+  box-shadow: none;
+  border-color: var(--coc-accent, #5eeeff) !important;
+  color: var(--coc-accent, #5eeeff);
+}
+
 .coc-hq-mode .project-dispatch-layout .draft-fields .el-input__wrapper,
 .coc-hq-mode .project-dispatch-layout .draft-fields .el-textarea__inner {
   background: rgba(255, 255, 255, 0.06);
@@ -2274,6 +2294,26 @@
 .screenshot-mark-popper .el-date-table td.current:not(.disabled) .el-date-table-cell__text {
   background: rgba(64, 158, 255, 0.85);
   color: #fff;
+}
+
+.coc-hq-shell .screenshot-mark-dialog .work-type-tags {
+  gap: 8px;
+}
+
+.coc-hq-shell .screenshot-mark-dialog .work-type-tags .el-radio-button__inner {
+  background: transparent;
+  box-shadow: none;
+  border-radius: 999px !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.coc-hq-shell .screenshot-mark-dialog .work-type-tags .el-radio-button__inner:hover,
+.coc-hq-shell .screenshot-mark-dialog .work-type-tags .el-radio-button__original-radio:checked + .el-radio-button__inner {
+  background: transparent;
+  box-shadow: none;
+  border-color: var(--coc-accent, #5eeeff) !important;
+  color: var(--coc-accent, #5eeeff);
 }
 
 .screenshot-mark-popper .el-picker-panel__icon-btn {

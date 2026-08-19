@@ -1,36 +1,51 @@
 /**
- * 材料进场管理 — 项目级挂在「施工质量管控」下
- * 对齐 prd-mat-v1 / feature-list-mat-v1
- * 审批走个人中心待办，无独立审批菜单
+ * 材料设备进场管理 — 项目级挂在「施工质量管控」下
+ * 对齐 research-mat-eq V2.0
  */
 export const matMenuGroup = {
   key: 'mat-entry-mgmt',
-  label: '材料进场管理',
+  label: '材料设备进场管理',
   icon: 'Box',
   children: [
     {
       key: 'mat-ledger',
-      label: '材料进场台账',
+      label: '材料设备台账',
       path: '/qm/mat/ledger',
-      description: '本项目全量进场台账，支持筛选与抽查（项目级）。',
+      description: '本项目全量材料/设备台账，支持类型筛选与抽查。',
       name: 'MatLedger',
       component: 'MatLedgerView',
     },
     {
       key: 'mat-application',
-      label: '材料进场申请',
+      label: '进场申请',
       path: '/qm/mat/applications',
-      description: '施工新建进场报验；审批在个人中心待办。',
+      description: '施工单位新建并提交进场申请；已撤回 / 已驳回可重新申报。',
       name: 'MatApplication',
       component: 'MatApplicationListView',
     },
     {
       key: 'mat-exit',
-      label: '材料退场登记',
+      label: '退场登记',
       path: '/qm/mat/exit',
-      description: '退场记录列表；新增/详情弹窗；登记即生效。',
+      description: 'Web 查询退场记录；登记退场请在 APP「退场登记（移动端）」完成。',
       name: 'MatExit',
       component: 'MatExitView',
+    },
+    {
+      key: 'mobile-mat-entry',
+      label: '进场申请（移动端）',
+      path: '/mobile/mat/entry',
+      description: 'APP：进场申报 / 已撤回与已驳回重新申报；附件一律拍照。',
+      name: 'MobileMatEntryList',
+      component: 'MobileMatEntryListView',
+    },
+    {
+      key: 'mobile-mat-exit',
+      label: '退场登记（移动端）',
+      path: '/mobile/mat/exit',
+      description: 'APP：登记退场；现场照片一律拍照。',
+      name: 'MobileMatExit',
+      component: 'MobileMatExitView',
     },
   ],
 }
@@ -41,7 +56,7 @@ export const matExtraRoutes = [
     key: 'mat-dashboard',
     path: '/qm/mat/dashboard',
     name: 'MatDashboard',
-    label: '材料进场看板',
+    label: '材料设备进场',
     component: 'MatDashboardView',
     sidebarKey: 'mat-dashboard',
     hidden: true,
@@ -50,7 +65,7 @@ export const matExtraRoutes = [
     key: 'mat-application-edit',
     path: '/qm/mat/applications/edit',
     name: 'MatApplicationEdit',
-    label: '新建进场申请',
+    label: '进场申报',
     component: 'MatApplicationEditView',
     sidebarKey: 'mat-application',
   },
@@ -61,6 +76,14 @@ export const matExtraRoutes = [
     label: '进场详情',
     component: 'MatApplicationDetailView',
     sidebarKey: 'mat-application',
+  },
+  {
+    key: 'mobile-mat-entry-create',
+    path: '/mobile/mat/entry/create',
+    name: 'MobileMatEntryEdit',
+    label: '进场申报（移动端）',
+    component: 'MobileMatEntryEditView',
+    sidebarKey: 'mobile-mat-entry',
   },
 ]
 
@@ -82,4 +105,7 @@ export const matViewLoaders = {
   MatApplicationEditView: () => import('../views/quality/mat/MatApplicationEditView.vue'),
   MatApplicationDetailView: () => import('../views/quality/mat/MatApplicationDetailView.vue'),
   MatExitView: () => import('../views/quality/mat/MatExitView.vue'),
+  MobileMatEntryListView: () => import('../views/mobile/MobileMatEntryListView.vue'),
+  MobileMatEntryEditView: () => import('../views/mobile/MobileMatEntryEditView.vue'),
+  MobileMatExitView: () => import('../views/mobile/MobileMatExitView.vue'),
 }

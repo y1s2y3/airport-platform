@@ -20,7 +20,6 @@ const dash = computed(() => {
       total_batches: 0,
       pending_count: 0,
       approved_count: 0,
-      exited_count: 0,
     }
   }
   return getEqDashboard(scopeProjectId.value)
@@ -88,8 +87,9 @@ function viewProjectDetail(row) {
             fixed
             show-overflow-tooltip
           />
-          <el-table-column prop="entry_count" label="进场登记次数" width="130" align="center" />
-          <el-table-column prop="exit_count" label="退场登记次数" width="130" align="center" />
+          <el-table-column prop="total_batches" label="进场批次" width="110" align="center" />
+          <el-table-column prop="pending_count" label="审核中" width="100" align="center" />
+          <el-table-column prop="approved_count" label="已通过" width="100" align="center" />
           <el-table-column label="操作" width="130" fixed="right">
             <template #default="{ row }">
               <el-button link type="primary" @click="viewProjectDetail(row)">查看项目详情</el-button>

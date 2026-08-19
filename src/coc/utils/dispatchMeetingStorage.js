@@ -1,4 +1,5 @@
 ﻿import { COMMAND_MEETING_HISTORY, MOCK_NOTICE, AI_INTERCOM_RECORDS, DISPATCH_CURRENT_USER } from '../mock/data.js'
+import { resolveTaskWorkType } from '../config/screenshotTaskOrderFields.js'
 import { resolveExecutorDisplay } from './executorDisplay.js'
 
 const NOTICE_KEY = 'coc-admin-dispatch-notices'
@@ -14,6 +15,7 @@ const PENALTY_APPEAL_PATCH_FLAG = 'coc-admin-penalty-appeal-v1'
 const PENALTY_STATUS_PATCH_FLAG = 'coc-admin-penalty-status-v2'
 const PENALTY_ASSIGNEE_DEADLINE_PATCH_FLAG = 'coc-admin-penalty-assignee-deadline-v1'
 const PENALTY_STATUS_DEMO_PATCH_FLAG = 'coc-admin-penalty-status-demo-v4'
+const PENALTY_WORKTYPE_PATCH_FLAG = 'coc-admin-penalty-worktype-v1'
 const REMINDER_SEED_FLAG = 'coc-admin-dispatch-reminder-v1'
 const REMINDER_STATUS_PATCH_FLAG = 'coc-admin-reminder-status-v1'
 const NOTICE_STATUS_PATCH_FLAG = 'coc-admin-notice-status-v1'
@@ -226,8 +228,8 @@ function buildPenaltyContentText(fields) {
   const lines = [
     fields.cameraName ? `监控点位：${fields.cameraName}（${fields.cameraLocation || '—'}）` : '',
     `项目名称：${fields.project || '—'}`,
-    `事由：${fields.penaltyReason || '—'}`,
-    `内容：${fields.penaltyContent || '—'}`,
+    `类型：${fields.workType || '—'}`,
+    `处罚内容：${fields.penaltyContent || '—'}`,
     `指派人：${fields.assignee || fields.executor || '—'}`,
     `完成时限：${fields.deadline || '—'}`,
   ]
@@ -235,10 +237,11 @@ function buildPenaltyContentText(fields) {
 }
 
 export function normalizeNoticeRecord(record = {}) {
-  const workType =
+  const rawWorkType =
     record.workType !== undefined && record.workType !== null
       ? record.workType
-      : (record.type || '安全')
+      : (record.type || '')
+  const workType = resolveTaskWorkType(rawWorkType, record.workRequirement || '')
   const workRequirement = record.workRequirement || record.content || ''
   const rawExecutor =
     record.executor !== undefined && record.executor !== null
@@ -332,7 +335,10 @@ export function normalizeReminderRecord(record = {}) {
 }
 
 export function normalizePenaltyRecord(record = {}) {
-  const penaltyReason = record.penaltyReason || record.title || ''
+  const workType = resolveTaskWorkType(
+    record.workType,
+    `${record.penaltyReason || ''} ${record.penaltyContent || ''} ${record.title || ''}`,
+  )
   const penaltyContent = record.penaltyContent || record.content || ''
   const penaltyClause = record.penaltyClause || ''
   const amount = record.amount || ''
@@ -342,11 +348,10 @@ export function normalizePenaltyRecord(record = {}) {
       : (record.executor || record.rectifier || '')
   const assignee = rawAssignee ? resolveExecutorDisplay(rawAssignee) : ''
   const deadline = record.deadline || defaultDeadline()
-  const titleBase = penaltyReason.trim().slice(0, 24) || '处罚单'
+  const titleBase = (penaltyContent || workType || record.title || '').trim().slice(0, 24) || '处罚单'
   const contentFields = {
     project: record.project || '',
-    unit: record.unit || record.executeDept || '',
-    penaltyReason,
+    workType,
     penaltyContent,
     assignee,
     executor: assignee,
@@ -356,7 +361,8 @@ export function normalizePenaltyRecord(record = {}) {
   }
   return {
     ...record,
-    penaltyReason,
+    workType,
+    penaltyReason: workType,
     penaltyContent,
     penaltyClause,
     amount,
@@ -371,8 +377,9 @@ export function normalizePenaltyRecord(record = {}) {
     status: migratePenaltyStatus(record.status || PENALTY_STATUSES.PENDING),
     issueTime: record.issueTime ?? '—',
     content:
-      record.content?.includes('事由：') && record.content?.includes('项目名称：')
-        ? record.content
+      record.content?.includes('处罚内容：') &&
+      (record.content?.includes('工作类型：') || record.content?.includes('类型：'))
+        ? record.content.replaceAll('工作类型：', '类型：')
         : buildPenaltyContentText(contentFields),
     appealReason: record.appealReason || '',
     appealAttachments: normalizePenaltyImageAttachments(record.appealAttachments, '申诉附件'),
@@ -443,6 +450,7 @@ export function emptyPenaltyRecord() {
     id: '',
     project: '',
     unit: '',
+    workType: '',
     penaltyReason: '',
     penaltyContent: '',
     penaltyClause: '',
@@ -538,7 +546,8 @@ function buildPenaltyStatusDemoRecords() {
       id: 'CF-PENDING-001',
       project: '航站区配套工程',
       unit: '中交一航局',
-      penaltyReason: '基坑临边防护缺失',
+      title: '基坑临边防护缺失',
+      workType: '安全',
       penaltyContent: '基坑周边临边防护缺失（较大隐患），草稿待指挥部下发。',
       assignee: '王强（项目经理）',
       deadline: '2026-06-18',
@@ -561,7 +570,8 @@ function buildPenaltyStatusDemoRecords() {
       id: 'CF-20260612-001',
       project: '捷运线延长段',
       unit: '中建三局（捷运线施工总承包）',
-      penaltyReason: '塔吊警戒标识不足',
+      title: '塔吊警戒标识不足',
+      workType: '安全',
       penaltyContent:
         '3号塔吊作业区警戒标识不足，存在人员误入风险。限期 24 小时内整改，逾期将按合同条款追加处罚并通报。',
       assignee: '李巡检（巡检工程师）',
@@ -595,7 +605,8 @@ function buildPenaltyStatusDemoRecords() {
       id: 'CF-20260612-002',
       project: '飞行区5号通道',
       unit: '中建八局',
-      penaltyReason: '混凝土养护措施不到位',
+      title: '混凝土养护措施不到位',
+      workType: '质量',
       penaltyContent: '浇筑完成后未按规范覆盖养护，存在开裂风险，限期整改。',
       assignee: '陈磊（质量员）',
       deadline: '2026-06-15',
@@ -645,7 +656,8 @@ function buildPenaltyStatusDemoRecords() {
       id: 'CF-20260611-003',
       project: 'T2主体结构',
       unit: '中建二局',
-      penaltyReason: '文明施工违规',
+      title: '文明施工违规',
+      workType: '安全',
       penaltyContent: '材料堆放占用消防通道，违反文明施工管理规定，处以违约金并限期清场。',
       assignee: '赵军（安全员）',
       deadline: '2026-06-14',
@@ -694,7 +706,8 @@ function buildPenaltyStatusDemoRecords() {
       id: 'CF-20260610-004',
       project: '钢筋加工场',
       unit: '中铁建工',
-      penaltyReason: '高处作业违规',
+      title: '高处作业违规',
+      workType: '安全',
       penaltyContent: '高处作业人员未系安全带，现场立即停工整改，并对责任单位处以违约金。',
       assignee: '王强（项目经理）',
       deadline: '2026-06-11',
@@ -750,7 +763,8 @@ function buildPenaltyStatusDemoRecords() {
       id: 'CF-CLOSED-MANUAL-001',
       project: '货运区道路工程',
       unit: '中建一局',
-      penaltyReason: '临时用电线路私拉乱接（误报）',
+      title: '临时用电线路私拉乱接（误报）',
+      workType: '安全',
       penaltyContent: '巡检发现临时用电线路疑似私拉乱接，拟下发处罚；复核后确认为误报，指挥部手动关闭。',
       assignee: '张安全（安监专员）',
       deadline: '2026-06-20',
@@ -911,7 +925,8 @@ function ensurePenaltyAppealPatch() {
     id: 'CF-APPEAL-001',
     project: 'T2主体结构',
     unit: '中建二局',
-    penaltyReason: '文明施工违规',
+    title: '文明施工违规',
+    workType: '安全',
     penaltyContent: '材料堆放占用消防通道，违反文明施工管理规定，处以违约金并限期清场。',
     assignee: '赵军（安全员）',
     deadline: '2026-06-14',
@@ -1023,6 +1038,19 @@ function ensurePenaltyStatusDemoPatch() {
   })
   writeList(PENALTY_KEY, cleaned)
   localStorage.setItem(PENALTY_STATUS_DEMO_PATCH_FLAG, '1')
+}
+
+function ensurePenaltyWorkTypePatch() {
+  if (localStorage.getItem(PENALTY_WORKTYPE_PATCH_FLAG)) return
+  const list = readList(PENALTY_KEY)
+  if (list.length) {
+    writeList(PENALTY_KEY, list.map((item) => normalizePenaltyRecord(item)))
+  }
+  const notices = readList(NOTICE_KEY)
+  if (notices.length) {
+    writeList(NOTICE_KEY, notices.map((item) => normalizeNoticeRecord(item)))
+  }
+  localStorage.setItem(PENALTY_WORKTYPE_PATCH_FLAG, '1')
 }
 
 function ensureManualClosedDemoExists() {
@@ -1150,6 +1178,7 @@ export function ensureDispatchMeetingSeed() {
     ensurePenaltyStatusPatch()
     ensurePenaltyAssigneeDeadlinePatch()
     ensurePenaltyStatusDemoPatch()
+    ensurePenaltyWorkTypePatch()
     ensureReminderSeedPatch()
     ensureNoticeStatusPatch()
     ensureReminderStatusPatch()
@@ -1164,6 +1193,7 @@ export function ensureDispatchMeetingSeed() {
   localStorage.setItem(REMINDER_SEED_FLAG, '1')
   localStorage.setItem(PENALTY_ASSIGNEE_DEADLINE_PATCH_FLAG, '1')
   localStorage.setItem(PENALTY_STATUS_DEMO_PATCH_FLAG, '1')
+  localStorage.setItem(PENALTY_WORKTYPE_PATCH_FLAG, '1')
 }
 
 function ensureDispatchDocSnapshots() {
@@ -1277,7 +1307,8 @@ function buildScreenshotPenaltyRecord(payload) {
     id: createDocId('CF'),
     project: payload.projectName || '',
     unit: payload.unit || '',
-    penaltyReason: payload.penaltyReason || '',
+    workType: payload.workType || payload.penaltyReason || '',
+    penaltyReason: payload.workType || payload.penaltyReason || '',
     penaltyContent: payload.penaltyContent || payload.description || '',
     assignee: payload.assignee || payload.executor || payload.rectifier || '',
     deadline: payload.deadline || defaultDeadline(),

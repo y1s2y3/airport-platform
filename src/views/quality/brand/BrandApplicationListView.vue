@@ -10,9 +10,9 @@ import {
   MATERIAL_TYPE,
   NODE_LABEL,
   STATUS_LABEL,
+  statusLabel,
   statusTagType,
   withdrawApplication,
-  resubmitApplication,
   getApplicationDetail,
 } from '../../../mock/brand.js'
 
@@ -30,13 +30,13 @@ const list = computed(() => {
     status: statusFilter.value,
   }).map((a) => {
     const detail = getApplicationDetail(a.application_id)
+    const cands = detail?.candidates || []
+    const primary = cands.find((c) => c.is_primary)
+    const alternates = cands.filter((c) => !c.is_primary)
     return {
       ...a,
-      candidate_count: detail?.candidates?.length || 0,
-      brand_preview: (detail?.candidates || [])
-        .slice(0, 3)
-        .map((c) => c.brand_name)
-        .join(' / '),
+      primary_brand: primary?.brand_name || '—',
+      alternate_preview: alternates.map((c) => c.brand_name).join(' / ') || '—',
     }
   })
 })
@@ -48,7 +48,7 @@ function reset() {
 
 async function onWithdraw(row) {
   try {
-    await ElMessageBox.confirm(`确认撤回报审单 ${row.application_id}？仅待监理审时可撤。`, '撤回', {
+    await ElMessageBox.confirm(`确认撤回报审单 ${row.application_id}？仅待审批时可撤。`, '撤回', {
       type: 'warning',
     })
   } catch {
@@ -60,18 +60,17 @@ async function onWithdraw(row) {
   ElMessage.success('已撤回')
 }
 
-async function onResubmit(row) {
-  try {
-    await ElMessageBox.confirm(`确认重提报审单 ${row.application_id}？将清空全部入选标记。`, '重提', {
-      type: 'warning',
-    })
-  } catch {
-    return
-  }
-  const r = resubmitApplication(row.application_id)
-  if (!r.ok) return ElMessage.error(r.msg)
-  tick.value += 1
-  ElMessage.success('已重提，进入待监理审')
+function copyFromRejected(row) {
+  router.push(`/qm/brand/applications/edit?copyFrom=${row.application_id}`)
+}
+
+function onReEdit(row) {
+  router.push(`/qm/brand/applications/edit?id=${row.application_id}&reEdit=1`)
+}
+
+function onResubmit(row) {
+  if (row.status === 'withdrawn') onReEdit(row)
+  else if (row.status === 'rejected') copyFromRejected(row)
 }
 </script>
 
@@ -81,9 +80,8 @@ async function onResubmit(row) {
       <div class="page-breadcrumb">品牌报审 / 报审申请</div>
       <h1 class="page-title">报审申请</h1>
       <p class="page-tip">
-        施工直接提交 · 审批在个人中心待办处理 · 当前：{{
-          isHqSelected ? '请切换到具体项目' : scopeProjectLabel
-        }}
+        审批在个人中心待办处理
+        · 当前：{{ isHqSelected ? '请切换到具体项目' : scopeProjectLabel }}
       </p>
     </div>
 
@@ -121,10 +119,11 @@ async function onResubmit(row) {
         <el-table-column label="类型" width="80">
           <template #default="{ row }">{{ MATERIAL_TYPE[row.material_type] }}</template>
         </el-table-column>
-        <el-table-column prop="brand_preview" label="备选品牌" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="primary_brand" label="主选品牌" width="120" />
+        <el-table-column prop="alternate_preview" label="备选品牌" min-width="180" show-overflow-tooltip />
         <el-table-column label="状态" width="90">
           <template #default="{ row }">
-            <el-tag size="small" :type="statusTagType(row.status)">{{ STATUS_LABEL[row.status] }}</el-tag>
+            <el-tag size="small" :type="statusTagType(row.status)">{{ statusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="当前节点" width="120">
@@ -141,7 +140,7 @@ async function onResubmit(row) {
               详情
             </el-button>
             <el-button
-              v-if="row.status === 'in_approval' && row.current_node === 'supervisor'"
+              v-if="row.status === 'pending'"
               link
               type="warning"
               @click="onWithdraw(row)"
@@ -149,12 +148,12 @@ async function onResubmit(row) {
               撤回
             </el-button>
             <el-button
-              v-if="row.status === 'rejected' || row.status === 'withdrawn'"
+              v-if="row.status === 'withdrawn' || row.status === 'rejected'"
               link
               type="primary"
               @click="onResubmit(row)"
             >
-              重提
+              重新申报
             </el-button>
           </template>
         </el-table-column>

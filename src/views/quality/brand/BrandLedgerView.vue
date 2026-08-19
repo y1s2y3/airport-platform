@@ -4,7 +4,7 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, Refresh } from '@element-plus/icons-vue'
 import { useQmProjectScope } from '../../../composables/useCurrentProject'
-import { listLedger, MATERIAL_TYPE, statusTagType, STATUS_LABEL } from '../../../mock/brand.js'
+import { listLedger, MATERIAL_TYPE, ROLE_TAG } from '../../../mock/brand.js'
 
 const router = useRouter()
 const { isHqSelected, scopeProjectId, scopeProjectLabel } = useQmProjectScope()
@@ -20,7 +20,8 @@ function reset() {
 }
 
 function openDetail(row) {
-  router.push(`/qm/brand/applications/detail?id=${row.application_id}`)
+  if (!row?.application_id) return
+  router.push(`/qm/brand/ledger/detail?id=${row.application_id}`)
 }
 </script>
 
@@ -30,8 +31,8 @@ function openDetail(row) {
       <div class="page-breadcrumb">品牌报审 / 品牌报审台账</div>
       <h1 class="page-title">品牌报审台账</h1>
       <p class="page-tip">
-        已通过报审视图 · 当前：{{ isHqSelected ? '请切换到具体项目' : scopeProjectLabel }}
-        · 按品牌名称、厂家、材料名称查询
+        审批通过后写入 · 当前：{{ isHqSelected ? '请切换到具体项目' : scopeProjectLabel }}
+        · 唯一键：项目 + 品牌 + 厂家 + 材料（同品牌不同材料分多条）
       </p>
     </div>
 
@@ -49,7 +50,7 @@ function openDetail(row) {
         <el-input
           v-model="keyword"
           clearable
-          placeholder="品牌 / 厂家 / 材料名称 / 报审编号"
+          placeholder="品牌 / 厂家 / 材料/设备名称 / 报审编号"
           style="width: 280px"
           :prefix-icon="Search"
         />
@@ -57,26 +58,31 @@ function openDetail(row) {
         <el-button :icon="Refresh" @click="reset">重置</el-button>
       </div>
 
-      <el-table :data="list" stripe border empty-text="暂无已通过报审记录">
+      <el-table :data="list" stripe border empty-text="暂无台账记录">
         <el-table-column type="index" label="序号" width="60" />
-        <el-table-column prop="application_id" label="报审编号" width="130" />
         <el-table-column prop="material_name" label="材料/设备名称" min-width="140" />
         <el-table-column label="类型" width="90">
           <template #default="{ row }">{{ MATERIAL_TYPE[row.material_type] || row.material_type }}</template>
         </el-table-column>
-        <el-table-column prop="spec_text" label="规格型号" min-width="120" show-overflow-tooltip />
-        <el-table-column prop="selected_brand" label="入选品牌" width="120" />
-        <el-table-column prop="selected_manufacturer" label="生产厂家" min-width="180" show-overflow-tooltip />
-        <el-table-column prop="use_part" label="施工部位" width="110" />
-        <el-table-column label="状态" width="90">
+        <el-table-column prop="brand_name" label="品牌名称" width="120" />
+        <el-table-column prop="manufacturer" label="生产厂家" min-width="180" show-overflow-tooltip />
+        <el-table-column label="主备标识" width="90">
           <template #default="{ row }">
-            <el-tag size="small" :type="statusTagType(row.status)">{{ STATUS_LABEL[row.status] }}</el-tag>
+            <el-tag size="small" :type="row.role_tag === 'primary' ? 'success' : 'info'">
+              {{ ROLE_TAG[row.role_tag] || row.role_tag }}
+            </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="finish_time" label="办结时间" width="170" />
-        <el-table-column label="操作" width="90" fixed="right">
+        <el-table-column prop="application_id" label="报审单号" width="130">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openDetail(row)">详情</el-button>
+            <el-button link type="primary" @click="openDetail(row)">{{ row.application_id }}</el-button>
+          </template>
+        </el-table-column>
+        <el-table-column prop="use_part" label="施工部位" width="110" />
+        <el-table-column prop="updated_at" label="更新时间" width="170" />
+        <el-table-column label="操作" width="110" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="openDetail(row)">查看报审单</el-button>
           </template>
         </el-table-column>
       </el-table>

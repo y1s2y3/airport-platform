@@ -1246,7 +1246,7 @@ function saveStepQuietly() {
               材料设备
               <el-tag size="small" type="info" effect="plain" class="req-tag">可选</el-tag>
             </div>
-            <div class="site-block-tip">从材料/设备进场台账选择已通过记录，可按施工部位筛选后勾选</div>
+            <div class="site-block-tip">从材料设备台账选择已通过记录，可按施工部位筛选后勾选</div>
           </div>
           <div v-if="canEdit" class="filter-bar">
             <el-button size="small" native-type="button" @click.stop="onLinkMaterial">关联材料设备</el-button>

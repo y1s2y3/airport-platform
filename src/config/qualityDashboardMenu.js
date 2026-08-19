@@ -18,9 +18,9 @@ export const qualityDashboardMenuGroup = {
     },
     {
       key: 'brand-approval-stats',
-      label: '品牌报审统计',
+      label: '品牌报审',
       path: '/qm/quality-board/brand-stats',
-      description: '指挥部按项目汇总品牌报审数据，支持下钻至项目报审台账。',
+      description: '指挥部按项目汇总品牌报审与台账指标；操作仅查看项目详情。',
       name: 'BrandApprovalStats',
       component: 'BrandApprovalStatsView',
     },
@@ -28,36 +28,28 @@ export const qualityDashboardMenuGroup = {
       key: 'sample-ledger',
       label: '样板台账',
       path: '/qm/sample/ledger',
-      description: '指挥部查看样板台账（与项目侧共用页面）。',
+      description: '指挥部按项目汇总材料定样与工序样板指标；操作仅查看项目详情。',
       name: 'SampleLedger',
       component: 'SampleLedgerView',
     },
     {
       key: 'mat-dashboard',
-      label: '材料进场看板',
+      label: '材料设备进场',
       path: '/qm/mat/dashboard',
-      description: '指挥部查看材料进场看板。',
+      description: '指挥部按项目汇总材料/设备进场指标；操作仅查看项目详情。',
       name: 'MatDashboard',
       component: 'MatDashboardView',
-    },
-    {
-      key: 'eq-dashboard',
-      label: '设备进场看板',
-      path: '/qm/eq/dashboard',
-      description: '指挥部查看设备进场看板。',
-      name: 'EqDashboard',
-      component: 'EqDashboardView',
     },
   ],
 }
 
-/** 仅新增路由：品牌报审统计（其余子菜单复用既有 sample/mat/eq 路由） */
+/** 仅新增路由：品牌报审（其余子菜单复用既有 sample/mat 路由） */
 export const qualityDashboardRoutes = [
   {
     key: 'brand-approval-stats',
     path: '/qm/quality-board/brand-stats',
     name: 'BrandApprovalStats',
-    label: '品牌报审统计',
+    label: '品牌报审',
     component: 'BrandApprovalStatsView',
   },
 ]

@@ -1,33 +1,15 @@
 /**
- * 设备进场管理 — 项目级挂在「施工质量管控」下（见 projectOpsMenu.constructionQualityMenuGroup）
- * 对齐 feature-list-mat 设备到场能力；菜单名按产品定稿「设备进场管理」
- * 审批走个人中心待办，无独立审批菜单；指挥部看板入口在「质量看板」
+ * 设备进场管理 — V2.0 已合并至材料设备进场管理（matMenuGroup）
+ * 路由保留供 redirect / 个人中心兼容；侧栏不再挂载
  */
 export const eqMenuGroup = {
   key: 'eq-entry-mgmt',
-  label: '设备进场管理',
+  label: '设备进场管理（已合并）',
   icon: 'SetUp',
-  children: [
-    {
-      key: 'eq-ledger',
-      label: '设备进场台账',
-      path: '/qm/eq/ledger',
-      description: '本项目全量设备进场台账，支持筛选与抽查（项目级）。',
-      name: 'EqLedger',
-      component: 'EqLedgerView',
-    },
-    {
-      key: 'eq-application',
-      label: '设备进场申请',
-      path: '/qm/eq/applications',
-      description: '施工新建设备进场验收；含开箱清单；审批在个人中心待办。',
-      name: 'EqApplication',
-      component: 'EqApplicationListView',
-    },
-  ],
+  children: [],
 }
 
-/** 看板仅指挥部「质量看板」入口；路由保留供 HQ 复用 */
+/** 旧路由 redirect 至 mat 合并模块 */
 export const eqExtraRoutes = [
   {
     key: 'eq-dashboard',
@@ -39,12 +21,31 @@ export const eqExtraRoutes = [
     hidden: true,
   },
   {
+    key: 'eq-ledger',
+    path: '/qm/eq/ledger',
+    name: 'EqLedger',
+    label: '材料设备台账',
+    component: 'EqLedgerView',
+    sidebarKey: 'eq-ledger',
+    hidden: true,
+  },
+  {
+    key: 'eq-application',
+    path: '/qm/eq/applications',
+    name: 'EqApplication',
+    label: '设备进场申请',
+    component: 'EqApplicationListView',
+    sidebarKey: 'eq-application',
+    hidden: true,
+  },
+  {
     key: 'eq-application-edit',
     path: '/qm/eq/applications/edit',
     name: 'EqApplicationEdit',
     label: '新建设备进场',
     component: 'EqApplicationEditView',
     sidebarKey: 'eq-application',
+    hidden: true,
   },
   {
     key: 'eq-application-detail',
@@ -53,19 +54,11 @@ export const eqExtraRoutes = [
     label: '设备进场详情',
     component: 'EqApplicationDetailView',
     sidebarKey: 'eq-application',
+    hidden: true,
   },
 ]
 
-function flattenMenuLeaves(items = []) {
-  const leaves = []
-  for (const item of items) {
-    if (item.path) leaves.push(item)
-    else if (item.children?.length) leaves.push(...flattenMenuLeaves(item.children))
-  }
-  return leaves
-}
-
-export const eqRoutes = [...flattenMenuLeaves(eqMenuGroup.children), ...eqExtraRoutes]
+export const eqRoutes = [...eqExtraRoutes]
 
 export const eqViewLoaders = {
   EqDashboardView: () => import('../views/quality/eq/EqDashboardView.vue'),

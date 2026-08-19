@@ -9,7 +9,7 @@ import {
   listApplications,
   MATERIAL_TYPE,
   NODE_LABEL,
-  STATUS_LABEL,
+  statusLabel,
   statusTagType,
 } from '../../../mock/brand.js'
 
@@ -20,7 +20,9 @@ const keyword = ref('')
 
 const processing = computed(() => {
   if (isHqSelected.value || !scopeProjectId.value) return []
-  return listApplications(scopeProjectId.value, { status: 'in_approval' }).map(enrich)
+  return listApplications(scopeProjectId.value)
+    .filter((a) => a.status === 'pending' || a.status === 'in_approval')
+    .map(enrich)
 })
 
 const completed = computed(() => {
@@ -114,7 +116,7 @@ function openApprove(row) {
           <el-table-column prop="brand_preview" label="备选品牌" min-width="160" show-overflow-tooltip />
           <el-table-column label="结果" width="90">
             <template #default="{ row }">
-              <el-tag size="small" :type="statusTagType(row.status)">{{ STATUS_LABEL[row.status] }}</el-tag>
+              <el-tag size="small" :type="statusTagType(row.status)">{{ statusLabel(row.status) }}</el-tag>
             </template>
           </el-table-column>
           <el-table-column prop="finish_time" label="办结时间" width="170" />

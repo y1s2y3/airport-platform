@@ -15,6 +15,7 @@ import {
   saveDispatchReminderRecord,
 } from '../../../utils/dispatchMeetingStorage.js'
 import { buildExecutorOptions } from '../../../utils/executorDisplay.js'
+import { TASK_WORK_TYPES } from '../../../config/screenshotTaskOrderFields.js'
 import DispatchDraggablePanel from './DispatchDraggablePanel.vue'
 import DispatchHqPanelTitle from './DispatchHqPanelTitle.vue'
 
@@ -112,14 +113,14 @@ const dialogList = computed(() => {
 const docSubjectLabel = computed(() => {
   if (dialogDocTab.value === 'notice') return '工作要求'
   if (dialogDocTab.value === 'reminder') return '事项描述'
-  if (dialogDocTab.value === 'penalty') return '事由'
-  return '工作要求/事由'
+  if (dialogDocTab.value === 'penalty') return '处罚内容'
+  return '工作要求/处罚内容'
 })
 
 function docSubjectText(row) {
   if (row.docType === '任务单') return row.workRequirement || row.title || '—'
   if (row.docType === '提示函') return row.matterDescription || row.title || '—'
-  return row.penaltyReason || row.title || '—'
+  return row.penaltyContent || row.title || '—'
 }
 
 const ticketStatusMap = {
@@ -188,16 +189,16 @@ function buildReminderSavePayload(draft) {
 }
 
 function buildPenaltySavePayload(draft) {
-  const penaltyReason = draft.penaltyReason.trim()
+  const workType = draft.workType.trim()
   const penaltyContent = draft.penaltyContent.trim()
   const assignee = (draft.assignee || draft.executor || '').trim()
-  const titleBase = penaltyReason.slice(0, 24) || draft.title || '处罚单'
+  const titleBase = penaltyContent.slice(0, 24) || draft.title || '处罚单'
   return {
     id: draft.adminRecordId,
     title: titleBase.length >= 24 ? `${titleBase}…` : titleBase,
     project: draft.project || '',
-    unit: draft.unit?.trim() || '',
-    penaltyReason,
+    workType,
+    penaltyReason: workType,
     penaltyContent,
     assignee,
     executor: assignee,
@@ -216,7 +217,7 @@ function validateDraft() {
       return false
     }
     if (!noticeDraft.value.workType?.trim()) {
-      ElMessage.warning('请填写工作类型')
+      ElMessage.warning('请选择工作类型')
       return false
     }
     if (!noticeDraft.value.workRequirement?.trim()) {
@@ -253,16 +254,12 @@ function validateDraft() {
       ElMessage.warning('请填写项目名称')
       return false
     }
-    if (!penaltyDraft.value.penaltyReason?.trim()) {
-      ElMessage.warning('请填写事由')
+    if (!penaltyDraft.value.workType?.trim()) {
+      ElMessage.warning('请选择类型')
       return false
     }
     if (!penaltyDraft.value.penaltyContent?.trim()) {
-      ElMessage.warning('请填写内容')
-      return false
-    }
-    if (!penaltyDraft.value.unit?.trim()) {
-      ElMessage.warning('请填写责任单位')
+      ElMessage.warning('请填写处罚内容')
       return false
     }
     if (!(penaltyDraft.value.assignee || penaltyDraft.value.executor)?.trim()) {
@@ -343,7 +340,9 @@ function handleSave() {
             </div>
             <div class="field-row">
               <span class="field-label">工作类型</span>
-              <el-input v-model="noticeDraft.workType" size="small" placeholder="如：安全检查、质量复检" />
+              <el-radio-group v-model="noticeDraft.workType" size="small" class="work-type-tags">
+                <el-radio-button v-for="item in TASK_WORK_TYPES" :key="item" :value="item">{{ item }}</el-radio-button>
+              </el-radio-group>
             </div>
             <div class="field-row field-row-block">
               <span class="field-label">工作要求</span>
@@ -472,15 +471,13 @@ function handleSave() {
               </el-select>
             </div>
             <div class="field-row">
-              <span class="field-label">责任单位</span>
-              <el-input v-model="penaltyDraft.unit" size="small" placeholder="如：中建三局（施工总承包）" />
-            </div>
-            <div class="field-row">
-              <span class="field-label">事由</span>
-              <el-input v-model="penaltyDraft.penaltyReason" size="small" placeholder="如：文明施工违规" />
+              <span class="field-label">类型</span>
+              <el-radio-group v-model="penaltyDraft.workType" size="small" class="work-type-tags">
+                <el-radio-button v-for="item in TASK_WORK_TYPES" :key="item" :value="item">{{ item }}</el-radio-button>
+              </el-radio-group>
             </div>
             <div class="field-row field-row-block">
-              <span class="field-label">内容</span>
+              <span class="field-label">处罚内容</span>
               <el-input
                 v-model="penaltyDraft.penaltyContent"
                 type="textarea"
@@ -707,7 +704,7 @@ function handleSave() {
 
 .field-row {
   display: grid;
-  grid-template-columns: 88px minmax(0, 1fr);
+  grid-template-columns: 96px minmax(0, 1fr);
   gap: 10px;
   align-items: start;
 }
@@ -750,5 +747,41 @@ function handleSave() {
   color: var(--coc-text-muted);
   font-size: calc(13px + var(--coc-font-boost));
   padding: 16px 8px !important;
+}
+
+.work-type-tags {
+  display: inline-flex;
+  gap: 8px;
+  --work-type-color: var(--coc-accent, var(--ap-primary, var(--el-color-primary)));
+}
+
+.work-type-tags :deep(.el-radio-button__inner) {
+  height: 28px;
+  padding: 0 14px;
+  border-radius: 999px !important;
+  border: 1px solid var(--coc-border, var(--el-border-color, #dcdfe6)) !important;
+  background: transparent;
+  box-shadow: none;
+  color: var(--coc-text-secondary, var(--ap-text-secondary, #606266));
+  font-weight: 500;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.work-type-tags :deep(.el-radio-button:first-child .el-radio-button__inner),
+.work-type-tags :deep(.el-radio-button:last-child .el-radio-button__inner) {
+  border-radius: 999px !important;
+}
+
+.work-type-tags :deep(.el-radio-button__inner:hover) {
+  color: var(--work-type-color);
+  border-color: var(--work-type-color) !important;
+}
+
+.work-type-tags :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
+  background: transparent;
+  border-color: var(--work-type-color) !important;
+  color: var(--work-type-color);
+  box-shadow: none;
+  font-weight: 600;
 }
 </style>

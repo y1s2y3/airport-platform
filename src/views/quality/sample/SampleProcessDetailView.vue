@@ -8,7 +8,7 @@ import {
   actionTagType,
   getProcessDetail,
   NODE_LABEL,
-  STATUS_LABEL,
+  statusLabel,
   statusTagType,
 } from '../../../mock/sample.js'
 
@@ -39,7 +39,10 @@ const approvalTimeline = computed(() => {
     remark: r.opinion || '',
     status: r.action === 'reject' ? 'rejected' : 'done',
   }))
-  if (d.status === 'in_approval' && (d.current_node === 'supervisor' || d.current_node === 'pm')) {
+  if (
+    (d.status === 'pending' || d.status === 'in_approval') &&
+    (d.current_node === 'supervisor' || d.current_node === 'pm')
+  ) {
     steps.push({
       key: `pending-${d.current_node}`,
       title: APPROVAL_NODE_LABEL[d.current_node] || NODE_LABEL[d.current_node],
@@ -81,7 +84,7 @@ function timelineType(status) {
         <el-descriptions-item label="施工部位">{{ detail.use_part }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag size="small" :type="statusTagType(detail.status)">{{
-            STATUS_LABEL[detail.status]
+            statusLabel(detail.status)
           }}</el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="申请人">{{ detail.applicant_name }}</el-descriptions-item>

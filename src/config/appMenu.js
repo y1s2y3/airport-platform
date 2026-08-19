@@ -48,5 +48,13 @@ export const appMenu = [
       { key: 'app-coc-penalty', label: '处罚单' },
     ],
   },
+  {
+    key: 'app-mat-entry',
+    label: '材料设备进场',
+    children: [
+      { key: 'app-mobile-mat-entry', label: '进场申请', path: '/mobile/mat/entry' },
+      { key: 'app-mobile-mat-exit', label: '退场登记', path: '/mobile/mat/exit' },
+    ],
+  },
   { key: 'app-profile', label: '个人中心' },
 ]

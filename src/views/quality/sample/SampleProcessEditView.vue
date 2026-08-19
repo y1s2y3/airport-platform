@@ -1,16 +1,26 @@
 ﻿<script setup>
 import './sample-page.css'
-import { reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { UploadFilled } from '@element-plus/icons-vue'
 import { useQmProjectScope } from '../../../composables/useCurrentProject'
-import { submitProcessApp } from '../../../mock/sample.js'
+import {
+  buildCopyPayloadFromRejectedProcess,
+  buildReEditPayloadFromWithdrawnProcess,
+  submitProcessApp,
+  resubmitWithdrawnSample,
+} from '../../../mock/sample.js'
 import ConstructionLocationSelect from '../../../components/ConstructionLocationSelect.vue'
 import SampleMediaAttachments from './SampleMediaAttachments.vue'
 
 const router = useRouter()
+const route = useRoute()
 const { isHqSelected, scopeProjectId } = useQmProjectScope()
+
+const copyFromId = ref(String(route.query.copyFrom || ''))
+const reEditId = ref(String(route.query.id || ''))
+const isReEdit = ref(route.query.reEdit === '1' || route.query.mode === 'resubmit')
 
 const form = reactive({
   process_name: '',
@@ -51,6 +61,54 @@ function removeDoc(index) {
   docList.value = docList.value.filter((_, i) => i !== index)
 }
 
+onMounted(() => {
+  if (isReEdit.value && reEditId.value) {
+    const r = buildReEditPayloadFromWithdrawnProcess(reEditId.value)
+    if (!r.ok) {
+      ElMessage.error(r.msg)
+      isReEdit.value = false
+      reEditId.value = ''
+      return
+    }
+    const data = r.data
+    form.process_name = data.process_name || ''
+    form.use_part = data.use_part || ''
+    form.location_id = data.location_id || ''
+    form.location_ids = Array.isArray(data.location_ids) ? [...data.location_ids] : []
+    form.briefing_content = data.briefing_content || ''
+    form.remark = data.remark || ''
+    mediaList.value = (data.media_files || []).map((m) => ({
+      name: m.name,
+      url: '#',
+      kind: m.kind === 'video' ? 'video' : 'image',
+    }))
+    docList.value = (data.doc_files || []).map((name) => ({ name, url: '#' }))
+    ElMessage.success(`已载入撤回单 ${reEditId.value}，修改后提交将回到待审批`)
+    return
+  }
+  if (!copyFromId.value) return
+  const r = buildCopyPayloadFromRejectedProcess(copyFromId.value)
+  if (!r.ok) {
+    ElMessage.error(r.msg)
+    copyFromId.value = ''
+    router.replace('/qm/sample/process/applications/edit')
+    return
+  }
+  const data = r.data
+  form.process_name = data.process_name || ''
+  form.use_part = data.use_part || ''
+  form.location_id = data.location_id || ''
+  form.location_ids = Array.isArray(data.location_ids) ? [...data.location_ids] : []
+  form.briefing_content = data.briefing_content || ''
+  form.remark = data.remark || ''
+  mediaList.value = (data.media_files || []).map((m) => ({
+    name: m.name,
+    url: '#',
+    kind: m.kind === 'video' ? 'video' : 'image',
+  }))
+  docList.value = (data.doc_files || []).map((name) => ({ name, url: '#' }))
+})
+
 function onSubmit() {
   if (isHqSelected.value || !scopeProjectId.value) {
     return ElMessage.warning('请先切换到具体项目')
@@ -65,7 +123,7 @@ function onSubmit() {
     .filter(Boolean)
   const doc_files = docList.value.map((d) => d.name).filter(Boolean)
 
-  const r = submitProcessApp({
+  const payload = {
     project_id: scopeProjectId.value,
     process_name: form.process_name,
     use_part: form.use_part,
@@ -79,10 +137,19 @@ function onSubmit() {
       kind: m.kind === 'video' ? 'video' : 'image',
     })),
     doc_files,
+    copy_from_application_id: copyFromId.value,
     remark: form.remark,
-  })
+  }
+  const r =
+    isReEdit.value && reEditId.value
+      ? resubmitWithdrawnSample('process', reEditId.value, payload)
+      : submitProcessApp(payload)
   if (!r.ok) return ElMessage.error(r.msg)
-  ElMessage.success(`已提交 ${r.data.application_id}，已进入个人中心待办（待监理审）`)
+  ElMessage.success(
+    isReEdit.value
+      ? `已重新提交 ${r.data.application_id}，状态已回到待审批`
+      : `已提交 ${r.data.application_id}，已进入个人中心待办（待监理审）`,
+  )
   router.push('/qm/sample/process/applications')
 }
 </script>
@@ -90,8 +157,16 @@ function onSubmit() {
 <template>
   <div class="qm-page page-card">
     <div class="page-header">
-      <div class="page-breadcrumb">样板管理 / 关键工序样板报审 / 新建</div>
-      <h1 class="page-title">新建关键工序样板</h1>
+      <div class="page-breadcrumb">样板管理 / 关键工序样板报审 / {{ isReEdit ? '重新编辑' : '新建' }}</div>
+      <div class="title-row">
+        <h1 class="page-title">{{ isReEdit ? '重新编辑关键工序样板' : '新建关键工序样板' }}</h1>
+        <el-tag v-if="isReEdit && reEditId" size="small" type="success" effect="plain">
+          原单 {{ reEditId }}
+        </el-tag>
+        <el-tag v-if="copyFromId" size="small" type="warning" effect="plain">
+          从驳回单 {{ copyFromId }} 复制
+        </el-tag>
+      </div>
     </div>
 
     <el-form label-width="140px" class="create-form">

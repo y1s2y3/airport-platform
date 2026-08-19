@@ -1,9 +1,11 @@
 /**
- * 样板管理 Mock — 对齐 prd-sample-v1
- * 材料定样 / 关键工序样板：监理 → 项目经理
+ * 样板管理 Mock — 对齐 research-sample V2.0
+ * 材料定样：监理 → 项目经理；工序样板：仅监理
  */
 import { reactive } from 'vue'
 import { getProjectLabel } from './laborRealName.js'
+import { COC_PROJECT_OPTIONS } from '../config/projectOptions.js'
+import { listSamplePickRowsFromBrand } from './brand.js'
 import {
   createSampleSupervisorTodo,
   createSamplePmTodo,
@@ -11,10 +13,17 @@ import {
   finishSampleOpenTodos,
 } from './personalCenter.js'
 
+/** 业务状态：待审批=待监理审；审批中=监理已通过、待项目经理审（工序样板无审批中） */
 export const STATUS_LABEL = {
+  pending: '待审批',
   in_approval: '审批中',
   approved: '已通过',
   rejected: '已驳回',
+  withdrawn: '已撤回',
+}
+
+export function statusLabel(status) {
+  return STATUS_LABEL[status] || status || '—'
 }
 
 export const NODE_LABEL = {
@@ -23,7 +32,6 @@ export const NODE_LABEL = {
   pm: '待项目经理审',
 }
 
-/** 审批记录节点（历史轨迹用，非「待审」文案） */
 export const APPROVAL_NODE_LABEL = {
   applicant: '施工提交',
   supervisor: '监理审批',
@@ -32,13 +40,13 @@ export const APPROVAL_NODE_LABEL = {
 
 export const ACTION_LABEL = {
   submit: '提交',
-  resubmit: '重提',
   agree: '同意',
   reject: '退回',
+  withdraw: '撤回',
 }
 
 export function actionTagType(action) {
-  if (action === 'agree' || action === 'submit' || action === 'resubmit') return 'success'
+  if (action === 'agree' || action === 'submit') return 'success'
   if (action === 'reject') return 'danger'
   return 'warning'
 }
@@ -50,43 +58,46 @@ export const BIZ_TYPE_LABEL = {
 
 export function statusTagType(status) {
   if (status === 'approved') return 'success'
+  if (status === 'pending') return 'warning'
+  if (status === 'in_approval') return ''
   if (status === 'rejected') return 'danger'
-  if (status === 'in_approval') return 'warning'
-  return ''
+  return 'info'
 }
 
 function timestamp() {
   return new Date().toLocaleString('zh-CN', { hour12: false })
 }
 
+function normalizeFileList(list) {
+  if (!Array.isArray(list)) return []
+  return list
+    .map((item) => {
+      if (typeof item === 'string') return { name: item, url: '#' }
+      const name = String(item?.name || '').trim()
+      if (!name) return null
+      return { name, url: item?.url || '#' }
+    })
+    .filter(Boolean)
+}
+
 const store = reactive({
-  seq: { m: 3, p: 3, ar: 8 },
+  seq: { m: 4, p: 4, ar: 8 },
   materials: [
     {
       application_id: 'MS-001',
       project_id: 'p-000',
       material_name: '外墙真石漆',
+      brand_name: '亚士',
+      supplier: '亚士创能科技股份有限公司',
       use_part: 'T3 航站楼外立面',
-      sample_spec: {
-        material_spec: '砂壁状真石漆 A12；涂层厚度≥1.5mm',
-        supplier: '亚士创能科技股份有限公司',
-        effect_images: ['真石漆样板-正面.jpg', '真石漆样板-侧面.jpg'],
-      },
-      compare_items: [
-        {
-          material_name: '水包水多彩涂料',
-          material_spec: '水包水多彩涂料 B07',
-          supplier: '立邦涂料（中国）有限公司',
-          effect_images: ['比选-立邦.jpg'],
-        },
-        {
-          material_name: '质感涂料',
-          material_spec: '质感涂料 C03',
-          supplier: '三棵树涂料股份有限公司',
-          effect_images: ['比选-三棵树.jpg'],
-        },
+      location_ids: ['loc-t3-facade'],
+      indicator_desc:
+        '砂壁状真石漆 A12；涂层厚度≥1.5mm；色差 ΔE≤1.0；耐洗刷≥2000 次。',
+      effect_images: [
+        { name: '真石漆样板-正面.jpg', url: '#' },
+        { name: '真石漆样板-侧面.jpg', url: '#' },
       ],
-      compare_record: '比选两家后选定亚士漆色卡 A12。',
+      approval_files: [{ name: '定样审批表-真石漆.pdf', url: '#' }],
       status: 'approved',
       current_node: 'none',
       applicant_name: '施工-王工',
@@ -98,22 +109,14 @@ const store = reactive({
       application_id: 'MS-002',
       project_id: 'p-000',
       material_name: '室内地砖 800×800',
+      brand_name: '马可波罗',
+      supplier: '某陶瓷集团',
       use_part: '商业区公区',
-      sample_spec: {
-        material_spec: '通体瓷砖 800×800；吸水率≤0.5%',
-        supplier: '某陶瓷集团',
-        effect_images: ['地砖样板.jpg'],
-      },
-      compare_items: [
-        {
-          material_name: '抛光砖',
-          material_spec: '抛光砖 800×800',
-          supplier: '某建材商贸',
-          effect_images: ['地砖比选-抛光.jpg'],
-        },
-      ],
-      compare_record: '两款对比，耐磨与色差达标，选定通体瓷砖。',
-      status: 'in_approval',
+      location_ids: ['loc-mall-public'],
+      indicator_desc: '通体瓷砖 800×800；吸水率≤0.5%；耐磨等级 4 级；表面平整度≤0.5mm。',
+      effect_images: [{ name: '地砖样板.jpg', url: '#' }],
+      approval_files: [{ name: '定样审批表-地砖.pdf', url: '#' }],
+      status: 'pending',
       current_node: 'supervisor',
       applicant_name: '施工-李工',
       submit_time: '2026-07-25 11:05:00',
@@ -124,20 +127,37 @@ const store = reactive({
       application_id: 'MS-003',
       project_id: 'p-001',
       material_name: '铝单板幕墙',
+      brand_name: '兴发',
+      supplier: '某幕墙材料厂',
       use_part: '连廊立面',
-      sample_spec: {
-        material_spec: '氟碳喷涂铝单板 2.5mm；色号 RAL9006',
-        supplier: '某幕墙材料厂',
-        effect_images: ['铝单板-1.jpg'],
-      },
-      compare_items: [],
-      compare_record: '色差与平整度已现场确认。',
+      location_ids: ['loc-corridor'],
+      indicator_desc: '氟碳喷涂铝单板 2.5mm；色号 RAL9006；板面平整度≤2mm。',
+      effect_images: [{ name: '铝单板-1.jpg', url: '#' }],
+      approval_files: [{ name: '定样审批表-铝单板.pdf', url: '#' }],
       status: 'in_approval',
       current_node: 'pm',
       applicant_name: '施工-赵工',
       submit_time: '2026-07-20 14:10:00',
       finish_time: '',
       remark: '',
+    },
+    {
+      application_id: 'MS-004',
+      project_id: 'p-000',
+      material_name: '防水卷材',
+      brand_name: '东方雨虹',
+      supplier: '北京东方雨虹防水技术股份有限公司',
+      use_part: '屋面防水层',
+      location_ids: ['loc-roof'],
+      indicator_desc: 'SBS 改性沥青防水卷材 3mm；低温柔性 -25℃；拉力≥800N/50mm。',
+      effect_images: [{ name: '防水卷材样板.jpg', url: '#' }],
+      approval_files: [{ name: '定样审批表-防水.pdf', url: '#' }],
+      status: 'rejected',
+      current_node: 'none',
+      applicant_name: '施工-李工',
+      submit_time: '2026-07-18 09:00:00',
+      finish_time: '2026-07-19 15:20:00',
+      remark: '演示：已驳回留档，可复制新建',
     },
   ],
   processes: [
@@ -146,6 +166,7 @@ const store = reactive({
       project_id: 'p-000',
       process_name: '清水混凝土柱样板',
       use_part: '地下一层结构区',
+      location_ids: ['loc-b1-structure'],
       briefing_content: '模板拼缝、拆模时机、养护要求；样板标准照片见影像资料。',
       photo_files: ['清水柱-正面.jpg', '清水柱-节点.jpg'],
       video_files: ['交底讲解.mp4'],
@@ -159,7 +180,7 @@ const store = reactive({
       current_node: 'none',
       applicant_name: '施工-王工',
       submit_time: '2026-07-08 10:00:00',
-      finish_time: '2026-07-09 17:30:00',
+      finish_time: '2026-07-09 09:00:00',
       remark: '',
     },
     {
@@ -167,12 +188,13 @@ const store = reactive({
       project_id: 'p-000',
       process_name: '防水卷材铺贴样板',
       use_part: '屋面防水层',
+      location_ids: ['loc-roof'],
       briefing_content: '搭接宽度、热熔顺序、节点加强。',
       photo_files: ['防水样板.jpg'],
       video_files: [],
       media_files: [{ name: '防水样板.jpg', kind: 'image' }],
       doc_files: ['防水节点做法.docx'],
-      status: 'in_approval',
+      status: 'pending',
       current_node: 'supervisor',
       applicant_name: '施工-李工',
       submit_time: '2026-07-26 09:40:00',
@@ -184,6 +206,7 @@ const store = reactive({
       project_id: 'p-001',
       process_name: '砌体样板墙',
       use_part: '办公区隔墙',
+      location_ids: ['loc-office-wall'],
       briefing_content: '灰缝厚度、拉结筋、洞口加强。',
       photo_files: ['砌体墙.jpg'],
       video_files: ['砌体交底.mp4'],
@@ -192,12 +215,12 @@ const store = reactive({
         { name: '砌体交底.mp4', kind: 'video' },
       ],
       doc_files: [],
-      status: 'in_approval',
-      current_node: 'pm',
+      status: 'rejected',
+      current_node: 'none',
       applicant_name: '施工-赵工',
       submit_time: '2026-07-22 15:20:00',
-      finish_time: '',
-      remark: '',
+      finish_time: '2026-07-23 11:30:00',
+      remark: '演示：已驳回留档，可复制新建',
     },
   ],
   approvals: [
@@ -247,22 +270,12 @@ const store = reactive({
       application_id: 'PS-001',
       node_code: 'supervisor',
       action: 'agree',
-      opinion: '交底完整',
+      opinion: '交底完整，同意通过',
       operator_name: '监理用户',
       operate_time: '2026-07-09 09:00:00',
     },
     {
       record_id: 'AR-006',
-      biz_type: 'process',
-      application_id: 'PS-001',
-      node_code: 'pm',
-      action: 'agree',
-      opinion: '终审通过',
-      operator_name: '项目经理',
-      operate_time: '2026-07-09 17:30:00',
-    },
-    {
-      record_id: 'AR-007',
       biz_type: 'material',
       application_id: 'MS-003',
       node_code: 'supervisor',
@@ -272,14 +285,24 @@ const store = reactive({
       operate_time: '2026-07-21 11:00:00',
     },
     {
+      record_id: 'AR-007',
+      biz_type: 'material',
+      application_id: 'MS-004',
+      node_code: 'supervisor',
+      action: 'reject',
+      opinion: '指标说明不完整，请补充后新建',
+      operator_name: '监理用户',
+      operate_time: '2026-07-19 15:20:00',
+    },
+    {
       record_id: 'AR-008',
       biz_type: 'process',
       application_id: 'PS-003',
       node_code: 'supervisor',
-      action: 'agree',
-      opinion: '同意',
+      action: 'reject',
+      opinion: '影像资料不足，请补充后新建',
       operator_name: '监理用户',
-      operate_time: '2026-07-23 10:00:00',
+      operate_time: '2026-07-23 11:30:00',
     },
   ],
 })
@@ -304,12 +327,11 @@ function buildTodoPayload(bizType, app) {
     projectLabel: getProjectLabel(app.project_id) || app.project_id,
     applicantName: app.applicant_name,
     applyTime: app.submit_time,
-    briefing: isMaterial
-      ? app.compare_record ||
-        (app.sample_spec
-          ? `定版：${app.sample_spec.material_spec || ''} / ${app.sample_spec.supplier || ''}`
-          : '')
-      : app.briefing_content,
+    briefing: isMaterial ? app.indicator_desc || '' : app.briefing_content || '',
+    indicatorDesc: isMaterial ? app.indicator_desc || '' : '',
+    supplier: isMaterial ? app.supplier || '' : '',
+    effectImages: isMaterial ? normalizeFileList(app.effect_images) : [],
+    approvalFiles: isMaterial ? normalizeFileList(app.approval_files) : [],
   }
 }
 
@@ -323,7 +345,9 @@ export function listMaterialApps(projectId, { keyword = '', status = '' } = {}) 
       return (
         a.application_id.toLowerCase().includes(kw) ||
         a.material_name.toLowerCase().includes(kw) ||
-        (a.use_part || '').toLowerCase().includes(kw)
+        (a.use_part || '').toLowerCase().includes(kw) ||
+        (a.brand_name || '').toLowerCase().includes(kw) ||
+        (a.supplier || '').toLowerCase().includes(kw)
       )
     })
     .slice()
@@ -351,7 +375,7 @@ export function listMaterialPending(projectId, node) {
   return store.materials.filter(
     (a) =>
       a.project_id === projectId &&
-      a.status === 'in_approval' &&
+      (a.status === 'pending' || a.status === 'in_approval') &&
       (!node || a.current_node === node),
   )
 }
@@ -360,7 +384,7 @@ export function listProcessPending(projectId, node) {
   return store.processes.filter(
     (a) =>
       a.project_id === projectId &&
-      a.status === 'in_approval' &&
+      (a.status === 'pending' || a.status === 'in_approval') &&
       (!node || a.current_node === node),
   )
 }
@@ -389,7 +413,281 @@ export function getProcessDetail(applicationId) {
   }
 }
 
-/** 台账视图：仅已通过 */
+export function getRejectedMaterialAppsForCopy(projectId) {
+  return store.materials
+    .filter((a) => a.project_id === projectId && a.status === 'rejected')
+    .map((a) => ({
+      application_id: a.application_id,
+      material_name: a.material_name,
+      brand_name: a.brand_name || '',
+      supplier: a.supplier,
+      use_part: a.use_part,
+      submit_time: a.submit_time,
+    }))
+    .sort((a, b) => (a.submit_time < b.submit_time ? 1 : -1))
+}
+
+export function buildCopyPayloadFromRejectedMaterial(applicationId) {
+  const app = store.materials.find((a) => a.application_id === applicationId)
+  if (!app) return { ok: false, msg: '单据不存在' }
+  if (app.status !== 'rejected') return { ok: false, msg: '仅已驳回单可复制新建' }
+  return {
+    ok: true,
+    data: {
+      copy_from_application_id: app.application_id,
+      material_name: app.material_name,
+      brand_name: app.brand_name || '',
+      supplier: app.supplier,
+      use_part: app.use_part,
+      location_id: app.location_id || (Array.isArray(app.location_ids) ? app.location_ids[0] : '') || '',
+      location_ids: Array.isArray(app.location_ids) ? [...app.location_ids] : [],
+      indicator_desc: app.indicator_desc || '',
+      effect_images: normalizeFileList(app.effect_images),
+      approval_files: normalizeFileList(app.approval_files),
+      remark: app.remark || '',
+    },
+  }
+}
+
+/** 已撤回材料定样重新编辑预填 */
+export function buildReEditPayloadFromWithdrawnMaterial(applicationId) {
+  const app = store.materials.find((a) => a.application_id === applicationId)
+  if (!app) return { ok: false, msg: '单据不存在' }
+  if (app.status !== 'withdrawn') return { ok: false, msg: '仅已撤回单可重新编辑' }
+  return {
+    ok: true,
+    data: {
+      application_id: app.application_id,
+      material_name: app.material_name,
+      brand_name: app.brand_name || '',
+      supplier: app.supplier,
+      use_part: app.use_part,
+      location_id: app.location_id || (Array.isArray(app.location_ids) ? app.location_ids[0] : '') || '',
+      location_ids: Array.isArray(app.location_ids) ? [...app.location_ids] : [],
+      indicator_desc: app.indicator_desc || '',
+      effect_images: normalizeFileList(app.effect_images),
+      approval_files: normalizeFileList(app.approval_files),
+      remark: app.remark || '',
+    },
+  }
+}
+
+export function getRejectedProcessAppsForCopy(projectId) {
+  return store.processes
+    .filter((a) => a.project_id === projectId && a.status === 'rejected')
+    .map((a) => ({
+      application_id: a.application_id,
+      process_name: a.process_name,
+      use_part: a.use_part,
+      submit_time: a.submit_time,
+    }))
+    .sort((a, b) => (a.submit_time < b.submit_time ? 1 : -1))
+}
+
+export function buildCopyPayloadFromRejectedProcess(applicationId) {
+  const app = store.processes.find((a) => a.application_id === applicationId)
+  if (!app) return { ok: false, msg: '单据不存在' }
+  if (app.status !== 'rejected') return { ok: false, msg: '仅已驳回单可复制新建' }
+  return {
+    ok: true,
+    data: {
+      copy_from_application_id: app.application_id,
+      process_name: app.process_name,
+      use_part: app.use_part,
+      location_id: app.location_id || (Array.isArray(app.location_ids) ? app.location_ids[0] : '') || '',
+      location_ids: Array.isArray(app.location_ids) ? [...app.location_ids] : [],
+      briefing_content: app.briefing_content || '',
+      photo_files: [...(app.photo_files || [])],
+      video_files: [...(app.video_files || [])],
+      media_files: Array.isArray(app.media_files) ? app.media_files.map((m) => ({ ...m })) : [],
+      doc_files: [...(app.doc_files || [])],
+      remark: app.remark || '',
+    },
+  }
+}
+
+/** 已撤回工序样板重新编辑预填 */
+export function buildReEditPayloadFromWithdrawnProcess(applicationId) {
+  const app = store.processes.find((a) => a.application_id === applicationId)
+  if (!app) return { ok: false, msg: '单据不存在' }
+  if (app.status !== 'withdrawn') return { ok: false, msg: '仅已撤回单可重新编辑' }
+  return {
+    ok: true,
+    data: {
+      application_id: app.application_id,
+      process_name: app.process_name,
+      use_part: app.use_part,
+      location_id: app.location_id || (Array.isArray(app.location_ids) ? app.location_ids[0] : '') || '',
+      location_ids: Array.isArray(app.location_ids) ? [...app.location_ids] : [],
+      briefing_content: app.briefing_content || '',
+      photo_files: [...(app.photo_files || [])],
+      video_files: [...(app.video_files || [])],
+      media_files: Array.isArray(app.media_files) ? app.media_files.map((m) => ({ ...m })) : [],
+      doc_files: [...(app.doc_files || [])],
+      remark: app.remark || '',
+    },
+  }
+}
+
+/** 已撤回原单重新提交 → 待审批（同单号） */
+export function resubmitWithdrawnSample(bizType, applicationId, payload) {
+  const app = findApp(bizType, applicationId)
+  if (!app) return { ok: false, msg: '单据不存在' }
+  if (app.status !== 'withdrawn') return { ok: false, msg: '仅已撤回单可重新编辑提交' }
+
+  const project_id = payload.project_id || app.project_id
+  if (project_id !== app.project_id) return { ok: false, msg: '不可跨项目重提' }
+  const applicant_name = payload.applicant_name || app.applicant_name || '当前用户'
+
+  if (bizType === 'material') {
+    const material_name = (payload.material_name || '').trim()
+    const supplier = (payload.supplier || '').trim()
+    if (!material_name) return { ok: false, msg: '请选择材料名称' }
+    if (!supplier) return { ok: false, msg: '请选择供应商' }
+
+    const ids = Array.isArray(payload.location_ids) ? payload.location_ids.map(String).filter(Boolean) : []
+    if (payload.location_id && !ids.length) ids.push(String(payload.location_id))
+    const part = String(payload.use_part || '').trim()
+    if (!part && !ids.length) return { ok: false, msg: '请选择施工部位' }
+
+    const desc = String(payload.indicator_desc || '').trim()
+    if (!desc) return { ok: false, msg: '请填写材料指标说明' }
+
+    const effects = normalizeFileList(payload.effect_images)
+    const approvals = normalizeFileList(payload.approval_files)
+    if (!effects.length) return { ok: false, msg: '请至少上传 1 张效果图' }
+    if (!approvals.length) return { ok: false, msg: '请至少上传 1 份审批文件' }
+
+    let brand = String(payload.brand_name || '').trim()
+    if (!brand) {
+      const matched = listSamplePickRowsFromBrand(project_id).filter(
+        (r) => r.supplier === supplier && r.material_name === material_name,
+      )
+      const names = [...new Set(matched.map((r) => (r.brand_name || '').trim()).filter(Boolean))]
+      brand = names.join('/')
+    }
+
+    app.material_name = material_name
+    app.brand_name = brand
+    app.supplier = supplier
+    app.use_part = part
+    app.location_id = ids[0] || String(payload.location_id || '')
+    app.location_ids = ids
+    app.indicator_desc = desc
+    app.effect_images = effects
+    app.approval_files = approvals
+    app.remark = payload.remark || ''
+  } else {
+    const process_name = (payload.process_name || '').trim()
+    if (!process_name) return { ok: false, msg: '请填写工序名称' }
+    const ids = Array.isArray(payload.location_ids) ? payload.location_ids.map(String).filter(Boolean) : []
+    if (payload.location_id && !ids.length) ids.push(String(payload.location_id))
+    const part = String(payload.use_part || '').trim()
+    if (!part && !ids.length) return { ok: false, msg: '请选择施工部位' }
+    const briefing = String(payload.briefing_content || '').trim()
+    if (!briefing) return { ok: false, msg: '请填写关键工序样板说明' }
+
+    const photo_files = Array.isArray(payload.photo_files) ? payload.photo_files.filter(Boolean) : []
+    const video_files = Array.isArray(payload.video_files) ? payload.video_files.filter(Boolean) : []
+    const media_files = Array.isArray(payload.media_files)
+      ? payload.media_files.map((m) => ({ ...m }))
+      : []
+    const doc_files = Array.isArray(payload.doc_files) ? payload.doc_files.filter(Boolean) : []
+
+    app.process_name = process_name
+    app.use_part = part
+    app.location_id = ids[0] || String(payload.location_id || '')
+    app.location_ids = ids
+    app.briefing_content = briefing
+    app.photo_files = photo_files
+    app.video_files = video_files
+    app.media_files = media_files
+    app.doc_files = doc_files
+    app.remark = payload.remark || ''
+  }
+
+  app.status = 'pending'
+  app.current_node = 'supervisor'
+  app.submit_time = timestamp()
+  app.finish_time = ''
+  app.applicant_name = applicant_name
+
+  pushApproval({
+    biz_type: bizType,
+    application_id: applicationId,
+    node_code: 'applicant',
+    action: 'submit',
+    opinion: '撤回后重新提交',
+    operator_name: applicant_name,
+  })
+  discardSampleTodos(bizType, applicationId)
+  createSampleSupervisorTodo(buildTodoPayload(bizType, app))
+  return { ok: true, data: app }
+}
+
+/** @deprecated 请使用 resubmitWithdrawnSample */
+export function resubmitSample(bizType, applicationId, payload) {
+  if (bizType && applicationId && payload) {
+    return resubmitWithdrawnSample(bizType, applicationId, payload)
+  }
+  return { ok: false, msg: '请使用重新编辑提交已撤回单' }
+}
+
+function countByStatus(rows, status) {
+  return rows.filter((a) => a.status === status).length
+}
+
+/** 指挥部质量看板：按项目汇总材料定样 + 工序样板 */
+export function buildHqSampleStatsByProject() {
+  return COC_PROJECT_OPTIONS.map((opt) => {
+    const materials = store.materials.filter((a) => a.project_id === opt.id)
+    const processes = store.processes.filter((a) => a.project_id === opt.id)
+    const materialApproved = countByStatus(materials, 'approved')
+    const processApproved = countByStatus(processes, 'approved')
+    return {
+      project_id: opt.id,
+      project_name: opt.label,
+      ledger_count: materialApproved + processApproved,
+      material_approved: materialApproved,
+      process_approved: processApproved,
+      pending: countByStatus(materials, 'pending') + countByStatus(processes, 'pending'),
+      in_approval: countByStatus(materials, 'in_approval') + countByStatus(processes, 'in_approval'),
+      rejected: countByStatus(materials, 'rejected') + countByStatus(processes, 'rejected'),
+      withdrawn: countByStatus(materials, 'withdrawn') + countByStatus(processes, 'withdrawn'),
+    }
+  }).sort(
+    (a, b) =>
+      b.ledger_count - a.ledger_count || a.project_name.localeCompare(b.project_name, 'zh-CN'),
+  )
+}
+
+export function buildHqSampleSummary() {
+  const rows = buildHqSampleStatsByProject()
+  return rows.reduce(
+    (acc, row) => {
+      acc.projectCount += 1
+      acc.ledger_count += row.ledger_count
+      acc.material_approved += row.material_approved
+      acc.process_approved += row.process_approved
+      acc.pending += row.pending
+      acc.in_approval += row.in_approval
+      acc.rejected += row.rejected
+      acc.withdrawn += row.withdrawn
+      return acc
+    },
+    {
+      projectCount: 0,
+      ledger_count: 0,
+      material_approved: 0,
+      process_approved: 0,
+      pending: 0,
+      in_approval: 0,
+      rejected: 0,
+      withdrawn: 0,
+    },
+  )
+}
+
 export function listLedger(projectId, { bizType = '', keyword = '', usePart = '' } = {}) {
   const kw = keyword.trim().toLowerCase()
   const part = usePart.trim().toLowerCase()
@@ -439,7 +737,6 @@ export function listLedger(projectId, { bizType = '', keyword = '', usePart = ''
     .sort((a, b) => (a.finish_time < b.finish_time ? 1 : -1))
 }
 
-/** 验评可选：已通过定版定样（材料+工序）；支持施工部位筛选 */
 export function listSelectableForInspect(
   projectId,
   { keyword = '', usePart = '', locationId = '', bizType = '' } = {},
@@ -459,7 +756,7 @@ export function listSelectableForInspect(
           use_part: a.use_part || '',
           location_id: a.location_id || '',
           location_ids: Array.isArray(a.location_ids) ? [...a.location_ids] : [],
-          brand_name: a.sample_spec?.brand_name || a.brand_name || '',
+          brand_name: a.brand_name || '',
           finish_time: a.finish_time || '',
         })
       })
@@ -512,48 +809,52 @@ export function submitMaterialApp(payload) {
   const {
     project_id,
     material_name,
+    brand_name = '',
+    supplier,
     use_part,
     location_id = '',
     location_ids = [],
-    sample_spec = null,
-    compare_items = [],
+    indicator_desc = '',
+    effect_images = [],
+    approval_files = [],
+    copy_from_application_id = '',
     remark = '',
     applicant_name = '当前用户',
   } = payload
+
   if (!project_id) return { ok: false, msg: '请选择项目' }
-  if (!(material_name || '').trim()) return { ok: false, msg: '请填写材料名称' }
+  if (!(material_name || '').trim()) return { ok: false, msg: '请选择材料名称' }
+  if (!(supplier || '').trim()) return { ok: false, msg: '请选择供应商' }
+
   const ids = Array.isArray(location_ids) ? location_ids.map(String).filter(Boolean) : []
   if (location_id && !ids.length) ids.push(String(location_id))
   const part = String(use_part || '').trim()
   if (!part && !ids.length) return { ok: false, msg: '请选择施工部位' }
 
-  const spec = sample_spec || {}
-  const material_spec = String(spec.material_spec || '').trim()
-  const supplier = String(spec.supplier || '').trim()
-  const effect_images = Array.isArray(spec.effect_images)
-    ? spec.effect_images.map(String).filter(Boolean)
-    : []
-  if (!material_spec) return { ok: false, msg: '请填写定版定样的材料规格' }
-  if (!supplier) return { ok: false, msg: '请填写定版定样的供应商' }
-  if (!effect_images.length) return { ok: false, msg: '请至少上传 1 张定版定样效果图' }
+  const desc = String(indicator_desc || '').trim()
+  if (!desc) return { ok: false, msg: '请填写材料指标说明' }
 
-  const compares = (Array.isArray(compare_items) ? compare_items : [])
-    .map((c) => ({
-      material_name: String(c.material_name || '').trim(),
-      material_spec: String(c.material_spec || '').trim(),
-      supplier: String(c.supplier || '').trim(),
-      effect_images: Array.isArray(c.effect_images)
-        ? c.effect_images.map(String).filter(Boolean)
-        : [],
-    }))
-    .filter((c) => c.material_name && c.material_spec && c.supplier && c.effect_images.length)
+  const effects = normalizeFileList(effect_images)
+  const approvals = normalizeFileList(approval_files)
+  if (!effects.length) return { ok: false, msg: '请至少上传 1 张效果图' }
+  if (!approvals.length) return { ok: false, msg: '请至少上传 1 份审批文件' }
 
-  const compare_record = [
-    `定版：${material_spec}（${supplier}）`,
-    ...compares.map(
-      (c, i) => `比选${i + 1}：${c.material_name} / ${c.material_spec}（${c.supplier}）`,
-    ),
-  ].join('；')
+  const copyId = String(copy_from_application_id || '').trim()
+  if (copyId) {
+    const origin = store.materials.find((a) => a.application_id === copyId)
+    if (!origin) return { ok: false, msg: '复制来源单不存在' }
+    if (origin.status !== 'rejected') return { ok: false, msg: '仅可从已驳回单复制新建' }
+    if (origin.project_id !== project_id) return { ok: false, msg: '复制来源单不属于本项目' }
+  }
+
+  let brand = String(brand_name || '').trim()
+  if (!brand) {
+    const matched = listSamplePickRowsFromBrand(project_id).filter(
+      (r) => r.supplier === supplier.trim() && r.material_name === material_name.trim(),
+    )
+    const names = [...new Set(matched.map((r) => (r.brand_name || '').trim()).filter(Boolean))]
+    brand = names.join('/')
+  }
 
   store.seq.m += 1
   const application_id = `MS-${String(store.seq.m).padStart(3, '0')}`
@@ -562,17 +863,16 @@ export function submitMaterialApp(payload) {
     application_id,
     project_id,
     material_name: material_name.trim(),
+    brand_name: brand,
+    supplier: supplier.trim(),
     use_part: part,
     location_id: ids[0] || String(location_id || ''),
     location_ids: ids,
-    sample_spec: {
-      material_spec,
-      supplier,
-      effect_images,
-    },
-    compare_items: compares,
-    compare_record,
-    status: 'in_approval',
+    indicator_desc: desc,
+    effect_images: effects,
+    approval_files: approvals,
+    copy_from_application_id: copyId,
+    status: 'pending',
     current_node: 'supervisor',
     applicant_name,
     submit_time,
@@ -585,7 +885,7 @@ export function submitMaterialApp(payload) {
     application_id,
     node_code: 'applicant',
     action: 'submit',
-    opinion: '直接提交',
+    opinion: copyId ? `从 ${copyId} 复制新建` : '直接提交',
     operator_name: applicant_name,
   })
   createSampleSupervisorTodo(buildTodoPayload('material', app))
@@ -604,6 +904,7 @@ export function submitProcessApp(payload) {
     video_files = [],
     media_files = [],
     doc_files = [],
+    copy_from_application_id = '',
     remark = '',
     applicant_name = '当前用户',
   } = payload
@@ -614,6 +915,14 @@ export function submitProcessApp(payload) {
   const part = String(use_part || '').trim()
   if (!part && !ids.length) return { ok: false, msg: '请选择施工部位' }
   if (!(briefing_content || '').trim()) return { ok: false, msg: '请填写关键工序样板说明' }
+
+  const copyId = String(copy_from_application_id || '').trim()
+  if (copyId) {
+    const origin = store.processes.find((a) => a.application_id === copyId)
+    if (!origin) return { ok: false, msg: '复制来源单不存在' }
+    if (origin.status !== 'rejected') return { ok: false, msg: '仅可从已驳回单复制新建' }
+    if (origin.project_id !== project_id) return { ok: false, msg: '复制来源单不属于本项目' }
+  }
 
   let photos = Array.isArray(photo_files) ? photo_files.map(String).filter(Boolean) : []
   let videos = Array.isArray(video_files) ? video_files.map(String).filter(Boolean) : []
@@ -649,7 +958,8 @@ export function submitProcessApp(payload) {
           ...videos.map((name) => ({ name, kind: 'video' })),
         ],
     doc_files: docs,
-    status: 'in_approval',
+    copy_from_application_id: copyId,
+    status: 'pending',
     current_node: 'supervisor',
     applicant_name,
     submit_time,
@@ -662,7 +972,7 @@ export function submitProcessApp(payload) {
     application_id,
     node_code: 'applicant',
     action: 'submit',
-    opinion: '直接提交',
+    opinion: copyId ? `从 ${copyId} 复制新建` : '直接提交',
     operator_name: applicant_name,
   })
   createSampleSupervisorTodo(buildTodoPayload('process', app))
@@ -675,33 +985,11 @@ function findApp(bizType, applicationId) {
     : store.processes.find((a) => a.application_id === applicationId)
 }
 
-export function resubmitSample(bizType, applicationId) {
-  const app = findApp(bizType, applicationId)
-  if (!app) return { ok: false, msg: '单据不存在' }
-  if (app.status !== 'rejected') {
-    return { ok: false, msg: '仅已驳回可重提' }
-  }
-  app.status = 'in_approval'
-  app.current_node = 'supervisor'
-  app.submit_time = timestamp()
-  app.finish_time = ''
-  pushApproval({
-    biz_type: bizType,
-    application_id: applicationId,
-    node_code: 'applicant',
-    action: 'resubmit',
-    opinion: '重新提交',
-    operator_name: '当前用户',
-  })
-  createSampleSupervisorTodo(buildTodoPayload(bizType, app))
-  return { ok: true }
-}
-
 export function supervisorApproveSample(bizType, applicationId, { action, opinion }) {
   const app = findApp(bizType, applicationId)
   if (!app) return { ok: false, msg: '单据不存在' }
-  if (app.status !== 'in_approval' || app.current_node !== 'supervisor') {
-    return { ok: false, msg: '当前不在待监理审节点' }
+  if (app.status !== 'pending' || app.current_node !== 'supervisor') {
+    return { ok: false, msg: '当前不在待审批（待监理审）节点' }
   }
   if (action === 'reject' && !(opinion || '').trim()) return { ok: false, msg: '退回意见必填' }
   pushApproval({
@@ -714,8 +1002,16 @@ export function supervisorApproveSample(bizType, applicationId, { action, opinio
   })
   if (action === 'agree') {
     finishSampleOpenTodos(bizType, applicationId, 'supervisor', '监理同意')
-    app.current_node = 'pm'
-    createSamplePmTodo(buildTodoPayload(bizType, app))
+    if (bizType === 'process') {
+      discardSampleTodos(bizType, applicationId)
+      app.status = 'approved'
+      app.current_node = 'none'
+      app.finish_time = timestamp()
+    } else {
+      app.status = 'in_approval'
+      app.current_node = 'pm'
+      createSamplePmTodo(buildTodoPayload(bizType, app))
+    }
   } else {
     finishSampleOpenTodos(bizType, applicationId, 'supervisor', '监理退回')
     discardSampleTodos(bizType, applicationId)
@@ -727,6 +1023,9 @@ export function supervisorApproveSample(bizType, applicationId, { action, opinio
 }
 
 export function pmApproveSample(bizType, applicationId, { action, opinion }) {
+  if (bizType === 'process') {
+    return { ok: false, msg: '工序样板无需项目经理审批' }
+  }
   const app = findApp(bizType, applicationId)
   if (!app) return { ok: false, msg: '单据不存在' }
   if (app.status !== 'in_approval' || app.current_node !== 'pm') {
@@ -754,5 +1053,27 @@ export function pmApproveSample(bizType, applicationId, { action, opinion }) {
     app.current_node = 'none'
     app.finish_time = timestamp()
   }
+  return { ok: true }
+}
+
+/** 仅待审批可撤回；撤回后留档为已撤回 */
+export function withdrawSampleApp(bizType, applicationId) {
+  const app = findApp(bizType, applicationId)
+  if (!app) return { ok: false, msg: '单据不存在' }
+  if (app.status !== 'pending') {
+    return { ok: false, msg: '仅待审批时可撤回' }
+  }
+  pushApproval({
+    biz_type: bizType,
+    application_id: applicationId,
+    node_code: 'applicant',
+    action: 'withdraw',
+    opinion: '申请人撤回',
+    operator_name: app.applicant_name || '当前用户',
+  })
+  discardSampleTodos(bizType, applicationId)
+  app.status = 'withdrawn'
+  app.current_node = 'none'
+  app.finish_time = timestamp()
   return { ok: true }
 }

@@ -27,7 +27,7 @@ const special = computed(() => panels.value.special)
       <p class="page-tip">范围：{{ isHqSelected ? '全部项目（指挥部）' : scopeProjectLabel }}</p>
     </div>
 
-    <!-- 指挥部：三模块等宽，实体/专项两行三列 -->
+    <!-- 指挥部：保留项目统计；实体/专项字段对齐项目级（不含计划延期） -->
     <div v-if="isHqSelected" class="kpi-panels hq-panels">
       <section class="kpi-panel">
         <div class="panel-title">项目统计</div>
@@ -67,9 +67,23 @@ const special = computed(() => panels.value.special)
               <div class="num">{{ physical.taskPassed }}</div>
               <div class="label">已验收通过任务数量</div>
             </div>
+            <div class="kpi tone-task">
+              <div class="num">{{ physical.nodeTotal }}</div>
+              <div class="label">节点总数</div>
+            </div>
+          </div>
+          <div class="kpi-row cols-3">
+            <div class="kpi tone-pass">
+              <div class="num">{{ physical.nodeCompleted }}</div>
+              <div class="label">验收完成节点</div>
+            </div>
+            <div class="kpi tone-pass">
+              <div class="num">{{ physical.nodeCompleteRate }}%</div>
+              <div class="label">节点验收完成率</div>
+            </div>
             <div class="kpi tone-pass">
               <div class="num">{{ physical.passRate }}%</div>
-              <div class="label">整体通过率</div>
+              <div class="label">通过率</div>
             </div>
           </div>
           <div class="kpi-row cols-3">
@@ -77,9 +91,19 @@ const special = computed(() => panels.value.special)
               <div class="num">{{ physical.firstPassRate }}%</div>
               <div class="label">一次性通过率</div>
             </div>
-            <div class="kpi tone-warn">
-              <div class="num">{{ physical.planOverdueCount }}</div>
-              <div class="label">计划延期数量</div>
+            <div class="kpi tone-task">
+              <div class="num">{{ physical.rectifyTotal }}</div>
+              <div class="label">整改总数</div>
+            </div>
+            <div class="kpi tone-mute">
+              <div class="num">{{ physical.rectifying }}</div>
+              <div class="label">整改中</div>
+            </div>
+          </div>
+          <div class="kpi-row cols-2">
+            <div class="kpi tone-pass">
+              <div class="num">{{ physical.rectifyCompleteRate }}%</div>
+              <div class="label">整改完成率</div>
             </div>
             <div class="kpi tone-warn">
               <div class="num">{{ physical.rectifyOverdueCount }}</div>
@@ -92,7 +116,7 @@ const special = computed(() => panels.value.special)
       <section class="kpi-panel">
         <div class="panel-title">专项验收</div>
         <div class="kpi-rows">
-          <div class="kpi-row cols-3">
+          <div class="kpi-row cols-2">
             <div class="kpi tone-task">
               <div class="num">{{ special.taskTotal }}</div>
               <div class="label">验收任务数量</div>
@@ -101,19 +125,25 @@ const special = computed(() => panels.value.special)
               <div class="num">{{ special.taskPassed }}</div>
               <div class="label">已验收通过任务数量</div>
             </div>
+          </div>
+          <div class="kpi-row cols-2">
             <div class="kpi tone-pass">
               <div class="num">{{ special.passRate }}%</div>
-              <div class="label">整体通过率</div>
+              <div class="label">通过率</div>
             </div>
-          </div>
-          <div class="kpi-row cols-3">
             <div class="kpi tone-pass">
               <div class="num">{{ special.firstPassRate }}%</div>
               <div class="label">一次性通过率</div>
             </div>
-            <div class="kpi tone-warn">
-              <div class="num">{{ special.planOverdueCount }}</div>
-              <div class="label">计划延期数量</div>
+          </div>
+          <div class="kpi-row cols-3">
+            <div class="kpi tone-task">
+              <div class="num">{{ special.rectifyTotal }}</div>
+              <div class="label">整改总数</div>
+            </div>
+            <div class="kpi tone-pass">
+              <div class="num">{{ special.rectifyCompleteRate }}%</div>
+              <div class="label">整改完成率</div>
             </div>
             <div class="kpi tone-warn">
               <div class="num">{{ special.rectifyOverdueCount }}</div>
@@ -240,7 +270,7 @@ const special = computed(() => panels.value.special)
   align-items: stretch;
 }
 .hq-panels {
-  grid-template-columns: 0.9fr 1.05fr 1.05fr;
+  grid-template-columns: 0.75fr 1.2fr 0.95fr;
 }
 .project-panels {
   grid-template-columns: 1.65fr 1fr;

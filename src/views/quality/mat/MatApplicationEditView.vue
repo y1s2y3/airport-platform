@@ -6,32 +6,51 @@ import { ElMessage } from 'element-plus'
 import { Plus, Delete, UploadFilled } from '@element-plus/icons-vue'
 import { useQmProjectScope } from '../../../composables/useCurrentProject'
 import {
-  getRejectedEntryForReopen,
+  ENTRY_TYPE_LABEL,
+  buildCopyPayloadFromRejectedMat,
+  buildReEditPayloadFromWithdrawnMat,
+  createDefaultUnpackItems,
   listApprovedSamples,
+  searchEntryBrands,
   submitEntry,
+  resubmitWithdrawnEntry,
 } from '../../../mock/mat.js'
 
 const route = useRoute()
 const router = useRouter()
 const { isHqSelected, scopeProjectId, scopeProjectLabel } = useQmProjectScope()
 
-const relatedRejectId = ref(String(route.query.relatedRejectId || ''))
+const copyFromId = ref(String(route.query.copyFrom || ''))
+const reEditId = ref(String(route.query.id || ''))
+const isReEdit = ref(route.query.reEdit === '1' || route.query.mode === 'resubmit')
+const entryType = ref(
+  route.query.entry_type === 'equipment' ? 'equipment' : 'material',
+)
 
 const form = reactive({
-  sample_id: '',
+  sample_application_id: '',
+  ledger_id: '',
+  brand_name: '',
+  manufacturer: '',
   material_name: '',
+  equipment_name: '',
+  model: '',
   use_part: '',
   location_id: '',
   location_ids: [],
-  brand_name: '',
-  manufacturer: '',
   supplier: '',
+  quantity: '',
+  unit: entryType.value === 'equipment' ? '台' : '件',
+  serial_no: '',
   cert_file: '',
   inspect_file: '',
   photo_file: '',
   inspect_result_checked: false,
   inspect_result_file: '',
 })
+
+const brandKeyword = ref('')
+const brandLockedFromSample = ref(false)
 
 function emptyLine() {
   return {
@@ -45,16 +64,26 @@ function emptyLine() {
   }
 }
 
-/** 进场信息多模块，默认一条 */
 const entryLines = ref([emptyLine()])
+const unpackItems = ref(createDefaultUnpackItems())
 
 const samples = computed(() =>
   scopeProjectId.value ? listApprovedSamples(scopeProjectId.value) : [],
 )
 
-const pageTitle = computed(() =>
-  relatedRejectId.value ? '重开材料进场申请' : '新增材料进场',
-)
+const brandOptions = computed(() => {
+  if (!scopeProjectId.value) return []
+  return searchEntryBrands(brandKeyword.value, scopeProjectId.value, {
+    materialType: entryType.value === 'equipment' ? 'equipment' : 'material',
+  })
+})
+
+const pageTitle = computed(() => {
+  if (isReEdit.value || copyFromId.value) return '重新申报进场申请'
+  return '进场申报'
+})
+
+const ledgerLocked = computed(() => brandLockedFromSample.value || !!form.ledger_id)
 
 function syncLineMaterialNames() {
   const name = form.material_name || ''
@@ -63,80 +92,138 @@ function syncLineMaterialNames() {
   })
 }
 
-watch(
-  () => form.sample_id,
-  (id) => {
-    if (!id) {
-      form.material_name = ''
-      form.use_part = ''
-      form.location_id = ''
-      form.location_ids = []
+watch(entryType, (t) => {
+  form.unit = t === 'equipment' ? '台' : '件'
+  if (t === 'equipment') unpackItems.value = createDefaultUnpackItems()
+  if (!brandLockedFromSample.value && form.ledger_id) {
+    const hit = searchEntryBrands('', scopeProjectId.value).find((b) => b.ledger_id === form.ledger_id)
+    const expect = t === 'equipment' ? 'equipment' : 'material'
+    if (hit && (hit.material_type || 'material') !== expect) {
+      form.ledger_id = ''
       form.brand_name = ''
       form.manufacturer = ''
-      syncLineMaterialNames()
-      return
     }
-    const s = samples.value.find((x) => x.sample_id === id)
+  }
+})
+
+watch(
+  () => form.sample_application_id,
+  (id) => {
+    brandLockedFromSample.value = false
+    if (!id) return
+    const s = samples.value.find((x) => x.sample_application_id === id || x.sample_id === id)
     if (!s) return
     form.material_name = s.material_name || ''
     form.use_part = s.use_part || ''
-    form.location_id = s.location_id || (Array.isArray(s.location_ids) ? s.location_ids[0] : '') || ''
-    form.location_ids = Array.isArray(s.location_ids)
-      ? [...s.location_ids]
-      : form.location_id
-        ? [form.location_id]
-        : []
     form.brand_name = s.brand_name || ''
     form.manufacturer = s.manufacturer || ''
+    brandLockedFromSample.value = true
+    const brands = searchEntryBrands('', scopeProjectId.value, {
+      materialType: entryType.value === 'equipment' ? 'equipment' : 'material',
+    })
+    const hit =
+      brands.find(
+        (b) =>
+          b.brand_name === s.brand_name &&
+          b.manufacturer === s.manufacturer &&
+          b.material_name === s.material_name,
+      ) ||
+      brands.find((b) => b.brand_name === s.brand_name && b.manufacturer === s.manufacturer)
+    form.ledger_id = hit?.ledger_id || ''
     syncLineMaterialNames()
+  },
+)
+
+watch(
+  () => form.ledger_id,
+  (id) => {
+    if (brandLockedFromSample.value) return
+    if (!id) {
+      form.brand_name = ''
+      form.manufacturer = ''
+      return
+    }
+    const hit =
+      brandOptions.value.find((b) => b.ledger_id === id) ||
+      searchEntryBrands('', scopeProjectId.value).find((b) => b.ledger_id === id)
+    if (!hit) return
+    form.brand_name = hit.brand_name
+    form.manufacturer = hit.manufacturer
+    if (entryType.value === 'material') {
+      form.material_name = hit.material_name || ''
+      syncLineMaterialNames()
+    }
+    if (entryType.value === 'equipment') {
+      form.equipment_name = hit.material_name || ''
+    }
   },
 )
 
 watch(
   () => form.material_name,
-  () => {
-    syncLineMaterialNames()
-  },
+  () => syncLineMaterialNames(),
 )
 
+function applyCopyPayload(data) {
+  entryType.value = data.entry_type || 'material'
+  form.sample_application_id = data.sample_application_id || ''
+  form.ledger_id = data.ledger_id || ''
+  form.brand_name = data.brand_name || ''
+  form.manufacturer = data.manufacturer || ''
+  form.material_name = data.material_name || ''
+  form.equipment_name = data.equipment_name || ''
+  form.model = data.model || ''
+  form.use_part = data.use_part || ''
+  form.location_id = data.location_id || ''
+  form.location_ids = Array.isArray(data.location_ids) ? [...data.location_ids] : []
+  form.supplier = data.supplier || ''
+  form.quantity = data.quantity != null ? String(data.quantity) : ''
+  form.unit = data.unit || (entryType.value === 'equipment' ? '台' : '件')
+  form.serial_no = data.serial_no || ''
+  form.cert_file = data.cert_file || ''
+  form.inspect_file = data.inspect_file || ''
+  form.photo_file = data.photo_file || ''
+  form.inspect_result_checked = !!data.inspect_result_checked
+  form.inspect_result_file = data.inspect_result_file || ''
+  if (data.line_items?.length) {
+    entryLines.value = data.line_items.map((l) => ({
+      key: `line-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      material_name: l.material_name || data.material_name || '',
+      material_spec: l.material_spec || '',
+      quantity: l.quantity != null ? String(l.quantity) : '',
+      unit: l.unit || '件',
+      waybill_no: l.waybill_no || '',
+      batch_no: l.batch_no || '',
+    }))
+  }
+  if (data.unpack_items?.length) {
+    unpackItems.value = data.unpack_items.map((i) => ({ ...i }))
+  }
+}
+
 onMounted(() => {
-  if (!relatedRejectId.value) return
-  const r = getRejectedEntryForReopen(relatedRejectId.value)
-  if (!r.ok) {
-    ElMessage.error(r.msg)
-    relatedRejectId.value = ''
-    router.replace('/qm/mat/applications/edit')
+  if (route.query.entry_type === 'equipment') entryType.value = 'equipment'
+  if (isReEdit.value && reEditId.value) {
+    const r = buildReEditPayloadFromWithdrawnMat(reEditId.value)
+    if (!r.ok) {
+      ElMessage.error(r.msg)
+      isReEdit.value = false
+      reEditId.value = ''
+      return
+    }
+    applyCopyPayload(r.data)
+    ElMessage.success(`已载入撤回单 ${reEditId.value}，修改后提交将回到待审批`)
     return
   }
-  const origin = r.data
-  form.sample_id = origin.sample_id || ''
-  form.supplier = origin.supplier || ''
-  form.cert_file = origin.cert_file || ''
-  form.inspect_file = origin.inspect_file || ''
-  form.photo_file = origin.photo_file || ''
-  form.inspect_result_checked = !!origin.inspect_result_checked
-  form.inspect_result_file = origin.inspect_result_file || ''
-  const lines = Array.isArray(origin.line_items) && origin.line_items.length
-    ? origin.line_items
-    : [
-        {
-          material_name: origin.material_name,
-          material_spec: origin.material_spec || '',
-          quantity: origin.quantity,
-          unit: origin.unit,
-          waybill_no: origin.waybill_no || '',
-          batch_no: origin.batch_no || '',
-        },
-      ]
-  entryLines.value = lines.map((l) => ({
-    key: `line-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    material_name: l.material_name || origin.material_name || '',
-    material_spec: l.material_spec || '',
-    quantity: l.quantity != null ? String(l.quantity) : '',
-    unit: l.unit || '件',
-    waybill_no: l.waybill_no || '',
-    batch_no: l.batch_no || '',
-  }))
+  if (!copyFromId.value) return
+  const r = buildCopyPayloadFromRejectedMat(copyFromId.value)
+  if (!r.ok) {
+    ElMessage.error(r.msg)
+    copyFromId.value = ''
+    router.replace(`/qm/mat/applications/edit?entry_type=${entryType.value}`)
+    return
+  }
+  applyCopyPayload(r.data)
 })
 
 function addEntryLine() {
@@ -158,15 +245,67 @@ function onPickFile(field, uploadFile) {
     ElMessage.warning('单个文件不超过 30MB')
     return false
   }
-  const name = file.name || `${field}-${Date.now()}`
-  form[field] = name
-  ElMessage.success(`已上传：${name}`)
+  form[field] = file.name || `${field}-${Date.now()}`
+  ElMessage.success(`已上传：${form[field]}`)
   return false
 }
 
 function onSubmit() {
   if (isHqSelected.value || !scopeProjectId.value) {
     return ElMessage.warning('请先切换到具体项目')
+  }
+  if (!form.ledger_id && (!form.brand_name.trim() || !form.manufacturer.trim())) {
+    return ElMessage.warning('请选择品牌台账中的品牌')
+  }
+  if (!String(form.supplier || '').trim()) return ElMessage.warning('请填写供应商')
+
+  const base = {
+    project_id: scopeProjectId.value,
+    entry_type: entryType.value,
+    sample_application_id: form.sample_application_id,
+    ledger_id: form.ledger_id,
+    brand_name: form.brand_name,
+    manufacturer: form.manufacturer,
+    use_part: form.use_part,
+    location_id: form.location_id,
+    location_ids: [...(form.location_ids || [])],
+    supplier: form.supplier,
+    cert_file: form.cert_file,
+    inspect_file: form.inspect_file,
+    photo_file: form.photo_file,
+    inspect_result_checked: form.inspect_result_checked,
+    inspect_result_file: form.inspect_result_file,
+    copy_from_entry_id: copyFromId.value,
+  }
+
+  if (entryType.value === 'equipment') {
+    if (!form.equipment_name.trim()) return ElMessage.warning('请填写设备名称')
+    if (!form.quantity || Number(form.quantity) <= 0) {
+      return ElMessage.warning('请填写有效数量')
+    }
+    const submitPayload = {
+      ...base,
+      equipment_name: form.equipment_name,
+      model: form.model,
+      quantity: Number(form.quantity),
+      unit: form.unit,
+      serial_no: form.serial_no,
+      unpack_items: unpackItems.value,
+    }
+    const r =
+      isReEdit.value && reEditId.value
+        ? resubmitWithdrawnEntry(reEditId.value, submitPayload)
+        : submitEntry(submitPayload)
+    if (!r.ok) return ElMessage.error(r.msg)
+    ElMessage.success(
+      isReEdit.value
+        ? `已重新申报 ${r.data.entry_id}，状态已回到待审批`
+        : copyFromId.value
+          ? `已重新申报 ${r.data.entry_id}，进入待审批`
+          : `已提交 ${r.data.entry_id}，进入待审批`,
+    )
+    router.push('/qm/mat/applications')
+    return
   }
 
   const line_items = []
@@ -176,49 +315,39 @@ function onSubmit() {
     const material_spec = String(row.material_spec || '').trim()
     const quantity = String(row.quantity || '').trim()
     const unit = String(row.unit || '').trim()
-    const waybill_no = String(row.waybill_no || '').trim()
-    const batch_no = String(row.batch_no || '').trim()
-    if (!material_name) {
-      return ElMessage.warning(`进场信息第 ${i + 1} 条请先关联定样`)
-    }
-    if (!material_spec) return ElMessage.warning(`进场信息第 ${i + 1} 条请填写材料规格`)
+    if (!material_name) return ElMessage.warning(`进场明细第 ${i + 1} 条请填写材料名称`)
+    if (!material_spec) return ElMessage.warning(`进场明细第 ${i + 1} 条请填写材料规格`)
     if (!quantity || Number(quantity) <= 0) {
-      return ElMessage.warning(`进场信息第 ${i + 1} 条请填写有效数量`)
+      return ElMessage.warning(`进场明细第 ${i + 1} 条请填写有效数量`)
     }
-    if (!unit) return ElMessage.warning(`进场信息第 ${i + 1} 条请填写单位`)
+    if (!unit) return ElMessage.warning(`进场明细第 ${i + 1} 条请填写单位`)
     line_items.push({
       material_name,
       material_spec,
       quantity: Number(quantity),
       unit,
-      waybill_no,
-      batch_no,
+      waybill_no: String(row.waybill_no || '').trim(),
+      batch_no: String(row.batch_no || '').trim(),
     })
   }
 
-  if (!form.sample_id) return ElMessage.warning('请关联已通过定样')
-  if (!String(form.supplier || '').trim()) return ElMessage.warning('请填写供应商')
-
-  const r = submitEntry({
-    project_id: scopeProjectId.value,
-    sample_id: form.sample_id,
+  const submitPayload = {
+    ...base,
     material_name: form.material_name || line_items[0].material_name,
-    use_part: form.use_part,
-    location_id: form.location_id,
-    location_ids: [...(form.location_ids || [])],
-    brand_name: form.brand_name,
-    manufacturer: form.manufacturer,
-    supplier: form.supplier,
     line_items,
-    cert_file: form.cert_file,
-    inspect_file: form.inspect_file,
-    photo_file: form.photo_file,
-    inspect_result_checked: form.inspect_result_checked,
-    inspect_result_file: form.inspect_result_file,
-    related_reject_id: relatedRejectId.value,
-  })
+  }
+  const r =
+    isReEdit.value && reEditId.value
+      ? resubmitWithdrawnEntry(reEditId.value, submitPayload)
+      : submitEntry(submitPayload)
   if (!r.ok) return ElMessage.error(r.msg)
-  ElMessage.success(`已提交 ${r.data.entry_id}，进入审核中`)
+  ElMessage.success(
+    isReEdit.value
+      ? `已重新申报 ${r.data.entry_id}，状态已回到待审批`
+      : copyFromId.value
+        ? `已重新申报 ${r.data.entry_id}，进入待审批`
+        : `已提交 ${r.data.entry_id}，进入待审批`,
+  )
   router.push('/qm/mat/applications')
 }
 </script>
@@ -226,77 +355,84 @@ function onSubmit() {
 <template>
   <div class="qm-page page-card">
     <div class="page-header">
-      <div class="page-breadcrumb">材料进场管理 / 材料进场申请 / {{ relatedRejectId ? '重开' : '新建' }}</div>
+      <div class="page-breadcrumb">材料设备进场管理 / 进场申请 / {{ isReEdit || copyFromId ? '重新申报' : '新建' }}</div>
       <div class="title-row">
         <h1 class="page-title">{{ pageTitle }}</h1>
-        <el-tag v-if="relatedRejectId" size="small" type="warning" effect="plain">
-          关联驳回原单 {{ relatedRejectId }}
+        <el-tag v-if="isReEdit && reEditId" size="small" type="success" effect="plain">
+          原单 {{ reEditId }}
         </el-tag>
-        <el-tag v-else size="small" effect="plain" type="info">无草稿 · 直接提交</el-tag>
+        <el-tag v-if="copyFromId" size="small" type="warning" effect="plain">
+          从驳回单 {{ copyFromId }} 复制
+        </el-tag>
       </div>
       <p class="page-tip">
         当前项目：
         <strong>{{ isHqSelected ? '未选择（请先切换项目）' : scopeProjectLabel }}</strong>
-        · 选定样后品牌只读 · 同一定样可多次进场
+        · 品牌须选自品牌台账（与台账一致） · 定样可选关联
       </p>
     </div>
 
     <el-form label-width="120px" class="mat-entry-form">
       <section class="form-section">
-        <h2 class="section-title">定样与品牌</h2>
+        <h2 class="section-title">进场类型</h2>
+        <el-radio-group v-model="entryType">
+          <el-radio value="material">{{ ENTRY_TYPE_LABEL.material }}</el-radio>
+          <el-radio value="equipment">{{ ENTRY_TYPE_LABEL.equipment }}</el-radio>
+        </el-radio-group>
+      </section>
+
+      <section class="form-section">
+        <h2 class="section-title">品牌与定样</h2>
         <el-row :gutter="16">
           <el-col :span="12">
-            <el-form-item label="关联定样" required>
+            <el-form-item label="关联定样">
               <el-select
-                v-model="form.sample_id"
+                v-model="form.sample_application_id"
                 filterable
                 clearable
-                placeholder="选择已通过定样"
+                placeholder="可选：已通过定样"
                 style="width: 100%"
               >
                 <el-option
                   v-for="s in samples"
-                  :key="s.sample_id"
-                  :label="`${s.sample_id} · ${s.material_name} · ${s.brand_name}`"
-                  :value="s.sample_id"
+                  :key="s.sample_application_id || s.sample_id"
+                  :label="`${s.sample_application_id || s.sample_id} · ${s.material_name}`"
+                  :value="s.sample_application_id || s.sample_id"
                 />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="材料名称" required>
-              <el-input
-                v-model="form.material_name"
-                disabled
-                placeholder="由关联定样带出"
-              />
+            <el-form-item label="品牌台账" required>
+              <el-select
+                v-model="form.ledger_id"
+                filterable
+                remote
+                :remote-method="(q) => (brandKeyword = q)"
+                clearable
+                placeholder="搜索：品牌 / 厂家 / 材料"
+                style="width: 100%"
+                :disabled="brandLockedFromSample"
+              >
+                <el-option
+                  v-for="b in brandOptions"
+                  :key="b.ledger_id"
+                  :label="b.label || `${b.brand_name} · ${b.manufacturer} · ${b.material_name}`"
+                  :value="b.ledger_id"
+                />
+              </el-select>
+              <p v-if="brandLockedFromSample" class="field-hint">已选定样，品牌与材料只读带出</p>
+              <p v-else class="field-hint">同一品牌可对应多条材料，请按「品牌·厂家·材料」选择对应台账行</p>
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="施工部位">
-              <el-input
-                :model-value="form.use_part || ''"
-                disabled
-                placeholder="由关联定样带出"
-              />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="品牌" required>
-              <el-input
-                v-model="form.brand_name"
-                disabled
-                placeholder="由关联定样带出"
-              />
+            <el-form-item label="品牌">
+              <el-input v-model="form.brand_name" disabled placeholder="由台账带出" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="生产厂家">
-              <el-input
-                v-model="form.manufacturer"
-                disabled
-                placeholder="由关联定样带出"
-              />
+              <el-input v-model="form.manufacturer" disabled placeholder="由台账带出" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -307,12 +443,18 @@ function onSubmit() {
         </el-row>
       </section>
 
-      <section class="form-section">
-        <h2 class="section-title">进场信息</h2>
-
+      <section v-if="entryType === 'material'" class="form-section">
+        <h2 class="section-title">材料进场明细</h2>
+        <el-form-item label="材料名称">
+          <el-input
+            v-model="form.material_name"
+            :disabled="ledgerLocked"
+            :placeholder="ledgerLocked ? '由定样/台账带出' : '可手填或由定样/台账带出'"
+          />
+        </el-form-item>
         <div v-for="(row, idx) in entryLines" :key="row.key" class="entry-line-card">
           <div class="entry-line-head">
-            <span class="entry-line-title">进场明细 {{ idx + 1 }}</span>
+            <span class="entry-line-title">明细 {{ idx + 1 }}</span>
             <el-button
               type="danger"
               link
@@ -325,21 +467,8 @@ function onSubmit() {
           </div>
           <el-row :gutter="16">
             <el-col :span="12">
-              <el-form-item label="材料名称" required>
-                <el-input
-                  :model-value="row.material_name || form.material_name || ''"
-                  disabled
-                  placeholder="由定样带出"
-                />
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
               <el-form-item label="材料规格" required>
-                <el-input
-                  v-model="row.material_spec"
-                  placeholder="如：C30 / SBS-3mm"
-                  maxlength="120"
-                />
+                <el-input v-model="row.material_spec" placeholder="如 C30 / SBS-3mm" />
               </el-form-item>
             </el-col>
             <el-col :span="12">
@@ -354,20 +483,68 @@ function onSubmit() {
             </el-col>
             <el-col :span="12">
               <el-form-item label="运单号">
-                <el-input v-model="row.waybill_no" placeholder="选填" maxlength="80" />
+                <el-input v-model="row.waybill_no" placeholder="选填" />
               </el-form-item>
             </el-col>
             <el-col :span="12">
               <el-form-item label="批次号">
-                <el-input v-model="row.batch_no" placeholder="选填" maxlength="80" />
+                <el-input v-model="row.batch_no" placeholder="选填" />
               </el-form-item>
             </el-col>
           </el-row>
         </div>
-
         <div class="entry-line-add">
-          <el-button type="primary" plain :icon="Plus" @click="addEntryLine">新增进场明细</el-button>
+          <el-button type="primary" plain :icon="Plus" @click="addEntryLine">新增明细</el-button>
         </div>
+      </section>
+
+      <section v-else class="form-section">
+        <h2 class="section-title">设备信息</h2>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="设备名称" required>
+              <el-input
+                v-model="form.equipment_name"
+                :disabled="ledgerLocked"
+                :placeholder="ledgerLocked ? '由台账带出' : '设备名称'"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="型号">
+              <el-input v-model="form.model" placeholder="型号规格" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="数量" required>
+              <el-input v-model="form.quantity" placeholder="数量" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="单位" required>
+              <el-input v-model="form.unit" placeholder="台/套" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="序列号">
+              <el-input v-model="form.serial_no" placeholder="选填" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <h3 class="sub-title">开箱清单</h3>
+        <el-table :data="unpackItems" border stripe size="small">
+          <el-table-column prop="label" label="检查项" min-width="140" />
+          <el-table-column label="是否合格" width="100">
+            <template #default="{ row }">
+              <el-checkbox v-model="row.ok" />
+            </template>
+          </el-table-column>
+          <el-table-column label="备注" min-width="160">
+            <template #default="{ row }">
+              <el-input v-model="row.remark" placeholder="选填" size="small" />
+            </template>
+          </el-table-column>
+        </el-table>
       </section>
 
       <section class="form-section">
@@ -445,6 +622,15 @@ function onSubmit() {
 .section-title {
   margin: 0 0 8px;
 }
+.sub-title {
+  margin: 12px 0 8px;
+  font-size: 14px;
+}
+.field-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #e6a23c;
+}
 .entry-line-card {
   margin-bottom: 12px;
   padding: 12px 14px 4px;
@@ -470,10 +656,10 @@ function onSubmit() {
   display: inline-block;
   vertical-align: middle;
 }
-@media (max-width: 768px) {
-  .mat-entry-form :deep(.el-col) {
-    max-width: 100%;
-    flex: 0 0 100%;
-  }
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 </style>
