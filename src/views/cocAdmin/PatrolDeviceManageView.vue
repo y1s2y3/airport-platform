@@ -283,7 +283,7 @@ onMounted(load)
             name="patrol-device-account"
             autocomplete="off"
             readonly
-            @focus="($event) = aria-label="请输入设备账号"> $event.target.removeAttribute('readonly')"
+            @focus="($event) => $event.target.removeAttribute('readonly')"
           />
         </el-form-item>
         <el-form-item label="设备密码" required>
@@ -296,7 +296,7 @@ onMounted(load)
             name="patrol-device-password"
             autocomplete="new-password"
             readonly
-            @focus="($event) = aria-label="请输入设备密码"> $event.target.removeAttribute('readonly')"
+            @focus="($event) => $event.target.removeAttribute('readonly')"
           />
         </el-form-item>
       </el-form>

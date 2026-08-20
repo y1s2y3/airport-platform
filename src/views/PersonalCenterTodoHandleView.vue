@@ -1530,7 +1530,7 @@ function submitInspectionHandle() {
                   type="date"
                   value-format="YYYY-MM-DD"
                   :placeholder="`请选择${todo.inspectionBizType === '整改' ? '整改' : todo.inspectionBizType === '复查' ? '复查' : '审批'}日期`"
-                  style="width: 100%" aria-label="`请选择${todo.inspectionBizType === '整改' ? '整改' : todo.inspectionBizType === '复查' ? '复查' : '审批'}日期`"/>
+                  style="width: 100%" :aria-label="`请选择${todo.inspectionBizType === '整改' ? '整改' : todo.inspectionBizType === '复查' ? '复查' : '审批'}日期`"/>
               </el-form-item>
               <el-form-item v-if="todo.inspectionBizType === '整改'" label="整改照片" required>
                 <DispatchImageAttachments v-model="inspectionForm.attachments" />
@@ -1546,7 +1546,7 @@ function submitInspectionHandle() {
                   v-model="inspectionForm.remark"
                   type="textarea"
                   :rows="4"
-                  :placeholder="`请填写${inspectionActionMeta.remarkLabel}`" aria-label="`请填写${inspectionActionMeta.remarkLabel}`"/>
+                  :placeholder="`请填写${inspectionActionMeta.remarkLabel}`" :aria-label="`请填写${inspectionActionMeta.remarkLabel}`"/>
               </el-form-item>
             </template>
           </el-form>

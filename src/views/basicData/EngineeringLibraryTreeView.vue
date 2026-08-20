@@ -457,10 +457,10 @@ async function handleDelete(row) {
     >
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="110px">
         <el-form-item label="编号" prop="code">
-          <el-input v-model="formData.code" :placeholder="`如 ${formConfig.codePrefix}-001`" aria-label="`如 ${formConfig.codePrefix}-001`"/>
+          <el-input v-model="formData.code" :placeholder="`如 ${formConfig.codePrefix}-001`" :aria-label="`如 ${formConfig.codePrefix}-001`"/>
         </el-form-item>
         <el-form-item label="名称" prop="name">
-          <el-input v-model="formData.name" :placeholder="`请输入${formConfig.itemLabel}名称`" aria-label="`请输入${formConfig.itemLabel}名称`"/>
+          <el-input v-model="formData.name" :placeholder="`请输入${formConfig.itemLabel}名称`" :aria-label="`请输入${formConfig.itemLabel}名称`"/>
         </el-form-item>
         <el-form-item v-if="formConfig.parentLabel" :label="`所属${formConfig.parentLabel}`">
           <el-select v-model="formData.parentCode" placeholder="请选择" clearable style="width: 100%" aria-label="请选择">
