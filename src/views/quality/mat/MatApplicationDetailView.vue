@@ -1,8 +1,17 @@
 ﻿<script setup>
 import './mat-page.css'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getEntryDetail, ENTRY_TYPE_LABEL, STATUS_LABEL, statusTagType } from '../../../mock/mat.js'
+import { ElMessage } from 'element-plus'
+import { Download } from '@element-plus/icons-vue'
+import {
+  getEntryDetail,
+  ENTRY_TYPE_LABEL,
+  STATUS_LABEL,
+  statusTagType,
+  formatBatchNo,
+} from '../../../mock/mat.js'
+import { exportMatEntryArchive } from '../../../utils/matEntryArchiveExport.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -12,19 +21,85 @@ const detail = computed(() => {
   return id ? getEntryDetail(id) : null
 })
 
+const canExportArchive = computed(() => detail.value?.status === 'approved')
+const exportLoading = ref(false)
+
+async function onExportArchive() {
+  if (!detail.value || exportLoading.value) return
+  exportLoading.value = true
+  try {
+    const r = await exportMatEntryArchive(detail.value)
+    if (!r.ok) ElMessage.warning(r.msg)
+    else ElMessage.success('归档文件已导出')
+  } finally {
+    exportLoading.value = false
+  }
+}
+
 const lineItems = computed(() => {
   if (!detail.value) return []
-  if (detail.value.line_items?.length) return detail.value.line_items
-  return [
-    {
-      material_name: detail.value.material_name,
-      material_spec: detail.value.material_spec || '—',
-      quantity: detail.value.quantity,
-      unit: detail.value.unit,
-      waybill_no: detail.value.waybill_no || '',
-      batch_no: detail.value.batch_no || '',
-    },
-  ]
+  const header = detail.value
+  if (header.entry_type === 'equipment') {
+    const rows = header.line_items?.length
+      ? header.line_items
+      : [
+          {
+            equipment_name: header.equipment_name,
+            material_spec: header.model || '',
+            model: header.model || '',
+            quantity: header.quantity,
+            unit: header.unit,
+            serial_no: header.serial_no || '',
+            waybill_no: header.waybill_no || '',
+            batch_no: header.batch_no || '',
+            unpack_items: header.unpack_items || [],
+          },
+        ]
+    return rows.map((row, idx) => ({
+      ...row,
+      equipment_name: row.equipment_name || row.material_name || '',
+      model: row.model || row.material_spec || '',
+      purpose: row.purpose || '',
+      use_part: row.use_part || (idx === 0 ? header.use_part : '') || '',
+      appearance_quality: row.appearance_quality || '',
+      acceptance_result: row.acceptance_result || '',
+      entry_date: row.entry_date || header.submit_time || '',
+      cert_file: row.cert_file || (idx === 0 ? header.cert_file : '') || '',
+      inspect_file: row.inspect_file || (idx === 0 ? header.inspect_file : '') || '',
+      photo_file: row.photo_file || (idx === 0 ? header.photo_file : '') || '',
+      other_file: row.other_file || (idx === 0 ? header.other_file : '') || '',
+      unpack_items:
+        row.unpack_items?.length
+          ? row.unpack_items
+          : idx === 0 && header.unpack_items?.length
+            ? header.unpack_items
+            : [],
+    }))
+  }
+  const rows = header.line_items?.length
+    ? header.line_items
+    : [
+        {
+          material_name: header.material_name,
+          material_spec: header.material_spec || '',
+          quantity: header.quantity,
+          unit: header.unit,
+          waybill_no: header.waybill_no || '',
+          batch_no: header.batch_no || '',
+        },
+      ]
+  return rows.map((row, idx) => ({
+    ...row,
+    purpose: row.purpose || '',
+    use_part: row.use_part || (idx === 0 ? header.use_part : '') || '',
+    appearance_quality: row.appearance_quality || '',
+    acceptance_result: row.acceptance_result || '',
+    entry_date: row.entry_date || header.submit_time || '',
+    cert_file: row.cert_file || (idx === 0 ? header.cert_file : '') || '',
+    inspect_file: row.inspect_file || (idx === 0 ? header.inspect_file : '') || '',
+    photo_file: row.photo_file || (idx === 0 ? header.photo_file : '') || '',
+    other_file: row.other_file || (idx === 0 ? header.other_file : '') || '',
+  }))
 })
 </script>
 
@@ -35,6 +110,15 @@ const lineItems = computed(() => {
       <div class="title-row">
         <h1 class="page-title">进场详情 {{ detail?.entry_id || '' }}</h1>
         <el-tag v-if="detail?.exited" type="warning" effect="plain">已退场</el-tag>
+        <el-button
+          v-if="canExportArchive"
+          type="primary"
+          :icon="Download"
+          :loading="exportLoading"
+          @click="onExportArchive"
+        >
+          导出归档文件
+        </el-button>
         <el-button @click="router.back()">返回</el-button>
       </div>
     </div>
@@ -59,17 +143,13 @@ const lineItems = computed(() => {
         <el-descriptions-item v-else-if="detail.related_reject_id" label="关联驳回原单">
           {{ detail.related_reject_id }}
         </el-descriptions-item>
-        <el-descriptions-item label="关联定样">{{
-          detail.sample_application_id || detail.sample_id || '—'
-        }}</el-descriptions-item>
         <el-descriptions-item label="项目">{{ detail.project_label }}</el-descriptions-item>
-        <el-descriptions-item label="名称">
-          {{ detail.entry_type === 'equipment' ? detail.equipment_name : detail.material_name }}
-        </el-descriptions-item>
-        <el-descriptions-item label="施工部位">{{ detail.use_part || '—' }}</el-descriptions-item>
         <el-descriptions-item label="品牌">{{ detail.brand_name }}</el-descriptions-item>
         <el-descriptions-item label="生产厂家">{{ detail.manufacturer || '—' }}</el-descriptions-item>
         <el-descriptions-item label="供应商">{{ detail.supplier || '—' }}</el-descriptions-item>
+        <el-descriptions-item label="关联定样">{{
+          detail.sample_application_id || detail.sample_id || '—'
+        }}</el-descriptions-item>
         <el-descriptions-item label="申请人">{{ detail.applicant_name }}</el-descriptions-item>
         <el-descriptions-item label="提交时间">{{ detail.submit_time }}</el-descriptions-item>
         <el-descriptions-item label="办结时间">{{ detail.finish_time || '—' }}</el-descriptions-item>
@@ -80,74 +160,81 @@ const lineItems = computed(() => {
         </el-descriptions-item>
       </el-descriptions>
 
-      <h3 v-if="detail.entry_type !== 'equipment'" class="section-title">进场明细</h3>
-      <el-table
-        v-if="detail.entry_type !== 'equipment'"
-        :data="lineItems"
-        border
-        stripe
-        size="small"
-        empty-text="无进场明细"
-        class="mb"
-      >
-        <el-table-column type="index" label="#" width="50" />
-        <el-table-column prop="material_name" label="材料名称" min-width="120" show-overflow-tooltip />
-        <el-table-column prop="material_spec" label="材料规格" min-width="140" show-overflow-tooltip>
-          <template #default="{ row }">{{ row.material_spec || '—' }}</template>
-        </el-table-column>
-        <el-table-column label="数量" width="90">
-          <template #default="{ row }">{{ row.quantity }}</template>
-        </el-table-column>
-        <el-table-column prop="unit" label="单位" width="80" />
-        <el-table-column prop="waybill_no" label="运单号" min-width="120" show-overflow-tooltip>
-          <template #default="{ row }">{{ row.waybill_no || '—' }}</template>
-        </el-table-column>
-        <el-table-column prop="batch_no" label="批次号" min-width="120" show-overflow-tooltip>
-          <template #default="{ row }">{{ row.batch_no || '—' }}</template>
-        </el-table-column>
-      </el-table>
-
-      <template v-if="detail.entry_type === 'equipment'">
-        <h3 class="section-title">设备信息</h3>
-        <el-descriptions :column="2" border size="small" class="mb">
-          <el-descriptions-item label="型号">{{ detail.model || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="数量">{{ detail.quantity }}{{ detail.unit }}</el-descriptions-item>
-          <el-descriptions-item label="序列号">{{ detail.serial_no || '—' }}</el-descriptions-item>
-        </el-descriptions>
-        <h3 class="section-title">开箱清单</h3>
-        <el-table
-          :data="detail.unpack_items || []"
-          border
-          stripe
-          size="small"
-          empty-text="无开箱记录"
-          class="mb"
-        >
-          <el-table-column prop="label" label="检查项" min-width="140" />
-          <el-table-column label="是否合格" width="100">
-            <template #default="{ row }">
-              <el-tag size="small" :type="row.ok ? 'success' : 'danger'">
-                {{ row.ok ? '合格' : '不合格' }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
-        </el-table>
+      <template v-if="detail.entry_type !== 'equipment'">
+        <h3 class="section-title">材料进场明细</h3>
+        <div v-for="(row, idx) in lineItems" :key="`${row.material_name}-${idx}`" class="line-card mb">
+          <div class="line-card-title">材料 {{ idx + 1 }}</div>
+          <el-descriptions :column="2" border size="small">
+            <el-descriptions-item label="材料名称">{{ row.material_name || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="规格型号">{{ row.material_spec || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="数量">
+              <template v-if="row.quantity != null && row.quantity !== ''">
+                {{ row.quantity }}{{ row.unit || '' }}
+              </template>
+              <template v-else>—</template>
+            </el-descriptions-item>
+            <el-descriptions-item label="用途">{{ row.purpose || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="使用部位">{{ row.use_part || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="运单号">{{ row.waybill_no || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="批次号">{{ formatBatchNo(row.batch_no) }}</el-descriptions-item>
+            <el-descriptions-item label="外观质量">{{ row.appearance_quality || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="验收结论">{{ row.acceptance_result || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="进场日期">{{ row.entry_date || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="合格证">{{ row.cert_file || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="质量证明文件">{{ row.inspect_file || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="现场照片">{{ row.photo_file || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="其他">{{ row.other_file || '—' }}</el-descriptions-item>
+          </el-descriptions>
+        </div>
       </template>
 
-      <h3 class="section-title">附件</h3>
-      <el-descriptions :column="2" border size="small" class="mb">
-        <el-descriptions-item label="合格证">{{ detail.cert_file || '—' }}</el-descriptions-item>
-        <el-descriptions-item label="质检报告">{{ detail.inspect_file || '—' }}</el-descriptions-item>
-        <el-descriptions-item label="现场照片">{{ detail.photo_file || '—' }}</el-descriptions-item>
-        <el-descriptions-item label="送检结果">
-          {{
-            detail.inspect_result_checked
-              ? detail.inspect_result_file || '已勾选未上传'
-              : '未勾选'
-          }}
-        </el-descriptions-item>
-      </el-descriptions>
+      <template v-if="detail.entry_type === 'equipment'">
+        <h3 class="section-title">设备进场明细</h3>
+        <div
+          v-for="(row, idx) in lineItems"
+          :key="`${row.equipment_name}-${idx}`"
+          class="line-card mb"
+        >
+          <div class="line-card-title">设备 {{ idx + 1 }}</div>
+          <el-descriptions :column="2" border size="small">
+            <el-descriptions-item label="设备名称">{{ row.equipment_name || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="规格型号">{{ row.model || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="数量">
+              <template v-if="row.quantity != null && row.quantity !== ''">
+                {{ row.quantity }}{{ row.unit || '' }}
+              </template>
+              <template v-else>—</template>
+            </el-descriptions-item>
+            <el-descriptions-item label="序列号">{{ row.serial_no || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="用途">{{ row.purpose || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="使用部位">{{ row.use_part || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="运单号">{{ row.waybill_no || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="批次号">{{ formatBatchNo(row.batch_no) }}</el-descriptions-item>
+            <el-descriptions-item label="外观质量">{{ row.appearance_quality || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="验收结论">{{ row.acceptance_result || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="进场日期">{{ row.entry_date || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="合格证">{{ row.cert_file || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="质量证明文件">{{ row.inspect_file || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="现场照片">{{ row.photo_file || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="其他">{{ row.other_file || '—' }}</el-descriptions-item>
+          </el-descriptions>
+          <h4 class="sub-title">开箱清单</h4>
+          <el-row v-if="row.unpack_items?.length" :gutter="16" class="unpack-grid">
+            <el-col v-for="unpackRow in row.unpack_items" :key="unpackRow.key || unpackRow.label" :span="6">
+              <div class="unpack-card">
+                <div class="unpack-card-head">
+                  <span class="unpack-label">{{ unpackRow.label }}</span>
+                  <el-tag size="small" :type="unpackRow.ok ? 'success' : 'danger'">
+                    {{ unpackRow.ok ? '合格' : '不合格' }}
+                  </el-tag>
+                </div>
+                <div class="unpack-remark">{{ unpackRow.remark || '无备注' }}</div>
+              </div>
+            </el-col>
+          </el-row>
+          <el-empty v-else description="无开箱记录" :image-size="48" class="mb" />
+        </div>
+      </template>
 
       <el-card
         v-if="detail.entry_type !== 'equipment'"
@@ -203,6 +290,12 @@ const lineItems = computed(() => {
   font-weight: 600;
   color: #303133;
 }
+.sub-title {
+  margin: 12px 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #606266;
+}
 .exit-card :deep(.el-card__header) {
   background: #fdf6ec;
 }
@@ -210,6 +303,44 @@ const lineItems = computed(() => {
   margin-left: 6px;
   color: #909399;
   font-size: 12px;
+}
+.line-card {
+  padding: 10px 12px 12px;
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  background: #fafbfc;
+}
+.line-card-title {
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #606266;
+}
+.unpack-grid {
+  margin-bottom: 8px;
+}
+.unpack-card {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid #ebeef5;
+  border-radius: 6px;
+  background: #fff;
+}
+.unpack-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.unpack-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #606266;
+}
+.unpack-remark {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #909399;
 }
 .mb {
   margin-bottom: 16px;

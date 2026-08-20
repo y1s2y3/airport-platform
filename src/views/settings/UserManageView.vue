@@ -87,7 +87,7 @@ function handleStatusChange(row, status) {
     <div class="toolbar">
       <div class="toolbar-left">
         <span class="field-label">用户状态</span>
-        <el-select v-model="statusFilter" placeholder="请选择" clearable class="status-select">
+        <el-select v-model="statusFilter" placeholder="请选择" clearable class="status-select" aria-label="请选择">
           <el-option
             v-for="opt in userStatusOptions"
             :key="opt.value || 'all'"
@@ -100,8 +100,7 @@ function handleStatusChange(row, status) {
           class="keyword-input"
           placeholder="姓名、账号、手机号"
           clearable
-          @keyup.enter="handleSearch"
-        />
+          @keyup.enter="handleSearch" aria-label="姓名、账号、手机号"/>
         <el-button type="primary" class="ap-btn-primary" @click="handleSearch">搜索</el-button>
         <el-button @click="handleReset">重置</el-button>
       </div>

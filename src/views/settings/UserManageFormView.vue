@@ -115,17 +115,17 @@ async function handleSubmit() {
         <el-row :gutter="24">
           <el-col :span="8">
             <el-form-item label="姓名" prop="name" required>
-              <el-input v-model="form.name" placeholder="请输入姓名" />
+              <el-input v-model="form.name" placeholder="请输入姓名" aria-label="请输入姓名"/>
             </el-form-item>
           </el-col>
           <el-col :span="8">
             <el-form-item label="登录账号" prop="loginAccount" required>
-              <el-input v-model="form.loginAccount" placeholder="请输入登录账号" />
+              <el-input v-model="form.loginAccount" placeholder="请输入登录账号" aria-label="请输入登录账号"/>
             </el-form-item>
           </el-col>
           <el-col :span="8">
             <el-form-item label="备注">
-              <el-input v-model="form.remark" placeholder="请输入备注" />
+              <el-input v-model="form.remark" placeholder="请输入备注" aria-label="请输入备注"/>
             </el-form-item>
           </el-col>
 
@@ -139,18 +139,18 @@ async function handleSubmit() {
           </el-col>
           <el-col :span="8">
             <el-form-item label="手机号" prop="phone" required>
-              <el-input v-model="form.phone" placeholder="请输入手机号" maxlength="11" />
+              <el-input v-model="form.phone" placeholder="请输入手机号" maxlength="11" aria-label="请输入手机号"/>
             </el-form-item>
           </el-col>
           <el-col :span="8">
             <el-form-item label="邮箱" prop="email" required>
-              <el-input v-model="form.email" placeholder="请输入邮箱" />
+              <el-input v-model="form.email" placeholder="请输入邮箱" aria-label="请输入邮箱"/>
             </el-form-item>
           </el-col>
 
           <el-col :span="8">
             <el-form-item label="所属组织" prop="orgId" required>
-              <el-select v-model="form.orgId" placeholder="选择组织" filterable style="width: 100%">
+              <el-select v-model="form.orgId" placeholder="选择组织" filterable style="width: 100%" aria-label="选择组织">
                 <el-option
                   v-for="opt in orgNodeOptions"
                   :key="opt.value"
@@ -169,8 +169,7 @@ async function handleSubmit() {
                   clearable
                   filterable
                   style="width: 100%"
-                  :disabled="!form.orgId"
-                >
+                  :disabled="!form.orgId" aria-label="选择岗位">
                   <el-option
                     v-for="opt in positionOptions"
                     :key="opt.value"

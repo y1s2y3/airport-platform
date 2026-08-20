@@ -23,10 +23,13 @@ import {
 const route = useRoute()
 const router = useRouter()
 const detail = ref(null)
+const handleResult = ref('已处置')
 const handleContent = ref('')
 const attachmentList = ref([])
 const submitting = ref(false)
 const showHandleForm = ref(false)
+
+const DISPOSAL_RESULT_OPTIONS = ['已处置', '误报']
 
 const fromPersonalCenter = computed(() => String(route.query.from || '') === 'personal-center')
 const personalTodoId = computed(() => String(route.query.todoId || ''))
@@ -38,6 +41,26 @@ const personalTab = computed(() => {
 const canHandle = computed(() => {
   if (!detail.value) return false
   return detail.value.handle_mode === '手动处理' && detail.value.status !== '已关闭'
+})
+
+/** 手动处理且已关闭：展示关单时的处置信息 */
+const showHandleInfo = computed(() => {
+  if (!detail.value) return false
+  return detail.value.handle_mode === '手动处理' && detail.value.status === '已关闭'
+})
+
+const closeHandleInfo = computed(() => {
+  if (!showHandleInfo.value) return null
+  const records = detail.value.disposal_records || []
+  const closeRec = [...records].reverse().find((r) => r.type === 'close')
+  if (!closeRec) {
+    return { disposal_result: '-', content: '-', attachments: [] }
+  }
+  return {
+    disposal_result: closeRec.disposal_result || '-',
+    content: closeRec.content || '-',
+    attachments: closeRec.attachments || [],
+  }
 })
 
 /** 系统自动关闭类：Web 端可点「处置预警」弹出 Word 提示并「去处理」跳转实名制 */
@@ -104,6 +127,7 @@ function goPersonnel() {
 }
 
 function resetHandleForm() {
+  handleResult.value = '已处置'
   handleContent.value = ''
   attachmentList.value = []
 }
@@ -181,6 +205,10 @@ function syncPersonalTodoOnClose() {
 }
 
 async function submitHandle(close = false) {
+  if (!handleResult.value) {
+    ElMessage.warning('请选择处置结果')
+    return
+  }
   const content = handleContent.value.trim()
   if (!content) {
     ElMessage.warning('请填写处置说明')
@@ -192,6 +220,7 @@ async function submitHandle(close = false) {
   submitting.value = true
   try {
     handleWarning(detail.value.id, {
+      disposal_result: handleResult.value,
       content,
       close,
       attachments: close ? attachmentList.value : [],
@@ -264,6 +293,29 @@ async function submitHandle(close = false) {
         </el-descriptions>
       </section>
 
+      <section v-if="showHandleInfo && closeHandleInfo" class="detail-section">
+        <div class="section-title">处置信息</div>
+        <el-descriptions :column="1" border>
+          <el-descriptions-item label="处置结果">{{ closeHandleInfo.disposal_result }}</el-descriptions-item>
+          <el-descriptions-item label="处置说明">{{ closeHandleInfo.content }}</el-descriptions-item>
+          <el-descriptions-item label="处置附件">
+            <template v-if="closeHandleInfo.attachments.length">
+              <el-button
+                v-for="file in closeHandleInfo.attachments"
+                :key="file"
+                link
+                type="primary"
+                size="small"
+                @click="previewAttachment(file)"
+              >
+                {{ file }}
+              </el-button>
+            </template>
+            <span v-else>-</span>
+          </el-descriptions-item>
+        </el-descriptions>
+      </section>
+
       <section class="detail-section">
         <div class="section-title">关联人员</div>
         <el-descriptions :column="2" border>
@@ -298,20 +350,22 @@ async function submitHandle(close = false) {
                 </span>
                 <span class="timeline-operator">{{ record.operator }}</span>
               </div>
-              <div class="timeline-content">{{ record.content }}</div>
-              <div v-if="record.attachments?.length" class="timeline-attachments">
-                <span class="attach-label">附件：</span>
-                <el-button
-                  v-for="file in record.attachments"
-                  :key="file"
-                  link
-                  type="primary"
-                  size="small"
-                  @click="previewAttachment(file)"
-                >
-                  {{ file }}
-                </el-button>
-              </div>
+              <template v-if="!(showHandleInfo && record.type === 'close')">
+                <div class="timeline-content">{{ record.content }}</div>
+                <div v-if="record.attachments?.length" class="timeline-attachments">
+                  <span class="attach-label">附件：</span>
+                  <el-button
+                    v-for="file in record.attachments"
+                    :key="file"
+                    link
+                    type="primary"
+                    size="small"
+                    @click="previewAttachment(file)"
+                  >
+                    {{ file }}
+                  </el-button>
+                </div>
+              </template>
             </div>
           </el-timeline-item>
         </el-timeline>
@@ -319,13 +373,23 @@ async function submitHandle(close = false) {
         <div v-if="canHandle && showHandleForm" class="handle-form">
           <div class="handle-form-title">新增处置</div>
           <el-form label-width="80px">
+            <el-form-item label="处置结果" required>
+              <el-radio-group v-model="handleResult">
+                <el-radio
+                  v-for="opt in DISPOSAL_RESULT_OPTIONS"
+                  :key="opt"
+                  :value="opt"
+                >
+                  {{ opt }}
+                </el-radio>
+              </el-radio-group>
+            </el-form-item>
             <el-form-item label="处置说明" required>
               <el-input
                 v-model="handleContent"
                 type="textarea"
                 :rows="3"
-                placeholder="请填写本次处置措施及结果"
-              />
+                placeholder="请填写本次处置措施及结果" aria-label="请填写本次处置措施及结果"/>
             </el-form-item>
             <el-form-item label="处置附件">
               <el-upload

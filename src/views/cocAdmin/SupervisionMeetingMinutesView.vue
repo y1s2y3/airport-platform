@@ -452,7 +452,7 @@ onMounted(load)
       <el-tabs v-model="activeTab" class="supervision-tabs">
         <el-tab-pane label="会议记录" name="meeting">
           <div class="tab-toolbar">
-            <el-input v-model="keyword" placeholder="搜索项目、参会人员、导入状态…" clearable class="search-input" />
+            <el-input v-model="keyword" placeholder="搜索项目、参会人员、导入状态…" clearable class="search-input" aria-label="搜索项目、参会人员、导入状态…"/>
             <el-button v-if="!isHqSelected" :icon="Download" @click="handleDownloadTemplate">清单模板</el-button>
             <el-button v-if="!isHqSelected" type="primary" :icon="Plus" @click="openCreate">登记会议</el-button>
           </div>
@@ -507,7 +507,7 @@ onMounted(load)
     >
       <el-form label-width="220px" class="meeting-form">
         <el-form-item label="项目名称" required>
-          <el-input v-model="form.projectName" disabled placeholder="当前项目" />
+          <el-input v-model="form.projectName" disabled placeholder="当前项目" aria-label="当前项目"/>
         </el-form-item>
         <el-form-item label="召开日期" required>
           <el-date-picker
@@ -515,20 +515,17 @@ onMounted(load)
             type="date"
             value-format="YYYY-MM-DD"
             placeholder="选择召开日期"
-            style="width: 100%"
-          />
+            style="width: 100%" aria-label="选择召开日期"/>
         </el-form-item>
         <el-form-item label="项目经理/负责人参会">
           <el-input
             v-model="form.pmAttendees"
-            placeholder="请填写参会的项目经理/负责人"
-          />
+            placeholder="请填写参会的项目经理/负责人" aria-label="请填写参会的项目经理/负责人"/>
         </el-form-item>
         <el-form-item label="项目部长/副部长参会">
           <el-input
             v-model="form.directorAttendees"
-            placeholder="请填写参会的项目部长/副部长"
-          />
+            placeholder="请填写参会的项目部长/副部长" aria-label="请填写参会的项目部长/副部长"/>
         </el-form-item>
 
         <el-divider content-position="left">监理例会纪要附件</el-divider>
@@ -626,8 +623,7 @@ onMounted(load)
             v-model="form.remark"
             type="textarea"
             :rows="3"
-            placeholder="请输入"
-          />
+            placeholder="请输入" aria-label="请输入"/>
         </el-form-item>
       </el-form>
       <template #footer>

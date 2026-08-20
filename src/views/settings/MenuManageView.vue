@@ -196,7 +196,7 @@ async function handleSubmit() {
     <div class="filter-toolbar">
       <div class="filter-left">
         <span class="field-label">菜单层级</span>
-        <el-select v-model="levelFilter" placeholder="请选择" clearable class="filter-select">
+        <el-select v-model="levelFilter" placeholder="请选择" clearable class="filter-select" aria-label="请选择">
           <el-option
             v-for="opt in menuLevelOptions"
             :key="opt.value"
@@ -210,8 +210,7 @@ async function handleSubmit() {
           class="filter-input"
           placeholder="请输入菜单名称"
           clearable
-          @keyup.enter="handleSearch"
-        />
+          @keyup.enter="handleSearch" aria-label="请输入菜单名称"/>
         <el-button type="primary" class="ap-btn-primary" @click="handleSearch">搜索</el-button>
         <el-button @click="handleReset">重置</el-button>
       </div>
@@ -271,7 +270,7 @@ async function handleSubmit() {
     >
       <el-form ref="formRef" :model="form" :rules="rules" label-width="96px">
         <el-form-item label="上级菜单">
-          <el-select v-model="form.parentId" placeholder="主类目" style="width: 100%">
+          <el-select v-model="form.parentId" placeholder="主类目" style="width: 100%" aria-label="主类目">
             <el-option
               v-for="opt in parentOptions"
               :key="opt.value || 'root'"
@@ -306,7 +305,7 @@ async function handleSubmit() {
         </el-form-item>
 
         <el-form-item label="菜单图标">
-          <el-select v-model="form.icon" placeholder="请选择图标" clearable style="width: 100%">
+          <el-select v-model="form.icon" placeholder="请选择图标" clearable style="width: 100%" aria-label="请选择图标">
             <el-option v-for="icon in menuIconOptions" :key="icon" :label="icon" :value="icon" />
           </el-select>
         </el-form-item>
@@ -314,7 +313,7 @@ async function handleSubmit() {
         <el-row :gutter="24">
           <el-col :span="12">
             <el-form-item label="菜单名称" prop="name" required>
-              <el-input v-model="form.name" placeholder="请输入菜单名称" />
+              <el-input v-model="form.name" placeholder="请输入菜单名称" aria-label="请输入菜单名称"/>
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -330,7 +329,7 @@ async function handleSubmit() {
           </el-col>
           <el-col :span="12">
             <el-form-item label="菜单编码" prop="code" required>
-              <el-input v-model="form.code" placeholder="请输入菜单编码" />
+              <el-input v-model="form.code" placeholder="请输入菜单编码" aria-label="请输入菜单编码"/>
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -339,20 +338,19 @@ async function handleSubmit() {
                 v-model="form.moduleName"
                 placeholder="请选择模块名称"
                 clearable
-                style="width: 100%"
-              >
+                style="width: 100%" aria-label="请选择模块名称">
                 <el-option v-for="name in moduleNameOptions" :key="name" :label="name" :value="name" />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="路由地址" prop="routePath" required>
-              <el-input v-model="form.routePath" placeholder="请输入路由地址" />
+              <el-input v-model="form.routePath" placeholder="请输入路由地址" aria-label="请输入路由地址"/>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="组件路径" prop="componentPath" required>
-              <el-input v-model="form.componentPath" placeholder="请输入组件路径" />
+              <el-input v-model="form.componentPath" placeholder="请输入组件路径" aria-label="请输入组件路径"/>
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -380,8 +378,8 @@ async function handleSubmit() {
               <el-button type="primary" link @click="addPermissionRow">+ 添加</el-button>
             </div>
             <div v-for="(perm, index) in form.permissions" :key="index" class="perm-row">
-              <el-input v-model="perm.name" placeholder="请输入权限名称" />
-              <el-select v-model="perm.code" placeholder="请选择权限码" clearable filterable>
+              <el-input v-model="perm.name" placeholder="请输入权限名称" aria-label="请输入权限名称"/>
+              <el-select v-model="perm.code" placeholder="请选择权限码" clearable filterable aria-label="请选择权限码">
                 <el-option
                   v-for="opt in permissionCodeOptions"
                   :key="opt.value"
@@ -398,8 +396,7 @@ async function handleSubmit() {
               v-model="form.remark"
               type="textarea"
               :rows="3"
-              placeholder="请输入备注描述"
-            />
+              placeholder="请输入备注描述" aria-label="请输入备注描述"/>
           </el-form-item>
         </template>
       </el-form>

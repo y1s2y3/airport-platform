@@ -79,8 +79,7 @@ function handleJump(row) {
         clearable
         placeholder="搜索项目名称 / 系统名称 / 系统地址"
         class="kw-input"
-        @keyup.enter="handleSearch"
-      />
+        @keyup.enter="handleSearch" aria-label="搜索项目名称 / 系统名称 / 系统地址"/>
       <el-button type="primary" :icon="Search" @click="handleSearch">查询</el-button>
       <el-button :icon="Refresh" @click="reset">重置</el-button>
       <el-button @click="handleRefresh">刷新</el-button>

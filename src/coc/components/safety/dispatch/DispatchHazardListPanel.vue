@@ -232,8 +232,7 @@ async function handleConfirmClose() {
             value-format="YYYY-MM-DD"
             clearable
             size="small"
-            class="hazard-date-filter"
-          />
+            class="hazard-date-filter" aria-label="开始日期"/>
           <el-select v-model="hazardStatusFilter" size="small" class="hazard-status-select more-filter">
             <el-option
               v-for="opt in hazardStatusOptions"

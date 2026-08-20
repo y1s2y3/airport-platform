@@ -194,12 +194,26 @@ const placeholder = (title, sidebarKey, tabKey = sidebarKey, description = '') =
 
 const basicDataRouteEntries = basicDataRoutes.flatMap((item) => {
   if (item.path === '/basic-data/project/info') {
-    return [{
-      path: item.path.replace(/^\//, ''),
-      name: 'ProjectBasicInfo',
-      component: () => import('../views/basicData/ProjectBasicInfoView.vue'),
-      meta: { sidebarKey: item.key, tabKey: item.key, title: item.label },
-    }]
+    return [
+      {
+        path: item.path.replace(/^\//, ''),
+        name: 'ProjectBasicInfo',
+        component: () => import('../views/basicData/ProjectBasicInfoView.vue'),
+        meta: { sidebarKey: item.key, tabKey: item.key, title: item.label },
+      },
+      {
+        path: 'basic-data/project/info/create',
+        name: 'ProjectCreate',
+        component: () => import('../views/basicData/ProjectCreateView.vue'),
+        meta: { sidebarKey: item.key, tabKey: item.key, title: '新增项目' },
+      },
+      {
+        path: 'basic-data/project/info/:id/portrait',
+        name: 'ProjectPortrait',
+        component: () => import('../views/basicData/ProjectPortraitView.vue'),
+        meta: { sidebarKey: item.key, tabKey: item.key, title: '项目画像' },
+      },
+    ]
   }
   if (item.path === '/basic-data/project/subcontractor') {
     return [
@@ -500,7 +514,18 @@ const routes = [
   },
 ]
 
-export default createRouter({
+const APP_DOC_TITLE = '智慧工程建设管控一体化平台'
+
+const router = createRouter({
   history: createWebHashHistory(),
   routes,
 })
+
+router.afterEach((to) => {
+  const pageTitle = [...to.matched]
+    .reverse()
+    .find((record) => record.meta?.title)?.meta?.title
+  document.title = pageTitle ? `${pageTitle} · ${APP_DOC_TITLE}` : APP_DOC_TITLE
+})
+
+export default router

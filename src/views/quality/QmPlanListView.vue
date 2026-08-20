@@ -90,8 +90,8 @@ function reset() {
     </div>
 
     <div class="filter-bar">
-      <el-input v-model="keyword" clearable placeholder="计划编号/名称" style="width: 220px" :prefix-icon="Search" />
-      <el-select v-model="statusFilter" clearable placeholder="状态" style="width: 140px">
+      <el-input v-model="keyword" clearable placeholder="计划编号/名称" style="width: 220px" :prefix-icon="Search" aria-label="计划编号/名称"/>
+      <el-select v-model="statusFilter" clearable placeholder="状态" style="width: 140px" aria-label="状态">
         <el-option v-for="(label, val) in PLAN_STATUS" :key="val" :label="label" :value="String(val)" />
       </el-select>
       <el-button type="primary" :icon="Search">查询</el-button>

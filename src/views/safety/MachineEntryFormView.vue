@@ -96,14 +96,14 @@ function deleteDevice(idx) {
           </el-col>
           <el-col :span="8">
             <el-form-item label="进场日期" required>
-              <el-date-picker v-model="form.entryDate" type="date" placeholder="选择日期" style="width:100%" value-format="YYYY-MM-DD" />
+              <el-date-picker v-model="form.entryDate" type="date" placeholder="选择日期" style="width:100%" value-format="YYYY-MM-DD" aria-label="选择日期"/>
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="16">
           <el-col :span="8">
             <el-form-item label="设备供应商" required>
-              <el-input v-model="form.supplier" placeholder="请输入" />
+              <el-input v-model="form.supplier" placeholder="请输入" aria-label="请输入"/>
             </el-form-item>
           </el-col>
           <el-col :span="8"><el-form-item label="供应商联系人"><el-input v-model="form.supplierContact" /></el-form-item></el-col>
@@ -112,7 +112,7 @@ function deleteDevice(idx) {
         <el-row :gutter="16">
           <el-col :span="8">
             <el-form-item label="机械类型" required>
-              <el-select v-model="form.machineType" style="width:100%" placeholder="请选择">
+              <el-select v-model="form.machineType" style="width:100%" placeholder="请选择" aria-label="请选择">
                 <el-option v-for="t in machineTypeList" :key="t.name" :label="t.name" :value="t.name" />
               </el-select>
             </el-form-item>
@@ -180,11 +180,11 @@ function deleteDevice(idx) {
         </el-row>
         <el-row :gutter="16">
           <el-col :span="12"><el-form-item label="规格型号" required><el-input v-model="newDevice.spec" /></el-form-item></el-col>
-          <el-col :span="12"><el-form-item label="生产日期"><el-date-picker v-model="newDevice.prodDate" type="date" placeholder="选择日期" style="width:100%" value-format="YYYY-MM-DD" /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="生产日期"><el-date-picker v-model="newDevice.prodDate" type="date" placeholder="选择日期" style="width:100%" value-format="YYYY-MM-DD" aria-label="选择日期"/></el-form-item></el-col>
         </el-row>
         <el-row :gutter="16">
           <el-col :span="12"><el-form-item label="生产厂商"><el-input v-model="newDevice.manufacturer" /></el-form-item></el-col>
-          <el-col :span="12"><el-form-item label="设备管理员"><el-select v-model="newDevice.admin" placeholder="请选择" style="width:100%"><el-option label="王工" value="王工" /><el-option label="李工" value="李工" /><el-option label="张工" value="张工" /><el-option label="陈工" value="陈工" /></el-select></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="设备管理员"><el-select v-model="newDevice.admin" placeholder="请选择" style="width:100%" aria-label="请选择"><el-option label="王工" value="王工" /><el-option label="李工" value="李工" /><el-option label="张工" value="张工" /><el-option label="陈工" value="陈工" /></el-select></el-form-item></el-col>
         </el-row>
         <el-row :gutter="16">
           <el-col :span="12"><el-form-item label="设备管理员电话"><el-input v-model="newDevice.adminPhone" /></el-form-item></el-col>

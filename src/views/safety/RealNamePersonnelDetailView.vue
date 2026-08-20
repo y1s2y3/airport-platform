@@ -237,7 +237,7 @@ function saveEducation() {
       <el-table :data="educationDraft" border class="ap-table">
         <el-table-column label="教育类型" width="150">
           <template #default="{ row }">
-            <el-select v-model="row.education_type" placeholder="请选择" style="width: 100%">
+            <el-select v-model="row.education_type" placeholder="请选择" style="width: 100%" aria-label="请选择">
               <el-option v-for="opt in educationTypeOptions" :key="opt" :label="opt" :value="opt" />
             </el-select>
           </template>
@@ -249,13 +249,12 @@ function saveEducation() {
               type="date"
               value-format="YYYY-MM-DD"
               placeholder="选择日期"
-              style="width: 100%"
-            />
+              style="width: 100%" aria-label="选择日期"/>
           </template>
         </el-table-column>
         <el-table-column label="培训时长" width="120">
           <template #default="{ row }">
-            <el-input v-model="row.duration" placeholder="如 8小时" />
+            <el-input v-model="row.duration" placeholder="如 8小时" aria-label="如 8小时"/>
           </template>
         </el-table-column>
         <el-table-column label="是否合格" width="110" align="center">
@@ -265,7 +264,7 @@ function saveEducation() {
         </el-table-column>
         <el-table-column label="培训证书" min-width="160">
           <template #default="{ row }">
-            <el-input v-model="row.certificate" placeholder="证书文件名" />
+            <el-input v-model="row.certificate" placeholder="证书文件名" aria-label="证书文件名"/>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="80" align="center" fixed="right">

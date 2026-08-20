@@ -158,8 +158,7 @@ function openConfig() {
         :model-value="displayReadonly"
         disabled
         :placeholder="placeholder"
-        class="loc-input"
-      />
+        class="loc-input" aria-label="placeholder"/>
     </template>
     <template v-else>
       <el-tree-select

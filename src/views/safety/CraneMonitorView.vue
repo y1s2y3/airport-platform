@@ -96,7 +96,7 @@ function viewProjectDetail(row) {
           <div class="stat-card"><div class="sc-value text-theme-red">{{ hqTotalStats.pendingAlertCount }}</div><div class="sc-label">待处理告警数</div></div>
         </div>
         <div class="hq-filter-bar">
-          <el-input v-model="hqProjectKeyword" placeholder="搜索项目名称..." clearable style="width:220px" :prefix-icon="Search" />
+          <el-input v-model="hqProjectKeyword" placeholder="搜索项目名称..." clearable style="width:220px" :prefix-icon="Search" aria-label="搜索项目名称..."/>
         </div>
         <el-table :data="filteredHQProjects" border stripe class="ap-table" style="width:100%;margin-top:12px">
           <el-table-column type="index" label="序号" width="55" align="center" />
@@ -124,7 +124,7 @@ function viewProjectDetail(row) {
       <div class="section-header">
         <span class="total-count">共 {{ filteredData.length }} 条监测记录</span>
         <div class="filter-bar">
-          <el-input v-model="filterForm.keyword" placeholder="搜索设备名称/SN..." clearable style="width:240px" :prefix-icon="Search" />
+          <el-input v-model="filterForm.keyword" placeholder="搜索设备名称/SN..." clearable style="width:240px" :prefix-icon="Search" aria-label="搜索设备名称/SN..."/>
           <el-button @click="handleReset">重置</el-button>
         </div>
       </div>

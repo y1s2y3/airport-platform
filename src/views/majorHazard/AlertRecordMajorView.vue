@@ -139,21 +139,21 @@ function handleExport() {
 
       <section class="content-panel">
         <div class="filter-bar">
-          <el-input v-model="keyword" placeholder="区域/点位/设备" clearable style="width: 180px" :prefix-icon="Search" />
-          <el-select v-model="filters.hazardType" placeholder="工程类型" clearable style="width: 110px">
+          <el-input v-model="keyword" placeholder="区域/点位/设备" clearable style="width: 180px" :prefix-icon="Search" aria-label="区域/点位/设备"/>
+          <el-select v-model="filters.hazardType" placeholder="工程类型" clearable style="width: 110px" aria-label="工程类型">
             <el-option v-for="t in typeOptions" :key="t.value" :label="t.label" :value="t.value" />
           </el-select>
-          <el-select v-model="filters.regionId" placeholder="监测区域" clearable style="width: 170px">
+          <el-select v-model="filters.regionId" placeholder="监测区域" clearable style="width: 170px" aria-label="监测区域">
             <el-option v-for="r in regionOpts" :key="r.id" :label="r.name" :value="r.id" />
           </el-select>
-          <el-select v-model="filters.level" placeholder="告警等级" clearable style="width: 100px">
+          <el-select v-model="filters.level" placeholder="告警等级" clearable style="width: 100px" aria-label="告警等级">
             <el-option v-for="lv in levelOptions" :key="lv" :label="lv" :value="lv" />
           </el-select>
-          <el-select v-model="filters.status" placeholder="处置状态" clearable style="width: 100px">
+          <el-select v-model="filters.status" placeholder="处置状态" clearable style="width: 100px" aria-label="处置状态">
             <el-option v-for="s in statusOptions" :key="s" :label="s" :value="s" />
           </el-select>
-          <el-date-picker v-model="filters.startTime" type="date" placeholder="开始时间" value-format="YYYY-MM-DD" style="width: 130px" />
-          <el-date-picker v-model="filters.endTime" type="date" placeholder="结束时间" value-format="YYYY-MM-DD" style="width: 130px" />
+          <el-date-picker v-model="filters.startTime" type="date" placeholder="开始时间" value-format="YYYY-MM-DD" style="width: 130px" aria-label="开始时间"/>
+          <el-date-picker v-model="filters.endTime" type="date" placeholder="结束时间" value-format="YYYY-MM-DD" style="width: 130px" aria-label="结束时间"/>
           <el-button class="ap-btn-primary" type="primary" :icon="Search">查询</el-button>
           <el-button @click="handleReset">重置</el-button>
           <el-button :icon="Download" @click="handleExport" style="margin-left:auto">导出</el-button>
@@ -220,7 +220,7 @@ function handleExport() {
       </div>
       <el-form label-width="80px">
         <el-form-item label="处置记录" required>
-          <el-input v-model="disposeContent" type="textarea" :rows="4" placeholder="请填写处置内容及措施..." />
+          <el-input v-model="disposeContent" type="textarea" :rows="4" placeholder="请填写处置内容及措施..." aria-label="请填写处置内容及措施..."/>
         </el-form-item>
       </el-form>
       <template #footer>

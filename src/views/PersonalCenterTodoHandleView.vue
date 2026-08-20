@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -11,6 +11,7 @@ import {
   PENALTY_TODO_STATUS,
   DISPATCH_HAZARD_TODO_BIZ,
   personalTodoStore,
+  handleSubcontractorTodo,
 } from '../mock/personalCenter.js'
 import {
   getApplicationDetail,
@@ -18,7 +19,7 @@ import {
   supervisorApprove,
 } from '../mock/brand.js'
 import { supervisorApproveSample, pmApproveSample } from '../mock/sample.js'
-import { getEntryDetail, supervisorApproveEntry } from '../mock/mat.js'
+import { getEntryDetail, supervisorApproveEntry, formatBatchNo } from '../mock/mat.js'
 import {
   getEntryDetail as getEqEntryDetail,
   supervisorApproveEntry as supervisorApproveEqEntry,
@@ -47,6 +48,7 @@ import {
   resolveDispatchHazardPhotoSrc,
   resolveDispatchHazardPhotoName,
 } from '../utils/dispatchHazardStorage.js'
+import { findSubcontractorApplication } from '../mock/subcontractorManagement.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -95,10 +97,19 @@ const mergedDispatchHazard = computed(() => {
     : { ...base, id: base.id || todo.value.hazardId }
 })
 
+const subcontractorLiveDetail = computed(() => {
+  const id = todo.value?.subcontractorApplicationId
+  if (!id || todo.value?.type !== 'subcontractor') return null
+  return findSubcontractorApplication(id)
+})
+
 const approvalFlow = computed(() => {
   if (!todo.value) return []
   if (todo.value.type === 'penalty') return buildPenaltyApprovalFlow(todo.value)
   if (todo.value.type === 'dispatch_hazard') return buildDispatchHazardApprovalFlow(todo.value)
+  if (todo.value.type === 'subcontractor' && subcontractorLiveDetail.value?.approvalFlow?.length) {
+    return subcontractorLiveDetail.value.approvalFlow
+  }
   return todo.value.approvalFlow || []
 })
 
@@ -109,6 +120,7 @@ const todoSourceLabel = computed(() => {
   if (todo.value.type === 'penalty') return '处罚单'
   if (todo.value.type === 'dispatch_hazard') return '调度隐患'
   if (todo.value.type === 'brand') return '品牌报审'
+  if (todo.value.type === 'subcontractor') return '分包报审'
   if (todo.value.type === 'sample') return '样板管理'
   if (todo.value.type === 'mat_entry') return '材料进场管理'
   if (todo.value.type === 'eq_entry') return '设备进场管理'
@@ -508,11 +520,28 @@ function submitCommonHandle() {
     !approved ||
     (row?.type !== 'sample' &&
       row?.type !== 'brand' &&
+      row?.type !== 'subcontractor' &&
       row?.type !== 'mat_entry' &&
       row?.type !== 'eq_entry' &&
       row?.type !== 'asbuilt')
   if (needRemark && !commonForm.remark.trim()) {
     return ElMessage.warning(approved ? '请填写说明' : '请填写退回意见')
+  }
+  if (row?.type === 'subcontractor' && row.subcontractorApplicationId) {
+    const action = approved ? 'agree' : 'reject'
+    const opinion = commonForm.remark.trim()
+    const r = handleSubcontractorTodo(row.id, { action, opinion })
+    if (!r.ok) return ElMessage.error(r.msg)
+    if (r.finished && !r.rejected) {
+      return afterSubmit(
+        '审批通过',
+        '终审通过，已同步至项目画像「专业分包及劳务分包」，并抄送副指挥长',
+      )
+    }
+    if (r.finished && r.rejected) {
+      return afterSubmit('已驳回', '已驳回，报审单退回施工单位')
+    }
+    return afterSubmit('同意', `已同意，下一节点「${r.nextNodeTitle || '待流转'}」待办已生成`)
   }
   if (row?.type === 'asbuilt' && row.asbuiltAcceptanceId) {
     const action = approved ? 'approve' : 'reject'
@@ -985,17 +1014,52 @@ function submitInspectionHandle() {
             <el-descriptions-item label="供应商">
               {{ matEntryDetail?.supplier || '—' }}
             </el-descriptions-item>
-            <el-descriptions-item label="合格证">{{ matEntryDetail?.cert_file || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="质检报告">{{ matEntryDetail?.inspect_file || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="现场照片">{{ matEntryDetail?.photo_file || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="送检结果">
-              {{
-                matEntryDetail?.inspect_result_checked
-                  ? matEntryDetail.inspect_result_file || '已勾选'
-                  : '未勾选'
-              }}
-            </el-descriptions-item>
           </el-descriptions>
+          <div
+            v-if="matEntryDetail?.line_items?.length"
+            class="mat-line-wrap"
+            style="margin-top: 12px"
+          >
+            <div class="block-title" style="margin-bottom: 8px">材料进场明细</div>
+            <el-table :data="matEntryDetail.line_items" border stripe size="small">
+              <el-table-column type="index" label="#" width="50" />
+              <el-table-column prop="material_name" label="材料名称" min-width="110" show-overflow-tooltip />
+              <el-table-column prop="material_spec" label="规格型号" min-width="120" show-overflow-tooltip />
+              <el-table-column label="数量" width="90">
+                <template #default="{ row }">{{ row.quantity }}{{ row.unit }}</template>
+              </el-table-column>
+              <el-table-column prop="purpose" label="用途" min-width="90" show-overflow-tooltip>
+                <template #default="{ row }">{{ row.purpose || '—' }}</template>
+              </el-table-column>
+              <el-table-column prop="use_part" label="使用部位" min-width="110" show-overflow-tooltip>
+                <template #default="{ row }">{{ row.use_part || '—' }}</template>
+              </el-table-column>
+              <el-table-column label="批次号" width="90">
+                <template #default="{ row }">{{ formatBatchNo(row.batch_no) }}</template>
+              </el-table-column>
+              <el-table-column prop="appearance_quality" label="外观质量" width="90">
+                <template #default="{ row }">{{ row.appearance_quality || '—' }}</template>
+              </el-table-column>
+              <el-table-column prop="acceptance_result" label="验收结论" width="90">
+                <template #default="{ row }">{{ row.acceptance_result || '—' }}</template>
+              </el-table-column>
+              <el-table-column prop="entry_date" label="进场日期" min-width="150" show-overflow-tooltip>
+                <template #default="{ row }">{{ row.entry_date || '—' }}</template>
+              </el-table-column>
+              <el-table-column label="合格证" min-width="120" show-overflow-tooltip>
+                <template #default="{ row }">{{ row.cert_file || matEntryDetail.cert_file || '—' }}</template>
+              </el-table-column>
+              <el-table-column label="质量证明文件" min-width="140" show-overflow-tooltip>
+                <template #default="{ row }">{{ row.inspect_file || matEntryDetail.inspect_file || '—' }}</template>
+              </el-table-column>
+              <el-table-column label="现场照片" min-width="120" show-overflow-tooltip>
+                <template #default="{ row }">{{ row.photo_file || matEntryDetail.photo_file || '—' }}</template>
+              </el-table-column>
+              <el-table-column label="其他" min-width="120" show-overflow-tooltip>
+                <template #default="{ row }">{{ row.other_file || matEntryDetail.other_file || '—' }}</template>
+              </el-table-column>
+            </el-table>
+          </div>
         </section>
       </template>
 
@@ -1091,30 +1155,105 @@ function submitInspectionHandle() {
               </template>
               <template v-else>{{ todo.detail?.quantity || '—' }}</template>
             </el-descriptions-item>
-            <el-descriptions-item label="型号">{{ eqEntryDetail?.model || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="供应商">{{ eqEntryDetail?.supplier || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="合格证">{{ eqEntryDetail?.cert_file || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="质检报告">{{ eqEntryDetail?.inspect_file || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="现场照片">{{ eqEntryDetail?.photo_file || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="送检结果">
-              {{
-                eqEntryDetail?.inspect_result_checked
-                  ? eqEntryDetail.inspect_result_file || '已勾选'
-                  : '未勾选'
-              }}
+            <el-descriptions-item label="供应商">
+              {{ eqEntryDetail?.supplier || '—' }}
             </el-descriptions-item>
           </el-descriptions>
-          <div v-if="eqEntryDetail?.unpack_items?.length" style="margin-top: 12px">
+          <div
+            v-if="eqEntryDetail?.line_items?.length"
+            class="mat-line-wrap"
+            style="margin-top: 12px"
+          >
+            <div class="block-title" style="margin-bottom: 8px">设备进场明细</div>
+            <div
+              v-for="(row, idx) in eqEntryDetail.line_items"
+              :key="`${row.equipment_name || row.material_name}-${idx}`"
+              class="eq-line-block"
+              style="margin-bottom: 12px"
+            >
+              <div class="block-title" style="margin-bottom: 8px; font-size: 13px">
+                设备 {{ idx + 1 }}
+              </div>
+              <el-table :data="[row]" border stripe size="small" style="margin-bottom: 8px">
+                <el-table-column prop="equipment_name" label="设备名称" min-width="110" show-overflow-tooltip>
+                  <template #default="{ row: r }">{{ r.equipment_name || r.material_name || '—' }}</template>
+                </el-table-column>
+                <el-table-column label="规格型号" min-width="110" show-overflow-tooltip>
+                  <template #default="{ row: r }">{{ r.model || r.material_spec || '—' }}</template>
+                </el-table-column>
+                <el-table-column label="数量" width="90">
+                  <template #default="{ row: r }">{{ r.quantity }}{{ r.unit }}</template>
+                </el-table-column>
+                <el-table-column prop="serial_no" label="序列号" min-width="100" show-overflow-tooltip>
+                  <template #default="{ row: r }">{{ r.serial_no || '—' }}</template>
+                </el-table-column>
+                <el-table-column prop="use_part" label="使用部位" min-width="110" show-overflow-tooltip>
+                  <template #default="{ row: r }">{{ r.use_part || '—' }}</template>
+                </el-table-column>
+                <el-table-column label="批次号" width="90">
+                  <template #default="{ row: r }">{{ formatBatchNo(r.batch_no) }}</template>
+                </el-table-column>
+                <el-table-column label="合格证" min-width="110" show-overflow-tooltip>
+                  <template #default="{ row: r }">{{ r.cert_file || eqEntryDetail.cert_file || '—' }}</template>
+                </el-table-column>
+                <el-table-column label="质量证明文件" min-width="120" show-overflow-tooltip>
+                  <template #default="{ row: r }">{{ r.inspect_file || eqEntryDetail.inspect_file || '—' }}</template>
+                </el-table-column>
+              </el-table>
+              <el-row
+                v-if="row.unpack_items?.length"
+                :gutter="12"
+                style="margin-bottom: 4px"
+              >
+                <el-col
+                  v-for="unpackRow in row.unpack_items"
+                  :key="unpackRow.key || unpackRow.label"
+                  :span="6"
+                >
+                  <div
+                    style="margin-bottom: 8px; padding: 8px 10px; border: 1px solid #ebeef5; border-radius: 6px; background: #fff"
+                  >
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px">
+                      <span style="font-size: 13px; font-weight: 600; color: #606266">{{
+                        unpackRow.label
+                      }}</span>
+                      <el-tag size="small" :type="unpackRow.ok ? 'success' : 'danger'">
+                        {{ unpackRow.ok ? '合格' : '不合格' }}
+                      </el-tag>
+                    </div>
+                    <div style="margin-top: 4px; font-size: 12px; color: #909399">
+                      {{ unpackRow.remark || '无备注' }}
+                    </div>
+                  </div>
+                </el-col>
+              </el-row>
+            </div>
+          </div>
+          <div v-else-if="eqEntryDetail?.unpack_items?.length" style="margin-top: 12px">
             <div class="block-title" style="margin-bottom: 8px; font-size: 14px">开箱清单</div>
-            <el-table :data="eqEntryDetail.unpack_items" size="small" border stripe>
-              <el-table-column prop="label" label="检查项" min-width="120" />
-              <el-table-column label="齐全" width="80">
-                <template #default="{ row }">{{ row.ok ? '是' : '否' }}</template>
-              </el-table-column>
-              <el-table-column prop="remark" label="备注" min-width="120">
-                <template #default="{ row }">{{ row.remark || '—' }}</template>
-              </el-table-column>
-            </el-table>
+            <el-row :gutter="12">
+              <el-col
+                v-for="unpackRow in eqEntryDetail.unpack_items"
+                :key="unpackRow.key || unpackRow.label"
+                :span="6"
+              >
+                <div
+                  style="margin-bottom: 8px; padding: 8px 10px; border: 1px solid #ebeef5; border-radius: 6px; background: #fff"
+                >
+                  <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px">
+                    <span style="font-size: 13px; font-weight: 600; color: #606266">{{
+                      unpackRow.label
+                    }}</span>
+                    <el-tag size="small" :type="unpackRow.ok ? 'success' : 'danger'">
+                      {{ unpackRow.ok ? '合格' : '不合格' }}
+                    </el-tag>
+                  </div>
+                  <div style="margin-top: 4px; font-size: 12px; color: #909399">
+                    {{ unpackRow.remark || '无备注' }}
+                  </div>
+                </div>
+              </el-col>
+            </el-row>
           </div>
         </section>
       </template>
@@ -1230,6 +1369,62 @@ function submitInspectionHandle() {
         </section>
       </template>
 
+      <!-- 分包单位报审 -->
+      <template v-else-if="todo.type === 'subcontractor'">
+        <section class="block block--panel">
+          <div class="block-head">
+            <div class="block-title">分包单位报审信息</div>
+            <el-tag size="small" type="warning" effect="light">
+              {{
+                subcontractorLiveDetail?.approvalFlow?.find((s) => s.status === 'current')?.title ||
+                todo.detail?.currentNode ||
+                '待审批'
+              }}
+            </el-tag>
+          </div>
+          <el-descriptions :column="2" border size="small" class="desc-panel">
+            <el-descriptions-item label="报审编号">
+              {{ todo.detail?.applicationId || todo.subcontractorApplicationId || '—' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="项目">
+              {{ subcontractorLiveDetail?.projectName || todo.detail?.project || '—' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="分包单位">
+              {{ subcontractorLiveDetail?.name || todo.detail?.unitName || '—' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="类型">
+              {{ subcontractorLiveDetail?.unitType || todo.detail?.unitType || '—' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="项目负责人">
+              {{
+                subcontractorLiveDetail?.projectLeaderContact ||
+                todo.detail?.projectLeaderContact ||
+                '—'
+              }}
+            </el-descriptions-item>
+            <el-descriptions-item label="安全管理人员">
+              {{
+                subcontractorLiveDetail?.safetyManagerContact ||
+                todo.detail?.safetyManagerContact ||
+                '—'
+              }}
+            </el-descriptions-item>
+            <el-descriptions-item label="安全许可证编号" :span="2">
+              {{
+                subcontractorLiveDetail?.safetyLicense?.licenseNo ||
+                todo.detail?.safetyLicenseNo ||
+                '—'
+              }}
+            </el-descriptions-item>
+            <el-descriptions-item label="组织架构说明" :span="2">
+              {{ subcontractorLiveDetail?.orgStructureDesc || '—' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="申请人">{{ todo.applicant || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="申请时间">{{ todo.applyTime || '—' }}</el-descriptions-item>
+          </el-descriptions>
+        </section>
+      </template>
+
       <!-- 其他类型：详情信息 -->
       <section v-else class="block block--panel">
         <div class="block-head">
@@ -1290,7 +1485,7 @@ function submitInspectionHandle() {
           <el-form label-width="108px" class="op-form inspection-op-form">
             <template v-if="todo.inspectionBizType === '巡检'">
               <el-form-item label="同行人">
-                <el-select v-model="inspectionForm.companions" multiple filterable placeholder="请选择同行人" style="width: 100%">
+                <el-select v-model="inspectionForm.companions" multiple filterable placeholder="请选择同行人" style="width: 100%" aria-label="请选择同行人">
                   <el-option v-for="u in userOptions" :key="u.id" :label="getUserLabel(u.id)" :value="getUserLabel(u.id)" />
                 </el-select>
               </el-form-item>
@@ -1305,24 +1500,24 @@ function submitInspectionHandle() {
               </el-form-item>
               <template v-if="inspectionForm.inspectionResult === 'hazard'">
                 <el-form-item label="隐患说明" required>
-                  <el-input v-model="inspectionForm.hazardDescription" type="textarea" :rows="3" placeholder="请描述隐患情况" />
+                  <el-input v-model="inspectionForm.hazardDescription" type="textarea" :rows="3" placeholder="请描述隐患情况" aria-label="请描述隐患情况"/>
                 </el-form-item>
                 <el-form-item label="下发整改单">
                   <el-switch v-model="inspectionForm.issueRectify" />
                 </el-form-item>
                 <template v-if="inspectionForm.issueRectify">
                   <el-form-item label="整改人" required>
-                    <el-select v-model="inspectionForm.rectifier" filterable placeholder="请选择整改人" style="width: 100%">
+                    <el-select v-model="inspectionForm.rectifier" filterable placeholder="请选择整改人" style="width: 100%" aria-label="请选择整改人">
                       <el-option v-for="u in userOptions" :key="u.id" :label="getUserLabel(u.id)" :value="getUserLabel(u.id)" />
                     </el-select>
                   </el-form-item>
                   <el-form-item label="复查人" required>
-                    <el-select v-model="inspectionForm.reviewer" filterable placeholder="请选择复查人" style="width: 100%">
+                    <el-select v-model="inspectionForm.reviewer" filterable placeholder="请选择复查人" style="width: 100%" aria-label="请选择复查人">
                       <el-option v-for="u in userOptions" :key="u.id" :label="getUserLabel(u.id)" :value="getUserLabel(u.id)" />
                     </el-select>
                   </el-form-item>
                   <el-form-item label="整改截止日期" required>
-                    <el-date-picker v-model="inspectionForm.rectifyDeadline" type="date" value-format="YYYY-MM-DD" placeholder="请选择整改截止日期" style="width: 100%" />
+                    <el-date-picker v-model="inspectionForm.rectifyDeadline" type="date" value-format="YYYY-MM-DD" placeholder="请选择整改截止日期" style="width: 100%" aria-label="请选择整改截止日期"/>
                   </el-form-item>
                 </template>
               </template>
@@ -1335,8 +1530,7 @@ function submitInspectionHandle() {
                   type="date"
                   value-format="YYYY-MM-DD"
                   :placeholder="`请选择${todo.inspectionBizType === '整改' ? '整改' : todo.inspectionBizType === '复查' ? '复查' : '审批'}日期`"
-                  style="width: 100%"
-                />
+                  style="width: 100%" aria-label="`请选择${todo.inspectionBizType === '整改' ? '整改' : todo.inspectionBizType === '复查' ? '复查' : '审批'}日期`"/>
               </el-form-item>
               <el-form-item v-if="todo.inspectionBizType === '整改'" label="整改照片" required>
                 <DispatchImageAttachments v-model="inspectionForm.attachments" />
@@ -1352,8 +1546,7 @@ function submitInspectionHandle() {
                   v-model="inspectionForm.remark"
                   type="textarea"
                   :rows="4"
-                  :placeholder="`请填写${inspectionActionMeta.remarkLabel}`"
-                />
+                  :placeholder="`请填写${inspectionActionMeta.remarkLabel}`" aria-label="`请填写${inspectionActionMeta.remarkLabel}`"/>
               </el-form-item>
             </template>
           </el-form>
@@ -1372,8 +1565,7 @@ function submitInspectionHandle() {
                 v-model="dispatchHazardForm.remark"
                 type="textarea"
                 :rows="4"
-                placeholder="请描述整改措施及完成情况"
-              />
+                placeholder="请描述整改措施及完成情况" aria-label="请描述整改措施及完成情况"/>
             </el-form-item>
             <el-form-item label="整改照片" required>
               <DispatchImageAttachments
@@ -1401,16 +1593,14 @@ function submitInspectionHandle() {
                 v-model="dispatchHazardForm.remark"
                 type="textarea"
                 :rows="3"
-                placeholder="可填写验收说明"
-              />
+                placeholder="可填写验收说明" aria-label="可填写验收说明"/>
             </el-form-item>
             <el-form-item v-else label="驳回原因" required>
               <el-input
                 v-model="dispatchHazardForm.rejectRemark"
                 type="textarea"
                 :rows="4"
-                placeholder="请说明整改不到位之处，退回继续整改"
-              />
+                placeholder="请说明整改不到位之处，退回继续整改" aria-label="请说明整改不到位之处，退回继续整改"/>
             </el-form-item>
           </el-form>
           <div class="op-actions">
@@ -1429,18 +1619,17 @@ function submitInspectionHandle() {
             <el-tab-pane label="上报结果" name="report">
               <el-form label-width="110px" class="op-form">
                 <el-form-item label="条款" required>
-                  <el-input v-model="reportForm.penaltyClause" placeholder="请输入处罚条款" />
+                  <el-input v-model="reportForm.penaltyClause" placeholder="请输入处罚条款" aria-label="请输入处罚条款"/>
                 </el-form-item>
                 <el-form-item label="金额" required>
-                  <el-input v-model="reportForm.amount" placeholder="如 5000 元" />
+                  <el-input v-model="reportForm.amount" placeholder="如 5000 元" aria-label="如 5000 元"/>
                 </el-form-item>
                 <el-form-item label="上报结果" required>
                   <el-input
                     v-model="reportForm.reportResult"
                     type="textarea"
                     :rows="4"
-                    placeholder="请说明整改及处理情况"
-                  />
+                    placeholder="请说明整改及处理情况" aria-label="请说明整改及处理情况"/>
                 </el-form-item>
                 <el-form-item label="验收人" required>
                   <el-select
@@ -1448,8 +1637,7 @@ function submitInspectionHandle() {
                     filterable
                     clearable
                     placeholder="请选择验收人"
-                    style="width: 100%"
-                  >
+                    style="width: 100%" aria-label="请选择验收人">
                     <el-option
                       v-for="u in userOptions"
                       :key="u.id"
@@ -1473,8 +1661,7 @@ function submitInspectionHandle() {
                     v-model="appealForm.reason"
                     type="textarea"
                     :rows="4"
-                    placeholder="请说明申诉理由"
-                  />
+                    placeholder="请说明申诉理由" aria-label="请说明申诉理由"/>
                 </el-form-item>
                 <el-form-item label="申诉附件">
                   <DispatchImageAttachments
@@ -1503,7 +1690,7 @@ function submitInspectionHandle() {
               </el-radio-group>
             </el-form-item>
             <el-form-item label="说明" required>
-              <el-input v-model="acceptForm.remark" type="textarea" :rows="4" placeholder="请填写验收说明" />
+              <el-input v-model="acceptForm.remark" type="textarea" :rows="4" placeholder="请填写验收说明" aria-label="请填写验收说明"/>
             </el-form-item>
           </el-form>
           <div class="op-actions">
@@ -1525,8 +1712,7 @@ function submitInspectionHandle() {
                 v-model="appealHandleForm.remark"
                 type="textarea"
                 :rows="4"
-                placeholder="请填写处理说明"
-              />
+                placeholder="请填写处理说明" aria-label="请填写处理说明"/>
             </el-form-item>
           </el-form>
           <div class="op-actions">
@@ -1549,6 +1735,7 @@ function submitInspectionHandle() {
                 !(
                   todo.type === 'sample' ||
                   todo.type === 'brand' ||
+                  todo.type === 'subcontractor' ||
                   todo.type === 'mat_entry' ||
                   todo.type === 'eq_entry' ||
                   todo.type === 'asbuilt'
@@ -1563,20 +1750,38 @@ function submitInspectionHandle() {
                 :placeholder="
                   commonForm.decision === 'reject' &&
                   (todo.type === 'brand' ||
+                    todo.type === 'subcontractor' ||
                     todo.type === 'sample' ||
                     todo.type === 'mat_entry' ||
                     todo.type === 'eq_entry' ||
                     todo.type === 'asbuilt')
                     ? '退回意见必填'
                     : todo.type === 'brand' ||
+                        todo.type === 'subcontractor' ||
                         todo.type === 'sample' ||
                         todo.type === 'mat_entry' ||
                         todo.type === 'eq_entry' ||
                         todo.type === 'asbuilt'
                       ? '审批意见选填'
                       : '请填写审批说明'
-                "
-              />
+                " aria-label="
+                  commonForm.decision === 'reject' &&
+                  (todo.type === 'brand' ||
+                    todo.type === 'subcontractor' ||
+                    todo.type === 'sample' ||
+                    todo.type === 'mat_entry' ||
+                    todo.type === 'eq_entry' ||
+                    todo.type === 'asbuilt')
+                    ? '退回意见必填'
+                    : todo.type === 'brand' ||
+                        todo.type === 'subcontractor' ||
+                        todo.type === 'sample' ||
+                        todo.type === 'mat_entry' ||
+                        todo.type === 'eq_entry' ||
+                        todo.type === 'asbuilt'
+                      ? '审批意见选填'
+                      : '请填写审批说明'
+                "/>
             </el-form-item>
           </el-form>
           <div class="op-actions">

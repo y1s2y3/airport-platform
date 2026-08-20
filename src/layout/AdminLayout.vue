@@ -87,6 +87,17 @@ watch(
   { immediate: true },
 )
 
+/** 同一菜单按层级切换显示名（如分包单位管理 / 分包单位报审） */
+function applyScopeLabels(items = [], hq) {
+  return items.map((item) => {
+    const next = { ...item }
+    if (hq && item.hqLabel) next.label = item.hqLabel
+    if (!hq && item.projectLabel) next.label = item.projectLabel
+    if (item.children?.length) next.children = applyScopeLabels(item.children, hq)
+    return next
+  })
+}
+
 /** 企业级隐藏视频监控；项目级隐藏指挥部专属菜单；样板审批入口已迁个人中心，侧栏始终隐藏 */
 const visibleSidebarMenu = computed(() => {
   const scoped = filterMenuByScope(
@@ -100,7 +111,7 @@ const visibleSidebarMenu = computed(() => {
         item.children?.length ? { ...item, children: stripApprove(item.children) } : item,
       )
       .filter((item) => !item.children || item.children.length > 0)
-  return stripApprove(scoped)
+  return applyScopeLabels(stripApprove(scoped), isHqSelected.value)
 })
 
 function collectMenuPathsBy(pred, items = sidebarMenu, acc = []) {
@@ -342,10 +353,20 @@ function closeTab(tab, e) {
     router.push(openTabs.value[openTabs.value.length - 1].path)
   }
 }
+
+/** Hash 路由下勿用 href="#id"，避免与路由 hash 冲突 */
+function skipToMain(e) {
+  e?.preventDefault?.()
+  const el = document.getElementById('main-content')
+  if (!el) return
+  el.focus({ preventScroll: false })
+  el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
 </script>
 
 <template>
   <div class="admin-shell">
+    <a class="skip-link" href="#main-content" @click="skipToMain">跳到主内容</a>
     <header class="top-header">
       <div class="header-brand">
         <div class="brand-logo" aria-hidden="true">
@@ -373,6 +394,7 @@ function closeTab(tab, e) {
           size="default"
           filterable
           placeholder="选择项目"
+          aria-label="选择项目"
         >
           <el-option :label="HQ_PROJECT_OPTION.label" :value="HQ_PROJECT_OPTION.id">
             <div class="project-option">
@@ -402,6 +424,7 @@ function closeTab(tab, e) {
           target="_blank"
           rel="noopener noreferrer"
           title="打开 COC 调度大屏"
+          aria-label="打开 COC 调度大屏"
         >
           COC调度大屏
         </a>
@@ -410,7 +433,7 @@ function closeTab(tab, e) {
           <span class="user-name">COC调度室</span>
           <el-icon :size="12" color="#8f959e"><ArrowDown /></el-icon>
         </div>
-        <button type="button" class="logout-btn" @click="handleLogout">
+        <button type="button" class="logout-btn" aria-label="退出登录" @click="handleLogout">
           <el-icon :size="16"><SwitchButton /></el-icon>
           <span>退出</span>
         </button>
@@ -565,24 +588,38 @@ function closeTab(tab, e) {
           </template>
         </nav>
 
-        <button type="button" class="collapse-btn" @click="collapsed = !collapsed">
+        <button
+          type="button"
+          class="collapse-btn"
+          :aria-label="collapsed ? '展开菜单' : '收起菜单'"
+          @click="collapsed = !collapsed"
+        >
           <el-icon :size="14"><Fold v-if="!collapsed" /><Expand v-else /></el-icon>
           <span v-if="!collapsed">收起菜单</span>
         </button>
       </aside>
 
-      <main class="main-content">
-        <div class="page-tabs">
+      <main id="main-content" class="main-content" tabindex="-1">
+        <div class="page-tabs" role="tablist" aria-label="已打开页面">
           <button
             v-for="tab in openTabs"
             :key="tab.key"
             type="button"
             class="page-tab"
+            role="tab"
+            :aria-selected="activeTab === tab.key"
             :class="{ active: activeTab === tab.key }"
             @click="navigate(tab.path)"
           >
             {{ tab.label }}
-            <span class="tab-close" @click="closeTab(tab, $event)">×</span>
+            <span
+              class="tab-close"
+              role="button"
+              tabindex="0"
+              :aria-label="`关闭标签 ${tab.label}`"
+              @click="closeTab(tab, $event)"
+              @keydown.enter.prevent="closeTab(tab, $event)"
+            >×</span>
           </button>
         </div>
         <div class="page-viewport">
@@ -651,6 +688,28 @@ function closeTab(tab, e) {
   display: flex;
   flex-direction: column;
   background: var(--ap-bg);
+}
+
+.skip-link {
+  position: absolute;
+  left: 12px;
+  top: 0;
+  z-index: 10000;
+  padding: 8px 14px;
+  border-radius: 0 0 6px 6px;
+  background: var(--ap-primary, #8f0045);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  transform: translateY(-120%);
+  transition: transform 0.15s ease;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+  outline: 2px solid #fff;
+  outline-offset: 2px;
 }
 
 .top-header {
@@ -1114,6 +1173,15 @@ function closeTab(tab, e) {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.main-content:focus {
+  outline: none;
+}
+
+.main-content:focus-visible {
+  outline: 2px solid var(--ap-primary, #8f0045);
+  outline-offset: -2px;
 }
 
 .page-tabs {

@@ -203,7 +203,7 @@ function toggleEnabled(row) {
           <div class="stat-card"><div class="sc-value">{{ hqTotalStats.exitCount }}</div><div class="sc-label">已退场设备</div></div>
         </div>
         <div class="hq-filter-bar">
-          <el-input v-model="hqProjectKeyword" placeholder="搜索项目名称..." clearable style="width:220px" :prefix-icon="Search" />
+          <el-input v-model="hqProjectKeyword" placeholder="搜索项目名称..." clearable style="width:220px" :prefix-icon="Search" aria-label="搜索项目名称..."/>
         </div>
         <el-table :data="hqProjectRows" border stripe class="ap-table" style="width:100%;margin-top:12px">
           <el-table-column type="index" label="序号" width="55" align="center" />
@@ -235,16 +235,16 @@ function toggleEnabled(row) {
           </el-button>
         </div>
         <div class="filter-bar">
-          <el-select v-model="filterForm.machineType" placeholder="机械类型" clearable style="width:110px">
+          <el-select v-model="filterForm.machineType" placeholder="机械类型" clearable style="width:110px" aria-label="机械类型">
             <el-option v-for="t in typeOptions" :key="t" :label="t" :value="t" />
           </el-select>
-          <el-select v-model="filterForm.entryType" placeholder="进场类型" clearable style="width:110px">
+          <el-select v-model="filterForm.entryType" placeholder="进场类型" clearable style="width:110px" aria-label="进场类型">
             <el-option label="租赁" value="租赁" /><el-option label="自有" value="自有" />
           </el-select>
-          <el-select v-model="filterForm.status" placeholder="设备状态" clearable style="width:110px">
+          <el-select v-model="filterForm.status" placeholder="设备状态" clearable style="width:110px" aria-label="设备状态">
             <el-option label="已退场" value="已退场" /><el-option label="在场" value="在场" />
           </el-select>
-          <el-input v-model="filterForm.keyword" placeholder="搜索设备名称/供应商..." clearable style="width:260px" :prefix-icon="Search" />
+          <el-input v-model="filterForm.keyword" placeholder="搜索设备名称/供应商..." clearable style="width:260px" :prefix-icon="Search" aria-label="搜索设备名称/供应商..."/>
           <el-button @click="handleReset">重置</el-button>
         </div>
 
@@ -313,8 +313,7 @@ function toggleEnabled(row) {
             type="date"
             placeholder="请选择退场时间"
             value-format="YYYY-MM-DD"
-            style="width: 100%"
-          />
+            style="width: 100%" aria-label="请选择退场时间"/>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -329,7 +328,7 @@ function toggleEnabled(row) {
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="机械类型" required>
-              <el-select v-model="editForm.machineType" style="width:100%" placeholder="请选择">
+              <el-select v-model="editForm.machineType" style="width:100%" placeholder="请选择" aria-label="请选择">
                 <el-option v-for="t in typeOptions" :key="t" :label="t" :value="t" />
               </el-select>
             </el-form-item>
@@ -355,13 +354,13 @@ function toggleEnabled(row) {
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="设备管理员"><el-select v-model="editForm.admin" placeholder="请选择" style="width:100%"><el-option v-for="p in personOptions" :key="p" :label="p" :value="p" /></el-select></el-form-item>
+            <el-form-item label="设备管理员"><el-select v-model="editForm.admin" placeholder="请选择" style="width:100%" aria-label="请选择"><el-option v-for="p in personOptions" :key="p" :label="p" :value="p" /></el-select></el-form-item>
           </el-col>
         </el-row>
         <el-divider style="margin:12px 0" />
         <el-row :gutter="16">
           <el-col :span="12">
-            <el-form-item label="供应商联系人"><el-select v-model="editForm.supplierContact" placeholder="请选择" style="width:100%"><el-option v-for="p in personOptions" :key="p" :label="p" :value="p" /></el-select></el-form-item>
+            <el-form-item label="供应商联系人"><el-select v-model="editForm.supplierContact" placeholder="请选择" style="width:100%" aria-label="请选择"><el-option v-for="p in personOptions" :key="p" :label="p" :value="p" /></el-select></el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="供应商联系人电话"><el-input v-model="editForm.supplierPhone" /></el-form-item>
@@ -385,15 +384,15 @@ function toggleEnabled(row) {
         </el-row>
         <el-row :gutter="16">
           <el-col :span="12">
-            <el-form-item label="生产日期"><el-date-picker v-model="editForm.prodDate" type="date" placeholder="选择日期" style="width:100%" value-format="YYYY-MM-DD" /></el-form-item>
+            <el-form-item label="生产日期"><el-date-picker v-model="editForm.prodDate" type="date" placeholder="选择日期" style="width:100%" value-format="YYYY-MM-DD" aria-label="选择日期"/></el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="进场日期" required><el-date-picker v-model="editForm.entryDate" type="date" placeholder="选择日期" style="width:100%" value-format="YYYY-MM-DD" /></el-form-item>
+            <el-form-item label="进场日期" required><el-date-picker v-model="editForm.entryDate" type="date" placeholder="选择日期" style="width:100%" value-format="YYYY-MM-DD" aria-label="选择日期"/></el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="16">
           <el-col :span="12">
-            <el-form-item label="退场日期"><el-date-picker v-model="editForm.exitDate" type="date" placeholder="选择日期" style="width:100%" value-format="YYYY-MM-DD" /></el-form-item>
+            <el-form-item label="退场日期"><el-date-picker v-model="editForm.exitDate" type="date" placeholder="选择日期" style="width:100%" value-format="YYYY-MM-DD" aria-label="选择日期"/></el-form-item>
           </el-col>
           <el-col :span="12" />
         </el-row>

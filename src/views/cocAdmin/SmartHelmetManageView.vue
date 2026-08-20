@@ -73,7 +73,7 @@ onMounted(load)
     <div class="panel-title simple-title">
       <span>{{ title }}</span>
       <div class="title-actions">
-        <el-input v-model="keyword" placeholder="搜索序列号、项目、人员…" clearable class="search-input" />
+        <el-input v-model="keyword" placeholder="搜索序列号、项目、人员…" clearable class="search-input" aria-label="搜索序列号、项目、人员…"/>
         <el-button type="primary" :icon="Plus" @click="openCreate">新增设备</el-button>
       </div>
     </div>
@@ -104,18 +104,18 @@ onMounted(load)
     <el-dialog v-model="formVisible" :title="form.id ? '编辑安全帽' : '新增安全帽'" width="520px">
       <el-form label-width="96px">
         <el-form-item label="序列号" required>
-          <el-input v-model="form.serialNo" placeholder="如：HLM-20260301" />
+          <el-input v-model="form.serialNo" placeholder="如：HLM-20260301" aria-label="如：HLM-20260301"/>
         </el-form-item>
         <el-form-item label="绑定项目" required>
-          <el-select v-model="form.project" placeholder="选择项目" filterable style="width: 100%">
+          <el-select v-model="form.project" placeholder="选择项目" filterable style="width: 100%" aria-label="选择项目">
             <el-option v-for="p in projectOptions" :key="p" :label="p" :value="p" />
           </el-select>
         </el-form-item>
         <el-form-item label="绑定人员">
-          <el-input v-model="form.bindPerson" placeholder="绑定佩戴人员" />
+          <el-input v-model="form.bindPerson" placeholder="绑定佩戴人员" aria-label="绑定佩戴人员"/>
         </el-form-item>
         <el-form-item label="定位位置">
-          <el-input v-model="form.location" placeholder="最新定位描述" />
+          <el-input v-model="form.location" placeholder="最新定位描述" aria-label="最新定位描述"/>
         </el-form-item>
         <el-form-item label="在线状态">
           <el-switch v-model="form.online" active-text="在线" inactive-text="离线" />

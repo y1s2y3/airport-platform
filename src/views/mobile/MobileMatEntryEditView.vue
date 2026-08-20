@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 /**
  * APP · 进场申报（附件一律拍照）
  */
@@ -43,6 +43,7 @@ const form = reactive({
   cert_file: '',
   inspect_file: '',
   photo_file: '',
+  other_file: '',
   inspect_result_checked: false,
   inspect_result_file: '',
 })
@@ -51,6 +52,7 @@ const photoPreview = reactive({
   cert_file: '',
   inspect_file: '',
   photo_file: '',
+  other_file: '',
   inspect_result_file: '',
 })
 
@@ -93,6 +95,7 @@ function applyPayload(data) {
   form.cert_file = data.cert_file || ''
   form.inspect_file = data.inspect_file || ''
   form.photo_file = data.photo_file || ''
+  form.other_file = data.other_file || ''
   form.inspect_result_checked = !!data.inspect_result_checked
   form.inspect_result_file = data.inspect_result_file || ''
   if (data.unpack_items?.length) {
@@ -205,7 +208,7 @@ function onSubmit() {
   if (!form.ledger_id) return ElMessage.warning('请选择品牌台账')
   if (!form.supplier.trim()) return ElMessage.warning('请填写供应商')
   if (!form.cert_file) return ElMessage.warning('请拍照上传合格证')
-  if (!form.inspect_file) return ElMessage.warning('请拍照上传质检报告')
+  if (!form.inspect_file) return ElMessage.warning('请拍照上传质量证明文件')
   if (!form.photo_file) return ElMessage.warning('请拍照上传现场照片')
 
   const base = {
@@ -220,6 +223,7 @@ function onSubmit() {
     cert_file: form.cert_file,
     inspect_file: form.inspect_file,
     photo_file: form.photo_file,
+    other_file: form.other_file,
     inspect_result_checked: form.inspect_result_checked,
     inspect_result_file: form.inspect_result_file,
     copy_from_entry_id: copyFromId.value,
@@ -403,8 +407,9 @@ function goBack() {
         <div class="fs-title">附件（拍照）</div>
         <div v-for="slot in [
           { field: 'cert_file', label: '合格证', required: true },
-          { field: 'inspect_file', label: '质检报告', required: true },
+          { field: 'inspect_file', label: '质量证明文件', required: true },
           { field: 'photo_file', label: '现场照片', required: true },
+          { field: 'other_file', label: '其他', required: false },
         ]" :key="slot.field" class="form-row">
           <span class="form-label">
             {{ slot.label }}

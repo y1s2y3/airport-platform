@@ -167,8 +167,8 @@ function delCheck(idx) { ElMessageBox.confirm('确认删除？','提示',{type:'
     <el-dialog v-model="inspectDialog" title="新增巡检记录" width="480px" :close-on-click-modal="false">
       <el-form :model="inspectForm" label-width="80px">
         <el-row :gutter="16">
-          <el-col :span="12"><el-form-item label="巡检日期" required><el-date-picker v-model="inspectForm.date" type="date" placeholder="选择日期" style="width:100%" value-format="YYYY-MM-DD" /></el-form-item></el-col>
-          <el-col :span="12"><el-form-item label="巡检人" required><el-select v-model="inspectForm.person" placeholder="请选择" style="width:100%"><el-option v-for="p in personOptions" :key="p" :label="p" :value="p" /></el-select></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="巡检日期" required><el-date-picker v-model="inspectForm.date" type="date" placeholder="选择日期" style="width:100%" value-format="YYYY-MM-DD" aria-label="选择日期"/></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="巡检人" required><el-select v-model="inspectForm.person" placeholder="请选择" style="width:100%" aria-label="请选择"><el-option v-for="p in personOptions" :key="p" :label="p" :value="p" /></el-select></el-form-item></el-col>
         </el-row>
         <el-row :gutter="16">
           <el-col :span="12"><el-form-item label="巡检内容" required><el-input v-model="inspectForm.content" /></el-form-item></el-col>
@@ -183,8 +183,8 @@ function delCheck(idx) { ElMessageBox.confirm('确认删除？','提示',{type:'
     <el-dialog v-model="maintainDialog" title="新增维保记录" width="480px" :close-on-click-modal="false">
       <el-form :model="maintainForm" label-width="80px">
         <el-row :gutter="16">
-          <el-col :span="12"><el-form-item label="维保日期" required><el-date-picker v-model="maintainForm.date" type="date" placeholder="选择日期" style="width:100%" value-format="YYYY-MM-DD" /></el-form-item></el-col>
-          <el-col :span="12"><el-form-item label="维保人" required><el-select v-model="maintainForm.person" placeholder="请选择" style="width:100%"><el-option v-for="p in personOptions" :key="p" :label="p" :value="p" /></el-select></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="维保日期" required><el-date-picker v-model="maintainForm.date" type="date" placeholder="选择日期" style="width:100%" value-format="YYYY-MM-DD" aria-label="选择日期"/></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="维保人" required><el-select v-model="maintainForm.person" placeholder="请选择" style="width:100%" aria-label="请选择"><el-option v-for="p in personOptions" :key="p" :label="p" :value="p" /></el-select></el-form-item></el-col>
         </el-row>
         <el-row :gutter="16">
           <el-col :span="12"><el-form-item label="维保类型" required><el-select v-model="maintainForm.type" style="width:100%"><el-option label="日常保养" value="日常保养" /><el-option label="定期维修" value="定期维修" /><el-option label="故障维修" value="故障维修" /></el-select></el-form-item></el-col>
@@ -199,8 +199,8 @@ function delCheck(idx) { ElMessageBox.confirm('确认删除？','提示',{type:'
     <el-dialog v-model="checkDialog" title="新增检测记录" width="480px" :close-on-click-modal="false">
       <el-form :model="checkForm" label-width="80px">
         <el-row :gutter="16">
-          <el-col :span="12"><el-form-item label="检测日期" required><el-date-picker v-model="checkForm.date" type="date" placeholder="选择日期" style="width:100%" value-format="YYYY-MM-DD" /></el-form-item></el-col>
-          <el-col :span="12"><el-form-item label="检测人" required><el-select v-model="checkForm.person" placeholder="请选择" style="width:100%"><el-option v-for="p in personOptions" :key="p" :label="p" :value="p" /></el-select></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="检测日期" required><el-date-picker v-model="checkForm.date" type="date" placeholder="选择日期" style="width:100%" value-format="YYYY-MM-DD" aria-label="选择日期"/></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="检测人" required><el-select v-model="checkForm.person" placeholder="请选择" style="width:100%" aria-label="请选择"><el-option v-for="p in personOptions" :key="p" :label="p" :value="p" /></el-select></el-form-item></el-col>
         </el-row>
         <el-row :gutter="16">
           <el-col :span="12"><el-form-item label="检测类型" required><el-select v-model="checkForm.type" style="width:100%"><el-option label="定期检测" value="定期检测" /><el-option label="安装检测" value="安装检测" /><el-option label="专项检测" value="专项检测" /></el-select></el-form-item></el-col>

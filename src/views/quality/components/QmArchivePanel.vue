@@ -346,8 +346,7 @@ function formStatusTagType(s) {
           clearable
           placeholder="工程名称"
           style="width: 200px"
-          :prefix-icon="Search"
-        />
+          :prefix-icon="Search" aria-label="工程名称"/>
       </div>
 
       <div class="tp-upper">
@@ -516,7 +515,7 @@ function formStatusTagType(s) {
             <div class="side-title">审核流程</div>
             <el-form label-position="top" size="small">
               <el-form-item label="专业工长">
-                <el-select v-model="foreman" placeholder="请选择" style="width: 100%" :disabled="!canFill">
+                <el-select v-model="foreman" placeholder="请选择" style="width: 100%" :disabled="!canFill" aria-label="请选择">
                   <el-option label="张工" value="zhang" />
                   <el-option label="李工" value="li" />
                   <el-option label="王工" value="wang" />
@@ -535,13 +534,13 @@ function formStatusTagType(s) {
 
           <el-form inline size="small" class="form-meta-row">
             <el-form-item label="项目负责人">
-              <el-select v-model="projectLead" placeholder="请选择" style="width: 140px" :disabled="!canFill">
+              <el-select v-model="projectLead" placeholder="请选择" style="width: 140px" :disabled="!canFill" aria-label="请选择">
                 <el-option label="尹永强" value="1" />
                 <el-option label="赵强" value="2" />
               </el-select>
             </el-form-item>
             <el-form-item label="分包单位项目负责人">
-              <el-select v-model="subLead" placeholder="请选择" style="width: 140px" :disabled="!canFill">
+              <el-select v-model="subLead" placeholder="请选择" style="width: 140px" :disabled="!canFill" aria-label="请选择">
                 <el-option label="阮政鹏" value="1" />
                 <el-option label="刘涛" value="2" />
               </el-select>

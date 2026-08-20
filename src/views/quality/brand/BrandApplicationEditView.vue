@@ -195,11 +195,10 @@ function onSubmit() {
               <el-input
                 v-model="form.material_name"
                 placeholder="请输入材料或设备名称"
-                clearable
-              />
+                clearable aria-label="请输入材料或设备名称"/>
             </el-form-item>
             <el-form-item label="类型" required>
-              <el-select v-model="form.material_type" placeholder="请选择" style="width: 100%">
+              <el-select v-model="form.material_type" placeholder="请选择" style="width: 100%" aria-label="请选择">
                 <el-option
                   v-for="(label, val) in MATERIAL_TYPE"
                   :key="val"
@@ -267,16 +266,14 @@ function onSubmit() {
                   :disabled="!!c.ledger_id"
                   placeholder="输入品牌名称后，将自动搜索项目已有品牌"
                   clearable
-                  @input="onBrandInput(idx)"
-                />
+                  @input="onBrandInput(idx)" aria-label="输入品牌名称后，将自动搜索项目已有品牌"/>
               </el-form-item>
               <el-form-item label="生产厂家" required label-width="88px" class="cand-field">
                 <el-input
                   v-model="c.manufacturer"
                   :disabled="!!c.ledger_id"
                   placeholder="生产厂家"
-                  clearable
-                />
+                  clearable aria-label="生产厂家"/>
               </el-form-item>
             </div>
 

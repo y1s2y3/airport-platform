@@ -71,7 +71,7 @@ function handleSave() {
           <el-input :model-value="projectLabel" disabled />
         </el-form-item>
         <el-form-item label="巡检人" required>
-          <el-select v-model="form.inspectorId" placeholder="请选择巡检人" style="width:100%">
+          <el-select v-model="form.inspectorId" placeholder="请选择巡检人" style="width:100%" aria-label="请选择巡检人">
             <el-option
               v-for="item in inspectorCandidates"
               :key="item.id"
@@ -81,7 +81,7 @@ function handleSave() {
           </el-select>
         </el-form-item>
         <el-form-item label="默认整改人" required>
-          <el-select v-model="form.rectifierId" placeholder="请选择默认整改人" style="width: 100%">
+          <el-select v-model="form.rectifierId" placeholder="请选择默认整改人" style="width: 100%" aria-label="请选择默认整改人">
             <el-option
               v-for="item in inspectorCandidates"
               :key="item.id"
@@ -91,7 +91,7 @@ function handleSave() {
           </el-select>
         </el-form-item>
         <el-form-item label="默认复查人" required>
-          <el-select v-model="form.reviewerId" placeholder="请选择默认复查人" style="width: 100%">
+          <el-select v-model="form.reviewerId" placeholder="请选择默认复查人" style="width: 100%" aria-label="请选择默认复查人">
             <el-option
               v-for="item in inspectorCandidates"
               :key="item.id"

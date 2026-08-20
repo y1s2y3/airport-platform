@@ -101,9 +101,8 @@ function onResubmit(row) {
           clearable
           placeholder="报审编号 / 材料 / 品牌"
           style="width: 240px"
-          :prefix-icon="Search"
-        />
-        <el-select v-model="statusFilter" clearable placeholder="状态" style="width: 140px">
+          :prefix-icon="Search" aria-label="报审编号 / 材料 / 品牌"/>
+        <el-select v-model="statusFilter" clearable placeholder="状态" style="width: 140px" aria-label="状态">
           <el-option v-for="(label, val) in STATUS_LABEL" :key="val" :label="label" :value="val" />
         </el-select>
         <el-button type="primary" :icon="Search">查询</el-button>

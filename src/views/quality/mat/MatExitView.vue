@@ -54,8 +54,7 @@ function openDetail(row) {
           clearable
           placeholder="退场单号 / 进场单号 / 材料 / 品牌 / 原因"
           style="width: 280px"
-          :prefix-icon="Search"
-        />
+          :prefix-icon="Search" aria-label="退场单号 / 进场单号 / 材料 / 品牌 / 原因"/>
         <el-button type="primary" :icon="Search">查询</el-button>
         <el-button :icon="Refresh" @click="resetFilter">重置</el-button>
         <el-button type="primary" plain @click="router.push('/mobile/mat/exit')">

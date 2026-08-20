@@ -212,11 +212,6 @@ export function getLaborDashboardData(project_id) {
   return payload
 }
 
-export function maskIdCard(id_card) {
-  if (!id_card || id_card.length < 8) return id_card
-  return `${id_card.slice(0, 6)}********${id_card.slice(-4)}`
-}
-
 export const attendancePersonList = [
   { name: '张强', unit_name: '中建三局', work_type: '钢筋工', attendance_days: 22, total_hours: 198, avg_hours: 9.0, late_count: 1, early_leave_count: 0, absent_count: 0, overtime_hours: 12, attendance_rate: '100%' },
   { name: '李华', unit_name: '中建三局', work_type: '木工', attendance_days: 21, total_hours: 185, avg_hours: 8.8, late_count: 2, early_leave_count: 1, absent_count: 1, overtime_hours: 8, attendance_rate: '95.5%' },

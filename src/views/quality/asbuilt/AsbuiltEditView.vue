@@ -136,7 +136,7 @@ function onSubmit() {
       <section class="form-section">
         <h2 class="section-title">基本信息</h2>
         <el-form-item label="验收任务名称" required>
-          <el-input v-model="form.title" maxlength="80" show-word-limit placeholder="如：T2 混凝土分项实模一致验收" />
+          <el-input v-model="form.title" maxlength="80" show-word-limit placeholder="如：T2 混凝土分项实模一致验收" aria-label="如：T2 混凝土分项实模一致验收"/>
         </el-form-item>
         <el-form-item label="关联被驳回单">
           <el-select
@@ -144,8 +144,7 @@ function onSubmit() {
             clearable
             filterable
             placeholder="重新申报时可关联（选填）"
-            style="width: 100%"
-          >
+            style="width: 100%" aria-label="重新申报时可关联（选填）">
             <el-option
               v-for="r in rejectedOptions"
               :key="r.id"
@@ -157,8 +156,7 @@ function onSubmit() {
         <el-form-item label="对比可访问地址" required>
           <el-input
             v-model="form.compare_url"
-            placeholder="https:// 第三方实模对比页面地址"
-          />
+            placeholder="https:// 第三方实模对比页面地址" aria-label="https:// 第三方实模对比页面地址"/>
         </el-form-item>
       </section>
 

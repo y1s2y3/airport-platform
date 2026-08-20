@@ -4,13 +4,17 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Plus, Delete, UploadFilled } from '@element-plus/icons-vue'
+import ConstructionLocationSelect from '../../../components/ConstructionLocationSelect.vue'
 import { useQmProjectScope } from '../../../composables/useCurrentProject'
 import {
   ENTRY_TYPE_LABEL,
+  QUALITY_RESULT_OPTIONS,
   buildCopyPayloadFromRejectedMat,
   buildReEditPayloadFromWithdrawnMat,
   createDefaultUnpackItems,
   listApprovedSamples,
+  listMaterialsForEntryBrand,
+  parseBatchSeq,
   searchEntryBrands,
   submitEntry,
   resubmitWithdrawnEntry,
@@ -45,6 +49,7 @@ const form = reactive({
   cert_file: '',
   inspect_file: '',
   photo_file: '',
+  other_file: '',
   inspect_result_checked: false,
   inspect_result_file: '',
 })
@@ -52,30 +57,180 @@ const form = reactive({
 const brandKeyword = ref('')
 const brandLockedFromSample = ref(false)
 
+function nowEntryDate() {
+  const d = new Date()
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+}
+
 function emptyLine() {
   return {
     key: `line-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    material_name: form.material_name || '',
+    material_name: '',
     material_spec: '',
     quantity: '',
     unit: '件',
+    purpose: '',
+    use_part: '',
+    location_id: '',
+    location_ids: [],
     waybill_no: '',
-    batch_no: '',
+    batch_no: 1,
+    appearance_quality: '',
+    acceptance_result: '',
+    entry_date: nowEntryDate(),
+    cert_file: '',
+    inspect_file: '',
+    photo_file: '',
+    other_file: '',
   }
 }
 
+function emptyEquipmentLine() {
+  return {
+    key: `eq-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    equipment_name: '',
+    model: '',
+    quantity: '',
+    unit: '台',
+    purpose: '',
+    use_part: '',
+    location_id: '',
+    location_ids: [],
+    waybill_no: '',
+    batch_no: 1,
+    serial_no: '',
+    appearance_quality: '',
+    acceptance_result: '',
+    entry_date: nowEntryDate(),
+    cert_file: '',
+    inspect_file: '',
+    photo_file: '',
+    other_file: '',
+    unpack_items: createDefaultUnpackItems(),
+  }
+}
+
+function mapEquipmentLineFromData(l, data) {
+  const row = emptyEquipmentLine()
+  row.equipment_name = l.equipment_name || l.material_name || ''
+  row.model = l.model || l.material_spec || ''
+  row.quantity = l.quantity != null ? String(l.quantity) : ''
+  row.unit = l.unit || '台'
+  row.purpose = l.purpose || ''
+  row.use_part = l.use_part || data.use_part || ''
+  row.location_id = l.location_id || data.location_id || ''
+  row.location_ids = Array.isArray(l.location_ids)
+    ? [...l.location_ids]
+    : Array.isArray(data.location_ids)
+      ? [...data.location_ids]
+      : []
+  row.waybill_no = l.waybill_no || ''
+  row.batch_no = parseBatchSeq(l.batch_no, 1)
+  row.serial_no = l.serial_no || ''
+  row.appearance_quality = l.appearance_quality || ''
+  row.acceptance_result = l.acceptance_result || ''
+  row.entry_date = l.entry_date || nowEntryDate()
+  row.cert_file = l.cert_file || ''
+  row.inspect_file = l.inspect_file || ''
+  row.photo_file = l.photo_file || ''
+  row.other_file = l.other_file || ''
+  if (Array.isArray(l.unpack_items) && l.unpack_items.length) {
+    row.unpack_items = l.unpack_items.map((i) => ({ ...i }))
+  }
+  return row
+}
+
+function mapLineFromData(l, data) {
+  const row = emptyLine()
+  row.material_name = l.material_name || ''
+  row.material_spec = l.material_spec || ''
+  row.quantity = l.quantity != null ? String(l.quantity) : ''
+  row.unit = l.unit || '件'
+  row.purpose = l.purpose || ''
+  row.use_part = l.use_part || data.use_part || ''
+  row.location_id = l.location_id || data.location_id || ''
+  row.location_ids = Array.isArray(l.location_ids)
+    ? [...l.location_ids]
+    : Array.isArray(data.location_ids)
+      ? [...data.location_ids]
+      : []
+  row.waybill_no = l.waybill_no || ''
+  row.batch_no = parseBatchSeq(l.batch_no, 1)
+  row.appearance_quality = l.appearance_quality || ''
+  row.acceptance_result = l.acceptance_result || ''
+  row.entry_date = l.entry_date || nowEntryDate()
+  row.cert_file = l.cert_file || ''
+  row.inspect_file = l.inspect_file || ''
+  row.photo_file = l.photo_file || ''
+  row.other_file = l.other_file || ''
+  return row
+}
+
 const entryLines = ref([emptyLine()])
-const unpackItems = ref(createDefaultUnpackItems())
+const equipmentLines = ref([emptyEquipmentLine()])
 
 const samples = computed(() =>
   scopeProjectId.value ? listApprovedSamples(scopeProjectId.value) : [],
 )
 
-const brandOptions = computed(() => {
+const ledgerOptions = computed(() => {
   if (!scopeProjectId.value) return []
-  return searchEntryBrands(brandKeyword.value, scopeProjectId.value, {
-    materialType: entryType.value === 'equipment' ? 'equipment' : 'material',
-  })
+  const materialType = entryType.value === 'equipment' ? 'equipment' : 'material'
+  const list = searchEntryBrands(brandKeyword.value, scopeProjectId.value, { materialType })
+  if (form.ledger_id && !list.some((b) => b.ledger_id === form.ledger_id)) {
+    const cur =
+      searchEntryBrands('', scopeProjectId.value, { materialType }).find(
+        (b) => b.ledger_id === form.ledger_id,
+      ) ||
+      (form.brand_name && form.manufacturer
+        ? {
+            ledger_id: form.ledger_id,
+            brand_name: form.brand_name,
+            manufacturer: form.manufacturer,
+            material_name: form.material_name || form.equipment_name || '',
+            label: `${form.brand_name} · ${form.manufacturer} · ${form.material_name || form.equipment_name || ''}`,
+          }
+        : null)
+    if (cur) list.unshift(cur)
+  }
+  return list
+})
+
+const equipmentNameOptions = computed(() => {
+  if (!scopeProjectId.value || !form.brand_name || !form.manufacturer) return []
+  const names = listMaterialsForEntryBrand(
+    scopeProjectId.value,
+    form.brand_name,
+    form.manufacturer,
+    { materialType: 'equipment' },
+  )
+  const sample = samples.value.find(
+    (x) =>
+      x.sample_application_id === form.sample_application_id ||
+      x.sample_id === form.sample_application_id,
+  )
+  const extra = sample?.material_name || ''
+  if (extra && !names.includes(extra)) names.push(extra)
+  return names
+})
+
+const materialNameOptions = computed(() => {
+  if (!scopeProjectId.value || !form.brand_name || !form.manufacturer) return []
+  const names = listMaterialsForEntryBrand(
+    scopeProjectId.value,
+    form.brand_name,
+    form.manufacturer,
+    { materialType: 'material' },
+  )
+  const sample = samples.value.find(
+    (x) =>
+      x.sample_application_id === form.sample_application_id ||
+      x.sample_id === form.sample_application_id,
+  )
+  const extra = sample?.material_name || ''
+  if (extra && !names.includes(extra)) names.push(extra)
+  return names
 })
 
 const pageTitle = computed(() => {
@@ -83,18 +238,63 @@ const pageTitle = computed(() => {
   return '进场申报'
 })
 
-const ledgerLocked = computed(() => brandLockedFromSample.value || !!form.ledger_id)
-
-function syncLineMaterialNames() {
-  const name = form.material_name || ''
+function pruneLineMaterials() {
+  const allow = new Set(materialNameOptions.value)
   entryLines.value.forEach((row) => {
-    row.material_name = name
+    if (row.material_name && !allow.has(row.material_name)) row.material_name = ''
   })
 }
 
+function pruneLineEquipments() {
+  const allow = new Set(equipmentNameOptions.value)
+  equipmentLines.value.forEach((row) => {
+    if (row.equipment_name && !allow.has(row.equipment_name)) row.equipment_name = ''
+  })
+}
+
+function onLedgerChange(id) {
+  if (brandLockedFromSample.value) return
+  if (!id) {
+    form.brand_name = ''
+    form.manufacturer = ''
+    entryLines.value.forEach((row) => {
+      row.material_name = ''
+    })
+    equipmentLines.value.forEach((row) => {
+      row.equipment_name = ''
+    })
+    return
+  }
+  const materialType = entryType.value === 'equipment' ? 'equipment' : 'material'
+  const hit =
+    ledgerOptions.value.find((b) => b.ledger_id === id) ||
+    searchEntryBrands('', scopeProjectId.value, { materialType }).find((b) => b.ledger_id === id)
+  if (!hit) return
+  form.brand_name = hit.brand_name
+  form.manufacturer = hit.manufacturer
+  if (entryType.value === 'material') {
+    if (hit.material_name) {
+      entryLines.value.forEach((row, idx) => {
+        if (idx === 0 || !row.material_name) row.material_name = hit.material_name
+      })
+    }
+    pruneLineMaterials()
+  } else {
+    if (hit.material_name) {
+      equipmentLines.value.forEach((row, idx) => {
+        if (idx === 0 || !row.equipment_name) row.equipment_name = hit.material_name
+      })
+    }
+    pruneLineEquipments()
+  }
+}
+
 watch(entryType, (t) => {
-  form.unit = t === 'equipment' ? '台' : '件'
-  if (t === 'equipment') unpackItems.value = createDefaultUnpackItems()
+  if (t === 'equipment') {
+    if (!equipmentLines.value.length) equipmentLines.value = [emptyEquipmentLine()]
+  } else if (!entryLines.value.length) {
+    entryLines.value = [emptyLine()]
+  }
   if (!brandLockedFromSample.value && form.ledger_id) {
     const hit = searchEntryBrands('', scopeProjectId.value).find((b) => b.ledger_id === form.ledger_id)
     const expect = t === 'equipment' ? 'equipment' : 'material'
@@ -113,8 +313,6 @@ watch(
     if (!id) return
     const s = samples.value.find((x) => x.sample_application_id === id || x.sample_id === id)
     if (!s) return
-    form.material_name = s.material_name || ''
-    form.use_part = s.use_part || ''
     form.brand_name = s.brand_name || ''
     form.manufacturer = s.manufacturer || ''
     brandLockedFromSample.value = true
@@ -129,40 +327,27 @@ watch(
           b.material_name === s.material_name,
       ) ||
       brands.find((b) => b.brand_name === s.brand_name && b.manufacturer === s.manufacturer)
-    form.ledger_id = hit?.ledger_id || ''
-    syncLineMaterialNames()
-  },
-)
-
-watch(
-  () => form.ledger_id,
-  (id) => {
-    if (brandLockedFromSample.value) return
-    if (!id) {
-      form.brand_name = ''
-      form.manufacturer = ''
-      return
-    }
-    const hit =
-      brandOptions.value.find((b) => b.ledger_id === id) ||
-      searchEntryBrands('', scopeProjectId.value).find((b) => b.ledger_id === id)
-    if (!hit) return
-    form.brand_name = hit.brand_name
-    form.manufacturer = hit.manufacturer
-    if (entryType.value === 'material') {
-      form.material_name = hit.material_name || ''
-      syncLineMaterialNames()
+    form.ledger_id = hit?.ledger_id || form.ledger_id || ''
+    if (entryType.value === 'material' && s.material_name) {
+      if (entryLines.value.length && !entryLines.value[0].material_name) {
+        entryLines.value[0].material_name = s.material_name
+      }
+      if (s.use_part && entryLines.value.length && !entryLines.value[0].use_part) {
+        entryLines.value[0].use_part = s.use_part
+      }
     }
     if (entryType.value === 'equipment') {
-      form.equipment_name = hit.material_name || ''
+      if (equipmentLines.value.length && !equipmentLines.value[0].equipment_name) {
+        equipmentLines.value[0].equipment_name = s.material_name || ''
+      }
+      if (s.use_part && equipmentLines.value.length && !equipmentLines.value[0].use_part) {
+        equipmentLines.value[0].use_part = s.use_part
+      }
     }
   },
 )
 
-watch(
-  () => form.material_name,
-  () => syncLineMaterialNames(),
-)
+watch(() => form.ledger_id, onLedgerChange)
 
 function applyCopyPayload(data) {
   entryType.value = data.entry_type || 'material'
@@ -183,21 +368,72 @@ function applyCopyPayload(data) {
   form.cert_file = data.cert_file || ''
   form.inspect_file = data.inspect_file || ''
   form.photo_file = data.photo_file || ''
+  form.other_file = data.other_file || ''
   form.inspect_result_checked = !!data.inspect_result_checked
   form.inspect_result_file = data.inspect_result_file || ''
   if (data.line_items?.length) {
-    entryLines.value = data.line_items.map((l) => ({
-      key: `line-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      material_name: l.material_name || data.material_name || '',
-      material_spec: l.material_spec || '',
-      quantity: l.quantity != null ? String(l.quantity) : '',
-      unit: l.unit || '件',
-      waybill_no: l.waybill_no || '',
-      batch_no: l.batch_no || '',
-    }))
-  }
-  if (data.unpack_items?.length) {
-    unpackItems.value = data.unpack_items.map((i) => ({ ...i }))
+    if (data.entry_type === 'equipment') {
+      equipmentLines.value = data.line_items.map((l, idx) => {
+        const row = mapEquipmentLineFromData(l, data)
+        if (idx === 0) {
+          if (!row.cert_file) row.cert_file = data.cert_file || ''
+          if (!row.inspect_file) row.inspect_file = data.inspect_file || ''
+          if (!row.photo_file) row.photo_file = data.photo_file || ''
+          if (!row.other_file) row.other_file = data.other_file || ''
+          if (!row.unpack_items?.length && data.unpack_items?.length) {
+            row.unpack_items = data.unpack_items.map((i) => ({ ...i }))
+          }
+        }
+        return row
+      })
+    } else {
+      entryLines.value = data.line_items.map((l, idx) => {
+        const row = mapLineFromData(l, data)
+        if (idx === 0) {
+          if (!row.cert_file) row.cert_file = data.cert_file || ''
+          if (!row.inspect_file) row.inspect_file = data.inspect_file || ''
+          if (!row.photo_file) row.photo_file = data.photo_file || ''
+          if (!row.other_file) row.other_file = data.other_file || ''
+        }
+        return row
+      })
+    }
+  } else if (data.entry_type === 'equipment') {
+    const row = mapEquipmentLineFromData(
+      {
+        equipment_name: data.equipment_name,
+        model: data.model,
+        quantity: data.quantity,
+        unit: data.unit,
+        serial_no: data.serial_no,
+        waybill_no: data.waybill_no,
+        batch_no: data.batch_no,
+        unpack_items: data.unpack_items,
+      },
+      data,
+    )
+    row.cert_file = data.cert_file || ''
+    row.inspect_file = data.inspect_file || ''
+    row.photo_file = data.photo_file || ''
+    row.other_file = data.other_file || ''
+    equipmentLines.value = [row]
+  } else if (data.entry_type !== 'equipment') {
+    const row = mapLineFromData(
+      {
+        material_name: data.material_name,
+        material_spec: data.material_spec,
+        quantity: data.quantity,
+        unit: data.unit,
+        waybill_no: data.waybill_no,
+        batch_no: data.batch_no,
+      },
+      data,
+    )
+    row.cert_file = data.cert_file || ''
+    row.inspect_file = data.inspect_file || ''
+    row.photo_file = data.photo_file || ''
+    row.other_file = data.other_file || ''
+    entryLines.value = [row]
   }
 }
 
@@ -226,6 +462,18 @@ onMounted(() => {
   applyCopyPayload(r.data)
 })
 
+function addEquipmentLine() {
+  equipmentLines.value.push(emptyEquipmentLine())
+}
+
+function removeEquipmentLine(idx) {
+  if (equipmentLines.value.length <= 1) {
+    equipmentLines.value[0] = emptyEquipmentLine()
+    return
+  }
+  equipmentLines.value.splice(idx, 1)
+}
+
 function addEntryLine() {
   entryLines.value.push(emptyLine())
 }
@@ -238,15 +486,15 @@ function removeEntryLine(idx) {
   entryLines.value.splice(idx, 1)
 }
 
-function onPickFile(field, uploadFile) {
+function onPickLineFile(row, field, uploadFile) {
   const file = uploadFile.raw || uploadFile
   if (!file) return false
   if (file.size > 30 * 1024 * 1024) {
     ElMessage.warning('单个文件不超过 30MB')
     return false
   }
-  form[field] = file.name || `${field}-${Date.now()}`
-  ElMessage.success(`已上传：${form[field]}`)
+  row[field] = file.name || `${field}-${Date.now()}`
+  ElMessage.success(`已上传：${row[field]}`)
   return false
 }
 
@@ -254,8 +502,8 @@ function onSubmit() {
   if (isHqSelected.value || !scopeProjectId.value) {
     return ElMessage.warning('请先切换到具体项目')
   }
-  if (!form.ledger_id && (!form.brand_name.trim() || !form.manufacturer.trim())) {
-    return ElMessage.warning('请选择品牌台账中的品牌')
+  if (!form.ledger_id) {
+    return ElMessage.warning('请选择品牌台账')
   }
   if (!String(form.supplier || '').trim()) return ElMessage.warning('请填写供应商')
 
@@ -273,24 +521,86 @@ function onSubmit() {
     cert_file: form.cert_file,
     inspect_file: form.inspect_file,
     photo_file: form.photo_file,
-    inspect_result_checked: form.inspect_result_checked,
-    inspect_result_file: form.inspect_result_file,
     copy_from_entry_id: copyFromId.value,
   }
 
   if (entryType.value === 'equipment') {
-    if (!form.equipment_name.trim()) return ElMessage.warning('请填写设备名称')
-    if (!form.quantity || Number(form.quantity) <= 0) {
-      return ElMessage.warning('请填写有效数量')
+    const line_items = []
+    const allow = equipmentNameOptions.value
+    for (let i = 0; i < equipmentLines.value.length; i += 1) {
+      const row = equipmentLines.value[i]
+      const equipment_name = String(row.equipment_name || '').trim()
+      const model = String(row.model || '').trim()
+      const quantity = String(row.quantity || '').trim()
+      const unit = String(row.unit || '').trim()
+      if (!form.brand_name || !form.manufacturer) {
+        return ElMessage.warning('请先选择品牌，再填写设备明细')
+      }
+      if (!equipment_name) return ElMessage.warning(`设备明细第 ${i + 1} 组请选择设备名称`)
+      if (allow.length && !allow.includes(equipment_name)) {
+        return ElMessage.warning(`设备明细第 ${i + 1} 组设备不在所选品牌对应范围内`)
+      }
+      if (!model) return ElMessage.warning(`设备明细第 ${i + 1} 组请填写规格型号`)
+      if (!unit) return ElMessage.warning(`设备明细第 ${i + 1} 组请填写数量单位`)
+      if (!quantity || Number(quantity) <= 0) {
+        return ElMessage.warning(`设备明细第 ${i + 1} 组请填写有效数量`)
+      }
+      if (!row.appearance_quality) {
+        return ElMessage.warning(`设备明细第 ${i + 1} 组请选择外观质量`)
+      }
+      if (!row.acceptance_result) {
+        return ElMessage.warning(`设备明细第 ${i + 1} 组请选择验收结论`)
+      }
+      if (!row.entry_date) {
+        return ElMessage.warning(`设备明细第 ${i + 1} 组请填写进场日期`)
+      }
+      if (!row.cert_file) return ElMessage.warning(`设备明细第 ${i + 1} 组请上传合格证`)
+      if (!row.inspect_file) return ElMessage.warning(`设备明细第 ${i + 1} 组请上传质量证明文件`)
+      if (!row.photo_file) return ElMessage.warning(`设备明细第 ${i + 1} 组请上传现场照片`)
+      const missingFixed = row.unpack_items.some((item) => item.ok === undefined)
+      if (missingFixed || !row.unpack_items.length) {
+        return ElMessage.warning(`设备明细第 ${i + 1} 组请完成开箱清单`)
+      }
+      line_items.push({
+        equipment_name,
+        material_name: equipment_name,
+        model,
+        material_spec: model,
+        quantity: Number(quantity),
+        unit,
+        serial_no: String(row.serial_no || '').trim(),
+        purpose: String(row.purpose || '').trim(),
+        use_part: String(row.use_part || '').trim(),
+        location_id: row.location_id || '',
+        location_ids: [...(row.location_ids || [])],
+        waybill_no: String(row.waybill_no || '').trim(),
+        batch_no: parseBatchSeq(row.batch_no, 1),
+        appearance_quality: row.appearance_quality,
+        acceptance_result: row.acceptance_result,
+        entry_date: row.entry_date,
+        cert_file: row.cert_file,
+        inspect_file: row.inspect_file,
+        photo_file: row.photo_file,
+        other_file: row.other_file || '',
+        unpack_items: row.unpack_items.map((item) => ({ ...item })),
+      })
     }
+
+    const first = line_items[0]
     const submitPayload = {
       ...base,
-      equipment_name: form.equipment_name,
-      model: form.model,
-      quantity: Number(form.quantity),
-      unit: form.unit,
-      serial_no: form.serial_no,
-      unpack_items: unpackItems.value,
+      equipment_name: first.equipment_name,
+      model: first.model,
+      use_part: first.use_part,
+      location_id: first.location_id,
+      location_ids: [...(first.location_ids || [])],
+      serial_no: first.serial_no,
+      cert_file: first.cert_file,
+      inspect_file: first.inspect_file,
+      photo_file: first.photo_file,
+      other_file: first.other_file || '',
+      unpack_items: first.unpack_items,
+      line_items,
     }
     const r =
       isReEdit.value && reEditId.value
@@ -299,41 +609,79 @@ function onSubmit() {
     if (!r.ok) return ElMessage.error(r.msg)
     ElMessage.success(
       isReEdit.value
-        ? `已重新申报 ${r.data.entry_id}，状态已回到待审批`
+        ? `已重新申报 ${r.data.entry_id}，状态已回到待监理审批`
         : copyFromId.value
-          ? `已重新申报 ${r.data.entry_id}，进入待审批`
-          : `已提交 ${r.data.entry_id}，进入待审批`,
+          ? `已重新申报 ${r.data.entry_id}，进入待监理审批`
+          : `已提交 ${r.data.entry_id}，进入待监理审批`,
     )
     router.push('/qm/mat/applications')
     return
   }
 
   const line_items = []
+  const allow = materialNameOptions.value
   for (let i = 0; i < entryLines.value.length; i += 1) {
     const row = entryLines.value[i]
-    const material_name = String(row.material_name || form.material_name || '').trim()
+    const material_name = String(row.material_name || '').trim()
     const material_spec = String(row.material_spec || '').trim()
     const quantity = String(row.quantity || '').trim()
     const unit = String(row.unit || '').trim()
-    if (!material_name) return ElMessage.warning(`进场明细第 ${i + 1} 条请填写材料名称`)
-    if (!material_spec) return ElMessage.warning(`进场明细第 ${i + 1} 条请填写材料规格`)
-    if (!quantity || Number(quantity) <= 0) {
-      return ElMessage.warning(`进场明细第 ${i + 1} 条请填写有效数量`)
+    if (!form.brand_name || !form.manufacturer) {
+      return ElMessage.warning('请先选择品牌，再填写进场明细')
     }
-    if (!unit) return ElMessage.warning(`进场明细第 ${i + 1} 条请填写单位`)
+    if (!material_name) return ElMessage.warning(`进场明细第 ${i + 1} 组请选择材料名称`)
+    if (allow.length && !allow.includes(material_name)) {
+      return ElMessage.warning(`进场明细第 ${i + 1} 组材料不在所选品牌对应范围内`)
+    }
+    if (!material_spec) return ElMessage.warning(`进场明细第 ${i + 1} 组请填写规格型号`)
+    if (!unit) return ElMessage.warning(`进场明细第 ${i + 1} 组请填写数量单位`)
+    if (!quantity || Number(quantity) <= 0) {
+      return ElMessage.warning(`进场明细第 ${i + 1} 组请填写有效数量`)
+    }
+    if (!row.appearance_quality) {
+      return ElMessage.warning(`进场明细第 ${i + 1} 组请选择外观质量`)
+    }
+    if (!row.acceptance_result) {
+      return ElMessage.warning(`进场明细第 ${i + 1} 组请选择验收结论`)
+    }
+    if (!row.entry_date) {
+      return ElMessage.warning(`进场明细第 ${i + 1} 组请填写进场日期`)
+    }
+    if (!row.cert_file) return ElMessage.warning(`进场明细第 ${i + 1} 组请上传合格证`)
+    if (!row.inspect_file) return ElMessage.warning(`进场明细第 ${i + 1} 组请上传质量证明文件`)
+    if (!row.photo_file) return ElMessage.warning(`进场明细第 ${i + 1} 组请上传现场照片`)
     line_items.push({
       material_name,
       material_spec,
       quantity: Number(quantity),
       unit,
+      purpose: String(row.purpose || '').trim(),
+      use_part: String(row.use_part || '').trim(),
+      location_id: row.location_id || '',
+      location_ids: [...(row.location_ids || [])],
       waybill_no: String(row.waybill_no || '').trim(),
-      batch_no: String(row.batch_no || '').trim(),
+      batch_no: parseBatchSeq(row.batch_no, 1),
+      appearance_quality: row.appearance_quality,
+      acceptance_result: row.acceptance_result,
+      entry_date: row.entry_date,
+      cert_file: row.cert_file,
+      inspect_file: row.inspect_file,
+      photo_file: row.photo_file,
+      other_file: row.other_file || '',
     })
   }
 
+  const first = line_items[0]
   const submitPayload = {
     ...base,
-    material_name: form.material_name || line_items[0].material_name,
+    material_name: first.material_name,
+    use_part: first.use_part,
+    location_id: first.location_id,
+    location_ids: [...(first.location_ids || [])],
+    cert_file: first.cert_file,
+    inspect_file: first.inspect_file,
+    photo_file: first.photo_file,
+    other_file: first.other_file || '',
     line_items,
   }
   const r =
@@ -343,10 +691,10 @@ function onSubmit() {
   if (!r.ok) return ElMessage.error(r.msg)
   ElMessage.success(
     isReEdit.value
-      ? `已重新申报 ${r.data.entry_id}，状态已回到待审批`
+      ? `已重新申报 ${r.data.entry_id}，状态已回到待监理审批`
       : copyFromId.value
-        ? `已重新申报 ${r.data.entry_id}，进入待审批`
-        : `已提交 ${r.data.entry_id}，进入待审批`,
+        ? `已重新申报 ${r.data.entry_id}，进入待监理审批`
+        : `已提交 ${r.data.entry_id}，进入待监理审批`,
   )
   router.push('/qm/mat/applications')
 }
@@ -368,7 +716,7 @@ function onSubmit() {
       <p class="page-tip">
         当前项目：
         <strong>{{ isHqSelected ? '未选择（请先切换项目）' : scopeProjectLabel }}</strong>
-        · 品牌须选自品牌台账（与台账一致） · 定样可选关联
+        · 品牌须选自品牌台账 · 定样可选关联 · 审批流程：施工方填报 → 监理单位审批
       </p>
     </div>
 
@@ -385,14 +733,55 @@ function onSubmit() {
         <h2 class="section-title">品牌与定样</h2>
         <el-row :gutter="16">
           <el-col :span="12">
+            <el-form-item label="品牌台账" required>
+              <el-select
+                v-model="form.ledger_id"
+                filterable
+                remote
+                :remote-method="(q) => (brandKeyword = q)"
+                clearable
+                :placeholder="
+                  entryType === 'equipment'
+                    ? '搜索：品牌 / 厂家 / 设备'
+                    : '搜索：品牌 / 厂家 / 材料'
+                "
+                style="width: 100%"
+                :disabled="brandLockedFromSample"
+              >
+                <el-option
+                  v-for="b in ledgerOptions"
+                  :key="b.ledger_id"
+                  :label="b.label"
+                  :value="b.ledger_id"
+                />
+              </el-select>
+              <p v-if="brandLockedFromSample" class="field-hint">已选定样，品牌台账只读带出</p>
+              <p v-else class="field-hint">从本项目品牌台账下拉选择（品牌·厂家·材料/设备）</p>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="品牌">
+              <el-input v-model="form.brand_name" disabled placeholder="由台账带出" aria-label="由台账带出"/>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="生产厂家">
+              <el-input v-model="form.manufacturer" disabled placeholder="由台账带出" aria-label="由台账带出"/>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="供应商" required>
+              <el-input v-model="form.supplier" placeholder="请填写供应商" aria-label="请填写供应商"/>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
             <el-form-item label="关联定样">
               <el-select
                 v-model="form.sample_application_id"
                 filterable
                 clearable
                 placeholder="可选：已通过定样"
-                style="width: 100%"
-              >
+                style="width: 100%" aria-label="可选：已通过定样">
                 <el-option
                   v-for="s in samples"
                   :key="s.sample_application_id || s.sample_id"
@@ -402,59 +791,15 @@ function onSubmit() {
               </el-select>
             </el-form-item>
           </el-col>
-          <el-col :span="12">
-            <el-form-item label="品牌台账" required>
-              <el-select
-                v-model="form.ledger_id"
-                filterable
-                remote
-                :remote-method="(q) => (brandKeyword = q)"
-                clearable
-                placeholder="搜索：品牌 / 厂家 / 材料"
-                style="width: 100%"
-                :disabled="brandLockedFromSample"
-              >
-                <el-option
-                  v-for="b in brandOptions"
-                  :key="b.ledger_id"
-                  :label="b.label || `${b.brand_name} · ${b.manufacturer} · ${b.material_name}`"
-                  :value="b.ledger_id"
-                />
-              </el-select>
-              <p v-if="brandLockedFromSample" class="field-hint">已选定样，品牌与材料只读带出</p>
-              <p v-else class="field-hint">同一品牌可对应多条材料，请按「品牌·厂家·材料」选择对应台账行</p>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="品牌">
-              <el-input v-model="form.brand_name" disabled placeholder="由台账带出" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="生产厂家">
-              <el-input v-model="form.manufacturer" disabled placeholder="由台账带出" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="供应商" required>
-              <el-input v-model="form.supplier" placeholder="请填写供应商" />
-            </el-form-item>
-          </el-col>
         </el-row>
       </section>
 
       <section v-if="entryType === 'material'" class="form-section">
         <h2 class="section-title">材料进场明细</h2>
-        <el-form-item label="材料名称">
-          <el-input
-            v-model="form.material_name"
-            :disabled="ledgerLocked"
-            :placeholder="ledgerLocked ? '由定样/台账带出' : '可手填或由定样/台账带出'"
-          />
-        </el-form-item>
+        <p class="section-tip">一个进场单可对应多组材料；每组含材料信息与附件，默认一组。</p>
         <div v-for="(row, idx) in entryLines" :key="row.key" class="entry-line-card">
           <div class="entry-line-head">
-            <span class="entry-line-title">明细 {{ idx + 1 }}</span>
+            <span class="entry-line-title">材料 {{ idx + 1 }}</span>
             <el-button
               type="danger"
               link
@@ -467,144 +812,363 @@ function onSubmit() {
           </div>
           <el-row :gutter="16">
             <el-col :span="12">
-              <el-form-item label="材料规格" required>
-                <el-input v-model="row.material_spec" placeholder="如 C30 / SBS-3mm" />
+              <el-form-item label="材料名称" required>
+                <el-select
+                  v-model="row.material_name"
+                  filterable
+                  clearable
+                  :disabled="!materialNameOptions.length"
+                  :placeholder="materialNameOptions.length ? '请选择材料' : '请先选择品牌'"
+                  style="width: 100%" aria-label="materialNameOptions.length ? '请选择材料' : '请先选择品牌'">
+                  <el-option
+                    v-for="name in materialNameOptions"
+                    :key="name"
+                    :label="name"
+                    :value="name"
+                  />
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="规格型号" required>
+                <el-input v-model="row.material_spec" placeholder="如 C30 / SBS-3mm" aria-label="如 C30 / SBS-3mm"/>
               </el-form-item>
             </el-col>
             <el-col :span="12">
               <el-form-item label="数量" required>
-                <el-input v-model="row.quantity" placeholder="数量" />
+                <div class="qty-with-unit">
+                  <el-input v-model="row.quantity" placeholder="数量" class="qty-num" aria-label="数量"/>
+                  <el-input v-model="row.unit" placeholder="单位" class="qty-unit" aria-label="单位"/>
+                </div>
               </el-form-item>
             </el-col>
             <el-col :span="12">
-              <el-form-item label="单位" required>
-                <el-input v-model="row.unit" placeholder="单位" />
+              <el-form-item label="用途">
+                <el-input v-model="row.purpose" placeholder="选填" aria-label="选填"/>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="使用部位">
+                <ConstructionLocationSelect
+                  v-model:location-id="row.location_id"
+                  v-model:location-ids="row.location_ids"
+                  v-model:location-name="row.use_part"
+                  :project-id="scopeProjectId"
+                  multiple
+                  placeholder="请选择施工部位"
+                />
               </el-form-item>
             </el-col>
             <el-col :span="12">
               <el-form-item label="运单号">
-                <el-input v-model="row.waybill_no" placeholder="选填" />
+                <el-input v-model="row.waybill_no" placeholder="选填" aria-label="选填"/>
               </el-form-item>
             </el-col>
             <el-col :span="12">
               <el-form-item label="批次号">
-                <el-input v-model="row.batch_no" placeholder="选填" />
+                <div class="batch-stepper">
+                  <span class="batch-affix">第</span>
+                  <el-input-number
+                    v-model="row.batch_no"
+                    :min="1"
+                    :step="1"
+                    :precision="0"
+                    controls-position="right"
+                  />
+                  <span class="batch-affix">批</span>
+                </div>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="外观质量" required>
+                <el-radio-group v-model="row.appearance_quality">
+                  <el-radio
+                    v-for="opt in QUALITY_RESULT_OPTIONS"
+                    :key="opt.value"
+                    :value="opt.value"
+                  >
+                    {{ opt.label }}
+                  </el-radio>
+                </el-radio-group>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="验收结论" required>
+                <el-radio-group v-model="row.acceptance_result">
+                  <el-radio
+                    v-for="opt in QUALITY_RESULT_OPTIONS"
+                    :key="opt.value"
+                    :value="opt.value"
+                  >
+                    {{ opt.label }}
+                  </el-radio>
+                </el-radio-group>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="进场日期" required>
+                <el-date-picker
+                  v-model="row.entry_date"
+                  type="datetime"
+                  value-format="YYYY-MM-DD HH:mm:ss"
+                  format="YYYY-MM-DD HH:mm:ss"
+                  placeholder="默认填报时间，可修改"
+                  style="width: 100%" aria-label="默认填报时间，可修改"/>
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <div class="entry-attach-title">附件</div>
+          <el-row :gutter="16">
+            <el-col :span="12">
+              <el-form-item label="合格证" required>
+                <el-upload
+                  :show-file-list="false"
+                  :before-upload="(f) => onPickLineFile(row, 'cert_file', f)"
+                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                >
+                  <el-button :icon="UploadFilled">上传</el-button>
+                </el-upload>
+                <span class="muted" style="margin-left: 8px">{{ row.cert_file || '未上传' }}</span>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="质量证明文件" required>
+                <el-upload
+                  :show-file-list="false"
+                  :before-upload="(f) => onPickLineFile(row, 'inspect_file', f)"
+                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                >
+                  <el-button :icon="UploadFilled">上传</el-button>
+                </el-upload>
+                <span class="muted" style="margin-left: 8px">{{ row.inspect_file || '未上传' }}</span>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="现场照片" required>
+                <el-upload
+                  :show-file-list="false"
+                  :before-upload="(f) => onPickLineFile(row, 'photo_file', f)"
+                  accept=".jpg,.jpeg,.png,.webp,.gif"
+                >
+                  <el-button :icon="UploadFilled">上传</el-button>
+                </el-upload>
+                <span class="muted" style="margin-left: 8px">{{ row.photo_file || '未上传' }}</span>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="其他">
+                <el-upload
+                  :show-file-list="false"
+                  :before-upload="(f) => onPickLineFile(row, 'other_file', f)"
+                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.zip"
+                >
+                  <el-button :icon="UploadFilled">上传</el-button>
+                </el-upload>
+                <span class="muted" style="margin-left: 8px">{{ row.other_file || '未上传' }}</span>
               </el-form-item>
             </el-col>
           </el-row>
         </div>
         <div class="entry-line-add">
-          <el-button type="primary" plain :icon="Plus" @click="addEntryLine">新增明细</el-button>
+          <el-button type="primary" plain :icon="Plus" @click="addEntryLine">新增一组材料</el-button>
         </div>
       </section>
 
       <section v-else class="form-section">
-        <h2 class="section-title">设备信息</h2>
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item label="设备名称" required>
-              <el-input
-                v-model="form.equipment_name"
-                :disabled="ledgerLocked"
-                :placeholder="ledgerLocked ? '由台账带出' : '设备名称'"
-              />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="型号">
-              <el-input v-model="form.model" placeholder="型号规格" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="数量" required>
-              <el-input v-model="form.quantity" placeholder="数量" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="单位" required>
-              <el-input v-model="form.unit" placeholder="台/套" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="序列号">
-              <el-input v-model="form.serial_no" placeholder="选填" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <h3 class="sub-title">开箱清单</h3>
-        <el-table :data="unpackItems" border stripe size="small">
-          <el-table-column prop="label" label="检查项" min-width="140" />
-          <el-table-column label="是否合格" width="100">
-            <template #default="{ row }">
-              <el-checkbox v-model="row.ok" />
-            </template>
-          </el-table-column>
-          <el-table-column label="备注" min-width="160">
-            <template #default="{ row }">
-              <el-input v-model="row.remark" placeholder="选填" size="small" />
-            </template>
-          </el-table-column>
-        </el-table>
-      </section>
-
-      <section class="form-section">
-        <h2 class="section-title">附件（三件套必填）</h2>
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item label="合格证" required>
-              <el-upload
-                :show-file-list="false"
-                :before-upload="(f) => onPickFile('cert_file', f)"
-                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-              >
-                <el-button :icon="UploadFilled">上传</el-button>
-              </el-upload>
-              <span class="muted" style="margin-left: 8px">{{ form.cert_file || '未上传' }}</span>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="质检报告" required>
-              <el-upload
-                :show-file-list="false"
-                :before-upload="(f) => onPickFile('inspect_file', f)"
-                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-              >
-                <el-button :icon="UploadFilled">上传</el-button>
-              </el-upload>
-              <span class="muted" style="margin-left: 8px">{{ form.inspect_file || '未上传' }}</span>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="现场照片" required>
-              <el-upload
-                :show-file-list="false"
-                :before-upload="(f) => onPickFile('photo_file', f)"
-                accept=".jpg,.jpeg,.png,.webp,.gif"
-              >
-                <el-button :icon="UploadFilled">上传</el-button>
-              </el-upload>
-              <span class="muted" style="margin-left: 8px">{{ form.photo_file || '未上传' }}</span>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="送检结果">
-              <el-checkbox v-model="form.inspect_result_checked">勾选后上传（非必填）</el-checkbox>
-              <template v-if="form.inspect_result_checked">
+        <h2 class="section-title">设备进场明细</h2>
+        <p class="section-tip">一个进场单可对应多组设备；每组含设备信息、附件与开箱清单，默认一组。</p>
+        <div v-for="(row, idx) in equipmentLines" :key="row.key" class="entry-line-card">
+          <div class="entry-line-head">
+            <span class="entry-line-title">设备 {{ idx + 1 }}</span>
+            <el-button
+              type="danger"
+              link
+              :icon="Delete"
+              :disabled="equipmentLines.length <= 1"
+              @click="removeEquipmentLine(idx)"
+            >
+              删除
+            </el-button>
+          </div>
+          <el-row :gutter="16">
+            <el-col :span="12">
+              <el-form-item label="设备名称" required>
+                <el-select
+                  v-model="row.equipment_name"
+                  filterable
+                  clearable
+                  :disabled="!equipmentNameOptions.length"
+                  :placeholder="equipmentNameOptions.length ? '请选择设备' : '请先选择品牌'"
+                  style="width: 100%" aria-label="equipmentNameOptions.length ? '请选择设备' : '请先选择品牌'">
+                  <el-option
+                    v-for="name in equipmentNameOptions"
+                    :key="name"
+                    :label="name"
+                    :value="name"
+                  />
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="规格型号" required>
+                <el-input v-model="row.model" placeholder="型号规格" aria-label="型号规格"/>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="数量" required>
+                <div class="qty-with-unit">
+                  <el-input v-model="row.quantity" placeholder="数量" class="qty-num" aria-label="数量"/>
+                  <el-input v-model="row.unit" placeholder="单位" class="qty-unit" aria-label="单位"/>
+                </div>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="序列号">
+                <el-input v-model="row.serial_no" placeholder="选填" aria-label="选填"/>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="用途">
+                <el-input v-model="row.purpose" placeholder="选填" aria-label="选填"/>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="使用部位">
+                <ConstructionLocationSelect
+                  v-model:location-id="row.location_id"
+                  v-model:location-ids="row.location_ids"
+                  v-model:location-name="row.use_part"
+                  :project-id="scopeProjectId"
+                  multiple
+                  placeholder="请选择施工部位"
+                />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="运单号">
+                <el-input v-model="row.waybill_no" placeholder="选填" aria-label="选填"/>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="批次号">
+                <div class="batch-stepper">
+                  <span class="batch-affix">第</span>
+                  <el-input-number
+                    v-model="row.batch_no"
+                    :min="1"
+                    :step="1"
+                    :precision="0"
+                    controls-position="right"
+                  />
+                  <span class="batch-affix">批</span>
+                </div>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="外观质量" required>
+                <el-radio-group v-model="row.appearance_quality">
+                  <el-radio
+                    v-for="opt in QUALITY_RESULT_OPTIONS"
+                    :key="opt.value"
+                    :value="opt.value"
+                  >
+                    {{ opt.label }}
+                  </el-radio>
+                </el-radio-group>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="验收结论" required>
+                <el-radio-group v-model="row.acceptance_result">
+                  <el-radio
+                    v-for="opt in QUALITY_RESULT_OPTIONS"
+                    :key="opt.value"
+                    :value="opt.value"
+                  >
+                    {{ opt.label }}
+                  </el-radio>
+                </el-radio-group>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="进场日期" required>
+                <el-date-picker
+                  v-model="row.entry_date"
+                  type="datetime"
+                  value-format="YYYY-MM-DD HH:mm:ss"
+                  format="YYYY-MM-DD HH:mm:ss"
+                  placeholder="默认填报时间，可修改"
+                  style="width: 100%" aria-label="默认填报时间，可修改"/>
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <div class="entry-attach-title">附件</div>
+          <el-row :gutter="16">
+            <el-col :span="12">
+              <el-form-item label="合格证" required>
                 <el-upload
-                  class="inline-upload"
                   :show-file-list="false"
-                  :before-upload="(f) => onPickFile('inspect_result_file', f)"
+                  :before-upload="(f) => onPickLineFile(row, 'cert_file', f)"
                   accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
                 >
-                  <el-button style="margin-left: 12px" :icon="UploadFilled">上传</el-button>
+                  <el-button :icon="UploadFilled">上传</el-button>
                 </el-upload>
-                <span class="muted" style="margin-left: 8px">{{
-                  form.inspect_result_file || '未上传'
-                }}</span>
-              </template>
-            </el-form-item>
-          </el-col>
-        </el-row>
+                <span class="muted" style="margin-left: 8px">{{ row.cert_file || '未上传' }}</span>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="质量证明文件" required>
+                <el-upload
+                  :show-file-list="false"
+                  :before-upload="(f) => onPickLineFile(row, 'inspect_file', f)"
+                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                >
+                  <el-button :icon="UploadFilled">上传</el-button>
+                </el-upload>
+                <span class="muted" style="margin-left: 8px">{{ row.inspect_file || '未上传' }}</span>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="现场照片" required>
+                <el-upload
+                  :show-file-list="false"
+                  :before-upload="(f) => onPickLineFile(row, 'photo_file', f)"
+                  accept=".jpg,.jpeg,.png,.webp,.gif"
+                >
+                  <el-button :icon="UploadFilled">上传</el-button>
+                </el-upload>
+                <span class="muted" style="margin-left: 8px">{{ row.photo_file || '未上传' }}</span>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="其他">
+                <el-upload
+                  :show-file-list="false"
+                  :before-upload="(f) => onPickLineFile(row, 'other_file', f)"
+                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.zip"
+                >
+                  <el-button :icon="UploadFilled">上传</el-button>
+                </el-upload>
+                <span class="muted" style="margin-left: 8px">{{ row.other_file || '未上传' }}</span>
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <div class="entry-attach-title">开箱清单</div>
+          <el-row :gutter="16" class="unpack-grid">
+            <el-col v-for="unpackRow in row.unpack_items" :key="unpackRow.key" :span="6">
+              <div class="unpack-card">
+                <div class="unpack-card-head">
+                  <span class="unpack-label">{{ unpackRow.label }}</span>
+                  <el-checkbox v-model="unpackRow.ok">合格</el-checkbox>
+                </div>
+                <el-input v-model="unpackRow.remark" placeholder="备注（选填）" size="small" aria-label="备注（选填）"/>
+              </div>
+            </el-col>
+          </el-row>
+        </div>
+        <div class="entry-line-add">
+          <el-button type="primary" plain :icon="Plus" @click="addEquipmentLine">新增一组设备</el-button>
+        </div>
       </section>
 
       <div class="op-bar">
@@ -621,6 +1185,11 @@ function onSubmit() {
 }
 .section-title {
   margin: 0 0 8px;
+}
+.section-tip {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: #909399;
 }
 .sub-title {
   margin: 12px 0 8px;
@@ -649,12 +1218,74 @@ function onSubmit() {
   font-weight: 600;
   color: #606266;
 }
+.entry-attach-title {
+  margin: 4px 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #606266;
+}
 .entry-line-add {
   margin: 4px 0 8px;
 }
-.inline-upload {
-  display: inline-block;
-  vertical-align: middle;
+.unpack-grid {
+  margin-bottom: 8px;
+}
+.unpack-card {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid #ebeef5;
+  border-radius: 6px;
+  background: #fff;
+}
+.unpack-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  gap: 8px;
+}
+.unpack-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #606266;
+}
+.batch-stepper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.batch-affix {
+  color: #606266;
+  font-size: 14px;
+  white-space: nowrap;
+}
+.qty-with-unit {
+  display: flex;
+  width: 100%;
+  align-items: stretch;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #fff;
+}
+.qty-with-unit:focus-within {
+  border-color: #409eff;
+}
+.qty-with-unit :deep(.el-input__wrapper) {
+  box-shadow: none !important;
+  border-radius: 0;
+}
+.qty-num {
+  flex: 1;
+  min-width: 0;
+}
+.qty-unit {
+  width: 88px;
+  flex-shrink: 0;
+  border-left: 1px solid #dcdfe6;
+}
+.qty-unit :deep(.el-input__inner) {
+  text-align: center;
 }
 .title-row {
   display: flex;

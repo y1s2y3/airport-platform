@@ -1,169 +1,272 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
-import { Search, Refresh, Plus } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { Search, Refresh, Plus, UploadFilled, Delete } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import { useCurrentProject } from '../../composables/useCurrentProject'
 import { getProjectSelectOptions } from '../../mock/projectBasicInfo'
 import {
   subcontractorList,
-  createEmptyParticipantUnit,
-  cloneParticipantUnit,
+  subcontractorTypeOptions,
+  subcontractorApproveStatusOptions,
+  createEmptySubcontractorApplication,
+  cloneSubcontractorApplication,
+  submitSubcontractorApplication,
+  approveStatusTagClass,
+  listApprovedSubcontractors,
+  canResubmitSubcontractor,
 } from '../../mock/subcontractorManagement'
+import {
+  createSubcontractorApprovalTodo,
+  seedOpenSubcontractorTodosFromStore,
+} from '../../mock/personalCenter'
+import ProfileImageUpload from '../../components/basicData/ProfileImageUpload.vue'
+import FileAttachmentPreview from '../../components/basicData/FileAttachmentPreview.vue'
+
+const router = useRouter()
+const { isHqSelected, laborProjectId, headerProjectLabel } = useCurrentProject()
 
 const projectOptions = computed(() => getProjectSelectOptions())
+const scopeProjectId = computed(() => (isHqSelected.value ? '' : laborProjectId.value))
 
 const filters = ref({
-  projectId: projectOptions.value[0]?.id || '',
   name: '',
+  status: '',
+  projectId: '',
 })
-
-watch(
-  projectOptions,
-  (options) => {
-    if (!options.length) {
-      filters.value.projectId = ''
-      return
-    }
-    if (!options.some((item) => item.id === filters.value.projectId)) {
-      filters.value.projectId = options[0].id
-    }
-  },
-  { immediate: true },
-)
 
 const dialogVisible = ref(false)
 const formMode = ref('create')
 const formModel = ref(null)
+const leaderForm = ref({ name: '', phone: '' })
+const safetyForms = ref([{ name: '', phone: '' }])
+
+onMounted(() => {
+  seedOpenSubcontractorTodosFromStore(subcontractorList)
+})
+
+const pageTitle = computed(() => (isHqSelected.value ? '分包单位管理' : '分包单位报审'))
+const pageTag = computed(() => (isHqSelected.value ? '指挥部台账' : '项目报审'))
 
 const filteredList = computed(() => {
-  return subcontractorList.filter((row) => {
-    if (filters.value.projectId && row.projectId !== filters.value.projectId) return false
-    if (filters.value.name) {
-      const kw = filters.value.name.trim()
-      if (!row.name.includes(kw) && !row.shortName.includes(kw)) return false
-    }
-    return true
-  })
-})
+  let rows = isHqSelected.value
+    ? listApprovedSubcontractors(filters.value.projectId)
+    : subcontractorList.filter((row) => row.projectId === scopeProjectId.value)
 
-const currentProjectName = computed(
-  () => projectOptions.value.find((p) => p.id === filters.value.projectId)?.name || '—',
-)
+  if (filters.value.name) {
+    const kw = filters.value.name.trim()
+    rows = rows.filter((row) => row.name.includes(kw))
+  }
+  if (!isHqSelected.value && filters.value.status) {
+    rows = rows.filter((row) => row.status === filters.value.status)
+  }
+  return rows
+})
 
 const dialogTitle = computed(() => {
-  if (formMode.value === 'create') return '新增分包单位'
-  return formModel.value?.name ? `编辑 · ${formModel.value.name}` : '编辑分包单位'
+  if (formMode.value === 'create') return '新建分包单位报审'
+  if (formMode.value === 'resubmit') {
+    return formModel.value?.name ? `重新报审 · ${formModel.value.name}` : '重新报审'
+  }
+  return formModel.value?.name ? `编辑报审 · ${formModel.value.name}` : '编辑分包单位报审'
 })
 
-function handleReset() {
-  filters.value = {
-    projectId: projectOptions.value[0]?.id || '',
-    name: '',
+function parseOneContact(raw) {
+  const text = String(raw || '').trim()
+  if (!text) return { name: '', phone: '' }
+  const slashParts = text.split(/\s*\/\s*/)
+  if (slashParts.length >= 2) {
+    const phone = slashParts[slashParts.length - 1].trim()
+    if (/\d{7,}/.test(phone)) {
+      return {
+        name: slashParts.slice(0, -1).join(' / ').trim(),
+        phone,
+      }
+    }
   }
+  const glued = text.match(/^(.+?)(\d{11})$/)
+  if (glued) return { name: glued[1].trim(), phone: glued[2] }
+  return { name: text, phone: '' }
 }
 
-function resolveProjectName(projectId) {
-  return projectOptions.value.find((item) => item.id === projectId)?.name || ''
+function formatContact(name, phone) {
+  const nextName = String(name || '').trim()
+  const nextPhone = String(phone || '').trim()
+  if (!nextName && !nextPhone) return ''
+  if (!nextPhone) return nextName
+  if (!nextName) return nextPhone
+  return `${nextName} / ${nextPhone}`
+}
+
+function loadContactForms(row) {
+  leaderForm.value = parseOneContact(row?.projectLeaderContact)
+  const safetyList = String(row?.safetyManagerContact || '')
+    .split(/[；;、，,\n]+/)
+    .map((part) => parseOneContact(part))
+    .filter((item) => item.name || item.phone)
+  safetyForms.value = safetyList.length ? safetyList : [{ name: '', phone: '' }]
+}
+
+function syncContactsToModel() {
+  if (!formModel.value) return
+  formModel.value.projectLeaderContact = formatContact(leaderForm.value.name, leaderForm.value.phone)
+  formModel.value.safetyManagerContact = safetyForms.value
+    .map((item) => formatContact(item.name, item.phone))
+    .filter(Boolean)
+    .join('；')
+}
+
+function validateManualContacts() {
+  const leaderName = String(leaderForm.value.name || '').trim()
+  const leaderPhone = String(leaderForm.value.phone || '').trim()
+  if (!leaderName || !leaderPhone) {
+    return '请填写项目负责人姓名及电话'
+  }
+  const validSafety = safetyForms.value.filter(
+    (item) => String(item.name || '').trim() && String(item.phone || '').trim(),
+  )
+  if (!validSafety.length) {
+    return '请填写安全管理人员姓名及电话'
+  }
+  const incomplete = safetyForms.value.some(
+    (item) =>
+      (String(item.name || '').trim() && !String(item.phone || '').trim()) ||
+      (!String(item.name || '').trim() && String(item.phone || '').trim()),
+  )
+  if (incomplete) {
+    return '安全管理人员姓名与电话需成对填写'
+  }
+  return ''
+}
+
+function addSafetyPerson() {
+  safetyForms.value.push({ name: '', phone: '' })
+}
+
+function removeSafetyPerson(index) {
+  if (safetyForms.value.length <= 1) return
+  safetyForms.value.splice(index, 1)
+}
+
+function handleReset() {
+  filters.value = { name: '', status: '', projectId: '' }
 }
 
 function openCreate() {
-  const projectId = filters.value.projectId || projectOptions.value[0]?.id || ''
+  if (!scopeProjectId.value) {
+    ElMessage.warning('请先在顶部选择具体项目')
+    return
+  }
   formMode.value = 'create'
-  formModel.value = createEmptyParticipantUnit(projectId, resolveProjectName(projectId))
+  formModel.value = createEmptySubcontractorApplication(scopeProjectId.value, headerProjectLabel.value)
+  loadContactForms(formModel.value)
   dialogVisible.value = true
 }
 
-function openEdit(row) {
-  const source = subcontractorList.find((item) => item.id === row.id)
-  if (!source) return
-  formMode.value = 'edit'
-  formModel.value = cloneParticipantUnit(source)
+function openResubmit(row) {
+  if (!canResubmitSubcontractor(row.status)) {
+    ElMessage.warning('仅已驳回或已撤回的单据可重新报审')
+    return
+  }
+  formMode.value = 'resubmit'
+  formModel.value = cloneSubcontractorApplication(row)
+  loadContactForms(formModel.value)
   dialogVisible.value = true
 }
 
-function onFormProjectChange(projectId) {
+function openDetail(row) {
+  router.push({ name: 'SubcontractorDetail', params: { id: row.id } })
+}
+
+function addQualification() {
+  formModel.value.qualifications.push({ certNo: '', fileName: '', fileUrl: '' })
+}
+
+function removeQualification(index) {
+  if (formModel.value.qualifications.length <= 1) return
+  formModel.value.qualifications.splice(index, 1)
+}
+
+function onFilePick(file, target, nameKey, urlKey) {
+  target[nameKey] = file.name
+  const reader = new FileReader()
+  reader.onload = () => {
+    target[urlKey] = String(reader.result || '')
+  }
+  reader.readAsDataURL(file)
+  return false
+}
+
+function clearFile(target, nameKey, urlKey) {
+  target[nameKey] = ''
+  target[urlKey] = ''
+}
+
+function onSafetyPhotoChange(url) {
   if (!formModel.value) return
-  formModel.value.projectId = projectId
-  formModel.value.projectName = resolveProjectName(projectId)
+  formModel.value.safetyLicense.photoUrl = url || ''
+  formModel.value.safetyLicense.photoName = url
+    ? formModel.value.safetyLicense.photoName || '安全许可证.jpg'
+    : ''
 }
 
-function handleSave() {
-  const data = formModel.value
-  if (!data?.projectId) {
-    ElMessage.warning('请选择所属项目')
-    return
-  }
-  if (!data.name?.trim()) {
-    ElMessage.warning('请填写分包单位名称')
-    return
-  }
-
-  data.name = data.name.trim()
-  data.shortName = data.shortName?.trim() || data.name.slice(0, 8)
-  data.projectName = resolveProjectName(data.projectId)
-
-  if (formMode.value === 'create') {
-    subcontractorList.unshift({ ...data })
-    ElMessage.success('新增成功')
-  } else {
-    const index = subcontractorList.findIndex((item) => item.id === data.id)
-    if (index === -1) {
-      ElMessage.error('未找到要编辑的记录')
-      return
-    }
-    Object.assign(subcontractorList[index], data)
-    ElMessage.success('保存成功')
-  }
-
+function closeDialog() {
   dialogVisible.value = false
   formModel.value = null
+  leaderForm.value = { name: '', phone: '' }
+  safetyForms.value = [{ name: '', phone: '' }]
 }
 
-async function handleDelete(row) {
-  try {
-    await ElMessageBox.confirm(`确定删除「${row.name}」吗？`, '删除确认', {
-      type: 'warning',
-      confirmButtonText: '删除',
-      cancelButtonText: '取消',
-    })
-    const index = subcontractorList.findIndex((item) => item.id === row.id)
-    if (index === -1) return
-    subcontractorList.splice(index, 1)
-    ElMessage.success('已删除')
-  } catch {
-    /* cancelled */
-  }
+function handleSubmit() {
+  const contactErr = validateManualContacts()
+  if (contactErr) return ElMessage.warning(contactErr)
+  syncContactsToModel()
+  const r = submitSubcontractorApplication(formModel.value)
+  if (!r.ok) return ElMessage.warning(r.msg)
+  createSubcontractorApprovalTodo(r.data.id)
+  ElMessage.success(formMode.value === 'resubmit' ? '已重新提交报审' : '已提交，审批待办已进入个人中心')
+  closeDialog()
 }
 </script>
 
 <template>
   <div class="sub-page page-card">
     <div class="page-header">
-      <div class="page-breadcrumb">基础数据管理 / 分包单位管理</div>
+      <div class="page-breadcrumb">基础数据管理 / {{ pageTitle }}</div>
       <div class="page-heading">
         <div class="title-block">
-          <h1 class="page-title">分包单位管理</h1>
-          <span class="level-tag">按项目登记</span>
+          <h1 class="page-title">{{ pageTitle }}</h1>
+          <span class="level-tag">{{ pageTag }}</span>
         </div>
-        <el-button class="ap-btn-primary" type="primary" :icon="Plus" @click="openCreate">新增</el-button>
+        <el-button
+          v-if="!isHqSelected"
+          class="ap-btn-primary"
+          type="primary"
+          :icon="Plus"
+          @click="openCreate"
+        >
+          新建报审
+        </el-button>
       </div>
     </div>
 
     <div class="filter-bar">
       <div class="filter-row">
-        <div class="filter-item">
+        <div v-if="isHqSelected" class="filter-item">
           <label>所属项目</label>
-          <el-select v-model="filters.projectId" filterable style="width: 320px">
-            <el-option
-              v-for="opt in projectOptions"
-              :key="opt.id"
-              :label="opt.name"
-              :value="opt.id"
-            />
+          <el-select v-model="filters.projectId" clearable filterable placeholder="全部项目" style="width: 280px" aria-label="全部项目">
+            <el-option v-for="opt in projectOptions" :key="opt.id" :label="opt.name" :value="opt.id" />
           </el-select>
         </div>
         <div class="filter-item">
           <label>分包单位</label>
-          <el-input v-model="filters.name" placeholder="单位名称/简称" clearable style="width: 200px" />
+          <el-input v-model="filters.name" placeholder="单位名称" clearable style="width: 200px" aria-label="单位名称"/>
+        </div>
+        <div v-if="!isHqSelected" class="filter-item">
+          <label>审批状态</label>
+          <el-select v-model="filters.status" clearable placeholder="全部" style="width: 140px" aria-label="全部">
+            <el-option v-for="opt in subcontractorApproveStatusOptions" :key="opt" :label="opt" :value="opt" />
+          </el-select>
         </div>
         <div class="filter-actions">
           <el-button class="ap-btn-primary" type="primary" :icon="Search">查询</el-button>
@@ -174,19 +277,48 @@ async function handleDelete(row) {
 
     <div class="table-section">
       <div class="table-summary">
-        {{ currentProjectName }} · 共 {{ filteredList.length }} 家分包单位
+        <template v-if="isHqSelected">已审批通过 · 共 {{ filteredList.length }} 家</template>
+        <template v-else>{{ headerProjectLabel }} · 共 {{ filteredList.length }} 条报审</template>
       </div>
       <el-table :data="filteredList" border stripe class="ap-table">
         <el-table-column type="index" label="序号" width="56" align="center" />
-        <el-table-column prop="name" label="分包单位名称" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="safetyLicenseNo" label="安全生产许可证编号" min-width="180" show-overflow-tooltip />
-        <el-table-column prop="safetyLicenseExpiry" label="许可证有效期" width="120" />
-        <el-table-column prop="projectManagerContact" label="项目负责人" min-width="160" show-overflow-tooltip />
-        <el-table-column prop="safetyManagerContact" label="安全管理人员" min-width="160" show-overflow-tooltip />
-        <el-table-column label="操作" width="120" fixed="right" align="center">
+        <el-table-column v-if="isHqSelected" prop="projectName" label="项目名称" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="name" label="分包单位名称" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="unitType" label="类型" width="100" align="center" />
+        <el-table-column prop="projectLeaderContact" label="项目负责人" min-width="150" show-overflow-tooltip />
+        <el-table-column prop="safetyManagerContact" label="安全管理人员" min-width="150" show-overflow-tooltip />
+        <el-table-column
+          v-if="!isHqSelected"
+          prop="status"
+          label="审批状态"
+          width="100"
+          align="center"
+        >
           <template #default="{ row }">
-            <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
-            <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
+            <span class="ap-status-tag" :class="approveStatusTagClass(row.status)">{{ row.status }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column
+          v-if="!isHqSelected"
+          label="当前节点"
+          min-width="140"
+          show-overflow-tooltip
+        >
+          <template #default="{ row }">
+            {{ row.approvalFlow?.find((s) => s.status === 'current')?.title || '—' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" :width="isHqSelected ? 88 : 168" fixed="right" align="center">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="openDetail(row)">查看</el-button>
+            <el-button
+              v-if="!isHqSelected && canResubmitSubcontractor(row.status)"
+              link
+              type="primary"
+              @click="openResubmit(row)"
+            >
+              重新报审
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -195,118 +327,232 @@ async function handleDelete(row) {
     <el-dialog
       v-model="dialogVisible"
       :title="dialogTitle"
-      width="1080px"
+      width="960px"
+      top="4vh"
       destroy-on-close
       class="participant-dialog"
     >
-      <el-form v-if="formModel" :model="formModel" label-width="168px" class="register-form">
+      <el-form v-if="formModel" :model="formModel" label-width="120px" class="register-form">
         <el-row :gutter="16">
-          <el-col :span="24">
-            <el-form-item label="所属项目" required>
-              <el-select
-                :model-value="formModel.projectId"
-                filterable
-                style="width: 100%"
-                @update:model-value="onFormProjectChange"
-              >
-                <el-option
-                  v-for="opt in projectOptions"
-                  :key="opt.id"
-                  :label="opt.name"
-                  :value="opt.id"
-                />
+          <el-col :span="12">
+            <el-form-item label="分包单位名称" required>
+              <el-input v-model="formModel.name" placeholder="单位全称" aria-label="单位全称"/>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="类型" required>
+              <el-select v-model="formModel.unitType" style="width: 100%">
+                <el-option v-for="opt in subcontractorTypeOptions" :key="opt" :label="opt" :value="opt" />
               </el-select>
             </el-form-item>
           </el-col>
         </el-row>
 
+        <el-form-item required class="contact-form-item">
+          <template #label>
+            <span class="label-multiline">
+              <span>项目负责人</span>
+              <span>姓名及电话</span>
+            </span>
+          </template>
+          <div class="dual-fields">
+            <el-input v-model="leaderForm.name" placeholder="姓名" clearable aria-label="姓名"/>
+            <el-input v-model="leaderForm.phone" placeholder="电话" clearable aria-label="电话"/>
+          </div>
+        </el-form-item>
+
+        <el-form-item required class="contact-form-item">
+          <template #label>
+            <span class="label-multiline">
+              <span>安全管理人员</span>
+              <span>姓名及电话</span>
+            </span>
+          </template>
+          <div class="safety-manual-list">
+            <div
+              v-for="(person, idx) in safetyForms"
+              :key="`safety-${idx}`"
+              class="dual-fields safety-row"
+            >
+              <el-input v-model="person.name" placeholder="姓名" clearable aria-label="姓名"/>
+              <el-input v-model="person.phone" placeholder="电话" clearable aria-label="电话"/>
+              <el-button
+                link
+                type="danger"
+                :disabled="safetyForms.length <= 1"
+                @click="removeSafetyPerson(idx)"
+              >
+                删除
+              </el-button>
+            </div>
+            <el-button link type="primary" :icon="Plus" @click="addSafetyPerson">新增人员</el-button>
+          </div>
+        </el-form-item>
+
+        <el-form-item required class="contact-form-item">
+          <template #label>
+            <span class="label-multiline">
+              <span>分包组织</span>
+              <span>架构说明</span>
+            </span>
+          </template>
+          <el-input
+            v-model="formModel.orgStructureDesc"
+            type="textarea"
+            :rows="4"
+            placeholder="请说明分包组织架构及岗位配置" aria-label="请说明分包组织架构及岗位配置"/>
+        </el-form-item>
+
+        <div class="section-title">
+          <span>资质证书</span>
+          <el-button link type="primary" :icon="Plus" @click="addQualification">新增证书</el-button>
+        </div>
+        <div class="qual-table-wrap">
+          <el-table :data="formModel.qualifications" border class="ap-table qual-edit-table">
+            <el-table-column type="index" label="序号" width="64" align="center" />
+            <el-table-column label="证书编号" min-width="220">
+              <template #default="{ row, $index }">
+                <el-input
+                  v-model="row.certNo"
+                  :placeholder="$index === 0 ? '必填，证书编号' : '证书编号'" aria-label="$index === 0 ? '必填，证书编号' : '证书编号'"/>
+              </template>
+            </el-table-column>
+            <el-table-column label="附件" min-width="280">
+              <template #default="{ row }">
+                <div class="attach-inline">
+                  <FileAttachmentPreview
+                    class="attach-preview"
+                    :name="row.fileName"
+                    :url="row.fileUrl"
+                    empty-text="未上传附件"
+                    size="sm"
+                  />
+                  <div class="attach-actions">
+                    <el-upload
+                      :show-file-list="false"
+                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp"
+                      :before-upload="(f) => onFilePick(f, row, 'fileName', 'fileUrl')"
+                    >
+                      <el-button size="small" :icon="UploadFilled">
+                        {{ row.fileName ? '更换' : '上传' }}
+                      </el-button>
+                    </el-upload>
+                    <el-button
+                      v-if="row.fileName"
+                      size="small"
+                      link
+                      type="danger"
+                      @click="clearFile(row, 'fileName', 'fileUrl')"
+                    >
+                      清除
+                    </el-button>
+                  </div>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="80" align="center">
+              <template #default="{ $index }">
+                <el-button
+                  link
+                  type="danger"
+                  :disabled="formModel.qualifications.length <= 1"
+                  @click="removeQualification($index)"
+                >
+                  删除
+                </el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+
+        <div class="section-title">安全许可证</div>
         <el-row :gutter="16">
           <el-col :span="12">
-            <el-form-item label="分包单位名称" required>
-              <el-input v-model="formModel.name" placeholder="单位全称" />
+            <el-form-item label="许可证编号" required>
+              <el-input v-model="formModel.safetyLicense.licenseNo" placeholder="请输入许可证编号" aria-label="请输入许可证编号"/>
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="单位简称">
-              <el-input v-model="formModel.shortName" placeholder="可选" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-
-        <div class="section-title">安全生产许可</div>
-
-        <el-row :gutter="16">
-          <el-col :span="8">
-            <el-form-item label="单位安全生产许可证编号">
-              <el-input v-model="formModel.safetyLicenseNo" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="安全生产许可证有效期">
+            <el-form-item label="有效期" required>
               <el-date-picker
-                v-model="formModel.safetyLicenseExpiry"
+                v-model="formModel.safetyLicense.expiry"
                 type="date"
                 value-format="YYYY-MM-DD"
-                style="width: 100%"
-              />
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="安全生产许可证照片">
-              <el-input v-model="formModel.safetyLicensePhoto" placeholder="附件名称" />
+                placeholder="选择有效期"
+                style="width: 100%" aria-label="选择有效期"/>
             </el-form-item>
           </el-col>
         </el-row>
+        <el-form-item label="许可证照片">
+          <div class="photo-upload-panel">
+            <ProfileImageUpload
+              :model-value="formModel.safetyLicense.photoUrl"
+              side-actions
+              hint="支持 jpg / png，建议上传清晰证件照片"
+              @update:model-value="onSafetyPhotoChange"
+            />
+          </div>
+        </el-form-item>
 
-        <div class="section-title">现场管理人员</div>
-
+        <div class="section-title">劳务合同</div>
         <el-row :gutter="16">
-          <el-col :span="8">
-            <el-form-item label="项目负责人姓名及电话">
-              <el-input v-model="formModel.projectManagerContact" placeholder="姓名 / 电话" />
+          <el-col :span="12">
+            <el-form-item label="合同编号" required>
+              <el-input v-model="formModel.laborContract.contractNo" placeholder="请输入合同编号" aria-label="请输入合同编号"/>
             </el-form-item>
           </el-col>
-          <el-col :span="8">
-            <el-form-item label="安全管理人员姓名及电话">
-              <el-input v-model="formModel.safetyManagerContact" placeholder="姓名 / 电话" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="安全管理人员姓名及电话">
-              <el-input v-model="formModel.safetyManagerContact2" placeholder="姓名 / 电话" />
+          <el-col :span="12">
+            <el-form-item label="金额">
+              <el-input v-model="formModel.laborContract.amount" placeholder="如 2800" aria-label="如 2800">
+                <template #append>万元</template>
+              </el-input>
             </el-form-item>
           </el-col>
         </el-row>
-
-        <div
-          v-for="idx in 3"
-          :key="`qual-${idx}`"
-          class="qual-block"
-        >
-          <div class="section-title">资质证书 {{ idx }}</div>
-          <el-row :gutter="16">
-            <el-col :span="8">
-              <el-form-item label="资质证书">
-                <el-input v-model="formModel.qualifications[idx - 1].name" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="8">
-              <el-form-item label="证书编号">
-                <el-input v-model="formModel.qualifications[idx - 1].certNo" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="8">
-              <el-form-item label="资质证书照片">
-                <el-input v-model="formModel.qualifications[idx - 1].photo" placeholder="附件名称" />
-              </el-form-item>
-            </el-col>
-          </el-row>
-        </div>
+        <el-form-item label="合同附件">
+          <div
+            class="file-drop-card"
+            :class="{ 'has-file': formModel.laborContract.fileName }"
+          >
+            <div class="file-drop-main">
+              <FileAttachmentPreview
+                :name="formModel.laborContract.fileName"
+                :url="formModel.laborContract.fileUrl"
+                empty-text="点击上传劳务合同附件"
+                size="md"
+              />
+              <div v-if="!formModel.laborContract.fileName" class="file-drop-sub">
+                支持 PDF / Word / 图片
+              </div>
+            </div>
+            <div class="file-drop-actions">
+              <el-upload
+                :show-file-list="false"
+                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp"
+                :before-upload="(f) => onFilePick(f, formModel.laborContract, 'fileName', 'fileUrl')"
+              >
+                <el-button size="small" type="primary" plain>
+                  {{ formModel.laborContract.fileName ? '更换附件' : '选择文件' }}
+                </el-button>
+              </el-upload>
+              <el-button
+                v-if="formModel.laborContract.fileName"
+                size="small"
+                :icon="Delete"
+                @click="clearFile(formModel.laborContract, 'fileName', 'fileUrl')"
+              >
+                移除
+              </el-button>
+            </div>
+          </div>
+        </el-form-item>
       </el-form>
 
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button class="ap-btn-primary" type="primary" @click="handleSave">保存</el-button>
+        <el-button @click="closeDialog">取消</el-button>
+        <el-button class="ap-btn-primary" type="primary" @click="handleSubmit">
+          {{ formMode === 'resubmit' ? '重新提交' : '提交审批' }}
+        </el-button>
       </template>
     </el-dialog>
   </div>
@@ -406,8 +652,38 @@ async function handleDelete(row) {
   margin-bottom: 14px;
 }
 
+.register-form :deep(.el-form-item__label) {
+  line-height: 1.35;
+  white-space: normal;
+  height: auto;
+  align-items: flex-start;
+  justify-content: flex-end;
+  text-align: right;
+  padding-top: 6px;
+}
+
+.register-form :deep(.el-form-item__content) {
+  min-width: 0;
+}
+
+.label-multiline {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  line-height: 1.25;
+  text-align: right;
+}
+
+.contact-form-item :deep(.el-form-item__label) {
+  padding-top: 8px;
+}
+
 .section-title {
-  margin: 8px 0 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 12px 0 14px;
   padding-left: 10px;
   font-size: 15px;
   font-weight: 600;
@@ -415,7 +691,111 @@ async function handleDelete(row) {
   border-left: 3px solid var(--ap-primary);
 }
 
-.qual-block + .qual-block {
-  margin-top: 4px;
+.dual-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+}
+
+.dual-fields :deep(.el-input) {
+  min-width: 0;
+}
+
+.safety-manual-list {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+}
+
+.safety-row {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  width: 100%;
+}
+
+.qual-table-wrap {
+  margin-bottom: 8px;
+  border: 1px solid var(--ap-border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.qual-edit-table :deep(.el-input__wrapper) {
+  box-shadow: none;
+  background: transparent;
+}
+
+.attach-inline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  flex-wrap: nowrap;
+}
+
+.attach-preview {
+  min-width: 0;
+  flex: 1;
+}
+
+.attach-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.photo-upload-panel {
+  display: flex;
+  align-items: center;
+}
+
+.file-drop-card {
+  width: 100%;
+  border: 1px dashed #c5d4e2;
+  border-radius: 8px;
+  background: #f8fbfd;
+  padding: 12px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.file-drop-card.has-file {
+  border-style: solid;
+  border-color: #b7c9da;
+  background: #fff;
+}
+
+.file-drop-main {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.file-drop-sub {
+  font-size: 12px;
+  color: var(--ap-text-muted);
+}
+
+.file-drop-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 </style>

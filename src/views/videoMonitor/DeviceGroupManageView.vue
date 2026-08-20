@@ -259,8 +259,7 @@ onUnmounted(() => {
           placeholder="关键字搜索"
           clearable
           :prefix-icon="Search"
-          class="aside-search"
-        />
+          class="aside-search" aria-label="关键字搜索"/>
         <div class="project-tip">{{ headerProjectLabel }}</div>
         <div class="group-list">
           <button
@@ -287,11 +286,11 @@ onUnmounted(() => {
         <div class="filter-bar">
           <div class="filter-item">
             <span class="filter-label">关键词检索</span>
-            <el-input v-model="filters.keyword" placeholder="请输入关键词" clearable style="width: 200px" />
+            <el-input v-model="filters.keyword" placeholder="请输入关键词" clearable style="width: 200px" aria-label="请输入关键词"/>
           </div>
           <div class="filter-item">
             <span class="filter-label">设备类型</span>
-            <el-select v-model="filters.deviceType" clearable placeholder="请选择设备类型" style="width: 160px">
+            <el-select v-model="filters.deviceType" clearable placeholder="请选择设备类型" style="width: 160px" aria-label="请选择设备类型">
               <el-option
                 v-for="opt in DEVICE_TYPE_OPTIONS"
                 :key="opt.value"

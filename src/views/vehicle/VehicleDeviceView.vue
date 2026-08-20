@@ -154,12 +154,11 @@ async function handleDelete(row) {
             placeholder="设备名称 / 编号 / 位置 / 绑定车牌"
             clearable
             :prefix-icon="Search"
-            class="search-input"
-          />
-          <el-select v-model="filters.device_type" placeholder="设备类型" clearable style="width: 150px">
+            class="search-input" aria-label="设备名称 / 编号 / 位置 / 绑定车牌"/>
+          <el-select v-model="filters.device_type" placeholder="设备类型" clearable style="width: 150px" aria-label="设备类型">
             <el-option v-for="opt in vehicleDeviceTypeOptions" :key="opt" :label="opt" :value="opt" />
           </el-select>
-          <el-select v-model="filters.online" placeholder="在线状态" clearable style="width: 110px">
+          <el-select v-model="filters.online" placeholder="在线状态" clearable style="width: 110px" aria-label="在线状态">
             <el-option label="在线" value="online" />
             <el-option label="离线" value="offline" />
           </el-select>
@@ -214,7 +213,7 @@ async function handleDelete(row) {
           <el-input v-model="formData.location" />
         </el-form-item>
         <el-form-item label="绑定车牌">
-          <el-input v-model="formData.bind_plate_no" placeholder="选填" />
+          <el-input v-model="formData.bind_plate_no" placeholder="选填" aria-label="选填"/>
         </el-form-item>
         <el-form-item label="在线状态">
           <el-switch v-model="formData.online" active-text="在线" inactive-text="离线" />

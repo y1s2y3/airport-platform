@@ -126,8 +126,7 @@ function goView(row) {
           clearable
           size="small"
           placeholder="筛选节点"
-          class="tree-filter"
-        />
+          class="tree-filter" aria-label="筛选节点"/>
         <el-tree
           ref="treeRef"
           :data="treeData"
@@ -172,9 +171,8 @@ function goView(row) {
               clearable
               placeholder="文档名称"
               style="width: 180px"
-              :prefix-icon="Search"
-            />
-            <el-select v-model="statusFilter" clearable placeholder="填报状态" style="width: 130px">
+              :prefix-icon="Search" aria-label="文档名称"/>
+            <el-select v-model="statusFilter" clearable placeholder="填报状态" style="width: 130px" aria-label="填报状态">
               <el-option label="需填报" value="todo" />
               <el-option label="已填报" value="filled" />
             </el-select>

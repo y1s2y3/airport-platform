@@ -63,11 +63,10 @@ function openDetail(row) {
           class="filter-input"
           placeholder="请输入服务名称"
           clearable
-          @keyup.enter="handleSearch"
-        />
+          @keyup.enter="handleSearch" aria-label="请输入服务名称"/>
 
         <span class="field-label">日志级别</span>
-        <el-select v-model="levelFilter" placeholder="日志级别" clearable class="filter-select">
+        <el-select v-model="levelFilter" placeholder="日志级别" clearable class="filter-select" aria-label="日志级别">
           <el-option
             v-for="opt in levelOptions"
             :key="opt.value || 'all'"
@@ -84,8 +83,7 @@ function openDetail(row) {
           start-placeholder="开始时间"
           end-placeholder="结束时间"
           value-format="YYYY-MM-DD HH:mm:ss"
-          class="filter-date"
-        />
+          class="filter-date" aria-label="开始时间"/>
 
         <div class="filter-actions">
           <el-button type="primary" class="ap-btn-primary" @click="handleSearch">搜索</el-button>

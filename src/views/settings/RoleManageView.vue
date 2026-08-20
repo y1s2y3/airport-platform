@@ -96,10 +96,9 @@ function handleToggleStatus(row) {
           class="filter-input"
           placeholder="请输入"
           clearable
-          @keyup.enter="handleSearch"
-        />
+          @keyup.enter="handleSearch" aria-label="请输入"/>
         <span class="field-label">角色级别</span>
-        <el-select v-model="levelFilter" placeholder="请选择" clearable class="filter-select">
+        <el-select v-model="levelFilter" placeholder="请选择" clearable class="filter-select" aria-label="请选择">
           <el-option
             v-for="opt in visibleLevelOptions"
             :key="opt.value"
@@ -108,7 +107,7 @@ function handleToggleStatus(row) {
           />
         </el-select>
         <span class="field-label">角色状态</span>
-        <el-select v-model="statusFilter" placeholder="请选择" clearable class="filter-select">
+        <el-select v-model="statusFilter" placeholder="请选择" clearable class="filter-select" aria-label="请选择">
           <el-option
             v-for="opt in roleStatusOptions.filter((o) => o.value)"
             :key="opt.value"

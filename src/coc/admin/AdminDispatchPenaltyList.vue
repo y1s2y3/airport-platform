@@ -236,14 +236,14 @@ onMounted(load)
     <div class="panel-title simple-title">
       <span>{{ title }}</span>
       <div class="title-actions">
-        <el-select v-model="statusFilter" placeholder="状态" clearable style="width: 120px">
+        <el-select v-model="statusFilter" placeholder="状态" clearable style="width: 120px" aria-label="状态">
           <el-option label="待下发" :value="PENALTY_STATUSES.PENDING" />
           <el-option label="处理中" :value="PENALTY_STATUSES.PROCESSING" />
           <el-option label="待验收" :value="PENALTY_STATUSES.PENDING_ACCEPTANCE" />
           <el-option label="申诉中" :value="PENALTY_STATUSES.APPEALING" />
           <el-option label="已关闭" :value="PENALTY_STATUSES.CLOSED" />
         </el-select>
-        <el-input v-model="keyword" placeholder="搜索编号、项目、处罚内容…" clearable class="search-input" />
+        <el-input v-model="keyword" placeholder="搜索编号、项目、处罚内容…" clearable class="search-input" aria-label="搜索编号、项目、处罚内容…"/>
         <el-button type="primary" :icon="Plus" @click="openCreate">新增</el-button>
       </div>
     </div>
@@ -338,8 +338,7 @@ onMounted(load)
             allow-create
             default-first-option
             placeholder="选择或输入项目名称"
-            style="width: 100%"
-          >
+            style="width: 100%" aria-label="选择或输入项目名称">
             <el-option v-for="item in projectOptions" :key="item" :label="item" :value="item" />
           </el-select>
         </el-form-item>
@@ -353,8 +352,7 @@ onMounted(load)
             v-model="form.penaltyContent"
             type="textarea"
             :rows="4"
-            placeholder="请描述处罚内容，将作为处罚单正文"
-          />
+            placeholder="请描述处罚内容，将作为处罚单正文" aria-label="请描述处罚内容，将作为处罚单正文"/>
         </el-form-item>
         <el-form-item label="指派人" required>
           <el-select
@@ -363,8 +361,7 @@ onMounted(load)
             allow-create
             default-first-option
             placeholder="选择或输入指派人"
-            style="width: 100%"
-          >
+            style="width: 100%" aria-label="选择或输入指派人">
             <el-option
               v-for="item in assigneeOptions"
               :key="item.value"

@@ -142,7 +142,7 @@ function handleReset() { filterForm.keyword = ''; filterForm.alertType = '' }
     <div class="page-layout">
       <aside v-if="isHqSelected" class="tree-panel">
         <div class="panel-title">项目列表</div>
-        <el-input v-model="treeSearch" placeholder="搜索项目..." clearable size="small" style="margin-bottom:8px" :prefix-icon="Search" />
+        <el-input v-model="treeSearch" placeholder="搜索项目..." clearable size="small" style="margin-bottom:8px" :prefix-icon="Search" aria-label="搜索项目..."/>
         <el-tree :data="treeDataWithCount" node-key="id" highlight-current default-expand-all :current-node-key="localProjectId || 'hq'" :expand-on-click-node="false" class="project-tree" @node-click="handleTreeNodeClick" />
       </aside>
       <div class="page-panel">
@@ -152,10 +152,10 @@ function handleReset() { filterForm.keyword = ''; filterForm.alertType = '' }
       
     </div>
     <div class="filter-bar">
-      <el-select v-model="filterForm.alertType" placeholder="告警类型" clearable style="width:130px">
+      <el-select v-model="filterForm.alertType" placeholder="告警类型" clearable style="width:130px" aria-label="告警类型">
         <el-option v-for="t in alertTypeOptions" :key="t" :label="t" :value="t" />
       </el-select>
-      <el-input v-model="filterForm.keyword" placeholder="搜索设备名称..." clearable style="width:220px" :prefix-icon="Search" />
+      <el-input v-model="filterForm.keyword" placeholder="搜索设备名称..." clearable style="width:220px" :prefix-icon="Search" aria-label="搜索设备名称..."/>
       <el-button @click="handleReset">重置</el-button>
       <el-button v-if="!isHqSelected" @click="openAdd" style="background:#8F0045;border-color:#8F0045;color:#fff">新增告警配置</el-button>
     </div>
@@ -184,15 +184,15 @@ function handleReset() { filterForm.keyword = ''; filterForm.alertType = '' }
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="500px" :close-on-click-modal="false">
       <el-form :model="editForm" label-width="90px">
         <el-form-item label="告警类型" required>
-          <el-select v-model="editForm.alertType" placeholder="请选择告警类型" style="width:100%">
+          <el-select v-model="editForm.alertType" placeholder="请选择告警类型" style="width:100%" aria-label="请选择告警类型">
             <el-option v-for="t in alertTypeOptions" :key="t" :label="t" :value="t" />
           </el-select>
         </el-form-item>
         <el-form-item label="设备名称" required>
-          <el-input v-model="editForm.deviceName" placeholder="请输入设备名称" />
+          <el-input v-model="editForm.deviceName" placeholder="请输入设备名称" aria-label="请输入设备名称"/>
         </el-form-item>
         <el-form-item label="处理人">
-          <el-select v-model="editForm.handler" placeholder="请选择处理人" style="width:100%">
+          <el-select v-model="editForm.handler" placeholder="请选择处理人" style="width:100%" aria-label="请选择处理人">
             <el-option label="王工" value="王工" />
             <el-option label="李工" value="李工" />
             <el-option label="张工" value="张工" />

@@ -96,13 +96,12 @@ function handleReset() {
             placeholder="预警编号 / 车牌 / 类型 / 关联信息"
             clearable
             :prefix-icon="Search"
-            class="search-input"
-          />
-          <el-select v-model="filters.source" placeholder="来源" clearable style="width: 120px">
+            class="search-input" aria-label="预警编号 / 车牌 / 类型 / 关联信息"/>
+          <el-select v-model="filters.source" placeholder="来源" clearable style="width: 120px" aria-label="来源">
             <el-option label="车辆监管" value="车辆监管" />
             <el-option label="轨迹监管" value="轨迹监管" />
           </el-select>
-          <el-select v-model="filters.status" placeholder="状态" clearable style="width: 110px">
+          <el-select v-model="filters.status" placeholder="状态" clearable style="width: 110px" aria-label="状态">
             <el-option v-for="opt in vehicleWarningStatusOptions" :key="opt" :label="opt" :value="opt" />
           </el-select>
           <el-button class="ap-btn-primary" type="primary" :icon="Search">查询</el-button>

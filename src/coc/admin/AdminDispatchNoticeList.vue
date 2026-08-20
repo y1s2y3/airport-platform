@@ -174,13 +174,13 @@ onMounted(load)
     <div class="panel-title simple-title">
       <span>{{ title }}</span>
       <div class="title-actions">
-        <el-select v-model="statusFilter" placeholder="状态" clearable style="width: 120px">
+        <el-select v-model="statusFilter" placeholder="状态" clearable style="width: 120px" aria-label="状态">
           <el-option label="待下发" :value="NOTICE_STATUSES.PENDING" />
           <el-option label="已下发" :value="NOTICE_STATUSES.ISSUED" />
           <el-option label="已接收" :value="NOTICE_STATUSES.RECEIVED" />
           <el-option label="已作废" :value="NOTICE_STATUSES.VOID" />
         </el-select>
-        <el-input v-model="keyword" placeholder="搜索项目名称、工作要求、执行人…" clearable class="search-input" />
+        <el-input v-model="keyword" placeholder="搜索项目名称、工作要求、执行人…" clearable class="search-input" aria-label="搜索项目名称、工作要求、执行人…"/>
         <el-button type="primary" :icon="Plus" @click="openCreate">新增</el-button>
       </div>
     </div>
@@ -247,8 +247,7 @@ onMounted(load)
             allow-create
             default-first-option
             placeholder="选择或输入项目名称"
-            style="width: 100%"
-          >
+            style="width: 100%" aria-label="选择或输入项目名称">
             <el-option v-for="item in projectOptions" :key="item" :label="item" :value="item" />
           </el-select>
         </el-form-item>
@@ -262,11 +261,10 @@ onMounted(load)
             v-model="form.workRequirement"
             type="textarea"
             :rows="4"
-            placeholder="请描述工作要求，将作为任务单正文"
-          />
+            placeholder="请描述工作要求，将作为任务单正文" aria-label="请描述工作要求，将作为任务单正文"/>
         </el-form-item>
         <el-form-item label="工作来源" required>
-          <el-select v-model="form.workSource" placeholder="选择工作来源" style="width: 100%">
+          <el-select v-model="form.workSource" placeholder="选择工作来源" style="width: 100%" aria-label="选择工作来源">
             <el-option v-for="item in TASK_WORK_SOURCES" :key="item" :label="item" :value="item" />
           </el-select>
         </el-form-item>
@@ -277,8 +275,7 @@ onMounted(load)
             allow-create
             default-first-option
             placeholder="选择执行人"
-            style="width: 100%"
-          >
+            style="width: 100%" aria-label="选择执行人">
             <el-option
               v-for="item in executorOptions"
               :key="item.value"
@@ -291,7 +288,7 @@ onMounted(load)
           <el-date-picker v-model="form.deadline" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
         </el-form-item>
         <el-form-item label="备注">
-          <el-input v-model="form.remark" type="textarea" :rows="2" placeholder="选填" />
+          <el-input v-model="form.remark" type="textarea" :rows="2" placeholder="选填" aria-label="选填"/>
         </el-form-item>
         <el-form-item label="附件">
           <DispatchImageAttachments v-model="form.attachments" />

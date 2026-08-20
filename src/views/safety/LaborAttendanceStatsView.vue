@@ -104,15 +104,13 @@ function formatRate(n) {
         value-format="YYYY-MM-DD"
         placeholder="统计日期"
         :clearable="false"
-        style="width: 160px"
-      />
+        style="width: 160px" aria-label="统计日期"/>
       <el-input
         v-model="hqKeyword"
         clearable
         placeholder="项目名称"
         style="width: 220px"
-        :prefix-icon="Search"
-      />
+        :prefix-icon="Search" aria-label="项目名称"/>
       <el-button type="primary" :icon="Search" @click="handleHqSearch">查询</el-button>
       <el-button :icon="Refresh" @click="resetHq">重置</el-button>
     </div>
@@ -156,14 +154,13 @@ function formatRate(n) {
         </div>
 
         <div class="filter-bar">
-          <el-input v-model="personFilters.name" placeholder="姓名" clearable style="width: 120px" />
+          <el-input v-model="personFilters.name" placeholder="姓名" clearable style="width: 120px" aria-label="姓名"/>
           <el-input
             v-model="personFilters.unit_name"
             placeholder="施工单位"
             clearable
-            style="width: 140px"
-          />
-          <el-select v-model="personFilters.work_type" placeholder="工种" clearable style="width: 110px">
+            style="width: 140px" aria-label="施工单位"/>
+          <el-select v-model="personFilters.work_type" placeholder="工种" clearable style="width: 110px" aria-label="工种">
             <el-option v-for="t in workTypes" :key="t" :label="t" :value="t" />
           </el-select>
           <el-button class="ap-btn-primary" type="primary" :icon="Search" @click="handlePersonSearch">查询</el-button>

@@ -48,8 +48,8 @@ function handleRemove(idx) {
     </div>
 
     <div class="toolbar">
-      <el-input v-model="newTypeName" placeholder="输入类型名称" clearable style="width: 220px" />
-      <el-select v-model="newTypeAttr" placeholder="机械属性" style="width: 140px">
+      <el-input v-model="newTypeName" placeholder="输入类型名称" clearable style="width: 220px" aria-label="输入类型名称"/>
+      <el-select v-model="newTypeAttr" placeholder="机械属性" style="width: 140px" aria-label="机械属性">
         <el-option v-for="a in machineAttrOptions" :key="a" :label="a" :value="a" />
       </el-select>
       <el-button type="primary" @click="handleAdd">添加</el-button>

@@ -152,7 +152,7 @@ function onRemoveItem(id) {
       <p class="page-tip">维护验收单模板及其检查项；启用后方可被检验批类型/验评节点引用</p>
     </div>
     <div class="filter-bar">
-      <el-input v-model="keyword" clearable placeholder="编码/名称" style="width: 220px" :prefix-icon="Search" />
+      <el-input v-model="keyword" clearable placeholder="编码/名称" style="width: 220px" :prefix-icon="Search" aria-label="编码/名称"/>
       <el-button type="primary" :icon="Plus" @click="openCreate">新建模板</el-button>
     </div>
     <el-table

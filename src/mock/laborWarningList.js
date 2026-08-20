@@ -443,6 +443,32 @@ const warningList = [
       { time: '2026-06-30 09:00:00', type: 'trigger', operator: '系统', content: '触发未进行入场三级教育预警' },
     ],
   }),
+  buildWarning({
+    id: 'w-018',
+    rule_key: 'absentDays',
+    project_id: 'p-000',
+    personnel_id: 'rn-p-000-0008',
+    personnel_no: 'RN-P-000-0008',
+    name: '马超',
+    unit_name: '深圳市政集团有限公司',
+    work_type: '普工',
+    status: '已关闭',
+    current_level: 1,
+    triggered_at: '2026-06-20 00:00:00',
+    closed_at: '2026-06-22 15:40:00',
+    trigger_reason: '在岗人员连续 3 天（2026-06-18 至 2026-06-20）无考勤记录。',
+    disposal_records: [
+      { time: '2026-06-20 00:00:00', type: 'trigger', operator: '系统', content: '触发连续3天未出勤预警' },
+      {
+        time: '2026-06-22 15:40:00',
+        type: 'close',
+        operator: '张明',
+        disposal_result: '已处置',
+        content: '已核实为请假未及时报备，参建单位已补交请假证明并督促规范考勤。',
+        attachments: ['请假证明.pdf', '考勤补录说明.docx'],
+      },
+    ],
+  }),
 ]
 
 export function getProjectWarnings(project_id) {
@@ -475,7 +501,7 @@ function isNotifyStatus(status) {
   return status === '未读' || status === '已读'
 }
 
-export function handleWarning(id, { content, operator = '当前用户', close = false, attachments = [] }) {
+export function handleWarning(id, { content, operator = '当前用户', close = false, attachments = [], disposal_result } = {}) {
   const item = warningList.find((row) => row.id === id)
   if (!item) return null
   if (item.status === '已关闭' || isNotifyStatus(item.status)) return item
@@ -488,6 +514,7 @@ export function handleWarning(id, { content, operator = '当前用户', close = 
     operator,
     content,
   }
+  if (disposal_result) record.disposal_result = disposal_result
   if (attachments.length) {
     record.attachments = attachments.map((file) => (typeof file === 'string' ? file : file.name))
   }
@@ -507,7 +534,7 @@ export function handleWarning(id, { content, operator = '当前用户', close = 
  */
 export function batchDisposeWarnings(
   ids,
-  { content, operator = '当前用户', attachments = [] } = {},
+  { content, operator = '当前用户', attachments = [], disposal_result } = {},
 ) {
   const idSet = new Set((ids || []).map(String))
   const now = new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-')
@@ -525,6 +552,7 @@ export function batchDisposeWarnings(
       operator,
       content: content || '批量处置并关闭',
     }
+    if (disposal_result) record.disposal_result = disposal_result
     if (attachNames.length) record.attachments = attachNames
     item.disposal_records.push(record)
     item.status = '已关闭'

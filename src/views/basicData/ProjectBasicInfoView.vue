@@ -1,106 +1,67 @@
 <script setup>
 import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
 import {
   projectList,
-  createEmptyProject,
-  createProjectFields,
-  deriveShortName,
   formatConstructionPeriod,
+  displayProjectManagerName,
 } from '../../mock/projectBasicInfo'
-import { mergeSafetyProfile } from '../../mock/projectSafetyProfile'
-import ProjectSafetyProfileForm from '../../components/basicData/ProjectSafetyProfileForm.vue'
+import { useCurrentProject } from '../../composables/useCurrentProject'
+
+const router = useRouter()
+const { isHqSelected, laborProjectId, headerProjectLabel } = useCurrentProject()
 
 const filters = ref({
   projectName: '',
 })
 
-const dialogVisible = ref(false)
-const formMode = ref('create')
-const formModel = ref(null)
+const pageTag = computed(() => (isHqSelected.value ? '指挥部台账' : '项目填报'))
 
 const filteredList = computed(() => {
   return projectList.filter((row) => {
+    if (!isHqSelected.value) {
+      if (!laborProjectId.value || row.id !== laborProjectId.value) return false
+    }
     if (!filters.value.projectName) return true
     const kw = filters.value.projectName.trim()
     return row.projectName.includes(kw) || row.shortName.includes(kw)
   })
 })
 
-const dialogTitle = computed(() => {
-  if (formMode.value === 'create') return '新增项目基础信息'
-  if (formMode.value === 'view') {
-    return formModel.value?.projectName
-      ? `查看项目画像 · ${formModel.value.projectName}`
-      : '查看项目画像'
-  }
-  return formModel.value?.projectName ? `编辑 · ${formModel.value.projectName}` : '编辑项目基础信息'
+const tableSummary = computed(() => {
+  if (isHqSelected.value) return `全部项目 · 共 ${filteredList.value.length} 个`
+  return `${headerProjectLabel.value} · 共 ${filteredList.value.length} 条`
 })
+
+const emptyText = computed(() =>
+  isHqSelected.value
+    ? '暂无项目基础信息，可点击「新增」维护'
+    : '当前项目暂无基础信息，可点击「新增」维护',
+)
 
 function handleReset() {
   filters.value = { projectName: '' }
 }
 
-function cloneProject(row) {
-  return {
-    ...row,
-    ...createProjectFields(row),
-    safetyProfile: mergeSafetyProfile(row.safetyProfile),
-  }
-}
-
 function openCreate() {
-  formMode.value = 'create'
-  formModel.value = createEmptyProject()
-  dialogVisible.value = true
+  router.push({ name: 'ProjectCreate' })
 }
 
 function openEdit(row) {
-  const source = projectList.find((item) => item.id === row.id)
-  if (!source) return
-  formMode.value = 'edit'
-  formModel.value = cloneProject(source)
-  dialogVisible.value = true
+  router.push({
+    name: 'ProjectPortrait',
+    params: { id: row.id },
+    query: { mode: 'edit' },
+  })
 }
 
 function openViewPortrait(row) {
-  const source = projectList.find((item) => item.id === row.id)
-  if (!source) return
-  formMode.value = 'view'
-  formModel.value = cloneProject(source)
-  dialogVisible.value = true
+  router.push({ name: 'ProjectPortrait', params: { id: row.id } })
 }
 
 function formatPeriod(row) {
   return formatConstructionPeriod(row) || '—'
-}
-
-function handleSave() {
-  const data = formModel.value
-  if (!data?.projectName?.trim()) {
-    ElMessage.warning('请填写项目名称')
-    return
-  }
-
-  data.projectName = data.projectName.trim()
-  data.shortName = deriveShortName(data.projectName)
-
-  if (formMode.value === 'create') {
-    projectList.unshift({ ...data })
-    ElMessage.success('新增成功')
-  } else {
-    const index = projectList.findIndex((item) => item.id === data.id)
-    if (index === -1) {
-      ElMessage.error('未找到要编辑的项目')
-      return
-    }
-    Object.assign(projectList[index], data)
-    ElMessage.success('保存成功')
-  }
-
-  dialogVisible.value = false
-  formModel.value = null
 }
 </script>
 
@@ -111,9 +72,11 @@ function handleSave() {
       <div class="page-heading">
         <div class="title-block">
           <h1 class="page-title">项目基础信息</h1>
-          <span class="level-tag">项目填报</span>
+          <span class="level-tag">{{ pageTag }}</span>
         </div>
-        <el-button class="ap-btn-primary" type="primary" :icon="Plus" @click="openCreate">新增</el-button>
+        <el-button class="ap-btn-primary" type="primary" :icon="Plus" @click="openCreate">
+          新增
+        </el-button>
       </div>
     </div>
 
@@ -121,7 +84,11 @@ function handleSave() {
       <div class="filter-row">
         <div class="filter-item">
           <label>项目名称</label>
-          <el-input v-model="filters.projectName" placeholder="项目名称/简称" clearable style="width: 240px" />
+          <el-input
+            v-model="filters.projectName"
+            placeholder="项目名称/简称"
+            clearable
+            style="width: 240px" aria-label="项目名称/简称"/>
         </div>
         <div class="filter-actions">
           <el-button class="ap-btn-primary" type="primary" :icon="Search">查询</el-button>
@@ -131,12 +98,18 @@ function handleSave() {
     </div>
 
     <div class="table-section">
-      <div class="table-summary">共 {{ filteredList.length }} 个项目</div>
-      <el-table :data="filteredList" border stripe class="ap-table project-info-table">
+      <div class="table-summary">{{ tableSummary }}</div>
+      <el-table
+        :data="filteredList"
+        border
+        stripe
+        class="ap-table project-info-table"
+        :empty-text="emptyText"
+      >
         <el-table-column type="index" label="#" width="52" align="center" />
         <el-table-column prop="projectName" label="项目名称" min-width="280" show-overflow-tooltip />
         <el-table-column prop="shortName" label="项目简称" width="140" show-overflow-tooltip />
-        <el-table-column prop="projectCode" label="项目编号" min-width="150" show-overflow-tooltip>
+        <el-table-column prop="projectCode" label="项目编码" min-width="150" show-overflow-tooltip>
           <template #default="{ row }">
             {{ row.projectCode || '—' }}
           </template>
@@ -147,9 +120,9 @@ function handleSave() {
             {{ formatPeriod(row) }}
           </template>
         </el-table-column>
-        <el-table-column prop="personInCharge" label="负责人" width="100" align="center" show-overflow-tooltip>
+        <el-table-column label="项目经理" width="110" align="center" show-overflow-tooltip>
           <template #default="{ row }">
-            {{ row.personInCharge || '—' }}
+            {{ displayProjectManagerName(row) || '—' }}
           </template>
         </el-table-column>
         <el-table-column label="是否隐藏" width="96" align="center">
@@ -165,33 +138,6 @@ function handleSave() {
         </el-table-column>
       </el-table>
     </div>
-
-    <el-dialog
-      v-model="dialogVisible"
-      :title="dialogTitle"
-      width="1200px"
-      top="3vh"
-      destroy-on-close
-      class="project-detail-dialog"
-    >
-      <div class="dialog-scroll-body">
-        <ProjectSafetyProfileForm
-          v-if="formModel"
-          :model="formModel"
-          :readonly="formMode === 'view'"
-        />
-      </div>
-
-      <template #footer>
-        <template v-if="formMode === 'view'">
-          <el-button class="ap-btn-primary" type="primary" @click="dialogVisible = false">关闭</el-button>
-        </template>
-        <template v-else>
-          <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button class="ap-btn-primary" type="primary" @click="handleSave">保存</el-button>
-        </template>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
@@ -282,14 +228,5 @@ function handleSave() {
   margin-bottom: 12px;
   font-size: 13px;
   color: var(--ap-text-secondary);
-}
-
-.dialog-scroll-body {
-  max-height: calc(92vh - 140px);
-  overflow: auto;
-}
-
-.project-detail-dialog :deep(.el-dialog__body) {
-  padding-top: 8px;
 }
 </style>

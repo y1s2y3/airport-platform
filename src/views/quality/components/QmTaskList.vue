@@ -357,9 +357,8 @@ onMounted(() => {
         clearable
         :placeholder="specialMode ? '验收单号/项目/类型/部位' : '验收单号/项目/部位'"
         style="width: 240px"
-        :prefix-icon="Search"
-      />
-      <el-select v-model="statusFilter" clearable placeholder="验收状态" style="width: 140px">
+        :prefix-icon="Search" aria-label="specialMode ? '验收单号/项目/类型/部位' : '验收单号/项目/部位'"/>
+      <el-select v-model="statusFilter" clearable placeholder="验收状态" style="width: 140px" aria-label="验收状态">
         <el-option
           v-for="opt in TASK_STATUS_FILTER_OPTIONS"
           :key="opt.value"
@@ -457,7 +456,7 @@ onMounted(() => {
     <el-dialog v-model="createVisible" :title="dialogTitle" width="520px" destroy-on-close>
       <el-form label-width="130px">
         <el-form-item label="验收任务名称" required>
-          <el-input v-model="createForm.task_name" maxlength="80" placeholder="请输入" />
+          <el-input v-model="createForm.task_name" maxlength="80" placeholder="请输入" aria-label="请输入"/>
         </el-form-item>
         <el-form-item label="验收节点" required>
           <el-tree-select

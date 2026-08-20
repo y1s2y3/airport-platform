@@ -454,8 +454,7 @@ function submitApproval() {
               :rows="4"
               placeholder="请填写审批意见"
               maxlength="500"
-              show-word-limit
-            />
+              show-word-limit aria-label="请填写审批意见"/>
           </el-form-item>
           <el-form-item label="附件">
             <el-upload

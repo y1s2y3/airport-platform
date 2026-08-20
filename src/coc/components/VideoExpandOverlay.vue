@@ -203,8 +203,7 @@ watch(
                   placeholder="选择日期"
                   size="small"
                   :clearable="false"
-                  class="scrub-date-picker"
-                />
+                  class="scrub-date-picker" aria-label="选择日期"/>
               </div>
               <div class="scrub-track-wrap">
                 <div class="scrub-head-inline">

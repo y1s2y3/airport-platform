@@ -546,8 +546,7 @@ watch(
                     default-first-option
                     :popper-class="MARK_POPPER_CLASS"
                     placeholder="选择或输入项目名称"
-                    style="width: 100%"
-                  >
+                    style="width: 100%" aria-label="选择或输入项目名称">
                     <el-option v-for="item in projectOptions" :key="item" :label="item" :value="item" />
                   </el-select>
                 </el-form-item>
@@ -561,8 +560,7 @@ watch(
                     v-model="form.workRequirement"
                     type="textarea"
                     :rows="4"
-                    placeholder="请描述工作要求，将作为任务单正文"
-                  />
+                    placeholder="请描述工作要求，将作为任务单正文" aria-label="请描述工作要求，将作为任务单正文"/>
                 </el-form-item>
                 <el-form-item label="执行人" required>
                   <el-select
@@ -572,8 +570,7 @@ watch(
                     default-first-option
                     :popper-class="MARK_POPPER_CLASS"
                     placeholder="选择或输入执行人"
-                    style="width: 100%"
-                  >
+                    style="width: 100%" aria-label="选择或输入执行人">
                     <el-option
                       v-for="item in executorOptions"
                       :key="item.value"
@@ -589,11 +586,10 @@ watch(
                     value-format="YYYY-MM-DD"
                     :popper-class="MARK_POPPER_CLASS"
                     placeholder="选择完成时限"
-                    style="width: 100%"
-                  />
+                    style="width: 100%" aria-label="选择完成时限"/>
                 </el-form-item>
                 <el-form-item label="备注">
-                  <el-input v-model="form.remark" type="textarea" :rows="2" placeholder="选填" />
+                  <el-input v-model="form.remark" type="textarea" :rows="2" placeholder="选填" aria-label="选填"/>
                 </el-form-item>
               </template>
 
@@ -606,8 +602,7 @@ watch(
                     default-first-option
                     :popper-class="MARK_POPPER_CLASS"
                     placeholder="选择或输入项目名称"
-                    style="width: 100%"
-                  >
+                    style="width: 100%" aria-label="选择或输入项目名称">
                     <el-option v-for="item in projectOptions" :key="item" :label="item" :value="item" />
                   </el-select>
                 </el-form-item>
@@ -616,8 +611,7 @@ watch(
                     v-model="form.matterDescription"
                     type="textarea"
                     :rows="4"
-                    placeholder="请描述提示事项，将作为提示函正文"
-                  />
+                    placeholder="请描述提示事项，将作为提示函正文" aria-label="请描述提示事项，将作为提示函正文"/>
                 </el-form-item>
                 <el-form-item label="指派人" required>
                   <el-select
@@ -627,8 +621,7 @@ watch(
                     default-first-option
                     :popper-class="MARK_POPPER_CLASS"
                     placeholder="默认：项目经理"
-                    style="width: 100%"
-                  >
+                    style="width: 100%" aria-label="默认：项目经理">
                     <el-option
                       v-for="item in executorOptions"
                       :key="item.value"
@@ -644,8 +637,7 @@ watch(
                     value-format="YYYY-MM-DD"
                     :popper-class="MARK_POPPER_CLASS"
                     placeholder="选择完成时限"
-                    style="width: 100%"
-                  />
+                    style="width: 100%" aria-label="选择完成时限"/>
                 </el-form-item>
               </template>
 
@@ -658,8 +650,7 @@ watch(
                     default-first-option
                     :popper-class="MARK_POPPER_CLASS"
                     placeholder="选择或输入项目名称"
-                    style="width: 100%"
-                  >
+                    style="width: 100%" aria-label="选择或输入项目名称">
                     <el-option v-for="item in projectOptions" :key="item" :label="item" :value="item" />
                   </el-select>
                 </el-form-item>
@@ -673,8 +664,7 @@ watch(
                     v-model="form.penaltyContent"
                     type="textarea"
                     :rows="4"
-                    placeholder="请描述处罚内容，将作为处罚单正文"
-                  />
+                    placeholder="请描述处罚内容，将作为处罚单正文" aria-label="请描述处罚内容，将作为处罚单正文"/>
                 </el-form-item>
                 <el-form-item label="指派人" required>
                   <el-select
@@ -684,8 +674,7 @@ watch(
                     default-first-option
                     :popper-class="MARK_POPPER_CLASS"
                     placeholder="选择或输入指派人"
-                    style="width: 100%"
-                  >
+                    style="width: 100%" aria-label="选择或输入指派人">
                     <el-option
                       v-for="item in executorOptions"
                       :key="item.value"
@@ -701,8 +690,7 @@ watch(
                     value-format="YYYY-MM-DD"
                     :popper-class="MARK_POPPER_CLASS"
                     placeholder="选择完成时限"
-                    style="width: 100%"
-                  />
+                    style="width: 100%" aria-label="选择完成时限"/>
                 </el-form-item>
               </template>
 
@@ -712,8 +700,7 @@ watch(
                     v-model="form.description"
                     type="textarea"
                     :rows="4"
-                    :placeholder="form.docType === 'safety' ? '请描述发现的安全隐患' : '请描述发现的质量隐患'"
-                  />
+                    :placeholder="form.docType === 'safety' ? '请描述发现的安全隐患' : '请描述发现的质量隐患'" aria-label="form.docType === 'safety' ? '请描述发现的安全隐患' : '请描述发现的质量隐患'"/>
                 </el-form-item>
                 <el-form-item label="等级" required>
                   <el-radio-group v-model="form.hazardLevel">
@@ -725,8 +712,7 @@ watch(
                     v-model="form.rectifier"
                     :popper-class="MARK_POPPER_CLASS"
                     placeholder="选择整改人"
-                    style="width: 100%"
-                  >
+                    style="width: 100%" aria-label="选择整改人">
                     <el-option v-for="name in HAZARD_REPORTERS" :key="name" :label="name" :value="name" />
                   </el-select>
                 </el-form-item>
@@ -737,8 +723,7 @@ watch(
                     value-format="YYYY-MM-DD"
                     :popper-class="MARK_POPPER_CLASS"
                     placeholder="选择整改期限"
-                    style="width: 100%"
-                  />
+                    style="width: 100%" aria-label="选择整改期限"/>
                 </el-form-item>
               </template>
             </el-form>

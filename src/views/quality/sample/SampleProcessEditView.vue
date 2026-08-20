@@ -171,7 +171,7 @@ function onSubmit() {
 
     <el-form label-width="140px" class="create-form">
       <el-form-item label="工序名称" required>
-        <el-input v-model="form.process_name" placeholder="如：清水混凝土柱样板" maxlength="80" />
+        <el-input v-model="form.process_name" placeholder="如：清水混凝土柱样板" maxlength="80" aria-label="如：清水混凝土柱样板"/>
       </el-form-item>
       <el-form-item label="施工部位" required>
         <ConstructionLocationSelect
@@ -188,8 +188,7 @@ function onSubmit() {
           v-model="form.briefing_content"
           type="textarea"
           :rows="4"
-          placeholder="样板说明要点（通过后可在详情与台账查看）"
-        />
+          placeholder="样板说明要点（通过后可在详情与台账查看）" aria-label="样板说明要点（通过后可在详情与台账查看）"/>
       </el-form-item>
       <el-form-item label="现场影像资料">
         <SampleMediaAttachments v-model="mediaList" name-prefix="现场影像" />
@@ -213,7 +212,7 @@ function onSubmit() {
         </div>
       </el-form-item>
       <el-form-item label="备注">
-        <el-input v-model="form.remark" placeholder="选填" />
+        <el-input v-model="form.remark" placeholder="选填" aria-label="选填"/>
       </el-form-item>
       <div class="form-actions">
         <el-button @click="router.back()">取消</el-button>

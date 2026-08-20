@@ -180,8 +180,7 @@ onMounted(load)
           v-model="selectedPeriod"
           placeholder="选择期数"
           style="width: 168px"
-          filterable
-        >
+          filterable aria-label="选择期数">
           <el-option
             v-for="item in periodOptions"
             :key="item"
@@ -189,7 +188,7 @@ onMounted(load)
             :value="item"
           />
         </el-select>
-        <el-input v-model="keyword" placeholder="搜索项目、说明…" clearable class="search-input" />
+        <el-input v-model="keyword" placeholder="搜索项目、说明…" clearable class="search-input" aria-label="搜索项目、说明…"/>
         <el-button type="primary" :icon="Plus" @click="openCreate">新增</el-button>
       </div>
     </div>
@@ -262,8 +261,7 @@ onMounted(load)
             default-first-option
             placeholder="选择或输入项目简称"
             style="width: 100%"
-            @change="onProjectPick"
-          >
+            @change="onProjectPick" aria-label="选择或输入项目简称">
             <el-option
               v-for="item in projectOptions"
               :key="item.id"
@@ -273,15 +271,14 @@ onMounted(load)
           </el-select>
         </el-form-item>
         <el-form-item label="项目全称">
-          <el-input v-model="form.fullName" placeholder="选填，可自动带出" />
+          <el-input v-model="form.fullName" placeholder="选填，可自动带出" aria-label="选填，可自动带出"/>
         </el-form-item>
         <el-form-item label="榜单说明" required>
           <el-input
             v-model="form.description"
             type="textarea"
             :rows="4"
-            placeholder="填写上榜原因或典型做法说明"
-          />
+            placeholder="填写上榜原因或典型做法说明" aria-label="填写上榜原因或典型做法说明"/>
         </el-form-item>
         <el-form-item label="榜单图片" required>
           <div class="image-upload">

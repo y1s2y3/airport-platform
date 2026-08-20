@@ -74,8 +74,7 @@ onMounted(load)
         v-model="keyword"
         placeholder="搜索会议名称、主持人、参会人…"
         clearable
-        class="search-input"
-      />
+        class="search-input" aria-label="搜索会议名称、主持人、参会人…"/>
     </div>
     <div class="panel-body page-body">
       <p class="page-desc">{{ description }}</p>

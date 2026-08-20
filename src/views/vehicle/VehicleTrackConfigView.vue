@@ -118,10 +118,10 @@ function handleSave() {
               <el-switch v-model="form.enabled" />
             </el-form-item>
             <el-form-item label="系统名称">
-              <el-input v-model="form.system_name" placeholder="如：车辆 GPS 定位平台" />
+              <el-input v-model="form.system_name" placeholder="如：车辆 GPS 定位平台" aria-label="如：车辆 GPS 定位平台"/>
             </el-form-item>
             <el-form-item label="跳转 URL">
-              <el-input v-model="form.url" placeholder="https://" />
+              <el-input v-model="form.url" placeholder="https://" aria-label="https://"/>
             </el-form-item>
           </el-form>
         </section>

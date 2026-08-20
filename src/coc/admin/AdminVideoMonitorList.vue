@@ -138,8 +138,7 @@ onUnmounted(() => {
           placeholder="搜索名称、位置、类型"
           clearable
           :prefix-icon="Search"
-          class="search-input"
-        />
+          class="search-input" aria-label="搜索名称、位置、类型"/>
         <el-button :icon="Refresh" @click="handleReset">重置</el-button>
       </div>
     </div>
@@ -192,10 +191,10 @@ onUnmounted(() => {
           <el-input v-model="form.id" readonly />
         </el-form-item>
         <el-form-item label="名称" required>
-          <el-input v-model="form.name" placeholder="摄像头名称" />
+          <el-input v-model="form.name" placeholder="摄像头名称" aria-label="摄像头名称"/>
         </el-form-item>
         <el-form-item label="位置" required>
-          <el-input v-model="form.location" placeholder="安装位置" />
+          <el-input v-model="form.location" placeholder="安装位置" aria-label="安装位置"/>
         </el-form-item>
         <el-form-item label="类型">
           <el-radio-group v-model="form.type">

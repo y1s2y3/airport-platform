@@ -273,8 +273,7 @@ function openFill() {
           clearable
           placeholder="工程名称"
           style="width: 180px"
-          :prefix-icon="Search"
-        />
+          :prefix-icon="Search" aria-label="工程名称"/>
         <el-button size="small" @click="openPartConfig">分部分项配置</el-button>
         <el-button size="small" :icon="Refresh" @click="onRefresh">刷新</el-button>
         <el-button size="small" type="primary" @click="onLoadAll">加载全部节点</el-button>

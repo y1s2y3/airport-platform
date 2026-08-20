@@ -173,8 +173,7 @@ onUnmounted(() => {
         v-model="cameraKeyword"
         placeholder="搜索分组内摄像头…"
         clearable
-        class="search-input"
-      >
+        class="search-input" aria-label="搜索分组内摄像头…">
         <template #prefix><el-icon><Search /></el-icon></template>
       </el-input>
     </div>
@@ -187,8 +186,7 @@ onUnmounted(() => {
           placeholder="搜索项目"
           clearable
           size="small"
-          class="sidebar-search"
-        />
+          class="sidebar-search" aria-label="搜索项目"/>
         <div class="project-scroll">
           <div
             v-for="project in filteredProjects"

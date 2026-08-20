@@ -53,11 +53,11 @@ function goTaskDetail(row) {
       </el-button>
     </div>
     <div class="filter-bar">
-      <el-select v-model="filterForm.category" placeholder="巡检分类" clearable style="width: 110px">
+      <el-select v-model="filterForm.category" placeholder="巡检分类" clearable style="width: 110px" aria-label="巡检分类">
         <el-option label="安全" value="安全" />
         <el-option label="质量" value="质量" />
       </el-select>
-      <el-input v-model="filterForm.keyword" placeholder="搜索任务名称..." clearable style="width: 240px" />
+      <el-input v-model="filterForm.keyword" placeholder="搜索任务名称..." clearable style="width: 240px" aria-label="搜索任务名称..."/>
     </div>
     <div class="table-wrap">
       <el-table :data="filteredPlans" border stripe class="ap-table" style="width: 100%">

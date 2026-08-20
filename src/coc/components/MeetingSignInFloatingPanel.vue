@@ -109,8 +109,7 @@ defineExpose({ togglePanel, panelExpanded })
           placeholder="请选择项目"
           size="default"
           filterable
-          @update:model-value="handleScopeSelect"
-        >
+          @update:model-value="handleScopeSelect" aria-label="请选择项目">
           <el-option
             v-for="opt in projectOptions"
             :key="opt.value"

@@ -364,8 +364,7 @@ function handleSetDataPermFromInfo() {
           class="tree-search"
           placeholder="关键字搜索"
           clearable
-          :prefix-icon="Search"
-        />
+          :prefix-icon="Search" aria-label="关键字搜索"/>
         <el-tree
           :data="filteredTree"
           node-key="id"
@@ -411,8 +410,7 @@ function handleSetDataPermFromInfo() {
                   placeholder="姓名、账号、手机号"
                   clearable
                   class="member-search"
-                  @keyup.enter="memberPage = 1"
-                />
+                  @keyup.enter="memberPage = 1" aria-label="姓名、账号、手机号"/>
                 <el-checkbox v-model="showSubordinates">展示下级人员</el-checkbox>
               </div>
               <el-button type="danger" plain @click="handleRemoveMembers()">移除人员</el-button>
@@ -466,7 +464,7 @@ function handleSetDataPermFromInfo() {
             <div class="tab-toolbar">
               <div class="toolbar-left">
                 <span class="field-label">岗位名称</span>
-                <el-input v-model="positionKeyword" placeholder="请输入" clearable class="member-search" />
+                <el-input v-model="positionKeyword" placeholder="请输入" clearable class="member-search" aria-label="请输入"/>
               </div>
             </div>
 
@@ -534,8 +532,7 @@ function handleSetDataPermFromInfo() {
                 v-model="orgForm.parentId"
                 placeholder="选择组织"
                 style="width: 100%"
-                :disabled="orgDialogMode === 'edit'"
-              >
+                :disabled="orgDialogMode === 'edit'" aria-label="选择组织">
                 <el-option
                   v-for="opt in parentOrgOptions"
                   :key="opt.value || 'root'"
@@ -547,24 +544,24 @@ function handleSetDataPermFromInfo() {
           </el-col>
           <el-col :span="12">
             <el-form-item label="组织级别" prop="orgLevel">
-              <el-select v-model="orgForm.orgLevel" placeholder="请选择组织级别" style="width: 100%">
+              <el-select v-model="orgForm.orgLevel" placeholder="请选择组织级别" style="width: 100%" aria-label="请选择组织级别">
                 <el-option v-for="item in ORG_LEVEL_OPTIONS" :key="item" :label="item" :value="item" />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="组织名称" prop="label">
-              <el-input v-model="orgForm.label" placeholder="请输入组织名称" maxlength="50" />
+              <el-input v-model="orgForm.label" placeholder="请输入组织名称" maxlength="50" aria-label="请输入组织名称"/>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="组织简称">
-              <el-input v-model="orgForm.shortName" placeholder="请输入组织简称" maxlength="20" />
+              <el-input v-model="orgForm.shortName" placeholder="请输入组织简称" maxlength="20" aria-label="请输入组织简称"/>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="组织编码" prop="orgCode">
-              <el-input v-model="orgForm.orgCode" placeholder="请输入组织编码" maxlength="32" />
+              <el-input v-model="orgForm.orgCode" placeholder="请输入组织编码" maxlength="32" aria-label="请输入组织编码"/>
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -633,8 +630,7 @@ function handleSetDataPermFromInfo() {
               collapse-tags
               collapse-tags-tooltip
               placeholder="请选择项目"
-              style="width: 100%; margin-top: 12px"
-            >
+              style="width: 100%; margin-top: 12px" aria-label="请选择项目">
               <el-option
                 v-for="project in projectSelectOptions"
                 :key="project.id"

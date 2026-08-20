@@ -1,4 +1,6 @@
 import { projectTree } from './laborRealName.js'
+import { maskIdCard } from '../utils/mask.js'
+import { appendOperationLog } from './systemLogs.js'
 import {
   REALNAME_ENTRY_STATUS,
   ATTENDANCE_ENTRY_STATUS,
@@ -23,10 +25,6 @@ const detailTemplates = [
   { name: '马超', work_type: '普工', team: '杂工班', unit_name: '中铁建工', roster_entry_status: REALNAME_ENTRY_STATUS.EXITED },
   { name: '黄丽', work_type: '钢筋工', team: '钢筋二班', unit_name: '深圳市政' },
 ]
-
-function maskIdCard(id) {
-  return `${id.slice(0, 6)}********${id.slice(-4)}`
-}
 
 function buildPunchRecord(project_id, project_name, index, tpl, date) {
   const seq = index + 1
@@ -135,4 +133,92 @@ export function getProjectLabel(project_id) {
     if (node) return node.label.replace(/\(\d+\)$/, '')
   }
   return ''
+}
+
+function isValidPunchTime(value) {
+  return Boolean(value) && value !== '—'
+}
+
+/** 从列表日汇总行展开进出场流水（首尾与列表 clock_in/out、闸机一致） */
+function expandRowToAccessEvents(row) {
+  const events = []
+  const photo = (row.name || '').slice(0, 1) || '—'
+  const gateIn = isValidPunchTime(row.gate_in) ? row.gate_in : GATES[0]
+  const gateOut = isValidPunchTime(row.gate_out) ? row.gate_out : gateIn
+
+  const push = (direction, record_time, gate_name, suffix) => {
+    if (!isValidPunchTime(record_time)) return
+    events.push({
+      id: `${row.id}-${suffix}`,
+      name: row.name,
+      direction,
+      record_time,
+      gate_name,
+      photo,
+      date: row.date,
+    })
+  }
+
+  // 列表「进场时间 / 进场闸机」→ 首条进场
+  push('进场', row.clock_in, gateIn, 'in-0')
+
+  // 有进场时补午间出场+再进场，演示一人一日多条；时间夹在首进与末出之间
+  if (isValidPunchTime(row.clock_in)) {
+    const seed = [...`${row.name}|${row.id_card_raw}|${row.date}`].reduce(
+      (acc, ch) => acc + ch.charCodeAt(0),
+      0,
+    )
+    if (seed % 2 === 0) {
+      push('出场', `${row.date} 12:05:${String(10 + (seed % 40)).padStart(2, '0')}`, gateOut, 'out-mid')
+      push('进场', `${row.date} 13:10:${String(20 + (seed % 30)).padStart(2, '0')}`, gateIn, 'in-mid')
+    }
+  }
+
+  // 列表「出场时间 / 出场闸机」→ 末条出场
+  push('出场', row.clock_out, gateOut, 'out-0')
+
+  return events.sort((a, b) => String(a.record_time).localeCompare(String(b.record_time)))
+}
+
+function findOrBuildDayRow({ project_id, name, id_card_raw, date }) {
+  const cached = (attendanceDetailByProject[project_id] || []).find(
+    (row) =>
+      row.date === date &&
+      ((id_card_raw && row.id_card_raw === id_card_raw) || row.name === name),
+  )
+  if (cached) return cached
+
+  const project_name = getProjectLabel(project_id)
+  const tplIndex = detailTemplates.findIndex((item) => item.name === name)
+  const tpl =
+    tplIndex >= 0
+      ? detailTemplates[tplIndex]
+      : { name, work_type: '普工', team: '综合班组', unit_name: '—' }
+  const index = tplIndex >= 0 ? tplIndex : 0
+  return buildPunchRecord(project_id, project_name, index, tpl, date)
+}
+
+/**
+ * 人员某日进出场刷卡流水（与考勤明细日汇总同源；一人一日可有多条进/出场）
+ * @returns {{ id, name, direction, record_time, gate_name, photo, date }[]}
+ */
+export function getPersonAccessEvents({
+  project_id = '',
+  name = '',
+  id_card_raw = '',
+  date = TODAY,
+} = {}) {
+  if (!name || !date) return []
+  const row = findOrBuildDayRow({ project_id, name, id_card_raw, date })
+  return expandRowToAccessEvents(row)
+}
+
+/** 查看考勤明细证件号码并写入操作日志 */
+export function logAttendanceIdCardView({ id, name, id_card_raw }) {
+  appendOperationLog({
+    module: '人员实名制管理',
+    type: '查询',
+    content: `查看考勤明细证件号码：${name || '—'}（${id_card_raw || id || '—'}）`,
+    requestUrl: `/api/labor/attendance/${id}/id-card/view`,
+  })
 }

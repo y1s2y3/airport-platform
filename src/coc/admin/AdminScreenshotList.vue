@@ -115,8 +115,7 @@ onMounted(load)
         v-model="keyword"
         placeholder="搜索项目、摄像头、工作要求、问题描述…"
         clearable
-        class="search-input"
-      />
+        class="search-input" aria-label="搜索项目、摄像头、工作要求、问题描述…"/>
     </div>
     <div class="panel-body page-body">
       <p class="page-desc">保存视频监控中提交的问题截图及关联字段，数据来自前台截屏登记。</p>

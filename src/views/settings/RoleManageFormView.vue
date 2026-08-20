@@ -146,13 +146,12 @@ async function handleSubmit() {
                 v-model="form.name"
                 placeholder="请输入"
                 maxlength="50"
-                show-word-limit
-              />
+                show-word-limit aria-label="请输入"/>
             </el-form-item>
           </el-col>
           <el-col :span="8">
             <el-form-item label="角色级别" prop="level" required>
-              <el-select v-model="form.level" placeholder="请选择" style="width: 100%">
+              <el-select v-model="form.level" placeholder="请选择" style="width: 100%" aria-label="请选择">
                 <el-option
                   v-for="opt in levelOptions"
                   :key="opt.value"
@@ -189,8 +188,7 @@ async function handleSubmit() {
                 :rows="2"
                 placeholder="请输入"
                 maxlength="200"
-                show-word-limit
-              />
+                show-word-limit aria-label="请输入"/>
             </el-form-item>
           </el-col>
         </el-row>

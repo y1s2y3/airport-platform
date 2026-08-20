@@ -150,11 +150,11 @@ async function handleDelete(row) {
         </div>
 
         <div class="filter-bar">
-          <el-input v-model="keyword" placeholder="设备名称/编号/位置" clearable style="width: 200px" />
-          <el-select v-model="filters.deviceType" placeholder="设备类型" clearable style="width: 140px">
+          <el-input v-model="keyword" placeholder="设备名称/编号/位置" clearable style="width: 200px" aria-label="设备名称/编号/位置"/>
+          <el-select v-model="filters.deviceType" placeholder="设备类型" clearable style="width: 140px" aria-label="设备类型">
             <el-option v-for="opt in laborDeviceTypeOptions" :key="opt" :label="opt" :value="opt" />
           </el-select>
-          <el-select v-model="filters.online" placeholder="在线状态" clearable style="width: 120px">
+          <el-select v-model="filters.online" placeholder="在线状态" clearable style="width: 120px" aria-label="在线状态">
             <el-option label="在线" value="online" />
             <el-option label="离线" value="offline" />
           </el-select>
@@ -190,21 +190,21 @@ async function handleDelete(row) {
     <el-dialog v-model="formVisible" :title="editingId ? '编辑设备' : '新增设备'" width="520px" destroy-on-close>
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="110px">
         <el-form-item label="设备名称" prop="name">
-          <el-input v-model="formData.name" placeholder="请输入设备名称" />
+          <el-input v-model="formData.name" placeholder="请输入设备名称" aria-label="请输入设备名称"/>
         </el-form-item>
         <el-form-item label="设备类型" prop="deviceType">
-          <el-select v-model="formData.deviceType" placeholder="请选择" style="width: 100%">
+          <el-select v-model="formData.deviceType" placeholder="请选择" style="width: 100%" aria-label="请选择">
             <el-option v-for="opt in laborDeviceTypeOptions" :key="opt" :label="opt" :value="opt" />
           </el-select>
         </el-form-item>
         <el-form-item label="设备编号" prop="deviceNo">
-          <el-input v-model="formData.deviceNo" placeholder="请输入设备编号" />
+          <el-input v-model="formData.deviceNo" placeholder="请输入设备编号" aria-label="请输入设备编号"/>
         </el-form-item>
         <el-form-item label="安装位置" prop="location">
-          <el-input v-model="formData.location" placeholder="请输入安装位置" />
+          <el-input v-model="formData.location" placeholder="请输入安装位置" aria-label="请输入安装位置"/>
         </el-form-item>
         <el-form-item label="绑定人员编号">
-          <el-input v-model="formData.bindPersonnel" placeholder="GPS 设备可绑定人员编号，考勤机可留空" />
+          <el-input v-model="formData.bindPersonnel" placeholder="GPS 设备可绑定人员编号，考勤机可留空" aria-label="GPS 设备可绑定人员编号，考勤机可留空"/>
         </el-form-item>
         <el-form-item label="在线状态">
           <el-switch v-model="formData.online" inline-prompt active-text="在线" inactive-text="离线" />

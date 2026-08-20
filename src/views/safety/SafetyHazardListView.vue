@@ -142,7 +142,7 @@ function goBackToHQ() {
           <div class="stat-card"><div class="sc-value text-danger">{{ hqTotalStats.overdueCount }}</div><div class="sc-label">逾期隐患</div></div>
         </div>
         <div class="hq-filter-bar">
-          <el-input v-model="hqProjectKeyword" placeholder="搜索项目名称..." clearable style="width:240px" :prefix-icon="Search" />
+          <el-input v-model="hqProjectKeyword" placeholder="搜索项目名称..." clearable style="width:240px" :prefix-icon="Search" aria-label="搜索项目名称..."/>
         </div>
         <el-table :data="filteredHQProjects" border stripe style="width:100%;margin-top:12px" class="hq-table">
           <el-table-column type="index" label="序号" width="55" align="center" />
@@ -167,14 +167,14 @@ function goBackToHQ() {
       </div>
       <div class="page-panel">
         <div class="filter-bar">
-          <el-input v-model="filterForm.keyword" placeholder="搜索整改单编号/巡检任务单编号..." clearable style="width:280px" :prefix-icon="Search" />
-          <el-select v-model="filterForm.category" placeholder="巡检分类" clearable style="width:100px">
+          <el-input v-model="filterForm.keyword" placeholder="搜索整改单编号/巡检任务单编号..." clearable style="width:280px" :prefix-icon="Search" aria-label="搜索整改单编号/巡检任务单编号..."/>
+          <el-select v-model="filterForm.category" placeholder="巡检分类" clearable style="width:100px" aria-label="巡检分类">
             <el-option label="安全" value="安全" /><el-option label="质量" value="质量" />
           </el-select>
-          <el-select v-model="filterForm.status" placeholder="整改状态" clearable style="width:110px">
+          <el-select v-model="filterForm.status" placeholder="整改状态" clearable style="width:110px" aria-label="整改状态">
             <el-option label="待整改" value="待整改" /><el-option label="待复查" value="待复查" /><el-option label="已复查" value="已复查" /><el-option label="已关闭" value="已关闭" />
           </el-select>
-          <el-select v-model="filterForm.overdue" placeholder="是否逾期" clearable style="width:100px">
+          <el-select v-model="filterForm.overdue" placeholder="是否逾期" clearable style="width:100px" aria-label="是否逾期">
             <el-option label="是" value="是" /><el-option label="否" value="否" />
           </el-select>
           <el-button @click="handleReset">重置</el-button>

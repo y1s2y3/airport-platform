@@ -225,7 +225,7 @@ onUnmounted(() => {
     <div class="filter-bar">
       <div class="filter-item">
         <span class="filter-label">接入类型</span>
-        <el-select v-model="filters.accessType" clearable placeholder="请选择接入类型" style="width: 180px">
+        <el-select v-model="filters.accessType" clearable placeholder="请选择接入类型" style="width: 180px" aria-label="请选择接入类型">
           <el-option
             v-for="opt in ACCESS_TYPE_OPTIONS"
             :key="opt.value"
@@ -240,12 +240,11 @@ onUnmounted(() => {
           v-model="filters.keyword"
           clearable
           placeholder="请输入"
-          style="width: 200px"
-        />
+          style="width: 200px" aria-label="请输入"/>
       </div>
       <div class="filter-item">
         <span class="filter-label">设备类型</span>
-        <el-select v-model="filters.deviceType" clearable placeholder="请选择设备类型" style="width: 160px">
+        <el-select v-model="filters.deviceType" clearable placeholder="请选择设备类型" style="width: 160px" aria-label="请选择设备类型">
           <el-option
             v-for="opt in DEVICE_TYPE_OPTIONS"
             :key="opt.value"
@@ -309,7 +308,7 @@ onUnmounted(() => {
         <div class="form-section">
           <div class="section-title">接入类型</div>
           <el-form-item label="接入类型" required>
-            <el-select v-model="form.accessType" placeholder="请选择" style="width: 100%">
+            <el-select v-model="form.accessType" placeholder="请选择" style="width: 100%" aria-label="请选择">
               <el-option
                 v-for="opt in ACCESS_TYPE_OPTIONS"
                 :key="opt.value"
@@ -324,13 +323,13 @@ onUnmounted(() => {
           <div class="section-title">设备信息</div>
           <div class="form-grid">
             <el-form-item label="设备ID" required>
-              <el-input v-model="form.deviceId" placeholder="请输入" />
+              <el-input v-model="form.deviceId" placeholder="请输入" aria-label="请输入"/>
             </el-form-item>
             <el-form-item label="通道ID" required>
-              <el-input v-model="form.channelId" placeholder="请输入" />
+              <el-input v-model="form.channelId" placeholder="请输入" aria-label="请输入"/>
             </el-form-item>
             <el-form-item label="设备类型" required>
-              <el-select v-model="form.deviceType" placeholder="请选择" style="width: 100%">
+              <el-select v-model="form.deviceType" placeholder="请选择" style="width: 100%" aria-label="请选择">
                 <el-option
                   v-for="opt in DEVICE_TYPE_OPTIONS"
                   :key="opt.value"
@@ -340,12 +339,12 @@ onUnmounted(() => {
               </el-select>
             </el-form-item>
             <el-form-item label="父级设备" required>
-              <el-select v-model="form.parentDevice" placeholder="请选择" filterable style="width: 100%">
+              <el-select v-model="form.parentDevice" placeholder="请选择" filterable style="width: 100%" aria-label="请选择">
                 <el-option v-for="name in parentDeviceOptions" :key="name" :label="name" :value="name" />
               </el-select>
             </el-form-item>
             <el-form-item label="设备名称" required class="span-2">
-              <el-input v-model="form.deviceName" placeholder="请输入 (不可重复)" />
+              <el-input v-model="form.deviceName" placeholder="请输入 (不可重复)" aria-label="请输入 (不可重复)"/>
             </el-form-item>
           </div>
         </div>
@@ -360,7 +359,7 @@ onUnmounted(() => {
               </el-radio-group>
             </el-form-item>
             <el-form-item label="业务状态" required>
-              <el-select v-model="form.businessStatus" placeholder="请选择" style="width: 100%">
+              <el-select v-model="form.businessStatus" placeholder="请选择" style="width: 100%" aria-label="请选择">
                 <el-option
                   v-for="opt in BUSINESS_STATUS_OPTIONS"
                   :key="opt.value"
@@ -370,10 +369,10 @@ onUnmounted(() => {
               </el-select>
             </el-form-item>
             <el-form-item label="厂商">
-              <el-input v-model="form.vendor" placeholder="请输入" />
+              <el-input v-model="form.vendor" placeholder="请输入" aria-label="请输入"/>
             </el-form-item>
             <el-form-item label="区域">
-              <el-select v-model="form.area" clearable placeholder="请选择" style="width: 100%">
+              <el-select v-model="form.area" clearable placeholder="请选择" style="width: 100%" aria-label="请选择">
                 <el-option
                   v-for="opt in AREA_OPTIONS"
                   :key="opt.value"
@@ -383,7 +382,7 @@ onUnmounted(() => {
               </el-select>
             </el-form-item>
             <el-form-item label="用途">
-              <el-select v-model="form.usage" clearable placeholder="请选择" style="width: 100%">
+              <el-select v-model="form.usage" clearable placeholder="请选择" style="width: 100%" aria-label="请选择">
                 <el-option
                   v-for="opt in USAGE_OPTIONS"
                   :key="opt.value"
@@ -393,7 +392,7 @@ onUnmounted(() => {
               </el-select>
             </el-form-item>
             <el-form-item label="备注" class="span-2">
-              <el-input v-model="form.remark" type="textarea" :rows="3" placeholder="请输入" />
+              <el-input v-model="form.remark" type="textarea" :rows="3" placeholder="请输入" aria-label="请输入"/>
             </el-form-item>
           </div>
         </div>

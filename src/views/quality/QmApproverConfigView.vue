@@ -161,8 +161,7 @@ function configuredCount(group) {
             collapse-tags
             collapse-tags-tooltip
             placeholder="请选择（可多选）"
-            style="width: 100%"
-          >
+            style="width: 100%" aria-label="请选择（可多选）">
             <el-option
               v-for="u in editCandidates"
               :key="u.id"

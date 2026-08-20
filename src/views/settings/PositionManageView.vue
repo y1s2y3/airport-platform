@@ -138,10 +138,9 @@ async function handleSubmit() {
           class="filter-input"
           placeholder="请输入"
           clearable
-          @keyup.enter="handleSearch"
-        />
+          @keyup.enter="handleSearch" aria-label="请输入"/>
         <span class="field-label">岗位级别</span>
-        <el-select v-model="levelFilter" placeholder="请选择" clearable class="filter-select">
+        <el-select v-model="levelFilter" placeholder="请选择" clearable class="filter-select" aria-label="请选择">
           <el-option
             v-for="opt in levelOptions"
             :key="opt.value"
@@ -208,7 +207,7 @@ async function handleSubmit() {
         <el-row :gutter="24">
           <el-col :span="12">
             <el-form-item label="岗位编码" prop="code" required>
-              <el-input v-model="form.code" placeholder="请输入" />
+              <el-input v-model="form.code" placeholder="请输入" aria-label="请输入"/>
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -217,13 +216,12 @@ async function handleSubmit() {
                 v-model="form.name"
                 placeholder="请输入"
                 maxlength="10"
-                show-word-limit
-              />
+                show-word-limit aria-label="请输入"/>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="岗位级别" prop="level" required>
-              <el-select v-model="form.level" placeholder="请选择岗位级别" style="width: 100%">
+              <el-select v-model="form.level" placeholder="请选择岗位级别" style="width: 100%" aria-label="请选择岗位级别">
                 <el-option
                   v-for="opt in levelOptions"
                   :key="opt.value"
@@ -240,8 +238,7 @@ async function handleSubmit() {
                 placeholder="请选择角色"
                 clearable
                 filterable
-                style="width: 100%"
-              >
+                style="width: 100%" aria-label="请选择角色">
                 <el-option
                   v-for="opt in roleOptions"
                   :key="opt.value"
@@ -259,8 +256,7 @@ async function handleSubmit() {
                 :rows="3"
                 placeholder="请输入"
                 maxlength="50"
-                show-word-limit
-              />
+                show-word-limit aria-label="请输入"/>
             </el-form-item>
           </el-col>
         </el-row>

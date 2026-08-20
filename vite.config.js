@@ -12,11 +12,21 @@ export default defineConfig({
     port: 5173,
     strictPort: false,
     open: true,
+    headers: {
+      'X-Content-Type-Options': 'nosniff',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+      'X-Frame-Options': 'SAMEORIGIN',
+    },
   },
   preview: {
     host: true,
     port: 4173,
     open: true,
+    headers: {
+      'X-Content-Type-Options': 'nosniff',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+      'X-Frame-Options': 'SAMEORIGIN',
+    },
   },
   build: {
     rollupOptions: {

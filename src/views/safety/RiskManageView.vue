@@ -101,13 +101,13 @@ function editRecord(row) { router.push('/safety-inspection/risk/create') }
         </div>
 
         <div class="filter-bar">
-          <el-select v-model="filterMonth" placeholder="计划月份" clearable size="small" style="width:120px">
+          <el-select v-model="filterMonth" placeholder="计划月份" clearable size="small" style="width:120px" aria-label="计划月份">
             <el-option v-for="m in monthOptions" :key="m" :label="m" :value="m" />
           </el-select>
-          <el-select v-model="filterOverdue" placeholder="是否逾期" clearable size="small" style="width:110px">
+          <el-select v-model="filterOverdue" placeholder="是否逾期" clearable size="small" style="width:110px" aria-label="是否逾期">
             <el-option label="是" value="是" /><el-option label="否" value="否" />
           </el-select>
-          <el-select v-model="filterStatus" placeholder="单据状态" clearable size="small" style="width:130px">
+          <el-select v-model="filterStatus" placeholder="单据状态" clearable size="small" style="width:130px" aria-label="单据状态">
             <el-option label="待开始" value="待开始" /><el-option label="本月管控完毕" value="本月管控完毕" /><el-option label="进行中" value="进行中" />
           </el-select>
           <el-button class="ap-btn-primary" type="primary" size="small">搜索</el-button>

@@ -364,7 +364,7 @@ void hasBlockFailItems
     <div v-if="task.status === 1" class="filter-bar mb">
       <template v-if="isManualChain">
         <span>演示审批人</span>
-        <el-select v-model="demoApproverId" style="width: 220px" placeholder="选择本级审批人">
+        <el-select v-model="demoApproverId" style="width: 220px" placeholder="选择本级审批人" aria-label="选择本级审批人">
           <el-option
             v-for="p in manualApproverOptions"
             :key="p.id"

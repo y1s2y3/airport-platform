@@ -57,9 +57,8 @@ onUnmounted(() => {
           placeholder="施工日期"
           value-format="YYYY-MM-DD"
           clearable
-          class="date-filter"
-        />
-        <el-input v-model="keyword" placeholder="搜索工程名称、项目、类别…" clearable class="search-input" />
+          class="date-filter" aria-label="施工日期"/>
+        <el-input v-model="keyword" placeholder="搜索工程名称、项目、类别…" clearable class="search-input" aria-label="搜索工程名称、项目、类别…"/>
       </div>
     </div>
     <div class="panel-body page-body">

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 材料设备进场管理 Mock — 对齐 research-mat-eq V2.0
  * 审批入口：个人中心待办（仅监理）
  */
@@ -666,6 +666,75 @@ export function searchEntryBrands(keyword = '', projectId = '', { materialType =
   return searchLedgerBrands(keyword, projectId, { materialType })
 }
 
+export const QUALITY_RESULT_OPTIONS = [
+  { value: '合格', label: '合格' },
+  { value: '不合格', label: '不合格' },
+]
+
+/** 品牌台账按「品牌 + 厂家」去重，供进场单选择；材料名称在明细内再选 */
+export function searchEntryBrandGroups(keyword = '', projectId = '', { materialType = '' } = {}) {
+  const rows = searchEntryBrands(keyword, projectId, { materialType })
+  const map = new Map()
+  for (const row of rows) {
+    const group_key = `${row.brand_name}\0${row.manufacturer}`
+    if (map.has(group_key)) continue
+    map.set(group_key, {
+      group_key,
+      ledger_id: row.ledger_id,
+      brand_name: row.brand_name,
+      manufacturer: row.manufacturer,
+      label: `${row.brand_name} · ${row.manufacturer}`,
+    })
+  }
+  return [...map.values()]
+}
+
+/** 某品牌+厂家在台账中对应的材料名称（去重） */
+export function listMaterialsForEntryBrand(
+  projectId,
+  brand_name,
+  manufacturer,
+  { materialType = 'material' } = {},
+) {
+  if (!projectId || !brand_name || !manufacturer) return []
+  const rows = searchEntryBrands('', projectId, { materialType })
+  const names = []
+  const seen = new Set()
+  for (const row of rows) {
+    if (row.brand_name !== brand_name || row.manufacturer !== manufacturer) continue
+    const n = String(row.material_name || '').trim()
+    if (!n || seen.has(n)) continue
+    seen.add(n)
+    names.push(n)
+  }
+  return names
+}
+
+export function parseBatchSeq(value, fallback = 1) {
+  if (value == null || value === '') return fallback
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    return Math.floor(value)
+  }
+  const raw = String(value).trim()
+  const labeled = raw.match(/^第\s*(\d+)\s*批$/)
+  if (labeled) return Number(labeled[1]) || fallback
+  if (/^\d+$/.test(raw)) {
+    const n = Number(raw)
+    return n > 0 ? n : fallback
+  }
+  return fallback
+}
+
+export function formatBatchNo(value) {
+  if (value == null || value === '') return '—'
+  const raw = String(value).trim()
+  const n = Number(raw)
+  if (Number.isFinite(n) && n > 0 && raw === String(n)) return `第${n}批`
+  const m = raw.match(/^第\s*(\d+)\s*批$/)
+  if (m) return `第${m[1]}批`
+  return raw
+}
+
 export function listEntries(
   projectId,
   { keyword = '', status = '', brandMatch = '', exited = '', entry_type = '' } = {},
@@ -913,6 +982,7 @@ export function buildCopyPayloadFromRejectedMat(entryId) {
       cert_file: entry.cert_file || '',
       inspect_file: entry.inspect_file || '',
       photo_file: entry.photo_file || '',
+      other_file: entry.other_file || '',
       inspect_result_checked: !!entry.inspect_result_checked,
       inspect_result_file: entry.inspect_result_file || '',
     },
@@ -953,6 +1023,7 @@ export function buildReEditPayloadFromWithdrawnMat(entryId) {
       cert_file: entry.cert_file || '',
       inspect_file: entry.inspect_file || '',
       photo_file: entry.photo_file || '',
+      other_file: entry.other_file || '',
       inspect_result_checked: !!entry.inspect_result_checked,
       inspect_result_file: entry.inspect_result_file || '',
     },
@@ -965,9 +1036,6 @@ function prepareEntryFields(payload) {
 
   const entry_type = payload.entry_type === 'equipment' ? 'equipment' : 'material'
 
-  if (!payload.cert_file) return { ok: false, msg: '请上传合格证' }
-  if (!payload.inspect_file) return { ok: false, msg: '请上传质检报告' }
-  if (!payload.photo_file) return { ok: false, msg: '请上传现场照片' }
   if (!String(payload.supplier || '').trim()) return { ok: false, msg: '请填写供应商' }
 
   const brandRes = resolveBrand(project_id, {
@@ -1003,26 +1071,133 @@ function prepareEntryFields(payload) {
     brand_name = sample.brand_name
     manufacturer = sample.manufacturer
     brand_readonly_from_sample = true
-    if (entry_type === 'material') {
-      material_name = sample.material_name
-    }
-    if (sample.use_part) use_part = sample.use_part
+    if (sample.use_part && !use_part) use_part = sample.use_part
   }
 
   if (entry_type === 'equipment') {
-    if (!equipment_name.trim()) equipment_name = material_name || brandRes.material_name
-    if (!equipment_name.trim()) return { ok: false, msg: '请填写设备名称' }
-    if (!payload.quantity || Number(payload.quantity) <= 0) {
-      return { ok: false, msg: '请填写有效数量' }
+    let line_items = Array.isArray(payload.line_items) ? payload.line_items : []
+    if (!line_items.length && payload.quantity != null) {
+      line_items = [
+        {
+          equipment_name: equipment_name || payload.equipment_name || material_name,
+          material_spec: model || payload.model || '',
+          model: model || payload.model || '',
+          quantity: payload.quantity,
+          unit: payload.unit,
+          serial_no: payload.serial_no || '',
+          purpose: payload.purpose || '',
+          use_part: use_part || payload.use_part || '',
+          location_id: location_ids[0] || payload.location_id || '',
+          location_ids,
+          waybill_no: payload.waybill_no || '',
+          batch_no: payload.batch_no || 1,
+          appearance_quality: payload.appearance_quality || '',
+          acceptance_result: payload.acceptance_result || '',
+          entry_date: payload.entry_date || '',
+          cert_file: payload.cert_file || '',
+          inspect_file: payload.inspect_file || '',
+          photo_file: payload.photo_file || '',
+          other_file: payload.other_file || '',
+          unpack_items: Array.isArray(payload.unpack_items) ? payload.unpack_items : [],
+        },
+      ]
     }
-    if (!payload.unit?.trim()) return { ok: false, msg: '请填写单位' }
+    if (!line_items.length) return { ok: false, msg: '请至少填写一组设备明细' }
 
-    const unpack_items = Array.isArray(payload.unpack_items) ? payload.unpack_items : []
-    if (!unpack_items.length) return { ok: false, msg: '请完成开箱清单' }
-    const missingFixed = UNPACK_FIXED.some(
-      (f) => !unpack_items.find((i) => i.key === f.key && i.ok !== undefined),
+    const allowedEquipments = listMaterialsForEntryBrand(project_id, brand_name, manufacturer, {
+      materialType: 'equipment',
+    })
+    const sampleEq = sample_application_id ? getApprovedSample(sample_application_id) : null
+    if (sampleEq?.material_name && !allowedEquipments.includes(sampleEq.material_name)) {
+      allowedEquipments.push(sampleEq.material_name)
+    }
+
+    const normalizedLines = []
+    for (let i = 0; i < line_items.length; i += 1) {
+      const row = line_items[i] || {}
+      const en = String(row.equipment_name || row.material_name || equipment_name || '').trim()
+      const modelSpec = String(row.model || row.material_spec || '').trim()
+      const quantity = Number(row.quantity)
+      const unit = String(row.unit || '').trim()
+      if (!en) return { ok: false, msg: `设备明细第 ${i + 1} 组请选择设备名称` }
+      if (allowedEquipments.length && !allowedEquipments.includes(en)) {
+        return { ok: false, msg: `设备明细第 ${i + 1} 组设备不在所选品牌对应范围内` }
+      }
+      if (!modelSpec) return { ok: false, msg: `设备明细第 ${i + 1} 组请填写规格型号` }
+      if (!quantity || quantity <= 0) return { ok: false, msg: `设备明细第 ${i + 1} 组请填写有效数量` }
+      if (!unit) return { ok: false, msg: `设备明细第 ${i + 1} 组请填写单位` }
+      if (!String(row.appearance_quality || '').trim()) {
+        return { ok: false, msg: `设备明细第 ${i + 1} 组请选择外观质量` }
+      }
+      if (!String(row.acceptance_result || '').trim()) {
+        return { ok: false, msg: `设备明细第 ${i + 1} 组请选择验收结论` }
+      }
+      if (!String(row.entry_date || '').trim()) {
+        return { ok: false, msg: `设备明细第 ${i + 1} 组请填写进场日期` }
+      }
+      const cert_file = String(row.cert_file || payload.cert_file || '').trim()
+      const inspect_file = String(row.inspect_file || payload.inspect_file || '').trim()
+      const photo_file = String(row.photo_file || payload.photo_file || '').trim()
+      const other_file = String(row.other_file || '').trim()
+      if (!cert_file) return { ok: false, msg: `设备明细第 ${i + 1} 组请上传合格证` }
+      if (!inspect_file) return { ok: false, msg: `设备明细第 ${i + 1} 组请上传质量证明文件` }
+      if (!photo_file) return { ok: false, msg: `设备明细第 ${i + 1} 组请上传现场照片` }
+      const unpack_items = Array.isArray(row.unpack_items) ? row.unpack_items : []
+      if (!unpack_items.length) return { ok: false, msg: `设备明细第 ${i + 1} 组请完成开箱清单` }
+      const missingFixed = UNPACK_FIXED.some(
+        (f) => !unpack_items.find((item) => item.key === f.key && item.ok !== undefined),
+      )
+      if (missingFixed) return { ok: false, msg: `设备明细第 ${i + 1} 组开箱清单须包含系统写死四项` }
+      const rowLocationIds = Array.isArray(row.location_ids)
+        ? row.location_ids.map(String).filter(Boolean)
+        : []
+      if (row.location_id && !rowLocationIds.length) rowLocationIds.push(String(row.location_id))
+      normalizedLines.push({
+        equipment_name: en,
+        material_name: en,
+        material_spec: modelSpec,
+        model: modelSpec,
+        quantity,
+        unit,
+        serial_no: String(row.serial_no || '').trim(),
+        purpose: String(row.purpose || '').trim(),
+        use_part: String(row.use_part || '').trim(),
+        location_id: rowLocationIds[0] || String(row.location_id || ''),
+        location_ids: rowLocationIds,
+        waybill_no: String(row.waybill_no || '').trim(),
+        batch_no: parseBatchSeq(row.batch_no, 1),
+        appearance_quality: String(row.appearance_quality || '').trim(),
+        acceptance_result: String(row.acceptance_result || '').trim(),
+        entry_date: String(row.entry_date || '').trim(),
+        cert_file,
+        inspect_file,
+        photo_file,
+        other_file,
+        unpack_items: unpack_items.map((item) => ({
+          key: item.key,
+          label: item.label,
+          fixed: !!item.fixed,
+          ok: !!item.ok,
+          remark: item.remark || '',
+        })),
+      })
+    }
+
+    equipment_name = normalizedLines[0].equipment_name
+    model = normalizedLines[0].model
+    const first = normalizedLines[0]
+    const sameUnit = normalizedLines.every((l) => l.unit === first.unit)
+    const totalQty = normalizedLines.reduce((sum, l) => sum + Number(l.quantity || 0), 0)
+    if (first.use_part) use_part = first.use_part
+    if (first.location_ids?.length) location_ids = [...first.location_ids]
+
+    const byEq = searchEntryBrands('', project_id, { materialType: 'equipment' }).find(
+      (b) =>
+        b.brand_name === brand_name &&
+        b.manufacturer === manufacturer &&
+        b.material_name === first.equipment_name,
     )
-    if (missingFixed) return { ok: false, msg: '开箱清单须包含系统写死四项' }
+    if (byEq) ledger_id = byEq.ledger_id
 
     return {
       ok: true,
@@ -1032,8 +1207,8 @@ function prepareEntryFields(payload) {
         sample_application_id,
         sample_id: sample_application_id,
         ledger_id,
-        equipment_name: equipment_name.trim(),
-        material_name: equipment_name.trim(),
+        equipment_name,
+        material_name: equipment_name,
         model,
         use_part,
         location_id: location_ids[0] || '',
@@ -1042,23 +1217,21 @@ function prepareEntryFields(payload) {
         manufacturer,
         brand_match: true,
         brand_readonly_from_sample,
-        quantity: Number(payload.quantity),
-        unit: payload.unit.trim(),
+        line_items: normalizedLines,
+        quantity: sameUnit ? totalQty : first.quantity,
+        unit: first.unit,
         supplier: String(payload.supplier || '').trim(),
-        serial_no: payload.serial_no || '',
-        unpack_items: unpack_items.map((i) => ({
-          key: i.key,
-          label: i.label,
-          fixed: !!i.fixed,
-          ok: !!i.ok,
-          remark: i.remark || '',
-        })),
-        cert_file: payload.cert_file,
-        inspect_file: payload.inspect_file,
-        photo_file: payload.photo_file,
+        serial_no: first.serial_no || '',
+        batch_no: first.batch_no || '',
+        waybill_no: first.waybill_no || '',
+        material_spec: first.material_spec || '',
+        unpack_items: first.unpack_items.map((item) => ({ ...item })),
+        cert_file: first.cert_file,
+        inspect_file: first.inspect_file,
+        photo_file: first.photo_file,
+        other_file: first.other_file || '',
         inspect_result_checked: !!payload.inspect_result_checked,
         inspect_result_file: payload.inspect_result_checked ? payload.inspect_result_file || '' : '',
-        line_items: undefined,
       },
     }
   }
@@ -1078,6 +1251,14 @@ function prepareEntryFields(payload) {
   }
   if (!line_items.length) return { ok: false, msg: '请至少填写一条进场明细' }
 
+  const allowedMaterials = listMaterialsForEntryBrand(project_id, brand_name, manufacturer, {
+    materialType: 'material',
+  })
+  const sample = sample_application_id ? getApprovedSample(sample_application_id) : null
+  if (sample?.material_name && !allowedMaterials.includes(sample.material_name)) {
+    allowedMaterials.push(sample.material_name)
+  }
+
   const normalizedLines = []
   for (let i = 0; i < line_items.length; i += 1) {
     const row = line_items[i] || {}
@@ -1085,17 +1266,42 @@ function prepareEntryFields(payload) {
     const material_spec = String(row.material_spec || '').trim()
     const quantity = Number(row.quantity)
     const unit = String(row.unit || '').trim()
-    if (!mn) return { ok: false, msg: `进场明细第 ${i + 1} 条材料名称不能为空` }
-    if (!material_spec) return { ok: false, msg: `进场明细第 ${i + 1} 条请填写材料规格` }
-    if (!quantity || quantity <= 0) return { ok: false, msg: `进场明细第 ${i + 1} 条请填写有效数量` }
-    if (!unit) return { ok: false, msg: `进场明细第 ${i + 1} 条请填写单位` }
+    if (!mn) return { ok: false, msg: `进场明细第 ${i + 1} 组请选择材料名称` }
+    if (allowedMaterials.length && !allowedMaterials.includes(mn)) {
+      return { ok: false, msg: `进场明细第 ${i + 1} 组材料不在所选品牌对应范围内` }
+    }
+    if (!material_spec) return { ok: false, msg: `进场明细第 ${i + 1} 组请填写规格型号` }
+    if (!quantity || quantity <= 0) return { ok: false, msg: `进场明细第 ${i + 1} 组请填写有效数量` }
+    if (!unit) return { ok: false, msg: `进场明细第 ${i + 1} 组请填写单位` }
+    const cert_file = String(row.cert_file || payload.cert_file || '').trim()
+    const inspect_file = String(row.inspect_file || payload.inspect_file || '').trim()
+    const photo_file = String(row.photo_file || payload.photo_file || '').trim()
+    const other_file = String(row.other_file || '').trim()
+    if (!cert_file) return { ok: false, msg: `进场明细第 ${i + 1} 组请上传合格证` }
+    if (!inspect_file) return { ok: false, msg: `进场明细第 ${i + 1} 组请上传质量证明文件` }
+    if (!photo_file) return { ok: false, msg: `进场明细第 ${i + 1} 组请上传现场照片` }
+    const rowLocationIds = Array.isArray(row.location_ids)
+      ? row.location_ids.map(String).filter(Boolean)
+      : []
+    if (row.location_id && !rowLocationIds.length) rowLocationIds.push(String(row.location_id))
     normalizedLines.push({
       material_name: mn,
       material_spec,
       quantity,
       unit,
+      purpose: String(row.purpose || '').trim(),
+      use_part: String(row.use_part || '').trim(),
+      location_id: rowLocationIds[0] || String(row.location_id || ''),
+      location_ids: rowLocationIds,
       waybill_no: String(row.waybill_no || '').trim(),
-      batch_no: String(row.batch_no || '').trim(),
+      batch_no: parseBatchSeq(row.batch_no, 1),
+      appearance_quality: String(row.appearance_quality || '').trim(),
+      acceptance_result: String(row.acceptance_result || '').trim(),
+      entry_date: String(row.entry_date || '').trim(),
+      cert_file,
+      inspect_file,
+      photo_file,
+      other_file,
     })
   }
 
@@ -1103,6 +1309,16 @@ function prepareEntryFields(payload) {
   const first = normalizedLines[0]
   const sameUnit = normalizedLines.every((l) => l.unit === first.unit)
   const totalQty = normalizedLines.reduce((sum, l) => sum + Number(l.quantity || 0), 0)
+  if (first.use_part) use_part = first.use_part
+  if (first.location_ids?.length) location_ids = [...first.location_ids]
+
+  const byMat = searchEntryBrands('', project_id, { materialType: 'material' }).find(
+    (b) =>
+      b.brand_name === brand_name &&
+      b.manufacturer === manufacturer &&
+      b.material_name === first.material_name,
+  )
+  if (byMat) ledger_id = byMat.ledger_id
 
   return {
     ok: true,
@@ -1131,9 +1347,10 @@ function prepareEntryFields(payload) {
       material_spec: first.material_spec || '',
       serial_no: '',
       unpack_items: undefined,
-      cert_file: payload.cert_file,
-      inspect_file: payload.inspect_file,
-      photo_file: payload.photo_file,
+      cert_file: first.cert_file,
+      inspect_file: first.inspect_file,
+      photo_file: first.photo_file,
+      other_file: first.other_file || '',
       inspect_result_checked: !!payload.inspect_result_checked,
       inspect_result_file: payload.inspect_result_checked ? payload.inspect_result_file || '' : '',
     },
@@ -1180,14 +1397,12 @@ export function submitEntry(payload) {
     copy_from_entry_id,
   }
   if (fields.entry_type === 'equipment') {
-    delete entry.line_items
-    delete entry.batch_no
-    delete entry.waybill_no
-    delete entry.material_spec
+    // 设备明细保留 line_items；表头 unpack_items 为首组副本便于旧页面兼容
   } else {
     delete entry.unpack_items
     delete entry.serial_no
     delete entry.model
+    delete entry.equipment_name
   }
   store.entries.unshift(entry)
   pushTodo(entry)
@@ -1216,10 +1431,7 @@ export function resubmitWithdrawnEntry(entryId, payload) {
     finish_time: '',
   })
   if (fields.entry_type === 'equipment') {
-    delete entry.line_items
-    delete entry.batch_no
-    delete entry.waybill_no
-    delete entry.material_spec
+    // 设备明细保留 line_items
   } else {
     delete entry.unpack_items
     delete entry.serial_no

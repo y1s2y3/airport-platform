@@ -13,7 +13,9 @@ import {
   statusTagType,
   isReviewingStatus,
   withdrawEntry,
+  getEntryDetail,
 } from '../../../mock/mat.js'
+import { exportMatEntryArchive } from '../../../utils/matEntryArchiveExport.js'
 
 const router = useRouter()
 const { isHqSelected, scopeProjectId, scopeProjectLabel } = useQmProjectScope()
@@ -21,6 +23,7 @@ const keyword = ref('')
 const statusFilter = ref('')
 const entryTypeFilter = ref('')
 const tick = ref(0)
+const exportLoadingId = ref('')
 
 const list = computed(() => {
   void tick.value
@@ -97,6 +100,19 @@ async function onWithdraw(row) {
   tick.value += 1
   ElMessage.success('已撤回')
 }
+
+async function onExportArchive(row) {
+  if (exportLoadingId.value) return
+  exportLoadingId.value = row.entry_id
+  try {
+    const detail = getEntryDetail(row.entry_id)
+    const r = await exportMatEntryArchive(detail)
+    if (!r.ok) ElMessage.warning(r.msg)
+    else ElMessage.success('归档文件已导出')
+  } finally {
+    exportLoadingId.value = ''
+  }
+}
 </script>
 
 <template>
@@ -125,9 +141,8 @@ async function onWithdraw(row) {
           clearable
           placeholder="单号 / 名称 / 品牌 / 规格"
           style="width: 260px"
-          :prefix-icon="Search"
-        />
-        <el-select v-model="entryTypeFilter" clearable placeholder="进场类型" style="width: 130px">
+          :prefix-icon="Search" aria-label="单号 / 名称 / 品牌 / 规格"/>
+        <el-select v-model="entryTypeFilter" clearable placeholder="进场类型" style="width: 130px" aria-label="进场类型">
           <el-option
             v-for="(label, val) in ENTRY_TYPE_LABEL"
             :key="val"
@@ -135,7 +150,7 @@ async function onWithdraw(row) {
             :value="val"
           />
         </el-select>
-        <el-select v-model="statusFilter" clearable placeholder="状态" style="width: 140px">
+        <el-select v-model="statusFilter" clearable placeholder="状态" style="width: 140px" aria-label="状态">
           <el-option
             v-for="(label, val) in STATUS_LABEL"
             :key="val"
@@ -187,7 +202,7 @@ async function onWithdraw(row) {
           </template>
         </el-table-column>
         <el-table-column prop="submit_time" label="提交时间" width="160" />
-        <el-table-column label="操作" width="220" fixed="right">
+        <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
             <el-button
               link
@@ -195,6 +210,15 @@ async function onWithdraw(row) {
               @click="router.push(`/qm/mat/applications/detail?id=${row.entry_id}`)"
             >
               详情
+            </el-button>
+            <el-button
+              v-if="row.status === 'approved'"
+              link
+              type="primary"
+              :loading="exportLoadingId === row.entry_id"
+              @click="onExportArchive(row)"
+            >
+              导出归档
             </el-button>
             <el-button
               v-if="isReviewingStatus(row.status)"

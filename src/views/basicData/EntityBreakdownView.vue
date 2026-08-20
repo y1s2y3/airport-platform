@@ -284,7 +284,7 @@ async function onRemove(row) {
     <div v-else class="layout">
       <aside class="tree-panel">
         <div class="panel-title">实体工程树</div>
-        <el-input v-model="keyword" clearable placeholder="筛选节点名称" style="margin-bottom: 12px" />
+        <el-input v-model="keyword" clearable placeholder="筛选节点名称" style="margin-bottom: 12px" aria-label="筛选节点名称"/>
         <el-button type="primary" size="small" style="margin-bottom: 8px" @click="openCreate()">
           新增节点
         </el-button>

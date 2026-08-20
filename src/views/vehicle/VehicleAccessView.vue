@@ -94,9 +94,8 @@ function handleReset() {
             placeholder="车牌号 / 道闸 / 车辆类型"
             clearable
             :prefix-icon="Search"
-            class="search-input"
-          />
-          <el-select v-model="filters.direction" placeholder="方向" clearable style="width: 100px">
+            class="search-input" aria-label="车牌号 / 道闸 / 车辆类型"/>
+          <el-select v-model="filters.direction" placeholder="方向" clearable style="width: 100px" aria-label="方向">
             <el-option label="进场" value="进场" />
             <el-option label="出场" value="出场" />
           </el-select>

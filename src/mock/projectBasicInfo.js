@@ -1,7 +1,20 @@
 import { mergeSafetyProfile } from './projectSafetyProfile'
 
-export const projectTypeOptions = ['房屋市政工程', '交通工程', '水利工程', '机场内部配套工程', '其他']
-export const permitStatusOptions = ['已办理', '未办理', '办理中']
+export const projectTypeOptions = [
+  '房屋市政工程',
+  '民航专业工程',
+  '房屋市政工程+民航专业工程',
+  '零星、小散工程',
+  '机场内部零星工程',
+]
+
+export const permitStatusOptions = [
+  '已办理施工许可证',
+  '已办理民航质监安监备案',
+  '已办理零星、小散备案',
+  '已办理机场区域管理部门施工备案',
+  '未办理',
+]
 export const projectStatusOptions = ['前期', '在建', '历史']
 
 const PUMP_OVERVIEW = `深圳宝安国际机场T2航站区及配套设施工程-新建2号雨水提升泵站工程位于2#调蓄池与新建机场九道南侧之间的空地范围内，泵站进水口直接连通2#调蓄池水体，泵站出水口为福永河。泵站共有一条进场道路，场内道路通过宝安大道、机场九道工程相通。泵站枢纽主要由泵站建筑物和放空自排涵组成。其中泵站建筑物包括进水口、进水箱涵、进水池、泵房、出水池、出水箱涵、出水口等。进水箱涵6孔，进水箱涵进口处设置检修门1道，中部设置安全格栅1道；出水箱涵3孔，出水箱涵出口处设置检修闸门1道。
@@ -63,7 +76,7 @@ export const projectList = [
       plannedCompletionTime: '2029-12-31',
       peakPersonnelCount: '1850',
       projectType: '房屋市政工程',
-      permitStatus: '已办理',
+      permitStatus: '已办理施工许可证',
       permitPhoto: '施工许可证-T2.jpg',
       deptHeadContact: '姚远东13800138000',
       projectManagerContact: '王建国13800138001',
@@ -92,7 +105,7 @@ export const projectList = [
       plannedCompletionTime: '2027-06-30',
       peakPersonnelCount: '620',
       projectType: '房屋市政工程',
-      permitStatus: '已办理',
+      permitStatus: '已办理施工许可证',
       permitPhoto: '施工许可证-T1.jpg',
       deptHeadContact: '管术枝13600136000',
       projectManagerContact: '郑经理13300133000',
@@ -118,7 +131,7 @@ export const projectList = [
       constructionSite: '东航站区',
       peakPersonnelCount: '480',
       projectType: '房屋市政工程',
-      permitStatus: '办理中',
+      permitStatus: '已办理民航质监安监备案',
       deptHeadContact: '林建源13700137000',
       projectManagerContact: '陈经理13300133001',
       safetyLiaisonContact: '黄安全13900139001',
@@ -167,8 +180,8 @@ export const projectList = [
       overview: '配套站坪、竖和站坪及机务区地基处理工程。',
       constructionSite: '东航站区站坪',
       peakPersonnelCount: '280',
-      projectType: '交通工程',
-      permitStatus: '办理中',
+      projectType: '民航专业工程',
+      permitStatus: '已办理民航质监安监备案',
       deptHeadContact: '戴毅峰13500135001',
       projectManagerContact: '刘经理13300133009',
       safetyLiaisonContact: '吴安全13200132010',
@@ -242,8 +255,8 @@ export const projectList = [
       entryTime: '2024-01-15',
       plannedCompletionTime: '2029-03-31',
       peakPersonnelCount: '980',
-      projectType: '交通工程',
-      permitStatus: '已办理',
+      projectType: '民航专业工程',
+      permitStatus: '已办理施工许可证',
       permitPhoto: '施工许可证-三跑道.jpg',
       deptHeadContact: '赵磊13500135000',
       projectManagerContact: '刘经理13300133009',
@@ -297,4 +310,34 @@ export function formatConstructionPeriod(row) {
   if (start && end) return `${start} ~ ${end}`
   if (start || end) return start || end
   return ''
+}
+
+/** 建设单位项目经理：从 projectManagerContact 提取用户名称 */
+export function displayProjectManagerName(row) {
+  const text = String(row?.projectManagerContact || '').trim()
+  if (!text) return ''
+  const slashParts = text.split(/\s*\/\s*/)
+  if (slashParts.length >= 2) {
+    const phone = slashParts[slashParts.length - 1].trim()
+    if (/\d{7,}/.test(phone)) {
+      return slashParts.slice(0, -1).join(' / ').trim()
+    }
+  }
+  const glued = text.match(/^(.+?)(\d{11})$/)
+  if (glued) return glued[1].trim()
+  return text
+}
+
+/** 项目画像必填校验：项目名称、项目简称、项目经理 */
+export function validateProjectPortraitRequired(data) {
+  if (!String(data?.projectName || '').trim()) {
+    return { ok: false, msg: '请填写项目名称' }
+  }
+  if (!String(data?.shortName || '').trim()) {
+    return { ok: false, msg: '请填写项目简称' }
+  }
+  if (!String(data?.projectManagerContact || '').trim()) {
+    return { ok: false, msg: '请选择项目经理（项目负责人）姓名及电话' }
+  }
+  return { ok: true, msg: '' }
 }

@@ -315,8 +315,7 @@ async function handleDelete(row) {
           placeholder="搜索项目 / 编号 / 名称"
           clearable
           :prefix-icon="Search"
-          class="tree-search"
-        />
+          class="tree-search" aria-label="搜索项目 / 编号 / 名称"/>
         <el-tree
           ref="treeRef"
           :data="treeData"
@@ -383,15 +382,15 @@ async function handleDelete(row) {
           <div class="filter-row">
             <div class="filter-item">
               <label>编号</label>
-              <el-input v-model="filters.code" placeholder="工程编号" clearable style="width: 130px" />
+              <el-input v-model="filters.code" placeholder="工程编号" clearable style="width: 130px" aria-label="工程编号"/>
             </div>
             <div class="filter-item">
               <label>名称</label>
-              <el-input v-model="filters.name" placeholder="工程名称" clearable style="width: 140px" />
+              <el-input v-model="filters.name" placeholder="工程名称" clearable style="width: 140px" aria-label="工程名称"/>
             </div>
             <div class="filter-item">
               <label>状态</label>
-              <el-select v-model="filters.status" placeholder="全部" clearable style="width: 100px">
+              <el-select v-model="filters.status" placeholder="全部" clearable style="width: 100px" aria-label="全部">
                 <el-option v-for="opt in libraryStatusOptions" :key="opt" :label="opt" :value="opt" />
               </el-select>
             </div>
@@ -458,21 +457,21 @@ async function handleDelete(row) {
     >
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="110px">
         <el-form-item label="编号" prop="code">
-          <el-input v-model="formData.code" :placeholder="`如 ${formConfig.codePrefix}-001`" />
+          <el-input v-model="formData.code" :placeholder="`如 ${formConfig.codePrefix}-001`" aria-label="`如 ${formConfig.codePrefix}-001`"/>
         </el-form-item>
         <el-form-item label="名称" prop="name">
-          <el-input v-model="formData.name" :placeholder="`请输入${formConfig.itemLabel}名称`" />
+          <el-input v-model="formData.name" :placeholder="`请输入${formConfig.itemLabel}名称`" aria-label="`请输入${formConfig.itemLabel}名称`"/>
         </el-form-item>
         <el-form-item v-if="formConfig.parentLabel" :label="`所属${formConfig.parentLabel}`">
-          <el-select v-model="formData.parentCode" placeholder="请选择" clearable style="width: 100%">
+          <el-select v-model="formData.parentCode" placeholder="请选择" clearable style="width: 100%" aria-label="请选择">
             <el-option v-for="opt in parentOptions" :key="opt.code" :label="`${opt.code} ${opt.name}`" :value="opt.code" />
           </el-select>
         </el-form-item>
         <el-form-item label="BIM关联编号">
-          <el-input v-model="formData.bimCode" placeholder="用于与BIM模型关联" />
+          <el-input v-model="formData.bimCode" placeholder="用于与BIM模型关联" aria-label="用于与BIM模型关联"/>
         </el-form-item>
         <el-form-item label="BIM模型ID">
-          <el-input v-model="formData.bimModelId" placeholder="BIM模型唯一标识" />
+          <el-input v-model="formData.bimModelId" placeholder="BIM模型唯一标识" aria-label="BIM模型唯一标识"/>
         </el-form-item>
         <el-form-item label="备注">
           <el-input v-model="formData.remark" type="textarea" :rows="2" />

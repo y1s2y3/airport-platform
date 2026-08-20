@@ -1,3 +1,5 @@
+import { appendOperationLog } from './systemLogs.js'
+
 export const laborBlacklist = [
   {
     id: 'bl-001',
@@ -28,7 +30,12 @@ export const laborBlacklist = [
   },
 ]
 
-export function maskIdCard(id_card) {
-  if (!id_card || id_card.length < 8) return id_card
-  return `${id_card.slice(0, 6)}********${id_card.slice(-4)}`
+/** 查看劳务黑名单证件号码并写入操作日志 */
+export function logBlacklistIdCardView({ id, name }) {
+  appendOperationLog({
+    module: '人员实名制管理',
+    type: '查询',
+    content: `查看劳务黑名单证件号码：${name || '—'}（${id || '—'}）`,
+    requestUrl: `/api/labor/blacklist/${id}/id-card/view`,
+  })
 }

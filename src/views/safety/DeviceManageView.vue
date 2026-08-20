@@ -248,7 +248,7 @@ function saveTechChars() {
     <div class="page-layout" :class="{ 'with-tree': isHqSelected }">
       <aside v-if="isHqSelected" class="project-tree-panel">
         <div class="panel-title">项目列表</div>
-        <el-input v-model="treeSearch" placeholder="搜索项目..." clearable size="small" style="margin-bottom:8px" :prefix-icon="Search" />
+        <el-input v-model="treeSearch" placeholder="搜索项目..." clearable size="small" style="margin-bottom:8px" :prefix-icon="Search" aria-label="搜索项目..."/>
         <el-tree
           :data="treeDataWithCount" node-key="id" highlight-current
           default-expand-all :current-node-key="localProjectId || 'hq'"
@@ -259,11 +259,11 @@ function saveTechChars() {
 
       <div class="page-panel">
         <div class="filter-bar">
-          <el-input v-model="filterForm.keyword" placeholder="搜索设备名称/SN/区域/联系人..." clearable style="width:280px" :prefix-icon="Search" />
-          <el-select v-model="filterForm.deviceType" placeholder="设备类型" clearable style="width:110px">
+          <el-input v-model="filterForm.keyword" placeholder="搜索设备名称/SN/区域/联系人..." clearable style="width:280px" :prefix-icon="Search" aria-label="搜索设备名称/SN/区域/联系人..."/>
+          <el-select v-model="filterForm.deviceType" placeholder="设备类型" clearable style="width:110px" aria-label="设备类型">
             <el-option v-for="t in typeOptions" :key="t" :label="t" :value="t" />
           </el-select>
-          <el-select v-model="filterForm.onlineStatus" placeholder="设备状态" clearable style="width:100px">
+          <el-select v-model="filterForm.onlineStatus" placeholder="设备状态" clearable style="width:100px" aria-label="设备状态">
             <el-option label="在线" value="在线" /><el-option label="离线" value="离线" />
           </el-select>
           <el-button @click="handleReset">重置</el-button>
@@ -306,45 +306,45 @@ function saveTechChars() {
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="设备类型" required>
-              <el-select v-model="formModel.deviceType" placeholder="请选择设备类型" style="width:100%">
+              <el-select v-model="formModel.deviceType" placeholder="请选择设备类型" style="width:100%" aria-label="请选择设备类型">
                 <el-option v-for="t in typeOptions" :key="t" :label="t" :value="t" />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="设备名称" required>
-              <el-input v-model="formModel.deviceName" placeholder="请输入设备名称" />
+              <el-input v-model="formModel.deviceName" placeholder="请输入设备名称" aria-label="请输入设备名称"/>
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="设备SN" required>
-              <el-input v-model="formModel.deviceSN" placeholder="请输入设备SN" />
+              <el-input v-model="formModel.deviceSN" placeholder="请输入设备SN" aria-label="请输入设备SN"/>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="区域名称">
-              <el-input v-model="formModel.regionName" placeholder="请输入区域名称" />
+              <el-input v-model="formModel.regionName" placeholder="请输入区域名称" aria-label="请输入区域名称"/>
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="设备联系人">
-              <el-input v-model="formModel.contact" placeholder="请输入设备联系人" />
+              <el-input v-model="formModel.contact" placeholder="请输入设备联系人" aria-label="请输入设备联系人"/>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="联系人电话">
-              <el-input v-model="formModel.contactPhone" placeholder="请输入联系人电话" />
+              <el-input v-model="formModel.contactPhone" placeholder="请输入联系人电话" aria-label="请输入联系人电话"/>
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="16">
           <el-col :span="24">
             <el-form-item label="备注">
-              <el-input v-model="formModel.remark" placeholder="请输入备注" />
+              <el-input v-model="formModel.remark" placeholder="请输入备注" aria-label="请输入备注"/>
             </el-form-item>
           </el-col>
         </el-row>
@@ -353,8 +353,8 @@ function saveTechChars() {
         <template v-if="formModel.deviceType === '塔吊'">
           <el-divider content-position="left" style="margin:12px 0;font-size:13px">塔吊参数</el-divider>
           <el-row :gutter="16">
-            <el-col :span="12"><el-form-item label="镜头名称"><el-input v-model="formModel.cameraName" placeholder="请输入镜头名称" /></el-form-item></el-col>
-            <el-col :span="12"><el-form-item label="镜头地址"><el-input v-model="formModel.cameraUrl" placeholder="请输入镜头地址" /></el-form-item></el-col>
+            <el-col :span="12"><el-form-item label="镜头名称"><el-input v-model="formModel.cameraName" placeholder="请输入镜头名称" aria-label="请输入镜头名称"/></el-form-item></el-col>
+            <el-col :span="12"><el-form-item label="镜头地址"><el-input v-model="formModel.cameraUrl" placeholder="请输入镜头地址" aria-label="请输入镜头地址"/></el-form-item></el-col>
           </el-row>
           <el-row :gutter="16">
             <el-col :span="12"><el-form-item label="塔机高度（m）" style="white-space:nowrap"><el-input v-model="formModel.craneHeight" /></el-form-item></el-col>
@@ -439,7 +439,7 @@ function saveTechChars() {
             <div style="font-size:14px;font-weight:600;color:#1f2329;margin-bottom:10px">特性1</div>
             <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
               <span style="font-size:13px;font-weight:600;white-space:nowrap">吊绳倍率：</span>
-              <el-select v-model="group.ropeRatio" style="width:200px" placeholder="请选择吊绳倍率">
+              <el-select v-model="group.ropeRatio" style="width:200px" placeholder="请选择吊绳倍率" aria-label="请选择吊绳倍率">
                 <el-option label="2倍率" value="2" /><el-option label="4倍率" value="4" /><el-option label="6倍率" value="6" />
               </el-select>
             </div>
@@ -447,12 +447,12 @@ function saveTechChars() {
             <el-table :data="group.chars" border size="small" style="width:100%">
               <el-table-column label="幅度(m)" min-width="120">
                 <template #default="{ $index }">
-                  <el-input v-model="group.chars[$index].range" placeholder="请输入幅度" size="small" />
+                  <el-input v-model="group.chars[$index].range" placeholder="请输入幅度" size="small" aria-label="请输入幅度"/>
                 </template>
               </el-table-column>
               <el-table-column label="起重量(t)" min-width="120">
                 <template #default="{ $index }">
-                  <el-input v-model="group.chars[$index].capacity" placeholder="请输入起重量" size="small" />
+                  <el-input v-model="group.chars[$index].capacity" placeholder="请输入起重量" size="small" aria-label="请输入起重量"/>
                 </template>
               </el-table-column>
               <el-table-column label="操作" min-width="130" align="center">
@@ -473,7 +473,7 @@ function saveTechChars() {
             </div>
             <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
               <span style="font-size:13px;font-weight:600;white-space:nowrap">吊绳倍率：</span>
-              <el-select v-model="group.ropeRatio" style="width:200px" placeholder="请选择吊绳倍率">
+              <el-select v-model="group.ropeRatio" style="width:200px" placeholder="请选择吊绳倍率" aria-label="请选择吊绳倍率">
                 <el-option label="2倍率" value="2" /><el-option label="4倍率" value="4" /><el-option label="6倍率" value="6" />
               </el-select>
             </div>
@@ -481,12 +481,12 @@ function saveTechChars() {
             <el-table :data="group.chars" border size="small" style="width:100%">
               <el-table-column label="幅度(m)" min-width="120">
                 <template #default="{ $index }">
-                  <el-input v-model="group.chars[$index].range" placeholder="请输入幅度" size="small" />
+                  <el-input v-model="group.chars[$index].range" placeholder="请输入幅度" size="small" aria-label="请输入幅度"/>
                 </template>
               </el-table-column>
               <el-table-column label="起重量(t)" min-width="120">
                 <template #default="{ $index }">
-                  <el-input v-model="group.chars[$index].capacity" placeholder="请输入起重量" size="small" />
+                  <el-input v-model="group.chars[$index].capacity" placeholder="请输入起重量" size="small" aria-label="请输入起重量"/>
                 </template>
               </el-table-column>
               <el-table-column label="操作" min-width="130" align="center">

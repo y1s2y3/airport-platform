@@ -52,8 +52,7 @@ function openDetail(row) {
           clearable
           placeholder="品牌 / 厂家 / 材料/设备名称 / 报审编号"
           style="width: 280px"
-          :prefix-icon="Search"
-        />
+          :prefix-icon="Search" aria-label="品牌 / 厂家 / 材料/设备名称 / 报审编号"/>
         <el-button type="primary" :icon="Search">查询</el-button>
         <el-button :icon="Refresh" @click="reset">重置</el-button>
       </div>

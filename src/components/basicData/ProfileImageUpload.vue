@@ -20,6 +20,15 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  /** 操作区置于图片右侧 */
+  sideActions: {
+    type: Boolean,
+    default: false,
+  },
+  hint: {
+    type: String,
+    default: '',
+  },
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -52,7 +61,14 @@ function clearImage() {
 </script>
 
 <template>
-  <div class="profile-image-upload" :class="{ compact, 'is-certificate': demoVariant === 'certificate' }">
+  <div
+    class="profile-image-upload"
+    :class="{
+      compact,
+      'is-certificate': demoVariant === 'certificate',
+      'side-actions': sideActions,
+    }"
+  >
     <div class="preview-box" :class="{ 'preview-box--certificate': showCertificateDemo }">
       <img v-if="showPhotoPreview && previewSrc" :src="previewSrc" alt="图片预览" class="preview-img" />
       <div v-else-if="showCertificateDemo" class="certificate-demo">
@@ -68,11 +84,24 @@ function clearImage() {
       <div v-else class="preview-empty">暂无图片</div>
       <span v-if="showPhotoPreview && !isUploaded" class="demo-tag">演示</span>
     </div>
-    <div class="upload-actions">
-      <el-upload :show-file-list="false" accept="image/*" :before-upload="beforeUpload">
-        <el-button size="small" type="primary" link>{{ modelValue ? '更换图片' : '上传图片' }}</el-button>
-      </el-upload>
-      <el-button v-if="modelValue" size="small" link type="danger" @click="clearImage">清除</el-button>
+    <div class="upload-side">
+      <div class="upload-actions">
+        <el-upload :show-file-list="false" accept="image/*" :before-upload="beforeUpload">
+          <el-button
+            v-if="sideActions"
+            size="small"
+            type="primary"
+            plain
+          >
+            {{ modelValue ? '更换文件' : '选择文件' }}
+          </el-button>
+          <el-button v-else size="small" type="primary" link>
+            {{ modelValue ? '更换图片' : '上传图片' }}
+          </el-button>
+        </el-upload>
+        <el-button v-if="modelValue" size="small" link type="danger" @click="clearImage">清除</el-button>
+      </div>
+      <div v-if="hint" class="upload-hint">{{ hint }}</div>
     </div>
   </div>
 </template>
@@ -86,6 +115,14 @@ function clearImage() {
   width: 100%;
 }
 
+.profile-image-upload.side-actions {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 14px;
+  width: auto;
+}
+
 .profile-image-upload.compact .preview-box {
   width: 120px;
   height: 84px;
@@ -94,6 +131,13 @@ function clearImage() {
 .profile-image-upload.is-certificate.compact .preview-box {
   width: 112px;
   height: 78px;
+}
+
+.profile-image-upload.side-actions .preview-box {
+  width: 160px;
+  max-width: 160px;
+  height: 100px;
+  flex-shrink: 0;
 }
 
 .preview-box {
@@ -212,11 +256,36 @@ function clearImage() {
   background: rgba(139, 69, 19, 0.72);
 }
 
+.upload-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.side-actions .upload-side {
+  align-items: flex-start;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .upload-actions {
   display: flex;
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
   justify-content: center;
+}
+
+.side-actions .upload-actions {
+  justify-content: flex-start;
+}
+
+.upload-hint {
+  font-size: 12px;
+  color: var(--ap-text-muted, #8a94a6);
+  line-height: 1.45;
+  max-width: 220px;
 }
 </style>

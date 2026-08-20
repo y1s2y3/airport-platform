@@ -160,7 +160,7 @@ function handleCancel() { router.push('/safety-inspection/plan') }
       <!-- ===== 基本信息 ===== -->
       <h4 class="form-section-title">基本信息</h4>
       <el-form-item label="任务名称" required>
-        <el-input v-model="form.name" placeholder="如：雨季临时用电检查" maxlength="50" />
+        <el-input v-model="form.name" placeholder="如：雨季临时用电检查" maxlength="50" aria-label="如：雨季临时用电检查"/>
       </el-form-item>
       <el-form-item label="巡检分类" required>
         <el-radio-group v-model="form.inspectionCategory">
@@ -170,7 +170,7 @@ function handleCancel() { router.push('/safety-inspection/plan') }
         </el-radio-group>
       </el-form-item>
       <el-form-item label="所属项目" required>
-        <el-select v-model="form.project_id" placeholder="请选择项目" style="width: 100%">
+        <el-select v-model="form.project_id" placeholder="请选择项目" style="width: 100%" aria-label="请选择项目">
           <el-option v-for="p in activeProjects" :key="p.id" :label="p.label" :value="p.id" />
         </el-select>
         <div class="form-tip">已竣工项目自动隐藏</div>
@@ -183,12 +183,12 @@ function handleCancel() { router.push('/safety-inspection/plan') }
         <div class="form-tip">提交后立即生成一份巡检任务并下发给项目监理，不再滚动生成计划</div>
       </el-form-item>
       <el-form-item label="抄送人">
-        <el-select v-model="form.ccPersons" multiple placeholder="可选，多人" style="width: 100%">
+        <el-select v-model="form.ccPersons" multiple placeholder="可选，多人" style="width: 100%" aria-label="可选，多人">
           <el-option v-for="u in userOptions" :key="u.id" :label="`${u.label}（${u.role}）`" :value="u.id" />
         </el-select>
       </el-form-item>
       <el-form-item label="截止日期" required>
-        <el-date-picker v-model="form.deadlineDate" type="date" placeholder="选择截止日期" value-format="YYYY-MM-DD" style="width: 100%" />
+        <el-date-picker v-model="form.deadlineDate" type="date" placeholder="选择截止日期" value-format="YYYY-MM-DD" style="width: 100%" aria-label="选择截止日期"/>
       </el-form-item>
 
       <!-- ===== 配置检查内容 ===== -->
@@ -230,7 +230,7 @@ function handleCancel() { router.push('/safety-inspection/plan') }
       </el-form-item>
 
       <el-form-item label="备注">
-        <el-input v-model="form.remark" type="textarea" :rows="3" placeholder="备注..." maxlength="200" show-word-limit />
+        <el-input v-model="form.remark" type="textarea" :rows="3" placeholder="备注..." maxlength="200" show-word-limit aria-label="备注..."/>
       </el-form-item>
     </el-form>
 

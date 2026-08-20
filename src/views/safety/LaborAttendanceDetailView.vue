@@ -3,7 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { Search, Refresh, Download } from '@element-plus/icons-vue'
 import { useLaborProjectScope } from '../../composables/useCurrentProject'
 import { projectTree, getProjectPersonCount } from '../../mock/laborAttendanceStats'
-import { getAttendanceDetails } from '../../mock/laborAttendanceDetail'
+import { getAttendanceDetails, getPersonAccessEvents, logAttendanceIdCardView } from '../../mock/laborAttendanceDetail'
 import {
   ATTENDANCE_ENTRY_STATUS,
   ATTENDANCE_ENTRY_STATUS_OPTIONS,
@@ -16,30 +16,61 @@ import {
   realNameEntryStatusTagClass,
   onSiteStatusTagClass,
 } from '../../constants/laborPersonStatus'
-import { workTypeOptions, maskIdCard } from '../../mock/laborRealName'
+import { workTypeOptions } from '../../mock/laborRealName'
+import { useIdCardReveal } from '../../composables/useIdCardReveal'
 
 const { isHqSelected, treeProjectId, scopeProjectId, scopeProjectLabel, onTreeNodeClick } = useLaborProjectScope()
 const keyword = ref('')
-const visibleIdCardIds = ref(new Set())
-
-function isIdCardVisible(rowId) {
-  return visibleIdCardIds.value.has(rowId)
-}
-
-function viewIdCard(row) {
-  visibleIdCardIds.value = new Set([...visibleIdCardIds.value, row.id])
-}
-
-function displayIdCard(row) {
-  const raw = row.id_card_raw || row.id_card
-  return isIdCardVisible(row.id) ? raw : maskIdCard(raw)
-}
+const {
+  isVisible: isIdCardVisible,
+  display: displayIdCard,
+  reveal: viewIdCard,
+  reset: resetIdCardReveal,
+} = useIdCardReveal({
+  getRaw: (row) => row.id_card_raw || row.id_card,
+  onReveal: (row) =>
+    logAttendanceIdCardView({
+      id: row.id,
+      name: row.name,
+      id_card_raw: row.id_card_raw,
+    }),
+})
 const filters = ref({
   date: '2026-06-29',
   entry_status: '',
   on_site_status: '',
   work_type: '',
 })
+
+const accessDialogVisible = ref(false)
+const accessPerson = ref(null)
+const accessFilters = ref({ date: '', direction: '' })
+const ACCESS_DIRECTION_OPTIONS = ['进场', '出场']
+
+const accessEvents = computed(() => {
+  if (!accessPerson.value || !accessFilters.value.date) return []
+  return getPersonAccessEvents({
+    project_id: scopeProjectId.value,
+    name: accessPerson.value.name,
+    id_card_raw: accessPerson.value.id_card_raw || '',
+    date: accessFilters.value.date,
+  })
+})
+
+const filteredAccessEvents = computed(() => {
+  const dir = accessFilters.value.direction
+  if (!dir) return accessEvents.value
+  return accessEvents.value.filter((row) => row.direction === dir)
+})
+
+function openAccessDialog(row) {
+  accessPerson.value = row
+  accessFilters.value = {
+    date: row.date || filters.value.date || '2026-06-29',
+    direction: '',
+  }
+  accessDialogVisible.value = true
+}
 
 const treeData = computed(() =>
   projectTree.map((group) => ({
@@ -79,8 +110,9 @@ const stats = computed(() => ({
 
 watch(scopeProjectId, () => {
   keyword.value = ''
-  visibleIdCardIds.value = new Set()
+  resetIdCardReveal()
   filters.value = { date: '2026-06-29', entry_status: '', on_site_status: '', work_type: '' }
+  accessDialogVisible.value = false
 })
 
 function handleReset() {
@@ -132,22 +164,42 @@ function handleReset() {
             type="date"
             value-format="YYYY-MM-DD"
             placeholder="考勤日期"
+            aria-label="考勤日期"
             style="width: 150px"
           />
           <el-input
             v-model="keyword"
             placeholder="姓名 / 身份证 / 闸机"
+            aria-label="姓名 / 身份证 / 闸机"
             clearable
             :prefix-icon="Search"
             class="search-input"
           />
-          <el-select v-model="filters.entry_status" :placeholder="ATTENDANCE_ENTRY_LABEL" clearable style="width: 110px">
+          <el-select
+            v-model="filters.entry_status"
+            :placeholder="ATTENDANCE_ENTRY_LABEL"
+            :aria-label="ATTENDANCE_ENTRY_LABEL"
+            clearable
+            style="width: 110px"
+          >
             <el-option v-for="opt in ATTENDANCE_ENTRY_STATUS_OPTIONS" :key="opt" :label="opt" :value="opt" />
           </el-select>
-          <el-select v-model="filters.on_site_status" placeholder="在场状态" clearable style="width: 110px">
+          <el-select
+            v-model="filters.on_site_status"
+            placeholder="在场状态"
+            aria-label="在场状态"
+            clearable
+            style="width: 110px"
+          >
             <el-option v-for="opt in ONSITE_STATUS_OPTIONS" :key="opt" :label="opt" :value="opt" />
           </el-select>
-          <el-select v-model="filters.work_type" placeholder="工种" clearable style="width: 110px">
+          <el-select
+            v-model="filters.work_type"
+            placeholder="工种"
+            aria-label="工种"
+            clearable
+            style="width: 110px"
+          >
             <el-option v-for="opt in workTypeOptions" :key="opt" :label="opt" :value="opt" />
           </el-select>
           <el-button class="ap-btn-primary" type="primary" :icon="Search">查询</el-button>
@@ -203,9 +255,64 @@ function handleReset() {
               <span v-else class="text-muted">—</span>
             </template>
           </el-table-column>
+          <el-table-column label="操作" width="140" fixed="right" align="center">
+            <template #default="{ row }">
+              <el-button link type="primary" size="small" @click="openAccessDialog(row)">
+                查看进出场记录
+              </el-button>
+            </template>
+          </el-table-column>
         </el-table>
       </section>
     </div>
+
+    <el-dialog
+      v-model="accessDialogVisible"
+      :title="accessPerson ? `进出场记录 · ${accessPerson.name}` : '进出场记录'"
+      width="780px"
+      destroy-on-close
+    >
+      <div class="access-filter-bar">
+        <el-date-picker
+          v-model="accessFilters.date"
+          type="date"
+          value-format="YYYY-MM-DD"
+          placeholder="考勤日期"
+          aria-label="考勤日期"
+          style="width: 160px"
+        />
+        <el-select
+          v-model="accessFilters.direction"
+          placeholder="进出场方向"
+          aria-label="进出场方向"
+          clearable
+          style="width: 130px"
+        >
+          <el-option
+            v-for="opt in ACCESS_DIRECTION_OPTIONS"
+            :key="opt"
+            :label="opt"
+            :value="opt"
+          />
+        </el-select>
+      </div>
+      <el-table :data="filteredAccessEvents" border stripe class="ap-table" max-height="420">
+        <el-table-column type="index" label="序号" width="60" align="center" />
+        <el-table-column prop="name" label="姓名" width="90" />
+        <el-table-column prop="direction" label="进出场方向" width="110" align="center" />
+        <el-table-column prop="record_time" label="时间" min-width="170" />
+        <el-table-column prop="gate_name" label="闸机" min-width="120" />
+        <el-table-column label="考勤照片" width="100" align="center">
+          <template #default="{ row }">
+            <el-avatar :size="36" class="access-photo">{{ row.photo || row.name?.slice(0, 1) || '—' }}</el-avatar>
+          </template>
+        </el-table-column>
+        <template #empty>暂无进出场记录</template>
+      </el-table>
+      <template #footer>
+        <el-button type="primary" @click="accessDialogVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -298,5 +405,18 @@ function handleReset() {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+.access-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.access-photo {
+  background: var(--ap-primary-light, #e8f0fe);
+  color: var(--ap-primary, #1a56db);
+  font-size: 14px;
 }
 </style>

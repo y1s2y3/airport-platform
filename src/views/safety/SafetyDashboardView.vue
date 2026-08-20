@@ -441,8 +441,7 @@ function goHazardList() { router.push('/safety-inspection/hazard') }
           end-placeholder="结束日期"
           :clearable="false"
           size="small"
-          class="custom-date-picker"
-        />
+          class="custom-date-picker" aria-label="开始日期"/>
       </div>
     </div>
     <el-row :gutter="16" class="chart-row">

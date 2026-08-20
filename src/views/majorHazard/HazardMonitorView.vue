@@ -239,14 +239,14 @@ function viewProjectDetail(row) {
           </div>
 
         <div class="filter-bar">
-          <el-input v-model="keyword" placeholder="搜索区域/点/设备/指标" clearable style="width: 200px" :prefix-icon="Search" />
-          <el-select v-model="filters.regionId" placeholder="监测区域" clearable style="width: 180px" @change="handleRegionChange">
+          <el-input v-model="keyword" placeholder="搜索区域/点/设备/指标" clearable style="width: 200px" :prefix-icon="Search" aria-label="搜索区域/点/设备/指标"/>
+          <el-select v-model="filters.regionId" placeholder="监测区域" clearable style="width: 180px" @change="handleRegionChange" aria-label="监测区域">
             <el-option v-for="r in regionOptions" :key="r.id" :label="r.name" :value="r.id" />
           </el-select>
-          <el-select v-model="filters.pointId" placeholder="监测点" clearable style="width: 160px">
+          <el-select v-model="filters.pointId" placeholder="监测点" clearable style="width: 160px" aria-label="监测点">
             <el-option v-for="p in pointOptions" :key="p.id" :label="p.name" :value="p.id" />
           </el-select>
-          <el-select v-model="filters.indicatorId" placeholder="监测指标" clearable style="width: 130px">
+          <el-select v-model="filters.indicatorId" placeholder="监测指标" clearable style="width: 130px" aria-label="监测指标">
             <el-option v-for="ind in indicatorOptions" :key="ind.name" :label="ind.name" :value="ind.name" />
           </el-select>
           <el-button class="ap-btn-primary" type="primary" :icon="Search">查询</el-button>

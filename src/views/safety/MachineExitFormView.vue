@@ -87,7 +87,7 @@ function removeDevice(idx) {
           <el-col :span="8"><el-form-item label="单据编码"><el-input v-model="form.docNo" disabled /></el-form-item></el-col>
           <el-col :span="8">
             <el-form-item label="退场日期" required>
-              <el-date-picker v-model="form.exitDate" type="date" placeholder="选择日期" style="width:100%" value-format="YYYY-MM-DD" />
+              <el-date-picker v-model="form.exitDate" type="date" placeholder="选择日期" style="width:100%" value-format="YYYY-MM-DD" aria-label="选择日期"/>
             </el-form-item>
           </el-col>
           <el-col :span="8" />
@@ -135,7 +135,7 @@ function removeDevice(idx) {
     <el-dialog v-model="selectDialogVisible" title="选择在场机械设备" width="800px" :close-on-click-modal="false">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
         <span style="font-size:13px;color:#333">设备</span>
-        <el-input v-model="deviceKeyword" placeholder="搜索设备名称/备案编号/出厂编号..." clearable style="width:280px" />
+        <el-input v-model="deviceKeyword" placeholder="搜索设备名称/备案编号/出厂编号..." clearable style="width:280px" aria-label="搜索设备名称/备案编号/出厂编号..."/>
       </div>
       <el-table :data="filteredAvailableEquipment" border size="small" style="width:100%" @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="45" align="center" />

@@ -7,7 +7,7 @@
 export const APP_VERSION_BASE = '2.2.1'
 
 /** GitHub Pages 发布序号（从 0 开始；仓库内为「当前即将发布 / 下一版」序号） */
-export const APP_VERSION_PATCH = 5
+export const APP_VERSION_PATCH = 6
 
 export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
 
@@ -16,6 +16,16 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  * highlights 宜短句，便于页头问号弹窗快速阅读
  */
 export const VERSION_CHANGELOG = [
+  {
+    version: 'v2.2.1.6',
+    date: '2026-08-20',
+    highlights: [
+      '劳务黑名单/考勤明细：证件号脱敏查看；考勤支持进出场记录与照片',
+      '预警处置：处置结果（已处置/误报）；详情增加处置信息模块',
+      '可访问性与基础 SEO：中文 lang、动态标题、aria-label、跳过导航、robots/sitemap',
+      '清理未挂路由死代码，统一证件号脱敏工具',
+    ],
+  },
   {
     version: 'v2.2.1.5',
     date: '2026-08-19',

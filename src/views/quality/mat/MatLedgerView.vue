@@ -2,9 +2,11 @@
 import './mat-page.css'
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Search, Refresh } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import { Search, Refresh, Download } from '@element-plus/icons-vue'
 import { useQmProjectScope } from '../../../composables/useCurrentProject'
-import { listLedger, ENTRY_TYPE_LABEL } from '../../../mock/mat.js'
+import { listLedger, ENTRY_TYPE_LABEL, getEntryDetail } from '../../../mock/mat.js'
+import { exportMatEntryArchive } from '../../../utils/matEntryArchiveExport.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -40,6 +42,21 @@ function reset() {
 function displayName(row) {
   return row.entry_type === 'equipment' ? row.equipment_name : row.material_name
 }
+
+const exportLoadingId = ref('')
+
+async function onExportArchive(row) {
+  if (exportLoadingId.value) return
+  exportLoadingId.value = row.entry_id
+  try {
+    const detail = getEntryDetail(row.entry_id)
+    const r = await exportMatEntryArchive(detail)
+    if (!r.ok) ElMessage.warning(r.msg)
+    else ElMessage.success('归档文件已导出')
+  } finally {
+    exportLoadingId.value = ''
+  }
+}
 </script>
 
 <template>
@@ -70,9 +87,8 @@ function displayName(row) {
           clearable
           placeholder="单号 / 材料 / 品牌 / 定样 / 供应商 / 退场原因"
           style="width: 280px"
-          :prefix-icon="Search"
-        />
-        <el-select v-model="entryTypeFilter" clearable placeholder="进场类型" style="width: 120px">
+          :prefix-icon="Search" aria-label="单号 / 材料 / 品牌 / 定样 / 供应商 / 退场原因"/>
+        <el-select v-model="entryTypeFilter" clearable placeholder="进场类型" style="width: 120px" aria-label="进场类型">
           <el-option
             v-for="(label, val) in ENTRY_TYPE_LABEL"
             :key="val"
@@ -80,7 +96,7 @@ function displayName(row) {
             :value="val"
           />
         </el-select>
-        <el-select v-model="exited" clearable placeholder="状态" style="width: 110px">
+        <el-select v-model="exited" clearable placeholder="状态" style="width: 110px" aria-label="状态">
           <el-option label="已进场" value="0" />
           <el-option label="已退场" value="1" />
         </el-select>
@@ -132,7 +148,7 @@ function displayName(row) {
         <el-table-column prop="exit_reason" label="退场原因" min-width="140" show-overflow-tooltip>
           <template #default="{ row }">{{ row.exit_reason || '—' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="90" fixed="right">
+        <el-table-column label="操作" width="170" fixed="right">
           <template #default="{ row }">
             <el-button
               link
@@ -140,6 +156,15 @@ function displayName(row) {
               @click="router.push(`/qm/mat/applications/detail?id=${row.entry_id}`)"
             >
               详情
+            </el-button>
+            <el-button
+              link
+              type="primary"
+              :icon="Download"
+              :loading="exportLoadingId === row.entry_id"
+              @click="onExportArchive(row)"
+            >
+              导出归档
             </el-button>
           </template>
         </el-table-column>

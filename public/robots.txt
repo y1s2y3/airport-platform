@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+# Demo 站点；正式环境可按需收紧爬虫策略
+Sitemap: /sitemap.xml

@@ -9,6 +9,14 @@ import {
   batchDisposeWarnings,
   markNotifyWarningRead,
 } from './laborWarningList.js'
+import {
+  SUBCONTRACTOR_APPROVAL_NODES,
+  SUBCONTRACTOR_CC,
+  approveSubcontractorApplication,
+  findSubcontractorApplication,
+  subcontractorList,
+  isSubcontractorInApproval,
+} from './subcontractorManagement.js'
 
 export const PROCESS_STATUS_OPTIONS = ['审批中', '已通过', '已驳回', '已撤回']
 export const PROCESS_CATEGORY_OPTIONS = [
@@ -20,6 +28,7 @@ export const PROCESS_CATEGORY_OPTIONS = [
   '巡检管理',
   '人员实名',
   '车辆管理',
+  '分包报审',
   'COC调度',
 ]
 export const READ_STATUS_OPTIONS = ['未读', '已读']
@@ -987,6 +996,7 @@ const WARNING_CENTER_HANDLER = {
   'w-010': '周杰',
   'w-013': '吴敏',
   'w-017': '马超',
+  'w-018': '张明',
 }
 
 function getLaborProjectShortName(projectId) {
@@ -1069,7 +1079,7 @@ function buildLaborWarningCenterItem(warningId, kind, extra = {}) {
  */
 export function seedLaborWarningCenter() {
   const pendingIds = ['w-002', 'w-005', 'w-009', 'w-017', 'w-004', 'w-008']
-  const closedIds = ['w-001', 'w-003']
+  const closedIds = ['w-001', 'w-003', 'w-018']
   const notifySpecs = [
     { id: 'wc-notify-w-006', warningId: 'w-006', readStatus: '未读' },
     { id: 'wc-notify-w-010', warningId: 'w-010', readStatus: '未读' },
@@ -1594,7 +1604,7 @@ export function markWarningCenterRead(ids) {
  * 批量处置预警：弹窗填报说明+附件后，
  * 仅「待处理」处置任务关闭为「已关闭」（同步业务预警，不软删）
  */
-export function batchDisposeWarningCenter(ids, { content, attachments = [], operator = '张明' } = {}) {
+export function batchDisposeWarningCenter(ids, { content, attachments = [], operator = '张明', disposal_result } = {}) {
   const idSet = new Set((ids || []).map(String))
   const targets = personalWarningCenterStore.items.filter(
     (row) =>
@@ -1607,7 +1617,7 @@ export function batchDisposeWarningCenter(ids, { content, attachments = [], oper
   if (!targets.length) return 0
 
   const warningIds = targets.map((row) => row.laborWarningId)
-  batchDisposeWarnings(warningIds, { content, attachments, operator })
+  batchDisposeWarnings(warningIds, { content, attachments, operator, disposal_result })
 
   const now = new Date().toLocaleString('zh-CN', { hour12: false })
   let n = 0
@@ -2387,6 +2397,165 @@ export const personalNotices = [
     readStatus: '已读',
   },
 ]
+
+/**
+ * —— 分包单位报审：个人中心待办 / 发起 / 抄送 ——
+ */
+let subcontractorTodoSeq = 100
+
+function removeOpenSubcontractorTodos(applicationId, { onlyNode } = {}) {
+  for (let i = personalTodoStore.todos.length - 1; i >= 0; i -= 1) {
+    const t = personalTodoStore.todos[i]
+    if (t.type !== 'subcontractor') continue
+    if (t.subcontractorApplicationId !== applicationId) continue
+    if (onlyNode && t.subcontractorNode !== onlyNode) continue
+    personalTodoStore.todos.splice(i, 1)
+  }
+}
+
+function buildSubcontractorTodo(row, nodeKey) {
+  const node = SUBCONTRACTOR_APPROVAL_NODES.find((item) => item.key === nodeKey)
+  if (!node) return null
+  subcontractorTodoSeq += 1
+  return {
+    id: `todo-sc-${subcontractorTodoSeq}`,
+    type: 'subcontractor',
+    sourceLabel: '分包报审',
+    category: '分包报审',
+    bizType: node.title,
+    subcontractorApplicationId: row.id,
+    subcontractorNode: nodeKey,
+    processName: `分包单位报审·${row.name}（${row.id}）`,
+    applicant: row.submitter || '施工单位',
+    dept: '施工单位',
+    applyTime: row.submitTime || row.updatedAt || '',
+    detail: {
+      project: row.projectName,
+      applicationId: row.id,
+      unitName: row.name,
+      unitType: row.unitType,
+      currentNode: node.title,
+      projectLeaderContact: row.projectLeaderContact,
+      safetyManagerContact: row.safetyManagerContact,
+      safetyLicenseNo: row.safetyLicense?.licenseNo || '',
+    },
+    approvalFlow: (row.approvalFlow || []).map((step) => ({ ...step })),
+  }
+}
+
+function upsertSubcontractorStarted(row) {
+  const exist = personalStarted.find(
+    (item) => item.type === 'subcontractor' && item.subcontractorApplicationId === row.id,
+  )
+  const payload = {
+    id: exist?.id || `start-sc-${row.id}`,
+    type: 'subcontractor',
+    sourceLabel: '分包报审',
+    category: '分包报审',
+    bizType: '分包单位报审',
+    processName: `分包单位报审·${row.name}`,
+    status: row.status,
+    applicant: row.submitter || '当前用户',
+    dept: '施工单位',
+    applyTime: row.submitTime || row.createdAt || '',
+    endTime: row.status === '已通过' || row.status === '已驳回' ? row.updatedAt : '',
+    subcontractorApplicationId: row.id,
+    detail: {
+      project: row.projectName,
+      unitName: row.name,
+      unitType: row.unitType,
+      summary: `${row.unitType} · ${row.name}`,
+    },
+    approvalFlow: (row.approvalFlow || []).map((step) => ({ ...step })),
+  }
+  if (exist) Object.assign(exist, payload)
+  else personalStarted.unshift(payload)
+}
+
+function pushSubcontractorCc(row) {
+  const exist = personalCc.find(
+    (item) => item.type === 'subcontractor' && item.subcontractorApplicationId === row.id,
+  )
+  if (exist) return exist
+  const item = {
+    id: `cc-sc-${row.id}`,
+    type: 'subcontractor',
+    sourceLabel: '分包报审',
+    category: '分包报审',
+    bizType: '抄送知悉',
+    processName: `分包单位报审通过·${row.name}`,
+    projectName: row.projectName,
+    applicant: row.submitter || '施工单位',
+    dept: '施工单位',
+    readStatus: '未读',
+    applyTime: row.submitTime || '',
+    endTime: row.updatedAt || '',
+    subcontractorApplicationId: row.id,
+    detail: {
+      project: row.projectName,
+      unitName: row.name,
+      unitType: row.unitType,
+      summary: `分包单位「${row.name}」报审已通过，抄送${SUBCONTRACTOR_CC.user}知悉。`,
+    },
+    approvalFlow: (row.approvalFlow || []).map((step) => ({ ...step })),
+  }
+  personalCc.unshift(item)
+  return item
+}
+
+/** 提交报审后生成首个审批待办 */
+export function createSubcontractorApprovalTodo(applicationId) {
+  const row = findSubcontractorApplication(applicationId)
+  if (!row) return null
+  removeOpenSubcontractorTodos(applicationId)
+  upsertSubcontractorStarted(row)
+  const nodeKey = row.currentNodeKey || 'pm'
+  const todo = buildSubcontractorTodo(row, nodeKey)
+  if (!todo) return null
+  personalTodoStore.todos.unshift(todo)
+  return todo
+}
+
+/** 个人中心办理分包报审 */
+export function handleSubcontractorTodo(todoId, { action, opinion } = {}) {
+  const todo = findPersonalTodo(todoId)
+  if (!todo || todo.type !== 'subcontractor') return { ok: false, msg: '待办不存在' }
+  const applicationId = todo.subcontractorApplicationId
+  const r = approveSubcontractorApplication(applicationId, { action, opinion })
+  if (!r.ok) return r
+
+  const handleLabel = action === 'reject' ? '驳回' : '同意'
+  finishPersonalTodo(todoId, handleLabel)
+
+  const row = findSubcontractorApplication(applicationId)
+  if (row) upsertSubcontractorStarted(row)
+
+  if (r.finished && !r.rejected && r.needCc && row) {
+    pushSubcontractorCc(row)
+  }
+  if (!r.finished && r.nextNodeKey && row) {
+    const nextTodo = buildSubcontractorTodo(row, r.nextNodeKey)
+    if (nextTodo) personalTodoStore.todos.unshift(nextTodo)
+  }
+  return { ok: true, ...r }
+}
+
+/** 为待审批/审批中单据补待办（列表页挂载时调用） */
+export function seedOpenSubcontractorTodosFromStore(list = []) {
+  for (const row of list) {
+    if (!isSubcontractorInApproval(row.status) || !row.currentNodeKey) continue
+    const exists = personalTodoStore.todos.some(
+      (t) => t.type === 'subcontractor' && t.subcontractorApplicationId === row.id,
+    )
+    if (exists) continue
+    const todo = buildSubcontractorTodo(row, row.currentNodeKey)
+    if (todo) personalTodoStore.todos.unshift(todo)
+    upsertSubcontractorStarted(row)
+  }
+}
+
+// 模块加载时补种审批中分包报审待办（避免必须先打开列表页）
+seedOpenSubcontractorTodosFromStore(subcontractorList)
 
 /**
  * 兼容：人员预警已迁至预警中心，流程中心待办不再返回人员预警

@@ -130,8 +130,7 @@ onUnmounted(() => {
             placeholder="关键字搜索"
             clearable
             :prefix-icon="Search"
-            class="kw-input"
-          />
+            class="kw-input" aria-label="关键字搜索"/>
           <el-select v-model="statusFilter" class="status-select">
             <el-option label="全部" value="全部" />
             <el-option label="在线" value="在线" />

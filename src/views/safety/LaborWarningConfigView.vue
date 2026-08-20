@@ -260,10 +260,10 @@ function removeTierLevel(index) {
               <el-switch v-model="projectTrackJump.enabled" />
             </el-form-item>
             <el-form-item label="系统名称">
-              <el-input v-model="projectTrackJump.system_name" placeholder="如：现场安全帽定位平台" />
+              <el-input v-model="projectTrackJump.system_name" placeholder="如：现场安全帽定位平台" aria-label="如：现场安全帽定位平台"/>
             </el-form-item>
             <el-form-item label="跳转 URL">
-              <el-input v-model="projectTrackJump.url" placeholder="https://" />
+              <el-input v-model="projectTrackJump.url" placeholder="https://" aria-label="https://"/>
             </el-form-item>
           </el-form>
         </section>
@@ -283,8 +283,7 @@ function removeTierLevel(index) {
                     v-model="form.default_recipient.recipient_id"
                     placeholder="请选择人员"
                     filterable
-                    style="width: 100%"
-                  >
+                    style="width: 100%" aria-label="请选择人员">
                     <el-option-group
                       v-if="defaultPersonnelOptions.matched.length"
                       label="本岗位候选人"
@@ -317,8 +316,7 @@ function removeTierLevel(index) {
                     placeholder="请选择岗位"
                     filterable
                     style="width: 100%"
-                    @change="onDefaultPositionChange"
-                  >
+                    @change="onDefaultPositionChange" aria-label="请选择岗位">
                     <el-option
                       v-for="pos in tierPositionCatalog"
                       :key="pos.id"
@@ -353,8 +351,7 @@ function removeTierLevel(index) {
                     v-model="row.recipient_id"
                     placeholder="请选择人员"
                     filterable
-                    style="width: 100%"
-                  >
+                    style="width: 100%" aria-label="请选择人员">
                     <el-option-group
                       v-if="personnelOptionsFor(row).matched.length"
                       label="本岗位候选人"
@@ -387,8 +384,7 @@ function removeTierLevel(index) {
                     placeholder="请选择岗位"
                     filterable
                     style="width: 100%"
-                    @change="onTierPositionChange(row)"
-                  >
+                    @change="onTierPositionChange(row)" aria-label="请选择岗位">
                     <el-option
                       v-for="pos in tierPositionCatalog"
                       :key="pos.id"

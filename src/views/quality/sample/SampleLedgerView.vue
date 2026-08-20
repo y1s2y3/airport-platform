@@ -124,8 +124,7 @@ async function viewProjectDetail(row) {
           clearable
           placeholder="项目名称 / 编号"
           style="width: 260px"
-          :prefix-icon="Search"
-        />
+          :prefix-icon="Search" aria-label="项目名称 / 编号"/>
         <el-button type="primary" :icon="Search" @click="handleHqSearch">查询</el-button>
         <el-button :icon="Refresh" @click="resetHq">重置</el-button>
       </div>
@@ -177,9 +176,8 @@ async function viewProjectDetail(row) {
           clearable
           placeholder="编号 / 名称 / 部位"
           style="width: 220px"
-          :prefix-icon="Search"
-        />
-        <el-select v-model="bizType" clearable placeholder="类型" style="width: 140px">
+          :prefix-icon="Search" aria-label="编号 / 名称 / 部位"/>
+        <el-select v-model="bizType" clearable placeholder="类型" style="width: 140px" aria-label="类型">
           <el-option
             v-for="(label, val) in BIZ_TYPE_LABEL"
             :key="val"
@@ -187,7 +185,7 @@ async function viewProjectDetail(row) {
             :value="val"
           />
         </el-select>
-        <el-input v-model="usePart" clearable placeholder="部位" style="width: 160px" />
+        <el-input v-model="usePart" clearable placeholder="部位" style="width: 160px" aria-label="部位"/>
         <el-button type="primary" :icon="Search">查询</el-button>
         <el-button :icon="Refresh" @click="reset">重置</el-button>
       </div>

@@ -110,11 +110,11 @@ function resetFilter() { keyword.value = ''; filterStatus.value = ''; filterDevi
         </div>
 
         <div class="filter-bar">
-          <el-input v-model="keyword" placeholder="设备名称/编号/区域/类型" clearable style="width: 240px" :prefix-icon="Search" />
-          <el-select v-model="filterDeviceType" placeholder="设备类型" clearable style="width: 180px">
+          <el-input v-model="keyword" placeholder="设备名称/编号/区域/类型" clearable style="width: 240px" :prefix-icon="Search" aria-label="设备名称/编号/区域/类型"/>
+          <el-select v-model="filterDeviceType" placeholder="设备类型" clearable style="width: 180px" aria-label="设备类型">
             <el-option v-for="t in devTypeOptions" :key="t" :label="t" :value="t" />
           </el-select>
-          <el-select v-model="filterStatus" placeholder="在线状态" clearable style="width: 110px">
+          <el-select v-model="filterStatus" placeholder="在线状态" clearable style="width: 110px" aria-label="在线状态">
             <el-option label="在线" value="online" /><el-option label="离线" value="offline" />
           </el-select>
           <el-button @click="resetFilter">重置</el-button>
@@ -147,23 +147,23 @@ function resetFilter() { keyword.value = ''; filterStatus.value = ''; filterDevi
 
     <el-dialog v-model="formVisible" :title="isEdit ? '编辑设备' : '新增设备'" width="500px" :close-on-click-modal="false">
       <el-form :model="form" label-width="110px">
-        <el-form-item label="设备名称" required><el-input v-model="form.name" placeholder="请输入设备名称" /></el-form-item>
-        <el-form-item label="设备SN" required><el-input v-model="form.deviceNo" placeholder="请输入设备SN" /></el-form-item>
+        <el-form-item label="设备名称" required><el-input v-model="form.name" placeholder="请输入设备名称" aria-label="请输入设备名称"/></el-form-item>
+        <el-form-item label="设备SN" required><el-input v-model="form.deviceNo" placeholder="请输入设备SN" aria-label="请输入设备SN"/></el-form-item>
         <el-form-item label="设备类型" required>
-          <el-select v-model="form.deviceType" placeholder="请选择" style="width:100%">
+          <el-select v-model="form.deviceType" placeholder="请选择" style="width:100%" aria-label="请选择">
             <el-option v-for="t in devTypeOptions" :key="t" :label="t" :value="t" />
           </el-select>
         </el-form-item>
         <el-form-item label="所属区域">
-          <el-input v-model="form.regionName" placeholder="可选：请输入设备所在区域" />
+          <el-input v-model="form.regionName" placeholder="可选：请输入设备所在区域" aria-label="可选：请输入设备所在区域"/>
         </el-form-item>
         <el-form-item label="联系人">
-          <el-input v-model="form.contact" placeholder="可选：请输入设备联系人" />
+          <el-input v-model="form.contact" placeholder="可选：请输入设备联系人" aria-label="可选：请输入设备联系人"/>
         </el-form-item>
         <el-form-item label="联系电话">
-          <el-input v-model="form.contactPhone" placeholder="可选：请输入联系人电话" />
+          <el-input v-model="form.contactPhone" placeholder="可选：请输入联系人电话" aria-label="可选：请输入联系人电话"/>
         </el-form-item>
-        <el-form-item label="备注"><el-input v-model="form.remark" type="textarea" :rows="2" placeholder="可选" /></el-form-item>
+        <el-form-item label="备注"><el-input v-model="form.remark" type="textarea" :rows="2" placeholder="可选" aria-label="可选"/></el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="formVisible = false">取消</el-button>

@@ -105,7 +105,7 @@ function submitType() {
           </el-table-column>
         </el-table>
         <div class="filter-bar">
-          <el-select v-model="bindForm.form_template_id" placeholder="选择启用中的检验批表单" style="width: 280px">
+          <el-select v-model="bindForm.form_template_id" placeholder="选择启用中的检验批表单" style="width: 280px" aria-label="选择启用中的检验批表单">
             <el-option
               v-for="t in enabledForms"
               :key="t.id"

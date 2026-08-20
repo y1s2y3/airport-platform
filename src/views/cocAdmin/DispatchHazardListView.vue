@@ -112,11 +112,11 @@ onMounted(load)
     </div>
 
     <div class="tab-toolbar">
-      <el-select v-model="typeFilter" placeholder="隐患类型" clearable class="status-filter">
+      <el-select v-model="typeFilter" placeholder="隐患类型" clearable class="status-filter" aria-label="隐患类型">
         <el-option label="安全" value="safety" />
         <el-option label="质量" value="quality" />
       </el-select>
-      <el-select v-model="statusFilter" placeholder="整改状态" clearable class="status-filter">
+      <el-select v-model="statusFilter" placeholder="整改状态" clearable class="status-filter" aria-label="整改状态">
         <el-option
           v-for="item in DISPATCH_HAZARD_RECTIFY_STATUSES"
           :key="item"
@@ -128,8 +128,7 @@ onMounted(load)
         v-model="keyword"
         placeholder="搜索隐患描述、整改人、项目、摄像头…"
         clearable
-        class="search-input"
-      />
+        class="search-input" aria-label="搜索隐患描述、整改人、项目、摄像头…"/>
     </div>
 
     <el-table :data="filtered" stripe border empty-text="暂无调度隐患记录" class="ap-table">

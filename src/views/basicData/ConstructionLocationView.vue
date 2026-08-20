@@ -258,7 +258,7 @@ function tagType(data) {
     <div v-else class="layout">
       <aside class="tree-panel">
         <div class="panel-title">实体工程结构</div>
-        <el-input v-model="keyword" clearable placeholder="筛选名称" style="margin-bottom: 12px" />
+        <el-input v-model="keyword" clearable placeholder="筛选名称" style="margin-bottom: 12px" aria-label="筛选名称"/>
         <el-tree
           ref="treeRef"
           :data="treeData"
@@ -378,7 +378,7 @@ function tagType(data) {
           </el-select>
         </el-form-item>
         <el-form-item label="上级部位">
-          <el-select v-model="form.parent_id" clearable filterable style="width: 100%" placeholder="空=挂在分项下">
+          <el-select v-model="form.parent_id" clearable filterable style="width: 100%" placeholder="空=挂在分项下" aria-label="空=挂在分项下">
             <el-option
               v-for="n in parentLocOptions"
               :key="n.id"

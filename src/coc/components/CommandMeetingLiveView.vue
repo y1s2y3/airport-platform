@@ -567,8 +567,7 @@ function openCellFullscreen(device) {
                 v-model="searchKeyword"
                 placeholder="搜索项目名称 / 设备名称"
                 clearable
-                size="small"
-              >
+                size="small" aria-label="搜索项目名称 / 设备名称">
                 <template #prefix>
                   <el-icon><Search /></el-icon>
                 </template>

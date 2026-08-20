@@ -7,13 +7,18 @@ export const basicDataMenuGroup = {
       key: 'bd-project-info',
       label: '项目基础信息',
       path: '/basic-data/project/info',
-      description: '指挥部层级维护全部项目基础信息，支持按项目列表查看详情及参建单位信息。',
+      description:
+        '同一入口：指挥部按项目展示全部项目基础信息；项目级仅展示当前项目；两级均支持新增与编辑项目画像。',
     },
     {
       key: 'bd-subcontractor',
       label: '分包单位管理',
+      /** 同一菜单：指挥部看台账，项目看报审 */
+      hqLabel: '分包单位管理',
+      projectLabel: '分包单位报审',
       path: '/basic-data/project/subcontractor',
-      description: '按项目维护分包单位登记信息：安全生产许可、项目负责人、安全管理人员及资质证书。',
+      description:
+        '同一入口：指挥部查看已通过分包台账（含项目名称）；项目发起/跟踪分包单位报审；审批在个人中心办理，通过后同步项目画像。',
     },
     {
       key: 'bd-entity-breakdown',

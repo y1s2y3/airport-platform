@@ -1458,8 +1458,7 @@ function saveStepQuietly() {
                 clearable
                 placeholder="选择岗位"
                 style="width: 100%"
-                @change="onFlowRoleChange(row)"
-              >
+                @change="onFlowRoleChange(row)" aria-label="选择岗位">
                 <el-option-group v-for="g in roleGroups" :key="g.label" :label="g.label">
                   <el-option
                     v-for="opt in g.options"
@@ -1481,8 +1480,7 @@ function saveStepQuietly() {
                 collapse-tags-tooltip
                 :disabled="!row.role"
                 :placeholder="row.role ? '选择审批人' : '请先选择岗位'"
-                style="width: 100%"
-              >
+                style="width: 100%" aria-label="row.role ? '选择审批人' : '请先选择岗位'">
                 <el-option
                   v-for="opt in approverOptionsForRow(row)"
                   :key="opt.value"
@@ -1514,8 +1512,7 @@ function saveStepQuietly() {
                 collapse-tags-tooltip
                 clearable
                 placeholder="选填"
-                style="width: 100%"
-              >
+                style="width: 100%" aria-label="选填">
                 <el-option
                   v-for="opt in personOptions"
                   :key="opt.value"
@@ -1557,7 +1554,7 @@ function saveStepQuietly() {
       <p class="form-hint mb">审批岗位（流程中心）：{{ submitPostLabel }}</p>
       <el-form label-width="100px">
         <el-form-item label="审批人" required>
-          <el-select v-model="submitApproverId" filterable placeholder="请选择" style="width: 100%">
+          <el-select v-model="submitApproverId" filterable placeholder="请选择" style="width: 100%" aria-label="请选择">
             <el-option
               v-for="u in submitCandidates"
               :key="u.id"
@@ -1621,8 +1618,7 @@ function saveStepQuietly() {
           v-model="matPickKeyword"
           clearable
           placeholder="单号 / 名称 / 品牌 / 供应商"
-          style="width: 240px"
-        />
+          style="width: 240px" aria-label="单号 / 名称 / 品牌 / 供应商"/>
       </div>
       <el-table
         :data="matPickRows"
@@ -1671,8 +1667,7 @@ function saveStepQuietly() {
           v-model="samplePickKeyword"
           clearable
           placeholder="单号 / 名称 / 类别"
-          style="width: 240px"
-        />
+          style="width: 240px" aria-label="单号 / 名称 / 类别"/>
       </div>
       <el-table
         :data="samplePickRows"

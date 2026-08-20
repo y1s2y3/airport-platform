@@ -9,6 +9,9 @@ import {
 } from '../constants/laborPersonStatus.js'
 import { appendOperationLog } from './systemLogs.js'
 import { COC_PROJECT_OPTIONS } from '../config/projectOptions.js'
+import { maskIdCard, maskPhone } from '../utils/mask.js'
+
+export { maskIdCard, maskPhone }
 
 export {
   REALNAME_ENTRY_STATUS_OPTIONS as entryStatusOptions,
@@ -105,17 +108,6 @@ export const unitNameOptions = Object.values(unitProfiles).map((item) => item.fu
 
 export function getProjectOptions() {
   return projectNodes.map((item) => ({ id: item.id, label: item.label }))
-}
-
-export function maskIdCard(id) {
-  if (!id || id.length < 8) return id
-  return `${id.slice(0, 6)}********${id.slice(-4)}`
-}
-
-export function maskPhone(phone) {
-  if (!phone || phone.length < 7) return phone || '—'
-  if (phone.length === 11) return `${phone.slice(0, 3)}****${phone.slice(-4)}`
-  return `${phone.slice(0, 3)}****${phone.slice(-2)}`
 }
 
 function buildTodayPunch(seq, entry_status) {

@@ -239,9 +239,12 @@ function batchMarkWarningRead() {
 }
 
 const batchDisposeVisible = ref(false)
+const batchDisposeResult = ref('已处置')
 const batchDisposeContent = ref('')
 const batchDisposeFiles = ref([])
 const batchDisposeSubmitting = ref(false)
+
+const DISPOSAL_RESULT_OPTIONS = ['已处置', '误报']
 
 function openBatchDispose() {
   if (!warningSelection.value.length) return ElMessage.warning('请先勾选要处置的预警')
@@ -251,6 +254,7 @@ function openBatchDispose() {
   if (!pendingTasks.length) {
     return ElMessage.warning('所选条目中没有可批量处置的「待处理」处置任务')
   }
+  batchDisposeResult.value = '已处置'
   batchDisposeContent.value = ''
   batchDisposeFiles.value = []
   batchDisposeVisible.value = true
@@ -261,6 +265,7 @@ function onBatchDisposeFileChange(file, fileList) {
 }
 
 async function confirmBatchDispose() {
+  if (!batchDisposeResult.value) return ElMessage.warning('请选择处置结果')
   const content = batchDisposeContent.value.trim()
   if (!content) return ElMessage.warning('请填写处置说明')
   await ElMessageBox.confirm('确认将所选「待处理」处置任务批量关闭为「已关闭」？', '批量处置预警', {
@@ -271,6 +276,7 @@ async function confirmBatchDispose() {
     const n = batchDisposeWarningCenter(
       warningSelection.value.map((r) => r.id),
       {
+        disposal_result: batchDisposeResult.value,
         content,
         attachments: batchDisposeFiles.value.map((f) => f.name || f),
         operator: '张明',
@@ -366,11 +372,11 @@ watch([activeTotal, pageSize], () => {
     <template v-if="activeTab === 'todo'">
       <div class="filter-bar">
         <span class="filter-label">所属模块</span>
-        <el-select v-model="filters.processCategory" clearable placeholder="请选择" style="width: 150px">
+        <el-select v-model="filters.processCategory" clearable placeholder="请选择" style="width: 150px" aria-label="请选择">
           <el-option v-for="s in PROCESS_CATEGORY_OPTIONS" :key="s" :label="s" :value="s" />
         </el-select>
         <span class="filter-label">流程名称</span>
-        <el-input v-model="filters.processName" clearable placeholder="请输入流程名称" style="width: 240px" />
+        <el-input v-model="filters.processName" clearable placeholder="请输入流程名称" style="width: 240px" aria-label="请输入流程名称"/>
         <el-button type="primary" :icon="Search" @click="onSearch">搜索</el-button>
         <el-button :icon="Refresh" @click="resetFilters">重置</el-button>
       </div>
@@ -395,11 +401,11 @@ watch([activeTotal, pageSize], () => {
     <template v-else-if="activeTab === 'done'">
       <div class="filter-bar">
         <span class="filter-label">所属模块</span>
-        <el-select v-model="filters.processCategory" clearable placeholder="请选择" style="width: 150px">
+        <el-select v-model="filters.processCategory" clearable placeholder="请选择" style="width: 150px" aria-label="请选择">
           <el-option v-for="s in PROCESS_CATEGORY_OPTIONS" :key="s" :label="s" :value="s" />
         </el-select>
         <span class="filter-label">流程名称</span>
-        <el-input v-model="filters.processName" clearable placeholder="请输入流程名称" style="width: 240px" />
+        <el-input v-model="filters.processName" clearable placeholder="请输入流程名称" style="width: 240px" aria-label="请输入流程名称"/>
         <el-button type="primary" :icon="Search" @click="onSearch">搜索</el-button>
         <el-button :icon="Refresh" @click="resetFilters">重置</el-button>
       </div>
@@ -425,13 +431,13 @@ watch([activeTotal, pageSize], () => {
     <template v-else-if="activeTab === 'started'">
       <div class="filter-bar">
         <span class="filter-label">所属模块</span>
-        <el-select v-model="filters.processCategory" clearable placeholder="请选择" style="width: 150px">
+        <el-select v-model="filters.processCategory" clearable placeholder="请选择" style="width: 150px" aria-label="请选择">
           <el-option v-for="s in PROCESS_CATEGORY_OPTIONS" :key="s" :label="s" :value="s" />
         </el-select>
         <span class="filter-label">流程名称</span>
-        <el-input v-model="filters.processName" clearable placeholder="请输入流程名称" style="width: 220px" />
+        <el-input v-model="filters.processName" clearable placeholder="请输入流程名称" style="width: 220px" aria-label="请输入流程名称"/>
         <span class="filter-label">处理状态</span>
-        <el-select v-model="filters.processStatus" clearable placeholder="请选择" style="width: 160px">
+        <el-select v-model="filters.processStatus" clearable placeholder="请选择" style="width: 160px" aria-label="请选择">
           <el-option v-for="s in PROCESS_STATUS_OPTIONS" :key="s" :label="s" :value="s" />
         </el-select>
         <el-button type="primary" :icon="Search" @click="onSearch">搜索</el-button>
@@ -468,14 +474,14 @@ watch([activeTotal, pageSize], () => {
     <template v-else-if="activeTab === 'cc'">
       <div class="filter-bar">
         <span class="filter-label">所属模块</span>
-        <el-select v-model="filters.processCategory" clearable placeholder="请选择" style="width: 150px">
+        <el-select v-model="filters.processCategory" clearable placeholder="请选择" style="width: 150px" aria-label="请选择">
           <el-option v-for="s in PROCESS_CATEGORY_OPTIONS" :key="s" :label="s" :value="s" />
         </el-select>
         <span class="filter-label">阅读状态</span>
-        <el-select v-model="filters.readStatus" clearable placeholder="请选择阅读状态" style="width: 160px">
+        <el-select v-model="filters.readStatus" clearable placeholder="请选择阅读状态" style="width: 160px" aria-label="请选择阅读状态">
           <el-option v-for="s in READ_STATUS_OPTIONS" :key="s" :label="s" :value="s" />
         </el-select>
-        <el-input v-model="filters.processName" clearable placeholder="请输入流程名称" style="width: 220px" />
+        <el-input v-model="filters.processName" clearable placeholder="请输入流程名称" style="width: 220px" aria-label="请输入流程名称"/>
         <el-button type="primary" :icon="Search" @click="onSearch">搜索</el-button>
         <el-button :icon="Refresh" @click="resetFilters">重置</el-button>
       </div>
@@ -506,15 +512,15 @@ watch([activeTotal, pageSize], () => {
     <template v-else-if="activeTab === 'warning-center'">
       <div class="filter-bar">
         <span class="filter-label">类型</span>
-        <el-select v-model="filters.warnType" clearable placeholder="请选择" style="width: 150px">
+        <el-select v-model="filters.warnType" clearable placeholder="请选择" style="width: 150px" aria-label="请选择">
           <el-option v-for="s in WARNING_CENTER_TYPE_OPTIONS" :key="s" :label="s" :value="s" />
         </el-select>
         <span class="filter-label">状态</span>
-        <el-select v-model="filters.warnStatus" clearable placeholder="请选择" style="width: 150px">
+        <el-select v-model="filters.warnStatus" clearable placeholder="请选择" style="width: 150px" aria-label="请选择">
           <el-option v-for="s in WARNING_CENTER_STATUS_OPTIONS" :key="s" :label="s" :value="s" />
         </el-select>
         <span class="filter-label">预警描述</span>
-        <el-input v-model="filters.warnKeyword" clearable placeholder="请输入关键词" style="width: 240px" />
+        <el-input v-model="filters.warnKeyword" clearable placeholder="请输入关键词" style="width: 240px" aria-label="请输入关键词"/>
         <el-button type="primary" :icon="Search" @click="onSearch">搜索</el-button>
         <el-button :icon="Refresh" @click="resetFilters">重置</el-button>
       </div>
@@ -554,6 +560,17 @@ watch([activeTotal, pageSize], () => {
         destroy-on-close
       >
         <el-form label-width="96px">
+          <el-form-item label="处置结果" required>
+            <el-radio-group v-model="batchDisposeResult">
+              <el-radio
+                v-for="opt in DISPOSAL_RESULT_OPTIONS"
+                :key="opt"
+                :value="opt"
+              >
+                {{ opt }}
+              </el-radio>
+            </el-radio-group>
+          </el-form-item>
           <el-form-item label="处置说明" required>
             <el-input
               v-model="batchDisposeContent"
@@ -561,8 +578,7 @@ watch([activeTotal, pageSize], () => {
               :rows="4"
               maxlength="500"
               show-word-limit
-              placeholder="请填写处置说明（与详情处置一致）"
-            />
+              placeholder="请填写处置说明（与详情处置一致）" aria-label="请填写处置说明（与详情处置一致）"/>
           </el-form-item>
           <el-form-item label="处置附件">
             <el-upload
@@ -588,13 +604,13 @@ watch([activeTotal, pageSize], () => {
     <template v-else-if="activeTab === 'notice'">
       <div class="filter-bar filter-bar-notice">
         <span class="filter-label">消息名称</span>
-        <el-input v-model="filters.noticeTitle" clearable placeholder="请输入消息名称" style="width: 200px" />
+        <el-input v-model="filters.noticeTitle" clearable placeholder="请输入消息名称" style="width: 200px" aria-label="请输入消息名称"/>
         <span class="filter-label">所属模块</span>
-        <el-select v-model="filters.noticeModule" clearable placeholder="请选择所属模块" style="width: 160px">
+        <el-select v-model="filters.noticeModule" clearable placeholder="请选择所属模块" style="width: 160px" aria-label="请选择所属模块">
           <el-option v-for="s in NOTICE_MODULE_OPTIONS" :key="s" :label="s" :value="s" />
         </el-select>
         <span class="filter-label">阅读状态</span>
-        <el-select v-model="filters.readStatus" clearable placeholder="请选择阅读状态" style="width: 160px">
+        <el-select v-model="filters.readStatus" clearable placeholder="请选择阅读状态" style="width: 160px" aria-label="请选择阅读状态">
           <el-option v-for="s in READ_STATUS_OPTIONS" :key="s" :label="s" :value="s" />
         </el-select>
         <span class="expand-link">

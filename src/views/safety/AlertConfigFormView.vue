@@ -144,21 +144,21 @@ if (route.query.type) {
         <el-row :gutter="16" style="margin-top:12px">
           <el-col :span="8">
             <el-form-item label="告警类型" required>
-              <el-select v-model="form.alertType" placeholder="请选择" style="width:100%" :disabled="isReadonly">
+              <el-select v-model="form.alertType" placeholder="请选择" style="width:100%" :disabled="isReadonly" aria-label="请选择">
                 <el-option v-for="t in alertTypeOptions" :key="t" :label="t" :value="t" />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="8">
             <el-form-item label="告警设备" required>
-              <el-select v-model="form.devices" multiple placeholder="请选择" style="width:100%" :disabled="isReadonly">
+              <el-select v-model="form.devices" multiple placeholder="请选择" style="width:100%" :disabled="isReadonly" aria-label="请选择">
                 <el-option v-for="d in deviceOptions[form.alertType] || []" :key="d" :label="d" :value="d" />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="8">
             <el-form-item label="处理人" required>
-              <el-select v-model="form.handler" placeholder="请选择" style="width:100%" :disabled="isReadonly">
+              <el-select v-model="form.handler" placeholder="请选择" style="width:100%" :disabled="isReadonly" aria-label="请选择">
                 <el-option v-for="p in personOptions" :key="p" :label="p" :value="p" />
               </el-select>
             </el-form-item>
@@ -172,7 +172,7 @@ if (route.query.type) {
           </el-col>
           <el-col :span="8">
             <el-form-item label="推送方式" required>
-              <el-select v-model="form.pushMethod" multiple placeholder="请选择" style="width:100%" :disabled="isReadonly">
+              <el-select v-model="form.pushMethod" multiple placeholder="请选择" style="width:100%" :disabled="isReadonly" aria-label="请选择">
                 <el-option label="短信" value="短信" />
                 <el-option label="站内信" value="站内信" />
               </el-select>
@@ -189,7 +189,7 @@ if (route.query.type) {
           <el-table-column min-width="130">
             <template #header><span class="required-column-title">告警指标</span></template>
             <template #default="{ row }">
-              <el-select v-model="row.indicator" placeholder="请选择" style="width:100%" size="small">
+              <el-select v-model="row.indicator" placeholder="请选择" style="width:100%" size="small" aria-label="请选择">
                 <el-option v-for="ind in currentIndicators" :key="ind" :label="ind" :value="ind" />
               </el-select>
             </template>
@@ -205,7 +205,7 @@ if (route.query.type) {
           <el-table-column width="90">
             <template #header><span class="required-column-title">阈值</span></template>
             <template #default="{ row }">
-              <el-input v-model="row.threshold" placeholder="输入数值" size="small" />
+              <el-input v-model="row.threshold" placeholder="输入数值" size="small" aria-label="输入数值"/>
             </template>
           </el-table-column>
           <el-table-column width="110">

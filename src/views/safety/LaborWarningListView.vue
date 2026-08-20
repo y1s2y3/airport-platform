@@ -97,14 +97,14 @@ function goDetail(row) {
         </div>
 
         <div class="filter-bar">
-          <el-input v-model="keyword" placeholder="预警编号/人员/单位" clearable style="width: 200px" />
-          <el-select v-model="filters.rule_key" placeholder="预警类型" clearable style="width: 200px">
+          <el-input v-model="keyword" placeholder="预警编号/人员/单位" clearable style="width: 200px" aria-label="预警编号/人员/单位"/>
+          <el-select v-model="filters.rule_key" placeholder="预警类型" clearable style="width: 200px" aria-label="预警类型">
             <el-option v-for="item in ruleTypeOptions" :key="item.key" :label="item.label" :value="item.key" />
           </el-select>
-          <el-select v-model="filters.status" placeholder="预警状态" clearable style="width: 120px">
+          <el-select v-model="filters.status" placeholder="预警状态" clearable style="width: 120px" aria-label="预警状态">
             <el-option v-for="item in warningStatusOptions" :key="item" :label="item" :value="item" />
           </el-select>
-          <el-select v-model="filters.handle_mode" placeholder="处置方式" clearable style="width: 140px">
+          <el-select v-model="filters.handle_mode" placeholder="处置方式" clearable style="width: 140px" aria-label="处置方式">
             <el-option v-for="item in handleModeOptions" :key="item" :label="item" :value="item" />
           </el-select>
           <el-button class="ap-btn-primary" type="primary" :icon="Search">查询</el-button>

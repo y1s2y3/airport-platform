@@ -133,8 +133,7 @@ function reset() {
         clearable
         placeholder="姓名/单位/证书编号/手机号"
         style="width: 260px"
-        :prefix-icon="Search"
-      />
+        :prefix-icon="Search" aria-label="姓名/单位/证书编号/手机号"/>
       <el-button type="primary" :icon="Search">查询</el-button>
       <el-button :icon="Refresh" @click="reset">重置</el-button>
       <el-button type="primary" :icon="Plus" @click="openCreate">新增用章人</el-button>
@@ -173,19 +172,19 @@ function reset() {
     >
       <el-form label-width="110px">
         <el-form-item label="姓名" required>
-          <el-input v-model="form.user_name" placeholder="用章人姓名" />
+          <el-input v-model="form.user_name" placeholder="用章人姓名" aria-label="用章人姓名"/>
         </el-form-item>
         <el-form-item label="所属单位">
-          <el-input v-model="form.org_name" placeholder="如：中建某局深圳机场项目部" />
+          <el-input v-model="form.org_name" placeholder="如：中建某局深圳机场项目部" aria-label="如：中建某局深圳机场项目部"/>
         </el-form-item>
         <el-form-item label="CA证书编号" required>
-          <el-input v-model="form.cert_no" placeholder="档案系统/CA 机构颁发的证书编号" />
+          <el-input v-model="form.cert_no" placeholder="档案系统/CA 机构颁发的证书编号" aria-label="档案系统/CA 机构颁发的证书编号"/>
         </el-form-item>
         <el-form-item label="手机号">
-          <el-input v-model="form.phone" placeholder="选填" />
+          <el-input v-model="form.phone" placeholder="选填" aria-label="选填"/>
         </el-form-item>
         <el-form-item label="备注">
-          <el-input v-model="form.remark" type="textarea" :rows="2" placeholder="如：总监执业章" />
+          <el-input v-model="form.remark" type="textarea" :rows="2" placeholder="如：总监执业章" aria-label="如：总监执业章"/>
         </el-form-item>
       </el-form>
       <template #footer>

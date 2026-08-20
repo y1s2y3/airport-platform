@@ -141,7 +141,7 @@ function saveForm() {
           <div class="side-title">审核流程</div>
           <el-form label-position="top" size="small">
             <el-form-item label="专业工长">
-              <el-select placeholder="请选择" style="width: 100%">
+              <el-select placeholder="请选择" style="width: 100%" aria-label="请选择">
                 <el-option label="张工" value="zhang" />
                 <el-option label="李工" value="li" />
               </el-select>
@@ -157,10 +157,10 @@ function saveForm() {
       <main class="form-main">
         <el-form inline size="small" class="form-meta-row">
           <el-form-item label="项目负责人">
-            <el-select placeholder="请选择" style="width: 140px"><el-option label="尹永强" value="1" /></el-select>
+            <el-select placeholder="请选择" style="width: 140px" aria-label="请选择"><el-option label="尹永强" value="1" /></el-select>
           </el-form-item>
           <el-form-item label="分包单位项目负责人">
-            <el-select placeholder="请选择" style="width: 140px"><el-option label="阮政鹏" value="1" /></el-select>
+            <el-select placeholder="请选择" style="width: 140px" aria-label="请选择"><el-option label="阮政鹏" value="1" /></el-select>
           </el-form-item>
           <el-form-item label="分包单位">
             <el-input style="width: 200px" model-value="中国电建集团航空港建设有限公司" />
@@ -193,15 +193,13 @@ function saveForm() {
                   v-model="row.sampleMin"
                   size="small"
                   placeholder="最小"
-                  class="sample-input"
-                />
+                  class="sample-input" aria-label="最小"/>
                 <span class="sample-sep">/</span>
                 <el-input
                   v-model="row.sampleActual"
                   size="small"
                   placeholder="实际"
-                  class="sample-input"
-                />
+                  class="sample-input" aria-label="实际"/>
               </div>
             </template>
           </el-table-column>

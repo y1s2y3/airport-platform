@@ -153,7 +153,7 @@ function goBackToHQ() {
           <div class="stat-card"><div class="sc-value text-danger">{{ hqTotalStats.hazardCount }}</div><div class="sc-label">隐患总数</div></div>
         </div>
         <div class="hq-filter-bar">
-          <el-input v-model="hqProjectKeyword" placeholder="搜索项目名称..." clearable style="width:240px" :prefix-icon="Search" />
+          <el-input v-model="hqProjectKeyword" placeholder="搜索项目名称..." clearable style="width:240px" :prefix-icon="Search" aria-label="搜索项目名称..."/>
         </div>
         <el-table :data="filteredHQProjects" border stripe style="width:100%;margin-top:12px" class="hq-table">
           <el-table-column type="index" label="序号" width="55" align="center" />
@@ -178,20 +178,20 @@ function goBackToHQ() {
       <div class="page-panel">
         <!-- 筛选栏 -->
         <div class="filter-bar">
-          <el-input v-model="filterForm.keyword" placeholder="搜索编号/名称/整改单..." clearable style="width:240px" :prefix-icon="Search" />
-          <el-select v-model="filterForm.category" placeholder="巡检分类" clearable style="width:100px">
+          <el-input v-model="filterForm.keyword" placeholder="搜索编号/名称/整改单..." clearable style="width:240px" :prefix-icon="Search" aria-label="搜索编号/名称/整改单..."/>
+          <el-select v-model="filterForm.category" placeholder="巡检分类" clearable style="width:100px" aria-label="巡检分类">
             <el-option label="安全" value="安全" /><el-option label="质量" value="质量" />
           </el-select>
-          <el-select v-model="filterForm.status" placeholder="任务状态" clearable style="width:100px">
+          <el-select v-model="filterForm.status" placeholder="任务状态" clearable style="width:100px" aria-label="任务状态">
             <el-option label="待执行" value="待执行" /><el-option label="已完成" value="已完成" />
           </el-select>
-          <el-select v-model="filterForm.source" placeholder="任务来源" clearable style="width:110px">
+          <el-select v-model="filterForm.source" placeholder="任务来源" clearable style="width:110px" aria-label="任务来源">
             <el-option label="任务下发" value="任务下发" /><el-option label="系统自建" value="系统自建" />
           </el-select>
-          <el-select v-model="filterForm.result" placeholder="巡检结果" clearable style="width:100px">
+          <el-select v-model="filterForm.result" placeholder="巡检结果" clearable style="width:100px" aria-label="巡检结果">
             <el-option label="正常" value="正常" /><el-option label="有隐患" value="有隐患" />
           </el-select>
-          <el-select v-model="filterForm.overdue" placeholder="是否逾期" clearable style="width:100px">
+          <el-select v-model="filterForm.overdue" placeholder="是否逾期" clearable style="width:100px" aria-label="是否逾期">
             <el-option label="是" value="是" /><el-option label="否" value="否" />
           </el-select>
           <el-button @click="handleReset">重置</el-button>

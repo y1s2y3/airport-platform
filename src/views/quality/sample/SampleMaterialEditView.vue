@@ -221,8 +221,7 @@ function onSubmit() {
             clearable
             placeholder="从品牌台账选择供应商"
             style="width: 100%"
-            :disabled="!supplierOptions.length"
-          >
+            :disabled="!supplierOptions.length" aria-label="从品牌台账选择供应商">
             <el-option
               v-for="s in supplierOptions"
               :key="s.supplier"
@@ -241,8 +240,7 @@ function onSubmit() {
             clearable
             placeholder="请先选择供应商"
             style="width: 100%"
-            :disabled="!form.supplier"
-          >
+            :disabled="!form.supplier" aria-label="请先选择供应商">
             <el-option
               v-for="m in materialOptions"
               :key="m.material_id || m.material_name"
@@ -258,8 +256,7 @@ function onSubmit() {
             :rows="4"
             maxlength="2000"
             show-word-limit
-            placeholder="描述材料性能指标、色号、厚度等"
-          />
+            placeholder="描述材料性能指标、色号、厚度等" aria-label="描述材料性能指标、色号、厚度等"/>
         </el-form-item>
         <el-form-item label="效果图" required>
           <DispatchImageAttachments
@@ -290,7 +287,7 @@ function onSubmit() {
       </section>
 
       <el-form-item label="备注">
-        <el-input v-model="form.remark" placeholder="选填" />
+        <el-input v-model="form.remark" placeholder="选填" aria-label="选填"/>
       </el-form-item>
       <div class="form-actions">
         <el-button @click="router.back()">取消</el-button>

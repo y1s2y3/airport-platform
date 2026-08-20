@@ -333,8 +333,7 @@ function handleSave() {
                 default-first-option
                 size="small"
                 :popper-class="DOC_POPPER_CLASS"
-                placeholder="选择或输入项目名称"
-              >
+                placeholder="选择或输入项目名称" aria-label="选择或输入项目名称">
                 <el-option v-for="item in projectOptions" :key="item" :label="item" :value="item" />
               </el-select>
             </div>
@@ -351,8 +350,7 @@ function handleSave() {
                 type="textarea"
                 :rows="4"
                 resize="none"
-                placeholder="请描述工作要求，将作为任务单正文"
-              />
+                placeholder="请描述工作要求，将作为任务单正文" aria-label="请描述工作要求，将作为任务单正文"/>
             </div>
             <div class="field-row">
               <span class="field-label">执行人</span>
@@ -363,8 +361,7 @@ function handleSave() {
                 default-first-option
                 size="small"
                 :popper-class="DOC_POPPER_CLASS"
-                placeholder="选择或输入执行人"
-              >
+                placeholder="选择或输入执行人" aria-label="选择或输入执行人">
                 <el-option
                   v-for="item in executorOptions"
                   :key="item.value"
@@ -382,8 +379,7 @@ function handleSave() {
                 :popper-class="DOC_POPPER_CLASS"
                 placeholder="选择完成时限"
                 size="small"
-                style="width: 100%"
-              />
+                style="width: 100%" aria-label="选择完成时限"/>
             </div>
             <div class="field-row field-row-block">
               <span class="field-label">备注</span>
@@ -392,8 +388,7 @@ function handleSave() {
                 type="textarea"
                 :rows="2"
                 resize="none"
-                placeholder="选填"
-              />
+                placeholder="选填" aria-label="选填"/>
             </div>
           </template>
 
@@ -407,8 +402,7 @@ function handleSave() {
                 default-first-option
                 size="small"
                 :popper-class="DOC_POPPER_CLASS"
-                placeholder="选择或输入项目名称"
-              >
+                placeholder="选择或输入项目名称" aria-label="选择或输入项目名称">
                 <el-option v-for="item in projectOptions" :key="item" :label="item" :value="item" />
               </el-select>
             </div>
@@ -419,8 +413,7 @@ function handleSave() {
                 type="textarea"
                 :rows="4"
                 resize="none"
-                placeholder="请描述提示事项，将作为提示函正文"
-              />
+                placeholder="请描述提示事项，将作为提示函正文" aria-label="请描述提示事项，将作为提示函正文"/>
             </div>
             <div class="field-row">
               <span class="field-label">指派人</span>
@@ -431,8 +424,7 @@ function handleSave() {
                 default-first-option
                 size="small"
                 :popper-class="DOC_POPPER_CLASS"
-                placeholder="选择或输入指派人"
-              >
+                placeholder="选择或输入指派人" aria-label="选择或输入指派人">
                 <el-option
                   v-for="item in executorOptions"
                   :key="item.value"
@@ -450,8 +442,7 @@ function handleSave() {
                 :popper-class="DOC_POPPER_CLASS"
                 placeholder="选择完成时限"
                 size="small"
-                style="width: 100%"
-              />
+                style="width: 100%" aria-label="选择完成时限"/>
             </div>
           </template>
 
@@ -465,8 +456,7 @@ function handleSave() {
                 default-first-option
                 size="small"
                 :popper-class="DOC_POPPER_CLASS"
-                placeholder="选择或输入项目名称"
-              >
+                placeholder="选择或输入项目名称" aria-label="选择或输入项目名称">
                 <el-option v-for="item in projectOptions" :key="item" :label="item" :value="item" />
               </el-select>
             </div>
@@ -483,8 +473,7 @@ function handleSave() {
                 type="textarea"
                 :rows="4"
                 resize="none"
-                placeholder="请描述处罚内容"
-              />
+                placeholder="请描述处罚内容" aria-label="请描述处罚内容"/>
             </div>
             <div class="field-row">
               <span class="field-label">指派人</span>
@@ -495,8 +484,7 @@ function handleSave() {
                 default-first-option
                 size="small"
                 :popper-class="DOC_POPPER_CLASS"
-                placeholder="选择或输入指派人"
-              >
+                placeholder="选择或输入指派人" aria-label="选择或输入指派人">
                 <el-option
                   v-for="item in executorOptions"
                   :key="item.value"
@@ -514,8 +502,7 @@ function handleSave() {
                 :popper-class="DOC_POPPER_CLASS"
                 placeholder="选择完成时限"
                 size="small"
-                style="width: 100%"
-              />
+                style="width: 100%" aria-label="选择完成时限"/>
             </div>
           </template>
         </div>

@@ -59,7 +59,7 @@ function toggleExpand() {
     <div class="filter-panel">
       <div class="filter-row">
         <span class="field-label">所属组织</span>
-        <el-select v-model="orgFilter" placeholder="请选择" clearable class="filter-select">
+        <el-select v-model="orgFilter" placeholder="请选择" clearable class="filter-select" aria-label="请选择">
           <el-option
             v-for="opt in orgSelectOptions"
             :key="opt.value"
@@ -76,8 +76,7 @@ function toggleExpand() {
           start-placeholder="开始时间"
           end-placeholder="结束时间"
           value-format="YYYY-MM-DD"
-          class="filter-date"
-        />
+          class="filter-date" aria-label="开始时间"/>
 
         <span class="field-label">用户信息</span>
         <el-input
@@ -85,8 +84,7 @@ function toggleExpand() {
           class="filter-input"
           placeholder="姓名、账号、手机号"
           clearable
-          @keyup.enter="handleSearch"
-        />
+          @keyup.enter="handleSearch" aria-label="姓名、账号、手机号"/>
 
         <div class="filter-actions">
           <el-button text class="expand-btn" @click="toggleExpand">
@@ -100,7 +98,7 @@ function toggleExpand() {
 
       <div v-if="expanded" class="filter-row expanded-row">
         <span class="field-label">终端类型</span>
-        <el-select v-model="terminalFilter" placeholder="请选择" clearable class="filter-select">
+        <el-select v-model="terminalFilter" placeholder="请选择" clearable class="filter-select" aria-label="请选择">
           <el-option
             v-for="opt in terminalSelectOptions"
             :key="opt.value"

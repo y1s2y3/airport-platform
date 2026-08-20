@@ -194,7 +194,7 @@ defineExpose({ reload: load })
 <template>
   <div class="hazard-tab">
     <div class="tab-toolbar">
-      <el-select v-model="statusFilter" placeholder="整改状态" clearable class="status-filter">
+      <el-select v-model="statusFilter" placeholder="整改状态" clearable class="status-filter" aria-label="整改状态">
         <el-option
           v-for="item in SUPERVISION_HAZARD_RECTIFY_STATUSES"
           :key="item"
@@ -206,8 +206,7 @@ defineExpose({ reload: load })
         v-model="keyword"
         placeholder="搜索隐患描述、备注、项目…"
         clearable
-        class="search-input"
-      />
+        class="search-input" aria-label="搜索隐患描述、备注、项目…"/>
       <el-button v-if="canCreate" type="primary" :icon="Plus" @click="openCreate">新增隐患</el-button>
       <el-tag v-if="canOperateClose" size="small" type="success">指挥部 · 可关闭</el-tag>
       <el-tag v-else-if="canCreate" size="small" type="success">项目级 · 可新增</el-tag>
@@ -265,7 +264,7 @@ defineExpose({ reload: load })
           <el-input :model-value="projectName" disabled />
         </el-form-item>
         <el-form-item label="隐患类型" required>
-          <el-select v-model="form.hazardType" placeholder="请选择" style="width: 100%">
+          <el-select v-model="form.hazardType" placeholder="请选择" style="width: 100%" aria-label="请选择">
             <el-option label="安全" value="safety" />
             <el-option label="质量" value="quality" />
           </el-select>
@@ -275,16 +274,15 @@ defineExpose({ reload: load })
             v-model="form.description"
             type="textarea"
             :rows="3"
-            placeholder="请输入隐患描述"
-          />
+            placeholder="请输入隐患描述" aria-label="请输入隐患描述"/>
         </el-form-item>
         <el-form-item label="隐患等级" required>
-          <el-select v-model="form.hazardLevel" placeholder="请选择" style="width: 100%">
+          <el-select v-model="form.hazardLevel" placeholder="请选择" style="width: 100%" aria-label="请选择">
             <el-option v-for="lv in hazardLevels" :key="lv" :label="lv" :value="lv" />
           </el-select>
         </el-form-item>
         <el-form-item label="备注">
-          <el-input v-model="form.remark" type="textarea" :rows="2" placeholder="请输入" />
+          <el-input v-model="form.remark" type="textarea" :rows="2" placeholder="请输入" aria-label="请输入"/>
         </el-form-item>
       </el-form>
       <template #footer>

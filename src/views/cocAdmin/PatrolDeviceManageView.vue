@@ -188,7 +188,7 @@ onMounted(load)
     <div class="panel-title simple-title">
       <span>{{ title }}</span>
       <div class="title-actions">
-        <el-input v-model="keyword" placeholder="搜索编号、编码、项目、人员…" clearable class="search-input" />
+        <el-input v-model="keyword" placeholder="搜索编号、编码、项目、人员…" clearable class="search-input" aria-label="搜索编号、编码、项目、人员…"/>
         <el-button type="primary" :icon="Plus" @click="openCreate">注册设备</el-button>
       </div>
     </div>
@@ -244,13 +244,13 @@ onMounted(load)
           <el-input :model-value="form.id" disabled />
         </el-form-item>
         <el-form-item label="设备编码" required>
-          <el-input v-model="form.deviceCode" placeholder="如：XJY-20260301" />
+          <el-input v-model="form.deviceCode" placeholder="如：XJY-20260301" aria-label="如：XJY-20260301"/>
         </el-form-item>
         <el-form-item label="设备名称" required>
-          <el-input v-model="form.name" placeholder="如：三跑道东区巡检仪" />
+          <el-input v-model="form.name" placeholder="如：三跑道东区巡检仪" aria-label="如：三跑道东区巡检仪"/>
         </el-form-item>
         <el-form-item label="绑定项目" required>
-          <el-select v-model="form.project" placeholder="选择项目" filterable style="width: 100%">
+          <el-select v-model="form.project" placeholder="选择项目" filterable style="width: 100%" aria-label="选择项目">
             <el-option
               v-for="p in projectOptions"
               :key="p.id"
@@ -266,8 +266,7 @@ onMounted(load)
             clearable
             :disabled="!form.project"
             placeholder="请先选择绑定项目，再选择项目下人员"
-            style="width: 100%"
-          >
+            style="width: 100%" aria-label="请先选择绑定项目，再选择项目下人员">
             <el-option
               v-for="item in bindPersonOptions"
               :key="item.value"
@@ -284,7 +283,7 @@ onMounted(load)
             name="patrol-device-account"
             autocomplete="off"
             readonly
-            @focus="($event) => $event.target.removeAttribute('readonly')"
+            @focus="($event) = aria-label="请输入设备账号"> $event.target.removeAttribute('readonly')"
           />
         </el-form-item>
         <el-form-item label="设备密码" required>
@@ -297,7 +296,7 @@ onMounted(load)
             name="patrol-device-password"
             autocomplete="new-password"
             readonly
-            @focus="($event) => $event.target.removeAttribute('readonly')"
+            @focus="($event) = aria-label="请输入设备密码"> $event.target.removeAttribute('readonly')"
           />
         </el-form-item>
       </el-form>

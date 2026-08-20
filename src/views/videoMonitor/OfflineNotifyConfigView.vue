@@ -218,8 +218,7 @@ async function handleReset() {
             collapse-tags
             collapse-tags-tooltip
             placeholder="请选择岗位"
-            style="width: 100%"
-          >
+            style="width: 100%" aria-label="请选择岗位">
             <el-option-group
               v-for="group in positionGroups"
               :key="group.scope"
@@ -244,8 +243,7 @@ async function handleReset() {
             collapse-tags
             collapse-tags-tooltip
             placeholder="请选择人员"
-            style="width: 100%"
-          >
+            style="width: 100%" aria-label="请选择人员">
             <el-option-group
               v-for="group in personGroupsFor(row)"
               :key="group.label"
@@ -272,8 +270,7 @@ async function handleReset() {
             v-model="row.remark"
             placeholder="选填，如补充说明"
             maxlength="50"
-            clearable
-          />
+            clearable aria-label="选填，如补充说明"/>
         </template>
       </el-table-column>
       <el-table-column label="操作" width="88" fixed="right" align="center">

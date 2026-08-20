@@ -107,8 +107,7 @@ async function viewProjectDetail(row) {
         clearable
         placeholder="项目名称"
         style="width: 260px"
-        :prefix-icon="Search"
-      />
+        :prefix-icon="Search" aria-label="项目名称"/>
       <el-button type="primary" :icon="Search" @click="handleSearch">查询</el-button>
       <el-button :icon="Refresh" @click="reset">重置</el-button>
     </div>

@@ -132,20 +132,20 @@ function submitRuleConfig() {
     <div class="page-layout">
       <aside v-if="isHqSelected" class="tree-panel">
         <div class="panel-title">项目列表</div>
-        <el-input v-model="treeSearch" placeholder="搜索项目..." clearable size="small" style="margin-bottom:8px" :prefix-icon="Search" />
+        <el-input v-model="treeSearch" placeholder="搜索项目..." clearable size="small" style="margin-bottom:8px" :prefix-icon="Search" aria-label="搜索项目..."/>
         <el-tree :data="treeDataWithCount" node-key="id" highlight-current default-expand-all :current-node-key="localProjectId || 'hq'"
           :expand-on-click-node="false" class="project-tree" @node-click="handleTreeNodeClick" />
       </aside>
       <div class="page-panel">
         <div class="filter-bar">
-          <el-input v-model="filterForm.keyword" placeholder="搜索设备名称/告警内容..." clearable style="width:260px" :prefix-icon="Search" />
-          <el-select v-model="filterForm.alertType" placeholder="告警类型" clearable style="width:120px">
+          <el-input v-model="filterForm.keyword" placeholder="搜索设备名称/告警内容..." clearable style="width:260px" :prefix-icon="Search" aria-label="搜索设备名称/告警内容..."/>
+          <el-select v-model="filterForm.alertType" placeholder="告警类型" clearable style="width:120px" aria-label="告警类型">
             <el-option v-for="t in alertTypeOptions" :key="t" :label="t" :value="t" />
           </el-select>
-          <el-select v-model="filterForm.level" placeholder="告警等级" clearable style="width:90px">
+          <el-select v-model="filterForm.level" placeholder="告警等级" clearable style="width:90px" aria-label="告警等级">
             <el-option label="重大告警" value="重大告警" /><el-option label="较大告警" value="较大告警" /><el-option label="一般告警" value="一般告警" />
           </el-select>
-          <el-select v-model="filterForm.status" placeholder="告警状态" clearable style="width:100px">
+          <el-select v-model="filterForm.status" placeholder="告警状态" clearable style="width:100px" aria-label="告警状态">
             <el-option label="未处置" value="未处置" /><el-option label="已处置" value="已处置" />
           </el-select>
           <el-button @click="handleReset">重置</el-button>
@@ -212,7 +212,7 @@ function submitRuleConfig() {
           </el-select>
         </el-form-item>
         <el-form-item label="告警说明">
-          <el-input v-model="confirmForm.remark" type="textarea" :rows="3" placeholder="请输入告警说明" />
+          <el-input v-model="confirmForm.remark" type="textarea" :rows="3" placeholder="请输入告警说明" aria-label="请输入告警说明"/>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -232,7 +232,7 @@ function submitRuleConfig() {
           <el-table-column prop="alertLevel" label="告警等级" width="120" align="center" />
           <el-table-column label="是否推送工程指挥部" width="170" align="center">
             <template #default="{ row }">
-              <el-select v-model="row.pushToHq" class="enable-select" placeholder="请选择" @change="handleHqPushChange(row)">
+              <el-select v-model="row.pushToHq" class="enable-select" placeholder="请选择" @change="handleHqPushChange(row)" aria-label="请选择">
                 <el-option v-for="item in hqPushOptions" :key="item" :label="item" :value="item" />
               </el-select>
             </template>
@@ -246,8 +246,7 @@ function submitRuleConfig() {
                 collapse-tags
                 collapse-tags-tooltip
                 :disabled="row.pushToHq === '否'"
-                placeholder="请选择"
-              >
+                placeholder="请选择" aria-label="请选择">
                 <el-option v-for="item in receiverOptions" :key="item" :label="item" :value="item" />
               </el-select>
             </template>
@@ -261,8 +260,7 @@ function submitRuleConfig() {
                 collapse-tags
                 collapse-tags-tooltip
                 :disabled="row.pushToHq === '否'"
-                placeholder="请选择"
-              >
+                placeholder="请选择" aria-label="请选择">
                 <el-option v-for="item in pushMethodOptions" :key="item" :label="item" :value="item" />
               </el-select>
             </template>
@@ -288,7 +286,7 @@ function submitRuleConfig() {
           <el-table-column prop="upgradeLevel" label="升级后等级" min-width="180" align="center" />
           <el-table-column label="是否启用升级" min-width="160" align="center">
             <template #default="{ row }">
-              <el-select v-model="row.enabled" class="enable-select" placeholder="请选择">
+              <el-select v-model="row.enabled" class="enable-select" placeholder="请选择" aria-label="请选择">
                 <el-option v-for="item in upgradeEnableOptions" :key="item" :label="item" :value="item" />
               </el-select>
             </template>

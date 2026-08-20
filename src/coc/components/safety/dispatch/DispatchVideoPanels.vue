@@ -436,8 +436,7 @@ function nextMonitorPage() {
             placeholder="切换设备"
             filterable
             popper-class="dispatch-device-switch-popper"
-            @change="handleDeviceSwitch"
-          >
+            @change="handleDeviceSwitch" aria-label="切换设备">
             <template #label="{ label, value }">
               <span class="device-selected-label">
                 <span class="device-selected-name">{{ label }}</span>

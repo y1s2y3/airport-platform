@@ -16,6 +16,25 @@ const route = useRoute()
 const router = useRouter()
 const detail = ref(null)
 
+const showHandleInfo = computed(() => {
+  if (!detail.value) return false
+  return detail.value.handle_mode === '手动处理' && detail.value.status === '已关闭'
+})
+
+const closeHandleInfo = computed(() => {
+  if (!showHandleInfo.value) return null
+  const records = detail.value.disposal_records || []
+  const closeRec = [...records].reverse().find((r) => r.type === 'close')
+  if (!closeRec) {
+    return { disposal_result: '-', content: '-', attachments: [] }
+  }
+  return {
+    disposal_result: closeRec.disposal_result || '-',
+    content: closeRec.content || '-',
+    attachments: closeRec.attachments || [],
+  }
+})
+
 const backTab = computed(() => {
   const tab = String(route.query.tab || 'todo')
   return ['todo', 'done', 'notice', 'initiated', 'copied', 'warning-center'].includes(tab)
@@ -71,6 +90,17 @@ function typeLabel(type) {
       <div class="field"><span>触发原因</span><b>{{ detail.trigger_reason }}</b></div>
     </section>
 
+    <section v-if="showHandleInfo && closeHandleInfo" class="block-card">
+      <h3>处置信息</h3>
+      <div class="field"><span>处置结果</span><b>{{ closeHandleInfo.disposal_result }}</b></div>
+      <div class="field"><span>处置说明</span><b>{{ closeHandleInfo.content }}</b></div>
+      <div class="field">
+        <span>处置附件</span>
+        <b v-if="closeHandleInfo.attachments.length">{{ closeHandleInfo.attachments.join('、') }}</b>
+        <b v-else>—</b>
+      </div>
+    </section>
+
     <section class="block-card">
       <h3>关联人员</h3>
       <div class="field"><span>姓名</span><b>{{ detail.name }}</b></div>
@@ -90,7 +120,9 @@ function typeLabel(type) {
               <span>{{ typeLabel(record.type) }}</span>
               <em>{{ record.operator }}</em>
             </div>
-            <p>{{ record.content }}</p>
+            <template v-if="!(showHandleInfo && record.type === 'close')">
+              <p>{{ record.content }}</p>
+            </template>
           </div>
         </li>
       </ul>

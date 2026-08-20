@@ -404,8 +404,7 @@ onUnmounted(() => {
           size="large"
           clearable
           :prefix-icon="Search"
-          class="tree-search"
-        />
+          class="tree-search" aria-label="isHqView ? '搜索项目或监控设备' : '搜索监控设备'"/>
         <div v-if="isHqView" class="status-filter-tags">
           <span
             v-for="status in STATUS_OPTIONS"

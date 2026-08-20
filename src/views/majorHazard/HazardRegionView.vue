@@ -200,7 +200,7 @@ const filteredRegions = computed(() => {
               <span style="font-weight:600;font-size:14px">监测区域</span>
               <el-button size="small" type="primary" class="ap-btn-primary" :icon="Plus" @click="openAddRegion" v-if="!isReadOnly">新增区域</el-button>
             </div>
-            <el-input v-model="keyword" placeholder="搜索区域..." clearable size="small" style="margin-bottom:8px" :prefix-icon="Search" />
+            <el-input v-model="keyword" placeholder="搜索区域..." clearable size="small" style="margin-bottom:8px" :prefix-icon="Search" aria-label="搜索区域..."/>
             <div class="region-list">
               <div
                 v-for="r in filteredRegions" :key="r.id"
@@ -262,7 +262,7 @@ const filteredRegions = computed(() => {
     <el-dialog v-model="regionDialogVisible" :title="isEditRegion ? '编辑区域' : '新增区域'" width="420px" :close-on-click-modal="false">
       <el-form :model="regionForm" label-width="80px">
         <el-form-item label="区域名称" required>
-          <el-input v-model="regionForm.name" placeholder="请输入监测区域名称" />
+          <el-input v-model="regionForm.name" placeholder="请输入监测区域名称" aria-label="请输入监测区域名称"/>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -275,10 +275,10 @@ const filteredRegions = computed(() => {
     <el-dialog v-model="pointDialogVisible" :title="isEditPoint ? '编辑监测点' : '新增监测点'" width="480px" :close-on-click-modal="false">
       <el-form :model="pointForm" label-width="100px">
         <el-form-item label="监测点" required>
-          <el-input v-model="pointForm.name" placeholder="请输入监测点编号，如：SJK001、DTBH002" />
+          <el-input v-model="pointForm.name" placeholder="请输入监测点编号，如：SJK001、DTBH002" aria-label="请输入监测点编号，如：SJK001、DTBH002"/>
         </el-form-item>
         <el-form-item label="绑定设备" required>
-          <el-select v-model="pointForm.deviceId" placeholder="请选择设备绑定" filterable style="width:100%">
+          <el-select v-model="pointForm.deviceId" placeholder="请选择设备绑定" filterable style="width:100%" aria-label="请选择设备绑定">
             <el-option v-for="d in unboundDevices" :key="d.id" :label="`${d.name}（${d.deviceNo}）`" :value="d.id" />
           </el-select>
           <div class="form-tip">将设备绑定至该监测点，一个监测点最多绑定一台设备</div>

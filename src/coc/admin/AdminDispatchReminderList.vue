@@ -158,13 +158,13 @@ onMounted(load)
     <div class="panel-title simple-title">
       <span>{{ title }}</span>
       <div class="title-actions">
-        <el-select v-model="statusFilter" placeholder="状态" clearable style="width: 120px">
+        <el-select v-model="statusFilter" placeholder="状态" clearable style="width: 120px" aria-label="状态">
           <el-option label="待下发" :value="NOTICE_STATUSES.PENDING" />
           <el-option label="已下发" :value="NOTICE_STATUSES.ISSUED" />
           <el-option label="已接收" :value="NOTICE_STATUSES.RECEIVED" />
           <el-option label="已作废" :value="NOTICE_STATUSES.VOID" />
         </el-select>
-        <el-input v-model="keyword" placeholder="搜索编号、项目名称、事项描述…" clearable class="search-input" />
+        <el-input v-model="keyword" placeholder="搜索编号、项目名称、事项描述…" clearable class="search-input" aria-label="搜索编号、项目名称、事项描述…"/>
         <el-button type="primary" :icon="Plus" @click="openCreate">新增</el-button>
       </div>
     </div>
@@ -233,8 +233,7 @@ onMounted(load)
             allow-create
             default-first-option
             placeholder="选择或输入项目名称"
-            style="width: 100%"
-          >
+            style="width: 100%" aria-label="选择或输入项目名称">
             <el-option v-for="item in projectOptions" :key="item" :label="item" :value="item" />
           </el-select>
         </el-form-item>
@@ -243,8 +242,7 @@ onMounted(load)
             v-model="form.matterDescription"
             type="textarea"
             :rows="4"
-            placeholder="请描述提示事项，将作为提示函正文"
-          />
+            placeholder="请描述提示事项，将作为提示函正文" aria-label="请描述提示事项，将作为提示函正文"/>
         </el-form-item>
         <el-form-item label="指派人" required>
           <el-select
@@ -253,8 +251,7 @@ onMounted(load)
             allow-create
             default-first-option
             placeholder="选择指派人"
-            style="width: 100%"
-          >
+            style="width: 100%" aria-label="选择指派人">
             <el-option
               v-for="item in assigneeOptions"
               :key="item.value"

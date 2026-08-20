@@ -295,9 +295,8 @@ onMounted(() => {
           placeholder="施工日期"
           value-format="YYYY-MM-DD"
           clearable
-          class="date-filter"
-        />
-        <el-input v-model="keyword" placeholder="搜索项目、单位、区域、类别…" clearable class="search-input" />
+          class="date-filter" aria-label="施工日期"/>
+        <el-input v-model="keyword" placeholder="搜索项目、单位、区域、类别…" clearable class="search-input" aria-label="搜索项目、单位、区域、类别…"/>
         <el-button type="primary" :icon="Plus" @click="openCreate">手动添加</el-button>
         <el-button :icon="Download" @click="handleDownloadTemplate">下载模版</el-button>
         <el-button :icon="Upload" @click="importVisible = true">导入表格</el-button>
@@ -441,7 +440,7 @@ onMounted(() => {
       </p>
       <el-form inline class="import-form">
         <el-form-item label="指定 Sheet">
-          <el-input v-model="importSheet" placeholder="如 2026.6.30" style="width: 160px" />
+          <el-input v-model="importSheet" placeholder="如 2026.6.30" style="width: 160px" aria-label="如 2026.6.30"/>
         </el-form-item>
       </el-form>
       <el-upload

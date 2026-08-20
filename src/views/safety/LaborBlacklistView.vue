@@ -2,12 +2,24 @@
 import { ref, computed } from 'vue'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { laborBlacklist as initialList, maskIdCard } from '../../mock/laborBlacklist'
+import {
+  laborBlacklist as initialList,
+  logBlacklistIdCardView,
+} from '../../mock/laborBlacklist'
 import { useCurrentProject } from '../../composables/useCurrentProject'
+import { useIdCardReveal } from '../../composables/useIdCardReveal'
 
 const { isHqSelected } = useCurrentProject()
 const list = ref(initialList.map((row) => ({ ...row })))
 const filters = ref({ name: '', id_card: '' })
+const {
+  isVisible: isIdCardVisible,
+  display: displayIdCard,
+  reveal: viewIdCard,
+} = useIdCardReveal({
+  getRaw: (row) => row.id_card,
+  onReveal: (row) => logBlacklistIdCardView({ id: row.id, name: row.name }),
+})
 const formVisible = ref(false)
 const formRef = ref(null)
 const formData = ref({ name: '', id_card: '', reason: '' })
@@ -75,8 +87,20 @@ async function handleRemove(row) {
     </div>
 
     <div class="filter-bar">
-      <el-input v-model="filters.name" placeholder="姓名" clearable style="width: 140px" />
-      <el-input v-model="filters.id_card" placeholder="身份证号" clearable style="width: 180px" />
+      <el-input
+        v-model="filters.name"
+        placeholder="姓名"
+        aria-label="姓名"
+        clearable
+        style="width: 140px"
+      />
+      <el-input
+        v-model="filters.id_card"
+        placeholder="身份证号"
+        aria-label="身份证号"
+        clearable
+        style="width: 180px"
+      />
       <el-button class="ap-btn-primary" type="primary" :icon="Search">查询</el-button>
       <el-button :icon="Refresh" @click="handleReset">重置</el-button>
     </div>
@@ -86,8 +110,21 @@ async function handleRemove(row) {
       <el-table :data="filteredList" border stripe class="ap-table">
         <el-table-column type="index" label="序号" width="60" align="center" />
         <el-table-column prop="name" label="姓名" width="100" />
-        <el-table-column label="身份证号" min-width="170">
-          <template #default="{ row }">{{ maskIdCard(row.id_card) }}</template>
+        <el-table-column label="身份证号" min-width="200">
+          <template #default="{ row }">
+            <div class="id-card-cell">
+              <span>{{ displayIdCard(row) }}</span>
+              <el-button
+                v-if="!isIdCardVisible(row.id)"
+                link
+                type="primary"
+                size="small"
+                @click="viewIdCard(row)"
+              >
+                查看
+              </el-button>
+            </div>
+          </template>
         </el-table-column>
         <el-table-column prop="reason" label="拉黑原因" min-width="200" show-overflow-tooltip />
         <el-table-column prop="created_by" label="登记人" width="100" />
@@ -103,10 +140,10 @@ async function handleRemove(row) {
     <el-dialog v-model="formVisible" title="新增黑名单人员" width="520px" destroy-on-close>
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="90px">
         <el-form-item label="姓名" prop="name">
-          <el-input v-model="formData.name" placeholder="请输入姓名" maxlength="20" />
+          <el-input v-model="formData.name" placeholder="请输入姓名" maxlength="20" aria-label="请输入姓名"/>
         </el-form-item>
         <el-form-item label="身份证号" prop="id_card">
-          <el-input v-model="formData.id_card" placeholder="请输入身份证号" maxlength="18" />
+          <el-input v-model="formData.id_card" placeholder="请输入身份证号" maxlength="18" aria-label="请输入身份证号"/>
         </el-form-item>
         <el-form-item label="拉黑原因" prop="reason">
           <el-input
@@ -115,8 +152,7 @@ async function handleRemove(row) {
             :rows="3"
             placeholder="请输入拉黑原因"
             maxlength="200"
-            show-word-limit
-          />
+            show-word-limit aria-label="请输入拉黑原因"/>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -175,5 +211,11 @@ async function handleRemove(row) {
   margin-bottom: 12px;
   font-size: 13px;
   color: var(--ap-text-secondary);
+}
+
+.id-card-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 </style>

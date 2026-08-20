@@ -150,18 +150,17 @@ function isPhoneVisible(id) {
             placeholder="编号 / 姓名 / 手机 / 证件号 / 参建单位"
             clearable
             :prefix-icon="Search"
-            class="search-input"
-          />
-          <el-select v-model="filters.work_type" placeholder="工种/职务" clearable style="width: 110px">
+            class="search-input" aria-label="编号 / 姓名 / 手机 / 证件号 / 参建单位"/>
+          <el-select v-model="filters.work_type" placeholder="工种/职务" clearable style="width: 110px" aria-label="工种/职务">
             <el-option v-for="opt in workTypeOptions" :key="opt" :label="opt" :value="opt" />
           </el-select>
-          <el-select v-model="filters.personnel_category" placeholder="工人类型" clearable style="width: 120px">
+          <el-select v-model="filters.personnel_category" placeholder="工人类型" clearable style="width: 120px" aria-label="工人类型">
             <el-option v-for="opt in personnelCategoryOptions" :key="opt" :label="opt" :value="opt" />
           </el-select>
-          <el-select v-model="filters.entry_status" :placeholder="REALNAME_ENTRY_LABEL" clearable style="width: 100px">
+          <el-select v-model="filters.entry_status" :placeholder="REALNAME_ENTRY_LABEL" clearable style="width: 100px" aria-label="REALNAME_ENTRY_LABEL">
             <el-option v-for="opt in entryStatusOptions" :key="opt" :label="opt" :value="opt" />
           </el-select>
-          <el-input v-model="filters.unit_name" placeholder="参建单位" clearable style="width: 160px" />
+          <el-input v-model="filters.unit_name" placeholder="参建单位" clearable style="width: 160px" aria-label="参建单位"/>
           <el-button class="ap-btn-primary" type="primary" :icon="Search">查询</el-button>
           <el-button :icon="Refresh" @click="handleReset">重置</el-button>
         </div>

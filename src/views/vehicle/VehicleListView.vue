@@ -244,12 +244,11 @@ async function handleDelete(row) {
             placeholder="车牌号 / 单位 / 司机 / 准入证明"
             clearable
             :prefix-icon="Search"
-            class="search-input"
-          />
-          <el-select v-model="filters.vehicle_type" placeholder="车辆类型" clearable style="width: 120px">
+            class="search-input" aria-label="车牌号 / 单位 / 司机 / 准入证明"/>
+          <el-select v-model="filters.vehicle_type" placeholder="车辆类型" clearable style="width: 120px" aria-label="车辆类型">
             <el-option v-for="opt in vehicleTypeOptions" :key="opt" :label="opt" :value="opt" />
           </el-select>
-          <el-select v-model="filters.status" placeholder="状态" clearable style="width: 110px">
+          <el-select v-model="filters.status" placeholder="状态" clearable style="width: 110px" aria-label="状态">
             <el-option label="已准入" value="已准入" />
             <el-option label="已退场" value="已退场" />
           </el-select>
@@ -309,7 +308,7 @@ async function handleDelete(row) {
     >
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
         <el-form-item label="车牌号" prop="plate_no">
-          <el-input v-model="formData.plate_no" placeholder="请输入车牌号" />
+          <el-input v-model="formData.plate_no" placeholder="请输入车牌号" aria-label="请输入车牌号"/>
         </el-form-item>
         <el-form-item label="车辆类型" prop="vehicle_type">
           <el-select v-model="formData.vehicle_type" style="width: 100%">
@@ -317,7 +316,7 @@ async function handleDelete(row) {
           </el-select>
         </el-form-item>
         <el-form-item label="所属单位" prop="unit_name">
-          <el-input v-model="formData.unit_name" placeholder="参建单位名称" />
+          <el-input v-model="formData.unit_name" placeholder="参建单位名称" aria-label="参建单位名称"/>
         </el-form-item>
         <el-form-item label="司机姓名" prop="driver_name">
           <el-input v-model="formData.driver_name" />
@@ -326,10 +325,10 @@ async function handleDelete(row) {
           <el-input v-model="formData.driver_phone" />
         </el-form-item>
         <el-form-item label="准入证明">
-          <el-input v-model="formData.permit_no" placeholder="准入证明编号" />
+          <el-input v-model="formData.permit_no" placeholder="准入证明编号" aria-label="准入证明编号"/>
         </el-form-item>
         <el-form-item label="证件有效期">
-          <el-input v-model="formData.permit_valid_to" placeholder="YYYY-MM-DD" />
+          <el-input v-model="formData.permit_valid_to" placeholder="YYYY-MM-DD" aria-label="YYYY-MM-DD"/>
         </el-form-item>
         <el-form-item label="状态">
           <el-radio-group v-model="formData.status">

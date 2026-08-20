@@ -133,8 +133,7 @@ function visibleSlots(candidate, showEmptySlots) {
         :rows="2"
         maxlength="200"
         show-word-limit
-        placeholder="选填：对本备选品牌的说明"
-      />
+        placeholder="选填：对本备选品牌的说明" aria-label="选填：对本备选品牌的说明"/>
       <span v-else class="remark-text">{{ candidate.remark?.trim() ? candidate.remark : '—' }}</span>
     </div>
   </div>
