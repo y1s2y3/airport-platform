@@ -11,7 +11,7 @@ export const tierPositionCatalog = [
   { id: 'pos-site-manager', name: '现场经理' },
 ]
 
-/** 分级管控可选人员（可挂多个岗位；选岗位后优先展示匹配人员，也可选其他人员） */
+/** 分级管控可选人员（可挂多个岗位；选岗位后仅展示该岗位人员） */
 export const tierPersonnelCatalog = [
   { id: 'u-so-01', name: '陈安全', dept: '总包项目部', positionIds: ['pos-safety-officer'] },
   { id: 'u-so-02', name: '刘安全', dept: '总包项目部', positionIds: ['pos-safety-officer'] },
@@ -75,11 +75,10 @@ export function getTierPersonLabel(personId) {
   return `${person.name} · ${person.dept}`
 }
 
-/** 按岗位筛选候选人；未选岗位时返回全部 */
+/** 按岗位筛选人员；未选岗位或无匹配时返回空列表 */
 export function getTierPersonnelByPosition(position_id) {
-  if (!position_id) return [...tierPersonnelCatalog]
-  const matched = tierPersonnelCatalog.filter((u) => u.positionIds.includes(position_id))
-  return matched.length ? matched : [...tierPersonnelCatalog]
+  if (!position_id) return []
+  return tierPersonnelCatalog.filter((u) => u.positionIds.includes(position_id))
 }
 
 export function createEmptyTierLevel(order = 1) {

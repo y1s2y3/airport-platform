@@ -9,7 +9,6 @@ import {
   getProjectTrackJump,
   saveProjectTrackJump,
   tierPositionCatalog,
-  tierPersonnelCatalog,
   getTierPersonnelByPosition,
   createEmptyTierLevel,
   TIER_LEVEL_MAX,
@@ -82,12 +81,12 @@ function validateForm() {
     return false
   }
   const default_recipient = form.value.default_recipient || {}
-  if (!default_recipient.recipient_id) {
-    ElMessage.warning('请选择默认接收人责任人')
-    return false
-  }
   if (!default_recipient.position_id) {
     ElMessage.warning('请选择默认接收人岗位')
+    return false
+  }
+  if (!default_recipient.recipient_id) {
+    ElMessage.warning('请选择默认接收人责任人')
     return false
   }
   const levels = form.value.tieredControl.levels || []
@@ -98,12 +97,12 @@ function validateForm() {
   for (let i = 0; i < levels.length; i += 1) {
     const item = levels[i]
     const label = `第${i + 1}级`
-    if (!item.recipient_id) {
-      ElMessage.warning(`请选择${label}责任人`)
-      return false
-    }
     if (!item.position_id) {
       ElMessage.warning(`请选择${label}岗位`)
+      return false
+    }
+    if (!item.recipient_id) {
+      ElMessage.warning(`请选择${label}责任人`)
       return false
     }
     if (!item.report_days || item.report_days < 1) {
@@ -168,10 +167,7 @@ const tierLevels = computed({
 })
 
 function personnelOptionsFor(row) {
-  const matched = getTierPersonnelByPosition(row.position_id)
-  const matchedIds = new Set(matched.map((u) => u.id))
-  const others = tierPersonnelCatalog.filter((u) => !matchedIds.has(u.id))
-  return { matched, others }
+  return getTierPersonnelByPosition(row?.position_id)
 }
 
 function onTierPositionChange(row) {
@@ -189,10 +185,9 @@ function onDefaultPositionChange() {
   }
 }
 
-const defaultPersonnelOptions = computed(() => {
-  const position_id = form.value?.default_recipient?.position_id || ''
-  return personnelOptionsFor({ position_id })
-})
+const defaultPersonnelOptions = computed(() =>
+  getTierPersonnelByPosition(form.value?.default_recipient?.position_id || ''),
+)
 
 function addTierLevel() {
   if (!form.value) return
@@ -278,50 +273,39 @@ function removeTierLevel(index) {
           <el-form v-if="form?.default_recipient" label-width="88px" class="default-recipient-form">
             <el-row :gutter="24">
               <el-col :xs="24" :sm="12">
-                <el-form-item label="责任人" required>
-                  <el-select
-                    v-model="form.default_recipient.recipient_id"
-                    placeholder="请选择人员"
-                    filterable
-                    style="width: 100%" aria-label="请选择人员">
-                    <el-option-group
-                      v-if="defaultPersonnelOptions.matched.length"
-                      label="本岗位候选人"
-                    >
-                      <el-option
-                        v-for="user in defaultPersonnelOptions.matched"
-                        :key="user.id"
-                        :label="user.name"
-                        :value="user.id"
-                      />
-                    </el-option-group>
-                    <el-option-group
-                      v-if="defaultPersonnelOptions.others.length"
-                      label="其他人员"
-                    >
-                      <el-option
-                        v-for="user in defaultPersonnelOptions.others"
-                        :key="user.id"
-                        :label="user.name"
-                        :value="user.id"
-                      />
-                    </el-option-group>
-                  </el-select>
-                </el-form-item>
-              </el-col>
-              <el-col :xs="24" :sm="12">
                 <el-form-item label="岗位" required>
                   <el-select
                     v-model="form.default_recipient.position_id"
                     placeholder="请选择岗位"
                     filterable
                     style="width: 100%"
-                    @change="onDefaultPositionChange" aria-label="请选择岗位">
+                    aria-label="请选择岗位"
+                    @change="onDefaultPositionChange"
+                  >
                     <el-option
                       v-for="pos in tierPositionCatalog"
                       :key="pos.id"
                       :label="pos.name"
                       :value="pos.id"
+                    />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :xs="24" :sm="12">
+                <el-form-item label="责任人" required>
+                  <el-select
+                    v-model="form.default_recipient.recipient_id"
+                    placeholder="请先选择岗位"
+                    filterable
+                    style="width: 100%"
+                    aria-label="请选择责任人"
+                    :disabled="!form.default_recipient.position_id"
+                  >
+                    <el-option
+                      v-for="user in defaultPersonnelOptions"
+                      :key="user.id"
+                      :label="user.name"
+                      :value="user.id"
                     />
                   </el-select>
                 </el-form-item>
@@ -335,7 +319,7 @@ function removeTierLevel(index) {
             <div>
               <div class="section-title">分级管控</div>
               <p class="section-desc">
-                预警超期未处置时按层级逐级上报。责任人、岗位可灵活选择；可增删层级（最多 {{ TIER_LEVEL_MAX }} 级），上报天数须逐级递增。
+                预警超期未处置时按层级逐级上报。先选岗位再选该岗位责任人；可增删层级（最多 {{ TIER_LEVEL_MAX }} 级），上报天数须逐级递增。
               </p>
             </div>
             <el-button type="primary" class="ap-btn-primary" @click="addTierLevel">添加层级</el-button>
@@ -345,38 +329,6 @@ function removeTierLevel(index) {
               <el-table-column label="层级" width="72" align="center">
                 <template #default="{ $index }">{{ $index + 1 }}级</template>
               </el-table-column>
-              <el-table-column label="责任人" min-width="240">
-                <template #default="{ row }">
-                  <el-select
-                    v-model="row.recipient_id"
-                    placeholder="请选择人员"
-                    filterable
-                    style="width: 100%" aria-label="请选择人员">
-                    <el-option-group
-                      v-if="personnelOptionsFor(row).matched.length"
-                      label="本岗位候选人"
-                    >
-                      <el-option
-                        v-for="user in personnelOptionsFor(row).matched"
-                        :key="user.id"
-                        :label="user.name"
-                        :value="user.id"
-                      />
-                    </el-option-group>
-                    <el-option-group
-                      v-if="personnelOptionsFor(row).others.length"
-                      label="其他人员"
-                    >
-                      <el-option
-                        v-for="user in personnelOptionsFor(row).others"
-                        :key="user.id"
-                        :label="user.name"
-                        :value="user.id"
-                      />
-                    </el-option-group>
-                  </el-select>
-                </template>
-              </el-table-column>
               <el-table-column label="岗位" min-width="180">
                 <template #default="{ row }">
                   <el-select
@@ -384,12 +336,33 @@ function removeTierLevel(index) {
                     placeholder="请选择岗位"
                     filterable
                     style="width: 100%"
-                    @change="onTierPositionChange(row)" aria-label="请选择岗位">
+                    aria-label="请选择岗位"
+                    @change="onTierPositionChange(row)"
+                  >
                     <el-option
                       v-for="pos in tierPositionCatalog"
                       :key="pos.id"
                       :label="pos.name"
                       :value="pos.id"
+                    />
+                  </el-select>
+                </template>
+              </el-table-column>
+              <el-table-column label="责任人" min-width="240">
+                <template #default="{ row }">
+                  <el-select
+                    v-model="row.recipient_id"
+                    placeholder="请先选择岗位"
+                    filterable
+                    style="width: 100%"
+                    aria-label="请选择责任人"
+                    :disabled="!row.position_id"
+                  >
+                    <el-option
+                      v-for="user in personnelOptionsFor(row)"
+                      :key="user.id"
+                      :label="user.name"
+                      :value="user.id"
                     />
                   </el-select>
                 </template>

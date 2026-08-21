@@ -17,6 +17,14 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.2.1.7',
+    date: '2026-08-21',
+    highlights: [
+      '实名制配置：默认接收人/分级管控先选岗位，责任人仅可选该岗位人员',
+      '去掉「本岗位候选人」「其他人员」分组',
+    ],
+  },
+  {
     version: 'v2.2.1.6',
     date: '2026-08-20',
     highlights: [
