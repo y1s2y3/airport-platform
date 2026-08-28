@@ -1,7 +1,22 @@
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { selectedProjectId, useCurrentProject } from '../composables/useCurrentProject'
 import { COC_PROJECT_OPTIONS } from '../config/projectOptions'
 import { getProjectOrgNodeId } from './orgStructure'
+
+/** 演示：个人中心待办以指定用户身份办理（如品牌报审指定审批人） */
+export const demoActingUserId = ref('')
+
+export function setDemoActingUserId(userId) {
+  demoActingUserId.value = String(userId || '').trim()
+}
+
+export function clearDemoActingUserId() {
+  demoActingUserId.value = ''
+}
+
+export function getEffectiveUserId(snapshot) {
+  return demoActingUserId.value || snapshot?.id || ''
+}
 
 const HQ_DEMO_USER = {
   id: 'u-007',

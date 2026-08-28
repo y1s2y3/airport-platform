@@ -9,7 +9,10 @@ import { reactive } from 'vue'
 import { projectList, getProjectDetail, displayProjectManagerName } from './projectBasicInfo'
 import { createSubcontractorBlock, mergeSafetyProfile } from './projectSafetyProfile'
 import { listSysUsers, getSysUser } from './sysUsers'
+import { enrichSysUserApproverCandidate } from '../utils/approverDisplay'
+import { getCurrentUserSnapshot } from './currentUser.js'
 import { nowStr } from '../utils/datetime.js'
+import { parseOneContact } from '../utils/contactValue.js'
 
 export const subcontractorTypeOptions = ['专业分包', '劳务分包']
 export const subcontractorApproveStatusOptions = ['待审批', '审批中', '已通过', '已驳回', '已撤回']
@@ -20,6 +23,10 @@ export function isSubcontractorInApproval(status) {
 
 export function canResubmitSubcontractor(status) {
   return status === '已驳回' || status === '已撤回'
+}
+
+export function canWithdrawSubcontractor(status) {
+  return status === '待审批'
 }
 
 function normalizeSafetyLicense(sl = {}) {
@@ -58,9 +65,13 @@ export function hasSubcontractorSafetyLicense(row) {
   )
 }
 
-/** 列表「资质证书」列：至少一条 certNo 非空 → 具备 */
+/** 列表「资质证书」列：至少一条编号或附件非空 → 具备 */
 export function hasSubcontractorQualification(row) {
-  return (row?.qualifications || []).some((item) => String(item?.certNo || '').trim())
+  return (row?.qualifications || []).some(
+    (item) =>
+      String(item?.certNo || '').trim()
+      || hasAttachment(item?.fileName, item?.fileUrl),
+  )
 }
 
 export function getSubcontractorQualificationLabel(row) {
@@ -93,6 +104,10 @@ export function formatLaborContractAmount(row) {
   return `${raw}万元`
 }
 
+function hasAttachment(fileName, fileUrl) {
+  return Boolean(String(fileName || '').trim() || String(fileUrl || '').trim())
+}
+
 /** 审批节点（提交后依次推进；抄送不卡流程） */
 export const SUBCONTRACTOR_APPROVAL_NODES = [
   { key: 'pm', title: '项目经理审批', roleLabel: '项目经理' },
@@ -123,18 +138,7 @@ const subcontractorApproverMemoryByProject = reactive({
 })
 
 function parsePortraitContact(raw) {
-  const text = String(raw || '').trim()
-  if (!text) return { name: '', phone: '' }
-  const slashParts = text.split(/\s*\/\s*/)
-  if (slashParts.length >= 2) {
-    const phone = slashParts[slashParts.length - 1].trim()
-    if (/\d{7,}/.test(phone)) {
-      return { name: slashParts.slice(0, -1).join(' / ').trim(), phone }
-    }
-  }
-  const glued = text.match(/^(.+?)(\d{11})$/)
-  if (glued) return { name: glued[1].trim(), phone: glued[2] }
-  return { name: text, phone: '' }
+  return parseOneContact(raw)
 }
 
 function emptyApprovers() {
@@ -153,17 +157,19 @@ function emptyApprovers() {
 export function listSubcontractorApproverUsers() {
   return listSysUsers()
     .filter((item) => item.status !== false)
-    .map((item) => ({
-      userId: item.id,
-      name: item.name,
-      phone: item.phone || '',
-    }))
+    .map((item) => enrichSysUserApproverCandidate(item))
+    .filter(Boolean)
 }
 
 export function findSubcontractorApproverUser(userId) {
   const user = getSysUser(userId)
   if (!user || user.status === false) return null
-  return { userId: user.id, name: user.name, phone: user.phone || '' }
+  return enrichSysUserApproverCandidate(user)
+}
+
+export function formatSubcontractorApproverDisplay(userId, fallbackName = '') {
+  const user = findSubcontractorApproverUser(userId)
+  return user?.optionLabel || fallbackName || '—'
 }
 
 export function getSubcontractorApproverMemory(projectId) {
@@ -270,7 +276,7 @@ export function createEmptySubcontractorApplication(projectId = '', projectName 
     approvers: resolveDefaultApprovers(projectId),
     status: '',
     currentNodeKey: '',
-    submitter: '施工单位',
+    submitter: '',
     submitTime: '',
     approvalFlow: [],
     createdAt: nowStr(),
@@ -922,10 +928,6 @@ function validateLaborContractAmount(amount) {
   return ''
 }
 
-function hasAttachment(fileName, fileUrl) {
-  return Boolean(String(fileName || '').trim() || String(fileUrl || '').trim())
-}
-
 function validateApprovers(approvers) {
   const checks = [
     ['projectManagerUserId', '请选择项目经理'],
@@ -968,29 +970,67 @@ function validateApplication(data) {
   return ''
 }
 
-export function submitSubcontractorApplication(payload) {
+export function submitSubcontractorApplication(payload, options = {}) {
   const err = validateApplication(payload)
   if (err) return { ok: false, msg: err }
-  if (payload?.status && !canResubmitSubcontractor(payload.status) && payload.status !== '') {
+
+  const resubmitFromRejected = Boolean(payload.rejectedFromId)
+  const resubmitFromWithdrawn = payload.status === '已撤回' && !resubmitFromRejected
+
+  if (
+    payload?.status
+    && !canResubmitSubcontractor(payload.status)
+    && payload.status !== ''
+    && !resubmitFromWithdrawn
+  ) {
     return { ok: false, msg: '当前状态不可重新提交' }
   }
+
   const applyTime = nowStr()
   const data = cloneSubcontractorApplication(payload)
   data.name = data.name.trim()
   data.status = '待审批'
   data.currentNodeKey = 'pm'
-  data.submitter = data.submitter || '施工单位'
+  const submitterUser = options.submitterName || getCurrentUserSnapshot(data.projectId)?.name
+  data.submitter = String(submitterUser || payload.submitter || '当前用户').trim()
   data.submitTime = applyTime
   data.approvalFlow = buildSubmitFlow(data.submitter, applyTime, data.approvers)
   saveSubcontractorApproverMemory(data.projectId, data.approvers)
   data.updatedAt = applyTime
 
-  const idx = subcontractorList.findIndex((item) => item.id === data.id)
-  if (idx >= 0) Object.assign(subcontractorList[idx], data)
-  else subcontractorList.unshift(data)
+  if (resubmitFromRejected) {
+    data.rejectedFromId = payload.rejectedFromId
+    subcontractorList.unshift(data)
+  } else {
+    const idx = subcontractorList.findIndex((item) => item.id === data.id)
+    if (idx >= 0) Object.assign(subcontractorList[idx], data)
+    else subcontractorList.unshift(data)
+  }
 
   const saved = findSubcontractorApplication(data.id)
   return { ok: true, data: saved, needTodo: true }
+}
+
+export function withdrawSubcontractorApplication(id) {
+  const row = findSubcontractorApplication(id)
+  if (!row) return { ok: false, msg: '未找到报审单' }
+  if (!canWithdrawSubcontractor(row.status)) {
+    return { ok: false, msg: '仅待审批时可撤回' }
+  }
+  const now = nowStr()
+  row.status = '已撤回'
+  row.currentNodeKey = ''
+  row.approvalFlow = buildWithdrawnFlow(row.submitter, row.submitTime, now)
+  row.updatedAt = now
+  return { ok: true, data: row, needDiscardTodos: true }
+}
+
+/** 项目级用户是否可查看该报审详情 */
+export function canAccessSubcontractorDetail(row, { isHq = false, projectId = '' } = {}) {
+  if (!row) return false
+  if (isHq) return row.status === '已通过'
+  if (!projectId) return false
+  return row.projectId === projectId
 }
 
 function toPortraitBlock(row) {
@@ -1007,7 +1047,11 @@ function toPortraitBlock(row) {
     qualifications: [
       {
         label: '资格证书',
-        possessed: (row.qualifications || []).some((q) => String(q.certNo || '').trim()),
+        possessed: (row.qualifications || []).some(
+          (q) =>
+            String(q.certNo || '').trim()
+            || hasAttachment(q.fileName, q.fileUrl),
+        ),
       },
     ],
   })
@@ -1031,16 +1075,6 @@ export function syncApprovedSubcontractorToPortrait(row) {
     else blocks.push(nextBlock)
   }
   project.safetyProfile.subcontractorBlocks = blocks
-  if (project.subcontractorUnit) {
-    const names = String(project.subcontractorUnit)
-      .split(/[；;、，,\n]+/)
-      .map((s) => s.trim())
-      .filter(Boolean)
-    if (!names.includes(row.name)) names.push(row.name)
-    project.subcontractorUnit = names.join('；')
-  } else {
-    project.subcontractorUnit = row.name
-  }
 }
 
 /**

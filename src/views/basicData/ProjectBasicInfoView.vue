@@ -17,15 +17,21 @@ const filters = ref({
   projectName: '',
 })
 
+const appliedFilters = ref({
+  projectName: '',
+})
+
 const filteredList = computed(() => {
-  return projectList.filter((row) => {
-    if (!isHqSelected.value) {
-      if (!laborProjectId.value || row.id !== laborProjectId.value) return false
-    }
-    if (!filters.value.projectName) return true
-    const kw = filters.value.projectName.trim()
-    return row.projectName.includes(kw) || row.shortName.includes(kw)
-  })
+  return projectList
+    .filter((row) => {
+      if (!isHqSelected.value) {
+        if (!laborProjectId.value || row.id !== laborProjectId.value) return false
+      }
+      const kw = appliedFilters.value.projectName.trim()
+      if (!kw) return true
+      return row.projectName.includes(kw) || row.shortName.includes(kw)
+    })
+    .sort((a, b) => String(a.shortName || '').localeCompare(String(b.shortName || ''), 'zh-CN'))
 })
 
 const tableSummary = computed(() => {
@@ -36,11 +42,16 @@ const tableSummary = computed(() => {
 const emptyText = computed(() =>
   isHqSelected.value
     ? '暂无项目信息，可点击「新增」维护'
-    : '当前项目暂无项目信息，可点击「新增」维护',
+    : '当前项目暂无项目信息',
 )
+
+function handleSearch() {
+  appliedFilters.value = { ...filters.value }
+}
 
 function handleReset() {
   filters.value = { projectName: '' }
+  appliedFilters.value = { projectName: '' }
 }
 
 function openCreate() {
@@ -72,13 +83,19 @@ function formatPeriod(row) {
         <div class="title-block">
           <h1 class="page-title">项目信息管理</h1>
         </div>
-        <el-button class="ap-btn-primary" type="primary" :icon="Plus" @click="openCreate">
+        <el-button
+          v-if="isHqSelected"
+          class="ap-btn-primary"
+          type="primary"
+          :icon="Plus"
+          @click="openCreate"
+        >
           新增
         </el-button>
       </div>
     </div>
 
-    <div class="filter-bar">
+    <div v-if="isHqSelected" class="filter-bar">
       <div class="filter-row">
         <div class="filter-item">
           <label>项目名称</label>
@@ -86,10 +103,15 @@ function formatPeriod(row) {
             v-model="filters.projectName"
             placeholder="项目名称/简称"
             clearable
-            style="width: 240px" aria-label="项目名称/简称"/>
+            style="width: 240px"
+            aria-label="项目名称/简称"
+            @keyup.enter="handleSearch"
+          />
         </div>
         <div class="filter-actions">
-          <el-button class="ap-btn-primary" type="primary" :icon="Search">查询</el-button>
+          <el-button class="ap-btn-primary" type="primary" :icon="Search" @click="handleSearch">
+            查询
+          </el-button>
           <el-button :icon="Refresh" @click="handleReset">重置</el-button>
         </div>
       </div>
@@ -128,7 +150,7 @@ function formatPeriod(row) {
             {{ displayProjectManagerName(row) || '—' }}
           </template>
         </el-table-column>
-        <el-table-column label="是否隐藏" width="96" align="center">
+        <el-table-column v-if="isHqSelected" label="是否隐藏" width="96" align="center">
           <template #default="{ row }">
             <el-switch v-model="row.hidden" />
           </template>

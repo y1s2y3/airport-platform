@@ -1,6 +1,6 @@
 <script setup>
 import './brand-page.css'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search, Refresh } from '@element-plus/icons-vue'
@@ -14,6 +14,7 @@ import {
   statusTagType,
   withdrawApplication,
   getApplicationDetail,
+  paginateBrandRows,
 } from '../../../mock/brand.js'
 
 const router = useRouter()
@@ -21,8 +22,10 @@ const { isHqSelected, scopeProjectId, scopeProjectLabel } = useQmProjectScope()
 const keyword = ref('')
 const statusFilter = ref('')
 const tick = ref(0)
+const page = ref(1)
+const pageSize = ref(20)
 
-const list = computed(() => {
+const listAll = computed(() => {
   void tick.value
   if (isHqSelected.value || !scopeProjectId.value) return []
   return listApplications(scopeProjectId.value, {
@@ -41,10 +44,19 @@ const list = computed(() => {
   })
 })
 
+const total = computed(() => listAll.value.length)
+
+const list = computed(() => paginateBrandRows(listAll.value, page.value, pageSize.value).items)
+
 function reset() {
   keyword.value = ''
   statusFilter.value = ''
+  page.value = 1
 }
+
+watch([keyword, statusFilter], () => {
+  page.value = 1
+})
 
 async function onWithdraw(row) {
   try {
@@ -114,7 +126,7 @@ function onResubmit(row) {
 
       <el-table :data="list" stripe border empty-text="暂无报审单">
         <el-table-column prop="application_id" label="报审编号" width="130" />
-        <el-table-column prop="material_name" label="材料/设备" min-width="130" />
+        <el-table-column prop="material_name" label="材料/设备名称" min-width="130" />
         <el-table-column label="类型" width="80">
           <template #default="{ row }">{{ MATERIAL_TYPE[row.material_type] }}</template>
         </el-table-column>
@@ -157,6 +169,17 @@ function onResubmit(row) {
           </template>
         </el-table-column>
       </el-table>
+
+      <div v-if="total > 0" class="pagination-wrap">
+        <el-pagination
+          v-model:current-page="page"
+          v-model:page-size="pageSize"
+          :total="total"
+          :page-sizes="[10, 20, 50]"
+          layout="total, sizes, prev, pager, next"
+          background
+        />
+      </div>
     </template>
   </div>
 </template>
@@ -170,5 +193,10 @@ function onResubmit(row) {
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 12px;
+}
+.pagination-wrap {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
 }
 </style>

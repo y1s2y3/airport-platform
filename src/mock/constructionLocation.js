@@ -3,8 +3,11 @@
  * 与验评目录树 / 实体工程分解同源依赖 wbsNodes 分项节点
  */
 import { reactive } from 'vue'
-import { ensureWbsScaffold, wbsNodes } from './qmInspect.js'
+import { ensureWbsScaffold, inspectionTasks, wbsNodes } from './qmInspect.js'
 import { nowStr } from '../utils/datetime.js'
+import { listEntries } from './mat.js'
+import { COC_PROJECT_OPTIONS } from '../config/projectOptions.js'
+import { listMaterialApps, listProcessApps } from './sample.js'
 
 /** @type {Array<{
  *  id: string
@@ -335,7 +338,11 @@ export function buildLocationTree(projectId, wbsNodeId = '') {
     else roots.push(node)
   })
   const sortDeep = (nodes) => {
-    nodes.sort((a, b) => (a.raw?.sort_no || 0) - (b.raw?.sort_no || 0))
+    nodes.sort((a, b) => {
+      const bySort = (a.raw?.sort_no || 0) - (b.raw?.sort_no || 0)
+      if (bySort !== 0) return bySort
+      return String(a.label || '').localeCompare(String(b.label || ''), 'zh-CN')
+    })
     nodes.forEach((n) => n.children?.length && sortDeep(n.children))
   }
   sortDeep(roots)
@@ -499,6 +506,46 @@ export function getLocationById(id) {
   return constructionLocations.find((r) => r.id === id) || null
 }
 
+function collectRecordLocationIds(record) {
+  const ids = new Set()
+  if (!record) return ids
+  if (record.location_id) ids.add(String(record.location_id))
+  if (Array.isArray(record.location_ids)) {
+    record.location_ids.forEach((x) => x && ids.add(String(x)))
+  }
+  if (Array.isArray(record.line_items)) {
+    record.line_items.forEach((line) => {
+      if (line?.location_id) ids.add(String(line.location_id))
+      if (Array.isArray(line?.location_ids)) {
+        line.location_ids.forEach((x) => x && ids.add(String(x)))
+      }
+    })
+  }
+  return ids
+}
+
+/** 施工部位是否被下游业务单据引用 */
+export function findLocationReferenceSource(locationId) {
+  const id = String(locationId || '')
+  if (!id) return ''
+
+  for (const task of inspectionTasks) {
+    if (collectRecordLocationIds(task).has(id)) return '验评任务'
+  }
+
+  for (const entry of listEntries('')) {
+    if (collectRecordLocationIds(entry).has(id)) return '材料设备进场'
+  }
+
+  for (const opt of COC_PROJECT_OPTIONS) {
+    for (const app of [...listMaterialApps(opt.id), ...listProcessApps(opt.id)]) {
+      if (collectRecordLocationIds(app).has(id)) return '样板管理'
+    }
+  }
+
+  return ''
+}
+
 /** 展示路径：分项名 / 部位1 / 部位2 */
 export function resolveLocationPathLabel(locationId) {
   const loc = getLocationById(locationId)
@@ -633,6 +680,8 @@ export function removeLocation(id) {
   if (idx < 0) return { ok: false, msg: '部位不存在' }
   const hasChild = constructionLocations.some((r) => r.parent_id === id)
   if (hasChild) return { ok: false, msg: '请先删除下级部位' }
+  const refSource = findLocationReferenceSource(id)
+  if (refSource) return { ok: false, msg: `该部位已被${refSource}引用，不可删除` }
   constructionLocations.splice(idx, 1)
   return { ok: true }
 }
@@ -667,7 +716,11 @@ export function buildEntityBreakdownTree(projectId) {
     else if (n.node_type === 9) roots.push(node)
   })
   const sortDeep = (nodes) => {
-    nodes.sort((a, b) => (a.raw?.sort_no || 0) - (b.raw?.sort_no || 0))
+    nodes.sort((a, b) => {
+      const bySort = (a.raw?.sort_no || 0) - (b.raw?.sort_no || 0)
+      if (bySort !== 0) return bySort
+      return String(a.label || '').localeCompare(String(b.label || ''), 'zh-CN')
+    })
     nodes.forEach((n) => n.children?.length && sortDeep(n.children))
   }
   sortDeep(roots)

@@ -44,20 +44,20 @@ export function listProfileSupervisorUnits(projectId = '') {
   return uniqueSorted([current, ...collectField('supervisorUnit')])
 }
 
-/** 分包单位候选（已通过报审台账 + 项目已填） */
+/** 分包单位候选（已通过报审台账 + 画像分包块，一行一家单位） */
 export function listProfileSubcontractorUnits(projectId = '') {
   const fromLedger = subcontractorList
     .filter((row) => row.status === '已通过')
     .filter((row) => !projectId || row.projectId === projectId)
     .map((row) => row.name)
-  const fromProject = projectField(projectId, 'subcontractorUnit')
   const fromBlocks = projectList
     .filter((item) => !projectId || item.id === projectId)
-    .flatMap((item) => (item.safetyProfile?.subcontractorBlocks || []).map((block) => block.unitName))
-  const splitMain = String(fromProject || '')
-    .split(/[；;、，,]+/)
-    .map((part) => part.trim())
-  return uniqueSorted([...fromLedger, ...splitMain, ...fromBlocks])
+    .flatMap((item) =>
+      (item.safetyProfile?.subcontractorBlocks || [])
+        .map((block) => String(block.unitName || '').trim())
+        .filter(Boolean),
+    )
+  return uniqueSorted([...fromLedger, ...fromBlocks])
 }
 
 /** 施工地点候选（施工部位库路径 + 项目已填） */
@@ -69,16 +69,4 @@ export function listProfileConstructionSites(projectId = '') {
     ? listLocations(projectId).map((loc) => resolveLocationPathLabel(loc.id) || loc.name)
     : []
   return uniqueSorted([...fromProject, ...fromLocations])
-}
-
-export function parseMultiUnitText(raw) {
-  return String(raw || '')
-    .split(/[；;、，,\n]+/)
-    .map((part) => part.trim())
-    .filter(Boolean)
-}
-
-export function joinMultiUnitText(names) {
-  const list = Array.isArray(names) ? names.filter(Boolean) : []
-  return list.join('；')
 }

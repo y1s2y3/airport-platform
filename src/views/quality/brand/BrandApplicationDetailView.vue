@@ -9,6 +9,7 @@ import {
   NODE_LABEL,
   statusLabel,
   statusTagType,
+  formatBrandApproverSnapshot,
 } from '../../../mock/brand.js'
 import BrandCandidateAttachBlock from './BrandCandidateAttachBlock.vue'
 import PersonalCenterReadonlyHint from '../../../components/PersonalCenterReadonlyHint.vue'
@@ -174,8 +175,14 @@ function timelineType(status) {
             <el-descriptions-item label="申请人">{{ detail.app.applicant_name }}</el-descriptions-item>
             <el-descriptions-item label="提交时间">{{ detail.app.submit_time }}</el-descriptions-item>
             <el-descriptions-item label="办结时间">{{ detail.app.finish_time || '—' }}</el-descriptions-item>
-            <el-descriptions-item v-if="detail.app.copy_from_application_id" label="复制来源">
-              {{ detail.app.copy_from_application_id }}
+            <el-descriptions-item v-if="detail.app.copy_from_application_id" label="源报审单号">
+              <el-button
+                link
+                type="primary"
+                @click="router.push(`/qm/brand/applications/detail?id=${detail.app.copy_from_application_id}`)"
+              >
+                {{ detail.app.copy_from_application_id }}
+              </el-button>
             </el-descriptions-item>
             <el-descriptions-item v-if="detail.app.remark" label="备注" :span="2">
               {{ detail.app.remark }}
@@ -231,10 +238,10 @@ function timelineType(status) {
         <div class="section-body">
           <el-descriptions :column="2" border>
             <el-descriptions-item label="监理单位审批">
-              {{ detail.app.supervisor_approver_name || '—' }}
+              {{ formatBrandApproverSnapshot(detail.app, 'supervisor') }}
             </el-descriptions-item>
             <el-descriptions-item label="项目经理审批">
-              {{ detail.app.pm_approver_name || '—' }}
+              {{ formatBrandApproverSnapshot(detail.app, 'pm') }}
             </el-descriptions-item>
           </el-descriptions>
         </div>

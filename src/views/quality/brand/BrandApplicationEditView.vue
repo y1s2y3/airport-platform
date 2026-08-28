@@ -10,12 +10,14 @@ import {
   createEmptyCandidate,
   searchLedgerBrands,
   submitApplication,
+  copyApplicationFromRejected,
   resubmitWithdrawnBrand,
   buildCopyPayloadFromRejected,
   buildReEditPayloadFromWithdrawn,
   listBrandProjectUsers,
   resolveDefaultApprovers,
   findBrandProjectUser,
+  formatBrandProjectUserLabel,
   findApprovedDuplicateMaterialApplications,
   normalizeBrandMaterialName,
 } from '../../../mock/brand.js'
@@ -208,7 +210,9 @@ function onSubmit() {
   const r =
     isReEdit.value && reEditId.value
       ? resubmitWithdrawnBrand(reEditId.value, payload)
-      : submitApplication(payload)
+      : form.copy_from_application_id
+        ? copyApplicationFromRejected(form.copy_from_application_id, payload)
+        : submitApplication(payload)
   if (!r.ok) return ElMessage.error(r.msg)
   if (duplicateMaterialHits.value.length) {
     ElMessage.warning(duplicateMaterialTip.value)
@@ -222,6 +226,11 @@ function onSubmit() {
   )
   router.push('/qm/brand/applications')
 }
+
+function openSourceApplication(applicationId) {
+  if (!applicationId) return
+  router.push(`/qm/brand/applications/detail?id=${applicationId}`)
+}
 </script>
 
 <template>
@@ -234,9 +243,27 @@ function onSubmit() {
           原单 {{ reEditId }}
         </el-tag>
         <el-tag v-if="copyFromLabel" size="small" type="warning" effect="light">
-          复制自 {{ copyFromLabel }}
+          源单 {{ copyFromLabel }}
         </el-tag>
       </div>
+      <el-alert
+        v-if="copyFromLabel"
+        class="resubmit-source-alert"
+        type="info"
+        :closable="false"
+        show-icon
+        title="重新申报（基于已驳回报审单）"
+      >
+        <template #default>
+          <span>
+            已带出源报审单
+            <el-button link type="primary" @click="openSourceApplication(copyFromLabel)">
+              {{ copyFromLabel }}
+            </el-button>
+            的材料/设备、品牌与审批人信息，可修改后提交；新单将保留源单号追溯。
+          </span>
+        </template>
+      </el-alert>
       <p class="page-tip">
         当前项目：
         <strong>{{ isHqSelected ? '未选择（请先切换项目）' : scopeProjectLabel }}</strong>
@@ -273,7 +300,7 @@ function onSubmit() {
               />
             </el-form-item>
             <el-form-item label="类型" required>
-              <el-select v-model="form.material_type" placeholder="请选择" style="width: 100%" aria-label="请选择">
+              <el-select v-model="form.material_type" placeholder="请选择" style="width: 100%" aria-label="请选择材料类型">
                 <el-option
                   v-for="(label, val) in MATERIAL_TYPE"
                   :key="val"
@@ -401,7 +428,7 @@ function onSubmit() {
                 <el-option
                   v-for="u in projectUsers"
                   :key="u.user_id"
-                  :label="`${u.name}（${u.org}）`"
+                  :label="formatBrandProjectUserLabel(u)"
                   :value="u.user_id"
                 />
               </el-select>
@@ -419,7 +446,7 @@ function onSubmit() {
                 <el-option
                   v-for="u in projectUsers"
                   :key="u.user_id"
-                  :label="`${u.name}（${u.org}）`"
+                  :label="formatBrandProjectUserLabel(u)"
                   :value="u.user_id"
                 />
               </el-select>
@@ -523,6 +550,9 @@ function onSubmit() {
   grid-column: 1 / -1;
 }
 
+.resubmit-source-alert {
+  margin-top: 8px;
+}
 .material-dup-alert {
   margin-top: 8px;
 }

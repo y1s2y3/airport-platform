@@ -7,16 +7,23 @@ import {
   projectList,
   createEmptyProject,
   createProjectFields,
-  validateProjectPortraitRequired,
   displayProjectManagerName,
 } from '../../mock/projectBasicInfo'
+import { validateProjectPortraitRequired } from '../../mock/projectPortraitValidation'
 import { mergeSafetyProfile } from '../../mock/projectSafetyProfile'
 import ProjectSafetyProfileForm from '../../components/basicData/ProjectSafetyProfileForm.vue'
+import { useProjectScopeGuard } from '../../composables/useProjectScopeGuard'
 
 const router = useRouter()
+const { isHqSelected } = useProjectScopeGuard()
 const model = ref(null)
 
 onMounted(() => {
+  if (!isHqSelected.value) {
+    ElMessage.warning('仅指挥部可新增项目')
+    router.replace({ name: 'ProjectBasicInfo' })
+    return
+  }
   model.value = createEmptyProject()
 })
 

@@ -1,4 +1,21 @@
-/** 联系人字符串解析与格式化（姓名 / 电话） */
+/** 联系人字符串解析与格式化（姓名 / 电话；禁止粘连存储） */
+
+/** 是否为「姓名+11位手机号」粘连格式（不允许） */
+export function isGluedContactFormat(raw) {
+  const text = String(raw || '').trim()
+  if (!text || /\//.test(text)) return false
+  return /^(.+?)(\d{11})$/.test(text)
+}
+
+/** 存储串是否合规：须含「 / 」分隔且姓名、电话均可解析 */
+export function isValidContactStorageFormat(raw) {
+  const text = String(raw || '').trim()
+  if (!text) return true
+  if (isGluedContactFormat(text)) return false
+  if (!/\s*\/\s*/.test(text)) return false
+  const { name, phone } = parseOneContact(text)
+  return Boolean(name && phone)
+}
 
 export function parseOneContact(raw) {
   const text = String(raw || '').trim()
@@ -12,10 +29,6 @@ export function parseOneContact(raw) {
         phone,
       }
     }
-  }
-  const glued = text.match(/^(.+?)(\d{11})$/)
-  if (glued) {
-    return { name: glued[1].trim(), phone: glued[2] }
   }
   return { name: text, phone: '' }
 }

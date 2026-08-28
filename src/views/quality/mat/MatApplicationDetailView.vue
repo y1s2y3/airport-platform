@@ -9,6 +9,8 @@ import {
   STATUS_LABEL,
   statusTagType,
   formatBatchNo,
+  findMatSupervisorApprover,
+  formatMatSupervisorApproverLabel,
 } from '../../../mock/mat.js'
 import { useMatArchiveExport } from '../../../composables/useMatArchiveExport.js'
 import MatArchiveExportDialog from './components/MatArchiveExportDialog.vue'
@@ -27,6 +29,17 @@ const showReadonlyHint = computed(
     detail.value &&
     (detail.value.status === 'reviewing' || detail.value.status === 'pending_review'),
 )
+
+function supervisorApproverDisplay(row) {
+  if (!row) return '—'
+  const user = findMatSupervisorApprover(row.supervisor_approver_user_id)
+  if (user) return formatMatSupervisorApproverLabel(user)
+  if (row.supervisor_approver_name) {
+    const post = row.supervisor_approver_post_label
+    return post ? `${row.supervisor_approver_name}（${post}）` : row.supervisor_approver_name
+  }
+  return '—'
+}
 
 const canExportArchive = computed(() => detail.value?.status === 'approved')
 const { dialogVisible, exportLoading, openExportDialog, confirmExport } = useMatArchiveExport()
@@ -157,15 +170,16 @@ const lineItems = computed(() => {
         }}</el-descriptions-item>
         <el-descriptions-item label="申请人">{{ detail.applicant_name }}</el-descriptions-item>
         <el-descriptions-item label="监理审批人">
-          <template v-if="detail.supervisor_approver_name">
-            {{ detail.supervisor_approver_name }}
-            <span v-if="detail.supervisor_approver_post_label" class="muted">
-              （{{ detail.supervisor_approver_post_label }}）
-            </span>
-          </template>
-          <template v-else>—</template>
+          {{ supervisorApproverDisplay(detail) }}
         </el-descriptions-item>
         <el-descriptions-item label="提交时间">{{ detail.submit_time }}</el-descriptions-item>
+        <el-descriptions-item label="送检结果">
+          {{
+            detail.inspect_result_checked
+              ? detail.inspect_result_file || '已完成送检'
+              : '未填报'
+          }}
+        </el-descriptions-item>
         <el-descriptions-item label="办结时间">{{ detail.finish_time || '—' }}</el-descriptions-item>
         <el-descriptions-item v-if="detail.entry_type === 'material'" label="退场状态">
           <el-tag size="small" :type="detail.exited ? 'warning' : 'info'" effect="plain">
@@ -188,7 +202,7 @@ const lineItems = computed(() => {
               <template v-else>—</template>
             </el-descriptions-item>
             <el-descriptions-item label="用途">{{ row.purpose || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="使用部位">{{ row.use_part || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="施工部位">{{ row.use_part || '—' }}</el-descriptions-item>
             <el-descriptions-item label="运单号">{{ row.waybill_no || '—' }}</el-descriptions-item>
             <el-descriptions-item label="批次号">{{ formatBatchNo(row.batch_no) }}</el-descriptions-item>
             <el-descriptions-item label="外观质量">{{ row.appearance_quality || '—' }}</el-descriptions-item>
@@ -221,7 +235,7 @@ const lineItems = computed(() => {
             </el-descriptions-item>
             <el-descriptions-item label="序列号">{{ row.serial_no || '—' }}</el-descriptions-item>
             <el-descriptions-item label="用途">{{ row.purpose || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="使用部位">{{ row.use_part || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="施工部位">{{ row.use_part || '—' }}</el-descriptions-item>
             <el-descriptions-item label="运单号">{{ row.waybill_no || '—' }}</el-descriptions-item>
             <el-descriptions-item label="批次号">{{ formatBatchNo(row.batch_no) }}</el-descriptions-item>
             <el-descriptions-item label="外观质量">{{ row.appearance_quality || '—' }}</el-descriptions-item>

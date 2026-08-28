@@ -10,6 +10,8 @@ import {
   NODE_LABEL,
   statusLabel,
   statusTagType,
+  findBrandProjectUser,
+  formatBrandProjectUserLabel,
 } from '../../../mock/sample.js'
 import PersonalCenterReadonlyHint from '../../../components/PersonalCenterReadonlyHint.vue'
 
@@ -69,6 +71,12 @@ function timelineType(status) {
   if (status === 'current') return 'warning'
   return 'info'
 }
+
+function approverDetailLabel(userId, fallbackName) {
+  const user = findBrandProjectUser(userId)
+  if (user) return formatBrandProjectUserLabel(user)
+  return fallbackName || '—'
+}
 </script>
 
 <template>
@@ -120,11 +128,18 @@ function timelineType(status) {
         </el-descriptions-item>
       </el-descriptions>
 
+      <h3 class="section-title">审批人</h3>
+      <el-descriptions :column="2" border class="mb">
+        <el-descriptions-item label="监理审批">
+          {{ approverDetailLabel(detail.supervisor_approver_user_id, detail.supervisor_approver_name) }}
+        </el-descriptions-item>
+      </el-descriptions>
+
       <el-card shadow="never" class="approval-card">
         <template #header>
           <div class="approval-head">
             <span class="approval-title">审批记录</span>
-            <el-tag size="small" effect="plain" type="info">监理 → 项目经理</el-tag>
+            <el-tag size="small" effect="plain" type="info">监理终审</el-tag>
           </div>
         </template>
 

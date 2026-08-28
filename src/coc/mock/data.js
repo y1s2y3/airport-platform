@@ -7,6 +7,7 @@ import {
   getProjectFullName,
   projectNamePair,
 } from '../../config/projectCatalog.js'
+import { getHiddenProjectIdSet, findProjectById } from '../../mock/projectBasicInfo.js'
 
 export const DESIGN_WIDTH = 1920
 export const DESIGN_HEIGHT = 1080
@@ -479,10 +480,13 @@ function buildMilestones(planRate, actualRate, rand) {
 
 export function buildProjects() {
   const rand = seededRandom(42)
+  const hiddenIds = getHiddenProjectIdSet()
   return PROJECT_NAMES.map((name, i) => {
     const id = `p-${String(i).padStart(3, '0')}`
+    if (hiddenIds.has(id)) return null
     const isFocus = id === FOCUS_PROJECT_ID
-    const status = i < 6 ? '前期' : i < 34 ? '在建' : '历史'
+    const basic = findProjectById(id)
+    const status = basic?.status || (i < 6 ? '前期' : i < 34 ? '在建' : '历史')
     const planRate = Math.round(55 + rand() * 40)
     const actualRate = Math.round(planRate - rand() * 18)
     const deviation = Math.max(0, planRate - actualRate)
@@ -513,8 +517,8 @@ export function buildProjects() {
 
     return {
       id,
-      name,
-      shortName: PROJECT_SHORT_NAMES[i],
+      name: basic?.projectName || name,
+      shortName: basic?.shortName || PROJECT_SHORT_NAMES[i],
       status,
       planRate,
       actualRate,
@@ -533,7 +537,7 @@ export function buildProjects() {
       cameras,
       personnel,
     }
-  })
+  }).filter(Boolean)
 }
 
 export const HAZARD_TYPES = ['动火', '高处', '深基坑', '夜间作业']

@@ -7,8 +7,6 @@ import {
   getParentOrgOptionsForScope,
   getDefaultNodeIdForScope,
   isOrgUnderProject,
-  filterOrgTree,
-  unifiedOrgTree,
 } from '../mock/orgStructure'
 
 export function useOrgScope() {
@@ -22,10 +20,10 @@ export function useOrgScope() {
   )
 
   function getVisibleOrgTree(keyword = '') {
-    if (isHqSelected.value) {
-      return keyword ? filterOrgTree(keyword) : unifiedOrgTree.value
-    }
-    return getScopedOrgTree({ projectId: projectId.value, keyword })
+    return getScopedOrgTree({
+      projectId: isHqSelected.value ? '' : projectId.value,
+      keyword,
+    })
   }
 
   const orgNodeOptions = computed(() =>

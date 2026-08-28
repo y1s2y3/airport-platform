@@ -25,21 +25,18 @@ import {
   normalizeSpecialties,
 } from '../../constants/wbsSpecialty.js'
 
-const ENTITY_TYPES = [1, 2, 3, 4, 5]
-const TYPE_LABEL = {
-  1: '单位工程',
-  2: '子单位工程',
-  3: '分部工程',
-  4: '子分部工程',
-  5: '分项工程',
-  9: '实体工程',
-}
+import {
+  ENTITY_BREAKDOWN_NODE_TYPES,
+  WBS_ENTITY_TYPE_LABEL,
+  displayEntityBreakdownNodeName,
+} from '../../constants/wbsEntityLabels.js'
 
-/** 本页分类节点展示名（验评目录树仍用「实体工程验收」） */
-function displayNodeName(row) {
-  if (!row) return ''
-  if (row.node_type === 9) return '实体工程'
-  return row.node_name
+function sortWbsSiblings(rows) {
+  return rows.slice().sort((a, b) => {
+    const bySort = (a.sort_no || 0) - (b.sort_no || 0)
+    if (bySort !== 0) return bySort
+    return String(a.node_name || '').localeCompare(String(b.node_name || ''), 'zh-CN')
+  })
 }
 
 const { isHqSelected, scopeProjectId, scopeProjectLabel } = useQmProjectScope()
@@ -70,20 +67,20 @@ const selectedNode = computed(() => wbsNodes.find((n) => n.id === selectedNodeId
 
 const directChildren = computed(() => {
   if (!selectedNodeId.value) return []
-  return wbsNodes
+  const rows = wbsNodes
     .filter(
       (n) =>
         n.parent_id === selectedNodeId.value &&
-        ENTITY_TYPES.includes(n.node_type),
+        ENTITY_BREAKDOWN_NODE_TYPES.includes(n.node_type),
     )
     .slice()
-    .sort((a, b) => (a.sort_no || 0) - (b.sort_no || 0))
+  return sortWbsSiblings(rows)
 })
 
 const tableRows = computed(() => {
   if (!selectedNode.value) return []
   const selfOk =
-    ENTITY_TYPES.includes(selectedNode.value.node_type) || selectedNode.value.node_type === 9
+    ENTITY_BREAKDOWN_NODE_TYPES.includes(selectedNode.value.node_type) || selectedNode.value.node_type === 9
   return selfOk ? [selectedNode.value, ...directChildren.value] : directChildren.value
 })
 
@@ -96,14 +93,14 @@ const creatableTypeOptions = computed(() => {
   else if (parent.node_type === 3) allow = [4, 5]
   else if (parent.node_type === 4) allow = [5]
   else allow = []
-  return allow.map((t) => ({ value: t, label: TYPE_LABEL[t] }))
+  return allow.map((t) => ({ value: t, label: WBS_ENTITY_TYPE_LABEL[t] }))
 })
 
 const parentOptions = computed(() =>
   wbsNodes.filter(
     (n) =>
       n.project_id === form.project_id &&
-      (n.node_type === 9 || ENTITY_TYPES.includes(n.node_type)) &&
+      (n.node_type === 9 || ENTITY_BREAKDOWN_NODE_TYPES.includes(n.node_type)) &&
       n.node_type !== 5 &&
       n.id !== form.id,
   ),
@@ -199,7 +196,7 @@ function openEdit(row) {
     visible.value = true
     return
   }
-  if (!ENTITY_TYPES.includes(row.node_type)) {
+  if (!ENTITY_BREAKDOWN_NODE_TYPES.includes(row.node_type)) {
     return ElMessage.warning('本页仅维护单位工程至分项')
   }
   Object.assign(form, {
@@ -247,7 +244,7 @@ function submit() {
     visible.value = false
     return
   }
-  if (!ENTITY_TYPES.includes(Number(form.node_type))) {
+  if (!ENTITY_BREAKDOWN_NODE_TYPES.includes(Number(form.node_type))) {
     return ElMessage.error('本页仅可维护单位工程～分项')
   }
   const r = upsertWbsNode(
@@ -276,7 +273,7 @@ function submit() {
 async function onRemove(row) {
   if (isSystemNode(row)) return
   try {
-    await ElMessageBox.confirm(`确认删除「${displayNodeName(row)}」？`, '删除节点', { type: 'warning' })
+    await ElMessageBox.confirm(`确认删除「${displayEntityBreakdownNodeName(row)}」？`, '删除节点', { type: 'warning' })
     const r = removeWbsNode(row.id)
     if (!r.ok) return ElMessage.error(r.msg)
     ElMessage.success('已删除')
@@ -338,8 +335,8 @@ async function onRemove(row) {
       <section class="table-panel">
         <div v-if="selectedNode" class="node-summary">
           当前节点：
-          <el-tag size="small" effect="plain">{{ TYPE_LABEL[selectedNode.node_type] || '节点' }}</el-tag>
-          <strong>{{ displayNodeName(selectedNode) }}</strong>
+          <el-tag size="small" effect="plain">{{ WBS_ENTITY_TYPE_LABEL[selectedNode.node_type] || '节点' }}</el-tag>
+          <strong>{{ displayEntityBreakdownNodeName(selectedNode) }}</strong>
           <el-button
             v-if="selectedNode.node_type !== 5"
             type="primary"
@@ -366,9 +363,9 @@ async function onRemove(row) {
                   当前
                 </el-tag>
                 <el-tag size="small" effect="plain" class="type-tag">
-                  {{ TYPE_LABEL[row.node_type] || '—' }}
+                  {{ WBS_ENTITY_TYPE_LABEL[row.node_type] || '—' }}
                 </el-tag>
-                <span>{{ displayNodeName(row) }}</span>
+                <span>{{ displayEntityBreakdownNodeName(row) }}</span>
               </span>
             </template>
           </el-table-column>
@@ -417,7 +414,7 @@ async function onRemove(row) {
             <el-option
               v-for="n in parentOptions"
               :key="n.id"
-              :label="`[${TYPE_LABEL[n.node_type]}] ${n.node_type === 9 ? '实体工程' : n.node_name}`"
+              :label="`[${WBS_ENTITY_TYPE_LABEL[n.node_type]}] ${n.node_type === 9 ? '实体工程' : n.node_name}`"
               :value="n.id"
             />
           </el-select>

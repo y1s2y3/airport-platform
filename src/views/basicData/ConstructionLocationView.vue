@@ -20,18 +20,13 @@ import {
   MAX_LOCATION_DEPTH,
 } from '../../mock/constructionLocation.js'
 
-const TYPE_LABEL = {
-  1: '单位工程',
-  2: '子单位工程',
-  3: '分部工程',
-  4: '子分部工程',
-  5: '分项工程',
-  9: '实体工程',
-  loc: '施工部位',
-}
+import {
+  WBS_ENTITY_TYPE_LABEL,
+} from '../../constants/wbsEntityLabels.js'
 
 const { isHqSelected, scopeProjectId, scopeProjectLabel } = useQmProjectScope()
 const keyword = ref('')
+const listKeyword = ref('')
 const treeRef = ref(null)
 const selectedKey = ref('')
 const visible = ref(false)
@@ -92,12 +87,17 @@ const tableRows = computed(() => {
   }
 
   if (meta.node_type === 5) {
-    // 分项：仅展示直接挂在分项下的根部位
-    return listLocations(pid, meta.wbs_node_id).filter((r) => !r.parent_id)
+    return listLocations(pid, meta.wbs_node_id)
   }
 
   // 上级实体节点：查询子孙分项下全部部位（含多级）
   return listLocationsUnderWbs(pid, meta.wbs_node_id)
+})
+
+const filteredTableRows = computed(() => {
+  const kw = listKeyword.value.trim()
+  if (!kw) return tableRows.value
+  return tableRows.value.filter((r) => String(r.name || '').includes(kw))
 })
 
 /** 上级查询模式：只读列表 */
@@ -149,6 +149,22 @@ function filterTreeNode(value, data) {
 
 function handleNodeClick(data) {
   selectedKey.value = data.id
+}
+
+/** 查询模式「定位分项」：切换选中并展开、高亮左侧树节点 */
+async function jumpToItem(wbsNodeId) {
+  if (!wbsNodeId) return
+  selectedKey.value = wbsNodeId
+  await nextTick()
+  treeRef.value?.setCurrentKey(wbsNodeId)
+  const node = treeRef.value?.getNode?.(wbsNodeId)
+  if (node) {
+    let parent = node.parent
+    while (parent && parent.level > 0) {
+      parent.expanded = true
+      parent = parent.parent
+    }
+  }
 }
 
 function openCreateSibling() {
@@ -234,7 +250,7 @@ function summaryText() {
   if (meta.kind === 'loc') {
     return `当前部位：${meta.node.name}`
   }
-  const type = TYPE_LABEL[meta.node_type] || '节点'
+  const type = WBS_ENTITY_TYPE_LABEL[meta.node_type] || '节点'
   const name = meta.node_type === 9 ? '实体工程' : meta.node.node_name
   return `当前${type}：${name}`
 }
@@ -308,6 +324,13 @@ function tagType(data) {
             </span>
           </div>
           <div class="btns">
+            <el-input
+              v-model="listKeyword"
+              clearable
+              placeholder="筛选部位名称"
+              style="width: 180px"
+              aria-label="筛选部位名称"
+            />
             <el-button type="primary" size="small" :disabled="!canAttach" @click="openCreateSibling">
               新增同级部位
             </el-button>
@@ -327,7 +350,7 @@ function tagType(data) {
           v-if="!itemOptions.length"
           description="请先在「实体工程分解」或验评目录树维护分项"
         />
-        <el-table v-else :data="tableRows" stripe border>
+        <el-table v-else :data="filteredTableRows" stripe border>
           <el-table-column v-if="isQueryMode" label="归属分项" min-width="140" show-overflow-tooltip>
             <template #default="{ row }">{{ itemName(row) }}</template>
           </el-table-column>
@@ -362,7 +385,7 @@ function tagType(data) {
                 v-else
                 link
                 type="primary"
-                @click="selectedKey = row.wbs_node_id"
+                @click="jumpToItem(row.wbs_node_id)"
               >
                 定位分项
               </el-button>

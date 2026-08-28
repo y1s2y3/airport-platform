@@ -2,27 +2,46 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useCurrentProject } from '../../composables/useCurrentProject'
 import {
   getSubcontractorDetail,
   approveStatusTagClass,
   isSubcontractorInApproval,
+  canAccessSubcontractorDetail,
+  canWithdrawSubcontractor,
+  withdrawSubcontractorApplication,
+  cloneSubcontractorApplication,
+  canResubmitSubcontractor,
 } from '../../mock/subcontractorManagement'
+import { discardSubcontractorTodos } from '../../mock/personalCenter'
 import SubcontractorDetailBody from '../../components/basicData/SubcontractorDetailBody.vue'
 import PersonalCenterReadonlyHint from '../../components/PersonalCenterReadonlyHint.vue'
 
 const route = useRoute()
 const router = useRouter()
-const { isHqSelected } = useCurrentProject()
+const { isHqSelected, laborProjectId } = useCurrentProject()
 const detail = ref(null)
 
 onMounted(() => {
-  detail.value = getSubcontractorDetail(route.params.id)
-  if (!detail.value) {
+  const row = getSubcontractorDetail(route.params.id)
+  if (!row) {
     ElMessage.warning('未找到分包单位报审信息')
     router.replace({ name: 'SubcontractorList' })
+    return
   }
+  const allowed = canAccessSubcontractorDetail(row, {
+    isHq: isHqSelected.value,
+    projectId: laborProjectId.value,
+  })
+  if (!allowed) {
+    ElMessage.warning(
+      isHqSelected.value ? '指挥部仅可查看已通过的报审' : '无权查看非本项目的报审单',
+    )
+    router.replace({ name: 'SubcontractorList' })
+    return
+  }
+  detail.value = row
 })
 
 const pageListTitle = computed(() => (isHqSelected.value ? '分包单位管理' : '分包单位报审'))
@@ -31,8 +50,42 @@ const showReadonlyHint = computed(
   () => detail.value && isSubcontractorInApproval(detail.value.status),
 )
 
+const showWithdraw = computed(
+  () => !isHqSelected.value && detail.value && canWithdrawSubcontractor(detail.value.status),
+)
+
+const showResubmit = computed(
+  () => !isHqSelected.value && detail.value && canResubmitSubcontractor(detail.value.status),
+)
+
 function goBack() {
   router.push({ name: 'SubcontractorList' })
+}
+
+async function handleWithdraw() {
+  if (!detail.value) return
+  try {
+    await ElMessageBox.confirm('确认撤回该报审？仅待审批时可撤回。', '撤回报审', {
+      type: 'warning',
+      confirmButtonText: '确认撤回',
+      cancelButtonText: '取消',
+    })
+  } catch {
+    return
+  }
+  const r = withdrawSubcontractorApplication(detail.value.id)
+  if (!r.ok) return ElMessage.warning(r.msg)
+  if (r.needDiscardTodos) discardSubcontractorTodos(detail.value.id)
+  detail.value = cloneSubcontractorApplication(r.data)
+  ElMessage.success('已撤回报审')
+}
+
+function handleResubmit() {
+  if (!detail.value) return
+  router.push({
+    name: 'SubcontractorList',
+    query: { resubmitId: detail.value.id },
+  })
 }
 </script>
 
@@ -50,8 +103,13 @@ function goBack() {
               <span>{{ detail.unitType }}</span>
               <span class="ap-status-tag" :class="approveStatusTagClass(detail.status)">{{ detail.status }}</span>
               <span v-if="detail.submitTime">提交：{{ detail.submitTime }}</span>
+              <span v-if="detail.rejectedFromId">关联驳回单：{{ detail.rejectedFromId }}</span>
             </div>
           </div>
+        </div>
+        <div v-if="showWithdraw || showResubmit" class="header-actions">
+          <el-button v-if="showWithdraw" type="warning" plain @click="handleWithdraw">撤回</el-button>
+          <el-button v-if="showResubmit" type="primary" @click="handleResubmit">重新报审</el-button>
         </div>
       </div>
     </div>
@@ -81,12 +139,19 @@ function goBack() {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
+  gap: 16px;
 }
 
 .title-block {
   display: flex;
   align-items: flex-start;
   gap: 12px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .page-title {

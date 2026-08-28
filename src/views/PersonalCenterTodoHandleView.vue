@@ -14,6 +14,13 @@ import {
   buildDispatchHazardApprovalFlow,
 } from '../mock/personalCenter.js'
 import { findSubcontractorApplication } from '../mock/subcontractorManagement.js'
+import {
+  resolveBrandTodoAssigneeUserId,
+} from '../mock/brand.js'
+import {
+  getCurrentUserSnapshot,
+  getEffectiveUserId,
+} from '../mock/currentUser.js'
 import './personalCenter/styles/todoHandleBlocks.css'
 
 const router = useRouter()
@@ -38,13 +45,22 @@ const handlerMeta = computed(() =>
 
 const commonApprovePanel = resolveCommonApprovePanel()
 
-const showCommonApprove = computed(
-  () =>
-    !isReadonly.value &&
-    todo.value &&
-    handlerMeta.value?.kind === 'detail' &&
-    COMMON_APPROVE_TYPES.has(todo.value.type),
+const showCommonApprove = computed(() => {
+  if (isReadonly.value || !todo.value || handlerMeta.value?.kind !== 'detail') return false
+  if (!COMMON_APPROVE_TYPES.has(todo.value.type)) return false
+  if (todo.value.type === 'brand' && !brandCanApprove.value) return false
+  return true
+})
+
+const brandAssigneeUserId = computed(() =>
+  todo.value?.type === 'brand' ? resolveBrandTodoAssigneeUserId(todo.value) : '',
 )
+
+const brandCanApprove = computed(() => {
+  if (todo.value?.type !== 'brand') return true
+  if (!brandAssigneeUserId.value) return true
+  return getEffectiveUserId(getCurrentUserSnapshot()) === brandAssigneeUserId.value
+})
 
 const subcontractorLiveDetail = computed(() => {
   const id = todo.value?.subcontractorApplicationId
@@ -72,8 +88,8 @@ const todoSourceLabel = computed(() => {
     brand: '品牌报审',
     subcontractor: '分包报审',
     sample: '样板管理',
-    mat_entry: '材料进场管理',
-    eq_entry: '设备进场管理',
+    mat_entry: '材料设备进场',
+    eq_entry: '材料设备进场',
     asbuilt: '实模一致验收',
     qm_inspect: '质量验评',
     qm_rectify: '质量验评',
@@ -143,6 +159,16 @@ function goBack() {
       <template v-else-if="handlerMeta?.kind === 'detail'">
         <component :is="handlerMeta.component" :todo="todo" />
 
+        <el-alert
+          v-if="todo.type === 'brand' && !isReadonly && brandAssigneeUserId && !brandCanApprove"
+          type="warning"
+          :closable="false"
+          show-icon
+          class="brand-assignee-alert"
+          title="无法办理"
+          description="当前登录用户不是本单指定审批人"
+        />
+
         <component
           :is="commonApprovePanel"
           v-if="showCommonApprove"
@@ -164,5 +190,8 @@ function goBack() {
 :deep(.handle-page.is-brand) {
   padding-bottom: 24px;
   max-width: 980px;
+}
+.brand-assignee-alert {
+  margin-bottom: 12px;
 }
 </style>

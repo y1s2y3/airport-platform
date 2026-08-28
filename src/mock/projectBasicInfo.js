@@ -1,17 +1,5 @@
 import { mergeSafetyProfile } from './projectSafetyProfile'
-import { listSysUsers } from './sysUsers'
-import { parseOneContact } from '../utils/contactValue'
-
-function findSysUserByContact(name, phone) {
-  const nextName = String(name || '').trim()
-  const nextPhone = String(phone || '').trim()
-  if (!nextName || !nextPhone) return null
-  return (
-    listSysUsers().find(
-      (user) => user.status !== false && user.name === nextName && user.phone === nextPhone,
-    ) || null
-  )
-}
+import { parseOneContact } from '../utils/contactValue.js'
 
 export const projectTypeOptions = [
   '房屋市政工程',
@@ -39,15 +27,12 @@ export function createProjectFields(overrides = {}) {
     projectName: '',
     contractorUnit: '',
     supervisorUnit: '',
-    subcontractorUnit: '',
     overview: '',
     constructionSite: '',
     constructionSiteLng: '',
     constructionSiteLat: '',
     entryTime: '',
     plannedCompletionTime: '',
-    constructionPeriodStart: '',
-    constructionPeriodEnd: '',
     status: '前期',
     personInCharge: '',
     peakPersonnelCount: '',
@@ -77,17 +62,12 @@ export const projectList = [
     projectCode: 't2hangzhanqunuew',
     status: '前期',
     personInCharge: '姚远东',
-    constructionPeriodStart: '2025-01-01',
-    constructionPeriodEnd: '2029-12-31',
     ...createProjectFields({
       projectName: '宝安国际机场T2航站区及配套工程',
-      constructionPeriodStart: '2025-01-01',
-      constructionPeriodEnd: '2029-12-31',
       status: '前期',
       personInCharge: '姚远东',
       contractorUnit: '中建三局第一建设工程有限责任公司',
       supervisorUnit: '深圳市政监理有限公司',
-      subcontractorUnit: '深圳市政集团有限公司',
       overview: 'T2航站区及配套工程总体建设，含航站楼主体、站坪及配套市政设施。',
       constructionSite: '宝安国际机场T2航站区',
       constructionSiteLng: 113.8106,
@@ -101,9 +81,9 @@ export const projectList = [
       projectType: '房屋市政工程',
       permitStatus: '已办理施工许可证',
       permitPhoto: '施工许可证-T2.jpg',
-      deptHeadContact: '姚远东13800138000',
-      projectManagerContact: '王建国13800138001',
-      safetyLiaisonContact: '李安全13900139002',
+      deptHeadContact: '姚远东 / 13800138000',
+      projectManagerContact: '王建国 / 13800138001',
+      safetyLiaisonContact: '李安全 / 13900139002',
       safetyProfile: {
         camp: {
           hasCamp: '是',
@@ -121,15 +101,12 @@ export const projectList = [
     projectCode: '',
     status: '前期',
     personInCharge: '管术枝',
-    constructionPeriodStart: '',
-    constructionPeriodEnd: '',
     ...createProjectFields({
       projectName: '深圳宝安国际机场T1航站区及配套设施工程项目',
       status: '前期',
       personInCharge: '管术枝',
       contractorUnit: '中建三局',
       supervisorUnit: '深圳监理公司',
-      subcontractorUnit: '深圳广田装饰集团股份有限公司',
       overview: 'T1航站区及配套设施改造与扩建工程。',
       constructionSite: 'T1航站区',
       constructionSiteLng: 113.7985,
@@ -143,9 +120,9 @@ export const projectList = [
       projectType: '房屋市政工程',
       permitStatus: '已办理施工许可证',
       permitPhoto: '施工许可证-T1.jpg',
-      deptHeadContact: '管术枝13600136000',
-      projectManagerContact: '郑经理13300133000',
-      safetyLiaisonContact: '冯安全12700127000',
+      deptHeadContact: '管术枝 / 13600136000',
+      projectManagerContact: '郑经理 / 13300133000',
+      safetyLiaisonContact: '冯安全 / 12700127000',
     }),
   },
   {
@@ -155,8 +132,6 @@ export const projectList = [
     projectCode: '',
     status: '前期',
     personInCharge: '林建源',
-    constructionPeriodStart: '',
-    constructionPeriodEnd: '',
     ...createProjectFields({
       projectName: '深圳宝安国际机场东航站区、停车楼及配套业务设施项目',
       status: '前期',
@@ -171,9 +146,9 @@ export const projectList = [
       filingNumber: 'BA202503006',
       projectType: '房屋市政工程',
       permitStatus: '已办理民航质监安监备案',
-      deptHeadContact: '林建源13700137000',
-      projectManagerContact: '陈经理13300133001',
-      safetyLiaisonContact: '黄安全13900139001',
+      deptHeadContact: '林建源 / 13700137000',
+      projectManagerContact: '陈经理 / 13300133001',
+      safetyLiaisonContact: '黄安全 / 13900139001',
     }),
   },
   {
@@ -183,8 +158,6 @@ export const projectList = [
     projectCode: '',
     status: '前期',
     personInCharge: '戴毅峰',
-    constructionPeriodStart: '',
-    constructionPeriodEnd: '',
     ...createProjectFields({
       projectName: '综合配套三期(A319-004-04-03-02)及南区下穿通道工程(A319-004-04-01-01)项目',
       status: '前期',
@@ -199,9 +172,9 @@ export const projectList = [
       filingNumber: '',
       projectType: '房屋市政工程',
       permitStatus: '未办理',
-      deptHeadContact: '戴毅峰13400134001',
-      projectManagerContact: '孙经理13100131011',
-      safetyLiaisonContact: '钱安全13000130012',
+      deptHeadContact: '戴毅峰 / 13400134001',
+      projectManagerContact: '孙经理 / 13100131011',
+      safetyLiaisonContact: '钱安全 / 13000130012',
     }),
   },
   {
@@ -211,8 +184,6 @@ export const projectList = [
     projectCode: '',
     status: '前期',
     personInCharge: '戴毅峰',
-    constructionPeriodStart: '',
-    constructionPeriodEnd: '',
     ...createProjectFields({
       projectName: '空港区截中心配套站坪、竖和站坪及机务区地基处理工程项目',
       status: '前期',
@@ -227,9 +198,9 @@ export const projectList = [
       filingNumber: 'BA202504012',
       projectType: '民航专业工程',
       permitStatus: '已办理民航质监安监备案',
-      deptHeadContact: '戴毅峰13500135001',
-      projectManagerContact: '刘经理13300133009',
-      safetyLiaisonContact: '吴安全13200132010',
+      deptHeadContact: '戴毅峰 / 13500135001',
+      projectManagerContact: '刘经理 / 13300133009',
+      safetyLiaisonContact: '吴安全 / 13200132010',
     }),
   },
   {
@@ -239,17 +210,12 @@ export const projectList = [
     projectCode: 't2-yushui-bengzhan-002',
     status: '在建',
     personInCharge: '裴云龙',
-    constructionPeriodStart: '2026-05-15',
-    constructionPeriodEnd: '2028-06-28',
     ...createProjectFields({
       projectName: '深圳宝安国际机场T2航站区及配套设施工程-新建2号雨水提升泵站工程',
       status: '在建',
       personInCharge: '裴云龙',
-      constructionPeriodStart: '2026-05-15',
-      constructionPeriodEnd: '2028-06-28',
       contractorUnit: '中国建筑第五工程局有限公司',
       supervisorUnit: '深圳市深水兆业工程顾问有限公司',
-      subcontractorUnit: '/',
       overview: PUMP_OVERVIEW,
       constructionSite: '宝安机场九道',
       entryTime: '2026-05-15',
@@ -261,9 +227,9 @@ export const projectList = [
       projectType: '房屋市政工程',
       permitStatus: '未办理',
       permitPhoto: '',
-      deptHeadContact: '胡阳13420969080',
-      projectManagerContact: '裴云龙18588955314',
-      safetyLiaisonContact: '李庆福13510343400',
+      deptHeadContact: '胡阳 / 13420969080',
+      projectManagerContact: '裴云龙 / 18588955314',
+      safetyLiaisonContact: '李庆福 / 13510343400',
       safetyProfile: mergeSafetyProfile({
         siteClearance: {
           clearanceHeightInvolved: '否',
@@ -305,15 +271,19 @@ export const projectList = [
         },
         generalContractor: {
           unitName: '中国建筑第五工程局有限公司',
-          legalPersonContact: '叶传雄13675000757',
-          companySafetyDirectorContact: '刘建平13626007119',
-          projectLeaderContact: '裴云龙18588955314',
-          safetyDirectorContact: '李庆福13510343400',
-          safetyManagerContact: '陈步青18050053666',
+          legalPersonContact: '叶传雄 / 13675000757',
+          companySafetyDirectorContact: '刘建平 / 13626007119',
+          projectLeaderContact: '裴云龙 / 18588955314',
+          safetyDirectorContact: '李庆福 / 13510343400',
+          safetyManagerContact: '陈步青 / 18050053666',
+          safetyLicenseNo: '',
+          safetyLicenseExpiryStart: '2024-01-01',
+          safetyLicenseExpiryEnd: '2027-12-31',
+          safetyLicensePhoto: '',
         },
         supervisorUnit: {
           superiorManagementUnit: '深圳市深水兆业工程顾问有限公司',
-          chiefSupervisorContact: '胡阳13420969080',
+          chiefSupervisorContact: '胡阳 / 13420969080',
         },
       }),
     }),
@@ -325,17 +295,12 @@ export const projectList = [
     projectCode: 'sanpaodao',
     status: '在建',
     personInCharge: '赵磊',
-    constructionPeriodStart: '2024-01-15',
-    constructionPeriodEnd: '2029-03-31',
     ...createProjectFields({
       projectName: '深圳机场三跑道扩建工程',
       status: '在建',
       personInCharge: '赵磊',
-      constructionPeriodStart: '2024-01-15',
-      constructionPeriodEnd: '2029-03-31',
       contractorUnit: '广东建工集团有限公司',
       supervisorUnit: '深圳监理公司',
-      subcontractorUnit: '/',
       overview: '三跑道土石方、地基处理及跑道主体工程施工。',
       constructionSite: '三跑道施工区',
       entryTime: '2024-01-15',
@@ -347,9 +312,9 @@ export const projectList = [
       projectType: '民航专业工程',
       permitStatus: '已办理施工许可证',
       permitPhoto: '施工许可证-三跑道.jpg',
-      deptHeadContact: '赵磊13500135000',
-      projectManagerContact: '刘经理13300133009',
-      safetyLiaisonContact: '吴安全13200132010',
+      deptHeadContact: '赵磊 / 13500135000',
+      projectManagerContact: '刘经理 / 13300133009',
+      safetyLiaisonContact: '吴安全 / 13200132010',
     }),
   },
 ]
@@ -370,6 +335,26 @@ export function getProjectSelectOptions() {
     }))
 }
 
+/** 顶栏 / COC 等项目选择器：过滤 hidden，与台账同源 */
+export function buildCocProjectOptions() {
+  return projectList
+    .filter((item) => !item.hidden)
+    .map((item) => ({
+      id: item.id,
+      label: item.shortName || item.projectName,
+      fullName: item.projectName,
+      status: item.status,
+    }))
+}
+
+export function getHiddenProjectIdSet() {
+  return new Set(projectList.filter((item) => item.hidden).map((item) => item.id))
+}
+
+export function findProjectById(projectId) {
+  return projectList.find((item) => item.id === projectId) || null
+}
+
 let projectIdSeq = 100
 
 export function createEmptyProject() {
@@ -381,8 +366,6 @@ export function createEmptyProject() {
     projectCode: id,
     status: '在建',
     personInCharge: '',
-    constructionPeriodStart: '',
-    constructionPeriodEnd: '',
     ...createProjectFields(),
   }
 }
@@ -394,8 +377,8 @@ export function deriveShortName(projectName) {
 }
 
 export function formatConstructionPeriod(row) {
-  const start = row.constructionPeriodStart || row.entryTime || ''
-  const end = row.constructionPeriodEnd || row.plannedCompletionTime || ''
+  const start = row.entryTime || ''
+  const end = row.plannedCompletionTime || ''
   if (start && end) return `${start} ~ ${end}`
   if (start || end) return start || end
   return ''
@@ -406,39 +389,12 @@ export function formatTotalInvestment(value) {
   if (value === '' || value === null || value === undefined) return '—'
   const num = Number(value)
   if (!Number.isFinite(num)) return '—'
-  return num.toLocaleString('zh-CN', { maximumFractionDigits: 4 })
+  return num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 /** 建设单位项目经理：从 projectManagerContact 提取用户名称 */
 export function displayProjectManagerName(row) {
-  const text = String(row?.projectManagerContact || '').trim()
-  if (!text) return ''
-  const slashParts = text.split(/\s*\/\s*/)
-  if (slashParts.length >= 2) {
-    const phone = slashParts[slashParts.length - 1].trim()
-    if (/\d{7,}/.test(phone)) {
-      return slashParts.slice(0, -1).join(' / ').trim()
-    }
-  }
-  const glued = text.match(/^(.+?)(\d{11})$/)
-  if (glued) return glued[1].trim()
-  return text
+  const { name } = parseOneContact(row?.projectManagerContact)
+  return name || ''
 }
 
-/** 项目画像必填校验：项目名称、项目简称、项目经理 */
-export function validateProjectPortraitRequired(data) {
-  if (!String(data?.projectName || '').trim()) {
-    return { ok: false, msg: '请填写项目名称' }
-  }
-  if (!String(data?.shortName || '').trim()) {
-    return { ok: false, msg: '请填写项目简称' }
-  }
-  const manager = parseOneContact(data?.projectManagerContact)
-  if (!manager.name || !manager.phone) {
-    return { ok: false, msg: '请选择项目经理（项目负责人）' }
-  }
-  if (!findSysUserByContact(manager.name, manager.phone)) {
-    return { ok: false, msg: '项目经理须从系统用户中选择' }
-  }
-  return { ok: true, msg: '' }
-}

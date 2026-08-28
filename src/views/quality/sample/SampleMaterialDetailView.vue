@@ -6,6 +6,8 @@ import {
   getMaterialDetail,
   statusLabel,
   statusTagType,
+  findBrandProjectUser,
+  formatBrandProjectUserLabel,
 } from '../../../mock/sample.js'
 import PersonalCenterReadonlyHint from '../../../components/PersonalCenterReadonlyHint.vue'
 
@@ -28,6 +30,12 @@ function fileNames(list) {
   if (!Array.isArray(list)) return '—'
   const names = list.map((f) => (typeof f === 'string' ? f : f?.name)).filter(Boolean)
   return names.length ? names.join('、') : '—'
+}
+
+function approverDetailLabel(userId, fallbackName) {
+  const user = findBrandProjectUser(userId)
+  if (user) return formatBrandProjectUserLabel(user)
+  return fallbackName || '—'
 }
 </script>
 
@@ -70,6 +78,16 @@ function fileNames(list) {
 
       <h3 class="section-title">审批文件</h3>
       <div class="text-block mb">{{ fileNames(detail.approval_files) }}</div>
+
+      <h3 class="section-title">审批人</h3>
+      <el-descriptions :column="2" border class="mb">
+        <el-descriptions-item label="监理审批">
+          {{ approverDetailLabel(detail.supervisor_approver_user_id, detail.supervisor_approver_name) }}
+        </el-descriptions-item>
+        <el-descriptions-item label="项目经理审批">
+          {{ approverDetailLabel(detail.pm_approver_user_id, detail.pm_approver_name) }}
+        </el-descriptions-item>
+      </el-descriptions>
 
       <h3 class="section-title">审批记录</h3>
       <el-table :data="detail.approvals || []" border stripe size="small" empty-text="暂无">

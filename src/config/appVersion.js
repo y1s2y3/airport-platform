@@ -17,6 +17,15 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.7.1.2',
+    date: '2026-08-28',
+    highlights: [
+      '审批人选人展示统一为「姓名（组织名称-岗位）」',
+      '样板管理（材料定样/工序样板）补充审批人配置与详情展示',
+      '分包单位管理、品牌报审、材料设备进场 PRD 与原型同步',
+    ],
+  },
+  {
     version: 'v2.7.1.1',
     date: '2026-08-28',
     highlights: [

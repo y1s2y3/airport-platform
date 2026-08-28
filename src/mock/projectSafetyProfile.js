@@ -1,56 +1,4 @@
-import { listSysUsers } from './sysUsers'
-
 export const yesNoOptions = ['是', '否']
-
-/** 项目画像人员下拉补充名单（含参建单位人员，系统用户未覆盖的姓名） */
-export const profileExtraPersons = [
-  { name: '王建国', phone: '13800138001' },
-  { name: '李安全', phone: '13900139002' },
-  { name: '管术枝', phone: '13600136000' },
-  { name: '郑经理', phone: '13300133000' },
-  { name: '冯安全', phone: '12700127000' },
-  { name: '林建源', phone: '13700137000' },
-  { name: '陈经理', phone: '13300133001' },
-  { name: '黄安全', phone: '13900139001' },
-  { name: '戴毅峰', phone: '13400134001' },
-  { name: '孙经理', phone: '13100131011' },
-  { name: '钱安全', phone: '13000130012' },
-  { name: '刘经理', phone: '13300133009' },
-  { name: '吴安全', phone: '13200132010' },
-  { name: '胡阳', phone: '13420969080' },
-  { name: '裴云龙', phone: '18588955314' },
-  { name: '李庆福', phone: '13510343400' },
-  { name: '叶传雄', phone: '13675000757' },
-  { name: '刘建平', phone: '13626007119' },
-  { name: '陈步青', phone: '18050053666' },
-  { name: '赵磊', phone: '13500135000' },
-  { name: '陈市政', phone: '13600136006' },
-  { name: '赵安全', phone: '13500135007' },
-  { name: '周专职', phone: '13700137003' },
-]
-
-export function listProfilePersons() {
-  const map = new Map()
-  for (const user of listSysUsers()) {
-    if (user.status === false || !user.name) continue
-    if (String(user.loginAccount || '').startsWith('pm_')) continue
-    map.set(user.name, {
-      id: user.id,
-      name: user.name,
-      phone: user.phone || '',
-    })
-  }
-  for (const person of profileExtraPersons) {
-    if (!person.name || map.has(person.name)) continue
-    map.set(person.name, {
-      id: `profile-person-${person.name}`,
-      name: person.name,
-      phone: person.phone || '',
-    })
-  }
-  return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'))
-}
-
 export function emptyQualificationTriple() {
   return [{ label: '资格证书', certNo: '', photo: '', possessed: false }]
 }
@@ -129,6 +77,12 @@ export function createSupervisorUnitBlock(overrides = {}) {
 }
 
 export function createGeneralContractorBlock(overrides = {}) {
+  const {
+    safetyLicenseExpiry,
+    safetyLicenseExpiryStart,
+    safetyLicenseExpiryEnd,
+    ...rest
+  } = overrides
   return {
     unitName: '',
     legalPersonContact: '',
@@ -138,11 +92,19 @@ export function createGeneralContractorBlock(overrides = {}) {
     safetyDirectorContact: '',
     safetyManagerContact: '',
     safetyLicenseNo: '',
-    safetyLicenseExpiry: '',
+    safetyLicenseExpiryStart: safetyLicenseExpiryStart || '',
+    safetyLicenseExpiryEnd: safetyLicenseExpiryEnd || safetyLicenseExpiry || '',
     safetyLicensePhoto: '',
-    ...overrides,
+    ...rest,
     qualifications: normalizeUnitQualifications(overrides.qualifications),
   }
+}
+
+export function formatGeneralContractorLicenseExpiry(block) {
+  const start = String(block?.safetyLicenseExpiryStart || '').trim()
+  const end = String(block?.safetyLicenseExpiryEnd || '').trim()
+  if (start && end) return `${start} ~ ${end}`
+  return start || end || ''
 }
 
 export function createSubcontractorBlock(overrides = {}) {

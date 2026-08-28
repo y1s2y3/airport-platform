@@ -4,12 +4,12 @@
  */
 import { reactive } from 'vue'
 import { nowStr } from '../utils/datetime.js'
+import { formatApproverCandidateLabel } from '../utils/approverDisplay.js'
 import { getProjectLabel } from './laborRealName.js'
 import { COC_PROJECT_OPTIONS } from '../config/projectOptions.js'
 import { searchLedgerBrands } from './brand.js'
 import {
   createMatEntrySupervisorTodo,
-  createEqEntrySupervisorTodo,
   discardMatEntryTodos,
   discardEqEntryTodos,
 } from './personalCenter.js'
@@ -55,6 +55,10 @@ export const MAT_SUPERVISOR_APPROVER_CANDIDATES = [
     org: '深圳某监理有限公司',
   },
 ]
+
+export function formatMatSupervisorApproverLabel(user) {
+  return formatApproverCandidateLabel(user)
+}
 
 /** 本项目监理岗位人员（单选候选） */
 export function listMatSupervisorApprovers(projectId) {
@@ -122,7 +126,7 @@ export function createDefaultUnpackItems() {
     key: x.key,
     label: x.label,
     fixed: true,
-    ok: false,
+    ok: true,
     remark: '',
   }))
 }
@@ -856,7 +860,12 @@ export function listEntries(
         exit_id: exit?.exit_id ?? e.exit_id ?? '',
       }
     })
-    .sort((a, b) => (a.submit_time < b.submit_time ? 1 : -1))
+    .sort((a, b) => {
+      if (a.submit_time !== b.submit_time) {
+        return a.submit_time < b.submit_time ? 1 : -1
+      }
+      return String(a.entry_id).localeCompare(String(b.entry_id), 'zh-CN')
+    })
 }
 
 export function listLedger(projectId, filters = {}) {
@@ -963,11 +972,7 @@ function pushTodo(entry) {
     entryType: entry.entry_type,
     supervisorName: entry.supervisor_approver_name || '',
   }
-  if (isEq) {
-    createEqEntrySupervisorTodo(payload)
-  } else {
-    createMatEntrySupervisorTodo(payload)
-  }
+  createMatEntrySupervisorTodo(payload)
 }
 
 function resolveBrand(project_id, { ledger_id, brand_name, manufacturer, material_name }) {

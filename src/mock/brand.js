@@ -12,6 +12,8 @@ import {
   createBrandSupervisorTodo,
   discardBrandTodos,
 } from './personalCenter.js'
+import { formatApproverCandidateLabel } from '../utils/approverDisplay'
+import { parseOneContact } from '../utils/contactValue.js'
 
 export const MATERIAL_TYPE = { material: '材料', equipment: '设备' }
 /** 业务状态：待审批=待监理审；审批中=监理已通过、待项目经理审 */
@@ -44,15 +46,15 @@ export const ATTACH_TYPE_KEYS = Object.keys(ATTACH_TYPE)
 
 /** 项目级审批人选人池（演示：各项目共用同一组织范围名单） */
 export const BRAND_PROJECT_USERS = [
-  { user_id: 'u-jl-01', name: '李总监', phone: '13800001001', org: '深圳某监理有限公司' },
-  { user_id: 'u-jl-02', name: '王代总', phone: '13800001002', org: '深圳某监理有限公司' },
-  { user_id: 'u-jl-03', name: '赵专监', phone: '13800001003', org: '深圳某监理有限公司' },
-  { user_id: 'u-jl-04', name: '钱专监', phone: '13800001004', org: '深圳某监理有限公司' },
-  { user_id: 'u-pm-01', name: '王建国', phone: '13800138001', org: '机场建设指挥部' },
-  { user_id: 'u-pm-02', name: '陈项目经理', phone: '13800007001', org: '中建某局机场项目部' },
-  { user_id: 'u-pm-03', name: '郑经理', phone: '13300133000', org: '机场建设指挥部' },
-  { user_id: 'u-pm-04', name: '裴云龙', phone: '18588955314', org: '机场建设指挥部' },
-  { user_id: 'u-pm-05', name: '吴建设', phone: '13800004001', org: '机场建设指挥部' },
+  { user_id: 'u-jl-01', name: '李总监', phone: '13800001001', org: '深圳某监理有限公司', post_label: '总监理工程师' },
+  { user_id: 'u-jl-02', name: '王代总', phone: '13800001002', org: '深圳某监理有限公司', post_label: '总监理工程师代表' },
+  { user_id: 'u-jl-03', name: '赵专监', phone: '13800001003', org: '深圳某监理有限公司', post_label: '专业监理工程师' },
+  { user_id: 'u-jl-04', name: '钱专监', phone: '13800001004', org: '深圳某监理有限公司', post_label: '专业监理工程师' },
+  { user_id: 'u-pm-01', name: '王建国', phone: '13800138001', org: '机场建设指挥部', post_label: '项目经理' },
+  { user_id: 'u-pm-02', name: '陈项目经理', phone: '13800007001', org: '中建某局机场项目部', post_label: '项目经理' },
+  { user_id: 'u-pm-03', name: '郑经理', phone: '13300133000', org: '机场建设指挥部', post_label: '项目经理' },
+  { user_id: 'u-pm-04', name: '裴云龙', phone: '18588955314', org: '机场建设指挥部', post_label: '项目经理' },
+  { user_id: 'u-pm-05', name: '吴建设', phone: '13800004001', org: '机场建设指挥部', post_label: '项目经理' },
 ]
 
 /** 按项目记忆上次审批人 */
@@ -67,18 +69,7 @@ const approverMemoryByProject = reactive({
 })
 
 function parsePortraitContact(raw) {
-  const text = String(raw || '').trim()
-  if (!text) return { name: '', phone: '' }
-  const slashParts = text.split(/\s*\/\s*/)
-  if (slashParts.length >= 2) {
-    const phone = slashParts[slashParts.length - 1].trim()
-    if (/\d{7,}/.test(phone)) {
-      return { name: slashParts.slice(0, -1).join(' / ').trim(), phone }
-    }
-  }
-  const glued = text.match(/^(.+?)(\d{11})$/)
-  if (glued) return { name: glued[1].trim(), phone: glued[2] }
-  return { name: text, phone: '' }
+  return parseOneContact(raw)
 }
 
 export function listBrandProjectUsers(projectId) {
@@ -88,6 +79,52 @@ export function listBrandProjectUsers(projectId) {
 
 export function findBrandProjectUser(userId) {
   return BRAND_PROJECT_USERS.find((u) => u.user_id === userId) || null
+}
+
+export function formatBrandProjectUserLabel(user) {
+  return formatApproverCandidateLabel(user)
+}
+
+/** 提交时快照审批人组织/岗位；详情与待办优先读快照 */
+export function formatBrandApproverSnapshot(app, role) {
+  if (!app) return '—'
+  const isSupervisor = role === 'supervisor'
+  const name = isSupervisor ? app.supervisor_approver_name : app.pm_approver_name
+  const org = isSupervisor ? app.supervisor_approver_org : app.pm_approver_org
+  const post = isSupervisor ? app.supervisor_approver_post_label : app.pm_approver_post_label
+  if (org || post) return formatApproverOptionLabel(name, org, post)
+  const userId = isSupervisor ? app.supervisor_approver_user_id : app.pm_approver_user_id
+  const user = findBrandProjectUser(userId)
+  if (user) return formatBrandProjectUserLabel(user)
+  return name || '—'
+}
+
+function pickApproverSnapshot(user) {
+  return {
+    org: user?.org || '',
+    post_label: user?.post_label || '',
+  }
+}
+
+function applyApproverSnapshotsToApp(app, checked) {
+  app.supervisor_approver_user_id = checked.supervisor_approver_user_id
+  app.supervisor_approver_name = checked.supervisor_approver_name
+  app.supervisor_approver_org = checked.supervisor_approver_org
+  app.supervisor_approver_post_label = checked.supervisor_approver_post_label
+  app.pm_approver_user_id = checked.pm_approver_user_id
+  app.pm_approver_name = checked.pm_approver_name
+  app.pm_approver_org = checked.pm_approver_org
+  app.pm_approver_post_label = checked.pm_approver_post_label
+}
+
+export function rememberBrandProjectApprovers(
+  projectId,
+  supervisorUserId,
+  supervisorName,
+  pmUserId,
+  pmName,
+) {
+  saveApproverMemory(projectId, supervisorUserId, supervisorName, pmUserId, pmName)
 }
 
 export function resolvePmUserFromPortrait(projectId) {
@@ -911,76 +948,6 @@ function upsertLedgerFromCandidate(app, candidate) {
   return row
 }
 
-/** 兼容桩：材料规格库菜单已隐藏 */
-export function listMaterials() {
-  return []
-}
-
-export function listSpecsByMaterial() {
-  return []
-}
-
-export function saveMaterial() {
-  return { ok: false, msg: '材料规格库已下线' }
-}
-
-export function saveSpec() {
-  return { ok: false, msg: '材料规格库已下线' }
-}
-
-export function deleteSpec() {
-  return { ok: false, msg: '材料规格库已下线' }
-}
-
-export function toggleMaterialStatus() {
-  return { ok: false, msg: '材料规格库已下线' }
-}
-
-/** 兼容桩：品牌库已取消 */
-export function listBrands() {
-  return []
-}
-
-export function getBrandMaterialSpecGroups() {
-  return []
-}
-
-export function listBrandMaterialRows() {
-  return []
-}
-
-export function findBrandByNameManufacturer() {
-  return null
-}
-
-export function removeBrandMaterial() {
-  return { ok: false, msg: '品牌库已取消' }
-}
-
-export function getBrandMaterials() {
-  return []
-}
-
-export function saveBrand() {
-  return { ok: false, msg: '品牌库已取消' }
-}
-
-export function toggleBrandStatus() {
-  return { ok: false, msg: '品牌库已取消' }
-}
-
-export function linkBrandMaterialSpecs() {
-  return { ok: false, msg: '品牌库已取消' }
-}
-
-export function linkBrandMaterial() {
-  return { ok: false, msg: '品牌库已取消' }
-}
-
-export function replaceBrandMaterialSpecs() {
-  return { ok: false, msg: '品牌库已取消' }
-}
-
 export function listApplications(projectId, { keyword = '', status = '' } = {}) {
   let rows = [...store.applications]
   if (projectId) rows = rows.filter((a) => a.project_id === projectId)
@@ -1063,16 +1030,6 @@ export function searchLedgerBrands(keyword = '', projectId = '', { materialType 
     })
   }
   return [...map.values()].slice(0, 40)
-}
-
-/** @deprecated 兼容旧调用，改走台账联想 */
-export function searchActiveBrands(keyword = '', projectId = '') {
-  return searchLedgerBrands(keyword, projectId)
-}
-
-/** @deprecated 兼容旧调用 */
-export function searchActiveMaterials() {
-  return []
 }
 
 export function buildHqBrandApprovalStatsByProject() {
@@ -1170,13 +1127,48 @@ export function getApplicationDetail(applicationId) {
   }
 }
 
+export function resolveBrandTodoAssigneeUserId(todo) {
+  if (todo?.assigneeUserId) return todo.assigneeUserId
+  if (!todo?.brandApplicationId) return ''
+  const app = store.applications.find((a) => a.application_id === todo.brandApplicationId)
+  if (!app) return ''
+  if (todo.brandNode === 'pm') return app.pm_approver_user_id || ''
+  return app.supervisor_approver_user_id || ''
+}
+
+export function paginateBrandRows(rows, page = 1, pageSize = 20) {
+  const safePage = Math.max(1, Number(page) || 1)
+  const safeSize = Math.max(1, Number(pageSize) || 20)
+  const total = rows.length
+  const start = (safePage - 1) * safeSize
+  return {
+    total,
+    items: rows.slice(start, start + safeSize),
+  }
+}
+
+function assertBrandApprovalOperator(app, node, operatorUserId) {
+  const expected =
+    node === 'pm' ? app.pm_approver_user_id : app.supervisor_approver_user_id
+  const label = node === 'pm' ? '项目经理审批人' : '监理单位审批人'
+  if (!expected) return { ok: false, msg: `未配置${label}` }
+  if (!operatorUserId || operatorUserId !== expected) {
+    return { ok: false, msg: `当前用户不是本单指定的${label}，无法办理` }
+  }
+  return { ok: true }
+}
+
 function buildBrandTodoPayload(app) {
   const detail = getApplicationDetail(app.application_id)
   const candidates = detail?.candidates || []
   const primary = candidates.find((c) => c.is_primary)
   const alternates = candidates.filter((c) => !c.is_primary)
+  const brandNode = app.current_node === 'pm' ? 'pm' : 'supervisor'
   return {
     applicationId: app.application_id,
+    brandNode,
+    assigneeUserId:
+      brandNode === 'pm' ? app.pm_approver_user_id || '' : app.supervisor_approver_user_id || '',
     materialName: app.material_name,
     materialType: MATERIAL_TYPE[app.material_type] || app.material_type,
     brandsText: candidates.map((c) => c.brand_name).join(' / '),
@@ -1214,13 +1206,6 @@ function validateCandidates(candidates) {
   if (primaryCount !== 1) return { ok: false, msg: '须恰好标记 1 个主选品牌' }
   if (alternateCount < 2) return { ok: false, msg: '备选品牌至少 2 条' }
   return { ok: true, data: filled }
-}
-
-export function getRejectedApplicationsForCopy(projectId) {
-  if (!projectId) return []
-  return store.applications
-    .filter((a) => a.project_id === projectId && a.status === 'rejected')
-    .sort((a, b) => (a.submit_time < b.submit_time ? 1 : -1))
 }
 
 export function buildCopyPayloadFromRejected(applicationId) {
@@ -1358,6 +1343,8 @@ function validateBrandSubmitPayload(payload) {
   const supervisor_approver_name =
     String(payload.supervisor_approver_name || '').trim() || supervisorUser.name
   const pm_approver_name = String(payload.pm_approver_name || '').trim() || pmUser.name
+  const supSnap = pickApproverSnapshot(supervisorUser)
+  const pmSnap = pickApproverSnapshot(pmUser)
 
   return {
     ok: true,
@@ -1367,31 +1354,31 @@ function validateBrandSubmitPayload(payload) {
     validCandidates,
     supervisor_approver_user_id,
     supervisor_approver_name,
+    supervisor_approver_org: supSnap.org,
+    supervisor_approver_post_label: supSnap.post_label,
     pm_approver_user_id,
     pm_approver_name,
+    pm_approver_org: pmSnap.org,
+    pm_approver_post_label: pmSnap.post_label,
   }
+}
+
+function finalizeBrandSubmission(app, projectId, validCandidates, checked) {
+  replaceBrandCandidates(app.application_id, projectId, validCandidates)
+  saveApproverMemory(
+    projectId,
+    checked.supervisor_approver_user_id,
+    checked.supervisor_approver_name,
+    checked.pm_approver_user_id,
+    checked.pm_approver_name,
+  )
+  createBrandSupervisorTodo(buildBrandTodoPayload(app))
 }
 
 export function submitApplication(payload) {
   const checked = validateBrandSubmitPayload(payload)
   if (!checked.ok) return checked
-  const {
-    project_id,
-    material_name,
-    material_type,
-    validCandidates,
-    supervisor_approver_user_id,
-    supervisor_approver_name,
-    pm_approver_user_id,
-    pm_approver_name,
-  } = checked
-
-  if (payload.copy_from_application_id) {
-    const src = store.applications.find((a) => a.application_id === payload.copy_from_application_id)
-    if (!src || src.status !== 'rejected' || src.project_id !== project_id) {
-      return { ok: false, msg: '复制来源须为本项目已驳回报审单' }
-    }
-  }
+  const { project_id, material_name, material_type, validCandidates } = checked
 
   store.seq.app += 1
   const application_id = `PP-2026-${String(store.seq.app).padStart(3, '0')}`
@@ -1401,6 +1388,7 @@ export function submitApplication(payload) {
     material_name,
     material_type,
     use_part: payload.use_part || '',
+    location_id: payload.location_id || '',
     status: 'pending',
     current_node: 'supervisor',
     applicant_user_id: 'u-contractor',
@@ -1408,23 +1396,51 @@ export function submitApplication(payload) {
     submit_time: nowStr(),
     finish_time: '',
     remark: payload.remark || '',
-    copy_from_application_id: payload.copy_from_application_id || '',
-    supervisor_approver_user_id,
-    supervisor_approver_name,
-    pm_approver_user_id,
-    pm_approver_name,
+    copy_from_application_id: '',
   }
+  applyApproverSnapshotsToApp(app, checked)
   store.applications.push(app)
-  replaceBrandCandidates(application_id, project_id, validCandidates)
-  saveApproverMemory(
-    project_id,
-    supervisor_approver_user_id,
-    supervisor_approver_name,
-    pm_approver_user_id,
-    pm_approver_name,
-  )
+  finalizeBrandSubmission(app, project_id, validCandidates, checked)
+  return { ok: true, data: app }
+}
 
-  createBrandSupervisorTodo(buildBrandTodoPayload(app))
+/** 已驳回报审单复制新建（POST copy-from）→ 新单号 */
+export function copyApplicationFromRejected(sourceApplicationId, payload) {
+  const sourceId = String(sourceApplicationId || '').trim()
+  const src = store.applications.find((a) => a.application_id === sourceId)
+  if (!src || src.status !== 'rejected') {
+    return { ok: false, msg: '复制来源须为已驳回报审单' }
+  }
+  const checked = validateBrandSubmitPayload({
+    ...payload,
+    project_id: payload.project_id || src.project_id,
+  })
+  if (!checked.ok) return checked
+  if (checked.project_id !== src.project_id) {
+    return { ok: false, msg: '复制来源须为本项目已驳回报审单' }
+  }
+
+  store.seq.app += 1
+  const application_id = `PP-2026-${String(store.seq.app).padStart(3, '0')}`
+  const app = {
+    application_id,
+    project_id: checked.project_id,
+    material_name: checked.material_name,
+    material_type: checked.material_type,
+    use_part: payload.use_part || '',
+    location_id: payload.location_id || '',
+    status: 'pending',
+    current_node: 'supervisor',
+    applicant_user_id: 'u-contractor',
+    applicant_name: '当前用户',
+    submit_time: nowStr(),
+    finish_time: '',
+    remark: payload.remark || '',
+    copy_from_application_id: sourceId,
+  }
+  applyApproverSnapshotsToApp(app, checked)
+  store.applications.push(app)
+  finalizeBrandSubmission(app, checked.project_id, checked.validCandidates, checked)
   return { ok: true, data: app }
 }
 
@@ -1468,21 +1484,15 @@ export function resubmitWithdrawnBrand(applicationId, payload) {
     material_name,
     material_type,
     validCandidates,
-    supervisor_approver_user_id,
-    supervisor_approver_name,
-    pm_approver_user_id,
-    pm_approver_name,
   } = checked
   if (project_id !== app.project_id) return { ok: false, msg: '不可跨项目重提' }
 
   app.material_name = material_name
   app.material_type = material_type
   app.use_part = payload.use_part || ''
+  app.location_id = payload.location_id || app.location_id || ''
   app.remark = payload.remark || ''
-  app.supervisor_approver_user_id = supervisor_approver_user_id
-  app.supervisor_approver_name = supervisor_approver_name
-  app.pm_approver_user_id = pm_approver_user_id
-  app.pm_approver_name = pm_approver_name
+  applyApproverSnapshotsToApp(app, checked)
   app.status = 'pending'
   app.current_node = 'supervisor'
   app.submit_time = nowStr()
@@ -1490,10 +1500,10 @@ export function resubmitWithdrawnBrand(applicationId, payload) {
   replaceBrandCandidates(applicationId, project_id, validCandidates)
   saveApproverMemory(
     project_id,
-    supervisor_approver_user_id,
-    supervisor_approver_name,
-    pm_approver_user_id,
-    pm_approver_name,
+    checked.supervisor_approver_user_id,
+    checked.supervisor_approver_name,
+    checked.pm_approver_user_id,
+    checked.pm_approver_name,
   )
 
   store.seq.ar += 1
@@ -1512,18 +1522,14 @@ export function resubmitWithdrawnBrand(applicationId, payload) {
   return { ok: true, data: app }
 }
 
-/** @deprecated 请使用 resubmitWithdrawnBrand */
-export function resubmitApplication(applicationId, payload) {
-  if (applicationId && payload) return resubmitWithdrawnBrand(applicationId, payload)
-  return { ok: false, msg: '请使用重新编辑提交已撤回单' }
-}
-
-export function supervisorApprove(applicationId, { action, opinion }) {
+export function supervisorApprove(applicationId, { action, opinion, operatorUserId } = {}) {
   const app = store.applications.find((a) => a.application_id === applicationId)
   if (!app) return { ok: false, msg: '单据不存在' }
   if (app.status !== 'pending' || app.current_node !== 'supervisor') {
     return { ok: false, msg: '当前不在待审批（待监理审）节点' }
   }
+  const auth = assertBrandApprovalOperator(app, 'supervisor', operatorUserId)
+  if (!auth.ok) return auth
   if (action === 'reject' && !(opinion || '').trim()) return { ok: false, msg: '驳回意见必填' }
   store.seq.ar += 1
   store.approvals.push({
@@ -1548,12 +1554,14 @@ export function supervisorApprove(applicationId, { action, opinion }) {
   return { ok: true }
 }
 
-export function pmApprove(applicationId, { action, opinion }) {
+export function pmApprove(applicationId, { action, opinion, operatorUserId } = {}) {
   const app = store.applications.find((a) => a.application_id === applicationId)
   if (!app) return { ok: false, msg: '单据不存在' }
   if (app.status !== 'in_approval' || app.current_node !== 'pm') {
     return { ok: false, msg: '当前不在待项目经理审节点' }
   }
+  const auth = assertBrandApprovalOperator(app, 'pm', operatorUserId)
+  if (!auth.ok) return auth
   if (action === 'reject' && !(opinion || '').trim()) return { ok: false, msg: '驳回意见必填' }
 
   store.seq.ar += 1
@@ -1595,11 +1603,6 @@ export function statusTagType(status) {
   if (status === 'in_approval') return ''
   if (status === 'rejected') return 'danger'
   return 'info'
-}
-
-/** V2.0 无品牌库，停用提示恒为空 */
-export function getInactiveSelectedHint() {
-  return []
 }
 
 /** 材料定样 · 从品牌台账取可选行 */
@@ -1668,11 +1671,6 @@ export function listSampleMaterialsFromBrand(projectId, supplier) {
       brand_name: [...item.brands].join('/') || item.brand_name || '',
     }))
     .sort((a, b) => a.material_name.localeCompare(b.material_name, 'zh-CN'))
-}
-
-/** V2.0 报审不带规格，定样规格选项为空 */
-export function listSampleSpecsFromBrand() {
-  return []
 }
 
 /** 报审申请列表：默认项目补齐全部业务状态示例数据 */
@@ -1943,6 +1941,27 @@ function seedDemoApplicationsForAllStatus() {
 }
 
 seedDemoApplicationsForAllStatus()
+
+function backfillApproverSnapshots() {
+  for (const app of store.applications) {
+    if (app.supervisor_approver_user_id && !app.supervisor_approver_org) {
+      const u = findBrandProjectUser(app.supervisor_approver_user_id)
+      if (u) {
+        app.supervisor_approver_org = u.org || ''
+        app.supervisor_approver_post_label = u.post_label || ''
+      }
+    }
+    if (app.pm_approver_user_id && !app.pm_approver_org) {
+      const u = findBrandProjectUser(app.pm_approver_user_id)
+      if (u) {
+        app.pm_approver_org = u.org || ''
+        app.pm_approver_post_label = u.post_label || ''
+      }
+    }
+  }
+}
+
+backfillApproverSnapshots()
 
 function seedOpenBrandTodos() {
   for (const app of store.applications) {

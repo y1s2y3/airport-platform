@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { Search, Refresh, Plus, UploadFilled, Delete } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useCurrentProject } from '../../composables/useCurrentProject'
@@ -12,9 +12,11 @@ import {
   createEmptySubcontractorApplication,
   cloneSubcontractorApplication,
   submitSubcontractorApplication,
+  withdrawSubcontractorApplication,
   approveStatusTagClass,
   listApprovedSubcontractors,
   canResubmitSubcontractor,
+  canWithdrawSubcontractor,
   listSubcontractorApproverUsers,
   findSubcontractorApproverUser,
   resolveDefaultApprovers,
@@ -26,14 +28,16 @@ import {
 } from '../../mock/subcontractorManagement'
 import {
   createSubcontractorApprovalTodo,
+  discardSubcontractorTodos,
   seedOpenSubcontractorTodosFromStore,
 } from '../../mock/personalCenter'
-import ProfileImageUpload from '../../components/basicData/ProfileImageUpload.vue'
+import { getCurrentUserSnapshot } from '../../mock/currentUser'
 import ProfilePersonContactInput from '../../components/basicData/ProfilePersonContactInput.vue'
 import FileAttachmentPreview from '../../components/basicData/FileAttachmentPreview.vue'
-import { parseOneContact } from '../../utils/contactValue'
+import { parseOneContact, isValidContactStorageFormat } from '../../utils/contactValue'
 
 const router = useRouter()
+const route = useRoute()
 const { isHqSelected, laborProjectId, headerProjectLabel } = useCurrentProject()
 
 const projectOptions = computed(() => getProjectSelectOptions())
@@ -58,6 +62,14 @@ const safetyContactList = ref([''])
 
 onMounted(() => {
   seedOpenSubcontractorTodosFromStore(subcontractorList)
+  const resubmitId = String(route.query.resubmitId || '').trim()
+  if (resubmitId) {
+    const row = subcontractorList.find((item) => item.id === resubmitId)
+    if (row && canResubmitSubcontractor(row.status)) {
+      openResubmit(row)
+      router.replace({ name: 'SubcontractorList', query: {} })
+    }
+  }
 })
 
 const pageTitle = computed(() => (isHqSelected.value ? '分包单位管理' : '分包单位报审'))
@@ -87,7 +99,7 @@ const filteredList = computed(() => {
 
 const dialogTitle = computed(() => {
   if (formMode.value === 'create') return '新建分包单位报审'
-  if (formMode.value === 'resubmit') {
+  if (formMode.value === 'resubmit-withdrawn' || formMode.value === 'resubmit-rejected') {
     return formModel.value?.name ? `重新报审 · ${formModel.value.name}` : '重新报审'
   }
   return formModel.value?.name ? `编辑报审 · ${formModel.value.name}` : '编辑分包单位报审'
@@ -143,6 +155,9 @@ function validateContacts() {
   if (!leader.name || !leader.phone) {
     return '请填写项目负责人姓名及电话'
   }
+  if (!isValidContactStorageFormat(formModel.value?.projectLeaderContact)) {
+    return '项目负责人联系方式须使用「姓名 / 电话」格式，不可粘连填写'
+  }
   const validSafety = safetyContactList.value
     .map((item) => parseOneContact(item))
     .filter((item) => item.name && item.phone)
@@ -155,6 +170,12 @@ function validateContacts() {
   })
   if (incomplete) {
     return '安全管理人员姓名与电话需成对填写'
+  }
+  const badFormat = safetyContactList.value.some(
+    (item) => String(item || '').trim() && !isValidContactStorageFormat(item),
+  )
+  if (badFormat) {
+    return '安全管理人员联系方式须使用「姓名 / 电话」格式，不可粘连填写'
   }
   return ''
 }
@@ -194,11 +215,32 @@ function openResubmit(row) {
     ElMessage.warning('仅已驳回或已撤回的单据可重新报审')
     return
   }
-  formMode.value = 'resubmit'
-  formModel.value = cloneSubcontractorApplication(row)
+  if (row.status === '已撤回') {
+    formMode.value = 'resubmit-withdrawn'
+    formModel.value = cloneSubcontractorApplication(row)
+  } else {
+    formMode.value = 'resubmit-rejected'
+    const base = cloneSubcontractorApplication(row)
+    formModel.value = {
+      ...base,
+      id: `sc-app-${Date.now()}`,
+      rejectedFromId: row.id,
+      status: '',
+      currentNodeKey: '',
+      submitTime: '',
+      approvalFlow: [],
+    }
+  }
   mergeApproversFromProject(formModel.value)
   loadSafetyContactList(formModel.value)
   dialogVisible.value = true
+}
+
+async function handleWithdraw(row) {
+  const r = withdrawSubcontractorApplication(row.id)
+  if (!r.ok) return ElMessage.warning(r.msg)
+  if (r.needDiscardTodos) discardSubcontractorTodos(row.id)
+  ElMessage.success('已撤回报审')
 }
 
 function openDetail(row) {
@@ -229,12 +271,10 @@ function clearFile(target, nameKey, urlKey) {
   target[urlKey] = ''
 }
 
-function onSafetyPhotoChange(url) {
-  if (!formModel.value) return
-  formModel.value.safetyLicense.fileUrl = url || ''
-  formModel.value.safetyLicense.fileName = url
-    ? formModel.value.safetyLicense.fileName || '安全许可证.jpg'
-    : ''
+function onSafetyLicenseFilePick(file) {
+  if (!formModel.value) return false
+  onFilePick(file, formModel.value.safetyLicense, 'fileName', 'fileUrl')
+  return false
 }
 
 function closeDialog() {
@@ -247,10 +287,18 @@ function handleSubmit() {
   const contactErr = validateContacts()
   if (contactErr) return ElMessage.warning(contactErr)
   syncContactsToModel()
-  const r = submitSubcontractorApplication(formModel.value)
+  const r = submitSubcontractorApplication(formModel.value, {
+    submitterName: getCurrentUserSnapshot(scopeProjectId.value)?.name,
+  })
   if (!r.ok) return ElMessage.warning(r.msg)
   createSubcontractorApprovalTodo(r.data.id)
-  ElMessage.success(formMode.value === 'resubmit' ? '已重新提交报审' : '已提交，审批待办已进入个人中心')
+  const successMsg =
+    formMode.value === 'resubmit-rejected'
+      ? '已重新提交报审（新单号）'
+      : formMode.value === 'resubmit-withdrawn'
+        ? '已重新提交报审'
+        : '已提交，审批待办已进入个人中心'
+  ElMessage.success(successMsg)
   closeDialog()
 }
 </script>
@@ -367,9 +415,17 @@ function handleSubmit() {
             {{ row.approvalFlow?.find((s) => s.status === 'current')?.title || '—' }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" :width="isHqSelected ? 88 : 168" fixed="right" align="center">
+        <el-table-column label="操作" :width="isHqSelected ? 88 : 220" fixed="right" align="center">
           <template #default="{ row }">
             <el-button link type="primary" @click="openDetail(row)">查看</el-button>
+            <el-button
+              v-if="!isHqSelected && canWithdrawSubcontractor(row.status)"
+              link
+              type="warning"
+              @click="handleWithdraw(row)"
+            >
+              撤回
+            </el-button>
             <el-button
               v-if="!isHqSelected && canResubmitSubcontractor(row.status)"
               link
@@ -603,13 +659,40 @@ function handleSubmit() {
           </el-col>
         </el-row>
         <el-form-item label="许可证附件" required>
-          <div class="photo-upload-panel">
-            <ProfileImageUpload
-              :model-value="formModel.safetyLicense.fileUrl"
-              side-actions
-              hint="支持 jpg / png，建议上传清晰证件照片"
-              @update:model-value="onSafetyPhotoChange"
-            />
+          <div
+            class="file-drop-card"
+            :class="{ 'has-file': formModel.safetyLicense.fileName }"
+          >
+            <div class="file-drop-main">
+              <FileAttachmentPreview
+                :name="formModel.safetyLicense.fileName"
+                :url="formModel.safetyLicense.fileUrl"
+                empty-text="点击上传安全生产许可证"
+                size="md"
+              />
+              <div v-if="!formModel.safetyLicense.fileName" class="file-drop-sub">
+                支持图片 / PDF
+              </div>
+            </div>
+            <div class="file-drop-actions">
+              <el-upload
+                :show-file-list="false"
+                accept=".pdf,.jpg,.jpeg,.png,.gif,.webp"
+                :before-upload="onSafetyLicenseFilePick"
+              >
+                <el-button size="small" type="primary" plain :icon="UploadFilled">
+                  {{ formModel.safetyLicense.fileName ? '更换附件' : '选择文件' }}
+                </el-button>
+              </el-upload>
+              <el-button
+                v-if="formModel.safetyLicense.fileName"
+                size="small"
+                :icon="Delete"
+                @click="clearFile(formModel.safetyLicense, 'fileName', 'fileUrl')"
+              >
+                移除
+              </el-button>
+            </div>
           </div>
         </el-form-item>
 
@@ -682,7 +765,7 @@ function handleSubmit() {
                 <el-option
                   v-for="user in approverUsers"
                   :key="user.userId"
-                  :label="`${user.name}${user.phone ? `（${user.phone}）` : ''}`"
+                  :label="user.optionLabel"
                   :value="user.userId"
                 />
               </el-select>
@@ -702,7 +785,7 @@ function handleSubmit() {
                 <el-option
                   v-for="user in approverUsers"
                   :key="`dept-${user.userId}`"
-                  :label="`${user.name}${user.phone ? `（${user.phone}）` : ''}`"
+                  :label="user.optionLabel"
                   :value="user.userId"
                 />
               </el-select>
@@ -724,7 +807,7 @@ function handleSubmit() {
                 <el-option
                   v-for="user in approverUsers"
                   :key="`design-${user.userId}`"
-                  :label="`${user.name}${user.phone ? `（${user.phone}）` : ''}`"
+                  :label="user.optionLabel"
                   :value="user.userId"
                 />
               </el-select>
@@ -744,7 +827,7 @@ function handleSubmit() {
                 <el-option
                   v-for="user in approverUsers"
                   :key="`design-dept-${user.userId}`"
-                  :label="`${user.name}${user.phone ? `（${user.phone}）` : ''}`"
+                  :label="user.optionLabel"
                   :value="user.userId"
                 />
               </el-select>
@@ -759,7 +842,7 @@ function handleSubmit() {
       <template #footer>
         <el-button @click="closeDialog">取消</el-button>
         <el-button class="ap-btn-primary" type="primary" @click="handleSubmit">
-          {{ formMode === 'resubmit' ? '重新提交' : '提交审批' }}
+          {{ formMode === 'resubmit-withdrawn' || formMode === 'resubmit-rejected' ? '重新提交' : '提交审批' }}
         </el-button>
       </template>
     </el-dialog>

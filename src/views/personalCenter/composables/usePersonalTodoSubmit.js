@@ -6,9 +6,9 @@ import {
   DISPATCH_HAZARD_TODO_BIZ,
 } from '../../../mock/personalCenter.js'
 import { pmApprove, supervisorApprove } from '../../../mock/brand.js'
+import { getCurrentUserSnapshot, getEffectiveUserId } from '../../../mock/currentUser.js'
 import { supervisorApproveSample, pmApproveSample } from '../../../mock/sample.js'
 import { supervisorApproveEntry } from '../../../mock/mat.js'
-import { supervisorApproveEntry as supervisorApproveEqEntry } from '../../../mock/eq.js'
 import { supervisorApproveAsbuilt, pmApproveAsbuilt } from '../../../mock/asbuilt.js'
 import {
   submitPenaltyRecipientReport,
@@ -261,20 +261,14 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
         )
       }
     }
-    if (row?.type === 'eq_entry' && row.eqEntryId) {
+    if (
+      (row?.type === 'mat_entry' && row.matEntryId) ||
+      (row?.type === 'eq_entry' && (row.eqEntryId || row.matEntryId))
+    ) {
       const action = approved ? 'agree' : 'reject'
       const opinion = commonForm.remark.trim()
-      const r = supervisorApproveEqEntry(row.eqEntryId, { action, opinion })
-      if (!r.ok) return ElMessage.error(r.msg)
-      return afterSubmit(
-        approved ? '监理同意' : '监理退回',
-        approved ? '设备进场审批通过' : '已退回施工单位',
-      )
-    }
-    if (row?.type === 'mat_entry' && row.matEntryId) {
-      const action = approved ? 'agree' : 'reject'
-      const opinion = commonForm.remark.trim()
-      const r = supervisorApproveEntry(row.matEntryId, { action, opinion })
+      const entryId = row.matEntryId || row.eqEntryId
+      const r = supervisorApproveEntry(entryId, { action, opinion })
       if (!r.ok) return ElMessage.error(r.msg)
       return afterSubmit(
         approved ? '监理同意' : '监理退回',
@@ -284,8 +278,9 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
     if (row?.type === 'brand' && row.brandApplicationId) {
       const action = approved ? 'agree' : 'reject'
       const opinion = commonForm.remark.trim()
+      const operatorUserId = getEffectiveUserId(getCurrentUserSnapshot())
       if (row.brandNode === 'supervisor') {
-        const r = supervisorApprove(row.brandApplicationId, { action, opinion })
+        const r = supervisorApprove(row.brandApplicationId, { action, opinion, operatorUserId })
         if (!r.ok) return ElMessage.error(r.msg)
         return afterSubmit(
           approved ? '监理同意' : '监理驳回',
@@ -293,7 +288,7 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
         )
       }
       if (row.brandNode === 'pm') {
-        const r = pmApprove(row.brandApplicationId, { action, opinion })
+        const r = pmApprove(row.brandApplicationId, { action, opinion, operatorUserId })
         if (!r.ok) return ElMessage.error(r.msg)
         return afterSubmit(
           approved ? '终审通过并入库' : '终审驳回',

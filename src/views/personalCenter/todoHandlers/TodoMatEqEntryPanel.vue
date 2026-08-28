@@ -1,23 +1,26 @@
 <script setup>
 import { computed } from 'vue'
 import { getEntryDetail, formatBatchNo } from '../../../mock/mat.js'
-import { getEntryDetail as getEqEntryDetail } from '../../../mock/eq.js'
 
 const props = defineProps({
   todo: { type: Object, required: true },
 })
 
-const isEquipment = computed(() => props.todo?.type === 'eq_entry')
-
 const entryDetail = computed(() => {
-  const id = isEquipment.value ? props.todo?.eqEntryId : props.todo?.matEntryId
+  const id = props.todo?.matEntryId || props.todo?.eqEntryId
   if (!id) return null
-  return isEquipment.value ? getEqEntryDetail(id) : getEntryDetail(id)
+  return getEntryDetail(id)
 })
 
-const panelTitle = computed(() =>
-  isEquipment.value ? '设备进场报验信息' : '材料进场报验信息',
+const isEquipment = computed(
+  () =>
+    entryDetail.value?.entry_type === 'equipment' ||
+    props.todo?.entryType === 'equipment' ||
+    props.todo?.detail?.entryType === 'equipment' ||
+    props.todo?.type === 'eq_entry',
 )
+
+const panelTitle = '材料设备进场报验信息'
 </script>
 
 <template>
@@ -80,7 +83,7 @@ const panelTitle = computed(() =>
         <el-table-column prop="purpose" label="用途" min-width="90" show-overflow-tooltip>
           <template #default="{ row }">{{ row.purpose || '—' }}</template>
         </el-table-column>
-        <el-table-column prop="use_part" label="使用部位" min-width="110" show-overflow-tooltip>
+        <el-table-column prop="use_part" label="施工部位" min-width="110" show-overflow-tooltip>
           <template #default="{ row }">{{ row.use_part || '—' }}</template>
         </el-table-column>
         <el-table-column label="批次号" width="90">
@@ -137,7 +140,7 @@ const panelTitle = computed(() =>
           <el-table-column prop="serial_no" label="序列号" min-width="100" show-overflow-tooltip>
             <template #default="{ row: r }">{{ r.serial_no || '—' }}</template>
           </el-table-column>
-          <el-table-column prop="use_part" label="使用部位" min-width="110" show-overflow-tooltip>
+          <el-table-column prop="use_part" label="施工部位" min-width="110" show-overflow-tooltip>
             <template #default="{ row: r }">{{ r.use_part || '—' }}</template>
           </el-table-column>
           <el-table-column label="批次号" width="90">

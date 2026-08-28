@@ -1,6 +1,6 @@
 <script setup>
 /**
- * APP · 退场登记（现场照片仅拍照）
+ * APP · 退场登记（现场照片选填；支持拍照/相册/文件）
  */
 import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
@@ -75,17 +75,46 @@ function openDetail(row) {
   mode.value = 'detail'
 }
 
-function takePhoto() {
+function pickPhoto(mode = 'camera') {
   const input = document.createElement('input')
   input.type = 'file'
   input.accept = 'image/*'
-  input.capture = 'environment'
+  if (mode === 'camera') input.capture = 'environment'
   input.onchange = (e) => {
     const file = e.target.files?.[0]
     if (!file) return
-    form.photo_file = `拍照-退场现场-${Date.now()}.jpg`
+    const prefix = mode === 'camera' ? '拍照' : mode === 'album' ? '相册' : '文件'
+    form.photo_file = `${prefix}-退场现场-${Date.now()}.jpg`
+    if (photoPreview.value) URL.revokeObjectURL(photoPreview.value)
     photoPreview.value = URL.createObjectURL(file)
-    ElMessage.success('已拍照')
+    ElMessage.success(`已选择现场照片`)
+  }
+  input.click()
+}
+
+function takePhoto() {
+  pickPhoto('camera')
+}
+
+function pickFromAlbum() {
+  pickPhoto('album')
+}
+
+function pickFile() {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = 'image/*,.pdf'
+  input.onchange = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    form.photo_file = file.name || `文件-退场现场-${Date.now()}`
+    if (photoPreview.value) URL.revokeObjectURL(photoPreview.value)
+    if (file.type.startsWith('image/')) {
+      photoPreview.value = URL.createObjectURL(file)
+    } else {
+      photoPreview.value = ''
+    }
+    ElMessage.success(`已上传：${form.photo_file}`)
   }
   input.click()
 }
@@ -102,7 +131,6 @@ function onSubmit() {
   if (!form.entry_id) return ElMessage.warning('请选择进场单')
   if (!form.exit_qty || Number(form.exit_qty) <= 0) return ElMessage.warning('请填写退场数量')
   if (!form.reason.trim()) return ElMessage.warning('请填写退场原因')
-  if (!form.photo_file) return ElMessage.warning('请拍照上传现场照片')
 
   const r = registerExit({
     entry_id: form.entry_id,
@@ -139,7 +167,7 @@ function goBack() {
     <template v-if="mode === 'list'">
       <MobileMatSubNav />
       <div v-if="isHqSelected" class="tip-banner">请先在顶部切换到具体项目</div>
-      <div v-else class="tip-banner muted">当前：{{ scopeProjectLabel }} · 现场照片仅拍照</div>
+      <div v-else class="tip-banner muted">当前：{{ scopeProjectLabel }} · 现场照片选填</div>
 
       <div class="list-body">
         <div v-if="!list.length" class="empty">暂无退场记录</div>
@@ -202,14 +230,18 @@ function goBack() {
             />
           </div>
           <div class="form-row">
-            <span class="form-label">现场照片<span class="required-mark">*</span></span>
+            <span class="form-label">现场照片</span>
             <div class="photo-group">
               <div v-if="form.photo_file" class="photo-box">
                 <img v-if="photoPreview" :src="photoPreview" alt="" />
-                <span v-else>📷 已拍</span>
+                <span v-else>📎 已选</span>
                 <button type="button" class="photo-del" @click="clearPhoto">✕</button>
               </div>
-              <button v-else type="button" class="photo-add" @click="takePhoto">+ 拍照</button>
+              <template v-else>
+                <button type="button" class="photo-add" @click="takePhoto">拍照</button>
+                <button type="button" class="photo-add" @click="pickFromAlbum">相册</button>
+                <button type="button" class="photo-add" @click="pickFile">文件</button>
+              </template>
             </div>
           </div>
         </section>

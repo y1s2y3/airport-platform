@@ -13,8 +13,9 @@ import {
 } from '../config/menu'
 import {
   HQ_PROJECT_OPTION,
-  COC_PROJECT_OPTIONS,
+  buildCocProjectOptions,
 } from '../config/projectOptions'
+import { projectList } from '../mock/projectBasicInfo'
 import { selectedProjectId, useCurrentProject } from '../composables/useCurrentProject'
 import { TRACK_EXTERNAL_MENU_KEYS, openTrackExternalByMenuKey } from '../utils/trackExternalJump'
 import { SAMPLE_APPROVE_MENU_KEYS } from '../utils/sampleHiddenMenuKeys.js'
@@ -36,7 +37,22 @@ const changelog = computed(() => getChangelogByVersion(APP_VERSION))
 const publishedChangelogs = computed(() => getPublishedChangelogs())
 const collapsed = ref(false)
 
-const projectOptions = COC_PROJECT_OPTIONS
+const projectOptions = computed(() => {
+  // 依赖 projectList 以响应列表 hidden 开关
+  void projectList.length
+  void projectList.map((item) => item.hidden)
+  return buildCocProjectOptions()
+})
+
+watch(
+  projectOptions,
+  (options) => {
+    if (selectedProjectId.value === HQ_PROJECT_OPTION.id) return
+    if (options.some((item) => item.id === selectedProjectId.value)) return
+    selectedProjectId.value = HQ_PROJECT_OPTION.id
+  },
+  { deep: true },
+)
 
 /** 当前层级：指挥部 / 项目 */
 const currentLevel = computed(() => (isHqSelected.value ? 'hq' : 'project'))

@@ -1,5 +1,6 @@
 import { ref, computed, watch } from 'vue'
 import { DEFAULT_PROJECT_ID, COC_PROJECT_OPTIONS, HQ_PROJECT_OPTION } from '../config/projectOptions'
+import { buildCocProjectOptions, findProjectById } from '../mock/projectBasicInfo'
 import { getProjectLabel as getLaborProjectLabel, getDefaultProjectId } from '../mock/laborRealName'
 
 /** 劳务/实名制模块已有 mock 明细数据的项目 ID */
@@ -22,6 +23,10 @@ export function resolveLaborProjectId(projectId = selectedProjectId.value) {
 
 export function getHeaderProjectLabel(projectId = selectedProjectId.value) {
   if (projectId === HQ_PROJECT_OPTION.id) return HQ_PROJECT_OPTION.label
+  const fromBasic = findProjectById(projectId)
+  if (fromBasic?.shortName) return fromBasic.shortName
+  const fromOptions = buildCocProjectOptions().find((item) => item.id === projectId)
+  if (fromOptions?.label) return fromOptions.label
   const found = COC_PROJECT_OPTIONS.find((item) => item.id === projectId)
   if (found?.label) return found.label
   return getLaborProjectLabel(projectId) || projectId || ''

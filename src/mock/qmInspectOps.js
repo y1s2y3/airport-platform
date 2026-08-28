@@ -30,7 +30,7 @@ import {
   reinspectRounds,
   wbsNodes,
 } from './qmInspect.js'
-import { joinLocationLabels } from './constructionLocation.js'
+import { joinLocationLabels, constructionLocations, collectDescendantItemIds } from './constructionLocation.js'
 import {
   batchTypeForms,
   defaultMaterialBinds,
@@ -1406,6 +1406,16 @@ export function removeWbsNode(id) {
   }
   const hasChild = wbsNodes.some((n) => n.parent_id === id)
   if (hasChild) return { ok: false, msg: '请先删除子节点' }
+  const scopedItemIds =
+    node.node_type === 5
+      ? [node.id]
+      : collectDescendantItemIds(node.project_id, node.id)
+  if (scopedItemIds.length) {
+    const hasLoc = constructionLocations.some(
+      (loc) => loc.project_id === node.project_id && scopedItemIds.includes(loc.wbs_node_id),
+    )
+    if (hasLoc) return { ok: false, msg: '请先解除已挂接的施工部位' }
+  }
   const hasTask = inspectionTasks.some((t) => t.wbs_node_id === id)
   if (hasTask) return { ok: false, msg: '节点已关联验评任务，不可删除' }
   const idx = wbsNodes.findIndex((n) => n.id === id)

@@ -101,7 +101,7 @@ const HQ_ORG_CHILDREN = [
   ]),
 ]
 
-const initialOrgTree = [
+const initialOrgTree = () => [
   orgNode('org-root', '工程建设一体化平台', 386, '公司', 0, [
     orgNode('org-hq', '深圳机场指挥部', 386, '公司', 1, HQ_ORG_CHILDREN),
     orgNode('org-construction', '施工项目', 0, '项目', 2, buildConstructionProjects()),
@@ -111,7 +111,13 @@ const initialOrgTree = [
 ]
 
 const orgState = {
-  orgTree: cloneNodes(initialOrgTree),
+  orgTree: [],
+}
+
+function ensureOrgTreeReady() {
+  if (!orgState.orgTree.length) {
+    orgState.orgTree = cloneNodes(initialOrgTree())
+  }
 }
 
 let nodeIdSeq = 9000
@@ -368,10 +374,17 @@ function toTreeNode(item, parentPath = '') {
 }
 
 function rebuildUnifiedTree() {
+  ensureOrgTreeReady()
   return orgState.orgTree.map((n) => toTreeNode(n))
 }
 
-export const unifiedOrgTree = ref(rebuildUnifiedTree())
+function ensureUnifiedOrgTree() {
+  if (!unifiedOrgTree.value.length) {
+    unifiedOrgTree.value = rebuildUnifiedTree()
+  }
+}
+
+export const unifiedOrgTree = ref([])
 
 export function refreshOrgTree() {
   unifiedOrgTree.value = rebuildUnifiedTree()
@@ -399,6 +412,7 @@ export function isOrgUnderProject(orgId, projectId) {
 }
 
 export function getScopedOrgTree({ projectId = '', keyword = '' } = {}) {
+  ensureUnifiedOrgTree()
   const baseTree = keyword ? filterOrgTree(keyword) : unifiedOrgTree.value
   if (!projectId) return baseTree
 
@@ -417,6 +431,7 @@ export function getScopedOrgTree({ projectId = '', keyword = '' } = {}) {
 }
 
 export function getOrgNodeOptionsForScope(isHq, projectId = '') {
+  ensureUnifiedOrgTree()
   const tree = isHq ? unifiedOrgTree.value : getScopedOrgTree({ projectId })
   const options = []
   function walk(nodes, prefix = '') {
@@ -431,6 +446,7 @@ export function getOrgNodeOptionsForScope(isHq, projectId = '') {
 }
 
 export function getParentOrgOptionsForScope(isHq, projectId = '', excludeId = '') {
+  ensureUnifiedOrgTree()
   const tree = isHq ? unifiedOrgTree.value : getScopedOrgTree({ projectId })
   const options = [{ value: '', label: '根节点' }]
   function walk(nodes) {
@@ -456,10 +472,12 @@ export function findTreeNode(nodes, nodeId) {
   return null
 }
 
-function findRawNode(nodeId, nodes = orgState.orgTree, parent = null) {
-  for (let i = 0; i < nodes.length; i += 1) {
-    const node = nodes[i]
-    if (node.id === nodeId) return { node, parentList: nodes, index: i, parent }
+function findRawNode(nodeId, nodes, parent = null) {
+  ensureOrgTreeReady()
+  const searchNodes = nodes ?? orgState.orgTree
+  for (let i = 0; i < searchNodes.length; i += 1) {
+    const node = searchNodes[i]
+    if (node.id === nodeId) return { node, parentList: searchNodes, index: i, parent }
     if (node.children?.length) {
       const found = findRawNode(nodeId, node.children, node)
       if (found) return found
@@ -513,6 +531,7 @@ export function getOrgPositions(nodeId) {
 }
 
 export function getOrgInfo(nodeId) {
+  ensureUnifiedOrgTree()
   const raw = findRawNode(nodeId)
   if (!raw) return null
   const parentLabel = raw.parent?.label || '—'
@@ -578,6 +597,7 @@ export function getDataPermScopeLabel(row) {
 }
 
 export function getOrgNodeOptions() {
+  ensureUnifiedOrgTree()
   const options = []
   function walk(nodes, prefix = '') {
     nodes.forEach((node) => {
@@ -591,6 +611,7 @@ export function getOrgNodeOptions() {
 }
 
 export function filterOrgTree(keyword) {
+  ensureUnifiedOrgTree()
   const kw = keyword.trim().toLowerCase()
   if (!kw) return unifiedOrgTree.value
   function filterNodes(nodes) {
@@ -609,6 +630,7 @@ export function filterOrgTree(keyword) {
 }
 
 export function getParentOrgOptions(excludeId = '') {
+  ensureUnifiedOrgTree()
   const options = [{ value: '', label: '根节点' }]
   function walk(nodes) {
     nodes.forEach((node) => {
@@ -623,6 +645,7 @@ export function getParentOrgOptions(excludeId = '') {
 }
 
 export function addOrgNode(parentId, payload) {
+  ensureOrgTreeReady()
   const newNode = {
     id: `org-${++nodeIdSeq}`,
     label: payload.label.trim(),

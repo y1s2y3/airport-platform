@@ -16,6 +16,7 @@ import {
   listApprovedSamples,
   listMaterialsForEntryBrand,
   listMatSupervisorApprovers,
+  formatMatSupervisorApproverLabel,
   parseBatchSeq,
   searchEntryBrands,
   submitEntry,
@@ -89,8 +90,8 @@ function emptyLine() {
     location_ids: [],
     waybill_no: '',
     batch_no: 1,
-    appearance_quality: '',
-    acceptance_result: '',
+    appearance_quality: '合格',
+    acceptance_result: '合格',
     entry_date: nowEntryDate(),
     cert_file: '',
     inspect_file: '',
@@ -113,8 +114,8 @@ function emptyEquipmentLine() {
     waybill_no: '',
     batch_no: 1,
     serial_no: '',
-    appearance_quality: '',
-    acceptance_result: '',
+    appearance_quality: '合格',
+    acceptance_result: '合格',
     entry_date: nowEntryDate(),
     cert_file: '',
     inspect_file: '',
@@ -141,8 +142,8 @@ function mapEquipmentLineFromData(l, data) {
   row.waybill_no = l.waybill_no || ''
   row.batch_no = parseBatchSeq(l.batch_no, 1)
   row.serial_no = l.serial_no || ''
-  row.appearance_quality = l.appearance_quality || ''
-  row.acceptance_result = l.acceptance_result || ''
+  row.appearance_quality = l.appearance_quality || '合格'
+  row.acceptance_result = l.acceptance_result || '合格'
   row.entry_date = l.entry_date || nowEntryDate()
   row.cert_file = l.cert_file || ''
   row.inspect_file = l.inspect_file || ''
@@ -170,8 +171,8 @@ function mapLineFromData(l, data) {
       : []
   row.waybill_no = l.waybill_no || ''
   row.batch_no = parseBatchSeq(l.batch_no, 1)
-  row.appearance_quality = l.appearance_quality || ''
-  row.acceptance_result = l.acceptance_result || ''
+  row.appearance_quality = l.appearance_quality || '合格'
+  row.acceptance_result = l.acceptance_result || '合格'
   row.entry_date = l.entry_date || nowEntryDate()
   row.cert_file = l.cert_file || ''
   row.inspect_file = l.inspect_file || ''
@@ -513,6 +514,18 @@ function onPickLineFile(row, field, uploadFile) {
   return false
 }
 
+function onPickFormFile(field, uploadFile) {
+  const file = uploadFile.raw || uploadFile
+  if (!file) return false
+  if (file.size > 30 * 1024 * 1024) {
+    ElMessage.warning('单个文件不超过 30MB')
+    return false
+  }
+  form[field] = file.name || `${field}-${Date.now()}`
+  ElMessage.success(`已上传：${form[field]}`)
+  return false
+}
+
 function onSubmit() {
   if (isHqSelected.value || !scopeProjectId.value) {
     return ElMessage.warning('请先切换到具体项目')
@@ -575,9 +588,9 @@ function onSubmit() {
       if (!row.cert_file) return ElMessage.warning(`设备明细第 ${i + 1} 组请上传合格证`)
       if (!row.inspect_file) return ElMessage.warning(`设备明细第 ${i + 1} 组请上传质量证明文件`)
       if (!row.photo_file) return ElMessage.warning(`设备明细第 ${i + 1} 组请上传现场照片`)
-      const missingFixed = row.unpack_items.some((item) => item.ok === undefined)
-      if (missingFixed || !row.unpack_items.length) {
-        return ElMessage.warning(`设备明细第 ${i + 1} 组请完成开箱清单`)
+      const missingFixed = !row.unpack_items?.length
+      if (missingFixed) {
+        return ElMessage.warning(`设备明细第 ${i + 1} 组请填写开箱清单`)
       }
       line_items.push({
         equipment_name,
@@ -866,7 +879,7 @@ function onSubmit() {
               </el-form-item>
             </el-col>
             <el-col :span="12">
-              <el-form-item label="使用部位">
+              <el-form-item label="施工部位">
                 <ConstructionLocationSelect
                   v-model:location-id="row.location_id"
                   v-model:location-ids="row.location_ids"
@@ -1051,7 +1064,7 @@ function onSubmit() {
               </el-form-item>
             </el-col>
             <el-col :span="12">
-              <el-form-item label="使用部位">
+              <el-form-item label="施工部位">
                 <ConstructionLocationSelect
                   v-model:location-id="row.location_id"
                   v-model:location-ids="row.location_ids"
@@ -1190,6 +1203,31 @@ function onSubmit() {
       </section>
 
       <section class="form-section">
+        <h2 class="section-title">送检结果</h2>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="送检">
+              <el-checkbox v-model="form.inspect_result_checked">已完成送检</el-checkbox>
+            </el-form-item>
+          </el-col>
+          <el-col v-if="form.inspect_result_checked" :span="12">
+            <el-form-item label="送检附件">
+              <el-upload
+                :show-file-list="false"
+                :before-upload="(f) => onPickFormFile('inspect_result_file', f)"
+                accept="image/*,.pdf"
+              >
+                <el-button :icon="UploadFilled">上传</el-button>
+              </el-upload>
+              <span class="muted" style="margin-left: 8px">
+                {{ form.inspect_result_file || '选填' }}
+              </span>
+            </el-form-item>
+          </el-col>
+        </el-row>
+      </section>
+
+      <section class="form-section">
         <h2 class="section-title">审批人</h2>
         <el-row :gutter="16">
           <el-col :span="12">
@@ -1206,7 +1244,7 @@ function onSubmit() {
                 <el-option
                   v-for="u in supervisorApprovers"
                   :key="u.user_id"
-                  :label="`${u.name} · ${u.post_label}（${u.org}）`"
+                  :label="formatMatSupervisorApproverLabel(u)"
                   :value="u.user_id"
                 />
               </el-select>

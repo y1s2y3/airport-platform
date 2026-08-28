@@ -6,14 +6,16 @@ import { ElMessage } from 'element-plus'
 import {
   projectList,
   createProjectFields,
-  validateProjectPortraitRequired,
   displayProjectManagerName,
 } from '../../mock/projectBasicInfo'
+import { validateProjectPortraitRequired } from '../../mock/projectPortraitValidation'
 import { mergeSafetyProfile } from '../../mock/projectSafetyProfile'
 import ProjectSafetyProfileForm from '../../components/basicData/ProjectSafetyProfileForm.vue'
+import { useProjectScopeGuard } from '../../composables/useProjectScopeGuard'
 
 const route = useRoute()
 const router = useRouter()
+const { assertProjectScope } = useProjectScopeGuard()
 const model = ref(null)
 const editing = ref(false)
 
@@ -36,6 +38,7 @@ function loadProject() {
     ...createProjectFields(source),
     safetyProfile: mergeSafetyProfile(source.safetyProfile),
   }
+  assertProjectScope(model.value)
 }
 
 function syncEditModeFromQuery() {

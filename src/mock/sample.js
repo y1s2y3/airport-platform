@@ -8,6 +8,13 @@ import { getProjectLabel } from './laborRealName.js'
 import { COC_PROJECT_OPTIONS } from '../config/projectOptions.js'
 import { listSamplePickRowsFromBrand } from './brand.js'
 import {
+  listBrandProjectUsers,
+  findBrandProjectUser,
+  resolveDefaultApprovers,
+  rememberBrandProjectApprovers,
+  formatBrandProjectUserLabel,
+} from './brand.js'
+import {
   createSampleSupervisorTodo,
   createSamplePmTodo,
   discardSampleTodos,
@@ -329,7 +336,53 @@ function buildTodoPayload(bizType, app) {
     supplier: isMaterial ? app.supplier || '' : '',
     effectImages: isMaterial ? normalizeFileList(app.effect_images) : [],
     approvalFiles: isMaterial ? normalizeFileList(app.approval_files) : [],
+    supervisorName: app.supervisor_approver_name || '监理用户',
+    pmApproverName: app.pm_approver_name || '项目经理',
+    assigneeName:
+      app.current_node === 'pm'
+        ? app.pm_approver_name || '项目经理'
+        : app.supervisor_approver_name || '监理用户',
   }
+}
+
+export { listBrandProjectUsers, findBrandProjectUser, resolveDefaultApprovers, formatBrandProjectUserLabel }
+
+function resolveSampleApprovers(payload, { requirePm = true } = {}) {
+  const supervisor_approver_user_id = String(payload.supervisor_approver_user_id || '').trim()
+  if (!supervisor_approver_user_id) {
+    return { ok: false, msg: '请选择监理审批人' }
+  }
+  const supervisor = findBrandProjectUser(supervisor_approver_user_id)
+  if (!supervisor) return { ok: false, msg: '监理审批人不在本项目可选范围内' }
+
+  let pm = null
+  if (requirePm) {
+    const pm_approver_user_id = String(payload.pm_approver_user_id || '').trim()
+    if (!pm_approver_user_id) return { ok: false, msg: '请选择项目经理审批人' }
+    pm = findBrandProjectUser(pm_approver_user_id)
+    if (!pm) return { ok: false, msg: '项目经理审批人不在本项目可选范围内' }
+  }
+
+  return {
+    ok: true,
+    supervisor_approver_user_id: supervisor.user_id,
+    supervisor_approver_name: supervisor.name,
+    supervisor_approver_post_label: supervisor.post_label || '',
+    pm_approver_user_id: pm?.user_id || '',
+    pm_approver_name: pm?.name || '',
+    pm_approver_post_label: pm?.post_label || '',
+  }
+}
+
+function rememberSampleApprovers(projectId, approvers, { requirePm = true } = {}) {
+  if (!projectId || !approvers) return
+  rememberBrandProjectApprovers(
+    projectId,
+    approvers.supervisor_approver_user_id,
+    approvers.supervisor_approver_name,
+    requirePm ? approvers.pm_approver_user_id : '',
+    requirePm ? approvers.pm_approver_name : '',
+  )
 }
 
 export function listMaterialApps(projectId, { keyword = '', status = '' } = {}) {
@@ -442,6 +495,10 @@ export function buildCopyPayloadFromRejectedMaterial(applicationId) {
       effect_images: normalizeFileList(app.effect_images),
       approval_files: normalizeFileList(app.approval_files),
       remark: app.remark || '',
+      supervisor_approver_user_id: app.supervisor_approver_user_id || '',
+      supervisor_approver_name: app.supervisor_approver_name || '',
+      pm_approver_user_id: app.pm_approver_user_id || '',
+      pm_approver_name: app.pm_approver_name || '',
     },
   }
 }
@@ -465,6 +522,10 @@ export function buildReEditPayloadFromWithdrawnMaterial(applicationId) {
       effect_images: normalizeFileList(app.effect_images),
       approval_files: normalizeFileList(app.approval_files),
       remark: app.remark || '',
+      supervisor_approver_user_id: app.supervisor_approver_user_id || '',
+      supervisor_approver_name: app.supervisor_approver_name || '',
+      pm_approver_user_id: app.pm_approver_user_id || '',
+      pm_approver_name: app.pm_approver_name || '',
     },
   }
 }
@@ -499,6 +560,8 @@ export function buildCopyPayloadFromRejectedProcess(applicationId) {
       media_files: Array.isArray(app.media_files) ? app.media_files.map((m) => ({ ...m })) : [],
       doc_files: [...(app.doc_files || [])],
       remark: app.remark || '',
+      supervisor_approver_user_id: app.supervisor_approver_user_id || '',
+      supervisor_approver_name: app.supervisor_approver_name || '',
     },
   }
 }
@@ -522,6 +585,8 @@ export function buildReEditPayloadFromWithdrawnProcess(applicationId) {
       media_files: Array.isArray(app.media_files) ? app.media_files.map((m) => ({ ...m })) : [],
       doc_files: [...(app.doc_files || [])],
       remark: app.remark || '',
+      supervisor_approver_user_id: app.supervisor_approver_user_id || '',
+      supervisor_approver_name: app.supervisor_approver_name || '',
     },
   }
 }
@@ -603,6 +668,17 @@ export function resubmitWithdrawnSample(bizType, applicationId, payload) {
     app.remark = payload.remark || ''
   }
 
+  const approverRes = resolveSampleApprovers(payload, { requirePm: bizType === 'material' })
+  if (!approverRes.ok) return approverRes
+  app.supervisor_approver_user_id = approverRes.supervisor_approver_user_id
+  app.supervisor_approver_name = approverRes.supervisor_approver_name
+  app.supervisor_approver_post_label = approverRes.supervisor_approver_post_label
+  if (bizType === 'material') {
+    app.pm_approver_user_id = approverRes.pm_approver_user_id
+    app.pm_approver_name = approverRes.pm_approver_name
+    app.pm_approver_post_label = approverRes.pm_approver_post_label
+  }
+
   app.status = 'pending'
   app.current_node = 'supervisor'
   app.submit_time = nowStr()
@@ -618,6 +694,7 @@ export function resubmitWithdrawnSample(bizType, applicationId, payload) {
     operator_name: applicant_name,
   })
   discardSampleTodos(bizType, applicationId)
+  rememberSampleApprovers(project_id, app, { requirePm: bizType === 'material' })
   createSampleSupervisorTodo(buildTodoPayload(bizType, app))
   return { ok: true, data: app }
 }
@@ -853,6 +930,9 @@ export function submitMaterialApp(payload) {
     brand = names.join('/')
   }
 
+  const approverRes = resolveSampleApprovers(payload, { requirePm: true })
+  if (!approverRes.ok) return approverRes
+
   store.seq.m += 1
   const application_id = `MS-${String(store.seq.m).padStart(3, '0')}`
   const submit_time = nowStr()
@@ -875,8 +955,15 @@ export function submitMaterialApp(payload) {
     submit_time,
     finish_time: '',
     remark: remark || '',
+    supervisor_approver_user_id: approverRes.supervisor_approver_user_id,
+    supervisor_approver_name: approverRes.supervisor_approver_name,
+    supervisor_approver_post_label: approverRes.supervisor_approver_post_label,
+    pm_approver_user_id: approverRes.pm_approver_user_id,
+    pm_approver_name: approverRes.pm_approver_name,
+    pm_approver_post_label: approverRes.pm_approver_post_label,
   }
   store.materials.unshift(app)
+  rememberSampleApprovers(project_id, app, { requirePm: true })
   pushApproval({
     biz_type: 'material',
     application_id,
@@ -935,6 +1022,9 @@ export function submitProcessApp(payload) {
   }
   const docs = Array.isArray(doc_files) ? doc_files.map(String).filter(Boolean) : []
 
+  const approverRes = resolveSampleApprovers(payload, { requirePm: false })
+  if (!approverRes.ok) return approverRes
+
   store.seq.p += 1
   const application_id = `PS-${String(store.seq.p).padStart(3, '0')}`
   const submit_time = nowStr()
@@ -962,8 +1052,12 @@ export function submitProcessApp(payload) {
     submit_time,
     finish_time: '',
     remark: remark || '',
+    supervisor_approver_user_id: approverRes.supervisor_approver_user_id,
+    supervisor_approver_name: approverRes.supervisor_approver_name,
+    supervisor_approver_post_label: approverRes.supervisor_approver_post_label,
   }
   store.processes.unshift(app)
+  rememberSampleApprovers(project_id, app, { requirePm: false })
   pushApproval({
     biz_type: 'process',
     application_id,

@@ -3,7 +3,7 @@
  * 品牌报审（指挥部 · 质量看板）
  * 按项目汇总报审状态与台账品牌数；操作仅「查看项目详情」
  */
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Search, Refresh } from '@element-plus/icons-vue'
@@ -11,27 +11,42 @@ import { selectedProjectId } from '../../../composables/useCurrentProject'
 import {
   buildHqBrandApprovalStatsByProject,
   buildHqBrandApprovalSummary,
+  paginateBrandRows,
 } from '../../../mock/brand.js'
 import '../qm-hq-stats.css'
 
 const router = useRouter()
 const keyword = ref('')
+const page = ref(1)
+const pageSize = ref(20)
 
 const rows = computed(() => buildHqBrandApprovalStatsByProject())
 const summary = computed(() => buildHqBrandApprovalSummary())
 
-const filtered = computed(() => {
+const filteredAll = computed(() => {
   const kw = keyword.value.trim()
   if (!kw) return rows.value
   return rows.value.filter((r) => `${r.project_name}${r.project_id}`.includes(kw))
 })
 
+const total = computed(() => filteredAll.value.length)
+
+const filtered = computed(
+  () => paginateBrandRows(filteredAll.value, page.value, pageSize.value).items,
+)
+
 function reset() {
   keyword.value = ''
+  page.value = 1
 }
 
+watch(keyword, () => {
+  page.value = 1
+})
+
 function handleSearch() {
-  ElMessage.success(`已按条件查询，共 ${filtered.value.length} 个项目`)
+  page.value = 1
+  ElMessage.success(`已按条件查询，共 ${total.value} 个项目`)
 }
 
 async function viewProjectDetail(row) {
@@ -125,6 +140,17 @@ async function viewProjectDetail(row) {
         </template>
       </el-table-column>
     </el-table>
+
+    <div v-if="total > 0" class="pagination-wrap">
+      <el-pagination
+        v-model:current-page="page"
+        v-model:page-size="pageSize"
+        :total="total"
+        :page-sizes="[10, 20, 50]"
+        layout="total, sizes, prev, pager, next"
+        background
+      />
+    </div>
   </div>
 </template>
 
@@ -160,5 +186,10 @@ async function viewProjectDetail(row) {
 }
 .stats-table {
   width: 100%;
+}
+.pagination-wrap {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
 }
 </style>

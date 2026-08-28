@@ -122,13 +122,24 @@ function seedProjectSysUsers() {
   })
 }
 
-seedProjectSysUsers()
+let usersSeeded = false
+
+function ensureUsersSeeded() {
+  if (usersSeeded) return
+  const startLen = initialUsers.length
+  seedProjectSysUsers()
+  usersSeeded = true
+  initialUsers.slice(startLen).forEach((user) => {
+    sysUserRecords.value.push({ ...user, positions: [...user.positions] })
+  })
+}
 
 export const sysUserRecords = ref(initialUsers.map((item) => ({ ...item, positions: [...item.positions] })))
 
 let userIdSeq = 100
 
 export function listSysUsers() {
+  ensureUsersSeeded()
   return sysUserRecords.value
 }
 

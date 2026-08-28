@@ -1,23 +1,33 @@
 ﻿<script setup>
 import './brand-page.css'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, Refresh } from '@element-plus/icons-vue'
 import { useQmProjectScope } from '../../../composables/useCurrentProject'
-import { listLedger, MATERIAL_TYPE, ROLE_TAG } from '../../../mock/brand.js'
+import { listLedger, MATERIAL_TYPE, ROLE_TAG, paginateBrandRows } from '../../../mock/brand.js'
 
 const router = useRouter()
 const { isHqSelected, scopeProjectId, scopeProjectLabel } = useQmProjectScope()
 const keyword = ref('')
+const page = ref(1)
+const pageSize = ref(20)
 
-const list = computed(() => {
+const listAll = computed(() => {
   if (isHqSelected.value || !scopeProjectId.value) return []
   return listLedger(scopeProjectId.value, { keyword: keyword.value })
 })
 
+const total = computed(() => listAll.value.length)
+const list = computed(() => paginateBrandRows(listAll.value, page.value, pageSize.value).items)
+
 function reset() {
   keyword.value = ''
+  page.value = 1
 }
+
+watch(keyword, () => {
+  page.value = 1
+})
 
 function openDetail(row) {
   if (!row?.application_id) return
@@ -85,6 +95,17 @@ function openDetail(row) {
           </template>
         </el-table-column>
       </el-table>
+
+      <div v-if="total > 0" class="pagination-wrap">
+        <el-pagination
+          v-model:current-page="page"
+          v-model:page-size="pageSize"
+          :total="total"
+          :page-sizes="[10, 20, 50]"
+          layout="total, sizes, prev, pager, next"
+          background
+        />
+      </div>
     </template>
   </div>
 </template>
@@ -98,5 +119,10 @@ function openDetail(row) {
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 12px;
+}
+.pagination-wrap {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
 }
 </style>

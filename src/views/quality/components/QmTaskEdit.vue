@@ -48,8 +48,7 @@ import {
   refreshTaskElecArchiveStatus,
 } from '../../../mock/qm.js'
 import { listAsbuiltForInspectLink } from '../../../mock/asbuilt.js'
-import { listSelectableForInspect as listMatForInspect } from '../../../mock/mat.js'
-import { listSelectableForInspect as listEqForInspect } from '../../../mock/eq.js'
+import { listSelectableForInspect } from '../../../mock/mat.js'
 import { listSelectableForInspect as listSampleForInspect } from '../../../mock/sample.js'
 import ConstructionLocationSelect from '../../../components/ConstructionLocationSelect.vue'
 
@@ -780,9 +779,7 @@ const matPickRows = computed(() => {
     usePart: matPickUsePart.value,
     locationId: matPickLocationId.value,
   }
-  const mats = listMatForInspect(projectId, opts)
-  const eqs = listEqForInspect(projectId, opts)
-  return [...mats, ...eqs].filter((r) => !linked.has(r.material_id))
+  return listSelectableForInspect(projectId, opts).filter((r) => !linked.has(r.material_id))
 })
 
 /** 关联定版定样弹窗 */

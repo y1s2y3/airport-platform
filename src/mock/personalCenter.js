@@ -192,6 +192,7 @@ function seedTodos() {
       bizType: '监理审',
       brandApplicationId: 'PP-2026-002',
       brandNode: 'supervisor',
+      assigneeUserId: 'u-jl-01',
       processName: '品牌报审审批·防水卷材（PP-2026-002）',
       applicant: '张工',
       dept: '总包项目部',
@@ -238,6 +239,7 @@ function seedTodos() {
       bizType: '终审',
       brandApplicationId: 'PP-2026-003',
       brandNode: 'pm',
+      assigneeUserId: 'u-pm-01',
       processName: '品牌报审终审·钢筋（PP-2026-003）',
       applicant: '张工',
       dept: '总包项目部',
@@ -2096,6 +2098,10 @@ function buildBrandTodo(payload) {
     bizType: isPm ? '终审' : '监理审',
     brandApplicationId: payload.applicationId,
     brandNode: node,
+    assigneeUserId:
+      payload.assigneeUserId ||
+      (isPm ? payload.pmApproverUserId : payload.supervisorApproverUserId) ||
+      '',
     processName: isPm
       ? `品牌报审终审·${payload.materialName}（${payload.applicationId}）`
       : `品牌报审审批·${payload.materialName}（${payload.applicationId}）`,
@@ -2351,14 +2357,19 @@ let matEntryTodoSeq = 30
 function removeOpenMatEntryTodos(entryId) {
   for (let i = personalTodoStore.todos.length - 1; i >= 0; i -= 1) {
     const t = personalTodoStore.todos[i]
-    if (t.type !== 'mat_entry') continue
-    if (t.matEntryId !== entryId) continue
+    if (t.type !== 'mat_entry' && t.type !== 'eq_entry') continue
+    const linkedId = t.matEntryId || t.eqEntryId
+    if (linkedId !== entryId) continue
     personalTodoStore.todos.splice(i, 1)
   }
 }
 
 function buildMatEntryTodo(payload) {
   matEntryTodoSeq += 1
+  const isEq = payload.entryType === 'equipment'
+  const itemName = isEq
+    ? payload.equipmentName || payload.materialName || '—'
+    : payload.materialName || '—'
   return {
     id: `todo-mat-${matEntryTodoSeq}`,
     type: 'mat_entry',
@@ -2366,14 +2377,17 @@ function buildMatEntryTodo(payload) {
     category: '材料设备进场',
     bizType: '进场审批',
     matEntryId: payload.entryId,
-    processName: `材料进场审批·${payload.materialName}（${payload.entryId}）`,
+    entryType: payload.entryType || 'material',
+    processName: `${isEq ? '设备' : '材料'}进场审批·${itemName}（${payload.entryId}）`,
     applicant: payload.applicantName || '当前用户',
     dept: payload.dept || '总包项目部',
     applyTime: payload.applyTime || '',
     detail: {
       project: payload.projectLabel || payload.projectId || '—',
       entryId: payload.entryId,
+      entryType: payload.entryType || 'material',
       materialName: payload.materialName || '—',
+      equipmentName: payload.equipmentName || payload.materialName || '—',
       brandName: payload.brandName || '—',
       sampleId: payload.sampleId || '—',
       quantity: payload.quantity || '—',
@@ -2411,70 +2425,14 @@ export function discardMatEntryTodos(entryId) {
   removeOpenMatEntryTodos(entryId)
 }
 
-/** —— 设备进场：仅个人中心监理待办 —— */
-let eqEntryTodoSeq = 40
-
-function removeOpenEqEntryTodos(entryId) {
-  for (let i = personalTodoStore.todos.length - 1; i >= 0; i -= 1) {
-    const t = personalTodoStore.todos[i]
-    if (t.type !== 'eq_entry') continue
-    if (t.eqEntryId !== entryId) continue
-    personalTodoStore.todos.splice(i, 1)
-  }
-}
-
-function buildEqEntryTodo(payload) {
-  eqEntryTodoSeq += 1
-  return {
-    id: `todo-eq-${eqEntryTodoSeq}`,
-    type: 'eq_entry',
-    sourceLabel: '材料设备进场',
-    category: '材料设备进场',
-    bizType: '进场审批',
-    eqEntryId: payload.entryId,
-    processName: `设备进场审批·${payload.equipmentName}（${payload.entryId}）`,
-    applicant: payload.applicantName || '当前用户',
-    dept: payload.dept || '总包项目部',
-    applyTime: payload.applyTime || '',
-    detail: {
-      project: payload.projectLabel || payload.projectId || '—',
-      entryId: payload.entryId,
-      equipmentName: payload.equipmentName || '—',
-      brandName: payload.brandName || '—',
-      sampleId: payload.sampleId || '—',
-      quantity: payload.quantity || '—',
-      currentNode: '审核中',
-    },
-    approvalFlow: [
-      {
-        title: '施工提交设备进场',
-        time: payload.applyTime || '',
-        user: payload.applicantName || '施工',
-        remark: '直接提交，进入审核中',
-        status: 'done',
-      },
-      {
-        title: '监理审批',
-        time: '',
-        user: payload.supervisorName || '当前用户',
-        remark: '待审批',
-        status: 'current',
-      },
-    ],
-  }
-}
-
+/** @deprecated 统一走 mat_entry 待办；保留兼容转调 */
 export function createEqEntrySupervisorTodo(payload) {
-  if (!payload?.entryId) return null
-  removeOpenEqEntryTodos(payload.entryId)
-  const row = buildEqEntryTodo(payload)
-  personalTodoStore.todos.unshift(row)
-  return row
+  return createMatEntrySupervisorTodo({ ...payload, entryType: 'equipment' })
 }
 
+/** @deprecated 统一走 mat_entry 待办；保留兼容转调 */
 export function discardEqEntryTodos(entryId) {
-  if (!entryId) return
-  removeOpenEqEntryTodos(entryId)
+  discardMatEntryTodos(entryId)
 }
 
 /** —— 实模一致验收：仅个人中心待办（监理 → 指挥部项目经理） —— */
@@ -2767,6 +2725,10 @@ function pushSubcontractorCc(row) {
   }
   personalCc.unshift(item)
   return item
+}
+
+export function discardSubcontractorTodos(applicationId) {
+  removeOpenSubcontractorTodos(applicationId)
 }
 
 /** 提交报审后生成首个审批待办 */

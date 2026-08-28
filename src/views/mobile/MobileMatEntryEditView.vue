@@ -17,6 +17,7 @@ import {
   listApprovedSamples,
   listMaterialsForEntryBrand,
   listMatSupervisorApprovers,
+  formatMatSupervisorApproverLabel,
   parseBatchSeq,
   searchEntryBrands,
   submitEntry,
@@ -93,8 +94,8 @@ function emptyLine() {
     location_ids: [],
     waybill_no: '',
     batch_no: 1,
-    appearance_quality: '',
-    acceptance_result: '',
+    appearance_quality: '合格',
+    acceptance_result: '合格',
     entry_date: nowEntryDate(),
     cert_file: '',
     inspect_file: '',
@@ -123,8 +124,8 @@ function mapLineFromData(l, data) {
       : []
   row.waybill_no = l.waybill_no || ''
   row.batch_no = parseBatchSeq(l.batch_no, 1)
-  row.appearance_quality = l.appearance_quality || ''
-  row.acceptance_result = l.acceptance_result || ''
+  row.appearance_quality = l.appearance_quality || '合格'
+  row.acceptance_result = l.acceptance_result || '合格'
   row.entry_date = l.entry_date || nowEntryDate()
   row.cert_file = l.cert_file || data.cert_file || ''
   row.inspect_file = l.inspect_file || data.inspect_file || ''
@@ -622,7 +623,7 @@ function goBack() {
             <input v-model="row.purpose" class="form-input" placeholder="选填" />
           </div>
           <div class="form-row">
-            <span class="form-label">使用部位</span>
+            <span class="form-label">施工部位</span>
             <input v-model="row.use_part" class="form-input" placeholder="选填" />
           </div>
           <div class="form-row">
@@ -822,7 +823,7 @@ function goBack() {
           >
             <option value="" disabled>请选择本项目监理岗位人员</option>
             <option v-for="u in supervisorApprovers" :key="u.user_id" :value="u.user_id">
-              {{ u.name }} · {{ u.post_label }}
+              {{ formatMatSupervisorApproverLabel(u) }}
             </option>
           </select>
         </div>

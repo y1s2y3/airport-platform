@@ -1,14 +1,25 @@
 /**
  * WBS 实体工程节点 · 专业枚举（实体工程分解维护）
- * 口径：房建按 GB 50300 / 通用安装工程划分；航空按民航局民航专业工程分类；线性按市政/线性基础设施划分。
+ * 口径对齐 PRD §6.4.1：房建 / 航空 / 线性市政分组
  */
 
 export const WBS_SPECIALTY_DEFAULT = '结构'
 
+/** 历史 Mock 值 → PRD 枚举值 */
+const WBS_SPECIALTY_LEGACY_ALIASES = {
+  道路工程: '道路',
+  桥梁工程: '桥梁',
+  隧道工程: '隧道',
+  给水工程: '给水',
+  排水工程: '排水',
+  燃气工程: '燃气',
+  供热工程: '供热',
+}
+
 /** @type {{ label: string, options: { value: string, label: string }[] }[]} */
 export const WBS_SPECIALTY_GROUPS = [
   {
-    label: '房建工程',
+    label: '房建',
     options: [
       { value: '结构', label: '结构' },
       { value: '建筑', label: '建筑' },
@@ -25,13 +36,13 @@ export const WBS_SPECIALTY_GROUPS = [
       { value: '消防', label: '消防' },
       { value: '人防', label: '人防' },
       { value: '节能', label: '节能' },
-      { value: '机电', label: '机电（综合安装）' },
+      { value: '机电', label: '机电' },
     ],
   },
   {
-    label: '航空 / 民航专业工程',
+    label: '航空',
     options: [
-      { value: '道面', label: '场道工程' },
+      { value: '道面', label: '场道工程/道面' },
       { value: '空管工程', label: '空管工程' },
       { value: '目视助航工程', label: '目视助航工程' },
       { value: '弱电系统工程', label: '弱电系统工程' },
@@ -42,18 +53,18 @@ export const WBS_SPECIALTY_GROUPS = [
     ],
   },
   {
-    label: '线性 / 市政工程',
+    label: '线性/市政',
     options: [
-      { value: '市政', label: '市政（综合）' },
-      { value: '道路工程', label: '道路工程' },
-      { value: '桥梁工程', label: '桥梁工程' },
-      { value: '隧道工程', label: '隧道工程' },
+      { value: '市政', label: '市政' },
+      { value: '道路', label: '道路' },
+      { value: '桥梁', label: '桥梁' },
+      { value: '隧道', label: '隧道' },
       { value: '轨道交通', label: '轨道交通' },
       { value: '综合管廊', label: '综合管廊' },
-      { value: '给水工程', label: '给水工程' },
-      { value: '排水工程', label: '排水工程' },
-      { value: '燃气工程', label: '燃气工程' },
-      { value: '供热工程', label: '供热工程' },
+      { value: '给水', label: '给水' },
+      { value: '排水', label: '排水' },
+      { value: '燃气', label: '燃气' },
+      { value: '供热', label: '供热' },
       { value: '市政电气', label: '市政电气' },
       { value: '通信管线', label: '通信管线' },
     ],
@@ -68,6 +79,11 @@ export const WBS_SPECIALTY_SET = new Set(WBS_SPECIALTY_VALUES)
 
 export const WBS_SPECIALTY_DEFAULTS = [WBS_SPECIALTY_DEFAULT]
 
+function mapLegacySpecialty(value) {
+  const v = String(value || '').trim()
+  return WBS_SPECIALTY_LEGACY_ALIASES[v] || v
+}
+
 /** 归一化为去重后的有效枚举数组（兼容 legacy 单值 / 顿号拼接） */
 export function normalizeSpecialties(input) {
   let raw = []
@@ -81,7 +97,7 @@ export function normalizeSpecialties(input) {
   }
   const out = []
   for (const item of raw) {
-    const v = String(item || '').trim()
+    const v = mapLegacySpecialty(item)
     if (v && WBS_SPECIALTY_SET.has(v) && !out.includes(v)) out.push(v)
   }
   return out
@@ -107,19 +123,20 @@ export function syncSpecialtyFields(node) {
 
 export function isValidWbsSpecialty(value) {
   if (value == null || value === '') return true
-  if (Array.isArray(value)) return value.every((v) => !v || WBS_SPECIALTY_SET.has(String(v)))
-  return WBS_SPECIALTY_SET.has(String(value))
+  if (Array.isArray(value)) return value.every((v) => !v || WBS_SPECIALTY_SET.has(mapLegacySpecialty(v)))
+  return WBS_SPECIALTY_SET.has(mapLegacySpecialty(value))
 }
 
 export function isValidWbsSpecialties(values) {
   if (!Array.isArray(values)) return values == null || values === '' || isValidWbsSpecialty(values)
   if (!values.length) return true
-  return values.every((v) => v && WBS_SPECIALTY_SET.has(String(v)))
+  return values.every((v) => v && WBS_SPECIALTY_SET.has(mapLegacySpecialty(v)))
 }
 
 export function wbsSpecialtyLabel(value) {
-  const hit = WBS_SPECIALTY_OPTIONS.find((o) => o.value === value)
-  return hit?.label || value || '—'
+  const mapped = mapLegacySpecialty(value)
+  const hit = WBS_SPECIALTY_OPTIONS.find((o) => o.value === mapped)
+  return hit?.label || mapped || '—'
 }
 
 /** 新建子节点时继承父节点专业；父节点无配置时回退默认 */

@@ -20,6 +20,7 @@ import {
   supervisorCertTypeOptions,
   generalContractorCertTypeOptions,
   createEmptyUnitQualification,
+  formatGeneralContractorLicenseExpiry,
 } from '../../mock/projectSafetyProfile'
 import {
   canteenFuelOptions,
@@ -564,22 +565,54 @@ function openEquipmentRow(row) {
           <td colspan="12" class="section-row section-row-sub">施工总承包单位</td>
         </tr>
         <tr>
+          <td colspan="2" class="cell-label">施工总承包单位名称</td>
+          <td colspan="10" class="cell-value">
+            <el-input
+              v-model="model.safetyProfile.generalContractor.unitName"
+              :readonly="readonly"
+              placeholder="请输入施工总承包单位名称"
+              aria-label="请输入施工总承包单位名称"
+            />
+          </td>
+        </tr>
+        <tr>
           <td colspan="2" class="cell-label">单位安全生产许可证编号</td>
           <td colspan="4" class="cell-value">
             <el-input v-model="model.safetyProfile.generalContractor.safetyLicenseNo" />
           </td>
           <td colspan="2" class="cell-label">安全生产许可证有效期</td>
-          <td colspan="1" class="cell-value">
-            <el-date-picker
-              v-model="model.safetyProfile.generalContractor.safetyLicenseExpiry"
-              type="date"
-              value-format="YYYY-MM-DD"
-              format="YYYY年MM月DD日"
-              placeholder="请选择日期"
-              style="width: 100%" aria-label="请选择日期"/>
+          <td colspan="4" class="cell-value gc-license-expiry">
+            <template v-if="readonly">
+              <span class="inline-readonly">{{
+                formatGeneralContractorLicenseExpiry(model.safetyProfile.generalContractor) || '—'
+              }}</span>
+            </template>
+            <template v-else>
+              <el-date-picker
+                v-model="model.safetyProfile.generalContractor.safetyLicenseExpiryStart"
+                type="date"
+                value-format="YYYY-MM-DD"
+                format="YYYY年MM月DD日"
+                placeholder="开始日期"
+                style="width: 48%"
+                aria-label="安全生产许可证有效期开始"
+              />
+              <span class="expiry-sep">~</span>
+              <el-date-picker
+                v-model="model.safetyProfile.generalContractor.safetyLicenseExpiryEnd"
+                type="date"
+                value-format="YYYY-MM-DD"
+                format="YYYY年MM月DD日"
+                placeholder="结束日期"
+                style="width: 48%"
+                aria-label="安全生产许可证有效期结束"
+              />
+            </template>
           </td>
+        </tr>
+        <tr>
           <td colspan="2" class="cell-label">安全生产许可证照片</td>
-          <td colspan="1" class="cell-value">
+          <td colspan="10" class="cell-value">
             <ProfileImageUpload
               v-model="model.safetyProfile.generalContractor.safetyLicensePhoto"
               demo-variant="certificate"
@@ -1613,6 +1646,18 @@ function openEquipmentRow(row) {
   font-size: 13px;
   font-weight: 600;
   background: #e8f2f9;
+}
+
+.gc-license-expiry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.expiry-sep {
+  color: var(--ap-text-secondary);
+  flex-shrink: 0;
 }
 
 .cell-label,

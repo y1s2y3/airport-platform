@@ -13,6 +13,10 @@ import {
   buildReEditPayloadFromWithdrawnMaterial,
   submitMaterialApp,
   resubmitWithdrawnSample,
+  listBrandProjectUsers,
+  resolveDefaultApprovers,
+  findBrandProjectUser,
+  formatBrandProjectUserLabel,
 } from '../../../mock/sample.js'
 import {
   listSampleMaterialsFromBrand,
@@ -38,7 +42,40 @@ const form = reactive({
   supplier: '',
   indicator_desc: '',
   remark: '',
+  supervisor_approver_user_id: '',
+  supervisor_approver_name: '',
+  pm_approver_user_id: '',
+  pm_approver_name: '',
 })
+
+const projectUsers = computed(() =>
+  scopeProjectId.value ? listBrandProjectUsers(scopeProjectId.value) : [],
+)
+
+function applyApproverFields(src = {}) {
+  form.supervisor_approver_user_id = src.supervisor_approver_user_id || ''
+  form.supervisor_approver_name = src.supervisor_approver_name || ''
+  form.pm_approver_user_id = src.pm_approver_user_id || ''
+  form.pm_approver_name = src.pm_approver_name || ''
+}
+
+function applyDefaultApprovers() {
+  if (!scopeProjectId.value) {
+    applyApproverFields({})
+    return
+  }
+  applyApproverFields(resolveDefaultApprovers(scopeProjectId.value))
+}
+
+function onApproverChange(role) {
+  if (role === 'supervisor') {
+    const u = findBrandProjectUser(form.supervisor_approver_user_id)
+    form.supervisor_approver_name = u?.name || ''
+  } else if (role === 'pm') {
+    const u = findBrandProjectUser(form.pm_approver_user_id)
+    form.pm_approver_name = u?.name || ''
+  }
+}
 
 const effectImages = ref([])
 const approvalFiles = ref([])
@@ -106,6 +143,7 @@ function applyCopyPayload(data) {
   form.supplier = data.supplier || ''
   form.indicator_desc = data.indicator_desc || ''
   form.remark = data.remark || ''
+  applyApproverFields(data)
   effectImages.value = (data.effect_images || []).map((f) => ({
     name: f.name,
     url: f.url || '#',
@@ -129,7 +167,10 @@ onMounted(() => {
     ElMessage.success(`已载入撤回单 ${reEditId.value}，修改后提交将回到待审批`)
     return
   }
-  if (!copyFromId.value) return
+  if (!copyFromId.value) {
+    applyDefaultApprovers()
+    return
+  }
   const r = buildCopyPayloadFromRejectedMaterial(copyFromId.value)
   if (!r.ok) {
     ElMessage.error(r.msg)
@@ -138,6 +179,10 @@ onMounted(() => {
     return
   }
   applyCopyPayload(r.data)
+})
+
+watch(scopeProjectId, () => {
+  if (!isReEdit.value && !copyFromId.value) applyDefaultApprovers()
 })
 
 function onSubmit() {
@@ -167,6 +212,10 @@ function onSubmit() {
     approval_files: approvalFiles.value.map((f) => ({ name: f.name, url: f.url || '#' })),
     copy_from_application_id: copyFromId.value,
     remark: form.remark,
+    supervisor_approver_user_id: form.supervisor_approver_user_id,
+    supervisor_approver_name: form.supervisor_approver_name,
+    pm_approver_user_id: form.pm_approver_user_id,
+    pm_approver_name: form.pm_approver_name,
   }
   const r =
     isReEdit.value && reEditId.value
@@ -284,6 +333,52 @@ function onSubmit() {
             <p v-else class="field-hint">至少上传 1 份审批文件（如定样审批表）</p>
           </div>
         </el-form-item>
+      </section>
+
+      <section class="form-section">
+        <h2 class="section-title">审批人配置</h2>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="监理审批" required>
+              <el-select
+                v-model="form.supervisor_approver_user_id"
+                placeholder="请选择监理审批人"
+                filterable
+                clearable
+                style="width: 100%"
+                aria-label="请选择监理审批人"
+                @change="onApproverChange('supervisor')"
+              >
+                <el-option
+                  v-for="u in projectUsers"
+                  :key="u.user_id"
+                  :label="formatBrandProjectUserLabel(u)"
+                  :value="u.user_id"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="项目经理审批" required>
+              <el-select
+                v-model="form.pm_approver_user_id"
+                placeholder="请选择项目经理审批人"
+                filterable
+                clearable
+                style="width: 100%"
+                aria-label="请选择项目经理审批人"
+                @change="onApproverChange('pm')"
+              >
+                <el-option
+                  v-for="u in projectUsers"
+                  :key="`pm-${u.user_id}`"
+                  :label="formatBrandProjectUserLabel(u)"
+                  :value="u.user_id"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
       </section>
 
       <el-form-item label="备注">

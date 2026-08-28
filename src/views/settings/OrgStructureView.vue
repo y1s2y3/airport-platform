@@ -1,10 +1,11 @@
 <script setup>
-import { ref, computed, reactive, watch } from 'vue'
+import { ref, computed, reactive, watch, onMounted } from 'vue'
 import { Search, Plus, Edit, Delete, DArrowLeft, DArrowRight } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   unifiedOrgTree,
   findTreeNode,
+  refreshOrgTree,
   getOrgMembers,
   getOrgPositions,
   getOrgInfo,
@@ -95,6 +96,10 @@ const filteredTree = computed(() => getVisibleOrgTree(treeKeyword.value))
 watch([isHqSelected, projectId, defaultOrgNodeId], () => {
   selectedNodeId.value = defaultOrgNodeId.value
 }, { immediate: true })
+
+onMounted(() => {
+  refreshOrgTree()
+})
 
 const memberList = computed(() => {
   unifiedOrgTree.value

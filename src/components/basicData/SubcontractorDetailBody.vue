@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import {
   approveStatusTagClass,
   formatSafetyLicenseExpiry,
+  formatSubcontractorApproverDisplay,
 } from '../../mock/subcontractorManagement'
 import FileAttachmentPreview from './FileAttachmentPreview.vue'
 
@@ -24,6 +25,11 @@ const props = defineProps({
 })
 
 const approvalFlow = computed(() => props.detail?.approvalFlow || [])
+
+function approverDisplay(idKey, nameKey) {
+  const approvers = props.detail?.approvers || {}
+  return formatSubcontractorApproverDisplay(approvers[idKey], approvers[nameKey])
+}
 
 function flowType(status) {
   if (status === 'done') return 'success'
@@ -152,16 +158,16 @@ function formatLaborContractAmount(contract) {
         <div class="section-title">审批人</div>
         <el-descriptions :column="2" border>
           <el-descriptions-item label="项目经理">
-            {{ detail.approvers?.projectManagerName || '—' }}
+            {{ approverDisplay('projectManagerUserId', 'projectManagerName') }}
           </el-descriptions-item>
           <el-descriptions-item label="项目部部长">
-            {{ detail.approvers?.deptHeadName || '—' }}
+            {{ approverDisplay('deptHeadUserId', 'deptHeadName') }}
           </el-descriptions-item>
           <el-descriptions-item label="设计部负责人">
-            {{ detail.approvers?.designHeadName || '—' }}
+            {{ approverDisplay('designHeadUserId', 'designHeadName') }}
           </el-descriptions-item>
           <el-descriptions-item label="设计部部长">
-            {{ detail.approvers?.designDeptHeadName || '—' }}
+            {{ approverDisplay('designDeptHeadUserId', 'designDeptHeadName') }}
           </el-descriptions-item>
           <el-descriptions-item label="抄送" :span="2">
             抄送副指挥长（朱指挥）

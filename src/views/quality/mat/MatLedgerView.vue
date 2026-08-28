@@ -107,9 +107,15 @@ async function onConfirmExportArchive(selectedKeys) {
         <el-button :icon="Refresh" @click="reset">重置</el-button>
       </div>
 
-      <el-table :data="list" stripe border empty-text="暂无已通过进场记录">
+      <el-table
+        :data="list"
+        stripe
+        border
+        empty-text="暂无已通过进场记录"
+        :default-sort="{ prop: 'submit_time', order: 'descending' }"
+      >
         <el-table-column prop="entry_id" label="进场单号" width="110" fixed />
-        <el-table-column label="类型" width="80">
+        <el-table-column label="类型" width="80" sortable prop="entry_type">
           <template #default="{ row }">{{ ENTRY_TYPE_LABEL[row.entry_type] || '材料' }}</template>
         </el-table-column>
         <el-table-column label="名称" min-width="120">
@@ -125,7 +131,7 @@ async function onConfirmExportArchive(selectedKeys) {
           <template #default="{ row }">{{ row.quantity }}{{ row.unit }}</template>
         </el-table-column>
         <el-table-column prop="supplier" label="供应商" min-width="110" show-overflow-tooltip />
-        <el-table-column label="进场时间" width="160">
+        <el-table-column prop="submit_time" label="进场时间" width="160" sortable>
           <template #default="{ row }">{{ row.submit_time || '—' }}</template>
         </el-table-column>
         <el-table-column label="状态" width="100">

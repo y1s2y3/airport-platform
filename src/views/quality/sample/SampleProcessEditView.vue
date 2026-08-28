@@ -1,6 +1,6 @@
 ﻿<script setup>
 import './sample-page.css'
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { UploadFilled } from '@element-plus/icons-vue'
@@ -10,6 +10,10 @@ import {
   buildReEditPayloadFromWithdrawnProcess,
   submitProcessApp,
   resubmitWithdrawnSample,
+  listBrandProjectUsers,
+  resolveDefaultApprovers,
+  findBrandProjectUser,
+  formatBrandProjectUserLabel,
 } from '../../../mock/sample.js'
 import ConstructionLocationSelect from '../../../components/ConstructionLocationSelect.vue'
 import SampleMediaAttachments from './SampleMediaAttachments.vue'
@@ -29,7 +33,51 @@ const form = reactive({
   location_ids: [],
   briefing_content: '',
   remark: '',
+  supervisor_approver_user_id: '',
+  supervisor_approver_name: '',
 })
+
+const projectUsers = computed(() =>
+  scopeProjectId.value ? listBrandProjectUsers(scopeProjectId.value) : [],
+)
+
+function applyApproverFields(src = {}) {
+  form.supervisor_approver_user_id = src.supervisor_approver_user_id || ''
+  form.supervisor_approver_name = src.supervisor_approver_name || ''
+}
+
+function applyDefaultApprovers() {
+  if (!scopeProjectId.value) {
+    applyApproverFields({})
+    return
+  }
+  const defaults = resolveDefaultApprovers(scopeProjectId.value)
+  applyApproverFields({
+    supervisor_approver_user_id: defaults.supervisor_approver_user_id,
+    supervisor_approver_name: defaults.supervisor_approver_name,
+  })
+}
+
+function onApproverChange() {
+  const u = findBrandProjectUser(form.supervisor_approver_user_id)
+  form.supervisor_approver_name = u?.name || ''
+}
+
+function applyProcessPayload(data) {
+  form.process_name = data.process_name || ''
+  form.use_part = data.use_part || ''
+  form.location_id = data.location_id || ''
+  form.location_ids = Array.isArray(data.location_ids) ? [...data.location_ids] : []
+  form.briefing_content = data.briefing_content || ''
+  form.remark = data.remark || ''
+  applyApproverFields(data)
+  mediaList.value = (data.media_files || []).map((m) => ({
+    name: m.name,
+    url: '#',
+    kind: m.kind === 'video' ? 'video' : 'image',
+  }))
+  docList.value = (data.doc_files || []).map((name) => ({ name, url: '#' }))
+}
 
 /** 现场影像资料：{ name, url, kind }[] */
 const mediaList = ref([])
@@ -70,23 +118,14 @@ onMounted(() => {
       reEditId.value = ''
       return
     }
-    const data = r.data
-    form.process_name = data.process_name || ''
-    form.use_part = data.use_part || ''
-    form.location_id = data.location_id || ''
-    form.location_ids = Array.isArray(data.location_ids) ? [...data.location_ids] : []
-    form.briefing_content = data.briefing_content || ''
-    form.remark = data.remark || ''
-    mediaList.value = (data.media_files || []).map((m) => ({
-      name: m.name,
-      url: '#',
-      kind: m.kind === 'video' ? 'video' : 'image',
-    }))
-    docList.value = (data.doc_files || []).map((name) => ({ name, url: '#' }))
+    applyProcessPayload(r.data)
     ElMessage.success(`已载入撤回单 ${reEditId.value}，修改后提交将回到待审批`)
     return
   }
-  if (!copyFromId.value) return
+  if (!copyFromId.value) {
+    applyDefaultApprovers()
+    return
+  }
   const r = buildCopyPayloadFromRejectedProcess(copyFromId.value)
   if (!r.ok) {
     ElMessage.error(r.msg)
@@ -94,19 +133,11 @@ onMounted(() => {
     router.replace('/qm/sample/process/applications/edit')
     return
   }
-  const data = r.data
-  form.process_name = data.process_name || ''
-  form.use_part = data.use_part || ''
-  form.location_id = data.location_id || ''
-  form.location_ids = Array.isArray(data.location_ids) ? [...data.location_ids] : []
-  form.briefing_content = data.briefing_content || ''
-  form.remark = data.remark || ''
-  mediaList.value = (data.media_files || []).map((m) => ({
-    name: m.name,
-    url: '#',
-    kind: m.kind === 'video' ? 'video' : 'image',
-  }))
-  docList.value = (data.doc_files || []).map((name) => ({ name, url: '#' }))
+  applyProcessPayload(r.data)
+})
+
+watch(scopeProjectId, () => {
+  if (!isReEdit.value && !copyFromId.value) applyDefaultApprovers()
 })
 
 function onSubmit() {
@@ -139,6 +170,8 @@ function onSubmit() {
     doc_files,
     copy_from_application_id: copyFromId.value,
     remark: form.remark,
+    supervisor_approver_user_id: form.supervisor_approver_user_id,
+    supervisor_approver_name: form.supervisor_approver_name,
   }
   const r =
     isReEdit.value && reEditId.value
@@ -211,6 +244,30 @@ function onSubmit() {
           </ul>
         </div>
       </el-form-item>
+
+      <section class="form-section">
+        <h2 class="section-title">审批人配置</h2>
+        <el-form-item label="监理审批" required>
+          <el-select
+            v-model="form.supervisor_approver_user_id"
+            placeholder="请选择监理审批人"
+            filterable
+            clearable
+            style="width: 100%"
+            aria-label="请选择监理审批人"
+            @change="onApproverChange"
+          >
+            <el-option
+              v-for="u in projectUsers"
+              :key="u.user_id"
+              :label="formatBrandProjectUserLabel(u)"
+              :value="u.user_id"
+            />
+          </el-select>
+          <p class="field-hint">工序样板仅监理终审，须指定监理审批人</p>
+        </el-form-item>
+      </section>
+
       <el-form-item label="备注">
         <el-input v-model="form.remark" placeholder="选填" aria-label="选填"/>
       </el-form-item>
