@@ -1,9 +1,9 @@
 ﻿<script setup>
 import './brand-page.css'
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Plus, Delete, Document, Box } from '@element-plus/icons-vue'
+import { Plus, Delete, Document, Box, UserFilled } from '@element-plus/icons-vue'
 import { useQmProjectScope } from '../../../composables/useCurrentProject'
 import {
   MATERIAL_TYPE,
@@ -13,6 +13,11 @@ import {
   resubmitWithdrawnBrand,
   buildCopyPayloadFromRejected,
   buildReEditPayloadFromWithdrawn,
+  listBrandProjectUsers,
+  resolveDefaultApprovers,
+  findBrandProjectUser,
+  findApprovedDuplicateMaterialApplications,
+  normalizeBrandMaterialName,
 } from '../../../mock/brand.js'
 import BrandCandidateAttachBlock from './BrandCandidateAttachBlock.vue'
 import ConstructionLocationSelect from '../../../components/ConstructionLocationSelect.vue'
@@ -30,6 +35,10 @@ const form = reactive({
   use_part: '',
   location_id: '',
   copy_from_application_id: '',
+  supervisor_approver_user_id: '',
+  supervisor_approver_name: '',
+  pm_approver_user_id: '',
+  pm_approver_name: '',
   candidates: [
     { ...createEmptyCandidate(), is_primary: true },
     createEmptyCandidate(),
@@ -39,12 +48,53 @@ const form = reactive({
 
 const brandSuggest = ref({})
 const copyFromLabel = ref('')
+const projectUsers = computed(() => listBrandProjectUsers(scopeProjectId.value))
+
+/** 同项目已通过单材料名重复提示（仅提示，不拦截提交） */
+const duplicateMaterialHits = computed(() => {
+  if (isHqSelected.value || !scopeProjectId.value) return []
+  const name = normalizeBrandMaterialName(form.material_name)
+  if (!name) return []
+  return findApprovedDuplicateMaterialApplications(scopeProjectId.value, name)
+})
+
+const duplicateMaterialTip = computed(() => {
+  if (!duplicateMaterialHits.value.length) return ''
+  const name = normalizeBrandMaterialName(form.material_name)
+  const ids = duplicateMaterialHits.value.map((h) => h.application_id).join('、')
+  return `本项目已有材料/设备名称为「${name}」的已通过报审单（${ids}），仍可继续提交。`
+})
 
 /** 第 1 条固定为主选，其后均为备选（无需勾选） */
 function syncPrimaryByPosition() {
   form.candidates.forEach((c, i) => {
     c.is_primary = i === 0
   })
+}
+
+function applyApproverFields(src) {
+  form.supervisor_approver_user_id = src.supervisor_approver_user_id || ''
+  form.supervisor_approver_name = src.supervisor_approver_name || ''
+  form.pm_approver_user_id = src.pm_approver_user_id || ''
+  form.pm_approver_name = src.pm_approver_name || ''
+}
+
+function applyDefaultApprovers() {
+  if (isHqSelected.value || !scopeProjectId.value) {
+    applyApproverFields({})
+    return
+  }
+  applyApproverFields(resolveDefaultApprovers(scopeProjectId.value))
+}
+
+function onApproverChange(role) {
+  if (role === 'supervisor') {
+    const u = findBrandProjectUser(form.supervisor_approver_user_id)
+    form.supervisor_approver_name = u?.name || ''
+  } else if (role === 'pm') {
+    const u = findBrandProjectUser(form.pm_approver_user_id)
+    form.pm_approver_name = u?.name || ''
+  }
 }
 
 onMounted(() => {
@@ -54,11 +104,13 @@ onMounted(() => {
       ElMessage.warning('无法重新申报，请确认该单为已撤回状态')
       isReEdit.value = false
       reEditId.value = ''
+      applyDefaultApprovers()
       return
     }
     form.material_name = payload.material_name
     form.material_type = payload.material_type
     form.use_part = payload.use_part
+    applyApproverFields(payload)
     form.candidates = payload.candidates.length
       ? payload.candidates
       : [
@@ -72,26 +124,32 @@ onMounted(() => {
   }
 
   const copyFrom = String(route.query.copyFrom || '')
-  if (!copyFrom) return
-  const payload = buildCopyPayloadFromRejected(copyFrom)
-  if (!payload) {
-    ElMessage.warning('无法从该单复制，请确认其为已驳回报审单')
+  if (copyFrom) {
+    const payload = buildCopyPayloadFromRejected(copyFrom)
+    if (!payload) {
+      ElMessage.warning('无法从该单复制，请确认其为已驳回报审单')
+      applyDefaultApprovers()
+      return
+    }
+    form.material_name = payload.material_name
+    form.material_type = payload.material_type
+    form.use_part = payload.use_part
+    form.copy_from_application_id = payload.copy_from_application_id
+    applyApproverFields(payload)
+    form.candidates = payload.candidates.length
+      ? payload.candidates
+      : [
+          { ...createEmptyCandidate(), is_primary: true },
+          createEmptyCandidate(),
+          createEmptyCandidate(),
+        ]
+    syncPrimaryByPosition()
+    copyFromLabel.value = copyFrom
+    ElMessage.success(`已从驳回单 ${copyFrom} 预填，请核对后提交`)
     return
   }
-  form.material_name = payload.material_name
-  form.material_type = payload.material_type
-  form.use_part = payload.use_part
-  form.copy_from_application_id = payload.copy_from_application_id
-  form.candidates = payload.candidates.length
-    ? payload.candidates
-    : [
-        { ...createEmptyCandidate(), is_primary: true },
-        createEmptyCandidate(),
-        createEmptyCandidate(),
-      ]
-  syncPrimaryByPosition()
-  copyFromLabel.value = copyFrom
-  ElMessage.success(`已从驳回单 ${copyFrom} 预填，请核对后提交`)
+
+  applyDefaultApprovers()
 })
 
 function addCandidate() {
@@ -141,6 +199,10 @@ function onSubmit() {
     material_type: form.material_type,
     use_part: form.use_part,
     copy_from_application_id: form.copy_from_application_id,
+    supervisor_approver_user_id: form.supervisor_approver_user_id,
+    supervisor_approver_name: form.supervisor_approver_name,
+    pm_approver_user_id: form.pm_approver_user_id,
+    pm_approver_name: form.pm_approver_name,
     candidates: form.candidates,
   }
   const r =
@@ -148,6 +210,9 @@ function onSubmit() {
       ? resubmitWithdrawnBrand(reEditId.value, payload)
       : submitApplication(payload)
   if (!r.ok) return ElMessage.error(r.msg)
+  if (duplicateMaterialHits.value.length) {
+    ElMessage.warning(duplicateMaterialTip.value)
+  }
   ElMessage.success(
     isReEdit.value
       ? `已重新申报 ${r.data.application_id}，状态已回到待审批`
@@ -195,7 +260,17 @@ function onSubmit() {
               <el-input
                 v-model="form.material_name"
                 placeholder="请输入材料或设备名称"
-                clearable aria-label="请输入材料或设备名称"/>
+                clearable
+                aria-label="请输入材料或设备名称"
+              />
+              <el-alert
+                v-if="duplicateMaterialTip"
+                class="material-dup-alert"
+                type="warning"
+                :closable="false"
+                show-icon
+                :title="duplicateMaterialTip"
+              />
             </el-form-item>
             <el-form-item label="类型" required>
               <el-select v-model="form.material_type" placeholder="请选择" style="width: 100%" aria-label="请选择">
@@ -300,6 +375,58 @@ function onSubmit() {
           </button>
         </div>
       </section>
+
+      <section class="form-section">
+        <header class="section-head">
+          <el-icon class="section-icon"><UserFilled /></el-icon>
+          <div class="section-head-main">
+            <div class="section-title-row">
+              <h2 class="section-title">审批人配置</h2>
+            </div>
+          </div>
+        </header>
+
+        <div class="section-body">
+          <div class="field-grid">
+            <el-form-item label="监理单位审批" required>
+              <el-select
+                v-model="form.supervisor_approver_user_id"
+                placeholder="请选择监理单位审批人"
+                filterable
+                clearable
+                style="width: 100%"
+                aria-label="请选择监理单位审批人"
+                @change="onApproverChange('supervisor')"
+              >
+                <el-option
+                  v-for="u in projectUsers"
+                  :key="u.user_id"
+                  :label="`${u.name}（${u.org}）`"
+                  :value="u.user_id"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="项目经理审批" required>
+              <el-select
+                v-model="form.pm_approver_user_id"
+                placeholder="请选择项目经理审批人"
+                filterable
+                clearable
+                style="width: 100%"
+                aria-label="请选择项目经理审批人"
+                @change="onApproverChange('pm')"
+              >
+                <el-option
+                  v-for="u in projectUsers"
+                  :key="u.user_id"
+                  :label="`${u.name}（${u.org}）`"
+                  :value="u.user_id"
+                />
+              </el-select>
+            </el-form-item>
+          </div>
+        </div>
+      </section>
     </el-form>
 
     <div class="form-footer">
@@ -394,6 +521,10 @@ function onSubmit() {
 
 .field-span-2 {
   grid-column: 1 / -1;
+}
+
+.material-dup-alert {
+  margin-top: 8px;
 }
 
 .field-grid :deep(.el-form-item) {

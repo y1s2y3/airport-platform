@@ -15,6 +15,15 @@ import {
   wbsNodes,
 } from '../../mock/qm.js'
 import { buildEntityBreakdownTree } from '../../mock/constructionLocation.js'
+import {
+  WBS_SPECIALTY_DEFAULTS,
+  WBS_SPECIALTY_GROUPS,
+  formatSpecialtiesDisplay,
+  getEffectiveSpecialties,
+  inheritSpecialtiesFromParent,
+  isValidWbsSpecialties,
+  normalizeSpecialties,
+} from '../../constants/wbsSpecialty.js'
 
 const ENTITY_TYPES = [1, 2, 3, 4, 5]
 const TYPE_LABEL = {
@@ -45,7 +54,7 @@ const form = reactive({
   node_type: 1,
   node_name: '',
   location_code: '',
-  specialty: '结构',
+  specialties: [...WBS_SPECIALTY_DEFAULTS],
   sort_no: 0,
 })
 
@@ -148,6 +157,11 @@ function handleNodeClick(data) {
   selectedNodeId.value = data.id
 }
 
+function applyInheritedSpecialties(parent_id) {
+  const parent = wbsNodes.find((n) => n.id === parent_id)
+  form.specialties = inheritSpecialtiesFromParent(parent)
+}
+
 function openCreate(parent_id = '') {
   if (!canMaintain.value) return ElMessage.warning('请切换到具体项目后再维护')
   const pid = parent_id || selectedNodeId.value || ''
@@ -164,7 +178,7 @@ function openCreate(parent_id = '') {
   form.node_type = defaultChildType(form.parent_id)
   form.node_name = ''
   form.location_code = ''
-  form.specialty = '结构'
+  applyInheritedSpecialties(form.parent_id)
   form.sort_no = 0
   visible.value = true
 }
@@ -179,7 +193,7 @@ function openEdit(row) {
       node_type: 9,
       node_name: '实体工程',
       location_code: row.location_code || '',
-      specialty: row.specialty || '',
+      specialties: [...getEffectiveSpecialties(row)],
       sort_no: row.sort_no || 0,
     })
     visible.value = true
@@ -195,14 +209,26 @@ function openEdit(row) {
     node_type: row.node_type,
     node_name: row.node_name,
     location_code: row.location_code || '',
-    specialty: row.specialty || '',
+    specialties: [...getEffectiveSpecialties(row)],
     sort_no: row.sort_no || 0,
   })
   visible.value = true
 }
 
+watch(
+  () => form.parent_id,
+  (pid) => {
+    if (!visible.value || form.id) return
+    applyInheritedSpecialties(pid)
+  },
+)
+
 function submit() {
   if (!canMaintain.value) return ElMessage.warning('请切换到具体项目后再维护')
+  const specialties = normalizeSpecialties(form.specialties)
+  if (specialties.length && !isValidWbsSpecialties(specialties)) {
+    return ElMessage.warning('请选择有效的专业')
+  }
   if (form.node_type === 9) {
     const exist = wbsNodes.find((n) => n.id === form.id)
     const r = upsertWbsNode(
@@ -212,7 +238,7 @@ function submit() {
         project_id: scopeProjectId.value,
         node_type: 9,
         location_code: form.location_code,
-        specialty: form.specialty,
+        specialties,
       },
       form.id,
     )
@@ -227,6 +253,7 @@ function submit() {
   const r = upsertWbsNode(
     {
       ...form,
+      specialties,
       project_id: scopeProjectId.value,
       batch_type_id: '',
       form_template_id:
@@ -346,7 +373,11 @@ async function onRemove(row) {
             </template>
           </el-table-column>
           <el-table-column prop="location_code" label="部位编码" width="120" />
-          <el-table-column prop="specialty" label="专业" width="90" />
+          <el-table-column label="专业" min-width="160">
+            <template #default="{ row }">
+              {{ formatSpecialtiesDisplay(getEffectiveSpecialties(row)) }}
+            </template>
+          </el-table-column>
           <el-table-column prop="sort_no" label="排序" width="70" />
           <el-table-column label="操作" width="200" fixed="right">
             <template #default="{ row }">
@@ -416,7 +447,30 @@ async function onRemove(row) {
           <el-input v-model="form.location_code" maxlength="40" />
         </el-form-item>
         <el-form-item label="专业">
-          <el-input v-model="form.specialty" maxlength="20" />
+          <el-select
+            v-model="form.specialties"
+            multiple
+            collapse-tags
+            collapse-tags-tooltip
+            filterable
+            clearable
+            placeholder="请选择专业（可多选）"
+            style="width: 100%"
+          >
+            <el-option-group
+              v-for="grp in WBS_SPECIALTY_GROUPS"
+              :key="grp.label"
+              :label="grp.label"
+            >
+              <el-option
+                v-for="opt in grp.options"
+                :key="opt.value"
+                :label="opt.label"
+                :value="opt.value"
+              />
+            </el-option-group>
+          </el-select>
+          <div v-if="!form.id" class="field-hint">默认继承上级节点专业，可删减或增补</div>
         </el-form-item>
         <el-form-item label="排序">
           <el-input-number v-model="form.sort_no" :min="0" :max="9999" />
@@ -464,4 +518,5 @@ async function onRemove(row) {
 .type-tag { flex-shrink: 0; }
 .name-cell { display: inline-flex; align-items: center; gap: 6px; }
 .node-table { flex: 1; }
+.field-hint { margin-top: 4px; font-size: 12px; color: #909399; line-height: 1.4; }
 </style>

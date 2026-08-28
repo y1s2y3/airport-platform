@@ -6,8 +6,10 @@
  * - 审批：个人中心待办推进；通过后同步项目画像
  */
 import { reactive } from 'vue'
-import { projectList } from './projectBasicInfo'
+import { projectList, getProjectDetail, displayProjectManagerName } from './projectBasicInfo'
 import { createSubcontractorBlock, mergeSafetyProfile } from './projectSafetyProfile'
+import { listSysUsers, getSysUser } from './sysUsers'
+import { nowStr } from '../utils/datetime.js'
 
 export const subcontractorTypeOptions = ['专业分包', '劳务分包']
 export const subcontractorApproveStatusOptions = ['待审批', '审批中', '已通过', '已驳回', '已撤回']
@@ -20,12 +22,83 @@ export function canResubmitSubcontractor(status) {
   return status === '已驳回' || status === '已撤回'
 }
 
+function normalizeSafetyLicense(sl = {}) {
+  const src = { ...sl }
+  if (src.expiry && !src.expiryStart && !src.expiryEnd) {
+    src.expiryEnd = src.expiry
+    const year = String(src.expiry).slice(0, 4)
+    src.expiryStart = year ? `${year}-01-01` : ''
+    delete src.expiry
+  }
+  return {
+    licenseNo: '',
+    expiryStart: '',
+    expiryEnd: '',
+    fileName: '',
+    fileUrl: '',
+    ...src,
+  }
+}
+
+export function formatSafetyLicenseExpiry(sl = {}) {
+  const normalized = normalizeSafetyLicense(sl)
+  const { expiryStart, expiryEnd } = normalized
+  if (expiryStart && expiryEnd) return `${expiryStart} ~ ${expiryEnd}`
+  return expiryStart || expiryEnd || ''
+}
+
+/** 列表/画像：编号 + 有效期区间 + 附件均具备 */
+export function hasSubcontractorSafetyLicense(row) {
+  const sl = normalizeSafetyLicense(row?.safetyLicense || {})
+  return Boolean(
+    String(sl.licenseNo || '').trim() &&
+      sl.expiryStart &&
+      sl.expiryEnd &&
+      (String(sl.fileName || '').trim() || String(sl.fileUrl || '').trim()),
+  )
+}
+
+/** 列表「资质证书」列：至少一条 certNo 非空 → 具备 */
+export function hasSubcontractorQualification(row) {
+  return (row?.qualifications || []).some((item) => String(item?.certNo || '').trim())
+}
+
+export function getSubcontractorQualificationLabel(row) {
+  return hasSubcontractorQualification(row) ? '具备' : '不具备'
+}
+
+export function qualificationStatusTagClass(row) {
+  return hasSubcontractorQualification(row) ? 'ap-tag-enabled' : 'ap-tag-high'
+}
+
+/** 列表「安全许可证」列：信息完整且 expiryEnd ≥ 当日 → 有效，否则失效 */
+export function isSubcontractorSafetyLicenseValid(row) {
+  if (!hasSubcontractorSafetyLicense(row)) return false
+  const sl = normalizeSafetyLicense(row?.safetyLicense || {})
+  const today = new Date().toISOString().slice(0, 10)
+  return sl.expiryEnd >= today
+}
+
+export function getSubcontractorSafetyLicenseValidityLabel(row) {
+  return isSubcontractorSafetyLicenseValid(row) ? '有效' : '失效'
+}
+
+export function safetyLicenseValidityTagClass(row) {
+  return isSubcontractorSafetyLicenseValid(row) ? 'ap-tag-enabled' : 'ap-tag-high'
+}
+
+export function formatLaborContractAmount(row) {
+  const raw = String(row?.laborContract?.amount ?? '').trim().replace(/万元/g, '')
+  if (!raw) return '—'
+  return `${raw}万元`
+}
+
 /** 审批节点（提交后依次推进；抄送不卡流程） */
 export const SUBCONTRACTOR_APPROVAL_NODES = [
-  { key: 'pm', title: '项目经理审批', user: '项目经理' },
-  { key: 'dept_head', title: '项目部部长审批', user: '项目部部长' },
-  { key: 'design_lin', title: '设计部·林坩审批', user: '林坩' },
-  { key: 'design_leader', title: '设计部领导审批', user: '设计部领导' },
+  { key: 'pm', title: '项目经理审批', roleLabel: '项目经理' },
+  { key: 'dept_head', title: '项目部部长审批', roleLabel: '项目部部长' },
+  { key: 'design_head', title: '设计部负责人审批', roleLabel: '设计部负责人' },
+  { key: 'design_dept_head', title: '设计部部长审批', roleLabel: '设计部部长' },
 ]
 
 export const SUBCONTRACTOR_CC = {
@@ -34,8 +107,133 @@ export const SUBCONTRACTOR_CC = {
   user: '朱指挥',
 }
 
-function nowStr() {
-  return new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-')
+/** 按项目记忆上次填报的审批人（下次新建/重新报审时回显） */
+const subcontractorApproverMemoryByProject = reactive({
+  'p-000': {
+    projectManagerUserId: 'u-001',
+    projectManagerName: '刘付生',
+    deptHeadUserId: 'u-003',
+    deptHeadName: '陈静',
+    designHeadUserId: 'u-005',
+    designHeadName: '姚远东',
+    designDeptHeadUserId: 'u-007',
+    designDeptHeadName: '刘文强',
+    updatedAt: '2026-07-20 11:00:00',
+  },
+})
+
+function parsePortraitContact(raw) {
+  const text = String(raw || '').trim()
+  if (!text) return { name: '', phone: '' }
+  const slashParts = text.split(/\s*\/\s*/)
+  if (slashParts.length >= 2) {
+    const phone = slashParts[slashParts.length - 1].trim()
+    if (/\d{7,}/.test(phone)) {
+      return { name: slashParts.slice(0, -1).join(' / ').trim(), phone }
+    }
+  }
+  const glued = text.match(/^(.+?)(\d{11})$/)
+  if (glued) return { name: glued[1].trim(), phone: glued[2] }
+  return { name: text, phone: '' }
+}
+
+function emptyApprovers() {
+  return {
+    projectManagerUserId: '',
+    projectManagerName: '',
+    deptHeadUserId: '',
+    deptHeadName: '',
+    designHeadUserId: '',
+    designHeadName: '',
+    designDeptHeadUserId: '',
+    designDeptHeadName: '',
+  }
+}
+
+export function listSubcontractorApproverUsers() {
+  return listSysUsers()
+    .filter((item) => item.status !== false)
+    .map((item) => ({
+      userId: item.id,
+      name: item.name,
+      phone: item.phone || '',
+    }))
+}
+
+export function findSubcontractorApproverUser(userId) {
+  const user = getSysUser(userId)
+  if (!user || user.status === false) return null
+  return { userId: user.id, name: user.name, phone: user.phone || '' }
+}
+
+export function getSubcontractorApproverMemory(projectId) {
+  if (!projectId) return null
+  return subcontractorApproverMemoryByProject[projectId] || null
+}
+
+function saveSubcontractorApproverMemory(projectId, approvers) {
+  if (!projectId || !approvers) return
+  subcontractorApproverMemoryByProject[projectId] = {
+    ...emptyApprovers(),
+    ...approvers,
+    updatedAt: nowStr(),
+  }
+}
+
+function resolvePmUserFromProject(projectId) {
+  const detail = getProjectDetail(projectId)
+  if (!detail) return null
+  const contact = parsePortraitContact(detail.projectManagerContact)
+  const name = contact.name || displayProjectManagerName(detail)
+  const phone = contact.phone
+  if (!name) return null
+  const hit = listSubcontractorApproverUsers().find((user) => {
+    if (phone) return user.name === name && user.phone === phone
+    return user.name === name
+  })
+  return hit || null
+}
+
+export function resolveDefaultApprovers(projectId) {
+  const result = emptyApprovers()
+  if (!projectId) return result
+  const memory = getSubcontractorApproverMemory(projectId)
+  const pmFromProject = resolvePmUserFromProject(projectId)
+
+  if (memory?.projectManagerUserId || memory?.projectManagerName) {
+    result.projectManagerUserId = memory.projectManagerUserId || ''
+    result.projectManagerName = memory.projectManagerName || ''
+  } else if (pmFromProject) {
+    result.projectManagerUserId = pmFromProject.userId || ''
+    result.projectManagerName = pmFromProject.name || ''
+  }
+
+  if (memory?.deptHeadUserId) {
+    result.deptHeadUserId = memory.deptHeadUserId
+    result.deptHeadName = memory.deptHeadName || ''
+  }
+  if (memory?.designHeadUserId) {
+    result.designHeadUserId = memory.designHeadUserId
+    result.designHeadName = memory.designHeadName || ''
+  }
+  if (memory?.designDeptHeadUserId) {
+    result.designDeptHeadUserId = memory.designDeptHeadUserId
+    result.designDeptHeadName = memory.designDeptHeadName || ''
+  }
+  return result
+}
+
+function resolveNodeUserName(approvers, nodeKey) {
+  const nameMap = {
+    pm: approvers?.projectManagerName,
+    dept_head: approvers?.deptHeadName,
+    design_head: approvers?.designHeadName,
+    design_dept_head: approvers?.designDeptHeadName,
+  }
+  const name = String(nameMap[nodeKey] || '').trim()
+  if (name) return name
+  const node = SUBCONTRACTOR_APPROVAL_NODES.find((item) => item.key === nodeKey)
+  return node?.roleLabel || '—'
 }
 
 function emptyQualification() {
@@ -43,11 +241,15 @@ function emptyQualification() {
 }
 
 function emptySafetyLicense() {
-  return { licenseNo: '', expiry: '', photoName: '', photoUrl: '' }
+  return { licenseNo: '', expiryStart: '', expiryEnd: '', fileName: '', fileUrl: '' }
 }
 
 function emptyLaborContract() {
   return { contractNo: '', fileName: '', fileUrl: '', amount: '' }
+}
+
+function emptyOrgStructureChart() {
+  return { fileName: '', fileUrl: '' }
 }
 
 export function createEmptySubcontractorApplication(projectId = '', projectName = '') {
@@ -60,9 +262,12 @@ export function createEmptySubcontractorApplication(projectId = '', projectName 
     projectLeaderContact: '',
     safetyManagerContact: '',
     orgStructureDesc: '',
+    orgStructureChart: emptyOrgStructureChart(),
+    remark: '',
     qualifications: [emptyQualification()],
     safetyLicense: emptySafetyLicense(),
     laborContract: emptyLaborContract(),
+    approvers: resolveDefaultApprovers(projectId),
     status: '',
     currentNodeKey: '',
     submitter: '施工单位',
@@ -81,15 +286,17 @@ export function cloneSubcontractorApplication(row) {
     ...row,
     safetyManagerContact,
     qualifications: (row.qualifications || []).map((item) => ({ ...item })),
-    safetyLicense: { ...(row.safetyLicense || emptySafetyLicense()) },
+    safetyLicense: normalizeSafetyLicense(row.safetyLicense || emptySafetyLicense()),
+    orgStructureChart: { ...(row.orgStructureChart || emptyOrgStructureChart()) },
     laborContract: { ...(row.laborContract || emptyLaborContract()) },
+    approvers: { ...(row.approvers || emptyApprovers()) },
     approvalFlow: (row.approvalFlow || []).map((item) => ({ ...item })),
   }
   delete next.safetyManagerContact2
   return next
 }
 
-function buildSubmitFlow(applicant, applyTime) {
+function buildSubmitFlow(applicant, applyTime, approvers = {}) {
   return [
     {
       title: '施工单位提交',
@@ -102,7 +309,7 @@ function buildSubmitFlow(applicant, applyTime) {
     ...SUBCONTRACTOR_APPROVAL_NODES.map((node, index) => ({
       title: node.title,
       time: '',
-      user: node.user,
+      user: resolveNodeUserName(approvers, node.key),
       remark: index === 0 ? '待审批' : '待流转',
       status: index === 0 ? 'current' : 'pending',
       nodeKey: node.key,
@@ -120,8 +327,8 @@ function buildSubmitFlow(applicant, applyTime) {
 }
 
 /** 已走到指定节点（currentNodeKey）的审批流 */
-function buildFlowAtNode(applicant, submitTime, currentNodeKey, remarks = {}) {
-  const flow = buildSubmitFlow(applicant, submitTime)
+function buildFlowAtNode(applicant, submitTime, currentNodeKey, remarks = {}, approvers = {}) {
+  const flow = buildSubmitFlow(applicant, submitTime, approvers)
   const nodeKeys = SUBCONTRACTOR_APPROVAL_NODES.map((n) => n.key)
   const currentIdx = nodeKeys.indexOf(currentNodeKey)
   if (currentIdx < 0) return flow
@@ -145,7 +352,7 @@ function buildFlowAtNode(applicant, submitTime, currentNodeKey, remarks = {}) {
   return flow
 }
 
-function buildApprovedFlow(applicant, submitTime, approveTime) {
+function buildApprovedFlow(applicant, submitTime, approveTime, approvers = {}) {
   return [
     {
       title: '施工单位提交',
@@ -158,7 +365,7 @@ function buildApprovedFlow(applicant, submitTime, approveTime) {
     ...SUBCONTRACTOR_APPROVAL_NODES.map((node) => ({
       title: node.title,
       time: approveTime,
-      user: node.user,
+      user: resolveNodeUserName(approvers, node.key),
       remark: '同意',
       status: 'done',
       nodeKey: node.key,
@@ -224,6 +431,8 @@ const seedList = [
     projectLeaderContact: '陈市政 / 13600136006',
     safetyManagerContact: '赵安全 / 13500135007；钱安全 / 13400134008',
     orgStructureDesc: '项目经理部下设安全部、技术部、质量部；现场设专职安全员 2 名。',
+    orgStructureChart: { fileName: '分包组织架构图.pdf', fileUrl: '' },
+    remark: '首批进场分包，已完成资质核验。',
     qualifications: [
       { certNo: 'D1440000005566778', fileName: '市政总包一级资质.pdf', fileUrl: '' },
       { certNo: 'D2440000001122334', fileName: '公路二级资质.pdf', fileUrl: '' },
@@ -231,8 +440,8 @@ const seedList = [
     safetyLicense: {
       licenseNo: '（粤）JZ安许证字〔2023〕009876',
       expiry: '2026-12-31',
-      photoName: '安全生产许可证.jpg',
-      photoUrl: '',
+      fileName: '安全生产许可证.jpg',
+      fileUrl: '',
     },
     laborContract: {
       contractNo: 'HT-T2-FB-2025-012',
@@ -263,8 +472,8 @@ const seedList = [
     safetyLicense: {
       licenseNo: '（粤）JZ安许证字〔2021〕003210',
       expiry: '2025-12-31',
-      photoName: '安全生产许可证.jpg',
-      photoUrl: '',
+      fileName: '安全生产许可证.jpg',
+      fileUrl: '',
     },
     laborContract: {
       contractNo: 'HT-T2-FB-2025-018',
@@ -295,8 +504,8 @@ const seedList = [
     safetyLicense: {
       licenseNo: '（粤）JZ安许证字〔2025〕004321',
       expiry: '2028-03-15',
-      photoName: '安全生产许可证.jpg',
-      photoUrl: '',
+      fileName: '安全生产许可证.jpg',
+      fileUrl: '',
     },
     laborContract: {
       contractNo: 'HT-SPD-LW-2026-003',
@@ -328,8 +537,8 @@ const seedList = [
     safetyLicense: {
       licenseNo: '（粤）JZ安许证字〔2024〕011234',
       expiry: '2027-06-30',
-      photoName: '安全生产许可证.jpg',
-      photoUrl: '',
+      fileName: '安全生产许可证.jpg',
+      fileUrl: '',
     },
     laborContract: {
       contractNo: 'HT-T2-FB-2026-021',
@@ -360,8 +569,8 @@ const seedList = [
     safetyLicense: {
       licenseNo: '（粤）JZ安许证字〔2022〕007654',
       expiry: '2026-08-31',
-      photoName: '安全生产许可证.jpg',
-      photoUrl: '',
+      fileName: '安全生产许可证.jpg',
+      fileUrl: '',
     },
     laborContract: {
       contractNo: 'HT-T2-FB-2026-025',
@@ -392,8 +601,8 @@ const seedList = [
     safetyLicense: {
       licenseNo: '（粤）JZ安许证字〔2023〕005432',
       expiry: '2026-11-30',
-      photoName: '安全生产许可证.jpg',
-      photoUrl: '',
+      fileName: '安全生产许可证.jpg',
+      fileUrl: '',
     },
     laborContract: {
       contractNo: 'HT-T2-LW-2026-008',
@@ -430,8 +639,8 @@ const seedList = [
     safetyLicense: {
       licenseNo: '（粤）JZ安许证字〔2024〕008765',
       expiry: '2027-12-31',
-      photoName: '安全生产许可证.jpg',
-      photoUrl: '',
+      fileName: '安全生产许可证.jpg',
+      fileUrl: '',
     },
     laborContract: {
       contractNo: 'HT-T1-FB-2026-004',
@@ -462,8 +671,8 @@ const seedList = [
     safetyLicense: {
       licenseNo: '（粤）JZ安许证字〔2025〕002198',
       expiry: '2028-05-20',
-      photoName: '安全生产许可证.jpg',
-      photoUrl: '',
+      fileName: '安全生产许可证.jpg',
+      fileUrl: '',
     },
     laborContract: {
       contractNo: 'HT-T1-LW-2026-011',
@@ -472,10 +681,10 @@ const seedList = [
       amount: '420',
     },
     status: '审批中',
-    currentNodeKey: 'design_lin',
+    currentNodeKey: 'design_head',
     submitter: '施工单位',
     submitTime: '2026-08-15 14:00:00',
-    approvalFlow: buildFlowAtNode('施工单位', '2026-08-15 14:00:00', 'design_lin'),
+    approvalFlow: buildFlowAtNode('施工单位', '2026-08-15 14:00:00', 'design_head'),
     createdAt: '2026-08-15 13:30:00',
     updatedAt: '2026-08-16 17:00:00',
   },
@@ -495,8 +704,8 @@ const seedList = [
     safetyLicense: {
       licenseNo: '（鄂）JZ安许证字〔2023〕015678',
       expiry: '2026-09-30',
-      photoName: '安全生产许可证.jpg',
-      photoUrl: '',
+      fileName: '安全生产许可证.jpg',
+      fileUrl: '',
     },
     laborContract: {
       contractNo: 'HT-SPD-FB-2026-015',
@@ -505,10 +714,10 @@ const seedList = [
       amount: '8900',
     },
     status: '审批中',
-    currentNodeKey: 'design_leader',
+    currentNodeKey: 'design_dept_head',
     submitter: '施工单位',
     submitTime: '2026-08-10 10:15:00',
-    approvalFlow: buildFlowAtNode('施工单位', '2026-08-10 10:15:00', 'design_leader'),
+    approvalFlow: buildFlowAtNode('施工单位', '2026-08-10 10:15:00', 'design_dept_head'),
     createdAt: '2026-08-10 09:50:00',
     updatedAt: '2026-08-14 11:40:00',
   },
@@ -527,8 +736,8 @@ const seedList = [
     safetyLicense: {
       licenseNo: '（晋）JZ安许证字〔2024〕009876',
       expiry: '2027-04-30',
-      photoName: '安全生产许可证.jpg',
-      photoUrl: '',
+      fileName: '安全生产许可证.jpg',
+      fileUrl: '',
     },
     laborContract: {
       contractNo: 'HT-SPD-LW-2026-019',
@@ -559,8 +768,8 @@ const seedList = [
     safetyLicense: {
       licenseNo: '（粤）JZ安许证字〔2025〕006543',
       expiry: '2028-01-15',
-      photoName: '安全生产许可证.jpg',
-      photoUrl: '',
+      fileName: '安全生产许可证.jpg',
+      fileUrl: '',
     },
     laborContract: {
       contractNo: 'HT-BZ-FB-2026-002',
@@ -591,8 +800,8 @@ const seedList = [
     safetyLicense: {
       licenseNo: '（粤）JZ安许证字〔2022〕004321',
       expiry: '2026-10-31',
-      photoName: '安全生产许可证.jpg',
-      photoUrl: '',
+      fileName: '安全生产许可证.jpg',
+      fileUrl: '',
     },
     laborContract: {
       contractNo: 'HT-BZ-LW-2026-006',
@@ -623,8 +832,8 @@ const seedList = [
     safetyLicense: {
       licenseNo: '（沪）JZ安许证字〔2024〕012345',
       expiry: '2027-08-31',
-      photoName: '安全生产许可证.jpg',
-      photoUrl: '',
+      fileName: '安全生产许可证.jpg',
+      fileUrl: '',
     },
     laborContract: {
       contractNo: 'HT-DHZ-FB-2026-007',
@@ -662,8 +871,8 @@ const seedList = [
     safetyLicense: {
       licenseNo: '（京）JZ安许证字〔2023〕018765',
       expiry: '2026-12-15',
-      photoName: '安全生产许可证.jpg',
-      photoUrl: '',
+      fileName: '安全生产许可证.jpg',
+      fileUrl: '',
     },
     laborContract: {
       contractNo: 'HT-ZH3-FB-2026-009',
@@ -705,6 +914,32 @@ export function findSubcontractorApplication(id) {
   return subcontractorList.find((row) => row.id === id) || null
 }
 
+function validateLaborContractAmount(amount) {
+  const raw = String(amount ?? '').trim().replace(/万元/g, '')
+  if (!raw) return '请填写劳务合同金额'
+  if (!/^\d+(\.\d{1,2})?$/.test(raw)) return '劳务合同金额须为正数，最多两位小数'
+  if (Number(raw) <= 0) return '劳务合同金额须大于 0'
+  return ''
+}
+
+function hasAttachment(fileName, fileUrl) {
+  return Boolean(String(fileName || '').trim() || String(fileUrl || '').trim())
+}
+
+function validateApprovers(approvers) {
+  const checks = [
+    ['projectManagerUserId', '请选择项目经理'],
+    ['deptHeadUserId', '请选择项目部部长'],
+    ['designHeadUserId', '请选择设计部负责人'],
+    ['designDeptHeadUserId', '请选择设计部部长'],
+  ]
+  for (const [key, msg] of checks) {
+    if (!approvers?.[key]) return msg
+    if (!findSubcontractorApproverUser(approvers[key])) return `${msg}（须在系统用户范围内）`
+  }
+  return ''
+}
+
 function validateApplication(data) {
   if (!data?.projectId) return '请选择所属项目'
   if (!data?.name?.trim()) return '请填写分包单位名称'
@@ -712,28 +947,25 @@ function validateApplication(data) {
   if (!data?.projectLeaderContact?.trim()) return '请填写项目负责人姓名及电话'
   if (!data?.safetyManagerContact?.trim()) return '请填写安全管理人员姓名及电话'
   if (!data?.orgStructureDesc?.trim()) return '请填写分包组织架构说明'
-  if (!data?.qualifications?.length || !data.qualifications.some((q) => q.certNo?.trim())) {
-    return '请至少填写一条资质证书编号'
+  const safetyLicense = normalizeSafetyLicense(data?.safetyLicense)
+  if (!safetyLicense.licenseNo?.trim()) return '请填写安全生产许可证编号'
+  if (!safetyLicense.expiryStart) return '请选择安全生产许可证有效期开始日期'
+  if (!safetyLicense.expiryEnd) return '请选择安全生产许可证有效期结束日期'
+  if (safetyLicense.expiryStart > safetyLicense.expiryEnd) {
+    return '安全生产许可证有效期结束日期不能早于开始日期'
   }
-  if (!data?.safetyLicense?.licenseNo?.trim()) return '请填写安全生产许可证编号'
-  if (!data?.safetyLicense?.expiry) return '请选择安全生产许可证有效期'
+  if (!hasAttachment(data?.safetyLicense?.fileName, data?.safetyLicense?.fileUrl)) {
+    return '请上传安全生产许可证附件'
+  }
   if (!data?.laborContract?.contractNo?.trim()) return '请填写劳务合同编号'
-  return ''
-}
-
-export function saveSubcontractorDraft(payload) {
-  const data = cloneSubcontractorApplication(payload)
-  data.name = data.name?.trim() || ''
-  data.status = data.status || ''
-  data.currentNodeKey = ''
-  data.updatedAt = nowStr()
-  const idx = subcontractorList.findIndex((item) => item.id === data.id)
-  if (idx >= 0) {
-    Object.assign(subcontractorList[idx], data)
-    return { ok: true, data: subcontractorList[idx] }
+  const amountErr = validateLaborContractAmount(data?.laborContract?.amount)
+  if (amountErr) return amountErr
+  if (!hasAttachment(data?.laborContract?.fileName, data?.laborContract?.fileUrl)) {
+    return '请上传劳务合同附件'
   }
-  subcontractorList.unshift(data)
-  return { ok: true, data }
+  const approverErr = validateApprovers(data?.approvers)
+  if (approverErr) return approverErr
+  return ''
 }
 
 export function submitSubcontractorApplication(payload) {
@@ -749,7 +981,8 @@ export function submitSubcontractorApplication(payload) {
   data.currentNodeKey = 'pm'
   data.submitter = data.submitter || '施工单位'
   data.submitTime = applyTime
-  data.approvalFlow = buildSubmitFlow(data.submitter, applyTime)
+  data.approvalFlow = buildSubmitFlow(data.submitter, applyTime, data.approvers)
+  saveSubcontractorApproverMemory(data.projectId, data.approvers)
   data.updatedAt = applyTime
 
   const idx = subcontractorList.findIndex((item) => item.id === data.id)
@@ -761,18 +994,21 @@ export function submitSubcontractorApplication(payload) {
 }
 
 function toPortraitBlock(row) {
+  const sl = normalizeSafetyLicense(row.safetyLicense || {})
+  const hasLicense = hasSubcontractorSafetyLicense(row)
   return createSubcontractorBlock({
     unitName: row.name,
     projectLeaderContact: row.projectLeaderContact,
     safetyManagerContact: row.safetyManagerContact,
-    hasSafetyLicense: Boolean(row.safetyLicense?.licenseNo),
-    safetyLicenseNo: row.safetyLicense?.licenseNo || '',
-    safetyLicenseExpiry: row.safetyLicense?.expiry || '',
-    safetyLicensePhoto: row.safetyLicense?.photoName || '',
+    hasSafetyLicense: hasLicense,
+    safetyLicenseNo: sl.licenseNo || '',
+    safetyLicenseExpiry: formatSafetyLicenseExpiry(sl),
+    safetyLicensePhoto: sl.fileName || sl.fileUrl || '',
     qualifications: [
-      { label: '资质证件', possessed: (row.qualifications || []).length > 0 },
-      { label: '职称证书', possessed: false },
-      { label: '资格证书', possessed: false },
+      {
+        label: '资格证书',
+        possessed: (row.qualifications || []).some((q) => String(q.certNo || '').trim()),
+      },
     ],
   })
 }

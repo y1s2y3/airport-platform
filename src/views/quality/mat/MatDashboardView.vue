@@ -72,7 +72,7 @@ async function viewProjectDetail(row) {
   <div class="qm-page page-card">
     <div class="page-header">
       <div class="page-breadcrumb">
-        {{ isHqSelected ? '质量看板' : '材料设备进场管理' }} / 材料设备进场
+        {{ isHqSelected ? '质量看板' : '材料设备进场' }} / 材料设备进场
       </div>
       <h1 class="page-title">材料设备进场</h1>
       <p class="page-tip">

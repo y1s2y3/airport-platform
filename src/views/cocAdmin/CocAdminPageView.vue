@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { getCocAdminItem } from '../../config/cocAdminMenu.js'
+import { getCocAdminItem } from '../../config/menu.js'
 import { ensureDailyWorkSeed } from '../../coc/utils/dailyWorkStorage.js'
 import { ensureDispatchMeetingSeed } from '../../coc/utils/dispatchMeetingStorage.js'
 import { ensureMonitorGroupSeed } from '../../coc/utils/monitorAdminStorage.js'

@@ -1,4 +1,5 @@
 import { getWarningRuleLabel } from './laborWarningConfig.js'
+import { nowStr } from '../utils/datetime.js'
 import {
   projectTree,
   getProjectLabel,
@@ -507,7 +508,7 @@ export function handleWarning(id, { content, operator = '当前用户', close = 
   if (item.status === '已关闭' || isNotifyStatus(item.status)) return item
   if (item.handle_mode !== '手动处理') return item
 
-  const now = new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-')
+  const now = nowStr()
   const record = {
     time: now,
     type: close ? 'close' : 'handle',
@@ -537,7 +538,7 @@ export function batchDisposeWarnings(
   { content, operator = '当前用户', attachments = [], disposal_result } = {},
 ) {
   const idSet = new Set((ids || []).map(String))
-  const now = new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-')
+  const now = nowStr()
   const attachNames = (attachments || []).map((file) =>
     typeof file === 'string' ? file : file.name,
   )

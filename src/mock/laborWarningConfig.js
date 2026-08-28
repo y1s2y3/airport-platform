@@ -1,3 +1,5 @@
+import { nowStr } from '../utils/datetime.js'
+
 /** 分级管控可选岗位 */
 export const tierPositionCatalog = [
   { id: 'pos-safety-officer', name: '安全员' },
@@ -31,26 +33,12 @@ export const tierPersonnelCatalog = [
   { id: 'u-site-01', name: '何现场', dept: '总包项目部', positionIds: ['pos-site-manager'] },
 ]
 
-/** @deprecated 兼容旧引用：按历史岗位 key 分组 */
-export const tierRecipientOptions = {
-  chiefSupervisor: tierPersonnelCatalog.filter((u) => u.positionIds.includes('pos-chief-supervisor')),
-  projectManager: tierPersonnelCatalog.filter((u) => u.positionIds.includes('pos-hq-pm')),
-  safetyDirector: tierPersonnelCatalog.filter((u) => u.positionIds.includes('pos-safety-director')),
-  commander: tierPersonnelCatalog.filter((u) => u.positionIds.includes('pos-commander')),
-}
-
-/** @deprecated 兼容旧引用 */
-export const tierLevelDefinitions = [
+const legacyTierLevelDefinitions = [
   { key: 'chiefSupervisor', label: '总监理', level: 1 },
   { key: 'projectManager', label: '项目经理', level: 2 },
   { key: 'safetyDirector', label: '安全部主管人员', level: 3 },
   { key: 'commander', label: '指挥长', level: 4 },
 ]
-
-/** @deprecated */
-export const tierRecipientLabels = Object.fromEntries(
-  tierLevelDefinitions.map((item) => [item.key, item.label]),
-)
 
 const LEGACY_TIER_KEY_TO_POSITION = {
   chiefSupervisor: 'pos-chief-supervisor',
@@ -110,7 +98,7 @@ function normalizeTierLevels(rawLevels) {
     }))
   }
   if (rawLevels && typeof rawLevels === 'object') {
-    return tierLevelDefinitions.map((def, index) => {
+    return legacyTierLevelDefinitions.map((def, index) => {
       const old = rawLevels[def.key] || {}
       return {
         id: `tier-${def.key}`,
@@ -245,11 +233,6 @@ let projectConfigStore = Object.fromEntries(
   PROJECT_IDS.map((id) => [id, normalizeConfig(defaultConfig)]),
 )
 
-function nowStamp() {
-  const d = new Date()
-  const p = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
-}
 
 /** 项目级人员轨迹外链（不统一轨迹硬件/数据标准） */
 const defaultProjectTrackJump = {
@@ -298,7 +281,7 @@ export function saveProjectTrackJump(project_id, payload = {}) {
     enabled: Boolean(payload.enabled),
     system_name: String(payload.system_name || '').trim(),
     url: String(payload.url || '').trim(),
-    updated_at: nowStamp(),
+    updated_at: nowStr(),
   }
   return getProjectTrackJump(project_id)
 }
@@ -319,16 +302,6 @@ export function listConfiguredPersonnelTrackSystems() {
       }
     })
     .filter((row) => row.url)
-}
-
-/** @deprecated 已取消现场实名制对接开关；恒为对接同步模式 */
-export function getProjectSiteIntegration() {
-  return { enabled: true }
-}
-
-/** @deprecated */
-export function saveProjectSiteIntegration() {
-  return { enabled: true }
 }
 
 /** 现场实名制对接同步字段说明（文档/提示用） */
@@ -385,19 +358,4 @@ export function resetProjectWarningConfig(project_id) {
   if (!project_id || project_id === 'hq') return normalizeConfig(defaultConfig)
   projectConfigStore[project_id] = normalizeConfig(defaultConfig)
   return structuredClone(projectConfigStore[project_id])
-}
-
-/** @deprecated 请使用 getProjectWarningConfig(project_id) */
-export function getWarningConfig() {
-  return getProjectWarningConfig('p-000')
-}
-
-/** @deprecated */
-export function saveWarningConfig(data) {
-  return saveProjectWarningConfig('p-000', data)
-}
-
-/** @deprecated */
-export function resetWarningConfig() {
-  return resetProjectWarningConfig('p-000')
 }

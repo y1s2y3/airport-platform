@@ -1,4 +1,17 @@
 import { mergeSafetyProfile } from './projectSafetyProfile'
+import { listSysUsers } from './sysUsers'
+import { parseOneContact } from '../utils/contactValue'
+
+function findSysUserByContact(name, phone) {
+  const nextName = String(name || '').trim()
+  const nextPhone = String(phone || '').trim()
+  if (!nextName || !nextPhone) return null
+  return (
+    listSysUsers().find(
+      (user) => user.status !== false && user.name === nextName && user.phone === nextPhone,
+    ) || null
+  )
+}
 
 export const projectTypeOptions = [
   '房屋市政工程',
@@ -29,6 +42,8 @@ export function createProjectFields(overrides = {}) {
     subcontractorUnit: '',
     overview: '',
     constructionSite: '',
+    constructionSiteLng: '',
+    constructionSiteLat: '',
     entryTime: '',
     plannedCompletionTime: '',
     constructionPeriodStart: '',
@@ -36,6 +51,9 @@ export function createProjectFields(overrides = {}) {
     status: '前期',
     personInCharge: '',
     peakPersonnelCount: '',
+    totalInvestment: '',
+    buildingTotalArea: '',
+    filingNumber: '',
     projectType: '',
     permitStatus: '',
     permitPhoto: '',
@@ -72,15 +90,28 @@ export const projectList = [
       subcontractorUnit: '深圳市政集团有限公司',
       overview: 'T2航站区及配套工程总体建设，含航站楼主体、站坪及配套市政设施。',
       constructionSite: '宝安国际机场T2航站区',
+      constructionSiteLng: 113.8106,
+      constructionSiteLat: 22.6397,
       entryTime: '2025-01-01',
       plannedCompletionTime: '2029-12-31',
       peakPersonnelCount: '1850',
+      totalInvestment: '1280000',
+      buildingTotalArea: '850000',
+      filingNumber: 'BA202501001',
       projectType: '房屋市政工程',
       permitStatus: '已办理施工许可证',
       permitPhoto: '施工许可证-T2.jpg',
       deptHeadContact: '姚远东13800138000',
       projectManagerContact: '王建国13800138001',
       safetyLiaisonContact: '李安全13900139002',
+      safetyProfile: {
+        camp: {
+          hasCamp: '是',
+          campAddress: 'T2项目工人营地',
+          campAddressLng: 113.8082,
+          campAddressLat: 22.6415,
+        },
+      },
     }),
   },
   {
@@ -101,9 +132,14 @@ export const projectList = [
       subcontractorUnit: '深圳广田装饰集团股份有限公司',
       overview: 'T1航站区及配套设施改造与扩建工程。',
       constructionSite: 'T1航站区',
+      constructionSiteLng: 113.7985,
+      constructionSiteLat: 22.6288,
       entryTime: '2024-06-01',
       plannedCompletionTime: '2027-06-30',
       peakPersonnelCount: '620',
+      totalInvestment: '356000',
+      buildingTotalArea: '210000',
+      filingNumber: 'BA202406018',
       projectType: '房屋市政工程',
       permitStatus: '已办理施工许可证',
       permitPhoto: '施工许可证-T1.jpg',
@@ -130,6 +166,9 @@ export const projectList = [
       overview: '东航站区、停车楼及配套业务设施建设。',
       constructionSite: '东航站区',
       peakPersonnelCount: '480',
+      totalInvestment: '420000',
+      buildingTotalArea: '165000',
+      filingNumber: 'BA202503006',
       projectType: '房屋市政工程',
       permitStatus: '已办理民航质监安监备案',
       deptHeadContact: '林建源13700137000',
@@ -155,6 +194,9 @@ export const projectList = [
       overview: '综合配套三期及南区下穿通道工程施工。',
       constructionSite: '综合配套三期',
       peakPersonnelCount: '360',
+      totalInvestment: '98000',
+      buildingTotalArea: '72000',
+      filingNumber: '',
       projectType: '房屋市政工程',
       permitStatus: '未办理',
       deptHeadContact: '戴毅峰13400134001',
@@ -180,6 +222,9 @@ export const projectList = [
       overview: '配套站坪、竖和站坪及机务区地基处理工程。',
       constructionSite: '东航站区站坪',
       peakPersonnelCount: '280',
+      totalInvestment: '76000',
+      buildingTotalArea: '58000',
+      filingNumber: 'BA202504012',
       projectType: '民航专业工程',
       permitStatus: '已办理民航质监安监备案',
       deptHeadContact: '戴毅峰13500135001',
@@ -210,6 +255,9 @@ export const projectList = [
       entryTime: '2026-05-15',
       plannedCompletionTime: '2028-06-28',
       peakPersonnelCount: '230',
+      totalInvestment: '18500',
+      buildingTotalArea: '8600',
+      filingNumber: '',
       projectType: '房屋市政工程',
       permitStatus: '未办理',
       permitPhoto: '',
@@ -217,6 +265,44 @@ export const projectList = [
       projectManagerContact: '裴云龙18588955314',
       safetyLiaisonContact: '李庆福13510343400',
       safetyProfile: mergeSafetyProfile({
+        siteClearance: {
+          clearanceHeightInvolved: '否',
+          clearanceHeightRequirement: '/',
+        },
+        siteNewEnergyCharging: {
+          enabled: '否',
+          pileCount: '',
+          installQualified: '',
+          parkingCount: '',
+        },
+        siteElectricBicycle: {
+          enabled: '否',
+          socketCount: '',
+          installQualified: '',
+          parkingCount: '',
+        },
+        camp: {
+          hasCamp: '是',
+          campAddress: '深圳市宝安区福永街道机场九道',
+          campOccupiedArea: '22000',
+          campTotalPeople: '280',
+          campBuildingCount: '26',
+          campBuildingMaterialOk: '否',
+          campHasCanteen: '是',
+          canteenFuelType: '电气',
+        },
+        campNewEnergyCharging: {
+          enabled: '是',
+          pileCount: '2',
+          installQualified: '是',
+          parkingCount: '5',
+        },
+        campElectricBicycle: {
+          enabled: '否',
+          socketCount: '0',
+          installQualified: '是',
+          parkingCount: '0',
+        },
         generalContractor: {
           unitName: '中国建筑第五工程局有限公司',
           legalPersonContact: '叶传雄13675000757',
@@ -255,6 +341,9 @@ export const projectList = [
       entryTime: '2024-01-15',
       plannedCompletionTime: '2029-03-31',
       peakPersonnelCount: '980',
+      totalInvestment: '520000',
+      buildingTotalArea: '125000',
+      filingNumber: 'BA202401003',
       projectType: '民航专业工程',
       permitStatus: '已办理施工许可证',
       permitPhoto: '施工许可证-三跑道.jpg',
@@ -290,7 +379,7 @@ export function createEmptyProject() {
     shortName: '',
     hidden: false,
     projectCode: id,
-    status: '前期',
+    status: '在建',
     personInCharge: '',
     constructionPeriodStart: '',
     constructionPeriodEnd: '',
@@ -310,6 +399,14 @@ export function formatConstructionPeriod(row) {
   if (start && end) return `${start} ~ ${end}`
   if (start || end) return start || end
   return ''
+}
+
+/** 项目总投资(万元)：右对齐千分位；空显示「—」 */
+export function formatTotalInvestment(value) {
+  if (value === '' || value === null || value === undefined) return '—'
+  const num = Number(value)
+  if (!Number.isFinite(num)) return '—'
+  return num.toLocaleString('zh-CN', { maximumFractionDigits: 4 })
 }
 
 /** 建设单位项目经理：从 projectManagerContact 提取用户名称 */
@@ -336,8 +433,12 @@ export function validateProjectPortraitRequired(data) {
   if (!String(data?.shortName || '').trim()) {
     return { ok: false, msg: '请填写项目简称' }
   }
-  if (!String(data?.projectManagerContact || '').trim()) {
-    return { ok: false, msg: '请选择项目经理（项目负责人）姓名及电话' }
+  const manager = parseOneContact(data?.projectManagerContact)
+  if (!manager.name || !manager.phone) {
+    return { ok: false, msg: '请选择项目经理（项目负责人）' }
+  }
+  if (!findSysUserByContact(manager.name, manager.phone)) {
+    return { ok: false, msg: '项目经理须从系统用户中选择' }
   }
   return { ok: true, msg: '' }
 }

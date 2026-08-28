@@ -2,6 +2,8 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { finishPersonalTodo } from '../../../mock/personalCenter.js'
+import PersonalCenterReadonlyHint from '../../../components/PersonalCenterReadonlyHint.vue'
 import {
   approveStep,
   approvalRecords,
@@ -36,7 +38,13 @@ const props = defineProps({
   title: { type: String, default: '验评审批' },
   listPath: { type: String, required: true },
   editPath: { type: String, required: true },
+  embedded: { type: Boolean, default: false },
+  taskId: { type: String, default: '' },
+  todoId: { type: String, default: '' },
+  readonly: { type: Boolean, default: false },
 })
+
+const emit = defineEmits(['back', 'finished'])
 
 const route = useRoute()
 const router = useRouter()
@@ -47,8 +55,14 @@ const demoApproverId = ref('')
 
 const isManualChain = computed(() => !!(task.value && usesManualApprovalFlow(task.value)))
 
+const resolvedTaskId = computed(() => props.taskId || String(route.query.id || ''))
+
+const showApproveActions = computed(
+  () => props.embedded && !props.readonly && task.value?.status === 1,
+)
+
 function load() {
-  task.value = route.query.id ? findTask(route.query.id) : null
+  task.value = resolvedTaskId.value ? findTask(resolvedTaskId.value) : null
   if (!task.value) return
   if (usesManualApprovalFlow(task.value)) {
     const node = getCurrentManualNode(task.value)
@@ -73,7 +87,30 @@ function load() {
   }
 }
 
-watch(() => route.query.id, load, { immediate: true })
+watch(resolvedTaskId, load, { immediate: true })
+
+function goList() {
+  if (props.embedded) {
+    emit('back')
+    return
+  }
+  router.push(props.listPath)
+}
+
+function goEdit() {
+  if (!task.value) return
+  if (props.embedded) return
+  router.push(`${props.editPath}?id=${task.value.id}`)
+}
+
+function syncPersonalTodoFinish(label) {
+  const todoId =
+    props.todoId ||
+    (Array.isArray(route.query.todoId) ? route.query.todoId[0] : route.query.todoId)
+  if (!todoId) return
+  finishPersonalTodo(String(todoId), label)
+  if (props.embedded) emit('finished', label)
+}
 
 const chain = computed(() => (task.value ? getApprovalChain(task.value) : []))
 const nextRole = computed(() => (task.value ? getNextApprovalRole(task.value) : null))
@@ -230,6 +267,7 @@ async function onApprove() {
     if (!r.ok) return ElMessage.error(r.msg)
     if (r.finished) {
       ElMessage.success('审批链完成，任务已通过')
+      syncPersonalTodoFinish('审批通过')
     } else {
       ElMessage.success(`本级通过，下一岗：${r.next}`)
     }
@@ -264,6 +302,7 @@ async function onApprove() {
   if (!r.ok) return ElMessage.error(r.msg)
   if (r.finished) {
     ElMessage.success('审批链完成，任务已通过')
+    syncPersonalTodoFinish('审批通过')
   } else {
     ElMessage.success(`本级通过，下一岗：${r.next}`)
     demoRole.value = r.next
@@ -286,6 +325,7 @@ async function onReject() {
     const r = rejectTask(task.value, value, role)
     if (!r.ok) return ElMessage.error(r.msg)
     ElMessage.warning('已判定不通过（退回状态已先写入档案系统并同步回本系统）')
+    syncPersonalTodoFinish('审批不通过')
     try {
       await ElMessageBox.confirm(
         '是否按驳回意见生成整改单？整改为驳回的结果，由任务提交人整改，不存在单独下发动作。',
@@ -298,7 +338,9 @@ async function onReject() {
     } catch {
       /* skip */
     }
-    router.push(`${props.editPath}?id=${task.value.id}`)
+    if (!props.embedded) {
+      router.push(`${props.editPath}?id=${task.value.id}`)
+    }
   } catch {
     /* cancel */
   }
@@ -308,7 +350,10 @@ function onRollback() {
   const r = rollbackToDraft(task.value)
   if (!r.ok) return ElMessage.error(r.msg)
   ElMessage.success('已退回待验评，可修改后重报')
-  router.push(`${props.editPath}?id=${task.value.id}`)
+  syncPersonalTodoFinish('退回重报')
+  if (!props.embedded) {
+    router.push(`${props.editPath}?id=${task.value.id}`)
+  }
 }
 
 void hasBlockFailItems
@@ -317,11 +362,11 @@ void hasBlockFailItems
 <template>
   <div v-if="!task" class="qm-page page-card">
     <el-empty description="未找到任务">
-      <el-button type="primary" @click="router.push(listPath)">返回列表</el-button>
+      <el-button type="primary" @click="goList">返回</el-button>
     </el-empty>
   </div>
   <div v-else class="qm-page page-card">
-    <div class="page-header">
+    <div v-if="!embedded" class="page-header">
       <div class="page-breadcrumb">质量验评 / {{ title }}</div>
       <h1 class="page-title">{{ task.task_no }} · 审批签章</h1>
       <p class="page-tip">
@@ -329,6 +374,15 @@ void hasBlockFailItems
         {{ TASK_STATUS[task.status] }}
       </p>
     </div>
+    <p v-else class="page-tip embed-tip">
+      {{ task.task_no }} · {{ resolveProjectName(task.project_id) }} · {{ nodeName }} ·
+      {{ TASK_TYPE_LABEL[task.task_type] }} · {{ TASK_STATUS[task.status] }}
+    </p>
+
+    <PersonalCenterReadonlyHint
+      v-if="!embedded && task.status === 1"
+      title="本页为只读查看；验评审批请在「个人中心 → 我的待办」中处理。"
+    />
 
     <div class="chain-box mb">
       <div class="section-title">审批链</div>
@@ -361,7 +415,7 @@ void hasBlockFailItems
       <p v-else-if="task.status === 2" class="hint ok">已办结通过</p>
     </div>
 
-    <div v-if="task.status === 1" class="filter-bar mb">
+    <div v-if="showApproveActions" class="filter-bar mb">
       <template v-if="isManualChain">
         <span>演示审批人</span>
         <el-select v-model="demoApproverId" style="width: 220px" placeholder="选择本级审批人" aria-label="选择本级审批人">
@@ -439,9 +493,9 @@ void hasBlockFailItems
       </el-timeline-item>
     </el-timeline>
 
-    <div class="filter-bar">
-      <el-button @click="router.push(listPath)">返回列表</el-button>
-      <el-button @click="router.push(`${editPath}?id=${task.id}`)">查看填报</el-button>
+    <div v-if="!embedded" class="filter-bar">
+      <el-button @click="goList">返回列表</el-button>
+      <el-button @click="goEdit">查看填报</el-button>
     </div>
   </div>
 </template>
@@ -460,5 +514,6 @@ void hasBlockFailItems
 .hint { font-size: 12px; color: #909399; }
 .hint.ok { color: #67c23a; }
 .warn-text { color: #e6a23c; }
+.embed-tip { margin: 0 0 8px; font-size: 13px; color: #606266; }
 .chain-box { background: #fafafa; padding: 12px; border-radius: 8px; }
 </style>

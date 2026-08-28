@@ -1,8 +1,9 @@
 ﻿/**
- * 材料设备进场管理 Mock — 对齐 research-mat-eq V2.0
- * 审批入口：个人中心待办（仅监理）
+ * 材料设备进场 Mock — 对齐 research-mat-eq V2.1
+ * 审批入口：个人中心待办（仅监理）；申报须指定监理审批人
  */
 import { reactive } from 'vue'
+import { nowStr } from '../utils/datetime.js'
 import { getProjectLabel } from './laborRealName.js'
 import { COC_PROJECT_OPTIONS } from '../config/projectOptions.js'
 import { searchLedgerBrands } from './brand.js'
@@ -12,6 +13,74 @@ import {
   discardMatEntryTodos,
   discardEqEntryTodos,
 } from './personalCenter.js'
+
+/**
+ * 监理审批人候选（原型暂用与品牌报审一致的监理人员池）
+ * 岗位口径对齐质量验评「监理单位人员」常见岗位；后续岗位字典定稿可替换。
+ */
+export const MAT_SUPERVISOR_APPROVER_CANDIDATES = [
+  {
+    user_id: 'u-jl-01',
+    name: '李总监',
+    post: 'jl_chief',
+    post_label: '总监理工程师',
+    org: '深圳某监理有限公司',
+  },
+  {
+    user_id: 'u-jl-02',
+    name: '王代总',
+    post: 'jl_deputy',
+    post_label: '总监理工程师代表',
+    org: '深圳某监理有限公司',
+  },
+  {
+    user_id: 'u-jl-03',
+    name: '赵专监',
+    post: 'jl_pro',
+    post_label: '专业监理工程师',
+    org: '深圳某监理有限公司',
+  },
+  {
+    user_id: 'u-jl-04',
+    name: '钱专监',
+    post: 'jl_pro',
+    post_label: '专业监理工程师',
+    org: '深圳某监理有限公司',
+  },
+  {
+    user_id: 'u-jl-05',
+    name: '孙监理',
+    post: 'jl_site',
+    post_label: '项目监理机构人员',
+    org: '深圳某监理有限公司',
+  },
+]
+
+/** 本项目监理岗位人员（单选候选） */
+export function listMatSupervisorApprovers(projectId) {
+  if (!projectId) return []
+  return MAT_SUPERVISOR_APPROVER_CANDIDATES.map((u) => ({ ...u }))
+}
+
+export function findMatSupervisorApprover(userId) {
+  return MAT_SUPERVISOR_APPROVER_CANDIDATES.find((u) => u.user_id === userId) || null
+}
+
+function resolveSupervisorApproverFields(payload) {
+  const supervisor_approver_user_id = String(payload.supervisor_approver_user_id || '').trim()
+  if (!supervisor_approver_user_id) {
+    return { ok: false, msg: '请选择监理审批人' }
+  }
+  const user = findMatSupervisorApprover(supervisor_approver_user_id)
+  if (!user) return { ok: false, msg: '监理审批人不在本项目监理岗位人员范围内' }
+  return {
+    ok: true,
+    supervisor_approver_user_id: user.user_id,
+    supervisor_approver_name: user.name,
+    supervisor_approver_post: user.post,
+    supervisor_approver_post_label: user.post_label,
+  }
+}
 
 export const ENTRY_TYPE = {
   material: 'material',
@@ -70,10 +139,6 @@ export function isReviewingStatus(status) {
   return status === 'reviewing' || status === 'pending_review'
 }
 
-function timestamp() {
-  return new Date().toLocaleString('zh-CN', { hour12: false })
-}
-
 function syncSampleAlias(entry) {
   if (entry.sample_application_id && !entry.sample_id) {
     entry.sample_id = entry.sample_application_id
@@ -116,10 +181,6 @@ const APPROVED_SAMPLES = [
 
 const store = reactive({
   seq: 7,
-  noSampleSwitch: {
-    'p-000': false,
-    'p-001': false,
-  },
   entries: [
     {
       entry_id: 'ME-001',
@@ -132,7 +193,6 @@ const store = reactive({
       use_part: 'T3 航站楼外立面',
       brand_name: '亚士漆',
       manufacturer: '亚士创能科技（上海）股份有限公司',
-      brand_match: true,
       quantity: 200,
       unit: '桶',
       supplier: '华东建材供应站',
@@ -157,6 +217,10 @@ const store = reactive({
       status: 'approved',
       current_node: 'none',
       applicant_name: '施工-王工',
+      supervisor_approver_user_id: 'u-jl-01',
+      supervisor_approver_name: '李总监',
+      supervisor_approver_post: 'jl_chief',
+      supervisor_approver_post_label: '总监理工程师',
       submit_time: '2026-07-15 10:20:00',
       finish_time: '2026-07-16 09:10:00',
       exited: true,
@@ -173,7 +237,6 @@ const store = reactive({
       use_part: '屋面防水层',
       brand_name: '东方雨虹',
       manufacturer: '北京东方雨虹防水技术股份有限公司',
-      brand_match: true,
       quantity: 500,
       unit: '卷',
       supplier: '雨虹授权经销商',
@@ -196,6 +259,10 @@ const store = reactive({
       status: 'reviewing',
       current_node: 'supervisor',
       applicant_name: '施工-李工',
+      supervisor_approver_user_id: 'u-jl-01',
+      supervisor_approver_name: '李总监',
+      supervisor_approver_post: 'jl_chief',
+      supervisor_approver_post_label: '总监理工程师',
       submit_time: '2026-07-27 14:30:00',
       finish_time: '',
       exited: false,
@@ -212,7 +279,6 @@ const store = reactive({
       use_part: '主体结构',
       brand_name: '宝钢',
       manufacturer: '宝山钢铁股份有限公司',
-      brand_match: true,
       quantity: 30,
       unit: '吨',
       supplier: '宝钢直供',
@@ -235,6 +301,10 @@ const store = reactive({
       status: 'approved',
       current_node: 'none',
       applicant_name: '施工-赵工',
+      supervisor_approver_user_id: 'u-jl-01',
+      supervisor_approver_name: '李总监',
+      supervisor_approver_post: 'jl_chief',
+      supervisor_approver_post_label: '总监理工程师',
       submit_time: '2026-07-18 11:00:00',
       finish_time: '2026-07-18 16:00:00',
       exited: false,
@@ -251,7 +321,6 @@ const store = reactive({
       use_part: '屋面防水层',
       brand_name: '东方雨虹',
       manufacturer: '北京东方雨虹防水技术股份有限公司',
-      brand_match: true,
       quantity: 80,
       unit: '卷',
       supplier: '雨虹授权经销商',
@@ -274,6 +343,10 @@ const store = reactive({
       status: 'rejected',
       current_node: 'none',
       applicant_name: '施工-李工',
+      supervisor_approver_user_id: 'u-jl-01',
+      supervisor_approver_name: '李总监',
+      supervisor_approver_post: 'jl_chief',
+      supervisor_approver_post_label: '总监理工程师',
       submit_time: '2026-07-22 09:00:00',
       finish_time: '2026-07-22 16:30:00',
       exited: false,
@@ -292,7 +365,6 @@ const store = reactive({
       use_part: '变配电所',
       brand_name: '施耐德',
       manufacturer: '施耐德电气（中国）有限公司',
-      brand_match: true,
       quantity: 4,
       unit: '台',
       supplier: '施耐德授权经销商',
@@ -311,6 +383,10 @@ const store = reactive({
       status: 'approved',
       current_node: 'none',
       applicant_name: '施工-王工',
+      supervisor_approver_user_id: 'u-jl-01',
+      supervisor_approver_name: '李总监',
+      supervisor_approver_post: 'jl_chief',
+      supervisor_approver_post_label: '总监理工程师',
       submit_time: '2026-07-14 09:30:00',
       finish_time: '2026-07-15 11:20:00',
       exited: false,
@@ -329,7 +405,6 @@ const store = reactive({
       use_part: '商业区配电间',
       brand_name: '正泰',
       manufacturer: '正泰电器股份有限公司',
-      brand_match: true,
       quantity: 12,
       unit: '台',
       supplier: '正泰项目供应部',
@@ -348,6 +423,10 @@ const store = reactive({
       status: 'reviewing',
       current_node: 'supervisor',
       applicant_name: '施工-李工',
+      supervisor_approver_user_id: 'u-jl-01',
+      supervisor_approver_name: '李总监',
+      supervisor_approver_post: 'jl_chief',
+      supervisor_approver_post_label: '总监理工程师',
       submit_time: '2026-07-28 10:15:00',
       finish_time: '',
       exited: false,
@@ -366,7 +445,6 @@ const store = reactive({
       use_part: '施工临电',
       brand_name: '卡特彼勒',
       manufacturer: '卡特彼勒（中国）机械部件有限公司',
-      brand_match: true,
       quantity: 1,
       unit: '台',
       supplier: '临电设备租赁站',
@@ -385,6 +463,10 @@ const store = reactive({
       status: 'approved',
       current_node: 'none',
       applicant_name: '施工-王工',
+      supervisor_approver_user_id: 'u-jl-01',
+      supervisor_approver_name: '李总监',
+      supervisor_approver_post: 'jl_chief',
+      supervisor_approver_post_label: '总监理工程师',
       submit_time: '2026-06-18 09:00:00',
       finish_time: '2026-06-19 10:30:00',
       exited: true,
@@ -475,7 +557,6 @@ function seedDemoEntriesForAllStatus() {
       use_part: '砌体抹灰',
       brand_name: '海螺',
       manufacturer: '安徽海螺水泥股份有限公司',
-      brand_match: true,
       quantity: 80,
       unit: '吨',
       supplier: '海螺项目供应部',
@@ -500,6 +581,10 @@ function seedDemoEntriesForAllStatus() {
       status: 'withdrawn',
       current_node: 'none',
       applicant_name: '施工-王工',
+      supervisor_approver_user_id: 'u-jl-01',
+      supervisor_approver_name: '李总监',
+      supervisor_approver_post: 'jl_chief',
+      supervisor_approver_post_label: '总监理工程师',
       submit_time: '2026-08-12 09:40:00',
       finish_time: '2026-08-12 11:20:00',
       exited: false,
@@ -518,7 +603,6 @@ function seedDemoEntriesForAllStatus() {
       use_part: '变配电所',
       brand_name: '施耐德',
       manufacturer: '施耐德电气（中国）有限公司',
-      brand_match: true,
       quantity: 2,
       unit: '台',
       supplier: '施耐德授权经销商',
@@ -537,6 +621,10 @@ function seedDemoEntriesForAllStatus() {
       status: 'withdrawn',
       current_node: 'none',
       applicant_name: '施工-李工',
+      supervisor_approver_user_id: 'u-jl-01',
+      supervisor_approver_name: '李总监',
+      supervisor_approver_post: 'jl_chief',
+      supervisor_approver_post_label: '总监理工程师',
       submit_time: '2026-08-11 14:00:00',
       finish_time: '2026-08-11 15:10:00',
       exited: false,
@@ -555,7 +643,6 @@ function seedDemoEntriesForAllStatus() {
       use_part: '商业区配电间',
       brand_name: '正泰',
       manufacturer: '正泰电器股份有限公司',
-      brand_match: true,
       quantity: 6,
       unit: '台',
       supplier: '正泰项目供应部',
@@ -574,6 +661,10 @@ function seedDemoEntriesForAllStatus() {
       status: 'rejected',
       current_node: 'none',
       applicant_name: '施工-赵工',
+      supervisor_approver_user_id: 'u-jl-01',
+      supervisor_approver_name: '李总监',
+      supervisor_approver_post: 'jl_chief',
+      supervisor_approver_post_label: '总监理工程师',
       submit_time: '2026-08-10 10:30:00',
       finish_time: '2026-08-10 16:40:00',
       exited: false,
@@ -634,24 +725,6 @@ function syncPendingTodos() {
 }
 
 syncPendingTodos()
-
-export function getNoSampleAllowed(projectId) {
-  return !!store.noSampleSwitch[projectId]
-}
-
-export function setNoSampleAllowed(projectId, allowed) {
-  if (!projectId) return { ok: false, msg: '缺少项目' }
-  store.noSampleSwitch[projectId] = !!allowed
-  return { ok: true }
-}
-
-export function listNoSampleSwitchByProject() {
-  return COC_PROJECT_OPTIONS.map((opt) => ({
-    project_id: opt.id,
-    project_name: opt.label,
-    allow_no_sample: getNoSampleAllowed(opt.id),
-  }))
-}
 
 export function listApprovedSamples(projectId) {
   return APPROVED_SAMPLES.filter((s) => s.project_id === projectId)
@@ -737,14 +810,12 @@ export function formatBatchNo(value) {
 
 export function listEntries(
   projectId,
-  { keyword = '', status = '', brandMatch = '', exited = '', entry_type = '' } = {},
+  { keyword = '', status = '', exited = '', entry_type = '' } = {},
 ) {
   let rows = store.entries.slice()
   if (projectId) rows = rows.filter((e) => e.project_id === projectId)
   if (entry_type) rows = rows.filter((e) => e.entry_type === entry_type)
   if (status) rows = rows.filter((e) => e.status === status)
-  if (brandMatch === '1') rows = rows.filter((e) => e.brand_match)
-  if (brandMatch === '0') rows = rows.filter((e) => !e.brand_match)
   if (exited === '1') rows = rows.filter((e) => e.exited)
   if (exited === '0') rows = rows.filter((e) => !e.exited)
   const kw = keyword.trim().toLowerCase()
@@ -790,7 +861,7 @@ export function listEntries(
 
 export function listLedger(projectId, filters = {}) {
   // 材料设备台账仅展示审批通过单据，不按状态筛选
-  return listEntries(projectId, { ...filters, status: 'approved', brandMatch: '' })
+  return listEntries(projectId, { ...filters, status: 'approved' })
 }
 
 export function getEntryDetail(entryId) {
@@ -819,7 +890,6 @@ export function getDashboard(projectId, { entry_type = '' } = {}) {
     exited_count: rows.filter((e) => e.exited).length,
     material_exited_count: rows.filter((e) => e.entry_type === 'material' && e.exited).length,
     equipment_exited_count: rows.filter((e) => e.entry_type === 'equipment' && e.exited).length,
-    allow_no_sample: projectId ? getNoSampleAllowed(projectId) : false,
   }
 }
 
@@ -891,6 +961,7 @@ function pushTodo(entry) {
     quantity: `${entry.quantity}${entry.unit}`,
     sampleId: entry.sample_application_id || entry.sample_id || '',
     entryType: entry.entry_type,
+    supervisorName: entry.supervisor_approver_name || '',
   }
   if (isEq) {
     createEqEntrySupervisorTodo(payload)
@@ -985,6 +1056,10 @@ export function buildCopyPayloadFromRejectedMat(entryId) {
       other_file: entry.other_file || '',
       inspect_result_checked: !!entry.inspect_result_checked,
       inspect_result_file: entry.inspect_result_file || '',
+      supervisor_approver_user_id: entry.supervisor_approver_user_id || '',
+      supervisor_approver_name: entry.supervisor_approver_name || '',
+      supervisor_approver_post: entry.supervisor_approver_post || '',
+      supervisor_approver_post_label: entry.supervisor_approver_post_label || '',
     },
   }
 }
@@ -1026,6 +1101,10 @@ export function buildReEditPayloadFromWithdrawnMat(entryId) {
       other_file: entry.other_file || '',
       inspect_result_checked: !!entry.inspect_result_checked,
       inspect_result_file: entry.inspect_result_file || '',
+      supervisor_approver_user_id: entry.supervisor_approver_user_id || '',
+      supervisor_approver_name: entry.supervisor_approver_name || '',
+      supervisor_approver_post: entry.supervisor_approver_post || '',
+      supervisor_approver_post_label: entry.supervisor_approver_post_label || '',
     },
   }
 }
@@ -1037,6 +1116,15 @@ function prepareEntryFields(payload) {
   const entry_type = payload.entry_type === 'equipment' ? 'equipment' : 'material'
 
   if (!String(payload.supplier || '').trim()) return { ok: false, msg: '请填写供应商' }
+
+  const approverRes = resolveSupervisorApproverFields(payload)
+  if (!approverRes.ok) return approverRes
+  const {
+    supervisor_approver_user_id,
+    supervisor_approver_name,
+    supervisor_approver_post,
+    supervisor_approver_post_label,
+  } = approverRes
 
   const brandRes = resolveBrand(project_id, {
     ledger_id: payload.ledger_id,
@@ -1215,7 +1303,6 @@ function prepareEntryFields(payload) {
         location_ids,
         brand_name,
         manufacturer,
-        brand_match: true,
         brand_readonly_from_sample,
         line_items: normalizedLines,
         quantity: sameUnit ? totalQty : first.quantity,
@@ -1232,6 +1319,10 @@ function prepareEntryFields(payload) {
         other_file: first.other_file || '',
         inspect_result_checked: !!payload.inspect_result_checked,
         inspect_result_file: payload.inspect_result_checked ? payload.inspect_result_file || '' : '',
+        supervisor_approver_user_id,
+        supervisor_approver_name,
+        supervisor_approver_post,
+        supervisor_approver_post_label,
       },
     }
   }
@@ -1336,7 +1427,6 @@ function prepareEntryFields(payload) {
       location_ids,
       brand_name,
       manufacturer,
-      brand_match: true,
       brand_readonly_from_sample,
       line_items: normalizedLines,
       quantity: sameUnit ? totalQty : first.quantity,
@@ -1353,6 +1443,10 @@ function prepareEntryFields(payload) {
       other_file: first.other_file || '',
       inspect_result_checked: !!payload.inspect_result_checked,
       inspect_result_file: payload.inspect_result_checked ? payload.inspect_result_file || '' : '',
+      supervisor_approver_user_id,
+      supervisor_approver_name,
+      supervisor_approver_post,
+      supervisor_approver_post_label,
     },
   }
 }
@@ -1383,7 +1477,7 @@ export function submitEntry(payload) {
 
   store.seq += 1
   const entry_id = `ME-${String(store.seq).padStart(3, '0')}`
-  const submit_time = timestamp()
+  const submit_time = nowStr()
   const entry = {
     entry_id,
     ...fields,
@@ -1427,7 +1521,7 @@ export function resubmitWithdrawnEntry(entryId, payload) {
     status: 'reviewing',
     current_node: 'supervisor',
     applicant_name: payload.applicant_name || entry.applicant_name || '当前用户',
-    submit_time: timestamp(),
+    submit_time: nowStr(),
     finish_time: '',
   })
   if (fields.entry_type === 'equipment') {
@@ -1447,7 +1541,7 @@ export function resubmitWithdrawnEntry(entryId, payload) {
     action: 'submit',
     opinion: '撤回后重新提交',
     operator: entry.applicant_name,
-    time: timestamp(),
+    time: nowStr(),
   })
   discardMatEntryTodos(entryId)
   discardEqEntryTodos(entryId)
@@ -1463,7 +1557,7 @@ export function withdrawEntry(entryId) {
   }
   entry.status = 'withdrawn'
   entry.current_node = 'none'
-  entry.finish_time = timestamp()
+  entry.finish_time = nowStr()
   discardMatEntryTodos(entryId)
   discardEqEntryTodos(entryId)
   return { ok: true }
@@ -1478,7 +1572,7 @@ export function supervisorApproveEntry(entryId, { action, opinion } = {}) {
     return { ok: false, msg: '退回意见必填' }
   }
   store.approvalSeq += 1
-  const time = timestamp()
+  const time = nowStr()
   store.approvals.push({
     approval_id: `AR-ME-${store.approvalSeq}`,
     entry_id: entryId,
@@ -1583,7 +1677,7 @@ export function registerExit(payload) {
     exit_qty,
     reason: payload.reason.trim(),
     photo_file: payload.photo_file || '',
-    exit_time: timestamp(),
+    exit_time: nowStr(),
     operator: payload.operator || '当前用户',
   }
   store.exits.unshift(row)

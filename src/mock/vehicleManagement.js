@@ -1,4 +1,5 @@
 import { projectTree, getProjectLabel, getDefaultProjectId } from './laborRealName.js'
+import { nowStr } from '../utils/datetime.js'
 
 export { projectTree, getProjectLabel, getDefaultProjectId }
 
@@ -8,11 +9,6 @@ export const vehicleWarningStatusOptions = ['待处置', '处置中', '已关闭
 export const vehicleRegulationWarningTypes = ['黑名单车辆', '证件过期', '无定位信号', '未授权道闸']
 
 /** 项目是否对接轨迹/定位子系统（无对接则不做轨迹硬性要求） */
-function nowStamp() {
-  const d = new Date()
-  const p = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
-}
 
 const defaultProjectTrackCapability = {
   'p-000': {
@@ -60,7 +56,7 @@ export function saveProjectVehicleTrackCapability(project_id, payload = {}) {
     enabled: Boolean(payload.enabled),
     system_name: String(payload.system_name || '').trim(),
     url: String(payload.url || '').trim(),
-    updated_at: nowStamp(),
+    updated_at: nowStr(),
   }
   return getProjectVehicleTrackCapability(project_id)
 }

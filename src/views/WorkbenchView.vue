@@ -1,12 +1,13 @@
 ﻿<script setup>
-import { ref, computed, reactive } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   Warning,
   DocumentChecked,
   Box,
   UserFilled,
 } from '@element-plus/icons-vue'
+import { personalTodoStore } from '../mock/personalCenter.js'
 import {
   summaryCards,
   pendingHazardByProject,
@@ -18,12 +19,12 @@ import {
   systemActivityMetrics,
   deviceAlarmByProject,
   deviceAlarmTotal,
-  pendingTaskModules,
-  pendingTaskAllList,
   pendingTaskDisplayLimit,
   noticePenaltyList,
   alertMessages,
 } from '../mock/workbenchStats.js'
+
+const router = useRouter()
 
 const summaryIconMap = {
   Warning,
@@ -33,23 +34,33 @@ const summaryIconMap = {
 }
 
 const activeTaskModule = ref('全部')
-const taskList = ref(pendingTaskAllList.map((item) => ({ ...item })))
 const taskMoreVisible = ref(false)
-const approvalVisible = ref(false)
-const approvalTask = ref(null)
-const approvalForm = reactive({
-  opinion: '',
-  result: '通过',
-  attachments: [],
-})
 
-const taskModuleOptions = computed(() => [
-  { label: '全部', count: taskList.value.length },
-  ...pendingTaskModules.map((mod) => ({
-    ...mod,
-    count: taskList.value.filter((item) => item.module === mod.label).length,
-  })),
-])
+function mapTodoToWorkbenchRow(todo) {
+  return {
+    id: todo.id,
+    module: todo.category || todo.sourceLabel || '流程',
+    title: todo.processName || todo.bizType || '待办',
+    project: todo.detail?.project || todo.projectName || '—',
+    applicant: todo.applicant || '—',
+    time: todo.applyTime || '',
+    needsApproval: true,
+    approvalStatus: '待审批',
+  }
+}
+
+const taskList = computed(() => personalTodoStore.todos.map(mapTodoToWorkbenchRow))
+
+const taskModuleOptions = computed(() => {
+  const modules = [...new Set(taskList.value.map((item) => item.module).filter(Boolean))]
+  return [
+    { label: '全部', count: taskList.value.length },
+    ...modules.map((label) => ({
+      label,
+      count: taskList.value.filter((item) => item.module === label).length,
+    })),
+  ]
+})
 
 const filteredTasks = computed(() => {
   if (activeTaskModule.value === '全部') return taskList.value
@@ -100,39 +111,11 @@ function openTaskMore() {
 }
 
 function openApproval(task) {
-  approvalTask.value = task
-  approvalForm.opinion = task.approvalOpinion || ''
-  approvalForm.result = task.approvalResult === '驳回' ? '驳回' : '通过'
-  approvalForm.attachments = task.attachments ? [...task.attachments] : []
-  approvalVisible.value = true
-}
-
-function handleApprovalUpload(uploadFile) {
-  approvalForm.attachments.push({
-    name: uploadFile.name,
-    size: uploadFile.size,
+  if (!task?.id) return
+  router.push({
+    path: '/personal-center/todo/handle',
+    query: { id: task.id, from: 'todo' },
   })
-  return false
-}
-
-function removeAttachment(index) {
-  approvalForm.attachments.splice(index, 1)
-}
-
-function submitApproval() {
-  if (!approvalForm.opinion.trim()) {
-    ElMessage.warning('请填写审批意见')
-    return
-  }
-  const task = taskList.value.find((item) => item.id === approvalTask.value?.id)
-  if (!task) return
-  task.approvalStatus = approvalForm.result === '通过' ? '已通过' : '已驳回'
-  task.approvalResult = approvalForm.result
-  task.approvalOpinion = approvalForm.opinion.trim()
-  task.approvalTime = new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-')
-  task.attachments = [...approvalForm.attachments]
-  approvalVisible.value = false
-  ElMessage.success(`审批${approvalForm.result === '通过' ? '通过' : '已驳回'}`)
 }
 </script>
 
@@ -195,14 +178,13 @@ function submitApproval() {
             </el-tag>
             <span class="list-time">{{ item.time }}</span>
             <el-button
-              v-if="item.needsApproval && item.approvalStatus === '待审批'"
               link
               type="primary"
               size="small"
               class="task-approve-btn"
               @click="openApproval(item)"
             >
-              审批
+              办理
             </el-button>
           </li>
         </ul>
@@ -412,71 +394,12 @@ function submitApproval() {
         </el-table-column>
         <el-table-column label="操作" width="80" fixed="right" align="center">
           <template #default="{ row }">
-            <el-button
-              v-if="row.needsApproval && row.approvalStatus === '待审批'"
-              link
-              type="primary"
-              size="small"
-              @click="openApproval(row)"
-            >
-              审批
+            <el-button link type="primary" size="small" @click="openApproval(row)">
+              办理
             </el-button>
-            <span v-else class="text-muted">—</span>
           </template>
         </el-table-column>
       </el-table>
-    </el-dialog>
-
-    <el-dialog
-      v-model="approvalVisible"
-      :title="approvalTask ? `审批 · ${approvalTask.title}` : '审批'"
-      width="520px"
-      destroy-on-close
-    >
-      <template v-if="approvalTask">
-        <el-descriptions :column="1" border size="small" class="approval-desc">
-          <el-descriptions-item label="所属模块">{{ approvalTask.module }}</el-descriptions-item>
-          <el-descriptions-item label="所属项目">{{ approvalTask.project }}</el-descriptions-item>
-          <el-descriptions-item label="提交人">{{ approvalTask.applicant }}</el-descriptions-item>
-          <el-descriptions-item label="提交时间">{{ approvalTask.time }}</el-descriptions-item>
-        </el-descriptions>
-        <el-form label-width="88px" class="approval-form">
-          <el-form-item label="审批结果" required>
-            <el-radio-group v-model="approvalForm.result">
-              <el-radio value="通过">通过</el-radio>
-              <el-radio value="驳回">驳回</el-radio>
-            </el-radio-group>
-          </el-form-item>
-          <el-form-item label="审批意见" required>
-            <el-input
-              v-model="approvalForm.opinion"
-              type="textarea"
-              :rows="4"
-              placeholder="请填写审批意见"
-              maxlength="500"
-              show-word-limit aria-label="请填写审批意见"/>
-          </el-form-item>
-          <el-form-item label="附件">
-            <el-upload
-              :show-file-list="false"
-              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.xlsx"
-              :before-upload="handleApprovalUpload"
-            >
-              <el-button size="small">上传附件</el-button>
-            </el-upload>
-            <ul v-if="approvalForm.attachments.length" class="attachment-list">
-              <li v-for="(file, index) in approvalForm.attachments" :key="file.name + index">
-                <span>{{ file.name }}</span>
-                <el-button link type="danger" size="small" @click="removeAttachment(index)">删除</el-button>
-              </li>
-            </ul>
-          </el-form-item>
-        </el-form>
-      </template>
-      <template #footer>
-        <el-button @click="approvalVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitApproval">提交审批</el-button>
-      </template>
     </el-dialog>
   </div>
 </template>

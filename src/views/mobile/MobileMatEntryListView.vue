@@ -15,6 +15,7 @@ import {
   isReviewingStatus,
   withdrawEntry,
 } from '../../mock/mat.js'
+import MobileMatSubNav from './components/MobileMatSubNav.vue'
 
 const router = useRouter()
 const { isHqSelected, scopeProjectId, scopeProjectLabel } = useQmProjectScope()
@@ -82,6 +83,8 @@ function goBack() {
       <h1 class="mt">进场申请</h1>
       <button type="button" class="mh-action" @click="goCreate">申报</button>
     </header>
+
+    <MobileMatSubNav />
 
     <div v-if="isHqSelected" class="tip-banner">请先在顶部切换到具体项目</div>
     <div v-else class="tip-banner muted">当前：{{ scopeProjectLabel }} · 附件仅支持拍照</div>

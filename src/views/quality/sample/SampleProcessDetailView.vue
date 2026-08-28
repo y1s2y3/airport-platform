@@ -11,17 +11,23 @@ import {
   statusLabel,
   statusTagType,
 } from '../../../mock/sample.js'
+import PersonalCenterReadonlyHint from '../../../components/PersonalCenterReadonlyHint.vue'
 
 const route = useRoute()
 const router = useRouter()
 const id = computed(() => route.query.id || '')
-const isApproveMode = computed(() => route.path.includes('/approve'))
 const tick = ref(0)
 
 const detail = computed(() => {
   void tick.value
   return id.value ? getProcessDetail(id.value) : null
 })
+
+const showReadonlyHint = computed(
+  () =>
+    detail.value &&
+    (detail.value.status === 'pending' || detail.value.status === 'in_approval'),
+)
 
 const approvalTimeline = computed(() => {
   const d = detail.value
@@ -68,15 +74,14 @@ function timelineType(status) {
 <template>
   <div class="qm-page page-card">
     <div class="page-header">
-      <div class="page-breadcrumb">
-        样板管理 / {{ isApproveMode ? '关键工序样板审批' : '关键工序样板报审' }} / 详情
-      </div>
+      <div class="page-breadcrumb">样板管理 / 关键工序样板报审 / 详情</div>
       <h1 class="page-title">工序样板详情 {{ id }}</h1>
     </div>
 
     <el-empty v-if="!detail" description="单据不存在" />
 
     <template v-else>
+      <PersonalCenterReadonlyHint v-if="showReadonlyHint" />
       <el-descriptions :column="2" border>
         <el-descriptions-item label="报审编号">{{ detail.application_id }}</el-descriptions-item>
         <el-descriptions-item label="项目">{{ detail.project_label }}</el-descriptions-item>

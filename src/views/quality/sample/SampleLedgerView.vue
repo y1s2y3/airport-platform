@@ -2,10 +2,11 @@
 import './sample-page.css'
 import '../qm-hq-stats.css'
 import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Search, Refresh } from '@element-plus/icons-vue'
-import { selectedProjectId, useQmProjectScope } from '../../../composables/useCurrentProject'
+import { Search, Refresh, ArrowLeft, View } from '@element-plus/icons-vue'
+import { selectedProjectId, useQmProjectScope, useCurrentProject } from '../../../composables/useCurrentProject'
+import { HQ_PROJECT_OPTION } from '../../../config/projectOptions'
 import {
   BIZ_TYPE_LABEL,
   buildHqSampleStatsByProject,
@@ -16,7 +17,18 @@ import {
 } from '../../../mock/sample.js'
 
 const router = useRouter()
+const route = useRoute()
 const { isHqSelected, scopeProjectId } = useQmProjectScope()
+const { headerProjectLabel } = useCurrentProject()
+const fromHq = computed(() => route.query.from === 'hq')
+
+const ledgerBasePath = computed(() =>
+  route.path.startsWith('/hq/qm/sample/ledger')
+    ? '/hq/qm/sample/ledger'
+    : '/qm/sample/ledger',
+)
+const isHqLedgerPage = computed(() => route.path.startsWith('/hq/qm/sample/ledger'))
+
 const keyword = ref('')
 const bizType = ref('')
 const usePart = ref('')
@@ -31,7 +43,7 @@ const hqFiltered = computed(() => {
 })
 
 const list = computed(() => {
-  if (isHqSelected.value) return []
+  if (isHqLedgerPage.value) return []
   const projectId = scopeProjectId.value
   if (!projectId) return []
   return listLedger(projectId, {
@@ -63,10 +75,15 @@ function openDetail(row) {
   }
 }
 
-async function viewProjectDetail(row) {
+function viewProjectDetail(row) {
   if (!row?.project_id) return
   selectedProjectId.value = row.project_id
-  ElMessage.success(`已切换至项目：${row.project_name}`)
+  router.push({ path: '/qm/sample/ledger', query: { from: 'hq' } })
+}
+
+function goBackToHQ() {
+  selectedProjectId.value = HQ_PROJECT_OPTION.id
+  router.push('/hq/qm/sample/ledger')
 }
 </script>
 
@@ -74,15 +91,15 @@ async function viewProjectDetail(row) {
   <div class="qm-page page-card">
     <div class="page-header">
       <div class="page-breadcrumb">
-        {{ isHqSelected ? '质量看板' : '样板管理' }} / 样板台账
+        {{ isHqLedgerPage ? '质量看板' : '样板管理' }} / 样板台账
       </div>
       <h1 class="page-title">样板台账</h1>
-      <p v-if="isHqSelected" class="page-tip">
-        指挥部按项目汇总样板报审与台账数据。操作仅支持查看项目详情（进入该项目样板台账）。
+      <p v-if="isHqLedgerPage" class="page-tip">
+        指挥部按项目汇总样板报审与台账数据。点击「查看详情」进入该项目样板台账。
       </p>
     </div>
 
-    <template v-if="isHqSelected">
+    <template v-if="isHqLedgerPage">
       <div class="hq-stat-row">
         <div class="hq-stat-card">
           <span class="hq-stat-label">覆盖项目数</span>
@@ -124,7 +141,9 @@ async function viewProjectDetail(row) {
           clearable
           placeholder="项目名称 / 编号"
           style="width: 260px"
-          :prefix-icon="Search" aria-label="项目名称 / 编号"/>
+          :prefix-icon="Search"
+          aria-label="项目名称 / 编号"
+        />
         <el-button type="primary" :icon="Search" @click="handleHqSearch">查询</el-button>
         <el-button :icon="Refresh" @click="resetHq">重置</el-button>
       </div>
@@ -152,63 +171,90 @@ async function viewProjectDetail(row) {
           </template>
         </el-table-column>
         <el-table-column prop="withdrawn" label="已撤回" width="90" align="center" />
-        <el-table-column label="操作" width="130" fixed="right" align="center">
+        <el-table-column label="操作" width="110" fixed="right" align="center">
           <template #default="{ row }">
-            <el-button link type="primary" @click="viewProjectDetail(row)">查看项目详情</el-button>
+            <el-button link type="primary" size="small" :icon="View" @click="viewProjectDetail(row)">
+              查看详情
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
     </template>
 
-    <el-alert
-      v-else-if="!scopeProjectId"
-      type="warning"
-      :closable="false"
-      show-icon
-      title="请先在顶部切换到具体项目"
-      class="mb"
-    />
-
     <template v-else>
-      <div class="filter-bar">
-        <el-input
-          v-model="keyword"
-          clearable
-          placeholder="编号 / 名称 / 部位"
-          style="width: 220px"
-          :prefix-icon="Search" aria-label="编号 / 名称 / 部位"/>
-        <el-select v-model="bizType" clearable placeholder="类型" style="width: 140px" aria-label="类型">
-          <el-option
-            v-for="(label, val) in BIZ_TYPE_LABEL"
-            :key="val"
-            :label="label"
-            :value="val"
-          />
-        </el-select>
-        <el-input v-model="usePart" clearable placeholder="部位" style="width: 160px" aria-label="部位"/>
-        <el-button type="primary" :icon="Search">查询</el-button>
-        <el-button :icon="Refresh" @click="reset">重置</el-button>
+      <div v-if="fromHq" class="sample-back-bar">
+        <el-button link type="primary" :icon="ArrowLeft" @click="goBackToHQ">返回</el-button>
+        <span class="sample-back-project">{{ headerProjectLabel || selectedProjectId }}</span>
       </div>
 
-      <el-table :data="list" stripe border empty-text="暂无已通过样板">
-        <el-table-column prop="application_id" label="单据编号" width="120" />
-        <el-table-column label="类型" width="100">
-          <template #default="{ row }">{{ BIZ_TYPE_LABEL[row.biz_type] }}</template>
-        </el-table-column>
-        <el-table-column prop="title" label="名称" min-width="160" show-overflow-tooltip />
-        <el-table-column prop="use_part" label="施工部位" min-width="140" show-overflow-tooltip />
-        <el-table-column label="状态" width="90">
-          <template #default="{ row }">
-            <el-tag size="small" :type="statusTagType(row.status)">{{ statusLabel(row.status) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="finish_time" label="通过时间" width="170" />
-        <el-table-column label="操作" width="100" fixed="right">
-          <template #default="{ row }">
-            <el-button link type="primary" @click="openDetail(row)">详情</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <el-alert
+        v-if="!scopeProjectId"
+        type="warning"
+        :closable="false"
+        show-icon
+        title="请先在顶部切换到具体项目"
+        class="mb"
+      />
+
+      <template v-else>
+        <div class="filter-bar">
+          <el-input
+            v-model="keyword"
+            clearable
+            placeholder="编号 / 名称 / 部位"
+            style="width: 220px"
+            :prefix-icon="Search"
+            aria-label="编号 / 名称 / 部位"
+          />
+          <el-select v-model="bizType" clearable placeholder="类型" style="width: 140px" aria-label="类型">
+            <el-option
+              v-for="(label, val) in BIZ_TYPE_LABEL"
+              :key="val"
+              :label="label"
+              :value="val"
+            />
+          </el-select>
+          <el-input v-model="usePart" clearable placeholder="部位" style="width: 160px" aria-label="部位" />
+          <el-button type="primary" :icon="Search">查询</el-button>
+          <el-button :icon="Refresh" @click="reset">重置</el-button>
+        </div>
+
+        <el-table :data="list" stripe border empty-text="暂无已通过样板">
+          <el-table-column prop="application_id" label="单据编号" width="120" />
+          <el-table-column label="类型" width="100">
+            <template #default="{ row }">{{ BIZ_TYPE_LABEL[row.biz_type] }}</template>
+          </el-table-column>
+          <el-table-column prop="title" label="名称" min-width="160" show-overflow-tooltip />
+          <el-table-column prop="use_part" label="施工部位" min-width="140" show-overflow-tooltip />
+          <el-table-column label="状态" width="90">
+            <template #default="{ row }">
+              <el-tag size="small" :type="statusTagType(row.status)">{{ statusLabel(row.status) }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="finish_time" label="通过时间" width="170" />
+          <el-table-column label="操作" width="100" fixed="right">
+            <template #default="{ row }">
+              <el-button link type="primary" @click="openDetail(row)">详情</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </template>
     </template>
   </div>
 </template>
+
+<style scoped>
+.sample-back-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.sample-back-project {
+  font-size: 14px;
+  color: #606266;
+}
+.mb {
+  margin-bottom: 12px;
+}
+</style>

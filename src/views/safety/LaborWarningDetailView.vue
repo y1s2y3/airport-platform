@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Upload } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -19,6 +19,17 @@ import {
   findPersonalProcess,
   markWarningCenterDisposed,
 } from '../../mock/personalCenter.js'
+import PersonalCenterReadonlyHint from '../../components/PersonalCenterReadonlyHint.vue'
+
+const props = defineProps({
+  embedded: { type: Boolean, default: false },
+  warningId: { type: String, default: '' },
+  todoId: { type: String, default: '' },
+  personalTab: { type: String, default: '' },
+  readonly: { type: Boolean, default: false },
+})
+
+const emit = defineEmits(['back'])
 
 const route = useRoute()
 const router = useRouter()
@@ -31,15 +42,22 @@ const showHandleForm = ref(false)
 
 const DISPOSAL_RESULT_OPTIONS = ['已处置', '误报']
 
-const fromPersonalCenter = computed(() => String(route.query.from || '') === 'personal-center')
-const personalTodoId = computed(() => String(route.query.todoId || ''))
-const personalTab = computed(() => {
+const fromPersonalCenter = computed(() => props.embedded)
+const personalTodoId = computed(() => (props.embedded ? props.todoId : ''))
+const personalTabResolved = computed(() => {
+  if (!props.embedded) return 'todo'
+  if (props.personalTab) return props.personalTab
   const tab = String(route.query.tab || 'todo')
   return ['todo', 'done', 'notice', 'warning-center'].includes(tab) ? tab : 'todo'
 })
 
+const resolvedWarningId = computed(() => {
+  const raw = props.warningId || route.params.id
+  return Array.isArray(raw) ? raw[0] : String(raw || '')
+})
+
 const canHandle = computed(() => {
-  if (!detail.value) return false
+  if (props.readonly || !detail.value) return false
   return detail.value.handle_mode === '手动处理' && detail.value.status !== '已关闭'
 })
 
@@ -66,7 +84,15 @@ const closeHandleInfo = computed(() => {
 /** 系统自动关闭类：Web 端可点「处置预警」弹出 Word 提示并「去处理」跳转实名制 */
 const canGuideAuto = computed(() => isAutoCloseGuidable(detail.value))
 
-const showDisposeEntry = computed(() => canHandle.value || canGuideAuto.value)
+const showDisposeEntry = computed(
+  () => props.embedded && (canHandle.value || canGuideAuto.value),
+)
+
+const showModuleReadonlyHint = computed(() => {
+  if (props.embedded || !detail.value) return false
+  if (detail.value.status === '已关闭') return false
+  return detail.value.handle_mode === '手动处理' || detail.value.handle_mode === '系统自动关闭'
+})
 
 const handleGuide = computed(() => {
   if (!detail.value) return ''
@@ -80,8 +106,8 @@ const backButtonLabel = computed(() =>
 onMounted(() => {
   loadDetail()
   nextTick(() => {
-    // 个人中心手动类：默认展开「新增处置」
-    if (canHandle.value && fromPersonalCenter.value) {
+    if (!props.embedded) return
+    if (canHandle.value) {
       showHandleForm.value = true
     }
     if (route.query.handle === '1') {
@@ -95,27 +121,23 @@ onMounted(() => {
   })
 })
 
+watch(resolvedWarningId, () => loadDetail())
+
 function loadDetail() {
-  detail.value = getWarningDetail(route.params.id)
+  detail.value = getWarningDetail(resolvedWarningId.value)
   if (!detail.value) {
     ElMessage.warning('未找到预警信息')
-    if (fromPersonalCenter.value) {
-      router.replace({
-        path: '/personal-center',
-        query: personalTab.value === 'todo' ? {} : { tab: personalTab.value },
-      })
-    } else {
-      router.replace({ name: 'LaborWarningList' })
+    if (props.embedded) {
+      emit('back')
+      return
     }
+    router.replace({ name: 'LaborWarningList' })
   }
 }
 
 function goBack() {
-  if (fromPersonalCenter.value) {
-    router.push({
-      path: '/personal-center',
-      query: personalTab.value === 'todo' ? {} : { tab: personalTab.value },
-    })
+  if (props.embedded) {
+    emit('back')
     return
   }
   router.push({ name: 'LaborWarningList' })
@@ -231,6 +253,7 @@ async function submitHandle(close = false) {
     else {
       showHandleForm.value = false
       syncPersonalTodoOnClose()
+      if (props.embedded) emit('back')
     }
     ElMessage.success(close ? '预警已关闭' : '处置记录已提交')
   } finally {
@@ -240,8 +263,8 @@ async function submitHandle(close = false) {
 </script>
 
 <template>
-  <div v-if="detail" class="warning-detail-page page-card">
-    <div class="page-header">
+  <div v-if="detail" class="warning-detail-page page-card" :class="{ 'is-embedded': embedded }">
+    <div v-if="!embedded" class="page-header">
       <div class="page-breadcrumb">人员实名制管理 / 预警清单 / 详情</div>
       <div class="page-toolbar">
         <div class="toolbar-left">
@@ -276,6 +299,38 @@ async function submitHandle(close = false) {
         </div>
       </div>
     </div>
+
+    <div v-else class="embed-head">
+      <div class="embed-head-row">
+        <h2 class="warning-name">{{ detail.rule_label }}</h2>
+        <el-button
+          v-if="showDisposeEntry"
+          type="primary"
+          size="small"
+          class="ap-btn-primary"
+          @click="onDisposeClick"
+        >
+          处置预警
+        </el-button>
+      </div>
+      <div class="sub-meta">
+        <span>{{ detail.warning_no }}</span>
+        <span>{{ getProjectLabel(detail.project_id) }}</span>
+        <span class="ap-status-tag" :class="warningStatusTagClass[detail.status]">{{ detail.status }}</span>
+        <el-tag
+          size="small"
+          :type="detail.handle_mode === '系统自动关闭' ? 'success' : detail.handle_mode === '通知' ? 'info' : 'warning'"
+          effect="plain"
+        >
+          {{ detail.handle_mode }}
+        </el-tag>
+      </div>
+    </div>
+
+    <PersonalCenterReadonlyHint
+      v-if="showModuleReadonlyHint"
+      title="本页为只读查看；预警处置请在「个人中心 → 我的待办」或「预警中心」中处理。"
+    />
 
     <div class="detail-body">
       <section class="detail-section">
@@ -458,4 +513,8 @@ async function submitHandle(close = false) {
 .handle-form { margin-top: 20px; padding-top: 20px; border-top: 1px dashed var(--ap-border); }
 .handle-form-title { font-size: 14px; font-weight: 600; margin-bottom: 16px; color: var(--ap-text); }
 .upload-tip { font-size: 12px; color: var(--ap-text-muted); line-height: 1.5; }
+.is-embedded .detail-body { margin-top: 0; }
+.embed-head { margin-bottom: 12px; }
+.embed-head-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.embed-head .warning-name { margin: 0 0 8px; font-size: 18px; }
 </style>

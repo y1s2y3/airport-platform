@@ -13,6 +13,7 @@ import {
   warningStatusTagClass,
 } from '../../mock/laborWarningList'
 import { warningRuleDefinitions } from '../../mock/laborWarningConfig'
+import PersonalCenterReadonlyHint from '../../components/PersonalCenterReadonlyHint.vue'
 
 const router = useRouter()
 const { isHqSelected, treeProjectId, scopeProjectId, onTreeNodeClick } = useLaborProjectScope()
@@ -73,6 +74,9 @@ function goDetail(row) {
     <div class="page-header">
       <div class="page-breadcrumb">人员实名制管理 / 预警清单</div>
       <h1 class="page-title">预警清单</h1>
+      <PersonalCenterReadonlyHint
+        title="预警清单仅供查看与检索；待处理预警的处置请在「个人中心 → 我的待办」或「预警中心」办理。"
+      />
     </div>
 
     <div class="page-layout" :class="{ 'with-tree': isHqSelected }">

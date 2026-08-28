@@ -1,0 +1,167 @@
+<script setup>
+import { computed, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import {
+  getApplicationDetail,
+  getInactiveSelectedHint,
+  MATERIAL_TYPE,
+  NODE_LABEL,
+  pmApprove,
+  STATUS_LABEL,
+  statusTagType,
+  supervisorApprove,
+} from '../../../mock/brand.js'
+
+const route = useRoute()
+const router = useRouter()
+const tick = ref(0)
+const opinion = ref('')
+const selectedId = ref('')
+const materialPick = ref('')
+
+const detail = computed(() => {
+  void tick.value
+  return getApplicationDetail(String(route.query.id || ''))
+})
+
+const inactiveHints = computed(() => {
+  if (!detail.value) return []
+  return getInactiveSelectedHint(detail.value.app.application_id)
+})
+
+const isSupervisor = computed(
+  () => detail.value?.app.status === 'in_approval' && detail.value?.app.current_node === 'supervisor',
+)
+const isPm = computed(
+  () => detail.value?.app.status === 'in_approval' && detail.value?.app.current_node === 'pm',
+)
+
+async function doSupervisor(action) {
+  const r = supervisorApprove(detail.value.app.application_id, { action, opinion: opinion.value })
+  if (!r.ok) return ElMessage.error(r.msg)
+  ElMessage.success(action === 'agree' ? '???????????? : '??????)
+  tick.value += 1
+  if (action === 'reject') router.push('/qm/brand/approve')
+}
+
+async function doPm(action) {
+  if (action === 'agree') {
+    if (!selectedId.value) return ElMessage.warning('????? 1 ??????)
+    const hit = detail.value.candidates.find((c) => c.candidate_id === selectedId.value)
+    if (hit?.brand_lib_id && inactiveHints.value.some((c) => c.candidate_id === hit.candidate_id)) {
+      try {
+        await ElMessageBox.confirm(
+          '????????????????????????????????????????????????????',
+          '????????,
+          { type: 'warning' },
+        )
+      } catch {
+        return
+      }
+    }
+  }
+  const r = pmApprove(detail.value.app.application_id, {
+    action,
+    opinion: opinion.value,
+    selectedCandidateId: selectedId.value,
+    resolveMaterialId: materialPick.value || undefined,
+  })
+  if (!r.ok) {
+    if (r.needChooseMaterial) {
+      materialPick.value = r.materials[0]?.material_id || ''
+      return ElMessage.warning(r.msg)
+    }
+    return ElMessage.error(r.msg)
+  }
+  ElMessage.success(action === 'agree' ? '????????' : '??????)
+  router.push('/qm/brand/approve')
+}
+</script>
+
+<template>
+  <div class="qm-page page-card">
+    <div class="page-header">
+      <div class="page-breadcrumb">???? / ????</div>
+      <h1 class="page-title">????</h1>
+    </div>
+
+    <el-empty v-if="!detail" description="??????" />
+    <template v-else>
+      <el-descriptions :column="2" border class="mb">
+        <el-descriptions-item label="????">{{ detail.app.application_id }}</el-descriptions-item>
+        <el-descriptions-item label="???>
+          <el-tag size="small" :type="statusTagType(detail.app.status)">
+            {{ STATUS_LABEL[detail.app.status] }}
+          </el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="??/??">{{ detail.app.material_name }}</el-descriptions-item>
+        <el-descriptions-item label="??">{{ MATERIAL_TYPE[detail.app.material_type] }}</el-descriptions-item>
+        <el-descriptions-item label="????">{{ NODE_LABEL[detail.app.current_node] }}</el-descriptions-item>
+        <el-descriptions-item label="????">{{ detail.app.submit_time }}</el-descriptions-item>
+      </el-descriptions>
+
+      <el-alert
+        v-if="inactiveHints.length"
+        type="warning"
+        :closable="false"
+        show-icon
+        class="mb"
+        :title="`???????????????{inactiveHints.map((c) => c.brand_name).join('??)}???????????????`"
+      />
+
+      <h3 class="sec">????</h3>
+      <el-table :data="detail.specs" border size="small" class="mb">
+        <el-table-column prop="spec_model" label="????" />
+        <el-table-column prop="material_spec_id" label="????ID" />
+      </el-table>
+
+      <h3 class="sec">????{{ isPm ? '???????' : '' }}</h3>
+      <el-table :data="detail.candidates" border size="small" class="mb">
+        <el-table-column v-if="isPm" label="??? width="70" align="center">
+          <template #default="{ row }">
+            <el-radio v-model="selectedId" :value="row.candidate_id" />
+          </template>
+        </el-table-column>
+        <el-table-column prop="brand_name" label="????" />
+        <el-table-column prop="manufacturer" label="????" min-width="180" />
+        <el-table-column label="??" width="90">
+          <template #default="{ row }">{{ row.brand_lib_id ? '???' : '??' }}</template>
+        </el-table-column>
+      </el-table>
+
+      <el-form v-if="isSupervisor || isPm" label-width="100px">
+        <el-form-item label="????">
+          <el-input
+            v-model="opinion"
+            type="textarea"
+            :rows="3"
+            :placeholder="isSupervisor || isPm ? '??????????? : ''"
+            style="max-width: 520px"
+          />
+        </el-form-item>
+        <el-form-item v-if="isSupervisor">
+          <el-button type="primary" @click="doSupervisor('agree')">??</el-button>
+          <el-button type="danger" @click="doSupervisor('reject')">???/el-button>
+          <el-button @click="router.back()">??</el-button>
+        </el-form-item>
+        <el-form-item v-else-if="isPm">
+          <el-button type="primary" @click="doPm('agree')">??????/el-button>
+          <el-button type="danger" @click="doPm('reject')">???/el-button>
+          <el-button @click="router.back()">??</el-button>
+        </el-form-item>
+      </el-form>
+      <el-button v-else @click="router.back()">??</el-button>
+    </template>
+  </div>
+</template>
+
+<style scoped>
+.mb {
+  margin-bottom: 12px;
+}
+.sec {
+  margin: 12px 0 8px;
+  font-size: 15px;
+}
+</style>

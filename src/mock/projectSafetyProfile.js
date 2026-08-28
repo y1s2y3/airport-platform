@@ -52,11 +52,7 @@ export function listProfilePersons() {
 }
 
 export function emptyQualificationTriple() {
-  return [
-    { label: '资质证件', certNo: '', photo: '', possessed: false },
-    { label: '职称证书', certNo: '', photo: '', possessed: false },
-    { label: '资格证书', certNo: '', photo: '', possessed: false },
-  ]
+  return [{ label: '资格证书', certNo: '', photo: '', possessed: false }]
 }
 
 function normalizeQualificationTriple(list) {
@@ -172,7 +168,11 @@ export function createSubcontractorBlock(overrides = {}) {
   }
   merged.qualifications = normalizeQualificationTriple(overrides.qualifications || merged.qualifications)
   if (overrides.hasSafetyLicense === undefined) {
-    merged.hasSafetyLicense = Boolean(merged.safetyLicenseNo || merged.safetyLicensePhoto)
+    merged.hasSafetyLicense = Boolean(
+      merged.safetyLicenseNo &&
+        merged.safetyLicenseExpiry &&
+        merged.safetyLicensePhoto,
+    )
   }
   return merged
 }
@@ -200,23 +200,34 @@ export function createMachineryRow(overrides = {}) {
 }
 
 export function createChargingPileBlock(overrides = {}) {
+  const { onsiteParkingCount, offsiteParkingCount, ...rest } = overrides
   return {
     enabled: '',
     pileCount: '',
     installQualified: '',
-    onsiteParkingCount: '',
-    offsiteParkingCount: '',
-    ...overrides,
+    parkingCount: rest.parkingCount ?? onsiteParkingCount ?? '',
+    ...rest,
   }
 }
 
 export function createElectricBicycleBlock(overrides = {}) {
+  const { chargingAreaRequirements, onsiteParkingCount, offsiteParkingCount, ...rest } = overrides
+  const installQualified =
+    rest.installQualified
+    ?? (['是', '否'].includes(chargingAreaRequirements) ? chargingAreaRequirements : '')
   return {
     enabled: '',
     socketCount: '',
-    installQualified: '',
-    onsiteParkingCount: '',
-    offsiteParkingCount: '',
+    installQualified,
+    parkingCount: rest.parkingCount ?? onsiteParkingCount ?? '',
+    ...rest,
+  }
+}
+
+export function createClearanceBlock(overrides = {}) {
+  return {
+    clearanceHeightInvolved: '',
+    clearanceHeightRequirement: '',
     ...overrides,
   }
 }
@@ -225,13 +236,12 @@ export function createCampBlock(overrides = {}) {
   return {
     hasCamp: '',
     campAddress: '',
-    campArea: '',
+    campAddressLng: '',
+    campAddressLat: '',
     campOccupiedArea: '',
     campTotalPeople: '',
-    campVideoChannels: '',
+    campBuildingCount: '',
     campBuildingMaterialOk: '',
-    videoFullCoverage: '',
-    videoIncludesCanteenGas: '',
     campHasCanteen: '',
     canteenFuelType: '',
     ...overrides,
@@ -250,11 +260,7 @@ export function createSafetyProfile(overrides = {}) {
         hasSafetyLicense: true,
         safetyLicenseNo: '（粤）JZ安许证字〔2023〕009876',
         safetyLicenseExpiry: '2026-12-31',
-        qualifications: [
-          { label: '资质证件', possessed: true },
-          { label: '职称证书', possessed: true },
-          { label: '资格证书', possessed: false },
-        ],
+        qualifications: [{ label: '资格证书', possessed: true }],
       }),
       createSubcontractorBlock({
         unitName: '深圳广田装饰集团股份有限公司',
@@ -263,11 +269,7 @@ export function createSafetyProfile(overrides = {}) {
         hasSafetyLicense: true,
         safetyLicenseNo: '（粤）JZ安许证字〔2021〕003210',
         safetyLicenseExpiry: '2025-12-31',
-        qualifications: [
-          { label: '资质证件', possessed: true },
-          { label: '职称证书', possessed: false },
-          { label: '资格证书', possessed: true },
-        ],
+        qualifications: [{ label: '资格证书', possessed: true }],
       }),
     ],
     dangerousSubProjects: Array.from({ length: 3 }, () => createDangerousWorkRow()),
@@ -276,6 +278,7 @@ export function createSafetyProfile(overrides = {}) {
     smallMachinery: Array.from({ length: 4 }, () => createMachineryRow()),
     nonPavementInvolved: '',
     machineryRequirements: '',
+    siteClearance: createClearanceBlock(),
     siteNewEnergyCharging: createChargingPileBlock(),
     siteElectricBicycle: createElectricBicycleBlock(),
     camp: createCampBlock(),
@@ -297,6 +300,7 @@ export function createSafetyProfile(overrides = {}) {
   )
   profile.largeMachinery = (overrides.largeMachinery || profile.largeMachinery).map((item) => createMachineryRow(item))
   profile.smallMachinery = (overrides.smallMachinery || profile.smallMachinery).map((item) => createMachineryRow(item))
+  profile.siteClearance = createClearanceBlock(overrides.siteClearance || profile.siteClearance)
   profile.siteNewEnergyCharging = createChargingPileBlock(
     overrides.siteNewEnergyCharging || profile.siteNewEnergyCharging,
   )
@@ -375,13 +379,50 @@ export function listProfileDangerWorks(projectId = '') {
 }
 
 /**
+ * 项目画像第四章 · 工地施工机械设备清单（演示数据，与设备类型统计同源）
+ * @returns {{ id: string, name: string, type: string, model: string, quantity: number, status: string, entryDate: string, hasLedger: string, maintenance: string }[]}
+ */
+export function listProfileEquipments(projectId = '') {
+  const seed = seedFromId(projectId)
+  const typeSpecs = [
+    { type: '塔吊', value: countBySeed(3, seed, 0, 3), modelPrefix: 'QTZ' },
+    { type: '升降机', value: countBySeed(2, seed, 1, 3), modelPrefix: 'SC' },
+    { type: '桩基机械', value: countBySeed(2, seed, 2, 3), modelPrefix: 'ZJ' },
+    { type: '汽车吊', value: countBySeed(4, seed, 3, 4), modelPrefix: 'QY' },
+    { type: '挖掘机', value: countBySeed(5, seed, 4, 5), modelPrefix: 'PC' },
+    { type: '混凝土泵车', value: countBySeed(2, seed, 5, 3), modelPrefix: 'HBT' },
+  ]
+  const statuses = ['在场', '在场', '维保中', '已退场']
+  const rows = []
+  let seq = 1
+  for (const spec of typeSpecs) {
+    for (let i = 0; i < spec.value; i += 1) {
+      rows.push({
+        id: `eq-${projectId || 'all'}-${seq}`,
+        name: `${spec.type}-${String(seq).padStart(2, '0')}`,
+        type: spec.type,
+        model: `${spec.modelPrefix}-${80 + ((seed + seq) % 40)}`,
+        quantity: 1,
+        status: statuses[(seed + seq) % statuses.length],
+        entryDate: `2026-${String(((seed + seq) % 8) + 1).padStart(2, '0')}-${String(((seed + seq * 3) % 27) + 1).padStart(2, '0')}`,
+        hasLedger: (seed + seq) % 5 === 0 ? '否' : '是',
+        maintenance: (seed + seq) % 4 === 0 ? '待维保' : '正常',
+      })
+      seq += 1
+    }
+  }
+  return rows
+}
+
+/**
  * 项目画像第三、四章图表统计
- * 危大/危险作业：与系统菜单清单同源聚合；机械设备仍为演示统计
+ * 危大/危险作业：与系统菜单清单同源聚合；机械设备与 listProfileEquipments 同源
  */
 export function getProfilePortraitStats(projectId) {
   const seed = seedFromId(projectId)
   const majors = listProfileMajorHazards(projectId)
   const dangers = listProfileDangerWorks(projectId)
+  const equipments = listProfileEquipments(projectId)
 
   const majorStartStatus = withColors(aggregateCounts(majors, (row) => row.status)).filter(
     (item) => item.value > 0,
@@ -390,14 +431,9 @@ export function getProfilePortraitStats(projectId) {
     (item) => item.value > 0,
   )
 
-  const equipmentTypes = withColors([
-    { name: '塔吊', value: countBySeed(3, seed, 0, 3) },
-    { name: '升降机', value: countBySeed(2, seed, 1, 3) },
-    { name: '桩基机械', value: countBySeed(2, seed, 2, 3) },
-    { name: '汽车吊', value: countBySeed(4, seed, 3, 4) },
-    { name: '挖掘机', value: countBySeed(5, seed, 4, 5) },
-    { name: '混凝土泵车', value: countBySeed(2, seed, 5, 3) },
-  ]).filter((item) => item.value > 0)
+  const equipmentTypes = withColors(aggregateCounts(equipments, (row) => row.type)).filter(
+    (item) => item.value > 0,
+  )
 
   const months = ['2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08']
   const maintainTrend = months.map((label, index) => ({

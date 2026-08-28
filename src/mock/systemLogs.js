@@ -1,3 +1,5 @@
+import { nowStr } from '../utils/datetime.js'
+
 /** 登录终端类型 */
 export const loginTerminalOptions = [
   { label: '全部', value: '' },
@@ -169,10 +171,7 @@ export function appendOperationLog({
   duration: _duration,
   status: _status,
 }) {
-  const operateTime = new Date()
-    .toLocaleString('zh-CN', { hour12: false })
-    .replace(/\//g, '-')
-    .replace(',', '')
+  const operateTime = nowStr()
   operationLogList.unshift({
     id: `ol-${Date.now()}`,
     operator,

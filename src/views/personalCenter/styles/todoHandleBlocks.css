@@ -1,0 +1,102 @@
+.block {
+  border: 1px solid #ebeef5;
+  border-radius: 10px;
+  padding: 14px 16px 16px;
+  background: #fafbfc;
+}
+
+.block--panel {
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+.block-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f2329;
+}
+
+.desc-panel .el-descriptions__label {
+  width: 96px;
+  color: #909399;
+}
+
+.meta-sep {
+  color: #909399;
+}
+
+.op-form {
+  max-width: 720px;
+  background: #fafbfc;
+  padding: 14px 14px 0;
+  border-radius: 8px;
+  border: 1px solid #f0f2f5;
+}
+
+.op-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #ebeef5;
+}
+
+.block--action .op-actions {
+  position: sticky;
+  bottom: 0;
+  margin: 12px -16px -16px;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.96);
+  border-top: 1px solid #ebeef5;
+  border-radius: 0 0 10px 10px;
+  backdrop-filter: blur(6px);
+}
+
+.flow-timeline {
+  padding-left: 4px;
+}
+
+.flow-card {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #ebeef5;
+}
+
+.flow-card.current {
+  border-color: #f5dab1;
+  background: #fdf6ec;
+}
+
+.flow-card.done {
+  border-color: #e1f3d8;
+  background: #f0f9eb;
+}
+
+.flow-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  color: #303133;
+}
+
+.flow-meta,
+.flow-remark {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #606266;
+}

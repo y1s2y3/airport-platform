@@ -1,0 +1,12 @@
+6.4 AC table 34
+6.6 AC table 42
+appended 6.6 AC-06 (will sanitize via Word)
+appended 6.4 AC-05 (will sanitize via Word)
+saved python
+inserted rev
+WORD_OK 1260
+has[越权项目拒收]=True
+has[无导出]=True
+has[一证一项目]=True
+has[本期不做导出]=True
+has[若平台统一提供导出]=False

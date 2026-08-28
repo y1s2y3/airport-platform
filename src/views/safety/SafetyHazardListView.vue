@@ -114,9 +114,8 @@ function isOverdue(row) {
 function viewDetail(row) { router.push(`/safety-inspection/hazard/${row.id}`) }
 function handleReset() { Object.keys(filterForm).forEach(k => filterForm[k] = '') }
 function viewProjectDetail(row) {
-  router.push({ path:'/safety-inspection/hazard', query:{ from:'hq' } }).then(() => {
-    selectedProjectId.value = row.project_id
-  })
+  selectedProjectId.value = row.project_id
+  router.push({ path: '/safety-inspection/hazard', query: { from: 'hq' } })
 }
 function goBackToHQ() {
   selectedProjectId.value = HQ_PROJECT_OPTION.id

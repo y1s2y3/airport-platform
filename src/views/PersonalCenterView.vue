@@ -14,11 +14,13 @@ import {
   NOTICE_MODULE_OPTIONS,
   WARNING_CENTER_TYPE_OPTIONS,
   WARNING_CENTER_STATUS_OPTIONS,
+  WARNING_CENTER_MODULE_OPTIONS,
   ensureQmPersonalCenterSeeds,
   ensureLaborWarningCenterSeeds,
   listPersonalWarningCenter,
   markWarningCenterRead,
   batchDisposeWarningCenter,
+  findPersonalTodo,
 } from '../mock/personalCenter.js'
 import '../mock/mat.js'
 import '../mock/eq.js'
@@ -55,6 +57,7 @@ const filters = reactive({
   noticeModule: '',
   warnType: '',
   warnStatus: '',
+  warnModule: '',
   warnKeyword: '',
 })
 
@@ -85,6 +88,7 @@ function resetFilters() {
   filters.noticeModule = ''
   filters.warnType = ''
   filters.warnStatus = ''
+  filters.warnModule = ''
   filters.warnKeyword = ''
   page.value = 1
 }
@@ -144,6 +148,7 @@ const filteredNotices = computed(() => {
 
 const filteredWarningCenter = computed(() => {
   let rows = [...warningCenterList.value]
+  if (filters.warnModule) rows = rows.filter((r) => r.module === filters.warnModule)
   if (filters.warnType) rows = rows.filter((r) => r.warnType === filters.warnType)
   if (filters.warnStatus) rows = rows.filter((r) => r.status === filters.warnStatus)
   const kw = filters.warnKeyword.trim()
@@ -179,35 +184,6 @@ function refreshWarningCenter() {
 }
 
 function openProcessDetail(row, from) {
-  // 质量验评审批：跳转验评审批页（审批入口在个人中心）
-  if (row?.type === 'qm_inspect' && row.approvePath && row.qmTaskId) {
-    router.push({
-      path: row.approvePath,
-      query: { id: row.qmTaskId, from: 'personal-center', todoId: row.id },
-    })
-    return
-  }
-  // 质量验评整改：跳转整改详情页（提交整改入口在个人中心）
-  if (row?.type === 'qm_rectify' && row.rectifyPath && row.qmRectifyId) {
-    router.push({
-      path: row.rectifyPath,
-      query: { id: row.qmRectifyId, from: 'personal-center', todoId: row.id },
-    })
-    return
-  }
-  // 人员实名制预警：与预警清单「处置预警」详情页同一路由（兼容旧待办入口）
-  if (row?.type === 'labor_warning' && row.laborWarningId) {
-    router.push({
-      name: 'LaborWarningDetail',
-      params: { id: row.laborWarningId },
-      query: {
-        from: 'personal-center',
-        tab: 'warning-center',
-        todoId: row.id,
-      },
-    })
-    return
-  }
   router.push({
     path: '/personal-center/todo/handle',
     query: { id: row.id, from },
@@ -215,17 +191,30 @@ function openProcessDetail(row, from) {
 }
 
 function viewWarningCenter(row) {
-  if (!row?.laborWarningId) {
+  if (row?.laborWarningId) {
+    const warningId = row.laborWarningId
+    const todoId = `todo-labor-warning-${warningId}`
+    if (findPersonalTodo(todoId)) {
+      router.push({
+        path: '/personal-center/todo/handle',
+        query: { id: todoId, from: 'todo' },
+      })
+      return
+    }
+    router.push({
+      path: '/personal-center/todo/handle',
+      query: { warningId, from: 'warning-center' },
+    })
+    return
+  }
+  if (!row?.id) {
     ElMessage.warning('未关联预警详情')
     return
   }
+  // AI / 机械 / 危大：与人员实名制一致，进入二级办理页
   router.push({
-    name: 'LaborWarningDetail',
-    params: { id: row.laborWarningId },
-    query: {
-      from: 'personal-center',
-      tab: 'warning-center',
-    },
+    path: '/personal-center/todo/handle',
+    query: { id: row.id, from: 'warning-center' },
   })
 }
 
@@ -511,6 +500,10 @@ watch([activeTotal, pageSize], () => {
     <!-- 预警中心 -->
     <template v-else-if="activeTab === 'warning-center'">
       <div class="filter-bar">
+        <span class="filter-label">所属模块</span>
+        <el-select v-model="filters.warnModule" clearable placeholder="请选择所属模块" style="width: 170px" aria-label="请选择所属模块">
+          <el-option v-for="s in WARNING_CENTER_MODULE_OPTIONS" :key="s" :label="s" :value="s" />
+        </el-select>
         <span class="filter-label">类型</span>
         <el-select v-model="filters.warnType" clearable placeholder="请选择" style="width: 150px" aria-label="请选择">
           <el-option v-for="s in WARNING_CENTER_TYPE_OPTIONS" :key="s" :label="s" :value="s" />

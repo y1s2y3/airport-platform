@@ -2,11 +2,11 @@
 import './mat-page.css'
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
 import { Search, Refresh, Download } from '@element-plus/icons-vue'
 import { useQmProjectScope } from '../../../composables/useCurrentProject'
 import { listLedger, ENTRY_TYPE_LABEL, getEntryDetail } from '../../../mock/mat.js'
-import { exportMatEntryArchive } from '../../../utils/matEntryArchiveExport.js'
+import { useMatArchiveExport } from '../../../composables/useMatArchiveExport.js'
+import MatArchiveExportDialog from './components/MatArchiveExportDialog.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -44,25 +44,28 @@ function displayName(row) {
 }
 
 const exportLoadingId = ref('')
+const { dialogVisible, exportLoading, openExportDialog, confirmExport } = useMatArchiveExport()
 
-async function onExportArchive(row) {
-  if (exportLoadingId.value) return
+function onExportArchive(row) {
+  if (exportLoadingId.value || exportLoading.value) return
   exportLoadingId.value = row.entry_id
   try {
     const detail = getEntryDetail(row.entry_id)
-    const r = await exportMatEntryArchive(detail)
-    if (!r.ok) ElMessage.warning(r.msg)
-    else ElMessage.success('归档文件已导出')
+    openExportDialog(detail)
   } finally {
     exportLoadingId.value = ''
   }
+}
+
+async function onConfirmExportArchive(selectedKeys) {
+  await confirmExport(selectedKeys)
 }
 </script>
 
 <template>
   <div class="qm-page page-card">
     <div class="page-header">
-      <div class="page-breadcrumb">材料设备进场管理 / 材料设备台账</div>
+      <div class="page-breadcrumb">材料设备进场 / 材料设备台账</div>
       <h1 class="page-title">材料设备台账</h1>
       <p class="page-tip">
         仅展示审批通过的进场记录（含退场信息）· 当前：{{
@@ -161,7 +164,7 @@ async function onExportArchive(row) {
               link
               type="primary"
               :icon="Download"
-              :loading="exportLoadingId === row.entry_id"
+              :loading="exportLoadingId === row.entry_id || exportLoading"
               @click="onExportArchive(row)"
             >
               导出归档
@@ -169,6 +172,12 @@ async function onExportArchive(row) {
           </template>
         </el-table-column>
       </el-table>
+
+      <MatArchiveExportDialog
+        v-model="dialogVisible"
+        :loading="exportLoading"
+        @confirm="onConfirmExportArchive"
+      />
     </template>
   </div>
 </template>

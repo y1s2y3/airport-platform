@@ -3,8 +3,10 @@
  * 无品牌库/材料规格库；台账 BRAND_LEDGER 独立只读，审批通过后写入
  */
 import { reactive } from 'vue'
+import { nowStr } from '../utils/datetime.js'
 import { getProjectLabel } from './laborRealName.js'
 import { COC_PROJECT_OPTIONS } from '../config/projectOptions.js'
+import { getProjectDetail, displayProjectManagerName } from './projectBasicInfo.js'
 import {
   createBrandPmTodo,
   createBrandSupervisorTodo,
@@ -39,6 +41,110 @@ export const ATTACH_TYPE = {
 export const ROLE_TAG = { primary: '主选', alternate: '备选' }
 
 export const ATTACH_TYPE_KEYS = Object.keys(ATTACH_TYPE)
+
+/** 项目级审批人选人池（演示：各项目共用同一组织范围名单） */
+export const BRAND_PROJECT_USERS = [
+  { user_id: 'u-jl-01', name: '李总监', phone: '13800001001', org: '深圳某监理有限公司' },
+  { user_id: 'u-jl-02', name: '王代总', phone: '13800001002', org: '深圳某监理有限公司' },
+  { user_id: 'u-jl-03', name: '赵专监', phone: '13800001003', org: '深圳某监理有限公司' },
+  { user_id: 'u-jl-04', name: '钱专监', phone: '13800001004', org: '深圳某监理有限公司' },
+  { user_id: 'u-pm-01', name: '王建国', phone: '13800138001', org: '机场建设指挥部' },
+  { user_id: 'u-pm-02', name: '陈项目经理', phone: '13800007001', org: '中建某局机场项目部' },
+  { user_id: 'u-pm-03', name: '郑经理', phone: '13300133000', org: '机场建设指挥部' },
+  { user_id: 'u-pm-04', name: '裴云龙', phone: '18588955314', org: '机场建设指挥部' },
+  { user_id: 'u-pm-05', name: '吴建设', phone: '13800004001', org: '机场建设指挥部' },
+]
+
+/** 按项目记忆上次审批人 */
+const approverMemoryByProject = reactive({
+  'p-000': {
+    supervisor_user_id: 'u-jl-01',
+    supervisor_name: '李总监',
+    pm_user_id: 'u-pm-01',
+    pm_name: '王建国',
+    updated_at: '2026-07-20 11:00:00',
+  },
+})
+
+function parsePortraitContact(raw) {
+  const text = String(raw || '').trim()
+  if (!text) return { name: '', phone: '' }
+  const slashParts = text.split(/\s*\/\s*/)
+  if (slashParts.length >= 2) {
+    const phone = slashParts[slashParts.length - 1].trim()
+    if (/\d{7,}/.test(phone)) {
+      return { name: slashParts.slice(0, -1).join(' / ').trim(), phone }
+    }
+  }
+  const glued = text.match(/^(.+?)(\d{11})$/)
+  if (glued) return { name: glued[1].trim(), phone: glued[2] }
+  return { name: text, phone: '' }
+}
+
+export function listBrandProjectUsers(projectId) {
+  if (!projectId) return []
+  return BRAND_PROJECT_USERS.map((u) => ({ ...u }))
+}
+
+export function findBrandProjectUser(userId) {
+  return BRAND_PROJECT_USERS.find((u) => u.user_id === userId) || null
+}
+
+export function resolvePmUserFromPortrait(projectId) {
+  const detail = getProjectDetail(projectId)
+  if (!detail) return null
+  const contact = parsePortraitContact(detail.projectManagerContact)
+  const name = contact.name || displayProjectManagerName(detail)
+  const phone = contact.phone
+  if (!name) return null
+  const hit = BRAND_PROJECT_USERS.find((u) => {
+    if (phone) return u.name === name && u.phone === phone
+    return u.name === name
+  })
+  return hit ? { user_id: hit.user_id, name: hit.name, phone: hit.phone } : null
+}
+
+export function getApproverMemory(projectId) {
+  if (!projectId) return null
+  return approverMemoryByProject[projectId] || null
+}
+
+function saveApproverMemory(projectId, supervisorUserId, supervisorName, pmUserId, pmName) {
+  if (!projectId) return
+  approverMemoryByProject[projectId] = {
+    supervisor_user_id: supervisorUserId,
+    supervisor_name: supervisorName,
+    pm_user_id: pmUserId,
+    pm_name: pmName,
+    updated_at: nowStr(),
+  }
+}
+
+export function resolveDefaultApprovers(projectId) {
+  const empty = {
+    supervisor_approver_user_id: '',
+    supervisor_approver_name: '',
+    pm_approver_user_id: '',
+    pm_approver_name: '',
+  }
+  if (!projectId) return empty
+  const mem = getApproverMemory(projectId)
+  if (mem?.supervisor_user_id && mem?.pm_user_id) {
+    return {
+      supervisor_approver_user_id: mem.supervisor_user_id,
+      supervisor_approver_name: mem.supervisor_name || '',
+      pm_approver_user_id: mem.pm_user_id,
+      pm_approver_name: mem.pm_name || '',
+    }
+  }
+  const pm = resolvePmUserFromPortrait(projectId)
+  return {
+    supervisor_approver_user_id: '',
+    supervisor_approver_name: '',
+    pm_approver_user_id: pm?.user_id || '',
+    pm_approver_name: pm?.name || '',
+  }
+}
 
 /** 新建备选时的附件勾选槽位（勾选后可上传多个文件） */
 export function createEmptyAttachSlots() {
@@ -210,6 +316,10 @@ const store = reactive({
       finish_time: '2026-07-12 16:00:00',
       remark: '',
       copy_from_application_id: '',
+    supervisor_approver_user_id: 'u-jl-01',
+    supervisor_approver_name: '李总监',
+    pm_approver_user_id: 'u-pm-01',
+    pm_approver_name: '王建国',
     },
     {
       application_id: 'PP-2026-002',
@@ -225,6 +335,10 @@ const store = reactive({
       finish_time: '',
       remark: '',
       copy_from_application_id: '',
+    supervisor_approver_user_id: 'u-jl-01',
+    supervisor_approver_name: '李总监',
+    pm_approver_user_id: 'u-pm-01',
+    pm_approver_name: '王建国',
     },
     {
       application_id: 'PP-2026-003',
@@ -240,6 +354,10 @@ const store = reactive({
       finish_time: '',
       remark: '',
       copy_from_application_id: '',
+    supervisor_approver_user_id: 'u-jl-01',
+    supervisor_approver_name: '李总监',
+    pm_approver_user_id: 'u-pm-01',
+    pm_approver_name: '王建国',
     },
     {
       application_id: 'PP-2026-004',
@@ -255,6 +373,10 @@ const store = reactive({
       finish_time: '2026-07-16 09:00:00',
       remark: '',
       copy_from_application_id: '',
+    supervisor_approver_user_id: 'u-jl-01',
+    supervisor_approver_name: '李总监',
+    pm_approver_user_id: 'u-pm-01',
+    pm_approver_name: '王建国',
     },
     {
       application_id: 'PP-2026-005',
@@ -270,6 +392,10 @@ const store = reactive({
       finish_time: '2026-07-09 17:20:00',
       remark: '重点项目示例数据',
       copy_from_application_id: '',
+    supervisor_approver_user_id: 'u-jl-01',
+    supervisor_approver_name: '李总监',
+    pm_approver_user_id: 'u-pm-01',
+    pm_approver_name: '王建国',
     },
     {
       application_id: 'PP-2026-006',
@@ -285,6 +411,10 @@ const store = reactive({
       finish_time: '2026-07-05 14:00:00',
       remark: '',
       copy_from_application_id: '',
+    supervisor_approver_user_id: 'u-jl-01',
+    supervisor_approver_name: '李总监',
+    pm_approver_user_id: 'u-pm-01',
+    pm_approver_name: '王建国',
     },
     {
       application_id: 'PP-2026-007',
@@ -300,6 +430,10 @@ const store = reactive({
       finish_time: '2026-07-14 10:00:00',
       remark: '',
       copy_from_application_id: '',
+    supervisor_approver_user_id: 'u-jl-01',
+    supervisor_approver_name: '李总监',
+    pm_approver_user_id: 'u-pm-01',
+    pm_approver_name: '王建国',
     },
     {
       application_id: 'PP-2026-008',
@@ -315,6 +449,10 @@ const store = reactive({
       finish_time: '2026-07-15 11:00:00',
       remark: '',
       copy_from_application_id: '',
+    supervisor_approver_user_id: 'u-jl-01',
+    supervisor_approver_name: '李总监',
+    pm_approver_user_id: 'u-pm-01',
+    pm_approver_name: '王建国',
     },
   ],
   candidates: [
@@ -724,12 +862,6 @@ const store = reactive({
   seq: { app: 16, cand: 107, ledger: 9, ar: 18, att: 8 },
 })
 
-function timestamp() {
-  const d = new Date()
-  const p = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
-}
-
 function ledgerUniqueKey(projectId, brandName, manufacturer, materialName) {
   return [
     projectId,
@@ -747,7 +879,7 @@ function upsertLedgerFromCandidate(app, candidate) {
     app.material_name,
   )
   const role_tag = candidate.is_primary ? 'primary' : 'alternate'
-  const now = timestamp()
+  const now = nowStr()
   const existing = store.ledger.find(
     (row) =>
       ledgerUniqueKey(row.project_id, row.brand_name, row.manufacturer, row.material_name) === key,
@@ -862,6 +994,35 @@ export function listApplications(projectId, { keyword = '', status = '' } = {}) 
     })
   }
   return rows.sort((a, b) => (a.submit_time < b.submit_time ? 1 : -1))
+}
+
+/** 材料/设备名称去首尾空格（唯一键比较口径） */
+export function normalizeBrandMaterialName(name) {
+  return String(name || '').trim()
+}
+
+/**
+ * 查找本项目已通过报审单中与材料名 trim 后相同的记录（重复报审提示，不拦截提交）
+ * @param {string} projectId
+ * @param {string} materialName
+ * @returns {{ application_id: string, material_name: string, submit_time: string }[]}
+ */
+export function findApprovedDuplicateMaterialApplications(projectId, materialName) {
+  const normalized = normalizeBrandMaterialName(materialName)
+  if (!projectId || !normalized) return []
+  return store.applications
+    .filter(
+      (a) =>
+        a.project_id === projectId &&
+        a.status === 'approved' &&
+        normalizeBrandMaterialName(a.material_name) === normalized,
+    )
+    .map((a) => ({
+      application_id: a.application_id,
+      material_name: a.material_name,
+      submit_time: a.submit_time,
+    }))
+    .sort((a, b) => (a.submit_time < b.submit_time ? 1 : -1))
 }
 
 /** 品牌台账：按台账行展示（非按报审单） */
@@ -1034,8 +1195,13 @@ function buildBrandTodoPayload(app) {
     })),
     primaryBrand: primary?.brand_name || '',
     alternateBrands: alternates.map((c) => c.brand_name).join('、'),
-    supervisorTime: timestamp(),
-    supervisorName: '监理用户',
+    supervisorTime: nowStr(),
+    supervisorName: app.supervisor_approver_name || '监理用户',
+    assigneeName:
+      app.current_node === 'pm'
+        ? app.pm_approver_name || '项目经理'
+        : app.supervisor_approver_name || '监理用户',
+    pmApproverName: app.pm_approver_name || '项目经理',
   }
 }
 
@@ -1066,6 +1232,10 @@ export function buildCopyPayloadFromRejected(applicationId) {
     material_type: detail.app.material_type,
     use_part: detail.app.use_part || '',
     copy_from_application_id: applicationId,
+    supervisor_approver_user_id: detail.app.supervisor_approver_user_id || '',
+    supervisor_approver_name: detail.app.supervisor_approver_name || '',
+    pm_approver_user_id: detail.app.pm_approver_user_id || '',
+    pm_approver_name: detail.app.pm_approver_name || '',
     candidates: detail.candidates.map((c) => ({
       ledger_id: '',
       brand_name: c.brand_name,
@@ -1088,6 +1258,10 @@ export function buildReEditPayloadFromWithdrawn(applicationId) {
     material_type: detail.app.material_type,
     use_part: detail.app.use_part || '',
     remark: detail.app.remark || '',
+    supervisor_approver_user_id: detail.app.supervisor_approver_user_id || '',
+    supervisor_approver_name: detail.app.supervisor_approver_name || '',
+    pm_approver_user_id: detail.app.pm_approver_user_id || '',
+    pm_approver_name: detail.app.pm_approver_name || '',
     candidates: detail.candidates.map((c) => ({
       ledger_id: c.ledger_id || '',
       brand_name: c.brand_name,
@@ -1173,13 +1347,44 @@ function validateBrandSubmitPayload(payload) {
       }
     }
   }
-  return { ok: true, project_id, material_name, material_type, validCandidates }
+  const supervisor_approver_user_id = String(payload.supervisor_approver_user_id || '').trim()
+  const pm_approver_user_id = String(payload.pm_approver_user_id || '').trim()
+  if (!supervisor_approver_user_id) return { ok: false, msg: '请选择监理单位审批人' }
+  if (!pm_approver_user_id) return { ok: false, msg: '请选择项目经理审批人' }
+  const supervisorUser = findBrandProjectUser(supervisor_approver_user_id)
+  const pmUser = findBrandProjectUser(pm_approver_user_id)
+  if (!supervisorUser) return { ok: false, msg: '监理单位审批人不在本项目可选范围内' }
+  if (!pmUser) return { ok: false, msg: '项目经理审批人不在本项目可选范围内' }
+  const supervisor_approver_name =
+    String(payload.supervisor_approver_name || '').trim() || supervisorUser.name
+  const pm_approver_name = String(payload.pm_approver_name || '').trim() || pmUser.name
+
+  return {
+    ok: true,
+    project_id,
+    material_name,
+    material_type,
+    validCandidates,
+    supervisor_approver_user_id,
+    supervisor_approver_name,
+    pm_approver_user_id,
+    pm_approver_name,
+  }
 }
 
 export function submitApplication(payload) {
   const checked = validateBrandSubmitPayload(payload)
   if (!checked.ok) return checked
-  const { project_id, material_name, material_type, validCandidates } = checked
+  const {
+    project_id,
+    material_name,
+    material_type,
+    validCandidates,
+    supervisor_approver_user_id,
+    supervisor_approver_name,
+    pm_approver_user_id,
+    pm_approver_name,
+  } = checked
 
   if (payload.copy_from_application_id) {
     const src = store.applications.find((a) => a.application_id === payload.copy_from_application_id)
@@ -1200,13 +1405,24 @@ export function submitApplication(payload) {
     current_node: 'supervisor',
     applicant_user_id: 'u-contractor',
     applicant_name: '当前用户',
-    submit_time: timestamp(),
+    submit_time: nowStr(),
     finish_time: '',
     remark: payload.remark || '',
     copy_from_application_id: payload.copy_from_application_id || '',
+    supervisor_approver_user_id,
+    supervisor_approver_name,
+    pm_approver_user_id,
+    pm_approver_name,
   }
   store.applications.push(app)
   replaceBrandCandidates(application_id, project_id, validCandidates)
+  saveApproverMemory(
+    project_id,
+    supervisor_approver_user_id,
+    supervisor_approver_name,
+    pm_approver_user_id,
+    pm_approver_name,
+  )
 
   createBrandSupervisorTodo(buildBrandTodoPayload(app))
   return { ok: true, data: app }
@@ -1220,7 +1436,7 @@ export function withdrawApplication(applicationId) {
   }
   app.status = 'withdrawn'
   app.current_node = 'none'
-  app.finish_time = timestamp()
+  app.finish_time = nowStr()
   store.seq.ar += 1
   store.approvals.push({
     record_id: `AR-${String(store.seq.ar).padStart(3, '0')}`,
@@ -1230,7 +1446,7 @@ export function withdrawApplication(applicationId) {
     opinion: '申请人撤回',
     operator_user_id: 'u-contractor',
     operator_name: '当前用户',
-    operate_time: timestamp(),
+    operate_time: nowStr(),
   })
   discardBrandTodos(applicationId)
   return { ok: true }
@@ -1247,18 +1463,38 @@ export function resubmitWithdrawnBrand(applicationId, payload) {
     project_id: payload.project_id || app.project_id,
   })
   if (!checked.ok) return checked
-  const { project_id, material_name, material_type, validCandidates } = checked
+  const {
+    project_id,
+    material_name,
+    material_type,
+    validCandidates,
+    supervisor_approver_user_id,
+    supervisor_approver_name,
+    pm_approver_user_id,
+    pm_approver_name,
+  } = checked
   if (project_id !== app.project_id) return { ok: false, msg: '不可跨项目重提' }
 
   app.material_name = material_name
   app.material_type = material_type
   app.use_part = payload.use_part || ''
   app.remark = payload.remark || ''
+  app.supervisor_approver_user_id = supervisor_approver_user_id
+  app.supervisor_approver_name = supervisor_approver_name
+  app.pm_approver_user_id = pm_approver_user_id
+  app.pm_approver_name = pm_approver_name
   app.status = 'pending'
   app.current_node = 'supervisor'
-  app.submit_time = timestamp()
+  app.submit_time = nowStr()
   app.finish_time = ''
   replaceBrandCandidates(applicationId, project_id, validCandidates)
+  saveApproverMemory(
+    project_id,
+    supervisor_approver_user_id,
+    supervisor_approver_name,
+    pm_approver_user_id,
+    pm_approver_name,
+  )
 
   store.seq.ar += 1
   store.approvals.push({
@@ -1269,7 +1505,7 @@ export function resubmitWithdrawnBrand(applicationId, payload) {
     opinion: '撤回后重新提交',
     operator_user_id: 'u-contractor',
     operator_name: '当前用户',
-    operate_time: timestamp(),
+    operate_time: nowStr(),
   })
   discardBrandTodos(applicationId)
   createBrandSupervisorTodo(buildBrandTodoPayload(app))
@@ -1288,7 +1524,7 @@ export function supervisorApprove(applicationId, { action, opinion }) {
   if (app.status !== 'pending' || app.current_node !== 'supervisor') {
     return { ok: false, msg: '当前不在待审批（待监理审）节点' }
   }
-  if (action === 'reject' && !(opinion || '').trim()) return { ok: false, msg: '退回意见必填' }
+  if (action === 'reject' && !(opinion || '').trim()) return { ok: false, msg: '驳回意见必填' }
   store.seq.ar += 1
   store.approvals.push({
     record_id: `AR-${String(store.seq.ar).padStart(3, '0')}`,
@@ -1296,9 +1532,9 @@ export function supervisorApprove(applicationId, { action, opinion }) {
     node_code: 'supervisor',
     action,
     opinion: opinion || '',
-    operator_user_id: 'u-supervisor',
-    operator_name: '监理用户',
-    operate_time: timestamp(),
+    operator_user_id: app.supervisor_approver_user_id || 'u-supervisor',
+    operator_name: app.supervisor_approver_name || '监理用户',
+    operate_time: nowStr(),
   })
   if (action === 'agree') {
     app.status = 'in_approval'
@@ -1307,7 +1543,7 @@ export function supervisorApprove(applicationId, { action, opinion }) {
   } else {
     app.status = 'rejected'
     app.current_node = 'none'
-    app.finish_time = timestamp()
+    app.finish_time = nowStr()
   }
   return { ok: true }
 }
@@ -1318,7 +1554,7 @@ export function pmApprove(applicationId, { action, opinion }) {
   if (app.status !== 'in_approval' || app.current_node !== 'pm') {
     return { ok: false, msg: '当前不在待项目经理审节点' }
   }
-  if (action === 'reject' && !(opinion || '').trim()) return { ok: false, msg: '退回意见必填' }
+  if (action === 'reject' && !(opinion || '').trim()) return { ok: false, msg: '驳回意见必填' }
 
   store.seq.ar += 1
   store.approvals.push({
@@ -1327,15 +1563,15 @@ export function pmApprove(applicationId, { action, opinion }) {
     node_code: 'pm',
     action,
     opinion: opinion || '',
-    operator_user_id: 'u-pm',
-    operator_name: '项目经理',
-    operate_time: timestamp(),
+    operator_user_id: app.pm_approver_user_id || 'u-pm',
+    operator_name: app.pm_approver_name || '项目经理',
+    operate_time: nowStr(),
   })
 
   if (action === 'reject') {
     app.status = 'rejected'
     app.current_node = 'none'
-    app.finish_time = timestamp()
+    app.finish_time = nowStr()
     return { ok: true }
   }
 
@@ -1349,7 +1585,7 @@ export function pmApprove(applicationId, { action, opinion }) {
 
   app.status = 'approved'
   app.current_node = 'none'
-  app.finish_time = timestamp()
+  app.finish_time = nowStr()
   return { ok: true }
 }
 

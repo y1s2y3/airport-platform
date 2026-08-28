@@ -2,6 +2,7 @@
  * 实模一致验收 Mock — 对齐 QM-ASBUILT 产品架构 V1.7
  */
 import { reactive } from 'vue'
+import { nowStr } from '../utils/datetime.js'
 import { getProjectLabel } from './laborRealName.js'
 import { wbsNodes, WBS_TREE_NODE_TYPE_LABEL } from './qmInspect.js'
 import {
@@ -44,10 +45,6 @@ export function statusTagType(status) {
   if (status === 'pending_approval') return 'warning'
   if (status === 'draft') return 'info'
   return ''
-}
-
-function nowStr() {
-  return new Date().toLocaleString('zh-CN', { hour12: false })
 }
 
 function buildNodePath(nodeId) {

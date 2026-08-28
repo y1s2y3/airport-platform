@@ -1,0 +1,108 @@
+<script setup>
+import { computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import {
+  ATTACH_TYPE,
+  getApplicationDetail,
+  MATERIAL_TYPE,
+  NODE_LABEL,
+  STATUS_LABEL,
+  statusTagType,
+} from '../../../mock/brand.js'
+
+const route = useRoute()
+const router = useRouter()
+const detail = computed(() => getApplicationDetail(String(route.query.id || '')))
+
+const actionLabel = { agree: '??', reject: '???, withdraw: '??' }
+</script>
+
+<template>
+  <div class="qm-page page-card">
+    <div class="page-header">
+      <div class="page-breadcrumb">???? / ????</div>
+      <h1 class="page-title">????</h1>
+    </div>
+
+    <el-empty v-if="!detail" description="??????" />
+    <template v-else>
+      <el-descriptions :column="2" border>
+        <el-descriptions-item label="????">{{ detail.app.application_id }}</el-descriptions-item>
+        <el-descriptions-item label="???>
+          <el-tag size="small" :type="statusTagType(detail.app.status)">
+            {{ STATUS_LABEL[detail.app.status] }}
+          </el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="??/??">{{ detail.app.material_name }}</el-descriptions-item>
+        <el-descriptions-item label="??">{{ MATERIAL_TYPE[detail.app.material_type] }}</el-descriptions-item>
+        <el-descriptions-item label="????ID">{{ detail.app.material_id || '?? }}</el-descriptions-item>
+        <el-descriptions-item label="????">{{ detail.app.use_part || '?? }}</el-descriptions-item>
+        <el-descriptions-item label="????">{{ NODE_LABEL[detail.app.current_node] }}</el-descriptions-item>
+        <el-descriptions-item label="????>{{ detail.app.applicant_name }}</el-descriptions-item>
+        <el-descriptions-item label="????">{{ detail.app.submit_time }}</el-descriptions-item>
+        <el-descriptions-item label="????">{{ detail.app.finish_time || '?? }}</el-descriptions-item>
+        <el-descriptions-item label="??" :span="2">{{ detail.app.remark || '?? }}</el-descriptions-item>
+      </el-descriptions>
+
+      <h3 class="sec">????</h3>
+      <el-table :data="detail.specs" border stripe size="small">
+        <el-table-column prop="seq_no" label="??" width="70" />
+        <el-table-column prop="spec_model" label="????" />
+        <el-table-column prop="material_spec_id" label="????ID" />
+      </el-table>
+
+      <h3 class="sec">?????/h3>
+      <el-table :data="detail.candidates" border stripe size="small">
+        <el-table-column prop="seq_no" label="??" width="70" />
+        <el-table-column prop="brand_name" label="????" />
+        <el-table-column prop="manufacturer" label="????" min-width="180" />
+        <el-table-column label="??" width="100">
+          <template #default="{ row }">{{ row.brand_lib_id ? '???' : '??' }}</template>
+        </el-table-column>
+        <el-table-column label="????? width="100">
+          <template #default="{ row }">
+            <el-tag v-if="row.is_selected" type="success" size="small">???/el-tag>
+            <span v-else>??/span>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <h3 class="sec">????</h3>
+      <el-timeline v-if="detail.approvals.length">
+        <el-timeline-item
+          v-for="r in detail.approvals"
+          :key="r.record_id"
+          :timestamp="r.operate_time"
+          placement="top"
+        >
+          {{ r.operator_name }} � {{ actionLabel[r.action] || r.action }}
+          <span v-if="r.opinion">?{{ r.opinion }}</span>
+        </el-timeline-item>
+      </el-timeline>
+      <el-empty v-else description="??????" :image-size="60" />
+
+      <h3 v-if="detail.attachments.length" class="sec">??</h3>
+      <el-table v-if="detail.attachments.length" :data="detail.attachments" border size="small">
+        <el-table-column prop="candidate_id" label="??ID" width="120" />
+        <el-table-column label="??">
+          <template #default="{ row }">{{ ATTACH_TYPE[row.attach_type] || row.attach_type }}</template>
+        </el-table-column>
+        <el-table-column prop="file_name" label="???? />
+      </el-table>
+
+      <div class="actions">
+        <el-button @click="router.back()">??</el-button>
+      </div>
+    </template>
+  </div>
+</template>
+
+<style scoped>
+.sec {
+  margin: 20px 0 10px;
+  font-size: 15px;
+}
+.actions {
+  margin-top: 20px;
+}
+</style>

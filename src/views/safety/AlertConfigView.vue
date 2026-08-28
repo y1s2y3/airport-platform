@@ -27,11 +27,11 @@ const treeDataWithCount = computed(() => {
   return [{ ...root, label: treeSearch.value ? '搜索结果' : root.label, children }]
 })
 
-const alertTypeOptions = ['塔吊告警', '升降机告警', '桩基告警', '复合地基告警', '高支模监测', '深基坑监测']
+const alertTypeOptions = ['塔吊预警', '升降机预警', '桩基预警', '复合地基预警', '高支模监测', '深基坑监测']
 
 const configData = ref([
   {
-    alertType: '塔吊告警',
+    alertType: '塔吊预警',
     deviceName: '塔吊QTZ160（#1）',
     project_id: 'p-000',
     handler: '王工',
@@ -40,7 +40,7 @@ const configData = ref([
     updateTime: '2026-07-20 11:24:56',
   },
   {
-    alertType: '塔吊告警',
+    alertType: '塔吊预警',
     deviceName: '塔吊QTZ80（#7）',
     project_id: 'p-003',
     handler: '李工',
@@ -49,7 +49,7 @@ const configData = ref([
     updateTime: '2026-07-20 11:24:56',
   },
   {
-    alertType: '升降机告警',
+    alertType: '升降机预警',
     deviceName: '升降机SC200（#2）',
     project_id: 'p-000',
     handler: '张工',
@@ -76,7 +76,7 @@ const configData = ref([
     updateTime: '2026-07-20 11:24:56',
   },
   {
-    alertType: '桩基告警',
+    alertType: '桩基预警',
     deviceName: '桩基钻孔机#5',
     project_id: 'p-000',
     handler: '赵工',
@@ -126,7 +126,7 @@ function saveConfig() {
 }
 
 function deleteConfig(row, idx) {
-  ElMessageBox.confirm(`确认删除 "${row.deviceName}" 的告警配置？`, '提示', {
+  ElMessageBox.confirm(`确认删除 "${row.deviceName}" 的预警配置？`, '提示', {
     confirmButtonText: '确认', cancelButtonText: '取消', type: 'warning'
   }).then(() => {
     configData.value.splice(idx, 1)
@@ -147,22 +147,22 @@ function handleReset() { filterForm.keyword = ''; filterForm.alertType = '' }
       </aside>
       <div class="page-panel">
     <div class="page-head">
-      <h3 class="page-title">告警配置</h3>
+      <h3 class="page-title">预警配置</h3>
       <span class="total-count">共 {{ filteredData.length }} 条</span>
       
     </div>
     <div class="filter-bar">
-      <el-select v-model="filterForm.alertType" placeholder="告警类型" clearable style="width:130px" aria-label="告警类型">
+      <el-select v-model="filterForm.alertType" placeholder="预警类型" clearable style="width:130px" aria-label="预警类型">
         <el-option v-for="t in alertTypeOptions" :key="t" :label="t" :value="t" />
       </el-select>
       <el-input v-model="filterForm.keyword" placeholder="搜索设备名称..." clearable style="width:220px" :prefix-icon="Search" aria-label="搜索设备名称..."/>
       <el-button @click="handleReset">重置</el-button>
-      <el-button v-if="!isHqSelected" @click="openAdd" style="background:#8F0045;border-color:#8F0045;color:#fff">新增告警配置</el-button>
+      <el-button v-if="!isHqSelected" @click="openAdd" style="background:#8F0045;border-color:#8F0045;color:#fff">新增预警配置</el-button>
     </div>
 
     <el-table :data="filteredData" stripe border style="width:100%" class="data-table">
       <el-table-column type="index" label="序号" width="55" align="center" />
-      <el-table-column prop="alertType" label="告警类型"  align="center" />
+      <el-table-column prop="alertType" label="预警类型"  align="center" />
       <el-table-column prop="deviceName" label="设备名称" min- />
       <el-table-column prop="handler" label="处理人"  align="center" />
       <el-table-column label="是否启用" width="80" align="center">
@@ -183,8 +183,8 @@ function handleReset() { filterForm.keyword = ''; filterForm.alertType = '' }
 
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="500px" :close-on-click-modal="false">
       <el-form :model="editForm" label-width="90px">
-        <el-form-item label="告警类型" required>
-          <el-select v-model="editForm.alertType" placeholder="请选择告警类型" style="width:100%" aria-label="请选择告警类型">
+        <el-form-item label="预警类型" required>
+          <el-select v-model="editForm.alertType" placeholder="请选择预警类型" style="width:100%" aria-label="请选择预警类型">
             <el-option v-for="t in alertTypeOptions" :key="t" :label="t" :value="t" />
           </el-select>
         </el-form-item>

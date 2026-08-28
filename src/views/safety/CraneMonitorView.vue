@@ -76,9 +76,8 @@ const hqTotalStats = computed(() => {
 })
 
 function viewProjectDetail(row) {
-  router.push({ path: '/machine-supervise/crane', query: { from: 'hq' } }).then(() => {
-    selectedProjectId.value = row.project_id
-  })
+  selectedProjectId.value = row.project_id
+  router.push({ path: '/machine-supervise/crane', query: { from: 'hq' } })
 }
 </script>
 
@@ -92,8 +91,8 @@ function viewProjectDetail(row) {
         <div class="stat-cards">
           <div class="stat-card"><div class="sc-value">{{ hqTotalStats.deviceCount }}</div><div class="sc-label">设备总数</div></div>
           <div class="stat-card"><div class="sc-value">{{ hqTotalStats.onlineCount }}</div><div class="sc-label">在线总数</div></div>
-          <div class="stat-card"><div class="sc-value text-theme-red">{{ hqTotalStats.alertCount }}</div><div class="sc-label">告警总数</div></div>
-          <div class="stat-card"><div class="sc-value text-theme-red">{{ hqTotalStats.pendingAlertCount }}</div><div class="sc-label">待处理告警数</div></div>
+          <div class="stat-card"><div class="sc-value text-theme-red">{{ hqTotalStats.alertCount }}</div><div class="sc-label">预警总数</div></div>
+          <div class="stat-card"><div class="sc-value text-theme-red">{{ hqTotalStats.pendingAlertCount }}</div><div class="sc-label">待处理预警数</div></div>
         </div>
         <div class="hq-filter-bar">
           <el-input v-model="hqProjectKeyword" placeholder="搜索项目名称..." clearable style="width:220px" :prefix-icon="Search" aria-label="搜索项目名称..."/>
@@ -103,9 +102,9 @@ function viewProjectDetail(row) {
           <el-table-column prop="project_name" label="项目名称" min-width="160" />
           <el-table-column prop="deviceCount" label="设备数量" align="center" />
           <el-table-column prop="onlineCount" label="在线设备数量" align="center" />
-          <el-table-column prop="alertCount" label="告警数量" align="center"><template #default="{ row }"><span :class="row.alertCount > 0 ? 'text-alert' : ''">{{ row.alertCount }}</span></template></el-table-column>
-          <el-table-column prop="todayAlertCount" label="今日告警数" align="center"><template #default="{ row }"><span :class="row.todayAlertCount > 0 ? 'text-alert' : ''">{{ row.todayAlertCount }}</span></template></el-table-column>
-          <el-table-column prop="pendingAlertCount" label="待处理告警数" align="center"><template #default="{ row }"><span :class="row.pendingAlertCount > 0 ? 'text-alert' : ''">{{ row.pendingAlertCount }}</span></template></el-table-column>
+          <el-table-column prop="alertCount" label="预警数量" align="center"><template #default="{ row }"><span :class="row.alertCount > 0 ? 'text-alert' : ''">{{ row.alertCount }}</span></template></el-table-column>
+          <el-table-column prop="todayAlertCount" label="今日预警数" align="center"><template #default="{ row }"><span :class="row.todayAlertCount > 0 ? 'text-alert' : ''">{{ row.todayAlertCount }}</span></template></el-table-column>
+          <el-table-column prop="pendingAlertCount" label="待处理预警数" align="center"><template #default="{ row }"><span :class="row.pendingAlertCount > 0 ? 'text-alert' : ''">{{ row.pendingAlertCount }}</span></template></el-table-column>
           <el-table-column label="操作" width="100" align="center">
             <template #default="{ row }">
               <el-button link type="primary" size="small" :icon="View" @click="viewProjectDetail(row)">查看详情</el-button>

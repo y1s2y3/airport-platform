@@ -1,8 +1,7 @@
 ﻿<script setup>
 import './mat-page.css'
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
 import { Download } from '@element-plus/icons-vue'
 import {
   getEntryDetail,
@@ -11,7 +10,9 @@ import {
   statusTagType,
   formatBatchNo,
 } from '../../../mock/mat.js'
-import { exportMatEntryArchive } from '../../../utils/matEntryArchiveExport.js'
+import { useMatArchiveExport } from '../../../composables/useMatArchiveExport.js'
+import MatArchiveExportDialog from './components/MatArchiveExportDialog.vue'
+import PersonalCenterReadonlyHint from '../../../components/PersonalCenterReadonlyHint.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -21,19 +22,22 @@ const detail = computed(() => {
   return id ? getEntryDetail(id) : null
 })
 
-const canExportArchive = computed(() => detail.value?.status === 'approved')
-const exportLoading = ref(false)
+const showReadonlyHint = computed(
+  () =>
+    detail.value &&
+    (detail.value.status === 'reviewing' || detail.value.status === 'pending_review'),
+)
 
-async function onExportArchive() {
+const canExportArchive = computed(() => detail.value?.status === 'approved')
+const { dialogVisible, exportLoading, openExportDialog, confirmExport } = useMatArchiveExport()
+
+function onExportArchive() {
   if (!detail.value || exportLoading.value) return
-  exportLoading.value = true
-  try {
-    const r = await exportMatEntryArchive(detail.value)
-    if (!r.ok) ElMessage.warning(r.msg)
-    else ElMessage.success('归档文件已导出')
-  } finally {
-    exportLoading.value = false
-  }
+  openExportDialog(detail.value)
+}
+
+async function onConfirmExportArchive(selectedKeys) {
+  await confirmExport(selectedKeys)
 }
 
 const lineItems = computed(() => {
@@ -106,7 +110,7 @@ const lineItems = computed(() => {
 <template>
   <div class="qm-page page-card">
     <div class="page-header">
-      <div class="page-breadcrumb">材料设备进场管理 / 进场详情</div>
+      <div class="page-breadcrumb">材料设备进场 / 进场详情</div>
       <div class="title-row">
         <h1 class="page-title">进场详情 {{ detail?.entry_id || '' }}</h1>
         <el-tag v-if="detail?.exited" type="warning" effect="plain">已退场</el-tag>
@@ -126,6 +130,7 @@ const lineItems = computed(() => {
     <el-empty v-if="!detail" description="未找到进场单" />
 
     <template v-else>
+      <PersonalCenterReadonlyHint v-if="showReadonlyHint" />
       <h3 class="section-title">品牌与定样</h3>
       <el-descriptions :column="2" border size="small" class="mb">
         <el-descriptions-item label="进场单号">{{ detail.entry_id }}</el-descriptions-item>
@@ -151,6 +156,15 @@ const lineItems = computed(() => {
           detail.sample_application_id || detail.sample_id || '—'
         }}</el-descriptions-item>
         <el-descriptions-item label="申请人">{{ detail.applicant_name }}</el-descriptions-item>
+        <el-descriptions-item label="监理审批人">
+          <template v-if="detail.supervisor_approver_name">
+            {{ detail.supervisor_approver_name }}
+            <span v-if="detail.supervisor_approver_post_label" class="muted">
+              （{{ detail.supervisor_approver_post_label }}）
+            </span>
+          </template>
+          <template v-else>—</template>
+        </el-descriptions-item>
         <el-descriptions-item label="提交时间">{{ detail.submit_time }}</el-descriptions-item>
         <el-descriptions-item label="办结时间">{{ detail.finish_time || '—' }}</el-descriptions-item>
         <el-descriptions-item v-if="detail.entry_type === 'material'" label="退场状态">
@@ -280,6 +294,12 @@ const lineItems = computed(() => {
         <el-table-column prop="opinion" label="意见" min-width="200" />
       </el-table>
     </template>
+
+    <MatArchiveExportDialog
+      v-model="dialogVisible"
+      :loading="exportLoading"
+      @confirm="onConfirmExportArchive"
+    />
   </div>
 </template>
 

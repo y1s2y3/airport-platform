@@ -9,6 +9,7 @@ import {
   resolveDispatchHazardPhotoSrc,
   resolveDispatchHazardPhotoName,
 } from '../../utils/dispatchHazardStorage.js'
+import PersonalCenterReadonlyHint from '../../components/PersonalCenterReadonlyHint.vue'
 
 defineProps({
   title: { type: String, default: '调度隐患清单' },
@@ -233,7 +234,10 @@ onMounted(load)
             </el-timeline-item>
           </el-timeline>
         </div>
-        <p class="detail-tip">整改提交与验收请前往「个人中心 · 我的待办」办理。</p>
+        <PersonalCenterReadonlyHint
+          v-if="current.rectifyStatus === '待整改' || current.rectifyStatus === '待验收'"
+          title="整改提交与验收请在「个人中心 → 我的待办」中处理；本页仅查看详情。"
+        />
       </template>
     </el-dialog>
   </div>
@@ -342,10 +346,4 @@ onMounted(load)
   line-height: 1.6;
 }
 
-.detail-tip {
-  margin: 16px 0 0;
-  font-size: 13px;
-  color: #909399;
-  line-height: 1.6;
-}
 </style>

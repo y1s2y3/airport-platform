@@ -6,6 +6,7 @@
  */
 import { reactive } from 'vue'
 import { COC_PROJECT_OPTIONS } from '../config/projectOptions.js'
+import { nowStr } from '../utils/datetime.js'
 
 /** 任务 status：0待提交 1验评中 2已通过 3已驳回（V2；旧草稿/整改复验主路径已废止） */
 export const TASK_STATUS = {
@@ -114,11 +115,7 @@ export function resolveProjectName(project_id) {
   return hit?.fullName || hit?.label || project_id || '—'
 }
 
-export function nowStr() {
-  const d = new Date()
-  const p = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
-}
+export { nowStr }
 
 const pid = 'p-000'
 

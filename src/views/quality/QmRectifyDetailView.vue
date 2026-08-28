@@ -18,26 +18,42 @@ import {
   TASK_STATUS,
 } from '../../mock/qm.js'
 import { finishPersonalTodo } from '../../mock/personalCenter.js'
+import PersonalCenterReadonlyHint from '../../components/PersonalCenterReadonlyHint.vue'
+
+const props = defineProps({
+  embedded: { type: Boolean, default: false },
+  rectifyId: { type: String, default: '' },
+  todoId: { type: String, default: '' },
+  readonly: { type: Boolean, default: false },
+})
+
+const emit = defineEmits(['back'])
 
 const route = useRoute()
 const router = useRouter()
 const order = ref(null)
 const measure = ref('')
 
-const fromPersonalCenter = computed(() => String(route.query.from || '') === 'personal-center')
+const fromPersonalCenter = computed(() => props.embedded)
+
+const resolvedRectifyId = computed(() => {
+  if (props.rectifyId) return props.rectifyId
+  const raw = route.query.id || route.params.id
+  return Array.isArray(raw) ? raw[0] : raw
+})
+
+const resolvedTodoId = computed(() => {
+  if (props.todoId) return props.todoId
+  const raw = route.query.todoId
+  return Array.isArray(raw) ? raw[0] : raw
+})
 
 function load() {
-  const raw = route.query.id || route.params.id
-  const id = Array.isArray(raw) ? raw[0] : raw
-  order.value = id ? findRectify(id) : null
+  order.value = resolvedRectifyId.value ? findRectify(resolvedRectifyId.value) : null
   measure.value = order.value?.measure || ''
 }
 
-watch(
-  () => [route.query.id, route.params.id],
-  () => load(),
-  { immediate: true },
-)
+watch(resolvedRectifyId, () => load(), { immediate: true })
 
 const task = computed(() =>
   order.value
@@ -53,7 +69,21 @@ const rounds = computed(() =>
 )
 
 const canSubmitRectify = computed(
-  () => order.value && Number(order.value.status) !== 3 && Number(task.value?.status) === 4,
+  () =>
+    props.embedded &&
+    !props.readonly &&
+    order.value &&
+    Number(order.value.status) !== 3 &&
+    Number(task.value?.status) === 4,
+)
+
+const showModuleReadonlyHint = computed(
+  () =>
+    !props.embedded &&
+    order.value &&
+    Number(order.value.status) !== 3 &&
+    task.value &&
+    Number(task.value.status) === 4,
 )
 
 function onSave() {
@@ -79,38 +109,45 @@ function onSubmit() {
   if (!task.value) return ElMessage.error('来源任务不存在')
   const r = submitReinspectRequest(task.value)
   if (!r.ok) return ElMessage.error(r.msg)
-  const todoId = route.query.todoId
-  if (todoId) finishPersonalTodo(Array.isArray(todoId) ? todoId[0] : todoId, '提交复验')
+  if (resolvedTodoId.value) finishPersonalTodo(resolvedTodoId.value, '提交复验')
   ElMessage.success('已提交复验')
   load()
+  if (props.embedded) emit('back')
 }
 
 function onPass() {
   const r = decideReinspect(task.value, { pass: true })
   if (!r.ok) return ElMessage.error(r.msg)
+  if (resolvedTodoId.value) finishPersonalTodo(resolvedTodoId.value, '复验通过')
   ElMessage.success('复验通过并销号')
   load()
+  if (props.embedded) emit('back')
 }
 
 function goBack() {
-  if (fromPersonalCenter.value) {
-    router.push('/personal-center')
+  if (props.embedded) {
+    emit('back')
     return
   }
-  router.push('/qm/inspect/rectify/list')
+  router.push('/qm/inspect/form-fill-deep')
 }
 </script>
 
 <template>
   <div v-if="!order" class="qm-page page-card"><el-empty description="整改单不存在" /></div>
   <div v-else class="qm-page page-card">
-    <div class="page-header">
-      <div class="page-breadcrumb">
-        {{ fromPersonalCenter ? '个人中心 / 待办处理' : '质量验评 / 整改复验 / 详情' }}
-      </div>
+    <div v-if="!embedded" class="page-header">
+      <div class="page-breadcrumb">质量验评 / 整改复验 / 详情</div>
       <h1 class="page-title">{{ order.order_no }}</h1>
       <p class="page-tip">{{ RECTIFY_STATUS[order.status] }} · {{ resolveProjectName(order.project_id) }}</p>
     </div>
+    <p v-else class="page-tip embed-tip">
+      {{ order.order_no }} · {{ RECTIFY_STATUS[order.status] }} · {{ resolveProjectName(order.project_id) }}
+    </p>
+    <PersonalCenterReadonlyHint
+      v-if="showModuleReadonlyHint"
+      title="本页为只读查看；整改提交与复验请在「个人中心 → 我的待办」中处理。"
+    />
     <el-descriptions :column="2" border class="mb">
       <el-descriptions-item label="来源验评单">{{ task?.task_no || order.source_task_id }}</el-descriptions-item>
       <el-descriptions-item label="任务状态">{{ task ? TASK_STATUS[task.status] : '—' }}</el-descriptions-item>
@@ -120,8 +157,14 @@ function goBack() {
     </el-descriptions>
 
     <div class="section-title">整改措施</div>
-    <el-input v-model="measure" type="textarea" :rows="3" class="mb" :disabled="order.status === 3" />
-    <div class="filter-bar mb">
+    <el-input
+      v-model="measure"
+      type="textarea"
+      :rows="3"
+      class="mb"
+      :disabled="order.status === 3 || props.readonly || !canSubmitRectify"
+    />
+    <div v-if="canSubmitRectify || (task?.status === 5 && fromPersonalCenter)" class="filter-bar mb">
       <el-button v-if="canSubmitRectify" @click="onSave">保存措施</el-button>
       <el-button v-if="canSubmitRectify" @click="onPhoto">
         上传整改后影像（{{ afterPhotos.length }}）
@@ -143,9 +186,7 @@ function goBack() {
       <el-table-column prop="opinion" label="意见" min-width="160" />
     </el-table>
 
-    <el-button style="margin-top: 16px" @click="goBack">
-      {{ fromPersonalCenter ? '返回个人中心' : '返回列表' }}
-    </el-button>
+    <el-button v-if="!embedded" style="margin-top: 16px" @click="goBack">返回列表</el-button>
   </div>
 </template>
 
@@ -154,7 +195,8 @@ function goBack() {
 .page-breadcrumb { font-size: 12px; color: #909399; }
 .page-title { margin: 4px 0; font-size: 20px; }
 .page-tip { margin: 0; font-size: 13px; color: #606266; }
+.embed-tip { margin: 0 0 8px; }
 .section-title { font-weight: 600; }
-.filter-bar { display: flex; flex-wrap: wrap; gap: 8px; }
+.filter-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .mb { margin-bottom: 12px; }
 </style>

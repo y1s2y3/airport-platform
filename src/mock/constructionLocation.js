@@ -1,12 +1,10 @@
 /**
- * 施工部位 Mock — 挂在分项（WBS node_type=5）下，支持多级树
+ * 施工部位 Mock — 挂在分项（WBS node_type=5）下，支持多级树（同一分项下最多三级）
  * 与验评目录树 / 实体工程分解同源依赖 wbsNodes 分项节点
  */
 import { reactive } from 'vue'
 import { ensureWbsScaffold, wbsNodes } from './qmInspect.js'
-
-const nowStr = () =>
-  new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-')
+import { nowStr } from '../utils/datetime.js'
 
 /** @type {Array<{
  *  id: string
@@ -518,6 +516,48 @@ export function resolveLocationPathLabel(locationId) {
   return parts.join(' / ')
 }
 
+export const MAX_LOCATION_DEPTH = 3
+
+/** 同一分项下：根级部位 depth=1，每向上一级 parent 累加 1 */
+export function getLocationDepth(locationId) {
+  if (!locationId) return 0
+  let depth = 0
+  let cur = getLocationById(locationId)
+  const guard = new Set()
+  while (cur && !guard.has(cur.id)) {
+    depth += 1
+    guard.add(cur.id)
+    cur = cur.parent_id ? getLocationById(cur.parent_id) : null
+  }
+  return depth
+}
+
+function getMaxRelativeDepth(locationId) {
+  let max = 0
+  const walk = (id, rel) => {
+    max = Math.max(max, rel)
+    constructionLocations
+      .filter((r) => r.parent_id === id)
+      .forEach((c) => walk(c.id, rel + 1))
+  }
+  walk(locationId, 0)
+  return max
+}
+
+function validateLocationDepth(parentId, selfId = '') {
+  const selfDepth = parentId ? getLocationDepth(parentId) + 1 : 1
+  if (selfDepth > MAX_LOCATION_DEPTH) {
+    return { ok: false, msg: '同一分项下施工部位最多支持三级，无法继续新增下级' }
+  }
+  if (selfId) {
+    const maxRel = getMaxRelativeDepth(selfId)
+    if (selfDepth + maxRel > MAX_LOCATION_DEPTH) {
+      return { ok: false, msg: '调整上级后将超过三级限制' }
+    }
+  }
+  return { ok: true }
+}
+
 export function upsertLocation(payload, id = '') {
   if (!payload?.project_id || !payload?.wbs_node_id || !payload?.name?.trim()) {
     return { ok: false, msg: '项目、归属分项、部位名称必填' }
@@ -537,6 +577,9 @@ export function upsertLocation(payload, id = '') {
       return { ok: false, msg: '不能将节点挂到自身或其下级下' }
     }
   }
+
+  const depthCheck = validateLocationDepth(parent_id, id)
+  if (!depthCheck.ok) return depthCheck
 
   const name = payload.name.trim()
   const code = (payload.code || '').trim()

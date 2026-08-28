@@ -2,7 +2,7 @@
 /**
  * APP · 退场登记（现场照片仅拍照）
  */
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useQmProjectScope } from '../../composables/useCurrentProject'
@@ -12,6 +12,7 @@ import {
   listExits,
   registerExit,
 } from '../../mock/mat.js'
+import MobileMatSubNav from './components/MobileMatSubNav.vue'
 
 const router = useRouter()
 const { isHqSelected, scopeProjectId, scopeProjectLabel } = useQmProjectScope()
@@ -40,6 +41,15 @@ const exitable = computed(() => {
 })
 
 const selected = computed(() => exitable.value.find((e) => e.entry_id === form.entry_id) || null)
+
+watch(
+  () => form.entry_id,
+  (id) => {
+    if (!id) return
+    const row = exitable.value.find((e) => e.entry_id === id)
+    if (row && !form.exit_qty) form.exit_qty = String(row.quantity || '')
+  },
+)
 
 function resetForm() {
   form.entry_id = ''
@@ -127,6 +137,7 @@ function goBack() {
     </header>
 
     <template v-if="mode === 'list'">
+      <MobileMatSubNav />
       <div v-if="isHqSelected" class="tip-banner">请先在顶部切换到具体项目</div>
       <div v-else class="tip-banner muted">当前：{{ scopeProjectLabel }} · 现场照片仅拍照</div>
 

@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { Plus, Delete } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useCurrentProject } from '../../composables/useCurrentProject'
+import { HQ_PROJECT_OPTION } from '../../config/projectOptions'
 import {
   listVideoOfflineNotifyRules,
   listNotifyPositionGroups,
@@ -19,7 +20,7 @@ defineProps({
 
 const { selectedProjectId, isHqSelected, headerProjectLabel } = useCurrentProject()
 const projectId = computed(() =>
-  isHqSelected.value || !selectedProjectId.value || selectedProjectId.value === 'hq'
+  isHqSelected.value || !selectedProjectId.value || selectedProjectId.value === HQ_PROJECT_OPTION.id
     ? ''
     : selectedProjectId.value,
 )

@@ -4,6 +4,37 @@ import { formatBatchNo } from '../mock/mat.js'
 const W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
 const TEMPLATE_URL = `${import.meta.env.BASE_URL}templates/材料设备归档模板.docx`
 
+/** 归档 Word 可勾选导出的表格分组（与 templates/材料设备归档模板.docx 一致） */
+export const ARCHIVE_EXPORT_SECTIONS = [
+  {
+    key: 'report_form',
+    label: '工程材料、构配件、设备报审表',
+    tableIndexes: [0, 4, 5],
+    titlePatterns: ['工程材料', 'GD-C1-347', '附表1', '材料进场数量清单', '项目名称：'],
+  },
+  {
+    key: 'cert_collect',
+    label: '施工物资产品合格证收集整理表',
+    tableIndexes: [1],
+    titlePatterns: ['施工物资产品合格证收集整理表', 'GD-C1-341'],
+  },
+  {
+    key: 'quality_summary',
+    label: '施工物资产品质量证明文件汇总核查表',
+    tableIndexes: [2],
+    titlePatterns: ['施工物资产品质量证明文件汇总核查表', 'GD-C1-342'],
+  },
+  {
+    key: 'unpack_check',
+    label: '重要施工物资进场（开箱）检查验收记录',
+    tableIndexes: [3],
+    titlePatterns: ['重要施工物资进场', 'GD-C1-344', '重要设备工程'],
+  },
+]
+
+/** 默认勾选：报审表 + 合格证整理表 + 证明文件汇总核查表 */
+export const DEFAULT_ARCHIVE_EXPORT_KEYS = ['report_form', 'cert_collect', 'quality_summary']
+
 function parseDateParts(value) {
   const raw = String(value || '').trim()
   const m = raw.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/)
@@ -199,6 +230,37 @@ function collectUnpackDefects(items) {
   return bad.map((i) => `${i.label}：${i.remark || '不合格'}`).join('；')
 }
 
+function removeUnselectedArchiveSections(doc, selectedKeys) {
+  const selected = new Set(selectedKeys?.length ? selectedKeys : DEFAULT_ARCHIVE_EXPORT_KEYS)
+  const keepTableIndexes = new Set()
+  ARCHIVE_EXPORT_SECTIONS.forEach((sec) => {
+    if (selected.has(sec.key)) {
+      sec.tableIndexes.forEach((i) => keepTableIndexes.add(i))
+    }
+  })
+
+  const tables = Array.from(doc.getElementsByTagNameNS(W_NS, 'tbl'))
+  tables.forEach((tbl, idx) => {
+    if (!keepTableIndexes.has(idx)) {
+      tbl.parentNode?.removeChild(tbl)
+    }
+  })
+
+  const removedPatterns = ARCHIVE_EXPORT_SECTIONS.filter((sec) => !selected.has(sec.key)).flatMap(
+    (sec) => sec.titlePatterns,
+  )
+  if (!removedPatterns.length) return
+
+  const paragraphs = Array.from(doc.getElementsByTagNameNS(W_NS, 'p'))
+  paragraphs.forEach((p) => {
+    const text = getParagraphText(p).trim()
+    if (!text) return
+    if (removedPatterns.some((pat) => text.includes(pat))) {
+      p.parentNode?.removeChild(p)
+    }
+  })
+}
+
 function fillArchiveDocument(doc, detail) {
   const lines = buildArchiveLineItems(detail)
   const projectLabel = detail.project_label || detail.project_id || ''
@@ -387,11 +449,19 @@ function downloadBlob(blob, filename) {
 /**
  * 按《材料设备归档模板》导出 Word 归档文件（仅审批通过）
  * @param {object} detail getEntryDetail 返回的完整进场单
+ * @param {{ sections?: string[] }} [options] sections 为勾选的导出分组 key，默认 DEFAULT_ARCHIVE_EXPORT_KEYS
  */
-export async function exportMatEntryArchive(detail) {
+export async function exportMatEntryArchive(detail, options = {}) {
   if (!detail) return { ok: false, msg: '进场单不存在' }
   if (detail.status !== 'approved') {
     return { ok: false, msg: '仅审批通过的进场单可导出归档文件' }
+  }
+
+  const sections = options.sections?.length ? options.sections : [...DEFAULT_ARCHIVE_EXPORT_KEYS]
+  const validKeys = new Set(ARCHIVE_EXPORT_SECTIONS.map((s) => s.key))
+  const selectedKeys = sections.filter((k) => validKeys.has(k))
+  if (!selectedKeys.length) {
+    return { ok: false, msg: '请至少选择一项导出内容' }
   }
 
   try {
@@ -403,6 +473,7 @@ export async function exportMatEntryArchive(detail) {
     const parser = new DOMParser()
     const doc = parser.parseFromString(xml, 'application/xml')
     fillArchiveDocument(doc, detail)
+    removeUnselectedArchiveSections(doc, selectedKeys)
 
     const serializer = new XMLSerializer()
     zip.file('word/document.xml', serializer.serializeToString(doc))

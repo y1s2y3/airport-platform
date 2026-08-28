@@ -1,12 +1,11 @@
 <script setup>
 import { computed, ref } from 'vue'
 import ProfileImageUpload from './ProfileImageUpload.vue'
-import PersonContactSelect from './PersonContactSelect.vue'
+import ProfilePersonContactInput from './ProfilePersonContactInput.vue'
 import ProfilePortraitStatCharts from './ProfilePortraitStatCharts.vue'
-import ProfileUnitSelect from './ProfileUnitSelect.vue'
-import ProfileConstructionSiteSelect from './ProfileConstructionSiteSelect.vue'
+import ProfileConstructionSitePicker from './ProfileConstructionSitePicker.vue'
 import ProfileNumberInput from './ProfileNumberInput.vue'
-import FileAttachmentPreview from './FileAttachmentPreview.vue'
+import SubcontractorDetailBody from './SubcontractorDetailBody.vue'
 import {
   projectTypeOptions,
   permitStatusOptions,
@@ -15,21 +14,19 @@ import {
 import { profileDemoImages } from '../../mock/profileImageDemo'
 import {
   yesNoOptions,
-  profileNotes,
   listProfileMajorHazards,
   listProfileDangerWorks,
+  listProfileEquipments,
   supervisorCertTypeOptions,
   generalContractorCertTypeOptions,
   createEmptyUnitQualification,
 } from '../../mock/projectSafetyProfile'
 import {
-  yesNoNaOptions,
   canteenFuelOptions,
   superiorManagementUnitOptions,
 } from '../../mock/profilePortraitOptions'
 import {
   subcontractorList,
-  approveStatusTagClass,
 } from '../../mock/subcontractorManagement'
 
 const props = defineProps({
@@ -95,6 +92,9 @@ const majorListVisible = ref(false)
 const majorFilter = ref('')
 const dangerListVisible = ref(false)
 const dangerFilter = ref('')
+const equipmentListVisible = ref(false)
+const equipmentTypeFilter = ref('')
+const equipmentKeyword = ref('')
 const rowDetailVisible = ref(false)
 const rowDetail = ref(null)
 const rowDetailTitle = ref('')
@@ -123,10 +123,12 @@ function openSubcontractorDetail(block) {
       name: unitName,
       projectName: props.model.projectName,
       unitType: '—',
-      status: '画像登记',
+      submitter: '—',
       projectLeaderContact: block.projectLeaderContact || '',
       safetyManagerContact: block.safetyManagerContact || '',
       orgStructureDesc: '',
+      orgStructureChart: { fileName: '', fileUrl: '' },
+      remark: '',
       qualifications: (block.qualifications || [])
         .filter((q) => q.possessed)
         .map((q) => ({
@@ -137,8 +139,8 @@ function openSubcontractorDetail(block) {
       safetyLicense: {
         licenseNo: block.safetyLicenseNo || '',
         expiry: block.safetyLicenseExpiry || '',
-        photoName: block.safetyLicensePhoto || '',
-        photoUrl: /^(data:|https?:|blob:|\/)/.test(String(block.safetyLicensePhoto || ''))
+        fileName: block.safetyLicensePhoto || '',
+        fileUrl: /^(data:|https?:|blob:|\/)/.test(String(block.safetyLicensePhoto || ''))
           ? block.safetyLicensePhoto
           : '',
       },
@@ -148,7 +150,6 @@ function openSubcontractorDetail(block) {
         fileName: '',
         fileUrl: '',
       },
-      approvalFlow: [],
     }
   }
   subDetailVisible.value = true
@@ -170,12 +171,33 @@ const dangerList = computed(() => {
   return rows
 })
 
+const equipmentList = computed(() => {
+  let rows = listProfileEquipments(props.model.id)
+  if (equipmentTypeFilter.value) {
+    rows = rows.filter((row) => row.type === equipmentTypeFilter.value)
+  }
+  const kw = String(equipmentKeyword.value || '').trim()
+  if (kw) {
+    rows = rows.filter(
+      (row) =>
+        String(row.name || '').includes(kw) ||
+        String(row.model || '').includes(kw) ||
+        String(row.type || '').includes(kw),
+    )
+  }
+  return rows
+})
+
 const majorDialogTitle = computed(() =>
   majorFilter.value ? `危大工程清单 · ${majorFilter.value}` : '危大工程清单',
 )
 
 const dangerDialogTitle = computed(() =>
   dangerFilter.value ? `危险作业清单 · ${dangerFilter.value}` : '危险作业清单',
+)
+
+const equipmentDialogTitle = computed(() =>
+  equipmentTypeFilter.value ? `设备清单 · ${equipmentTypeFilter.value}` : '设备清单',
 )
 
 function openMajorList({ filter } = {}) {
@@ -186,6 +208,12 @@ function openMajorList({ filter } = {}) {
 function openDangerList({ filter } = {}) {
   dangerFilter.value = filter || ''
   dangerListVisible.value = true
+}
+
+function openEquipmentList({ filter } = {}) {
+  equipmentTypeFilter.value = filter || ''
+  equipmentKeyword.value = ''
+  equipmentListVisible.value = true
 }
 
 function openMajorRow(row) {
@@ -201,6 +229,15 @@ function openDangerRow(row) {
   rowDetailTitle.value = '危险作业详情'
   rowDetail.value = {
     kind: 'danger',
+    ...row,
+  }
+  rowDetailVisible.value = true
+}
+
+function openEquipmentRow(row) {
+  rowDetailTitle.value = '设备详情'
+  rowDetail.value = {
+    kind: 'equipment',
     ...row,
   }
   rowDetailVisible.value = true
@@ -233,40 +270,40 @@ function openDangerRow(row) {
             <el-input v-model="model.shortName" placeholder="请输入项目简称" aria-label="请输入项目简称"/>
           </td>
           <td colspan="2" class="cell-label">项目状态</td>
-          <td colspan="2" class="cell-value cell-readonly">
+          <td colspan="2" class="cell-value">
             <el-select
               v-model="model.status"
-              disabled
-              placeholder="—"
-              style="width: 100%" aria-label="—">
+              :disabled="readonly"
+              placeholder="请选择项目状态"
+              style="width: 100%"
+              aria-label="请选择项目状态"
+            >
               <el-option v-for="opt in projectStatusOptions" :key="opt" :label="opt" :value="opt" />
             </el-select>
           </td>
         </tr>
 
         <tr>
-          <td colspan="2" class="cell-label">项目编码</td>
+          <td colspan="2" class="cell-label">国家统一编码</td>
           <td colspan="2" class="cell-value">
-            <el-input v-model="model.projectCode" placeholder="请输入项目编码" aria-label="请输入项目编码"/>
+            <el-input v-model="model.projectCode" placeholder="请输入国家统一编码" aria-label="请输入国家统一编码"/>
           </td>
           <td colspan="2" class="cell-label">施工单位</td>
           <td colspan="2" class="cell-value">
-            <ProfileUnitSelect
+            <el-input
               v-model="model.contractorUnit"
-              :project-id="model.id"
-              role="contractor"
               :readonly="readonly"
-              placeholder="请选择施工单位"
+              placeholder="请输入施工单位"
+              aria-label="请输入施工单位"
             />
           </td>
           <td colspan="2" class="cell-label">监理单位</td>
           <td colspan="2" class="cell-value">
-            <ProfileUnitSelect
+            <el-input
               v-model="model.supervisorUnit"
-              :project-id="model.id"
-              role="supervisor"
               :readonly="readonly"
-              placeholder="请选择监理单位"
+              placeholder="请输入监理单位"
+              aria-label="请输入监理单位"
             />
           </td>
         </tr>
@@ -288,10 +325,14 @@ function openDangerRow(row) {
         <tr>
           <td colspan="2" class="cell-label">施工地点</td>
           <td colspan="4" class="cell-value">
-            <ProfileConstructionSiteSelect
-              v-model="model.constructionSite"
-              :project-id="model.id"
+            <ProfileConstructionSitePicker
+              :site="model.constructionSite"
+              :lng="model.constructionSiteLng"
+              :lat="model.constructionSiteLat"
               :readonly="readonly"
+              @update:site="model.constructionSite = $event"
+              @update:lng="model.constructionSiteLng = $event"
+              @update:lat="model.constructionSiteLat = $event"
             />
           </td>
           <td colspan="2" class="cell-label">项目高峰期人数</td>
@@ -329,6 +370,40 @@ function openDangerRow(row) {
         </tr>
 
         <tr>
+          <td colspan="2" class="cell-label">项目总投资(万元)</td>
+          <td colspan="2" class="cell-value">
+            <ProfileNumberInput
+              v-model="model.totalInvestment"
+              :readonly="readonly"
+              unit="万元"
+              :precision="2"
+              :max="999999999"
+              placeholder="请输入金额"
+            />
+          </td>
+          <td colspan="2" class="cell-label">建筑总面积(平方米)</td>
+          <td colspan="2" class="cell-value">
+            <ProfileNumberInput
+              v-model="model.buildingTotalArea"
+              :readonly="readonly"
+              unit="㎡"
+              :precision="2"
+              :max="999999999"
+              placeholder="请输入面积"
+            />
+          </td>
+          <td colspan="2" class="cell-label">备案编号</td>
+          <td colspan="2" class="cell-value">
+            <el-input
+              v-model="model.filingNumber"
+              :readonly="readonly"
+              placeholder="请输入备案编号"
+              aria-label="请输入备案编号"
+            />
+          </td>
+        </tr>
+
+        <tr>
           <td colspan="2" class="cell-label">项目类型</td>
           <td colspan="2" class="cell-value">
             <el-select v-model="model.projectType" filterable placeholder="请选择" style="width: 100%" aria-label="请选择">
@@ -358,17 +433,21 @@ function openDangerRow(row) {
         <tr>
           <td colspan="2" class="cell-label">部门负责人姓名及电话</td>
           <td colspan="2" class="cell-value">
-            <PersonContactSelect v-model="model.deptHeadContact" :readonly="readonly" />
+            <ProfilePersonContactInput v-model="model.deptHeadContact" :readonly="readonly" />
           </td>
           <td colspan="2" class="cell-label">
             项目经理（项目负责人）姓名及电话<span v-if="!readonly" class="req-star">*</span>
           </td>
           <td colspan="2" class="cell-value">
-            <PersonContactSelect v-model="model.projectManagerContact" :readonly="readonly" />
+            <ProfilePersonContactInput
+              v-model="model.projectManagerContact"
+              :readonly="readonly"
+              select-only
+            />
           </td>
           <td colspan="2" class="cell-label">安全联络员姓名及电话</td>
           <td colspan="2" class="cell-value">
-            <PersonContactSelect v-model="model.safetyLiaisonContact" :readonly="readonly" />
+            <ProfilePersonContactInput v-model="model.safetyLiaisonContact" :readonly="readonly" />
           </td>
         </tr>
 
@@ -382,11 +461,11 @@ function openDangerRow(row) {
         <tr>
           <td colspan="2" class="cell-label">公司法人姓名及电话</td>
           <td colspan="2" class="cell-value">
-            <PersonContactSelect v-model="model.safetyProfile.supervisorUnit.legalPersonContact" :readonly="readonly" />
+            <ProfilePersonContactInput v-model="model.safetyProfile.supervisorUnit.legalPersonContact" :readonly="readonly" />
           </td>
           <td colspan="2" class="cell-label">公司安全总监姓名及电话</td>
           <td colspan="2" class="cell-value">
-            <PersonContactSelect v-model="model.safetyProfile.supervisorUnit.companySafetyDirectorContact" :readonly="readonly" />
+            <ProfilePersonContactInput v-model="model.safetyProfile.supervisorUnit.companySafetyDirectorContact" :readonly="readonly" />
           </td>
           <td colspan="2" class="cell-label">项目上级管理单位全称</td>
           <td colspan="2" class="cell-value">
@@ -410,15 +489,15 @@ function openDangerRow(row) {
         <tr>
           <td colspan="2" class="cell-label">总监姓名及电话</td>
           <td colspan="2" class="cell-value">
-            <PersonContactSelect v-model="model.safetyProfile.supervisorUnit.chiefSupervisorContact" :readonly="readonly" />
+            <ProfilePersonContactInput v-model="model.safetyProfile.supervisorUnit.chiefSupervisorContact" :readonly="readonly" />
           </td>
           <td colspan="2" class="cell-label">总代姓名及电话</td>
           <td colspan="2" class="cell-value">
-            <PersonContactSelect v-model="model.safetyProfile.supervisorUnit.chiefRepresentativeContact" :readonly="readonly" />
+            <ProfilePersonContactInput v-model="model.safetyProfile.supervisorUnit.chiefRepresentativeContact" :readonly="readonly" />
           </td>
           <td colspan="2" class="cell-label">安全专监姓名及电话</td>
           <td colspan="2" class="cell-value">
-            <PersonContactSelect v-model="model.safetyProfile.supervisorUnit.safetySupervisorContact" :readonly="readonly" />
+            <ProfilePersonContactInput v-model="model.safetyProfile.supervisorUnit.safetySupervisorContact" :readonly="readonly" />
           </td>
         </tr>
         <tr>
@@ -511,11 +590,11 @@ function openDangerRow(row) {
         <tr>
           <td colspan="2" class="cell-label">公司法人姓名及电话</td>
           <td colspan="2" class="cell-value">
-            <PersonContactSelect v-model="model.safetyProfile.generalContractor.legalPersonContact" :readonly="readonly" />
+            <ProfilePersonContactInput v-model="model.safetyProfile.generalContractor.legalPersonContact" :readonly="readonly" />
           </td>
           <td colspan="2" class="cell-label">公司安全总监姓名及电话</td>
           <td colspan="2" class="cell-value">
-            <PersonContactSelect v-model="model.safetyProfile.generalContractor.companySafetyDirectorContact" :readonly="readonly" />
+            <ProfilePersonContactInput v-model="model.safetyProfile.generalContractor.companySafetyDirectorContact" :readonly="readonly" />
           </td>
           <td colspan="2" class="cell-label">项目上级管理单位全称</td>
           <td colspan="2" class="cell-value">
@@ -539,15 +618,15 @@ function openDangerRow(row) {
         <tr>
           <td colspan="2" class="cell-label">项目负责人姓名及电话</td>
           <td colspan="2" class="cell-value">
-            <PersonContactSelect v-model="model.safetyProfile.generalContractor.projectLeaderContact" :readonly="readonly" />
+            <ProfilePersonContactInput v-model="model.safetyProfile.generalContractor.projectLeaderContact" :readonly="readonly" />
           </td>
           <td colspan="2" class="cell-label">安全总监姓名及电话</td>
           <td colspan="2" class="cell-value">
-            <PersonContactSelect v-model="model.safetyProfile.generalContractor.safetyDirectorContact" :readonly="readonly" />
+            <ProfilePersonContactInput v-model="model.safetyProfile.generalContractor.safetyDirectorContact" :readonly="readonly" />
           </td>
           <td colspan="2" class="cell-label">安全管理人员姓名及电话</td>
           <td colspan="2" class="cell-value">
-            <PersonContactSelect v-model="model.safetyProfile.generalContractor.safetyManagerContact" :readonly="readonly" />
+            <ProfilePersonContactInput v-model="model.safetyProfile.generalContractor.safetyManagerContact" :readonly="readonly" />
           </td>
         </tr>
         <tr>
@@ -623,8 +702,6 @@ function openDangerRow(row) {
                     <th class="col-sub-name">分包单位名称</th>
                     <th class="col-sub-person">项目负责人姓名及电话</th>
                     <th class="col-sub-person">安全管理人员姓名及电话</th>
-                    <th class="col-sub-mark">资质证件</th>
-                    <th class="col-sub-mark">职称证书</th>
                     <th class="col-sub-mark">资格证书</th>
                     <th class="col-sub-mark">安全生产许可证</th>
                     <th class="col-sub-license">单位安全生产许可证编号</th>
@@ -649,20 +726,10 @@ function openDangerRow(row) {
                       <span v-else class="inline-readonly">—</span>
                     </td>
                     <td class="col-sub-person">
-                      <PersonContactSelect v-model="row.projectLeaderContact" readonly />
+                      <ProfilePersonContactInput v-model="row.projectLeaderContact" readonly />
                     </td>
                     <td class="col-sub-person">
-                      <PersonContactSelect v-model="row.safetyManagerContact" readonly />
-                    </td>
-                    <td class="col-sub-mark">
-                      <span class="possess-mark" :class="{ ok: getSubQual(row, '资质证件').possessed }">
-                        {{ getSubQual(row, '资质证件').possessed ? '✓' : '—' }}
-                      </span>
-                    </td>
-                    <td class="col-sub-mark">
-                      <span class="possess-mark" :class="{ ok: getSubQual(row, '职称证书').possessed }">
-                        {{ getSubQual(row, '职称证书').possessed ? '✓' : '—' }}
-                      </span>
+                      <ProfilePersonContactInput v-model="row.safetyManagerContact" readonly />
                     </td>
                     <td class="col-sub-mark">
                       <span class="possess-mark" :class="{ ok: getSubQual(row, '资格证书').possessed }">
@@ -684,7 +751,7 @@ function openDangerRow(row) {
                     </td>
                   </tr>
                   <tr v-if="!model.safetyProfile.subcontractorBlocks?.length">
-                    <td colspan="11" class="inner-qual-empty">暂无专业分包及劳务分包</td>
+                    <td colspan="9" class="inner-qual-empty">暂无专业分包及劳务分包</td>
                   </tr>
                 </tbody>
               </table>
@@ -711,23 +778,177 @@ function openDangerRow(row) {
         </tr>
         <tr>
           <td colspan="12" class="cell-value chart-cell">
-            <ProfilePortraitStatCharts :project-id="model.id" section="machine" />
+            <ProfilePortraitStatCharts
+              :project-id="model.id"
+              section="machine"
+              @open-equipment-list="openEquipmentList"
+            />
           </td>
         </tr>
 
         <tr>
-          <td colspan="12" class="section-row">五、营地、生活区情况</td>
+          <td colspan="12" class="section-row">五、净空及新能源车辆情况</td>
+        </tr>
+        <tr>
+          <td colspan="2" class="cell-label">是否涉及净空限高</td>
+          <td colspan="2" class="cell-value">
+            <template v-if="readonly">
+              <span class="inline-readonly">{{ model.safetyProfile.siteClearance.clearanceHeightInvolved || '—' }}</span>
+            </template>
+            <el-select
+              v-else
+              v-model="model.safetyProfile.siteClearance.clearanceHeightInvolved"
+              clearable
+              placeholder="请选择"
+              style="width: 100%"
+              aria-label="是否涉及净空限高"
+            >
+              <el-option v-for="opt in yesNoOptions" :key="opt" :label="opt" :value="opt" />
+            </el-select>
+          </td>
+          <td colspan="2" class="cell-label">限高要求</td>
+          <td colspan="6" class="cell-value">
+            <template v-if="readonly">
+              <span class="inline-readonly">{{ model.safetyProfile.siteClearance.clearanceHeightRequirement || '—' }}</span>
+            </template>
+            <el-input
+              v-else
+              v-model="model.safetyProfile.siteClearance.clearanceHeightRequirement"
+              placeholder="请输入限高要求"
+              aria-label="限高要求"
+            />
+          </td>
+        </tr>
+        <tr>
+          <td colspan="3" class="cell-label">是否设置新能源汽车充电桩</td>
+          <td colspan="1" class="cell-value">
+            <template v-if="readonly">
+              <span class="inline-readonly">{{ model.safetyProfile.siteNewEnergyCharging.enabled || '—' }}</span>
+            </template>
+            <el-select
+              v-else
+              v-model="model.safetyProfile.siteNewEnergyCharging.enabled"
+              clearable
+              placeholder="请选择"
+              style="width: 100%"
+              aria-label="是否设置新能源汽车充电桩"
+            >
+              <el-option v-for="opt in yesNoOptions" :key="opt" :label="opt" :value="opt" />
+            </el-select>
+          </td>
+          <td colspan="2" class="cell-label">充电桩数量</td>
+          <td colspan="1" class="cell-value">
+            <ProfileNumberInput v-model="model.safetyProfile.siteNewEnergyCharging.pileCount" :readonly="readonly" unit="个" />
+          </td>
+          <td colspan="2" class="cell-label">充电桩设置是否符合要求</td>
+          <td colspan="1" class="cell-value">
+            <template v-if="readonly">
+              <span class="inline-readonly">{{ model.safetyProfile.siteNewEnergyCharging.installQualified || '—' }}</span>
+            </template>
+            <el-select
+              v-else
+              v-model="model.safetyProfile.siteNewEnergyCharging.installQualified"
+              clearable
+              placeholder="请选择"
+              style="width: 100%"
+              aria-label="充电桩设置是否符合要求"
+            >
+              <el-option v-for="opt in yesNoOptions" :key="opt" :label="opt" :value="opt" />
+            </el-select>
+          </td>
+          <td
+            colspan="2"
+            class="cell-label"
+            title="现场新能源汽车停放数量（应包含停在工地内或附近为项目人员所使用）"
+          >
+            现场新能源汽车停放数量
+          </td>
+          <td colspan="1" class="cell-value">
+            <ProfileNumberInput v-model="model.safetyProfile.siteNewEnergyCharging.parkingCount" :readonly="readonly" unit="辆" />
+          </td>
+        </tr>
+        <tr>
+          <td colspan="3" class="cell-label">是否设置电动自行车充电区域</td>
+          <td colspan="1" class="cell-value">
+            <template v-if="readonly">
+              <span class="inline-readonly">{{ model.safetyProfile.siteElectricBicycle.enabled || '—' }}</span>
+            </template>
+            <el-select
+              v-else
+              v-model="model.safetyProfile.siteElectricBicycle.enabled"
+              clearable
+              placeholder="请选择"
+              style="width: 100%"
+              aria-label="是否设置电动自行车充电区域"
+            >
+              <el-option v-for="opt in yesNoOptions" :key="opt" :label="opt" :value="opt" />
+            </el-select>
+          </td>
+          <td colspan="2" class="cell-label">充电口数量</td>
+          <td colspan="1" class="cell-value">
+            <ProfileNumberInput v-model="model.safetyProfile.siteElectricBicycle.socketCount" :readonly="readonly" unit="个" />
+          </td>
+          <td colspan="2" class="cell-label">充电区域设置是否符合要求</td>
+          <td colspan="1" class="cell-value">
+            <template v-if="readonly">
+              <span class="inline-readonly">{{ model.safetyProfile.siteElectricBicycle.installQualified || '—' }}</span>
+            </template>
+            <el-select
+              v-else
+              v-model="model.safetyProfile.siteElectricBicycle.installQualified"
+              clearable
+              placeholder="请选择"
+              style="width: 100%"
+              aria-label="充电区域设置是否符合要求"
+            >
+              <el-option v-for="opt in yesNoOptions" :key="opt" :label="opt" :value="opt" />
+            </el-select>
+          </td>
+          <td
+            colspan="2"
+            class="cell-label"
+            title="现场电动自行车停放数量（应包含停在工地内或附近为项目人员所使用）"
+          >
+            现场电动自行车停放数量
+          </td>
+          <td colspan="1" class="cell-value">
+            <ProfileNumberInput v-model="model.safetyProfile.siteElectricBicycle.parkingCount" :readonly="readonly" unit="辆" />
+          </td>
+        </tr>
+
+        <tr>
+          <td colspan="12" class="section-row">六、营地、生活区情况</td>
         </tr>
         <tr>
           <td colspan="2" class="cell-label">是否有营地</td>
           <td colspan="2" class="cell-value">
-            <el-select v-model="model.safetyProfile.camp.hasCamp" clearable placeholder="请选择" style="width: 100%" aria-label="请选择">
+            <template v-if="readonly">
+              <span class="inline-readonly">{{ model.safetyProfile.camp.hasCamp || '—' }}</span>
+            </template>
+            <el-select
+              v-else
+              v-model="model.safetyProfile.camp.hasCamp"
+              clearable
+              placeholder="请选择"
+              style="width: 100%"
+              aria-label="是否有营地"
+            >
               <el-option v-for="opt in yesNoOptions" :key="opt" :label="opt" :value="opt" />
             </el-select>
           </td>
           <td colspan="2" class="cell-label">营地地址</td>
           <td colspan="2" class="cell-value">
-            <el-input v-model="model.safetyProfile.camp.campAddress" />
+            <ProfileConstructionSitePicker
+              :site="model.safetyProfile.camp.campAddress"
+              :lng="model.safetyProfile.camp.campAddressLng"
+              :lat="model.safetyProfile.camp.campAddressLat"
+              :readonly="readonly"
+              dialog-title="营地地址地图选点（示意图）"
+              site-placeholder="请输入营地地址名称"
+              @update:site="model.safetyProfile.camp.campAddress = $event"
+              @update:lng="model.safetyProfile.camp.campAddressLng = $event"
+              @update:lat="model.safetyProfile.camp.campAddressLat = $event"
+            />
           </td>
           <td colspan="2" class="cell-label">营地大小（占地面积）</td>
           <td colspan="2" class="cell-value">
@@ -735,67 +956,79 @@ function openDangerRow(row) {
           </td>
         </tr>
         <tr>
-          <td colspan="2" class="cell-label">营地面积</td>
-          <td colspan="2" class="cell-value">
-            <ProfileNumberInput v-model="model.safetyProfile.camp.campArea" :readonly="readonly" unit="㎡" />
-          </td>
           <td colspan="2" class="cell-label">营地总人数/人</td>
           <td colspan="2" class="cell-value">
             <ProfileNumberInput v-model="model.safetyProfile.camp.campTotalPeople" :readonly="readonly" unit="人" />
           </td>
-          <td colspan="2" class="cell-label">营地视频数量/路</td>
+          <td colspan="2" class="cell-label">营地建筑数量/栋</td>
           <td colspan="2" class="cell-value">
-            <ProfileNumberInput v-model="model.safetyProfile.camp.campVideoChannels" :readonly="readonly" unit="路" />
+            <ProfileNumberInput v-model="model.safetyProfile.camp.campBuildingCount" :readonly="readonly" unit="栋" />
           </td>
-        </tr>
-        <tr>
-          <td colspan="3" class="cell-label">营地板房材质是否为阻燃聚氨酯泡沫彩钢夹芯板</td>
-          <td colspan="3" class="cell-value">
-            <el-select v-model="model.safetyProfile.camp.campBuildingMaterialOk" clearable placeholder="请选择" style="width: 100%" aria-label="请选择">
+          <td colspan="2" class="cell-label">营地建筑材质是否为聚苯乙烯或聚氨酯泡沫彩钢板</td>
+          <td colspan="2" class="cell-value">
+            <template v-if="readonly">
+              <span class="inline-readonly">{{ model.safetyProfile.camp.campBuildingMaterialOk || '—' }}</span>
+            </template>
+            <el-select
+              v-else
+              v-model="model.safetyProfile.camp.campBuildingMaterialOk"
+              clearable
+              placeholder="请选择"
+              style="width: 100%"
+              aria-label="营地建筑材质是否为聚苯乙烯或聚氨酯泡沫彩钢板"
+            >
               <el-option v-for="opt in yesNoOptions" :key="opt" :label="opt" :value="opt" />
-            </el-select>
-          </td>
-          <td colspan="2" class="cell-label">视频是否全覆盖</td>
-          <td colspan="1" class="cell-value">
-            <template v-if="readonly">
-              <span class="inline-readonly">{{ model.safetyProfile.camp.videoFullCoverage || '—' }}</span>
-            </template>
-            <el-select v-else v-model="model.safetyProfile.camp.videoFullCoverage" clearable placeholder="请选择" style="width: 100%" aria-label="请选择">
-              <el-option v-for="opt in yesNoNaOptions" :key="opt" :label="opt" :value="opt" />
-            </el-select>
-          </td>
-          <td colspan="2" class="cell-label">视频含食堂和燃气/电气</td>
-          <td colspan="1" class="cell-value">
-            <template v-if="readonly">
-              <span class="inline-readonly">{{ model.safetyProfile.camp.videoIncludesCanteenGas || '—' }}</span>
-            </template>
-            <el-select v-else v-model="model.safetyProfile.camp.videoIncludesCanteenGas" clearable placeholder="请选择" style="width: 100%" aria-label="请选择">
-              <el-option v-for="opt in yesNoNaOptions" :key="opt" :label="opt" :value="opt" />
             </el-select>
           </td>
         </tr>
         <tr>
           <td colspan="2" class="cell-label">营地是否有食堂</td>
           <td colspan="2" class="cell-value">
-            <el-select v-model="model.safetyProfile.camp.campHasCanteen" clearable placeholder="请选择" style="width: 100%" aria-label="请选择">
+            <template v-if="readonly">
+              <span class="inline-readonly">{{ model.safetyProfile.camp.campHasCanteen || '—' }}</span>
+            </template>
+            <el-select
+              v-else
+              v-model="model.safetyProfile.camp.campHasCanteen"
+              clearable
+              placeholder="请选择"
+              style="width: 100%"
+              aria-label="营地是否有食堂"
+            >
               <el-option v-for="opt in yesNoOptions" :key="opt" :label="opt" :value="opt" />
             </el-select>
           </td>
-          <td colspan="2" class="cell-label">营地食堂使用燃料/能源</td>
+          <td colspan="2" class="cell-label">营地食堂使用燃气/电气</td>
           <td colspan="6" class="cell-value">
             <template v-if="readonly">
               <span class="inline-readonly">{{ model.safetyProfile.camp.canteenFuelType || '—' }}</span>
             </template>
-            <el-select v-else v-model="model.safetyProfile.camp.canteenFuelType" clearable placeholder="请选择" style="width: 100%" aria-label="请选择">
+            <el-select
+              v-else
+              v-model="model.safetyProfile.camp.canteenFuelType"
+              clearable
+              placeholder="请选择"
+              style="width: 100%"
+              aria-label="营地食堂使用燃气/电气"
+            >
               <el-option v-for="opt in canteenFuelOptions" :key="opt" :label="opt" :value="opt" />
             </el-select>
           </td>
         </tr>
-
         <tr>
           <td colspan="3" class="cell-label">是否设置新能源汽车充电桩</td>
           <td colspan="1" class="cell-value">
-            <el-select v-model="model.safetyProfile.campNewEnergyCharging.enabled" clearable placeholder="请选择" style="width: 100%" aria-label="请选择">
+            <template v-if="readonly">
+              <span class="inline-readonly">{{ model.safetyProfile.campNewEnergyCharging.enabled || '—' }}</span>
+            </template>
+            <el-select
+              v-else
+              v-model="model.safetyProfile.campNewEnergyCharging.enabled"
+              clearable
+              placeholder="请选择"
+              style="width: 100%"
+              aria-label="是否设置新能源汽车充电桩"
+            >
               <el-option v-for="opt in yesNoOptions" :key="opt" :label="opt" :value="opt" />
             </el-select>
           </td>
@@ -803,30 +1036,47 @@ function openDangerRow(row) {
           <td colspan="1" class="cell-value">
             <ProfileNumberInput v-model="model.safetyProfile.campNewEnergyCharging.pileCount" :readonly="readonly" unit="个" />
           </td>
-          <td colspan="2" class="cell-label">充电桩安装是否符合要求</td>
-          <td colspan="3" class="cell-value">
+          <td colspan="2" class="cell-label">充电桩设置是否符合要求</td>
+          <td colspan="1" class="cell-value">
             <template v-if="readonly">
               <span class="inline-readonly">{{ model.safetyProfile.campNewEnergyCharging.installQualified || '—' }}</span>
             </template>
-            <el-select v-else v-model="model.safetyProfile.campNewEnergyCharging.installQualified" clearable placeholder="请选择" style="width: 100%" aria-label="请选择">
-              <el-option v-for="opt in yesNoNaOptions" :key="opt" :label="opt" :value="opt" />
+            <el-select
+              v-else
+              v-model="model.safetyProfile.campNewEnergyCharging.installQualified"
+              clearable
+              placeholder="请选择"
+              style="width: 100%"
+              aria-label="充电桩设置是否符合要求"
+            >
+              <el-option v-for="opt in yesNoOptions" :key="opt" :label="opt" :value="opt" />
             </el-select>
           </td>
-        </tr>
-        <tr>
-          <td colspan="3" class="cell-label">营地新能源汽车停放数量（营地内）</td>
-          <td colspan="3" class="cell-value">
-            <ProfileNumberInput v-model="model.safetyProfile.campNewEnergyCharging.onsiteParkingCount" :readonly="readonly" unit="辆" />
+          <td
+            colspan="2"
+            class="cell-label"
+            title="营地新能源汽车停放数量（应包含停在营地内或附近为项目人员所使用）"
+          >
+            营地新能源汽车停放数量
           </td>
-          <td colspan="3" class="cell-label">营地新能源汽车停放数量（营地外）</td>
-          <td colspan="3" class="cell-value">
-            <ProfileNumberInput v-model="model.safetyProfile.campNewEnergyCharging.offsiteParkingCount" :readonly="readonly" unit="辆" />
-          </td>
-        </tr>
-        <tr>
-          <td colspan="3" class="cell-label">是否设置电动自行车集中存放区域</td>
           <td colspan="1" class="cell-value">
-            <el-select v-model="model.safetyProfile.campElectricBicycle.enabled" clearable placeholder="请选择" style="width: 100%" aria-label="请选择">
+            <ProfileNumberInput v-model="model.safetyProfile.campNewEnergyCharging.parkingCount" :readonly="readonly" unit="辆" />
+          </td>
+        </tr>
+        <tr>
+          <td colspan="3" class="cell-label">是否设置电动自行车充电区域</td>
+          <td colspan="1" class="cell-value">
+            <template v-if="readonly">
+              <span class="inline-readonly">{{ model.safetyProfile.campElectricBicycle.enabled || '—' }}</span>
+            </template>
+            <el-select
+              v-else
+              v-model="model.safetyProfile.campElectricBicycle.enabled"
+              clearable
+              placeholder="请选择"
+              style="width: 100%"
+              aria-label="是否设置电动自行车充电区域"
+            >
               <el-option v-for="opt in yesNoOptions" :key="opt" :label="opt" :value="opt" />
             </el-select>
           </td>
@@ -834,31 +1084,31 @@ function openDangerRow(row) {
           <td colspan="1" class="cell-value">
             <ProfileNumberInput v-model="model.safetyProfile.campElectricBicycle.socketCount" :readonly="readonly" unit="个" />
           </td>
-          <td colspan="2" class="cell-label">充电区域装置及灭火等要求</td>
-          <td colspan="3" class="cell-value">
+          <td colspan="2" class="cell-label">充电区域设置是否符合要求</td>
+          <td colspan="1" class="cell-value">
             <template v-if="readonly">
               <span class="inline-readonly">{{ model.safetyProfile.campElectricBicycle.installQualified || '—' }}</span>
             </template>
-            <el-select v-else v-model="model.safetyProfile.campElectricBicycle.installQualified" clearable placeholder="请选择" style="width: 100%" aria-label="请选择">
-              <el-option v-for="opt in yesNoNaOptions" :key="opt" :label="opt" :value="opt" />
+            <el-select
+              v-else
+              v-model="model.safetyProfile.campElectricBicycle.installQualified"
+              clearable
+              placeholder="请选择"
+              style="width: 100%"
+              aria-label="充电区域设置是否符合要求"
+            >
+              <el-option v-for="opt in yesNoOptions" :key="opt" :label="opt" :value="opt" />
             </el-select>
           </td>
-        </tr>
-        <tr>
-          <td colspan="3" class="cell-label">营地电动自行车停放数量（营地内）</td>
-          <td colspan="3" class="cell-value">
-            <ProfileNumberInput v-model="model.safetyProfile.campElectricBicycle.onsiteParkingCount" :readonly="readonly" unit="辆" />
+          <td
+            colspan="2"
+            class="cell-label"
+            title="营地电动自行车停放数量（应包含停在营地内或附近为项目人员所使用）"
+          >
+            营地电动自行车停放数量
           </td>
-          <td colspan="3" class="cell-label">营地电动自行车停放数量（营地外）</td>
-          <td colspan="3" class="cell-value">
-            <ProfileNumberInput v-model="model.safetyProfile.campElectricBicycle.offsiteParkingCount" :readonly="readonly" unit="辆" />
-          </td>
-        </tr>
-
-        <tr>
-          <td colspan="2" class="cell-label cell-label-top">注</td>
-          <td colspan="10" class="cell-value notes-cell">
-            <p v-for="(note, idx) in profileNotes" :key="idx">{{ idx + 1 }}. {{ note }}</p>
+          <td colspan="1" class="cell-value">
+            <ProfileNumberInput v-model="model.safetyProfile.campElectricBicycle.parkingCount" :readonly="readonly" unit="辆" />
           </td>
         </tr>
       </tbody>
@@ -868,88 +1118,13 @@ function openDangerRow(row) {
     <el-dialog
       v-model="subDetailVisible"
       :title="subDetail?.name ? `分包单位详情 · ${subDetail.name}` : '分包单位详情'"
-      width="860px"
-      top="6vh"
+      width="960px"
+      top="4vh"
       destroy-on-close
       append-to-body
+      class="subcontractor-detail-dialog"
     >
-      <template v-if="subDetail">
-        <el-descriptions :column="2" border size="small">
-          <el-descriptions-item label="分包单位名称">{{ subDetail.name }}</el-descriptions-item>
-          <el-descriptions-item label="类型">{{ subDetail.unitType || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="所属项目">{{ subDetail.projectName || model.projectName || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="状态">
-            <span
-              v-if="subDetail.source === 'application'"
-              class="ap-status-tag"
-              :class="approveStatusTagClass(subDetail.status)"
-            >
-              {{ subDetail.status }}
-            </span>
-            <span v-else>{{ subDetail.status || '—' }}</span>
-          </el-descriptions-item>
-          <el-descriptions-item label="项目负责人">{{ subDetail.projectLeaderContact || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="安全管理人员" :span="2">{{ subDetail.safetyManagerContact || '—' }}</el-descriptions-item>
-          <el-descriptions-item v-if="subDetail.orgStructureDesc" label="组织架构说明" :span="2">
-            {{ subDetail.orgStructureDesc }}
-          </el-descriptions-item>
-          <el-descriptions-item label="安全许可证编号">
-            {{ subDetail.safetyLicense?.licenseNo || '—' }}
-          </el-descriptions-item>
-          <el-descriptions-item label="许可证有效期">
-            {{ subDetail.safetyLicense?.expiry || '—' }}
-          </el-descriptions-item>
-          <el-descriptions-item label="许可证照片" :span="2">
-            <FileAttachmentPreview
-              :name="subDetail.safetyLicense?.photoName"
-              :url="subDetail.safetyLicense?.photoUrl"
-              empty-text="未上传"
-              size="lg"
-            />
-          </el-descriptions-item>
-          <el-descriptions-item label="劳务合同编号">
-            {{ subDetail.laborContract?.contractNo || '—' }}
-          </el-descriptions-item>
-          <el-descriptions-item label="合同金额">
-            {{
-              subDetail.laborContract?.amount
-                ? /万元/.test(subDetail.laborContract.amount)
-                  ? subDetail.laborContract.amount
-                  : `${subDetail.laborContract.amount}万元`
-                : '—'
-            }}
-          </el-descriptions-item>
-          <el-descriptions-item label="合同附件" :span="2">
-            <FileAttachmentPreview
-              :name="subDetail.laborContract?.fileName"
-              :url="subDetail.laborContract?.fileUrl"
-              empty-text="未上传"
-              size="md"
-            />
-          </el-descriptions-item>
-        </el-descriptions>
-        <div v-if="subDetail.qualifications?.length" class="dialog-sub-title">资质证书</div>
-        <el-table
-          v-if="subDetail.qualifications?.length"
-          :data="subDetail.qualifications"
-          border
-          size="small"
-          class="ap-table"
-        >
-          <el-table-column type="index" label="序号" width="56" align="center" />
-          <el-table-column prop="certNo" label="证书编号" min-width="160" show-overflow-tooltip />
-          <el-table-column label="附件" min-width="200">
-            <template #default="{ row }">
-              <FileAttachmentPreview
-                :name="row.fileName"
-                :url="row.fileUrl"
-                empty-text="—"
-                size="sm"
-              />
-            </template>
-          </el-table-column>
-        </el-table>
-      </template>
+      <SubcontractorDetailBody v-if="subDetail" :detail="subDetail" embedded />
       <template #footer>
         <el-button type="primary" @click="subDetailVisible = false">关闭</el-button>
       </template>
@@ -1025,6 +1200,57 @@ function openDangerRow(row) {
     </el-dialog>
 
     <el-dialog
+      v-model="equipmentListVisible"
+      :title="equipmentDialogTitle"
+      width="960px"
+      top="6vh"
+      destroy-on-close
+      append-to-body
+    >
+      <div class="list-dialog-tip">
+        数据与工地施工机械台账同源（演示）
+        <template v-if="equipmentTypeFilter">；当前筛选类型：{{ equipmentTypeFilter }}</template>
+      </div>
+      <div class="list-dialog-filters">
+        <el-input
+          v-model="equipmentKeyword"
+          clearable
+          placeholder="关键字：设备名称/型号/类型"
+          style="width: 280px"
+          aria-label="设备关键字筛选"
+        />
+        <el-button
+          @click="equipmentTypeFilter = ''"
+          :disabled="!equipmentTypeFilter && !equipmentKeyword"
+        >
+          清除筛选
+        </el-button>
+      </div>
+      <el-table
+        :data="equipmentList"
+        border
+        stripe
+        size="small"
+        class="ap-table"
+        empty-text="本项目暂无施工机械设备"
+        @row-click="openEquipmentRow"
+      >
+        <el-table-column type="index" label="序号" width="56" align="center" />
+        <el-table-column prop="name" label="设备名称" min-width="140" show-overflow-tooltip />
+        <el-table-column prop="type" label="设备类型" width="110" />
+        <el-table-column prop="model" label="型号" width="110" show-overflow-tooltip />
+        <el-table-column prop="quantity" label="数量" width="72" align="center" />
+        <el-table-column prop="status" label="状态" width="88" align="center" />
+        <el-table-column prop="entryDate" label="进场日期" width="108" />
+        <el-table-column prop="hasLedger" label="台账" width="72" align="center" />
+        <el-table-column prop="maintenance" label="维保" width="88" align="center" />
+      </el-table>
+      <template #footer>
+        <el-button type="primary" @click="equipmentListVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog
       v-model="rowDetailVisible"
       :title="rowDetailTitle"
       width="640px"
@@ -1049,6 +1275,18 @@ function openDangerRow(row) {
           <el-descriptions-item label="施工内容">{{ rowDetail.subType }}</el-descriptions-item>
           <el-descriptions-item label="施工区域">{{ rowDetail.location }}</el-descriptions-item>
           <el-descriptions-item label="状态">{{ rowDetail.status || '—' }}</el-descriptions-item>
+        </el-descriptions>
+      </template>
+      <template v-else-if="rowDetail?.kind === 'equipment'">
+        <el-descriptions :column="1" border size="small">
+          <el-descriptions-item label="设备名称">{{ rowDetail.name }}</el-descriptions-item>
+          <el-descriptions-item label="设备类型">{{ rowDetail.type }}</el-descriptions-item>
+          <el-descriptions-item label="型号">{{ rowDetail.model || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="数量">{{ rowDetail.quantity ?? '—' }}</el-descriptions-item>
+          <el-descriptions-item label="状态">{{ rowDetail.status || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="进场日期">{{ rowDetail.entryDate || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="是否有台账">{{ rowDetail.hasLedger || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="维保情况">{{ rowDetail.maintenance || '—' }}</el-descriptions-item>
         </el-descriptions>
       </template>
       <template #footer>
@@ -1203,17 +1441,23 @@ function openDangerRow(row) {
   box-shadow: 0 0 0 1px #c0d4e6 inset;
 }
 
-.dialog-sub-title {
-  margin: 16px 0 8px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ap-text, #1a1a1a);
-}
-
 .list-dialog-tip {
   margin-bottom: 10px;
   font-size: 12px;
   color: var(--ap-text-muted, #909399);
+}
+
+:deep(.subcontractor-detail-dialog .el-dialog__body) {
+  max-height: calc(92vh - 120px);
+  overflow-y: auto;
+  padding-top: 8px;
+}
+
+.list-dialog-filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
 .safety-profile-sheet {
@@ -1324,7 +1568,7 @@ function openDangerRow(row) {
   max-width: 100%;
 }
 
-.subcontractor-table :deep(.person-contact-text),
+.subcontractor-table :deep(.profile-person-contact-readonly),
 .subcontractor-table :deep(.unit-text) {
   display: -webkit-box;
   -webkit-line-clamp: 2;

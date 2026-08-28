@@ -5,6 +5,12 @@
  * 禁止后端；仅内存 Mock
  */
 import {
+  getEffectiveSpecialties,
+  isValidWbsSpecialties,
+  normalizeSpecialties,
+  syncSpecialtyFields,
+} from '../constants/wbsSpecialty.js'
+import {
   acceptancePlans,
   approvalRecords,
   batchTypes,
@@ -1283,6 +1289,10 @@ export function upsertWbsNode(payload, id = '') {
   if (!payload.node_name || !payload.project_id || !payload.node_type) {
     return { ok: false, msg: '节点名称、项目、类型必填' }
   }
+  const payloadSpecialties = normalizeSpecialties(payload.specialties ?? payload.specialty)
+  if (payloadSpecialties.length && !isValidWbsSpecialties(payloadSpecialties)) {
+    return { ok: false, msg: '专业不在字典范围内' }
+  }
   const node_type = Number(payload.node_type)
   ensureWbsScaffold(payload.project_id)
 
@@ -1293,7 +1303,10 @@ export function upsertWbsNode(payload, id = '') {
       Object.assign(exist, {
         node_name: payload.node_name || exist.node_name,
         location_code: payload.location_code ?? exist.location_code,
-        specialty: payload.specialty ?? exist.specialty,
+        specialties:
+          payload.specialties != null || payload.specialty != null
+            ? payloadSpecialties
+            : getEffectiveSpecialties(exist),
         form_template_id:
           exist.node_type === 8
             ? payload.form_template_id || exist.form_template_id
@@ -1301,6 +1314,7 @@ export function upsertWbsNode(payload, id = '') {
         updated_at: nowStr(),
         updated_by: 'u-sg-01',
       })
+      syncSpecialtyFields(exist)
       return { ok: true, node: exist }
     }
   }
@@ -1346,11 +1360,16 @@ export function upsertWbsNode(payload, id = '') {
       ...payload,
       parent_id,
       node_type,
+      specialties:
+        payload.specialties != null || payload.specialty != null
+          ? payloadSpecialties
+          : getEffectiveSpecialties(node),
       special_type: node_type === 7 ? payload.special_type || '' : '',
       is_critical: node_type === 6 ? Number(payload.is_critical) || 0 : 0,
       updated_at: nowStr(),
       updated_by: 'u-sg-01',
     })
+    syncSpecialtyFields(node)
     return { ok: true, node }
   }
   const node = {
@@ -1362,7 +1381,7 @@ export function upsertWbsNode(payload, id = '') {
     location_code: payload.location_code || '',
     batch_type_id: payload.batch_type_id || '',
     form_template_id: payload.form_template_id || '',
-    specialty: payload.specialty || '',
+    specialties: payloadSpecialties,
     special_type: node_type === 7 ? payload.special_type || '' : '',
     is_hidden_work: Number(payload.is_hidden_work) || 0,
     is_critical: node_type === 6 ? Number(payload.is_critical) || 0 : 0,
@@ -1374,6 +1393,7 @@ export function upsertWbsNode(payload, id = '') {
     updated_by: 'u-sg-01',
     updated_at: nowStr(),
   }
+  syncSpecialtyFields(node)
   wbsNodes.push(node)
   return { ok: true, node }
 }

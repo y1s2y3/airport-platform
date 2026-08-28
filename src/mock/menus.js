@@ -1,10 +1,6 @@
 import { ref } from 'vue'
-import { sidebarMenu } from '../config/menu'
+import { menuTree } from '../config/menu'
 import { appMenu } from '../config/appMenu'
-import {
-  isHqOnlyMenuKey,
-  isProjectOnlyMenuKey,
-} from '../utils/menuPermissionTree'
 
 export const menuPlatformOptions = [
   { label: 'Web端', value: 'web' },
@@ -16,16 +12,17 @@ export const menuNodeTypeOptions = [
   { label: '菜单', value: 'menu' },
 ]
 
-/** 菜单层级：指挥部层级 / 项目层级 */
+/** 菜单层级：指挥部层级 / 项目层级 / 两级都有 */
 export const menuLevelOptions = [
   { label: '指挥部层级', value: '指挥部层级' },
   { label: '项目层级', value: '项目层级' },
+  { label: '两级都有', value: '两级都有' },
 ]
 
-function resolveMenuLevel(key) {
-  if (isHqOnlyMenuKey(key)) return '指挥部层级'
-  if (isProjectOnlyMenuKey(key)) return '项目层级'
-  return '指挥部层级'
+function resolveMenuLevel(levels) {
+  if (levels === 'hq') return '指挥部层级'
+  if (levels === 'project') return '项目层级'
+  return '两级都有'
 }
 
 export const moduleNameOptions = [
@@ -92,7 +89,7 @@ function buildMenuTree(items, platform, parentId = '') {
       hidden: false,
       externalLink: false,
       menuType: hasChildren ? 'directory' : 'menu',
-      menuLevel: resolveMenuLevel(item.key),
+      menuLevel: resolveMenuLevel(item.levels),
       parentId,
       moduleName: '',
       code: item.key,
@@ -114,7 +111,7 @@ function cloneTree(nodes) {
   }))
 }
 
-export const webMenuTree = ref(buildMenuTree(sidebarMenu, 'web'))
+export const webMenuTree = ref(buildMenuTree(menuTree, 'web'))
 export const appMenuTree = ref(buildMenuTree(appMenu, 'app'))
 
 let menuIdSeq = 900
@@ -234,6 +231,6 @@ export function deleteMenuNode(platform, id) {
 }
 
 export function resetMenuTrees() {
-  webMenuTree.value = cloneTree(buildMenuTree(sidebarMenu, 'web'))
+  webMenuTree.value = cloneTree(buildMenuTree(menuTree, 'web'))
   appMenuTree.value = cloneTree(buildMenuTree(appMenu, 'app'))
 }

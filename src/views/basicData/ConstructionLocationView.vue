@@ -16,6 +16,8 @@ import {
   removeLocation,
   resolveLocationPathLabel,
   upsertLocation,
+  getLocationDepth,
+  MAX_LOCATION_DEPTH,
 } from '../../mock/constructionLocation.js'
 
 const TYPE_LABEL = {
@@ -149,27 +151,42 @@ function handleNodeClick(data) {
   selectedKey.value = data.id
 }
 
-function openCreate(asChild = false) {
+function openCreateSibling() {
   if (!canMaintain.value) return ElMessage.warning('请切换到具体项目后再维护')
   if (!canAttach.value) {
     return ElMessage.warning('仅分项工程可挂接施工部位，请先选择分项或其下部位')
   }
   const meta = selectedMeta.value
-  const wbsId = meta.wbs_node_id
   form.id = ''
   form.project_id = scopeProjectId.value
-  form.wbs_node_id = wbsId
-  if (meta.kind === 'loc') {
-    form.parent_id = asChild ? meta.node.id : meta.node.parent_id || ''
-  } else {
-    // 分项：同级=挂分项下；下级也挂分项下（根部位）
-    form.parent_id = ''
-  }
+  form.wbs_node_id = meta.wbs_node_id
+  form.parent_id = meta.kind === 'loc' ? meta.node.parent_id || '' : ''
   form.name = ''
   form.code = ''
   form.sort_no = 0
   form.status = 1
   visible.value = true
+}
+
+/** 行内「新增子节点」：以当前行 id 为 parent_id，归属分项不变；最多三级 */
+function openCreateChild(row) {
+  if (!canMaintain.value) return ElMessage.warning('请切换到具体项目后再维护')
+  if (getLocationDepth(row.id) >= MAX_LOCATION_DEPTH) {
+    return ElMessage.warning('同一分项下施工部位最多支持三级，无法继续新增下级')
+  }
+  form.id = ''
+  form.project_id = scopeProjectId.value
+  form.wbs_node_id = row.wbs_node_id
+  form.parent_id = row.id
+  form.name = ''
+  form.code = ''
+  form.sort_no = 0
+  form.status = 1
+  visible.value = true
+}
+
+function canAddChild(row) {
+  return getLocationDepth(row.id) < MAX_LOCATION_DEPTH
 }
 
 function openEdit(row) {
@@ -205,11 +222,6 @@ async function onRemove(row) {
   } catch {
     /* cancel */
   }
-}
-
-function parentName(row) {
-  if (!row.parent_id) return '—'
-  return getLocationById(row.parent_id)?.name || row.parent_id
 }
 
 function itemName(row) {
@@ -296,15 +308,8 @@ function tagType(data) {
             </span>
           </div>
           <div class="btns">
-            <el-button type="primary" size="small" :disabled="!canAttach" @click="openCreate(false)">
+            <el-button type="primary" size="small" :disabled="!canAttach" @click="openCreateSibling">
               新增同级部位
-            </el-button>
-            <el-button
-              size="small"
-              :disabled="!canAttach || selectedMeta?.kind !== 'loc'"
-              @click="openCreate(true)"
-            >
-              新增下级部位
             </el-button>
           </div>
         </div>
@@ -327,13 +332,10 @@ function tagType(data) {
             <template #default="{ row }">{{ itemName(row) }}</template>
           </el-table-column>
           <el-table-column prop="name" label="部位名称" min-width="140" />
-          <el-table-column v-if="isQueryMode" label="完整路径" min-width="200" show-overflow-tooltip>
+          <el-table-column label="完整路径" min-width="200" show-overflow-tooltip>
             <template #default="{ row }">{{ resolveLocationPathLabel(row.id) }}</template>
           </el-table-column>
           <el-table-column prop="code" label="编码" width="120" />
-          <el-table-column v-if="!isQueryMode" label="上级部位" min-width="120">
-            <template #default="{ row }">{{ parentName(row) }}</template>
-          </el-table-column>
           <el-table-column prop="sort_no" label="排序" width="70" />
           <el-table-column label="状态" width="90">
             <template #default="{ row }">
@@ -342,9 +344,17 @@ function tagType(data) {
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="160" fixed="right">
+          <el-table-column label="操作" width="220" fixed="right">
             <template #default="{ row }">
               <template v-if="!isQueryMode">
+                <el-button
+                  v-if="canAddChild(row)"
+                  link
+                  type="primary"
+                  @click="openCreateChild(row)"
+                >
+                  新增子节点
+                </el-button>
                 <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
                 <el-button link type="danger" @click="onRemove(row)">删除</el-button>
               </template>

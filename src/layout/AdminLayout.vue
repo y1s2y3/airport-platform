@@ -1,109 +1,48 @@
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { ArrowDown, SwitchButton, Fold, Expand } from '@element-plus/icons-vue'
 import {
-  Monitor,
-  DataBoard,
-  Warning,
-  Medal,
-  Box,
-  User,
-  FolderOpened,
-  Setting,
-  ArrowDown,
-  SwitchButton,
-  Fold,
-  Expand,
-  Connection,
-  Notebook,
-  Collection,
-  VideoCamera,
-  Van,
-  OfficeBuilding,
-  SetUp,
-  Document,
-  Bell,
-  Goods,
-  PictureFilled,
-  DocumentChecked,
-  WarnTriangleFilled,
-  DataAnalysis,
-  Cpu,
-  MapLocation,
-} from '@element-plus/icons-vue'
-import { sidebarMenu } from '../config/menu'
+  menuTree,
+  filterMenuByLevel,
+  resolveMenuTree,
+  flattenMenuLeaves,
+  getMenuPathByKey,
+  getMenuLabelByPath,
+} from '../config/menu'
 import {
   HQ_PROJECT_OPTION,
   COC_PROJECT_OPTIONS,
 } from '../config/projectOptions'
 import { selectedProjectId, useCurrentProject } from '../composables/useCurrentProject'
 import { TRACK_EXTERNAL_MENU_KEYS, openTrackExternalByMenuKey } from '../utils/trackExternalJump'
-import {
-  MENU_SCOPE_HQ,
-  MENU_SCOPE_PROJECT,
-  filterMenuByScope,
-  isHqOnlyMenuKey,
-  isProjectOnlyMenuKey,
-} from '../utils/menuPermissionTree'
-import {
-  SAMPLE_APPROVE_MENU_KEYS,
-} from '../utils/sampleDemoRole.js'
+import { SAMPLE_APPROVE_MENU_KEYS } from '../utils/sampleHiddenMenuKeys.js'
 import {
   APP_VERSION,
   getChangelogByVersion,
   getPublishedChangelogs,
 } from '../config/appVersion'
+import { resolveHqEnterPath, resolveHqLeavePath } from '../router/hqLevelPathRedirect'
+import SidebarMenuNode from './SidebarMenuNode.vue'
 
 const route = useRoute()
 const router = useRouter()
+const { isHqSelected } = useCurrentProject()
+
 const changelogVisible = ref(false)
 const changelogHistoryVisible = ref(false)
 const changelog = computed(() => getChangelogByVersion(APP_VERSION))
 const publishedChangelogs = computed(() => getPublishedChangelogs())
 const collapsed = ref(false)
-const expandedKeys = ref([])
-/** 收起侧栏时当前展开的悬浮子菜单 key */
-const flyoutKey = ref('')
-const flyoutStyle = ref({})
-const flyoutItem = computed(() =>
-  visibleSidebarMenu.value.find((item) => item.key === flyoutKey.value && item.children?.length) || null,
-)
-const { isHqSelected } = useCurrentProject()
 
 const projectOptions = COC_PROJECT_OPTIONS
 
-/** 新标签页带 ?project_id= 时切到对应项目层级（如施工部位「去配置」） */
-watch(
-  () => route.query.project_id || route.query.projectId,
-  (raw) => {
-    if (!raw) return
-    const pid = String(Array.isArray(raw) ? raw[0] : raw).trim()
-    if (!pid || pid === HQ_PROJECT_OPTION.id) return
-    const known = COC_PROJECT_OPTIONS.some((p) => p.id === pid)
-    if (!known && !/^p-/.test(pid)) return
-    if (selectedProjectId.value !== pid) selectedProjectId.value = pid
-  },
-  { immediate: true },
-)
+/** 当前层级：指挥部 / 项目 */
+const currentLevel = computed(() => (isHqSelected.value ? 'hq' : 'project'))
 
-/** 同一菜单按层级切换显示名（如分包单位管理 / 分包单位报审） */
-function applyScopeLabels(items = [], hq) {
-  return items.map((item) => {
-    const next = { ...item }
-    if (hq && item.hqLabel) next.label = item.hqLabel
-    if (!hq && item.projectLabel) next.label = item.projectLabel
-    if (item.children?.length) next.children = applyScopeLabels(item.children, hq)
-    return next
-  })
-}
-
-/** 企业级隐藏视频监控；项目级隐藏指挥部专属菜单；样板审批入口已迁个人中心，侧栏始终隐藏 */
+/** 侧栏可见菜单 = 按层级过滤 → 排序 → 名称覆盖 → 剔除已迁个人中心的样板审批入口 */
 const visibleSidebarMenu = computed(() => {
-  const scoped = filterMenuByScope(
-    sidebarMenu,
-    isHqSelected.value ? MENU_SCOPE_HQ : MENU_SCOPE_PROJECT,
-  )
   const stripApprove = (items = []) =>
     items
       .filter((item) => !SAMPLE_APPROVE_MENU_KEYS.has(item.key))
@@ -111,21 +50,80 @@ const visibleSidebarMenu = computed(() => {
         item.children?.length ? { ...item, children: stripApprove(item.children) } : item,
       )
       .filter((item) => !item.children || item.children.length > 0)
-  return applyScopeLabels(stripApprove(scoped), isHqSelected.value)
+  const scoped = filterMenuByLevel(menuTree, currentLevel.value)
+  return stripApprove(resolveMenuTree(scoped, currentLevel.value))
 })
 
-function collectMenuPathsBy(pred, items = sidebarMenu, acc = []) {
-  for (const item of items) {
-    if (item.path && pred(item.key)) acc.push(item.path)
-    if (item.children?.length) collectMenuPathsBy(pred, item.children, acc)
+/** 高亮：把 route.meta.sidebarKey 解析成父菜单 path，兜底 route.path */
+const activePath = computed(
+  () => getMenuPathByKey(route.meta.sidebarKey, currentLevel.value) || route.path,
+)
+
+/** 菜单点击：外链 / 新标签 / 路由跳转 */
+const leafByPath = new Map(flattenMenuLeaves(menuTree).map((leaf) => [leaf.path, leaf]))
+
+function onMenuSelect(path) {
+  const item = leafByPath.get(path)
+  const menuKey = item?.key || ''
+  if (menuKey && TRACK_EXTERNAL_MENU_KEYS.has(menuKey)) {
+    openTrackExternalByMenuKey(menuKey)
+    return
   }
-  return acc
+  if (item?.openInNewTab) {
+    const href = router.resolve({ path }).href
+    window.open(href, '_blank', 'noopener,noreferrer')
+    return
+  }
+  if (path) router.push(path)
 }
 
-const hqOnlyPaths = collectMenuPathsBy(isHqOnlyMenuKey)
-const projectOnlyPaths = collectMenuPathsBy(isProjectOnlyMenuKey)
+/* ---------- 标签页 ---------- */
+const openTabs = ref([{ key: 'workbench', label: '工作台', path: '/workbench' }])
+const activeTab = computed(() => route.meta.tabKey || 'workbench')
 
-/** 离开指挥部专属页时，尽量落到对应项目能力页，避免一律踢回工作台 */
+function resolveCurrentTabLabel() {
+  const label = getMenuLabelByPath(route.path, currentLevel.value)
+  return label || route.meta?.title || '页面'
+}
+
+watch(
+  () => route.fullPath,
+  () => {
+    const key = route.meta?.tabKey || route.name || route.path
+    const label = resolveCurrentTabLabel()
+    const path = route.path
+    const existing = openTabs.value.find((t) => t.key === key)
+    if (existing) {
+      existing.label = label
+      existing.path = path
+    } else {
+      openTabs.value.push({ key, label, path })
+    }
+  },
+  { immediate: true },
+)
+
+function closeTab(tab, e) {
+  e.stopPropagation()
+  openTabs.value = openTabs.value.filter((t) => t.key !== tab.key)
+  if (activeTab.value === tab.key && openTabs.value.length) {
+    router.push(openTabs.value[openTabs.value.length - 1].path)
+  }
+}
+
+/* ---------- 切换层级：关闭对面层级专属页 ---------- */
+function collectLevelPaths(level) {
+  const paths = []
+  const walk = (items = []) =>
+    items.forEach((item) => {
+      if (item.path && item.levels === level) paths.push(item.path)
+      if (item.children?.length) walk(item.children)
+    })
+  walk(menuTree)
+  return paths
+}
+
+/** 离开指挥部专属页时，尽量落到对应项目能力页 */
 const HQ_LEAVE_REDIRECT = {
   '/labor/realname-stats': '/labor/realname',
   '/labor/track-system': '/labor/personnel-track',
@@ -141,66 +139,33 @@ const HQ_LEAVE_REDIRECT = {
   '/safety-board': '/workbench',
 }
 
-function resolveLeaveTarget(paths) {
-  if (paths !== hqOnlyPaths) return '/workbench'
-  const hit = Object.entries(HQ_LEAVE_REDIRECT).find(
-    ([hqPath]) => route.path === hqPath || route.path.startsWith(`${hqPath}/`),
-  )
-  return hit?.[1] || '/workbench'
-}
-
-function leaveRestrictedPages(paths) {
-  closeFlyout()
-  const onRestricted = paths.some(
-    (path) => route.path === path || route.path.startsWith(`${path}/`),
+watch(isHqSelected, (hq) => {
+  const restricted = collectLevelPaths(hq ? 'project' : 'hq')
+  const onRestricted = restricted.some(
+    (p) => route.path === p || route.path.startsWith(`${p}/`),
   )
   if (!onRestricted) return
   openTabs.value = openTabs.value.filter(
-    (tab) => !paths.some((path) => tab.path === path || tab.path.startsWith(`${path}/`)),
+    (tab) => !restricted.some((p) => tab.path === p || tab.path.startsWith(`${p}/`)),
   )
-  router.push(resolveLeaveTarget(paths))
-}
-
-watch(isHqSelected, (hq) => {
-  closeFlyout()
-  if (hq) leaveRestrictedPages(projectOnlyPaths)
-  else leaveRestrictedPages(hqOnlyPaths)
+  let target = '/workbench'
+  if (hq) {
+    target = resolveHqEnterPath(route.path) || '/workbench'
+  } else {
+    const hqPairTarget = resolveHqLeavePath(route.path)
+    if (hqPairTarget) {
+      target = hqPairTarget
+    } else {
+      const hit = Object.entries(HQ_LEAVE_REDIRECT).find(
+        ([p]) => route.path === p || route.path.startsWith(`${p}/`),
+      )
+      target = hit?.[1] || '/workbench'
+    }
+  }
+  router.push(target)
 })
 
-const iconMap = {
-  Monitor,
-  DataBoard,
-  Warning,
-  Medal,
-  Box,
-  User,
-  FolderOpened,
-  Setting,
-  Connection,
-  Notebook,
-  Collection,
-  VideoCamera,
-  Van,
-  OfficeBuilding,
-  SetUp,
-  Document,
-  Bell,
-  Goods,
-  PictureFilled,
-  DocumentChecked,
-  WarnTriangleFilled,
-  DataAnalysis,
-  Cpu,
-  MapLocation,
-}
-
-const activeMenu = computed(() => route.meta.sidebarKey || 'workbench')
-const openTabs = ref([
-  { key: 'workbench', label: '工作台', path: '/workbench' },
-])
-const activeTab = computed(() => route.meta.tabKey || 'workbench')
-
-/** Hash 路由下稳定指向 COC 大屏，避免 resolve href 拼接异常导致打不开 */
+/* ---------- 顶栏 ---------- */
 function resolveScreenHref(routeName, fallbackPath) {
   const { href, fullPath } = router.resolve({ name: routeName })
   if (/^https?:\/\//i.test(href)) return href
@@ -212,109 +177,6 @@ function resolveScreenHref(routeName, fallbackPath) {
 }
 
 const cocScreenHref = computed(() => resolveScreenHref('CocScreen', 'coc'))
-
-function isGroupActive(item) {
-  if (item.path && route.path === item.path) return true
-  return item.children?.some((child) => isGroupActive(child)) ?? false
-}
-
-function isChildActive(child) {
-  if (child.path) return route.path === child.path
-  return child.children?.some((item) => isChildActive(item)) ?? false
-}
-
-function ensureExpandedForRoute() {
-  const walk = (nodes) => {
-    for (const node of nodes || []) {
-      if (!node.children?.length) continue
-      if (isGroupActive(node) && !expandedKeys.value.includes(node.key)) {
-        expandedKeys.value.push(node.key)
-      }
-      walk(node.children)
-    }
-  }
-  walk(visibleSidebarMenu.value)
-}
-
-function resolveCurrentTabLabel() {
-  if (isHqSelected.value && route.path === '/machine-supervise/ledger') {
-    return '机械设备台账'
-  }
-  return route.meta?.title || '页面'
-}
-
-watch(
-  () => route.fullPath,
-  () => {
-    closeFlyout()
-    ensureExpandedForRoute()
-    const key = route.meta?.tabKey || route.name || route.path
-    const label = resolveCurrentTabLabel()
-    const path = route.path
-    const existing = openTabs.value.find((t) => t.key === key)
-    if (existing) {
-      existing.label = label
-      existing.path = path
-    } else {
-      openTabs.value.push({ key, label, path })
-    }
-  },
-  { immediate: true },
-)
-
-function toggleGroup(key) {
-  if (expandedKeys.value.includes(key)) {
-    expandedKeys.value = expandedKeys.value.filter((k) => k !== key)
-  } else {
-    expandedKeys.value.push(key)
-  }
-}
-
-function onGroupClick(item) {
-  if (collapsed.value) {
-    if (flyoutKey.value === item.key) {
-      closeFlyout()
-      return
-    }
-    flyoutKey.value = item.key
-    nextTick(() => positionFlyout(item.key))
-    return
-  }
-  toggleGroup(item.key)
-}
-
-function closeFlyout() {
-  flyoutKey.value = ''
-  flyoutStyle.value = {}
-}
-
-function positionFlyout(key) {
-  const btn = document.querySelector(`.menu-group[data-menu-key="${key}"] .group-title`)
-  if (!btn) return
-  const rect = btn.getBoundingClientRect()
-  const top = Math.min(rect.top, window.innerHeight - 240)
-  flyoutStyle.value = {
-    top: `${Math.max(8, top)}px`,
-    left: `${rect.right + 8}px`,
-  }
-}
-
-function navigate(path, menuKey = '', item = null) {
-  if (menuKey && TRACK_EXTERNAL_MENU_KEYS.has(menuKey)) {
-    openTrackExternalByMenuKey(menuKey)
-    closeFlyout()
-    return
-  }
-  const openBlank = item?.openInNewTab || menuKey === 'qm-archive-fill'
-  if (openBlank && path) {
-    const href = router.resolve({ path }).href
-    window.open(href, '_blank', 'noopener,noreferrer')
-    closeFlyout()
-    return
-  }
-  if (path) router.push(path)
-  closeFlyout()
-}
 
 async function handleLogout() {
   try {
@@ -332,29 +194,6 @@ async function handleLogout() {
   router.push('/workbench')
 }
 
-function onDocumentClick(e) {
-  if (!collapsed.value || !flyoutKey.value) return
-  const t = e.target
-  if (t?.closest?.('.menu-group') || t?.closest?.('.menu-flyout')) return
-  closeFlyout()
-}
-
-watch(collapsed, (v) => {
-  if (!v) closeFlyout()
-})
-
-onMounted(() => document.addEventListener('click', onDocumentClick))
-onUnmounted(() => document.removeEventListener('click', onDocumentClick))
-
-function closeTab(tab, e) {
-  e.stopPropagation()
-  openTabs.value = openTabs.value.filter((t) => t.key !== tab.key)
-  if (activeTab.value === tab.key && openTabs.value.length) {
-    router.push(openTabs.value[openTabs.value.length - 1].path)
-  }
-}
-
-/** Hash 路由下勿用 href="#id"，避免与路由 hash 冲突 */
 function skipToMain(e) {
   e?.preventDefault?.()
   const el = document.getElementById('main-content')
@@ -367,6 +206,7 @@ function skipToMain(e) {
 <template>
   <div class="admin-shell">
     <a class="skip-link" href="#main-content" @click="skipToMain">跳到主内容</a>
+
     <header class="top-header">
       <div class="header-brand">
         <div class="brand-logo" aria-hidden="true">
@@ -495,98 +335,21 @@ function skipToMain(e) {
 
     <div class="admin-body">
       <aside class="sidebar" :class="{ collapsed }">
-        <nav class="sidebar-nav">
-          <template v-for="item in visibleSidebarMenu" :key="item.key">
-            <div v-if="item.children" class="menu-group" :data-menu-key="item.key">
-              <button
-                type="button"
-                class="menu-item group-title"
-                :class="{ active: isGroupActive(item) }"
-                :title="collapsed ? item.label : undefined"
-                @click.stop="onGroupClick(item)"
-              >
-                <el-icon :size="16"><component :is="iconMap[item.icon]" /></el-icon>
-                <span v-if="!collapsed">{{ item.label }}</span>
-                <span v-if="!collapsed" class="expand-arrow">{{ expandedKeys.includes(item.key) ? '▾' : '▸' }}</span>
-              </button>
-
-              <!-- 展开态：内嵌子菜单 -->
-              <div v-if="expandedKeys.includes(item.key) && !collapsed" class="sub-menu">
-                <template v-for="child in item.children" :key="child.key">
-                  <div v-if="child.children?.length" class="sub-group">
-                    <button
-                      type="button"
-                      class="menu-item sub-item sub-group-title"
-                      :class="{ active: isChildActive(child) }"
-                      @click="toggleGroup(child.key)"
-                    >
-                      <span>{{ child.label }}</span>
-                      <span class="expand-arrow">{{ expandedKeys.includes(child.key) ? '▾' : '▸' }}</span>
-                    </button>
-                    <div v-if="expandedKeys.includes(child.key)" class="sub-menu nested">
-                      <template v-for="leaf in child.children" :key="leaf.key">
-                        <div v-if="leaf.children?.length" class="sub-group deep-group">
-                          <button
-                            type="button"
-                            class="menu-item sub-item nested-item sub-group-title"
-                            :class="{ active: isChildActive(leaf) }"
-                            @click="toggleGroup(leaf.key)"
-                          >
-                            <span>{{ leaf.label }}</span>
-                            <span class="expand-arrow">{{ expandedKeys.includes(leaf.key) ? '▾' : '▸' }}</span>
-                          </button>
-                          <div v-if="expandedKeys.includes(leaf.key)" class="sub-menu nested deep">
-                            <button
-                              v-for="deep in leaf.children"
-                              :key="deep.key"
-                              type="button"
-                              class="menu-item sub-item deep-item"
-                              :class="{ active: isChildActive(deep) }"
-                              @click="navigate(deep.path, deep.key, deep)"
-                            >
-                              <span>{{ deep.label }}</span>
-                              <span v-if="deep.badge" class="menu-badge" />
-                            </button>
-                          </div>
-                        </div>
-                        <button
-                          v-else
-                          type="button"
-                          class="menu-item sub-item nested-item"
-                          :class="{ active: isChildActive(leaf) }"
-                          @click="navigate(leaf.path, leaf.key, leaf)"
-                        >
-                          <span>{{ leaf.label }}</span>
-                          <span v-if="leaf.badge" class="menu-badge" />
-                        </button>
-                      </template>
-                    </div>
-                  </div>
-                  <button
-                    v-else
-                    type="button"
-                    class="menu-item sub-item"
-                    :class="{ active: isChildActive(child) }"
-                    @click="navigate(child.path, child.key, child)"
-                  >
-                    <span>{{ child.label }}</span>
-                    <span v-if="child.badge" class="menu-badge" />
-                  </button>
-                </template>
-              </div>
-            </div>
-            <button
-              v-else
-              type="button"
-              class="menu-item"
-              :class="{ active: activeMenu === item.key }"
-              @click="navigate(item.path, item.key)"
-            >
-              <el-icon :size="16"><component :is="iconMap[item.icon]" /></el-icon>
-              <span v-if="!collapsed">{{ item.label }}</span>
-            </button>
-          </template>
-        </nav>
+        <el-menu
+          class="sidebar-menu"
+          :default-active="activePath"
+          :collapse="collapsed"
+          :collapse-transition="false"
+          @select="onMenuSelect"
+        >
+          <SidebarMenuNode
+            v-for="item in visibleSidebarMenu"
+            :key="item.key"
+            :item="item"
+            :level="0"
+            @select="onMenuSelect"
+          />
+        </el-menu>
 
         <button
           type="button"
@@ -609,7 +372,7 @@ function skipToMain(e) {
             role="tab"
             :aria-selected="activeTab === tab.key"
             :class="{ active: activeTab === tab.key }"
-            @click="navigate(tab.path)"
+            @click="router.push(tab.path)"
           >
             {{ tab.label }}
             <span
@@ -627,56 +390,6 @@ function skipToMain(e) {
         </div>
       </main>
     </div>
-
-    <!-- 收起侧栏：Teleport 到 body，避免 overflow:hidden 裁切 -->
-    <Teleport to="body">
-      <div
-        v-if="collapsed && flyoutItem"
-        class="menu-flyout"
-        :style="flyoutStyle"
-        @click.stop
-      >
-        <div class="flyout-title">{{ flyoutItem.label }}</div>
-        <template v-for="child in flyoutItem.children" :key="child.key">
-          <div v-if="child.children?.length" class="flyout-subgroup">
-            <div class="flyout-sub-label">{{ child.label }}</div>
-            <template v-for="leaf in child.children" :key="leaf.key">
-              <div v-if="leaf.children?.length" class="flyout-deep-group">
-                <div class="flyout-deep-label">{{ leaf.label }}</div>
-                <button
-                  v-for="deep in leaf.children"
-                  :key="deep.key"
-                  type="button"
-                  class="flyout-item flyout-deep-item"
-                  :class="{ active: isChildActive(deep) }"
-                  @click="navigate(deep.path, deep.key, deep)"
-                >
-                  {{ deep.label }}
-                </button>
-              </div>
-              <button
-                v-else
-                type="button"
-                class="flyout-item"
-                :class="{ active: isChildActive(leaf) }"
-                @click="navigate(leaf.path, leaf.key, leaf)"
-              >
-                {{ leaf.label }}
-              </button>
-            </template>
-          </div>
-          <button
-            v-else
-            type="button"
-            class="flyout-item"
-            :class="{ active: isChildActive(child) }"
-            @click="navigate(child.path, child.key, child)"
-          >
-            {{ child.label }}
-          </button>
-        </template>
-      </div>
-    </Teleport>
   </div>
 </template>
 
@@ -971,183 +684,35 @@ function skipToMain(e) {
 }
 
 .sidebar.collapsed {
-  width: 56px;
-  overflow: visible;
+  width: 64px;
 }
 
-.sidebar-nav {
+.sidebar-menu {
   flex: 1;
-  padding: 8px 0;
+  border-right: none;
   overflow-y: auto;
 }
 
-.sidebar.collapsed .sidebar-nav {
-  overflow: visible;
-}
-
-.menu-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  border: none;
-  background: none;
-  padding: 11px 16px;
-  font-size: 14px;
+/* el-menu 主题覆写：对齐深酒红规范 */
+.sidebar-menu :deep(.el-menu-item),
+.sidebar-menu :deep(.el-sub-menu__title) {
   color: var(--ap-text-secondary);
-  cursor: pointer;
-  text-align: left;
-  transition: all 0.15s;
 }
 
-.menu-item:hover {
+.sidebar-menu :deep(.el-menu-item:hover),
+.sidebar-menu :deep(.el-sub-menu__title:hover) {
   color: var(--ap-primary);
   background: var(--ap-primary-muted);
 }
 
-.menu-item.active {
+.sidebar-menu :deep(.el-menu-item.is-active) {
   color: #fff;
   background: var(--ap-primary);
   font-weight: 500;
 }
 
-.group-title {
-  justify-content: flex-start;
-}
-
-.menu-group {
-  position: relative;
-}
-
-.expand-arrow {
-  margin-left: auto;
-  font-size: 12px;
-  opacity: 0.7;
-}
-
-.menu-flyout {
-  position: fixed;
-  z-index: 3200;
-  min-width: 188px;
-  max-width: 260px;
-  max-height: min(70vh, 480px);
-  overflow-y: auto;
-  padding: 8px;
-  background: #fff;
-  border: 1px solid var(--ap-border);
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
-}
-.flyout-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--ap-text-muted);
-  padding: 4px 10px 8px;
-  border-bottom: 1px solid var(--ap-border);
-  margin-bottom: 6px;
-}
-.flyout-sub-label {
-  font-size: 11px;
-  color: var(--ap-text-muted);
-  padding: 6px 10px 2px;
-}
-.flyout-item {
-  display: block;
-  width: 100%;
-  border: none;
-  background: none;
-  text-align: left;
-  padding: 8px 10px;
-  border-radius: 6px;
-  font-size: 13px;
-  color: var(--ap-text-secondary);
-  cursor: pointer;
-}
-.flyout-item:hover {
+.sidebar-menu :deep(.el-sub-menu.is-active > .el-sub-menu__title) {
   color: var(--ap-primary);
-  background: var(--ap-primary-muted);
-}
-.flyout-item.active {
-  color: var(--ap-primary);
-  background: var(--ap-primary-light);
-  font-weight: 600;
-}
-.flyout-subgroup + .flyout-item,
-.flyout-item + .flyout-subgroup {
-  margin-top: 4px;
-}
-
-.sidebar.collapsed .menu-item {
-  justify-content: center;
-  padding-left: 0;
-  padding-right: 0;
-}
-.sidebar.collapsed .menu-item .el-icon {
-  margin: 0;
-}
-
-.sub-menu {
-  padding: 2px 0 4px;
-}
-
-.sub-item {
-  padding-left: 42px;
-  font-size: 13px;
-}
-
-.sub-group-title {
-  justify-content: flex-start;
-}
-
-.sub-menu.nested {
-  padding: 0;
-}
-
-.nested-item {
-  padding-left: 56px;
-  font-size: 13px;
-}
-
-.deep-group .sub-group-title.nested-item {
-  padding-left: 56px;
-}
-
-.sub-menu.nested.deep {
-  padding: 0;
-}
-
-.deep-item {
-  padding-left: 72px;
-  font-size: 12px;
-}
-
-.flyout-deep-group {
-  padding-left: 4px;
-}
-
-.flyout-deep-label {
-  font-size: 11px;
-  color: var(--ap-text-muted);
-  padding: 4px 10px 2px 16px;
-}
-
-.flyout-deep-item {
-  padding-left: 22px;
-  font-size: 12px;
-}
-
-.sub-item.active {
-  color: var(--ap-primary);
-  background: var(--ap-primary-light);
-  font-weight: 600;
-}
-
-.menu-badge {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--ap-danger);
-  margin-left: auto;
 }
 
 .collapse-btn {

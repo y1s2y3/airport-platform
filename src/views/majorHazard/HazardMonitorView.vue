@@ -203,8 +203,8 @@ function viewProjectDetail(row) {
             <div class="stat-cards">
               <div class="stat-card"><div class="sc-value">{{ hqTotalStats.regionCount }}</div><div class="sc-label">监测区域数</div></div>
               <div class="stat-card"><div class="sc-value">{{ hqTotalStats.deviceCount }}</div><div class="sc-label">设备接入数量</div></div>
-              <div class="stat-card"><div class="sc-value warn">{{ hqTotalStats.todayAlertCount }}</div><div class="sc-label">今日告警数</div></div>
-              <div class="stat-card"><div class="sc-value danger">{{ hqTotalStats.pendingAlertCount }}</div><div class="sc-label">待处理告警数</div></div>
+              <div class="stat-card"><div class="sc-value warn">{{ hqTotalStats.todayAlertCount }}</div><div class="sc-label">今日预警数</div></div>
+              <div class="stat-card"><div class="sc-value danger">{{ hqTotalStats.pendingAlertCount }}</div><div class="sc-label">待处理预警数</div></div>
             </div>
             <el-table :data="hqProjectStats" border stripe class="ap-table" style="width:100%;margin-top:16px">
               <el-table-column type="index" label="序号" width="55" align="center" />
@@ -212,10 +212,10 @@ function viewProjectDetail(row) {
               <el-table-column prop="regionCount" label="监测区域数量" width="110" align="center" />
               <el-table-column prop="pointCount" label="监测点数量" width="100" align="center" />
               <el-table-column prop="deviceCount" label="接入设备数量" width="100" align="center" />
-              <el-table-column prop="todayAlertCount" label="今日告警数" width="90" align="center">
+              <el-table-column prop="todayAlertCount" label="今日预警数" width="90" align="center">
                 <template #default="{ row }"><span :class="row.todayAlertCount > 0 ? 'text-alert' : ''">{{ row.todayAlertCount }}</span></template>
               </el-table-column>
-              <el-table-column prop="pendingAlertCount" label="待处理告警数" width="100" align="center">
+              <el-table-column prop="pendingAlertCount" label="待处理预警数" width="100" align="center">
                 <template #default="{ row }"><span :class="row.pendingAlertCount > 0 ? 'text-alert' : ''">{{ row.pendingAlertCount }}</span></template>
               </el-table-column>
               <el-table-column label="操作" width="120" align="center">

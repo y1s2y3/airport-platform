@@ -2,7 +2,7 @@
 import './brand-page.css'
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Document, Box, Clock } from '@element-plus/icons-vue'
+import { Document, Box, Clock, UserFilled } from '@element-plus/icons-vue'
 import {
   getApplicationDetail,
   MATERIAL_TYPE,
@@ -11,6 +11,7 @@ import {
   statusTagType,
 } from '../../../mock/brand.js'
 import BrandCandidateAttachBlock from './BrandCandidateAttachBlock.vue'
+import PersonalCenterReadonlyHint from '../../../components/PersonalCenterReadonlyHint.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -19,7 +20,7 @@ const fromLedger = computed(
   () => route.path.includes('/qm/brand/ledger') || route.query.from === 'ledger',
 )
 
-const ACTION_LABEL = { submit: '提交', agree: '同意', reject: '退回', withdraw: '撤回' }
+const ACTION_LABEL = { submit: '提交', agree: '同意', reject: '驳回', withdraw: '撤回' }
 const APPROVAL_NODE_LABEL = {
   applicant: '施工提交',
   supervisor: '监理审批',
@@ -62,7 +63,7 @@ const processSteps = computed(() => {
 
   function nodeStep(last, isCurrent) {
     if (last?.action === 'agree') return { status: 'success', desc: last.operate_time || '已同意' }
-    if (last?.action === 'reject') return { status: 'error', desc: last.operate_time || '已退回' }
+    if (last?.action === 'reject') return { status: 'error', desc: last.operate_time || '已驳回' }
     if (app.status === 'withdrawn') return { status: 'wait', desc: '—' }
     if (isCurrent) return { status: 'process', desc: '审批中' }
     return { status: 'wait', desc: '待审批' }
@@ -144,6 +145,9 @@ function timelineType(status) {
 
     <el-empty v-if="!detail" description="未找到报审单" />
     <template v-else>
+      <PersonalCenterReadonlyHint
+        v-if="detail.app.status === 'pending' || detail.app.status === 'in_approval'"
+      />
       <section class="form-section">
         <header class="section-head">
           <el-icon class="section-icon"><Box /></el-icon>
@@ -214,6 +218,25 @@ function timelineType(status) {
             </div>
             <BrandCandidateAttachBlock :candidate="row" :editable="false" />
           </div>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <header class="section-head">
+          <el-icon class="section-icon"><UserFilled /></el-icon>
+          <div class="section-head-main">
+            <h2 class="section-title">审批人配置</h2>
+          </div>
+        </header>
+        <div class="section-body">
+          <el-descriptions :column="2" border>
+            <el-descriptions-item label="监理单位审批">
+              {{ detail.app.supervisor_approver_name || '—' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="项目经理审批">
+              {{ detail.app.pm_approver_name || '—' }}
+            </el-descriptions-item>
+          </el-descriptions>
         </div>
       </section>
 

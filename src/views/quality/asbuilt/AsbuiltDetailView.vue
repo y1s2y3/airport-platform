@@ -18,6 +18,7 @@ import {
   ACTION_LABEL,
   statusTagType,
 } from '../../../mock/asbuilt.js'
+import PersonalCenterReadonlyHint from '../../../components/PersonalCenterReadonlyHint.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -78,7 +79,11 @@ function actionTagType(action) {
           <el-button @click="router.push('/qm/asbuilt/list')">返回列表</el-button>
         </div>
       </div>
-      <p class="page-tip">审批请在个人中心待办办理；提交后资料只读。</p>
+      <PersonalCenterReadonlyHint
+        v-if="detail?.status === 'pending_approval'"
+        title="本页为只读查看；审批请在「个人中心 → 我的待办」中处理。提交后资料不可再编辑。"
+      />
+      <p v-else class="page-tip">审批请在个人中心待办办理；提交后资料只读。</p>
     </div>
 
     <el-empty v-if="!detail" description="未找到验收单" />

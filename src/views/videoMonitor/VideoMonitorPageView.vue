@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { getVideoMonitorItem } from '../../config/videoMonitorMenu.js'
+import { getVideoMonitorItem } from '../../config/menu.js'
 import { ensureVideoDeviceLedgerSeed } from '../../coc/utils/videoDeviceLedgerStorage.js'
 import { ensureVideoDeviceGroupSeed } from '../../coc/utils/videoDeviceGroupStorage.js'
 import '../../coc/admin/admin.css'

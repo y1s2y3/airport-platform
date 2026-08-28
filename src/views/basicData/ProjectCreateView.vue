@@ -55,7 +55,7 @@ function handleSave() {
 <template>
   <div class="portrait-page page-card">
     <div class="page-header">
-      <div class="page-breadcrumb">基础数据管理 / 项目基础信息 / 新增项目</div>
+      <div class="page-breadcrumb">基础数据管理 / 项目信息管理 / 新增项目</div>
       <div class="page-heading">
         <div class="title-block">
           <el-button :icon="ArrowLeft" @click="goBack">返回列表</el-button>

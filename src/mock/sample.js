@@ -3,6 +3,7 @@
  * 材料定样：监理 → 项目经理；工序样板：仅监理
  */
 import { reactive } from 'vue'
+import { nowStr } from '../utils/datetime.js'
 import { getProjectLabel } from './laborRealName.js'
 import { COC_PROJECT_OPTIONS } from '../config/projectOptions.js'
 import { listSamplePickRowsFromBrand } from './brand.js'
@@ -62,10 +63,6 @@ export function statusTagType(status) {
   if (status === 'in_approval') return ''
   if (status === 'rejected') return 'danger'
   return 'info'
-}
-
-function timestamp() {
-  return new Date().toLocaleString('zh-CN', { hour12: false })
 }
 
 function normalizeFileList(list) {
@@ -312,7 +309,7 @@ function pushApproval(row) {
   store.approvals.push({
     record_id: `AR-${String(store.seq.ar).padStart(3, '0')}`,
     ...row,
-    operate_time: row.operate_time || timestamp(),
+    operate_time: row.operate_time || nowStr(),
   })
 }
 
@@ -608,7 +605,7 @@ export function resubmitWithdrawnSample(bizType, applicationId, payload) {
 
   app.status = 'pending'
   app.current_node = 'supervisor'
-  app.submit_time = timestamp()
+  app.submit_time = nowStr()
   app.finish_time = ''
   app.applicant_name = applicant_name
 
@@ -858,7 +855,7 @@ export function submitMaterialApp(payload) {
 
   store.seq.m += 1
   const application_id = `MS-${String(store.seq.m).padStart(3, '0')}`
-  const submit_time = timestamp()
+  const submit_time = nowStr()
   const app = {
     application_id,
     project_id,
@@ -940,7 +937,7 @@ export function submitProcessApp(payload) {
 
   store.seq.p += 1
   const application_id = `PS-${String(store.seq.p).padStart(3, '0')}`
-  const submit_time = timestamp()
+  const submit_time = nowStr()
   const app = {
     application_id,
     project_id,
@@ -1006,7 +1003,7 @@ export function supervisorApproveSample(bizType, applicationId, { action, opinio
       discardSampleTodos(bizType, applicationId)
       app.status = 'approved'
       app.current_node = 'none'
-      app.finish_time = timestamp()
+      app.finish_time = nowStr()
     } else {
       app.status = 'in_approval'
       app.current_node = 'pm'
@@ -1017,7 +1014,7 @@ export function supervisorApproveSample(bizType, applicationId, { action, opinio
     discardSampleTodos(bizType, applicationId)
     app.status = 'rejected'
     app.current_node = 'none'
-    app.finish_time = timestamp()
+    app.finish_time = nowStr()
   }
   return { ok: true }
 }
@@ -1045,13 +1042,13 @@ export function pmApproveSample(bizType, applicationId, { action, opinion }) {
     discardSampleTodos(bizType, applicationId)
     app.status = 'approved'
     app.current_node = 'none'
-    app.finish_time = timestamp()
+    app.finish_time = nowStr()
   } else {
     finishSampleOpenTodos(bizType, applicationId, 'pm', '终审退回')
     discardSampleTodos(bizType, applicationId)
     app.status = 'rejected'
     app.current_node = 'none'
-    app.finish_time = timestamp()
+    app.finish_time = nowStr()
   }
   return { ok: true }
 }
@@ -1074,6 +1071,6 @@ export function withdrawSampleApp(bizType, applicationId) {
   discardSampleTodos(bizType, applicationId)
   app.status = 'withdrawn'
   app.current_node = 'none'
-  app.finish_time = timestamp()
+  app.finish_time = nowStr()
   return { ok: true }
 }

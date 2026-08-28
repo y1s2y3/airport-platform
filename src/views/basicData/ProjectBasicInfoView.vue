@@ -5,6 +5,7 @@ import { Search, Refresh, Plus } from '@element-plus/icons-vue'
 import {
   projectList,
   formatConstructionPeriod,
+  formatTotalInvestment,
   displayProjectManagerName,
 } from '../../mock/projectBasicInfo'
 import { useCurrentProject } from '../../composables/useCurrentProject'
@@ -15,8 +16,6 @@ const { isHqSelected, laborProjectId, headerProjectLabel } = useCurrentProject()
 const filters = ref({
   projectName: '',
 })
-
-const pageTag = computed(() => (isHqSelected.value ? '指挥部台账' : '项目填报'))
 
 const filteredList = computed(() => {
   return projectList.filter((row) => {
@@ -36,8 +35,8 @@ const tableSummary = computed(() => {
 
 const emptyText = computed(() =>
   isHqSelected.value
-    ? '暂无项目基础信息，可点击「新增」维护'
-    : '当前项目暂无基础信息，可点击「新增」维护',
+    ? '暂无项目信息，可点击「新增」维护'
+    : '当前项目暂无项目信息，可点击「新增」维护',
 )
 
 function handleReset() {
@@ -68,11 +67,10 @@ function formatPeriod(row) {
 <template>
   <div class="project-info-page page-card">
     <div class="page-header">
-      <div class="page-breadcrumb">基础数据管理 / 项目基础信息</div>
+      <div class="page-breadcrumb">基础数据管理 / 项目信息管理</div>
       <div class="page-heading">
         <div class="title-block">
-          <h1 class="page-title">项目基础信息</h1>
-          <span class="level-tag">{{ pageTag }}</span>
+          <h1 class="page-title">项目信息管理</h1>
         </div>
         <el-button class="ap-btn-primary" type="primary" :icon="Plus" @click="openCreate">
           新增
@@ -109,12 +107,17 @@ function formatPeriod(row) {
         <el-table-column type="index" label="#" width="52" align="center" />
         <el-table-column prop="projectName" label="项目名称" min-width="280" show-overflow-tooltip />
         <el-table-column prop="shortName" label="项目简称" width="140" show-overflow-tooltip />
-        <el-table-column prop="projectCode" label="项目编码" min-width="150" show-overflow-tooltip>
+        <el-table-column prop="projectCode" label="国家统一编码" min-width="150" show-overflow-tooltip>
           <template #default="{ row }">
             {{ row.projectCode || '—' }}
           </template>
         </el-table-column>
         <el-table-column prop="status" label="项目状态" width="96" align="center" />
+        <el-table-column label="项目总投资(万元)" width="148" align="right" header-align="center">
+          <template #default="{ row }">
+            {{ formatTotalInvestment(row.totalInvestment) }}
+          </template>
+        </el-table-column>
         <el-table-column label="建设期" min-width="210" show-overflow-tooltip>
           <template #default="{ row }">
             {{ formatPeriod(row) }}

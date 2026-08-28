@@ -1,7 +1,7 @@
 <script setup>
 /**
  * 人员实名制 · 个人中心（移动端）
- * 样式对齐巡检「消息中心(移动端)」；预警数据同源 Web「预警中心」；仅查看不可处置。
+ * 流程中心与 Web 个人中心同源；预警中心独立展示。
  */
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -189,9 +189,6 @@ function switchCenter(name) {
 }
 
 function openFlowDetail(item) {
-  if (!item.laborWarningId) {
-    return
-  }
   const tab =
     activeTab.value === 'done'
       ? 'done'
@@ -200,10 +197,27 @@ function openFlowDetail(item) {
         : activeTab.value === 'copied'
           ? 'copied'
           : 'todo'
+
+  if (item.type === 'labor_warning' && item.laborWarningId) {
+    router.push({
+      name: 'LaborMobileWarningDetail',
+      params: { id: item.laborWarningId },
+      query: { tab },
+    })
+    return
+  }
+
+  if (activeTab.value === 'todo') {
+    router.push({
+      path: '/personal-center/todo/handle',
+      query: { id: item.id, from: 'todo' },
+    })
+    return
+  }
+
   router.push({
-    name: 'LaborMobileWarningDetail',
-    params: { id: item.laborWarningId },
-    query: { tab },
+    path: '/personal-center/todo/handle',
+    query: { id: item.id, from: tab },
   })
 }
 

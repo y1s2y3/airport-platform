@@ -15,7 +15,7 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['open-major-list', 'open-danger-list'])
+const emit = defineEmits(['open-major-list', 'open-danger-list', 'open-equipment-list'])
 
 const leftChartRef = ref(null)
 const rightChartRef = ref(null)
@@ -167,6 +167,30 @@ function bindHazardClicks(chart, kind) {
   })
 }
 
+function bindEquipmentClicks(chart) {
+  if (!chart || props.section !== 'machine') return
+  chart.off('click')
+  chart.getZr().off('click')
+
+  let sectorHit = false
+  chart.on('click', (params) => {
+    if (params?.componentType !== 'series') return
+    const name = params?.name && params.name !== '暂无' ? params.name : ''
+    sectorHit = true
+    emit('open-equipment-list', { filter: name })
+    setTimeout(() => {
+      sectorHit = false
+    }, 0)
+  })
+
+  chart.getZr().on('click', () => {
+    setTimeout(() => {
+      if (sectorHit) return
+      emit('open-equipment-list', { filter: '' })
+    }, 0)
+  })
+}
+
 function renderCharts() {
   nextTick(() => {
     const left = ensureChart('left', leftChartRef.value)
@@ -181,7 +205,10 @@ function renderCharts() {
         bindHazardClicks(right, 'danger')
       }
     } else {
-      if (left) left.setOption(buildRingOption(stats.value.equipmentTypes, '台', '台', 'narrow'), true)
+      if (left) {
+        left.setOption(buildRingOption(stats.value.equipmentTypes, '台', '台', 'narrow'), true)
+        bindEquipmentClicks(left)
+      }
       if (right) right.setOption(buildMaintainTrendOption(stats.value.maintainTrend), true)
     }
     handleResize()
@@ -205,6 +232,10 @@ function openMajorAll() {
 
 function openDangerAll() {
   emit('open-danger-list', { filter: '' })
+}
+
+function openEquipmentAll() {
+  emit('open-equipment-list', { filter: '' })
 }
 
 let resizeObserver = null
@@ -245,9 +276,12 @@ onUnmounted(() => {
     </div>
   </div>
   <div v-else class="stat-split stat-split--machine">
-    <div class="stat-pane">
-      <div class="stat-title">设备类型统计</div>
-      <div ref="leftChartRef" class="stat-chart" />
+    <div class="stat-pane is-clickable" title="点击查看设备清单" @click="openEquipmentAll">
+      <div class="stat-title">
+        设备类型统计
+        <span class="stat-tip">点击查看清单 · 扇区可筛选</span>
+      </div>
+      <div ref="leftChartRef" class="stat-chart" @click.stop />
     </div>
     <div class="stat-pane">
       <div class="stat-title">设备维保趋势</div>

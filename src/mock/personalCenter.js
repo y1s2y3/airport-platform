@@ -2,6 +2,7 @@
  * 个人中心 · 待办/已办/发起/抄送/通知 Mock（含共享响应式列表）
  */
 import { reactive } from 'vue'
+import { nowStr } from '../utils/datetime.js'
 import {
   getWarningDetail,
   getProjectLabel,
@@ -17,6 +18,22 @@ import {
   subcontractorList,
   isSubcontractorInApproval,
 } from './subcontractorManagement.js'
+import { aiAlerts, disposeAiAlert } from './aiApp.js'
+import {
+  WC_DEMO_MACHINE_ALERT_ID,
+  getMachineAlertById,
+  disposeMachineAlert,
+} from './machineAlert.js'
+import {
+  WC_DEMO_MAJOR_ALERT_ID,
+  ensureWcDemoMajorAlert,
+  handleAlertRecord,
+} from './majorHazard.js'
+import {
+  notifyBizAlertDisposed,
+  registerWarningCenterBizDisposedHook,
+  runWithoutBizToWarningCenterSync,
+} from './warningCenterBizHook.js'
 
 export const PROCESS_STATUS_OPTIONS = ['审批中', '已通过', '已驳回', '已撤回']
 export const PROCESS_CATEGORY_OPTIONS = [
@@ -34,6 +51,7 @@ export const PROCESS_CATEGORY_OPTIONS = [
 export const READ_STATUS_OPTIONS = ['未读', '已读']
 export const WARNING_CENTER_TYPE_OPTIONS = ['处置任务', '通知']
 export const WARNING_CENTER_STATUS_OPTIONS = ['待处理', '已关闭', '未读', '已读']
+export const WARNING_CENTER_MODULE_OPTIONS = ['人员实名', 'AI应用', '机械设备监管', '危大工程监测']
 export const NOTICE_MODULE_OPTIONS = [
   '待办通知',
   '环境监测',
@@ -258,7 +276,7 @@ function seedTodos() {
           title: '项目经理终审',
           time: '',
           user: '当前用户',
-          remark: '待选定入选品牌',
+          remark: '待终审',
           status: 'current',
         },
       ],
@@ -441,26 +459,6 @@ function seedTodos() {
           remark: '待流转',
           status: 'pending',
         },
-      ],
-    },
-    {
-      id: 'todo-2',
-      type: 'common',
-      sourceLabel: '巡检管理',
-      category: '巡检管理',
-      bizType: '计划复核',
-      processName: '巡检计划复核·T2主体周检',
-      applicant: '李想',
-      dept: '安监部',
-      applyTime: '2026-07-19 14:08:42',
-      detail: {
-        project: 'T2主体结构',
-        planName: 'T2主体周检计划',
-        summary: '周检计划编制完成，请复核后发布。',
-      },
-      approvalFlow: [
-        { title: '编制计划', time: '2026-07-19 14:08:42', user: '李想', remark: '提交复核', status: 'done' },
-        { title: '安监部复核', time: '', user: '当前用户', remark: '待复核', status: 'current' },
       ],
     },
     {
@@ -1094,6 +1092,139 @@ export function seedLaborWarningCenter() {
   ].filter(Boolean)
 }
 
+/** AI、机械设备、危大工程预警中心演示任务（与业务台账通过 bizModule + bizAlertId 关联） */
+export function seedModuleWarningCenter() {
+  const aiBiz =
+    aiAlerts.value.find((a) => a.status === '未处置' && a.alertType === '未戴安全帽') ||
+    aiAlerts.value.find((a) => a.status === '未处置')
+  const machineBiz = getMachineAlertById(WC_DEMO_MACHINE_ALERT_ID)
+  const majorBiz = ensureWcDemoMajorAlert()
+
+  return [
+    {
+      id: 'wc-ai-alert-001',
+      module: 'AI应用',
+      bizModule: 'ai',
+      bizAlertId: aiBiz?.id || '',
+      projectName: aiBiz?.projectName || 'T2项目',
+      warningNo: aiBiz?.alertNo || 'AI202608210001',
+      alertType: aiBiz?.alertType || '未戴安全帽',
+      location: aiBiz?.location || '施工一区',
+      sourceName: aiBiz?.camera || '南门枪机01',
+      description:
+        aiBiz?.content ||
+        '未戴安全帽：施工一区识别到作业人员未按要求佩戴安全帽。',
+      handler: aiBiz?.handler || '张伟',
+      warnType: '处置任务',
+      status: '待处理',
+      time: aiBiz?.occurredAt || '2026-08-21 09:32:18',
+      dismissed: false,
+    },
+    {
+      id: 'wc-machine-alert-001',
+      module: '机械设备监管',
+      bizModule: 'machine',
+      bizAlertId: machineBiz?.id || WC_DEMO_MACHINE_ALERT_ID,
+      projectName: machineBiz?.project || 'T2项目',
+      warningNo: machineBiz?.id ? `ME-${machineBiz.id}` : 'ME202608210001',
+      alertType: machineBiz?.alertType || '塔吊预警',
+      location: machineBiz?.region || '施工A区',
+      sourceName: machineBiz?.deviceName || '塔吊 QTZ160（#1）',
+      description:
+        machineBiz?.content ||
+        '塔吊力矩超限：塔吊 QTZ160（#1）起重力矩超过预警阈值。',
+      handler: '王工',
+      warnType: '处置任务',
+      status: machineBiz?.status === '已处置' ? '已关闭' : '待处理',
+      time: machineBiz?.alertTime || '2026-08-21 09:18:36',
+      dismissed: false,
+    },
+    {
+      id: 'wc-major-hazard-alert-001',
+      module: '危大工程监测',
+      bizModule: 'major',
+      bizAlertId: majorBiz?.id || WC_DEMO_MAJOR_ALERT_ID,
+      projectName: 'T2航站区及配套工程',
+      warningNo: majorBiz?.id ? `MH-${majorBiz.id}` : 'MH202608210001',
+      alertType: majorBiz?.alertType || '深基坑水平位移超限预警',
+      location: majorBiz?.region || '基坑东侧',
+      sourceName: majorBiz?.deviceName || '位移监测点 JC-03',
+      description:
+        majorBiz?.detail ||
+        '深基坑水平位移超限：基坑东侧监测点当前数值超过预警阈值。',
+      handler: majorBiz?.handler || '李强',
+      warnType: '处置任务',
+      status: majorBiz?.status === '已处置' ? '已关闭' : '待处理',
+      time: majorBiz?.time || '2026-08-21 08:56:42',
+      dismissed: false,
+    },
+  ]
+}
+
+/**
+ * 预警中心处置 → 回写业务台账
+ */
+function syncBizAlertFromWarningCenter(row, { content, attachments = [], operator, disposal_result }) {
+  if (!row?.bizAlertId || !row?.bizModule) return
+  runWithoutBizToWarningCenterSync(() => {
+    if (row.bizModule === 'ai') {
+      const disposition = disposal_result === '误报' ? '误报' : '已处理'
+      const files = (attachments || []).map((item) =>
+        typeof item === 'string' ? { name: item } : { ...item },
+      )
+      disposeAiAlert(row.bizAlertId, disposition, content || '', operator, files)
+      return
+    }
+    if (row.bizModule === 'machine') {
+      disposeMachineAlert(row.bizAlertId, {
+        result: disposal_result === '误报' ? '误报' : '已处置',
+        remark: content || '',
+        handler: operator || '系统',
+      })
+      return
+    }
+    if (row.bizModule === 'major') {
+      const note =
+        disposal_result === '误报'
+          ? `误报：${content || ''}`.trim()
+          : content || ''
+      handleAlertRecord(row.bizAlertId, { content: note, handler: operator || '系统' })
+    }
+  })
+}
+
+/**
+ * 业务台账处置 → 反向同步预警中心（按 bizModule + bizAlertId）
+ */
+export function markModuleWarningCenterByBizDispose(
+  bizModule,
+  bizAlertId,
+  { operator = '系统', disposalResult = '已处置', disposalNote = '', attachments = [] } = {},
+) {
+  if (!bizModule || !bizAlertId) return 0
+  const now = nowStr()
+  let n = 0
+  for (const row of personalWarningCenterStore.items) {
+    if (row.dismissed) continue
+    if (row.bizModule !== bizModule) continue
+    if (String(row.bizAlertId) !== String(bizAlertId)) continue
+    if (row.warnType !== '处置任务') continue
+    if (row.status !== '待处理' && row.status !== '待处置') continue
+    row.status = '已关闭'
+    row.handler = operator
+    row.time = now
+    row.disposalResult = disposalResult
+    row.disposalNote = disposalNote || ''
+    row.disposalAttachments = [...attachments]
+    n += 1
+  }
+  return n
+}
+
+function seedAllWarningCenter() {
+  return [...seedModuleWarningCenter(), ...seedLaborWarningCenter()]
+}
+
 /**
  * 人员实名制预警 → 个人中心待办/已办（已迁出至预警中心，保留函数供兼容，默认不再写入待办）
  * @param {'todo'|'done'} listType
@@ -1166,25 +1297,93 @@ function buildLaborWarningProcess(warningId, listType = 'todo') {
 }
 
 /**
- * @deprecated 人员预警已迁至预警中心；保留空实现兼容旧调用
+ * 预警中心「详情」→ 个人中心 handle 页解析（通知只读 / 处置任务可办 / 已关闭只读）
+ * @param {string} warningId
  */
-export function seedLaborWarningTodos() {
-  return []
-}
+export function resolveWarningCenterHandle(warningId) {
+  const w = getWarningDetail(warningId)
+  if (!w) return null
 
-/** @deprecated 人员预警已迁至预警中心 */
-export function seedLaborWarningDone() {
-  return []
+  if (w.handle_mode === '通知') {
+    const project = getProjectLabel(w.project_id) || w.project_id || '—'
+    return {
+      id: `wc-notify-${warningId}`,
+      type: 'labor_warning',
+      sourceLabel: '人员实名制',
+      category: '人员实名',
+      bizType: '预警通知',
+      laborWarningId: w.id,
+      processName: `人员预警通知·${w.rule_label}（${w.warning_no}）`,
+      applicant: '系统',
+      dept: '人员实名制管理',
+      applyTime: w.triggered_at,
+      warnCenterReadonly: true,
+      detail: {
+        project,
+        warningNo: w.warning_no,
+        ruleLabel: w.rule_label,
+        status: w.status,
+        handleMode: w.handle_mode,
+        triggerReason: w.trigger_reason,
+        name: w.name,
+        summary: w.trigger_reason,
+      },
+      approvalFlow: [],
+    }
+  }
+
+  const listType = w.status === '已关闭' ? 'done' : 'todo'
+  const row = buildLaborWarningProcess(warningId, listType)
+  if (!row) return null
+  row.warnCenterReadonly = listType === 'done'
+  return row
 }
 
 /**
- * @deprecated 人员预警通知已迁至预警中心；保留空实现兼容旧调用
+ * AI / 机械 / 危大等非人员实名预警中心条目 → handle 页上下文
+ * @param {string} warningCenterId 预警中心条目 id（如 wc-ai-alert-001）
  */
-export function seedLaborWarningNotices() {
-  return []
+export function resolveModuleWarningCenterHandle(warningCenterId) {
+  const item = getPersonalWarningCenterItem(warningCenterId)
+  if (!item) return null
+  // 人员实名制预警中心条目：走原有 labor 解析，避免仅传 WC id 时空白页
+  if (item.laborWarningId) {
+    return resolveWarningCenterHandle(item.laborWarningId)
+  }
+
+  const canDispose = item.warnType === '处置任务' && item.status === '待处理'
+  return {
+    id: item.id,
+    type: 'module_warning',
+    sourceLabel: item.module || '预警中心',
+    category: item.module || '预警中心',
+    bizType: item.warnType || '处置任务',
+    warningCenterId: item.id,
+    processName: `${item.alertType || '预警'}（${item.warningNo || item.id}）`,
+    applicant: item.handler || '系统',
+    dept: item.module || '预警中心',
+    applyTime: item.time,
+    warnCenterReadonly: !canDispose,
+    detail: {
+      project: item.projectName || '—',
+      warningNo: item.warningNo || '',
+      alertType: item.alertType || '',
+      location: item.location || '',
+      sourceName: item.sourceName || '',
+      description: item.description || '',
+      status: item.status || '',
+      warnType: item.warnType || '',
+      handler: item.handler || '',
+      disposalResult: item.disposalResult || '',
+      disposalNote: item.disposalNote || '',
+      disposalAttachments: item.disposalAttachments || [],
+      summary: item.description || '',
+    },
+    approvalFlow: [],
+  }
 }
 
-/** 质量验评专用待办（置顶；与业务任务 id 对齐，可点处理进审批/整改页） */
+/** 质量验评：个人中心待办种子 */
 export function seedQmInspectTodos() {
   return [
     {
@@ -1349,8 +1548,10 @@ export function seedQmInspectStarted() {
 
 /** 共享响应式：预警中心（人员实名制任务类 + 通知类） */
 export const personalWarningCenterStore = reactive({
-  items: seedLaborWarningCenter(),
+  items: seedAllWarningCenter(),
 })
+
+registerWarningCenterBizDisposedHook(markModuleWarningCenterByBizDispose)
 
 /** 共享响应式：待办 / 已办（人员预警已迁出至预警中心） */
 export const personalTodoStore = reactive({
@@ -1550,37 +1751,63 @@ export function ensureQmPersonalCenterSeeds() {
  * 补齐预警中心种子（热更新/办理后缺失时不重复插入；已有条目同步描述/项目简称等展示字段）
  */
 export function ensureLaborWarningCenterSeeds() {
-  for (const row of [...seedLaborWarningCenter()].reverse()) {
+  for (const row of [...seedAllWarningCenter()].reverse()) {
     const existing = personalWarningCenterStore.items.find((t) => t.id === row.id)
     if (!existing) {
       personalWarningCenterStore.items.unshift(row)
       continue
     }
-    existing.module = row.module
-    existing.projectName = row.projectName
-    existing.description = row.description
-    existing.warnType = row.warnType
-    // 未关闭前，同步演示处理人姓名
-    if (existing.status === '待处理' || existing.status === '未读' || existing.status === '已读') {
-      if (existing.status !== '已读' || existing.warnType === '通知') {
-        existing.handler = row.handler
+    if (row.laborWarningId) {
+      existing.module = row.module
+      existing.projectName = row.projectName
+      existing.description = row.description
+      existing.warnType = row.warnType
+      if (existing.status === '待处理' || existing.status === '未读' || existing.status === '已读') {
+        if (existing.status !== '已读' || existing.warnType === '通知') {
+          existing.handler = row.handler
+        }
       }
+    } else {
+      existing.module = existing.module || row.module
+      existing.projectName = existing.projectName || row.projectName
+      existing.description = existing.description || row.description
+      existing.warnType = existing.warnType || row.warnType
+      existing.warningNo = existing.warningNo || row.warningNo
+      existing.alertType = existing.alertType || row.alertType
+      existing.location = existing.location || row.location
+      existing.sourceName = existing.sourceName || row.sourceName
+      existing.bizModule = existing.bizModule || row.bizModule
+      existing.bizAlertId = existing.bizAlertId || row.bizAlertId
     }
-    // 兼容旧种子状态名
     if (existing.status === '待处置') existing.status = '待处理'
     if (existing.status === '已处置') existing.status = '已关闭'
   }
-}
-
-/** @deprecated 请改用 ensureLaborWarningCenterSeeds */
-export function ensureLaborPersonalCenterSeeds() {
-  ensureLaborWarningCenterSeeds()
 }
 
 /** 预警中心列表（未消除） */
 export function listPersonalWarningCenter() {
   ensureLaborWarningCenterSeeds()
   return personalWarningCenterStore.items.filter((row) => !row.dismissed)
+}
+
+export function getPersonalWarningCenterItem(id) {
+  ensureLaborWarningCenterSeeds()
+  return personalWarningCenterStore.items.find(
+    (row) => !row.dismissed && String(row.id) === String(id),
+  ) || null
+}
+
+export function disposePersonalWarningCenterItem(
+  id,
+  { disposalResult = '已处置', disposalNote = '', attachments = [], operator = '张明' } = {},
+) {
+  const count = batchDisposeWarningCenter([id], {
+    disposal_result: disposalResult,
+    content: disposalNote,
+    attachments,
+    operator,
+  })
+  return count ? getPersonalWarningCenterItem(id) : null
 }
 
 /** 批量已读：仅「通知」且状态为「未读」的条目（同步业务预警） */
@@ -1611,28 +1838,35 @@ export function batchDisposeWarningCenter(ids, { content, attachments = [], oper
       idSet.has(String(row.id)) &&
       !row.dismissed &&
       row.warnType === '处置任务' &&
-      row.status === '待处理' &&
-      row.laborWarningId,
+      row.status === '待处理',
   )
   if (!targets.length) return 0
 
-  const warningIds = targets.map((row) => row.laborWarningId)
-  batchDisposeWarnings(warningIds, { content, attachments, operator, disposal_result })
+  const warningIds = targets.map((row) => row.laborWarningId).filter(Boolean)
+  if (warningIds.length) {
+    batchDisposeWarnings(warningIds, { content, attachments, operator, disposal_result })
+  }
 
-  const now = new Date().toLocaleString('zh-CN', { hour12: false })
+  const now = nowStr()
   let n = 0
   for (const row of targets) {
+    if (!row.laborWarningId) {
+      syncBizAlertFromWarningCenter(row, {
+        content,
+        attachments,
+        operator,
+        disposal_result,
+      })
+    }
     row.status = '已关闭'
     row.handler = operator
     row.time = now
+    row.disposalResult = disposal_result || '已处置'
+    row.disposalNote = content || ''
+    row.disposalAttachments = [...attachments]
     n += 1
   }
   return n
-}
-
-/** @deprecated 请改用 batchDisposeWarningCenter */
-export function dismissWarningCenter(ids) {
-  return batchDisposeWarningCenter(ids, { content: '批量处置并关闭' })
 }
 
 /**
@@ -1640,7 +1874,7 @@ export function dismissWarningCenter(ids) {
  */
 export function markWarningCenterDisposed(laborWarningId, handler = '张明') {
   if (!laborWarningId) return null
-  const now = new Date().toLocaleString('zh-CN', { hour12: false })
+  const now = nowStr()
   const row = personalWarningCenterStore.items.find(
     (item) =>
       !item.dismissed &&
@@ -1714,6 +1948,38 @@ export function findPersonalTodo(id) {
   return personalTodoStore.todos.find((item) => item.id === id) || null
 }
 
+/** 质量验评旧 approve 深链 → 个人中心 handle（按任务 id + approve 路径匹配待办） */
+export function resolveQmInspectHandleRedirect(to) {
+  const taskId = String(to.query?.id || '')
+  const approvePath = String(to.path || '').replace(/\/+$/, '') || String(to.path || '')
+
+  const matchRow = (list) =>
+    list.find(
+      (item) =>
+        item.type === 'qm_inspect' &&
+        item.qmTaskId === taskId &&
+        (!item.approvePath || item.approvePath === approvePath),
+    )
+
+  const todoHit = matchRow(personalTodoStore.todos)
+  if (todoHit) {
+    return { path: '/personal-center/todo/handle', query: { id: todoHit.id, from: 'todo' } }
+  }
+  const doneHit = matchRow(personalTodoStore.done)
+  if (doneHit) {
+    return { path: '/personal-center/todo/handle', query: { id: doneHit.id, from: 'done' } }
+  }
+  const startedHit = matchRow(personalStarted)
+  if (startedHit) {
+    return { path: '/personal-center/todo/handle', query: { id: startedHit.id, from: 'started' } }
+  }
+  const ccHit = matchRow(personalCc)
+  if (ccHit) {
+    return { path: '/personal-center/todo/handle', query: { id: ccHit.id, from: 'cc' } }
+  }
+  return { path: '/personal-center', query: { tab: 'todo' } }
+}
+
 /** 按来源查找个人中心流程记录 */
 export function findPersonalProcess(id, from = 'todo') {
   const key = String(id || '')
@@ -1728,7 +1994,7 @@ export function finishPersonalTodo(id, handleLabel) {
   const idx = personalTodoStore.todos.findIndex((item) => item.id === id)
   if (idx < 0) return null
   const [row] = personalTodoStore.todos.splice(idx, 1)
-  const now = new Date().toLocaleString('zh-CN', { hour12: false })
+  const now = nowStr()
   const flow = row.type === 'inspection' && Array.isArray(row.approvalFlow)
     ? row.approvalFlow.map((step) => ({ ...step }))
     : Array.isArray(row.approvalFlow)
@@ -1866,8 +2132,8 @@ function buildBrandTodo(payload) {
           {
             title: '项目经理终审',
             time: '',
-            user: '当前用户',
-            remark: '待选定入选品牌',
+            user: payload.assigneeName || payload.pmApproverName || '项目经理',
+            remark: '待终审',
             status: 'current',
           },
         ]
@@ -1882,14 +2148,14 @@ function buildBrandTodo(payload) {
           {
             title: '监理审批',
             time: '',
-            user: '当前用户',
+            user: payload.assigneeName || payload.supervisorName || '监理',
             remark: '待审批',
             status: 'current',
           },
           {
             title: '项目经理终审',
             time: '',
-            user: '项目经理',
+            user: payload.pmApproverName || '项目经理',
             remark: '待流转',
             status: 'pending',
           },
@@ -1921,7 +2187,7 @@ export function discardBrandTodos(applicationId) {
   removeOpenBrandTodos(applicationId)
 }
 
-/** —— 样板管理：个人中心待办 + 模块内审批列表 —— */
+/** —— 样板管理：个人中心待办（模块 approve 路由已 redirect 至个人中心） —— */
 let sampleTodoSeq = 20
 
 function removeOpenSampleTodos(bizType, applicationId, { onlyNode } = {}) {
@@ -2096,7 +2362,7 @@ function buildMatEntryTodo(payload) {
   return {
     id: `todo-mat-${matEntryTodoSeq}`,
     type: 'mat_entry',
-    sourceLabel: '材料设备进场管理',
+    sourceLabel: '材料设备进场',
     category: '材料设备进场',
     bizType: '进场审批',
     matEntryId: payload.entryId,
@@ -2124,7 +2390,7 @@ function buildMatEntryTodo(payload) {
       {
         title: '监理审批',
         time: '',
-        user: '当前用户',
+        user: payload.supervisorName || '当前用户',
         remark: '待审批',
         status: 'current',
       },
@@ -2162,7 +2428,7 @@ function buildEqEntryTodo(payload) {
   return {
     id: `todo-eq-${eqEntryTodoSeq}`,
     type: 'eq_entry',
-    sourceLabel: '材料设备进场管理',
+    sourceLabel: '材料设备进场',
     category: '材料设备进场',
     bizType: '进场审批',
     eqEntryId: payload.entryId,
@@ -2190,7 +2456,7 @@ function buildEqEntryTodo(payload) {
       {
         title: '监理审批',
         time: '',
-        user: '当前用户',
+        user: payload.supervisorName || '当前用户',
         remark: '待审批',
         status: 'current',
       },
@@ -2524,9 +2790,6 @@ export function handleSubcontractorTodo(todoId, { action, opinion } = {}) {
   const r = approveSubcontractorApplication(applicationId, { action, opinion })
   if (!r.ok) return r
 
-  const handleLabel = action === 'reject' ? '驳回' : '同意'
-  finishPersonalTodo(todoId, handleLabel)
-
   const row = findSubcontractorApplication(applicationId)
   if (row) upsertSubcontractorStarted(row)
 
@@ -2558,28 +2821,24 @@ export function seedOpenSubcontractorTodosFromStore(list = []) {
 seedOpenSubcontractorTodosFromStore(subcontractorList)
 
 /**
- * 兼容：人员预警已迁至预警中心，流程中心待办不再返回人员预警
+ * 劳务移动端个人中心：流程中心与 Web 个人中心同源（personalTodoStore 等）
  */
 export function listLaborPersonalTodos() {
-  return []
+  return personalTodoStore.todos
 }
 
-/** 兼容：人员预警已迁至预警中心 */
 export function listLaborPersonalDone() {
-  return []
+  return personalTodoStore.done
 }
 
-/** 兼容：人员预警通知已迁至预警中心，消息提醒不再返回 */
 export function listLaborPersonalNotices() {
-  return []
+  return personalNotices
 }
 
-/** 兼容：本期预警流程无发起态 */
 export function listLaborPersonalStarted() {
-  return []
+  return personalStarted
 }
 
-/** 兼容：本期预警流程无抄送态 */
 export function listLaborPersonalCc() {
-  return []
+  return personalCc
 }

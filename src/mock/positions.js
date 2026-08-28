@@ -116,7 +116,7 @@ const initialPositions = [
     level: '公司',
     source: '系统自建',
     headcount: 1,
-    duty: '项目基础信息与工程划分库维护',
+    duty: '项目信息管理与工程划分库维护',
     roleId: 'role-bd',
   },
   {

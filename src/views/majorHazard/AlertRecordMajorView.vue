@@ -104,13 +104,13 @@ function submitDispose() {
 }
 
 function handleExport() {
-  const headers = ['告警类型', '监测区域', '监测点位', '设备名称', '监测指标', '当前数值', '告警阈值', '告警等级', '告警详情', '发生时间', '处置状态', '负责人']
+  const headers = ['预警类型', '监测区域', '监测点位', '设备名称', '监测指标', '当前数值', '预警阈值', '预警等级', '预警详情', '发生时间', '处置状态', '负责人']
   const rows = filteredList.value.map(r => [r.alertType, r.region, r.point, r.deviceName, r.indicatorName, r.currentValue, r.threshold, r.level, r.detail, r.time, r.status, r.handler || ''])
   const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
-  a.href = url; a.download = `告警记录_${new Date().toISOString().slice(0, 10)}.csv`
+  a.href = url; a.download = `预警记录_${new Date().toISOString().slice(0, 10)}.csv`
   a.click(); URL.revokeObjectURL(url)
   ElMessage.success('导出成功')
 }
@@ -120,13 +120,13 @@ function handleExport() {
   <div class="page page-card">
     <div class="page-header">
       <div class="page-breadcrumb">
-        {{ isHqSelected ? '安全看板 / 危大监测告警' : '危大工程监测 / 告警记录' }}
+        {{ isHqSelected ? '安全看板 / 危大监测预警' : '危大工程监测 / 预警记录' }}
       </div>
       <div class="page-heading">
-        <h1 class="page-title">{{ isHqSelected ? '危大监测告警' : '告警记录' }}</h1>
+        <h1 class="page-title">{{ isHqSelected ? '危大监测预警' : '预警记录' }}</h1>
       </div>
       <p v-if="!isHqSelected" class="page-scope">当前项目：{{ scopeProjectLabel }}</p>
-      <p class="page-tip">查看、处置告警记录。设备监测值超出配置阈值时自动生成告警并按配置推送。</p>
+      <p class="page-tip">查看、处置预警记录。设备监测值超出配置阈值时自动生成预警并按配置推送。</p>
     </div>
 
     <div class="page-layout" :class="{ 'with-tree': isHqSelected }">
@@ -146,7 +146,7 @@ function handleExport() {
           <el-select v-model="filters.regionId" placeholder="监测区域" clearable style="width: 170px" aria-label="监测区域">
             <el-option v-for="r in regionOpts" :key="r.id" :label="r.name" :value="r.id" />
           </el-select>
-          <el-select v-model="filters.level" placeholder="告警等级" clearable style="width: 100px" aria-label="告警等级">
+          <el-select v-model="filters.level" placeholder="预警等级" clearable style="width: 100px" aria-label="预警等级">
             <el-option v-for="lv in levelOptions" :key="lv" :label="lv" :value="lv" />
           </el-select>
           <el-select v-model="filters.status" placeholder="处置状态" clearable style="width: 100px" aria-label="处置状态">
@@ -161,7 +161,7 @@ function handleExport() {
 
         <el-table :data="pagedList" border stripe class="ap-table" style="width:100%">
           <el-table-column type="index" label="序" width="40" align="center" />
-          <el-table-column prop="alertType" label="告警类型" min-width="120" show-overflow-tooltip />
+          <el-table-column prop="alertType" label="预警类型" min-width="120" show-overflow-tooltip />
           <el-table-column prop="region" label="监测区域" min-width="130" show-overflow-tooltip />
           <el-table-column prop="point" label="监测点位" min-width="120" show-overflow-tooltip />
           <el-table-column prop="deviceName" label="设备名称" min-width="130" show-overflow-tooltip />
@@ -192,16 +192,16 @@ function handleExport() {
     </div>
 
     <!-- 详情弹窗 -->
-    <el-dialog v-model="detailVisible" title="告警详情" width="520px" :close-on-click-modal="false">
+    <el-dialog v-model="detailVisible" title="预警详情" width="520px" :close-on-click-modal="false">
       <div v-if="detailItem" class="detail-wrap">
-        <div class="dr"><span class="dl">告警类型</span><span class="dv">{{ detailItem.alertType }}</span></div>
+        <div class="dr"><span class="dl">预警类型</span><span class="dv">{{ detailItem.alertType }}</span></div>
         <div class="dr"><span class="dl">监测区域</span><span class="dv">{{ detailItem.region }}</span></div>
         <div class="dr"><span class="dl">监测点位</span><span class="dv">{{ detailItem.point }}</span></div>
         <div class="dr"><span class="dl">设备名称</span><span class="dv">{{ detailItem.deviceName }}</span></div>
         <div class="dr"><span class="dl">超限指标</span><span class="dv">{{ detailItem.indicatorName }}</span></div>
         <div class="dr"><span class="dl">当前数值</span><span class="dv">{{ detailItem.currentValue }} {{ detailItem.unit }}</span></div>
-        <div class="dr"><span class="dl">告警阈值</span><span class="dv">{{ detailItem.threshold }} {{ detailItem.unit }}</span></div>
-        <div class="dr"><span class="dl">告警等级</span><span class="dv">{{ detailItem.level }}</span></div>
+        <div class="dr"><span class="dl">预警阈值</span><span class="dv">{{ detailItem.threshold }} {{ detailItem.unit }}</span></div>
+        <div class="dr"><span class="dl">预警等级</span><span class="dv">{{ detailItem.level }}</span></div>
         <div class="dr"><span class="dl">发生时间</span><span class="dv">{{ detailItem.time }}</span></div>
         <div class="dr"><span class="dl">处置状态</span><span class="dv"><span class="ap-status-tag" :class="detailItem.status === '未处置' ? 'ap-tag-high' : 'ap-tag-enabled'">{{ detailItem.status }}</span></span></div>
         <template v-if="detailItem.status === '已处置'">
@@ -214,9 +214,9 @@ function handleExport() {
     </el-dialog>
 
     <!-- 处置弹窗 -->
-    <el-dialog v-model="disposeVisible" title="告警处置" width="480px" :close-on-click-modal="false">
+    <el-dialog v-model="disposeVisible" title="预警处置" width="480px" :close-on-click-modal="false">
       <div v-if="disposeItem" class="dispose-hint">
-        告警：{{ disposeItem.alertType }}（{{ disposeItem.deviceName }}）
+        预警：{{ disposeItem.alertType }}（{{ disposeItem.deviceName }}）
       </div>
       <el-form label-width="80px">
         <el-form-item label="处置记录" required>

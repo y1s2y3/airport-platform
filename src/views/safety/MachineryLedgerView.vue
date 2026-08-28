@@ -17,9 +17,16 @@ const scopeProjectLabel = computed(() => headerProjectLabel.value)
 const fromHq = computed(() => route.query.from === 'hq')
 const hqProjectKeyword = ref('')
 
+const ledgerBasePath = computed(() =>
+  route.path.startsWith('/hq/machine-supervise/ledger')
+    ? '/hq/machine-supervise/ledger'
+    : '/machine-supervise/ledger',
+)
+const isHqLedgerPage = computed(() => route.path.startsWith('/hq/machine-supervise/ledger'))
+
 function goBackToHQ() {
   selectedProjectId.value = HQ_PROJECT_OPTION.id
-  router.push('/machine-supervise/ledger')
+  router.push('/hq/machine-supervise/ledger')
 }
 
 const machineData = ref([
@@ -65,7 +72,7 @@ const hqTotalStats = computed(() => {
 
 const filteredData = computed(() => {
   let list = machineData.value
-  if (!isHqSelected.value) list = list.filter(d => d.project_id === scopeProjectId.value)
+  if (!isHqLedgerPage.value) list = list.filter(d => d.project_id === scopeProjectId.value)
   return list.filter(d => {
     if (filterForm.machineType && d.machineType !== filterForm.machineType) return false
     if (filterForm.entryType && d.entryType !== filterForm.entryType) return false
@@ -79,11 +86,10 @@ const filteredData = computed(() => {
 })
 
 function handleReset() { Object.keys(filterForm).forEach(k => filterForm[k] = '') }
-function viewDetail(row) { router.push(`/machine-supervise/ledger/${row.id}`) }
+function viewDetail(row) { router.push(`${ledgerBasePath.value}/${row.id}`) }
 function viewProjectLedger(row) {
-  router.push({ path: '/machine-supervise/ledger', query: { from: 'hq' } }).then(() => {
-    selectedProjectId.value = row.project_id
-  })
+  selectedProjectId.value = row.project_id
+  router.push({ path: '/machine-supervise/ledger', query: { from: 'hq' } })
 }
 
 const personOptions = ['王工', '李工', '张工', '赵工', '陈工', '刘工']
@@ -190,11 +196,11 @@ function toggleEnabled(row) {
 <template>
   <div class="page">
     <div class="page-head">
-      <h3 class="page-title">{{ isHqSelected ? '机械设备台账' : '登记进场设备' }}</h3>
-      <span class="total-count">{{ isHqSelected ? `共 ${hqTotalStats.totalCount} 台` : `共 ${filteredData.length} 条` }}</span>
+      <h3 class="page-title">{{ isHqLedgerPage ? '机械设备台账' : '登记进场设备' }}</h3>
+      <span class="total-count">{{ isHqLedgerPage ? `共 ${hqTotalStats.totalCount} 台` : `共 ${filteredData.length} 条` }}</span>
     </div>
 
-    <template v-if="isHqSelected">
+    <template v-if="isHqLedgerPage">
       <div class="hq-dashboard">
         <div class="stat-cards">
           <div class="stat-card"><div class="sc-value">{{ hqTotalStats.totalCount }}</div><div class="sc-label">设备总数</div></div>
@@ -229,7 +235,7 @@ function toggleEnabled(row) {
       </div>
       <div class="page-panel">
         <div style="margin-bottom:12px;display:flex;gap:10px;align-items:center">
-          <el-button type="primary" @click="router.push('/machine-supervise/ledger/entry')">设备进场</el-button>
+          <el-button type="primary" @click="router.push(`${ledgerBasePath}/entry`)">设备进场</el-button>
           <el-button type="warning" :disabled="!selectedRows.length" @click="openBatchExit">
             批量退场{{ selectedRows.length ? `（${selectedRows.length}）` : '' }}
           </el-button>

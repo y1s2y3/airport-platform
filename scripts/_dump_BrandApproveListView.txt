@@ -1,0 +1,146 @@
+<script setup>
+import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { Search, Refresh } from '@element-plus/icons-vue'
+import { useQmProjectScope } from '../../../composables/useCurrentProject'
+import {
+  getApplicationDetail,
+  listApplications,
+  MATERIAL_TYPE,
+  NODE_LABEL,
+  STATUS_LABEL,
+  statusTagType,
+} from '../../../mock/brand.js'
+
+const router = useRouter()
+const { isHqSelected, scopeProjectId, scopeProjectLabel } = useQmProjectScope()
+const tab = ref('processing')
+const keyword = ref('')
+
+const processing = computed(() => {
+  if (isHqSelected.value || !scopeProjectId.value) return []
+  return listApplications(scopeProjectId.value, { status: 'in_approval' }).map(enrich)
+})
+
+const completed = computed(() => {
+  if (isHqSelected.value || !scopeProjectId.value) return []
+  const rows = listApplications(scopeProjectId.value, { keyword: keyword.value }).filter((a) =>
+    ['approved', 'rejected', 'withdrawn'].includes(a.status),
+  )
+  return rows.map(enrich)
+})
+
+function enrich(a) {
+  const detail = getApplicationDetail(a.application_id)
+  return {
+    ...a,
+    brand_preview: (detail?.candidates || []).map((c) => c.brand_name).join(' / '),
+  }
+}
+
+function reset() {
+  keyword.value = ''
+}
+
+function openApprove(row) {
+  router.push(`/qm/brand/approve/detail?id=${row.application_id}`)
+}
+</script>
+
+<template>
+  <div class="qm-page page-card">
+    <div class="page-header">
+      <div class="page-breadcrumb">???? / ????</div>
+      <h1 class="page-title">????</h1>
+      <p class="page-tip">
+        ?? ???????? � ???{{ isHqSelected ? '????????' : scopeProjectLabel }}
+      </p>
+    </div>
+
+    <el-alert
+      v-if="isHqSelected"
+      type="warning"
+      :closable="false"
+      show-icon
+      title="????????????????????????
+      class="mb"
+    />
+
+    <template v-else>
+      <el-tabs v-model="tab">
+        <el-tab-pane :label="`????${processing.length}?`" name="processing" />
+        <el-tab-pane label="???? name="completed" />
+      </el-tabs>
+
+      <template v-if="tab === 'processing'">
+        <el-table :data="processing" stripe border empty-text="??????">
+          <el-table-column prop="application_id" label="????" width="130" />
+          <el-table-column prop="material_name" label="??/??" min-width="130" />
+          <el-table-column label="??" width="80">
+            <template #default="{ row }">{{ MATERIAL_TYPE[row.material_type] }}</template>
+          </el-table-column>
+          <el-table-column prop="brand_preview" label="????? min-width="180" show-overflow-tooltip />
+          <el-table-column prop="applicant_name" label="???? width="90" />
+          <el-table-column prop="submit_time" label="????" width="170" />
+          <el-table-column label="????" width="120">
+            <template #default="{ row }">
+              <el-tag size="small" type="warning">{{ NODE_LABEL[row.current_node] }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="??" width="100" fixed="right">
+            <template #default="{ row }">
+              <el-button link type="primary" @click="openApprove(row)">??</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </template>
+
+      <template v-else>
+        <div class="filter-bar">
+          <el-input
+            v-model="keyword"
+            clearable
+            placeholder="????????
+            style="width: 240px"
+            :prefix-icon="Search"
+          />
+          <el-button type="primary" :icon="Search">??</el-button>
+          <el-button :icon="Refresh" @click="reset">??</el-button>
+        </div>
+        <el-table :data="completed" stripe border empty-text="????????>
+          <el-table-column prop="application_id" label="????" width="130" />
+          <el-table-column prop="material_name" label="??/??" min-width="130" />
+          <el-table-column prop="brand_preview" label="????? min-width="160" show-overflow-tooltip />
+          <el-table-column label="??" width="90">
+            <template #default="{ row }">
+              <el-tag size="small" :type="statusTagType(row.status)">{{ STATUS_LABEL[row.status] }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="finish_time" label="????" width="170" />
+          <el-table-column label="??" width="90" fixed="right">
+            <template #default="{ row }">
+              <el-button
+                link
+                type="primary"
+                @click="router.push(`/qm/brand/applications/detail?id=${row.application_id}`)"
+              >
+                ??
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </template>
+    </template>
+  </div>
+</template>
+
+<style scoped>
+.mb {
+  margin-bottom: 12px;
+}
+.filter-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+</style>

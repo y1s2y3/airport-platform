@@ -4,7 +4,7 @@ import { listLocations, resolveLocationPathLabel } from './constructionLocation'
 
 export const yesNoNaOptions = ['是', '否', '不适用']
 
-export const canteenFuelOptions = ['天然气', '液化石油气', '电', '柴油', '混合', '其他']
+export const canteenFuelOptions = ['燃气', '电气']
 
 export const superiorManagementUnitOptions = [
   '中国建筑股份有限公司',

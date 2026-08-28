@@ -12,8 +12,10 @@ import {
   buildCopyPayloadFromRejectedMat,
   buildReEditPayloadFromWithdrawnMat,
   createDefaultUnpackItems,
+  findMatSupervisorApprover,
   listApprovedSamples,
   listMaterialsForEntryBrand,
+  listMatSupervisorApprovers,
   parseBatchSeq,
   searchEntryBrands,
   submitEntry,
@@ -52,10 +54,21 @@ const form = reactive({
   other_file: '',
   inspect_result_checked: false,
   inspect_result_file: '',
+  supervisor_approver_user_id: '',
+  supervisor_approver_name: '',
 })
 
 const brandKeyword = ref('')
 const brandLockedFromSample = ref(false)
+
+const supervisorApprovers = computed(() =>
+  scopeProjectId.value ? listMatSupervisorApprovers(scopeProjectId.value) : [],
+)
+
+function onSupervisorApproverChange(userId) {
+  const u = findMatSupervisorApprover(userId)
+  form.supervisor_approver_name = u?.name || ''
+}
 
 function nowEntryDate() {
   const d = new Date()
@@ -371,6 +384,8 @@ function applyCopyPayload(data) {
   form.other_file = data.other_file || ''
   form.inspect_result_checked = !!data.inspect_result_checked
   form.inspect_result_file = data.inspect_result_file || ''
+  form.supervisor_approver_user_id = data.supervisor_approver_user_id || ''
+  form.supervisor_approver_name = data.supervisor_approver_name || ''
   if (data.line_items?.length) {
     if (data.entry_type === 'equipment') {
       equipmentLines.value = data.line_items.map((l, idx) => {
@@ -506,6 +521,7 @@ function onSubmit() {
     return ElMessage.warning('请选择品牌台账')
   }
   if (!String(form.supplier || '').trim()) return ElMessage.warning('请填写供应商')
+  if (!form.supervisor_approver_user_id) return ElMessage.warning('请选择监理审批人')
 
   const base = {
     project_id: scopeProjectId.value,
@@ -522,6 +538,8 @@ function onSubmit() {
     inspect_file: form.inspect_file,
     photo_file: form.photo_file,
     copy_from_entry_id: copyFromId.value,
+    supervisor_approver_user_id: form.supervisor_approver_user_id,
+    supervisor_approver_name: form.supervisor_approver_name,
   }
 
   if (entryType.value === 'equipment') {
@@ -703,7 +721,7 @@ function onSubmit() {
 <template>
   <div class="qm-page page-card">
     <div class="page-header">
-      <div class="page-breadcrumb">材料设备进场管理 / 进场申请 / {{ isReEdit || copyFromId ? '重新申报' : '新建' }}</div>
+      <div class="page-breadcrumb">材料设备进场 / 进场申请 / {{ isReEdit || copyFromId ? '重新申报' : '新建' }}</div>
       <div class="title-row">
         <h1 class="page-title">{{ pageTitle }}</h1>
         <el-tag v-if="isReEdit && reEditId" size="small" type="success" effect="plain">
@@ -1169,6 +1187,33 @@ function onSubmit() {
         <div class="entry-line-add">
           <el-button type="primary" plain :icon="Plus" @click="addEquipmentLine">新增一组设备</el-button>
         </div>
+      </section>
+
+      <section class="form-section">
+        <h2 class="section-title">审批人</h2>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="监理审批人" required>
+              <el-select
+                v-model="form.supervisor_approver_user_id"
+                filterable
+                clearable
+                placeholder="请选择本项目监理岗位人员"
+                style="width: 100%"
+                aria-label="请选择监理审批人"
+                @change="onSupervisorApproverChange"
+              >
+                <el-option
+                  v-for="u in supervisorApprovers"
+                  :key="u.user_id"
+                  :label="`${u.name} · ${u.post_label}（${u.org}）`"
+                  :value="u.user_id"
+                />
+              </el-select>
+              <p class="field-hint">仅可选本项目监理单位相关岗位人员（总监/代总/专监/驻场等，岗位字典待定稿）</p>
+            </el-form-item>
+          </el-col>
+        </el-row>
       </section>
 
       <div class="op-bar">

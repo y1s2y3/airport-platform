@@ -24,6 +24,7 @@ import {
 } from '../utils/redBlackBoardStorage.js'
 import DispatchImageAttachments from '../components/DispatchImageAttachments.vue'
 import PenaltyDetailPanels from '../components/PenaltyDetailPanels.vue'
+import PersonalCenterReadonlyHint from '../../components/PersonalCenterReadonlyHint.vue'
 import { buildExecutorOptions, resolveExecutorDisplay } from '../utils/executorDisplay.js'
 import { TASK_WORK_TYPES } from '../config/screenshotTaskOrderFields.js'
 
@@ -44,6 +45,17 @@ const blackBoardVisible = ref(false)
 const formMode = ref('create')
 const current = ref(null)
 const blackBoardTarget = ref(null)
+
+const RECIPIENT_HANDLE_STATUSES = new Set([
+  PENALTY_STATUSES.PROCESSING,
+  PENALTY_STATUSES.PENDING_ACCEPTANCE,
+  PENALTY_STATUSES.APPEALING,
+])
+
+const showDetailPersonalCenterHint = computed(
+  () => current.value && RECIPIENT_HANDLE_STATUSES.has(current.value.status),
+)
+
 const blackBoardPeriodYear = ref(new Date().getFullYear())
 const blackBoardPeriodNo = ref(new Date().getMonth() + 1)
 const form = ref(emptyPenaltyRecord())
@@ -413,6 +425,10 @@ onMounted(load)
     </el-dialog>
 
     <el-dialog v-model="detailVisible" title="处罚单详情" width="780px" destroy-on-close>
+      <PersonalCenterReadonlyHint
+        v-if="showDetailPersonalCenterHint"
+        title="上报、申诉与验收请在「个人中心 → 我的待办」中处理；本页仅查看详情。"
+      />
       <PenaltyDetailPanels v-if="current" :record="current" compact />
     </el-dialog>
   </div>

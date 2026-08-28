@@ -1,4 +1,6 @@
 import { projectTree, getProjectLabel } from './laborRealName.js'
+import { nowStr } from '../utils/datetime.js'
+import { notifyBizAlertDisposed } from './warningCenterBizHook.js'
 
 export { projectTree, getProjectLabel }
 
@@ -207,6 +209,59 @@ export function getAllDevices(projectId) {
   })
 }
 
+export const monitorDeviceTypeOptions = ['深基坑监测设备', '地铁保护监测设备', '高支模监测设备']
+export const deviceStatusTagClass = { 在线: 'is-success', 离线: 'is-warning', 故障: 'is-danger' }
+export const responsiblePersonOptions = [
+  { label: '张伟', phone: '13800001111' },
+  { label: '李强', phone: '13800002222' },
+  { label: '王磊', phone: '13800003333' },
+  { label: '陈明', phone: '13800004444' },
+]
+
+export function emptyMonitorDeviceForm(source = {}) {
+  return {
+    deviceNo: source.deviceNo || '',
+    name: source.name || '',
+    deviceType: source.deviceType || '深基坑监测设备',
+    location: source.location || source.regionName || '',
+    monitorPoint: source.monitorPoint || source.pointName || '',
+    remark: source.remark || '',
+    monitorIndicator: source.monitorIndicator || '',
+    warningThreshold: source.warningThreshold || '',
+    alertThreshold: source.alertThreshold || '',
+    pushTargets: source.pushTargets ? [...source.pushTargets] : [],
+    pushInterval: source.pushInterval || 30,
+    supervisionDeadline: source.supervisionDeadline || 24,
+    status: source.status || '在线',
+  }
+}
+
+export function getProjectMonitorDevices(projectId) {
+  return getAllDevices(projectId).map((d) => ({
+    id: d.id,
+    name: d.name,
+    deviceNo: d.deviceNo,
+    deviceType: d.deviceType,
+    location: d.regionName || '',
+    monitorPoint: d.pointName || '',
+    status: d.online ? '在线' : '离线',
+    lastMaintainDate: d.lastMaintainDate || '2026-07-01',
+    nextMaintainDate: d.nextMaintainDate || '2026-10-01',
+    updatedAt: d.updatedAt || '2026-07-20 11:24:56',
+    remark: d.remark || '',
+  }))
+}
+
+export function getMonitorDeviceStats(projectId) {
+  const list = getProjectMonitorDevices(projectId)
+  return {
+    total: list.length,
+    online: list.filter((d) => d.status === '在线').length,
+    offline: list.filter((d) => d.status === '离线').length,
+    fault: list.filter((d) => d.status === '故障').length,
+  }
+}
+
 export function emptyDeviceForm(source = {}) {
   return {
     name: source.name || '',
@@ -337,7 +392,7 @@ function seedAlertRules(projectId) {
       DB.alertRules.push({
         id: uid('rule'),
         projectId, hazardType,
-        name: `${typeLabels[hazardType]}${ind.name}超限告警`,
+        name: `${typeLabels[hazardType]}${ind.name}超限预警`,
         deviceIds: devs.map(d => d.id),
         indicatorIds: relatedInds.map(i => i.id),
         indicatorName: ind.name,
@@ -430,12 +485,12 @@ function seedAlertRecords(projectId) {
 
       const rule = DB.alertRules.find(r => r.projectId === projectId && r.hazardType === hazardType && r.indicatorName === indicator?.name)
       const alertType = rule?.name
-        ? rule.name + '告警'
-        : typeLabels[hazardType] + indicator.name + '超限告警'
+        ? rule.name + '预警'
+        : typeLabels[hazardType] + indicator.name + '超限预警'
 
       const exceedPct = ((m.value / indicator.alertThreshold) * 100).toFixed(0)
       const details = [
-        indicator.name + '当前值' + m.value + indicator.unit + '，超过告警阈值' + indicator.alertThreshold + indicator.unit + '（超限' + exceedPct + '%），请立即安排人员现场核实处置。',
+        indicator.name + '当前值' + m.value + indicator.unit + '，超过预警阈值' + indicator.alertThreshold + indicator.unit + '（超限' + exceedPct + '%），请立即安排人员现场核实处置。',
         indicator.name + '监测数据异常，当前读数' + m.value + indicator.unit + '（阈值' + indicator.alertThreshold + indicator.unit + '），可能原因为施工扰动或传感器异常，建议现场复核。',
         '预警：' + indicator.name + '达到' + m.value + indicator.unit + '，接近红色预警值' + indicator.alertThreshold + indicator.unit + '，请关注趋势变化，必要时采取加固措施。',
       ]
@@ -482,15 +537,66 @@ function getLatestMonitorData(projectId, hazardType) {
   return Object.values(latest).filter(m => m.value > (DB.indicators.find(i => i.id === m.indicatorId)?.warningThreshold || Infinity))
 }
 
-export function handleAlertRecord(id, { content }) {
-  const rec = DB.alertRecords.find(r => r.id === id)
-  if (rec) {
-    rec.status = '已处置'
-    rec.handlingContent = content
-    rec.handlingTime = new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-')
-    return true
+export function handleAlertRecord(id, { content, handler } = {}) {
+  const rec = DB.alertRecords.find((r) => r.id === id)
+  if (!rec || rec.status === '已处置') return false
+  rec.status = '已处置'
+  rec.handlingContent = content || ''
+  rec.handlingTime = nowStr()
+  if (handler) rec.handler = handler
+  notifyBizAlertDisposed('major', id, {
+    operator: handler || rec.handler || '系统',
+    disposalResult: String(content || '').startsWith('误报') ? '误报' : '已处置',
+    disposalNote: content || '',
+  })
+  return true
+}
+
+/** 个人中心预警中心演示关联的危大预警记录 id */
+export const WC_DEMO_MAJOR_ALERT_ID = 'alr-wc-demo-001'
+
+/**
+ * 确保存在可被预警中心关联的危大未处置记录（固定 id，便于闭环演示）
+ */
+export function ensureWcDemoMajorAlert() {
+  ensureSeeded('p-000')
+  if (!DB.alertRecords.some((r) => r.projectId === 'p-000')) {
+    seedAlertRecords('p-000')
   }
-  return false
+  let rec = DB.alertRecords.find((r) => r.id === WC_DEMO_MAJOR_ALERT_ID)
+  if (!rec) {
+    rec = {
+      id: WC_DEMO_MAJOR_ALERT_ID,
+      projectId: 'p-000',
+      hazardType: 'pit',
+      ruleId: '',
+      alertType: '深基坑水平位移超限预警',
+      region: '基坑东侧',
+      regionId: '',
+      point: 'JC-03',
+      deviceName: '位移监测点 JC-03',
+      indicatorName: '水平位移',
+      currentValue: 18.5,
+      threshold: 15,
+      unit: 'mm',
+      level: '一级',
+      detail:
+        '深基坑水平位移超限：基坑东侧监测点当前数值超过预警阈值，请立即安排人员现场核实处置。',
+      time: '2026-08-21 08:56:42',
+      status: '未处置',
+      handler: '',
+      handlingContent: '',
+      handlingTime: '',
+      handlerPhone: '',
+      images: ['现场照片_001.jpg'],
+    }
+    DB.alertRecords.unshift(rec)
+  }
+  return rec
+}
+
+export function getMajorAlertById(id) {
+  return DB.alertRecords.find((r) => String(r.id) === String(id)) || null
 }
 
 // ----- 统计 -----
