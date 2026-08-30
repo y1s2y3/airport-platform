@@ -5,7 +5,7 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Search, Refresh } from '@element-plus/icons-vue'
-import { selectedProjectId, useQmProjectScope } from '../../../composables/useCurrentProject'
+import { useQmProjectScope } from '../../../composables/useCurrentProject'
 import {
   buildHqDashboardByProject,
   buildHqDashboardSummary,
@@ -27,7 +27,6 @@ const dash = computed(() => {
       pending_count: 0,
       approved_count: 0,
       rejected_count: 0,
-      withdrawn_count: 0,
       exited_count: 0,
       material_exited_count: 0,
       equipment_exited_count: 0,
@@ -62,9 +61,10 @@ function handleSearch() {
 
 async function viewProjectDetail(row) {
   if (!row?.project_id) return
-  await router.push('/qm/mat/ledger')
-  selectedProjectId.value = row.project_id
-  ElMessage.success(`已切换至项目：${row.project_name}`)
+  await router.push({
+    path: '/qm/mat/ledger',
+    query: { from: 'hq', projectId: row.project_id },
+  })
 }
 </script>
 
@@ -84,7 +84,7 @@ async function viewProjectDetail(row) {
     </div>
 
     <template v-if="isHqSelected">
-      <div class="hq-stat-row">
+      <div class="hq-stat-row cols-9">
         <div class="hq-stat-card">
           <span class="hq-stat-label">覆盖项目数</span>
           <span class="hq-stat-value">{{ hqSummary.projectCount }}</span>
@@ -110,7 +110,7 @@ async function viewProjectDetail(row) {
           <span class="hq-stat-value">{{ hqSummary.equipment_exited_count }}</span>
         </div>
         <div class="hq-stat-card">
-          <span class="hq-stat-label">待审批</span>
+          <span class="hq-stat-label">审批中</span>
           <span class="hq-stat-value warn">{{ hqSummary.pending_count }}</span>
         </div>
         <div class="hq-stat-card">
@@ -148,7 +148,7 @@ async function viewProjectDetail(row) {
         <el-table-column prop="material_exited_count" label="材料退场" width="100" align="center" />
         <el-table-column prop="equipment_count" label="设备进场" width="100" align="center" />
         <el-table-column prop="equipment_exited_count" label="设备退场" width="100" align="center" />
-        <el-table-column label="待审批" width="90" align="center">
+        <el-table-column label="审批中" width="90" align="center">
           <template #default="{ row }">
             <span :class="{ 'warn-num': row.pending_count > 0 }">{{ row.pending_count }}</span>
           </template>
@@ -159,7 +159,6 @@ async function viewProjectDetail(row) {
             <span :class="{ 'danger-num': row.rejected_count > 0 }">{{ row.rejected_count }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="withdrawn_count" label="已撤回" width="90" align="center" />
         <el-table-column label="操作" width="130" fixed="right" align="center">
           <template #default="{ row }">
             <el-button link type="primary" @click="viewProjectDetail(row)">查看项目详情</el-button>
@@ -191,7 +190,7 @@ async function viewProjectDetail(row) {
           <div class="value">{{ dash.equipment_exited_count }}</div>
         </div>
         <div class="stat-card">
-          <div class="label">待审批</div>
+          <div class="label">审批中</div>
           <div class="value">{{ dash.pending_count }}</div>
         </div>
         <div class="stat-card">
@@ -201,10 +200,6 @@ async function viewProjectDetail(row) {
         <div class="stat-card">
           <div class="label">已驳回</div>
           <div class="value">{{ dash.rejected_count }}</div>
-        </div>
-        <div class="stat-card">
-          <div class="label">已撤回</div>
-          <div class="value">{{ dash.withdrawn_count }}</div>
         </div>
       </div>
     </template>

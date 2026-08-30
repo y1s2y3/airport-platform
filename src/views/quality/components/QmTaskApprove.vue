@@ -39,6 +39,8 @@ const props = defineProps({
   listPath: { type: String, required: true },
   editPath: { type: String, required: true },
   embedded: { type: Boolean, default: false },
+  /** 个人中心：仅渲染审批操作区（填报内容由 TodoQmInspectPanel 展示） */
+  actionsOnly: { type: Boolean, default: false },
   taskId: { type: String, default: '' },
   todoId: { type: String, default: '' },
   readonly: { type: Boolean, default: false },
@@ -58,7 +60,10 @@ const isManualChain = computed(() => !!(task.value && usesManualApprovalFlow(tas
 const resolvedTaskId = computed(() => props.taskId || String(route.query.id || ''))
 
 const showApproveActions = computed(
-  () => props.embedded && !props.readonly && task.value?.status === 1,
+  () =>
+    (props.embedded || props.actionsOnly) &&
+    !props.readonly &&
+    task.value?.status === 1,
 )
 
 function load() {
@@ -360,12 +365,77 @@ void hasBlockFailItems
 </script>
 
 <template>
-  <div v-if="!task" class="qm-page page-card">
+  <!-- 个人中心：仅审批操作区（无可办时不渲染空壳） -->
+  <section
+    v-if="actionsOnly && (!task || showApproveActions)"
+    class="block block--panel block--action qm-actions-only"
+  >
+    <template v-if="task && showApproveActions">
+      <div class="block-head">
+        <div class="block-title">审批操作</div>
+        <el-tag v-if="nextRole" size="small" type="warning" effect="light">
+          当前待审：{{ nextRole }}
+          <template v-if="isManualChain && manualProgress">
+            · {{ MANUAL_APPROVAL_MODE[manualProgress.mode] || '会签' }}
+            {{ manualProgress.passed }}/{{ manualProgress.total }}
+          </template>
+        </el-tag>
+      </div>
+      <el-alert
+        v-if="archiveInstance && !isManualChain"
+        type="info"
+        :closable="false"
+        show-icon
+        class="mb"
+        title="点「通过」时将实时校验：档案侧该级须已签章，否则不让过"
+      />
+      <el-alert
+        v-else-if="isManualChain"
+        type="info"
+        :closable="false"
+        show-icon
+        class="mb"
+        title="本任务为手动审批链：会签须本级全员通过，或签任一人通过即可进入下一级（不校验档案签章）"
+      />
+      <div class="filter-bar op-actions-inline">
+        <template v-if="isManualChain">
+          <span>本级审批人</span>
+          <el-select
+            v-model="demoApproverId"
+            style="width: 220px"
+            placeholder="选择本级审批人"
+            aria-label="选择本级审批人"
+          >
+            <el-option
+              v-for="p in manualApproverOptions"
+              :key="p.id"
+              :label="p.done ? `${p.name}（已签）` : p.name"
+              :value="p.id"
+              :disabled="p.done"
+            />
+          </el-select>
+        </template>
+        <template v-else>
+          <span>审批角色</span>
+          <el-select v-model="demoRole" style="width: 160px" aria-label="选择审批角色">
+            <el-option v-for="role in chain" :key="role" :label="role" :value="role" />
+          </el-select>
+        </template>
+        <el-button type="success" @click="onApprove">本级通过并签章</el-button>
+        <el-button type="danger" @click="onReject">不通过/退回</el-button>
+        <el-button @click="onRollback">退回重报</el-button>
+        <el-button @click="goList">取消</el-button>
+      </div>
+    </template>
+    <el-empty v-else description="未找到任务" :image-size="48" />
+  </section>
+
+  <div v-else-if="!actionsOnly && !task" class="qm-page page-card">
     <el-empty description="未找到任务">
       <el-button type="primary" @click="goList">返回</el-button>
     </el-empty>
   </div>
-  <div v-else class="qm-page page-card">
+  <div v-else-if="!actionsOnly && task" class="qm-page page-card">
     <div v-if="!embedded" class="page-header">
       <div class="page-breadcrumb">质量验评 / {{ title }}</div>
       <h1 class="page-title">{{ task.task_no }} · 审批签章</h1>
@@ -516,4 +586,30 @@ void hasBlockFailItems
 .warn-text { color: #e6a23c; }
 .embed-tip { margin: 0 0 8px; font-size: 13px; color: #606266; }
 .chain-box { background: #fafafa; padding: 12px; border-radius: 8px; }
+
+.qm-actions-only {
+  background: #fff;
+  border: 1px solid #ebeef5;
+  border-radius: 10px;
+  padding: 14px 16px 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+.qm-actions-only .block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #f0f2f5;
+}
+.qm-actions-only .block-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f2329;
+}
+.op-actions-inline {
+  margin-top: 4px;
+}
 </style>

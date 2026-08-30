@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import { getApplicationDetail, formatBrandApproverSnapshot } from '../../../mock/brand.js'
+import { getApplicationDetail } from '../../../mock/brand.js'
 import BrandCandidateAttachBlock from '../../quality/brand/BrandCandidateAttachBlock.vue'
 import '../styles/todoHandleBlocks.css'
 
@@ -97,20 +97,6 @@ const brandNodeLabel = computed(() => {
         <BrandCandidateAttachBlock :candidate="c" :editable="false" />
       </div>
     </div>
-  </section>
-
-  <section v-if="brandLiveDetail?.app" class="block block--panel">
-    <div class="block-head">
-      <div class="block-title">审批人配置</div>
-    </div>
-    <el-descriptions :column="2" border size="small" class="desc-panel">
-      <el-descriptions-item label="监理单位审批">
-        {{ formatBrandApproverSnapshot(brandLiveDetail.app, 'supervisor') }}
-      </el-descriptions-item>
-      <el-descriptions-item label="项目经理审批">
-        {{ formatBrandApproverSnapshot(brandLiveDetail.app, 'pm') }}
-      </el-descriptions-item>
-    </el-descriptions>
   </section>
 </template>
 

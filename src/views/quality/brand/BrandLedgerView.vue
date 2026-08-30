@@ -1,20 +1,39 @@
 ﻿<script setup>
 import './brand-page.css'
 import { computed, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
-import { Search, Refresh } from '@element-plus/icons-vue'
+import { useRoute, useRouter } from 'vue-router'
+import { Search, Refresh, ArrowLeft } from '@element-plus/icons-vue'
 import { useQmProjectScope } from '../../../composables/useCurrentProject'
+import { COC_PROJECT_OPTIONS } from '../../../config/projectOptions'
 import { listLedger, MATERIAL_TYPE, ROLE_TAG, paginateBrandRows } from '../../../mock/brand.js'
+import '../qm-hq-stats.css'
 
+const route = useRoute()
 const router = useRouter()
 const { isHqSelected, scopeProjectId, scopeProjectLabel } = useQmProjectScope()
+const fromHq = computed(() => route.query.from === 'hq')
+const queryProjectId = computed(() => String(route.query.projectId || '').trim())
+
+const viewProjectId = computed(() => {
+  if (fromHq.value && queryProjectId.value) return queryProjectId.value
+  if (!isHqSelected.value && scopeProjectId.value) return scopeProjectId.value
+  return ''
+})
+
+const viewProjectLabel = computed(() => {
+  if (!viewProjectId.value) return ''
+  const found = COC_PROJECT_OPTIONS.find((p) => p.id === viewProjectId.value)
+  return found?.label || viewProjectId.value
+})
+
+const canViewList = computed(() => !!viewProjectId.value)
 const keyword = ref('')
 const page = ref(1)
 const pageSize = ref(20)
 
 const listAll = computed(() => {
-  if (isHqSelected.value || !scopeProjectId.value) return []
-  return listLedger(scopeProjectId.value, { keyword: keyword.value })
+  if (!canViewList.value) return []
+  return listLedger(viewProjectId.value, { keyword: keyword.value })
 })
 
 const total = computed(() => listAll.value.length)
@@ -33,25 +52,46 @@ function openDetail(row) {
   if (!row?.application_id) return
   router.push(`/qm/brand/ledger/detail?id=${row.application_id}`)
 }
+
+function goBackToHQ() {
+  router.push('/qm/quality-board/brand-stats')
+}
 </script>
 
 <template>
   <div class="qm-page page-card">
     <div class="page-header">
-      <div class="page-breadcrumb">品牌报审 / 品牌报审台账</div>
-      <h1 class="page-title">品牌报审台账</h1>
+      <div class="page-breadcrumb">
+        {{ fromHq ? '质量看板 / 品牌报审' : '品牌报审' }} / 品牌报审台账
+      </div>
+      <div class="hq-title-row">
+        <el-button
+          v-if="fromHq && canViewList"
+          link
+          type="primary"
+          :icon="ArrowLeft"
+          @click="goBackToHQ"
+        >
+          返回
+        </el-button>
+        <h1 class="page-title">品牌报审台账</h1>
+        <span v-if="fromHq && canViewList" class="hq-title-project">{{ viewProjectLabel }}</span>
+      </div>
       <p class="page-tip">
-        审批通过后写入 · 当前：{{ isHqSelected ? '请切换到具体项目' : scopeProjectLabel }}
+        审批通过后写入 · 当前：{{
+          viewProjectLabel || (isHqSelected ? '请从看板选择项目查看' : scopeProjectLabel)
+        }}
+        <template v-if="fromHq">（指挥部只读）</template>
         · 唯一键：项目 + 品牌 + 厂家 + 材料（同品牌不同材料分多条）
       </p>
     </div>
 
     <el-alert
-      v-if="isHqSelected"
+      v-if="!canViewList"
       type="warning"
       :closable="false"
       show-icon
-      title="品牌报审台账为项目级视图，请先在顶部切换到具体项目"
+      title="品牌报审台账为项目级视图，请先在顶部切换到具体项目，或从指挥部看板进入"
       class="mb"
     />
 
@@ -62,7 +102,9 @@ function openDetail(row) {
           clearable
           placeholder="品牌 / 厂家 / 材料/设备名称 / 报审编号"
           style="width: 280px"
-          :prefix-icon="Search" aria-label="品牌 / 厂家 / 材料/设备名称 / 报审编号"/>
+          :prefix-icon="Search"
+          aria-label="品牌 / 厂家 / 材料/设备名称 / 报审编号"
+        />
         <el-button type="primary" :icon="Search">查询</el-button>
         <el-button :icon="Refresh" @click="reset">重置</el-button>
       </div>

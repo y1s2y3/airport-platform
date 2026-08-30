@@ -2,6 +2,18 @@
 export const appMenu = [
   { key: 'app-workbench', label: '首页', levels: 'both' },
   {
+    key: 'app-jg-app',
+    label: '建管APP',
+    levels: 'project',
+    children: [
+      { key: 'app-jg-login', label: '登录', levels: 'project' },
+      { key: 'app-jg-personal', label: '个人中心', levels: 'project' },
+      { key: 'app-jg-biz', label: '业务功能', levels: 'project' },
+      { key: 'app-jg-mine', label: '我的', levels: 'project' },
+      { key: 'app-jg-video', label: '视频中心', levels: 'project' },
+    ],
+  },
+  {
     key: 'app-labor',
     label: '人员实名制管理',
     levels: 'both',

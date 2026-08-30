@@ -2,7 +2,6 @@
 import './brand-page.css'
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search, Refresh } from '@element-plus/icons-vue'
 import { useQmProjectScope } from '../../../composables/useCurrentProject'
 import {
@@ -12,7 +11,6 @@ import {
   STATUS_LABEL,
   statusLabel,
   statusTagType,
-  withdrawApplication,
   getApplicationDetail,
   paginateBrandRows,
 } from '../../../mock/brand.js'
@@ -58,31 +56,8 @@ watch([keyword, statusFilter], () => {
   page.value = 1
 })
 
-async function onWithdraw(row) {
-  try {
-    await ElMessageBox.confirm(`确认撤回报审单 ${row.application_id}？仅待审批时可撤。`, '撤回', {
-      type: 'warning',
-    })
-  } catch {
-    return
-  }
-  const r = withdrawApplication(row.application_id)
-  if (!r.ok) return ElMessage.error(r.msg)
-  tick.value += 1
-  ElMessage.success('已撤回')
-}
-
 function copyFromRejected(row) {
   router.push(`/qm/brand/applications/edit?copyFrom=${row.application_id}`)
-}
-
-function onReEdit(row) {
-  router.push(`/qm/brand/applications/edit?id=${row.application_id}&reEdit=1`)
-}
-
-function onResubmit(row) {
-  if (row.status === 'withdrawn') onReEdit(row)
-  else if (row.status === 'rejected') copyFromRejected(row)
 }
 </script>
 
@@ -141,7 +116,7 @@ function onResubmit(row) {
           <template #default="{ row }">{{ NODE_LABEL[row.current_node] || '—' }}</template>
         </el-table-column>
         <el-table-column prop="submit_time" label="提交时间" width="170" />
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="160" fixed="right">
           <template #default="{ row }">
             <el-button
               link
@@ -151,18 +126,10 @@ function onResubmit(row) {
               详情
             </el-button>
             <el-button
-              v-if="row.status === 'pending'"
-              link
-              type="warning"
-              @click="onWithdraw(row)"
-            >
-              撤回
-            </el-button>
-            <el-button
-              v-if="row.status === 'withdrawn' || row.status === 'rejected'"
+              v-if="row.status === 'rejected'"
               link
               type="primary"
-              @click="onResubmit(row)"
+              @click="copyFromRejected(row)"
             >
               重新申报
             </el-button>

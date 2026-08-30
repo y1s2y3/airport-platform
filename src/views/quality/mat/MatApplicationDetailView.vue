@@ -6,7 +6,7 @@ import { Download } from '@element-plus/icons-vue'
 import {
   getEntryDetail,
   ENTRY_TYPE_LABEL,
-  STATUS_LABEL,
+  statusLabel,
   statusTagType,
   formatBatchNo,
   findMatSupervisorApprover,
@@ -85,6 +85,14 @@ const lineItems = computed(() => {
       inspect_file: row.inspect_file || (idx === 0 ? header.inspect_file : '') || '',
       photo_file: row.photo_file || (idx === 0 ? header.photo_file : '') || '',
       other_file: row.other_file || (idx === 0 ? header.other_file : '') || '',
+      inspect_result_checked: !!(
+        row.inspect_result_checked ??
+        (idx === 0 ? header.inspect_result_checked : false)
+      ),
+      inspect_result_file:
+        row.inspect_result_file ||
+        (idx === 0 && header.inspect_result_checked ? header.inspect_result_file : '') ||
+        '',
       unpack_items:
         row.unpack_items?.length
           ? row.unpack_items
@@ -116,6 +124,14 @@ const lineItems = computed(() => {
     inspect_file: row.inspect_file || (idx === 0 ? header.inspect_file : '') || '',
     photo_file: row.photo_file || (idx === 0 ? header.photo_file : '') || '',
     other_file: row.other_file || (idx === 0 ? header.other_file : '') || '',
+    inspect_result_checked: !!(
+      row.inspect_result_checked ??
+      (idx === 0 ? header.inspect_result_checked : false)
+    ),
+    inspect_result_file:
+      row.inspect_result_file ||
+      (idx === 0 && header.inspect_result_checked ? header.inspect_result_file : '') ||
+      '',
   }))
 })
 </script>
@@ -152,7 +168,7 @@ const lineItems = computed(() => {
         </el-descriptions-item>
         <el-descriptions-item label="审批状态">
           <el-tag size="small" :type="statusTagType(detail.status)">
-            {{ STATUS_LABEL[detail.status] }}
+            {{ statusLabel(detail.status) }}
           </el-tag>
         </el-descriptions-item>
         <el-descriptions-item v-if="detail.copy_from_entry_id" label="复制来源">
@@ -173,13 +189,6 @@ const lineItems = computed(() => {
           {{ supervisorApproverDisplay(detail) }}
         </el-descriptions-item>
         <el-descriptions-item label="提交时间">{{ detail.submit_time }}</el-descriptions-item>
-        <el-descriptions-item label="送检结果">
-          {{
-            detail.inspect_result_checked
-              ? detail.inspect_result_file || '已完成送检'
-              : '未填报'
-          }}
-        </el-descriptions-item>
         <el-descriptions-item label="办结时间">{{ detail.finish_time || '—' }}</el-descriptions-item>
         <el-descriptions-item v-if="detail.entry_type === 'material'" label="退场状态">
           <el-tag size="small" :type="detail.exited ? 'warning' : 'info'" effect="plain">
@@ -212,6 +221,16 @@ const lineItems = computed(() => {
             <el-descriptions-item label="质量证明文件">{{ row.inspect_file || '—' }}</el-descriptions-item>
             <el-descriptions-item label="现场照片">{{ row.photo_file || '—' }}</el-descriptions-item>
             <el-descriptions-item label="其他">{{ row.other_file || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="已完成送检">
+              {{ row.inspect_result_checked ? '是' : '否' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="送检附件">
+              {{
+                row.inspect_result_checked
+                  ? row.inspect_result_file || '未上传'
+                  : '—'
+              }}
+            </el-descriptions-item>
           </el-descriptions>
         </div>
       </template>
@@ -245,6 +264,16 @@ const lineItems = computed(() => {
             <el-descriptions-item label="质量证明文件">{{ row.inspect_file || '—' }}</el-descriptions-item>
             <el-descriptions-item label="现场照片">{{ row.photo_file || '—' }}</el-descriptions-item>
             <el-descriptions-item label="其他">{{ row.other_file || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="已完成送检">
+              {{ row.inspect_result_checked ? '是' : '否' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="送检附件">
+              {{
+                row.inspect_result_checked
+                  ? row.inspect_result_file || '未上传'
+                  : '—'
+              }}
+            </el-descriptions-item>
           </el-descriptions>
           <h4 class="sub-title">开箱清单</h4>
           <el-row v-if="row.unpack_items?.length" :gutter="16" class="unpack-grid">

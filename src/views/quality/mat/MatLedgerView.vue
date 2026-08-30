@@ -2,15 +2,33 @@
 import './mat-page.css'
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Search, Refresh, Download } from '@element-plus/icons-vue'
+import { Search, Refresh, Download, ArrowLeft } from '@element-plus/icons-vue'
 import { useQmProjectScope } from '../../../composables/useCurrentProject'
+import { COC_PROJECT_OPTIONS } from '../../../config/projectOptions'
 import { listLedger, ENTRY_TYPE_LABEL, getEntryDetail } from '../../../mock/mat.js'
 import { useMatArchiveExport } from '../../../composables/useMatArchiveExport.js'
 import MatArchiveExportDialog from './components/MatArchiveExportDialog.vue'
+import '../qm-hq-stats.css'
 
 const route = useRoute()
 const router = useRouter()
 const { isHqSelected, scopeProjectId, scopeProjectLabel } = useQmProjectScope()
+const fromHq = computed(() => route.query.from === 'hq')
+const queryProjectId = computed(() => String(route.query.projectId || '').trim())
+
+const viewProjectId = computed(() => {
+  if (fromHq.value && queryProjectId.value) return queryProjectId.value
+  if (!isHqSelected.value && scopeProjectId.value) return scopeProjectId.value
+  return ''
+})
+
+const viewProjectLabel = computed(() => {
+  if (!viewProjectId.value) return ''
+  const found = COC_PROJECT_OPTIONS.find((p) => p.id === viewProjectId.value)
+  return found?.label || viewProjectId.value
+})
+
+const canViewList = computed(() => !!viewProjectId.value)
 const keyword = ref('')
 const exited = ref('')
 const entryTypeFilter = ref('')
@@ -25,8 +43,8 @@ watch(
 )
 
 const list = computed(() => {
-  if (isHqSelected.value || !scopeProjectId.value) return []
-  return listLedger(scopeProjectId.value, {
+  if (!canViewList.value) return []
+  return listLedger(viewProjectId.value, {
     keyword: keyword.value,
     exited: exited.value,
     entry_type: entryTypeFilter.value,
@@ -60,26 +78,45 @@ function onExportArchive(row) {
 async function onConfirmExportArchive(selectedKeys) {
   await confirmExport(selectedKeys)
 }
+
+function goBackToHQ() {
+  router.push('/qm/mat/dashboard')
+}
 </script>
 
 <template>
   <div class="qm-page page-card">
     <div class="page-header">
-      <div class="page-breadcrumb">材料设备进场 / 材料设备台账</div>
-      <h1 class="page-title">材料设备台账</h1>
+      <div class="page-breadcrumb">
+        {{ fromHq ? '质量看板 / 材料设备进场' : '材料设备进场' }} / 材料设备台账
+      </div>
+      <div class="hq-title-row">
+        <el-button
+          v-if="fromHq && canViewList"
+          link
+          type="primary"
+          :icon="ArrowLeft"
+          @click="goBackToHQ"
+        >
+          返回
+        </el-button>
+        <h1 class="page-title">材料设备台账</h1>
+        <span v-if="fromHq && canViewList" class="hq-title-project">{{ viewProjectLabel }}</span>
+      </div>
       <p class="page-tip">
         仅展示审批通过的进场记录（含退场信息）· 当前：{{
-          isHqSelected ? '请切换到具体项目' : scopeProjectLabel
+          viewProjectLabel || (isHqSelected ? '请从看板选择项目查看' : scopeProjectLabel)
         }}
+        <template v-if="fromHq">（指挥部只读）</template>
       </p>
     </div>
 
     <el-alert
-      v-if="isHqSelected"
+      v-if="!canViewList"
       type="warning"
       :closable="false"
       show-icon
-      title="台账为项目级视图，请先在顶部切换到具体项目"
+      title="台账为项目级视图，请先在顶部切换到具体项目，或从指挥部看板进入"
       class="mb"
     />
 
@@ -90,8 +127,16 @@ async function onConfirmExportArchive(selectedKeys) {
           clearable
           placeholder="单号 / 材料 / 品牌 / 定样 / 供应商 / 退场原因"
           style="width: 280px"
-          :prefix-icon="Search" aria-label="单号 / 材料 / 品牌 / 定样 / 供应商 / 退场原因"/>
-        <el-select v-model="entryTypeFilter" clearable placeholder="进场类型" style="width: 120px" aria-label="进场类型">
+          :prefix-icon="Search"
+          aria-label="单号 / 材料 / 品牌 / 定样 / 供应商 / 退场原因"
+        />
+        <el-select
+          v-model="entryTypeFilter"
+          clearable
+          placeholder="进场类型"
+          style="width: 120px"
+          aria-label="进场类型"
+        >
           <el-option
             v-for="(label, val) in ENTRY_TYPE_LABEL"
             :key="val"
@@ -136,11 +181,7 @@ async function onConfirmExportArchive(selectedKeys) {
         </el-table-column>
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
-            <el-tag
-              size="small"
-              :type="row.exited ? 'warning' : 'success'"
-              effect="plain"
-            >
+            <el-tag size="small" :type="row.exited ? 'warning' : 'success'" effect="plain">
               {{ row.exited ? '已退场' : '已进场' }}
             </el-tag>
           </template>
@@ -187,3 +228,9 @@ async function onConfirmExportArchive(selectedKeys) {
     </template>
   </div>
 </template>
+
+<style scoped>
+.mb {
+  margin-bottom: 12px;
+}
+</style>

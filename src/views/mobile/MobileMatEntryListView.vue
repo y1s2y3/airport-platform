@@ -1,10 +1,9 @@
 <script setup>
 /**
- * APP · 进场申请列表（进场申报 / 重新申报均在此）
+ * APP · 进场申请列表（进场申报 / 重新报审均在此）
  */
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
 import { useQmProjectScope } from '../../composables/useCurrentProject'
 import {
   ENTRY_TYPE_LABEL,
@@ -12,8 +11,6 @@ import {
   STATUS_LABEL,
   statusLabel,
   statusTagType,
-  isReviewingStatus,
-  withdrawEntry,
 } from '../../mock/mat.js'
 import MobileMatSubNav from './components/MobileMatSubNav.vue'
 
@@ -35,40 +32,15 @@ function goCreate() {
   router.push('/mobile/mat/entry/create')
 }
 
-function goReEdit(row) {
-  router.push(
-    `/mobile/mat/entry/create?id=${row.entry_id}&reEdit=1&entry_type=${row.entry_type || 'material'}`,
-  )
-}
-
-function goCopyNew(row) {
+function goResubmit(row) {
+  if (row.status !== 'rejected') return
   router.push(
     `/mobile/mat/entry/create?copyFrom=${row.entry_id}&entry_type=${row.entry_type || 'material'}`,
   )
 }
 
-function goResubmit(row) {
-  if (row.status === 'withdrawn') goReEdit(row)
-  else if (row.status === 'rejected') goCopyNew(row)
-}
-
-async function onWithdraw(row, e) {
-  e?.stopPropagation?.()
-  try {
-    await ElMessageBox.confirm(`确认撤回进场单 ${row.entry_id}？仅待审批时可撤。`, '撤回', {
-      type: 'warning',
-    })
-  } catch {
-    return
-  }
-  const r = withdrawEntry(row.entry_id)
-  if (!r.ok) return ElMessage.error(r.msg)
-  tick.value += 1
-  ElMessage.success('已撤回')
-}
-
 function goDetail(row) {
-  router.push(`/qm/mat/applications/detail?id=${row.entry_id}`)
+  router.push(`/mobile/mat/entry/detail?id=${row.entry_id}`)
 }
 
 function goBack() {
@@ -105,23 +77,8 @@ function goBack() {
           </div>
           <div class="card-meta">{{ row.submit_time }}</div>
         </button>
-        <div class="card-actions">
-          <button
-            v-if="isReviewingStatus(row.status)"
-            type="button"
-            class="act warn"
-            @click="onWithdraw(row, $event)"
-          >
-            撤回
-          </button>
-          <button
-            v-if="row.status === 'withdrawn' || row.status === 'rejected'"
-            type="button"
-            class="act primary"
-            @click="goResubmit(row)"
-          >
-            重新申报
-          </button>
+        <div v-if="row.status === 'rejected'" class="card-actions">
+          <button type="button" class="act primary" @click="goResubmit(row)">重新报审</button>
         </div>
       </div>
     </div>
@@ -258,11 +215,6 @@ function goBack() {
   border-color: #8f0045;
   color: #8f0045;
   background: #fff5f8;
-}
-.act.warn {
-  border-color: #e6a23c;
-  color: #e6a23c;
-  background: #fdf6ec;
 }
 .bottom-bar {
   position: sticky;

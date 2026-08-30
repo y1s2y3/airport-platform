@@ -21,7 +21,7 @@ const fromLedger = computed(
   () => route.path.includes('/qm/brand/ledger') || route.query.from === 'ledger',
 )
 
-const ACTION_LABEL = { submit: '提交', agree: '同意', reject: '驳回', withdraw: '撤回' }
+const ACTION_LABEL = { submit: '提交', agree: '同意', reject: '驳回' }
 const APPROVAL_NODE_LABEL = {
   applicant: '施工提交',
   supervisor: '监理审批',
@@ -36,7 +36,6 @@ function goBack() {
 function actionTagType(action) {
   if (action === 'agree' || action === 'submit') return 'success'
   if (action === 'reject') return 'danger'
-  if (action === 'withdraw') return 'info'
   return 'warning'
 }
 
@@ -49,8 +48,7 @@ function currentNodeText(app) {
   if (!app) return '—'
   if (app.current_node === 'none' || !app.current_node) {
     if (app.status === 'approved') return '已办结'
-    if (app.status === 'rejected') return '已驳回'
-    if (app.status === 'withdrawn') return '已撤回'
+    if (app.status === 'rejected' || app.status === 'withdrawn') return '已驳回'
     return '—'
   }
   return NODE_LABEL[app.current_node] || app.current_node
@@ -65,9 +63,8 @@ const processSteps = computed(() => {
   function nodeStep(last, isCurrent) {
     if (last?.action === 'agree') return { status: 'success', desc: last.operate_time || '已同意' }
     if (last?.action === 'reject') return { status: 'error', desc: last.operate_time || '已驳回' }
-    if (app.status === 'withdrawn') return { status: 'wait', desc: '—' }
     if (isCurrent) return { status: 'process', desc: '审批中' }
-    return { status: 'wait', desc: '待审批' }
+    return { status: 'wait', desc: '等待' }
   }
 
   return [
@@ -103,11 +100,11 @@ const approvalTimeline = computed(() => {
       operator: r.operator_name || '—',
       time: r.operate_time || '—',
       remark: r.opinion || '',
-      status: r.action === 'reject' ? 'rejected' : r.action === 'withdraw' ? 'withdrawn' : 'done',
+      status: r.action === 'reject' ? 'rejected' : 'done',
     })
   }
   if (
-    (d.app.status === 'pending' || d.app.status === 'in_approval') &&
+    d.app.status === 'in_approval' &&
     (d.app.current_node === 'supervisor' || d.app.current_node === 'pm')
   ) {
     steps.push({
@@ -147,7 +144,7 @@ function timelineType(status) {
     <el-empty v-if="!detail" description="未找到报审单" />
     <template v-else>
       <PersonalCenterReadonlyHint
-        v-if="detail.app.status === 'pending' || detail.app.status === 'in_approval'"
+        v-if="detail.app.status === 'in_approval'"
       />
       <section class="form-section">
         <header class="section-head">

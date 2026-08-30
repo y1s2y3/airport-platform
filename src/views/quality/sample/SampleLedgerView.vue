@@ -5,8 +5,8 @@ import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Search, Refresh, ArrowLeft, View } from '@element-plus/icons-vue'
-import { selectedProjectId, useQmProjectScope, useCurrentProject } from '../../../composables/useCurrentProject'
-import { HQ_PROJECT_OPTION } from '../../../config/projectOptions'
+import { useQmProjectScope } from '../../../composables/useCurrentProject'
+import { COC_PROJECT_OPTIONS } from '../../../config/projectOptions'
 import {
   BIZ_TYPE_LABEL,
   buildHqSampleStatsByProject,
@@ -18,16 +18,25 @@ import {
 
 const router = useRouter()
 const route = useRoute()
-const { isHqSelected, scopeProjectId } = useQmProjectScope()
-const { headerProjectLabel } = useCurrentProject()
+const { isHqSelected, scopeProjectId, scopeProjectLabel } = useQmProjectScope()
 const fromHq = computed(() => route.query.from === 'hq')
+const queryProjectId = computed(() => String(route.query.projectId || '').trim())
 
-const ledgerBasePath = computed(() =>
-  route.path.startsWith('/hq/qm/sample/ledger')
-    ? '/hq/qm/sample/ledger'
-    : '/qm/sample/ledger',
-)
 const isHqLedgerPage = computed(() => route.path.startsWith('/hq/qm/sample/ledger'))
+
+const viewProjectId = computed(() => {
+  if (fromHq.value && queryProjectId.value) return queryProjectId.value
+  if (!isHqSelected.value && scopeProjectId.value) return scopeProjectId.value
+  return ''
+})
+
+const viewProjectLabel = computed(() => {
+  if (!viewProjectId.value) return ''
+  const found = COC_PROJECT_OPTIONS.find((p) => p.id === viewProjectId.value)
+  return found?.label || viewProjectId.value
+})
+
+const canViewProjectLedger = computed(() => !isHqLedgerPage.value && !!viewProjectId.value)
 
 const keyword = ref('')
 const bizType = ref('')
@@ -43,10 +52,8 @@ const hqFiltered = computed(() => {
 })
 
 const list = computed(() => {
-  if (isHqLedgerPage.value) return []
-  const projectId = scopeProjectId.value
-  if (!projectId) return []
-  return listLedger(projectId, {
+  if (!canViewProjectLedger.value) return []
+  return listLedger(viewProjectId.value, {
     bizType: bizType.value,
     keyword: keyword.value,
     usePart: usePart.value,
@@ -77,12 +84,13 @@ function openDetail(row) {
 
 function viewProjectDetail(row) {
   if (!row?.project_id) return
-  selectedProjectId.value = row.project_id
-  router.push({ path: '/qm/sample/ledger', query: { from: 'hq' } })
+  router.push({
+    path: '/qm/sample/ledger',
+    query: { from: 'hq', projectId: row.project_id },
+  })
 }
 
 function goBackToHQ() {
-  selectedProjectId.value = HQ_PROJECT_OPTION.id
   router.push('/hq/qm/sample/ledger')
 }
 </script>
@@ -91,11 +99,34 @@ function goBackToHQ() {
   <div class="qm-page page-card">
     <div class="page-header">
       <div class="page-breadcrumb">
-        {{ isHqLedgerPage ? '质量看板' : '样板管理' }} / 样板台账
+        {{ isHqLedgerPage || fromHq ? '质量看板' : '样板管理' }} / 样板台账
       </div>
-      <h1 class="page-title">样板台账</h1>
+      <div class="hq-title-row">
+        <el-button
+          v-if="!isHqLedgerPage && fromHq && canViewProjectLedger"
+          link
+          type="primary"
+          :icon="ArrowLeft"
+          @click="goBackToHQ"
+        >
+          返回
+        </el-button>
+        <h1 class="page-title">样板台账</h1>
+        <span
+          v-if="!isHqLedgerPage && fromHq && canViewProjectLedger"
+          class="hq-title-project"
+        >
+          {{ viewProjectLabel }}
+        </span>
+      </div>
       <p v-if="isHqLedgerPage" class="page-tip">
-        指挥部按项目汇总样板报审与台账数据。点击「查看详情」进入该项目样板台账。
+        指挥部按项目汇总样板报审与台账数据。点击「查看详情」进入该项目样板台账（不切换顶栏项目）。
+      </p>
+      <p v-else class="page-tip">
+        当前：{{
+          viewProjectLabel || (isHqSelected ? '请从看板选择项目查看' : scopeProjectLabel)
+        }}
+        <template v-if="fromHq">（指挥部只读）</template>
       </p>
     </div>
 
@@ -182,17 +213,12 @@ function goBackToHQ() {
     </template>
 
     <template v-else>
-      <div v-if="fromHq" class="sample-back-bar">
-        <el-button link type="primary" :icon="ArrowLeft" @click="goBackToHQ">返回</el-button>
-        <span class="sample-back-project">{{ headerProjectLabel || selectedProjectId }}</span>
-      </div>
-
       <el-alert
-        v-if="!scopeProjectId"
+        v-if="!canViewProjectLedger"
         type="warning"
         :closable="false"
         show-icon
-        title="请先在顶部切换到具体项目"
+        title="请先在顶部切换到具体项目，或从指挥部样板台账进入"
         class="mb"
       />
 
@@ -244,16 +270,6 @@ function goBackToHQ() {
 </template>
 
 <style scoped>
-.sample-back-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-.sample-back-project {
-  font-size: 14px;
-  color: #606266;
-}
 .mb {
   margin-bottom: 12px;
 }

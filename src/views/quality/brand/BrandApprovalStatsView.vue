@@ -7,7 +7,6 @@ import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Search, Refresh } from '@element-plus/icons-vue'
-import { selectedProjectId } from '../../../composables/useCurrentProject'
 import {
   buildHqBrandApprovalStatsByProject,
   buildHqBrandApprovalSummary,
@@ -51,9 +50,10 @@ function handleSearch() {
 
 async function viewProjectDetail(row) {
   if (!row?.project_id) return
-  await router.push('/qm/brand/ledger')
-  selectedProjectId.value = row.project_id
-  ElMessage.success(`已切换至项目：${row.project_name}`)
+  await router.push({
+    path: '/qm/brand/ledger',
+    query: { from: 'hq', projectId: row.project_id },
+  })
 }
 </script>
 
@@ -79,10 +79,6 @@ async function viewProjectDetail(row) {
         <span class="hq-stat-value">{{ summary.total }}</span>
       </div>
       <div class="hq-stat-card">
-        <span class="hq-stat-label">待审批</span>
-        <span class="hq-stat-value warn">{{ summary.pending }}</span>
-      </div>
-      <div class="hq-stat-card">
         <span class="hq-stat-label">审批中</span>
         <span class="hq-stat-value warn">{{ summary.in_approval }}</span>
       </div>
@@ -93,10 +89,6 @@ async function viewProjectDetail(row) {
       <div class="hq-stat-card">
         <span class="hq-stat-label">已驳回</span>
         <span class="hq-stat-value danger">{{ summary.rejected }}</span>
-      </div>
-      <div class="hq-stat-card">
-        <span class="hq-stat-label">已撤回</span>
-        <span class="hq-stat-value">{{ summary.withdrawn }}</span>
       </div>
     </div>
 
@@ -117,11 +109,6 @@ async function viewProjectDetail(row) {
       <el-table-column prop="project_id" label="项目编号" width="100" />
       <el-table-column prop="ledger_count" label="品牌总数" width="110" align="center" />
       <el-table-column prop="total" label="报审合计" width="100" align="center" />
-      <el-table-column label="待审批" width="90" align="center">
-        <template #default="{ row }">
-          <span :class="{ 'warn-num': row.pending > 0 }">{{ row.pending }}</span>
-        </template>
-      </el-table-column>
       <el-table-column label="审批中" width="90" align="center">
         <template #default="{ row }">
           <span :class="{ 'warn-num': row.in_approval > 0 }">{{ row.in_approval }}</span>
@@ -133,7 +120,6 @@ async function viewProjectDetail(row) {
           <span :class="{ 'danger-num': row.rejected > 0 }">{{ row.rejected }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="withdrawn" label="已撤回" width="90" align="center" />
       <el-table-column label="操作" width="130" fixed="right" align="center">
         <template #default="{ row }">
           <el-button link type="primary" @click="viewProjectDetail(row)">查看项目详情</el-button>

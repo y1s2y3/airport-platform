@@ -40,9 +40,8 @@ function formatRate(n) {
 
 async function viewProjectDetail(row) {
   if (!row?.project_id) return
-  await router.push('/labor/realname')
   selectedProjectId.value = row.project_id
-  ElMessage.success(`已切换至项目：${row.project_name}`)
+  await router.push({ path: '/labor/realname', query: { from: 'hq' } })
 }
 </script>
 

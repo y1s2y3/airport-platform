@@ -61,32 +61,51 @@ function formatLaborContractAmount(contract) {
 
     <section class="info-section">
       <div class="section-title">报审信息</div>
-      <el-descriptions :column="2" border :size="embedded ? 'default' : 'default'">
-        <el-descriptions-item label="分包单位名称">{{ detail.name || '—' }}</el-descriptions-item>
-        <el-descriptions-item label="类型">{{ detail.unitType || '—' }}</el-descriptions-item>
-        <el-descriptions-item label="所属项目">{{ detail.projectName || '—' }}</el-descriptions-item>
-        <el-descriptions-item label="提交人">{{ detail.submitter || '—' }}</el-descriptions-item>
-        <el-descriptions-item label="项目负责人姓名及电话">
-          {{ detail.projectLeaderContact || '—' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="安全管理人员姓名及电话">
-          {{ detail.safetyManagerContact || '—' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="分包组织架构说明" :span="2">
-          <div class="multiline">{{ detail.orgStructureDesc || '—' }}</div>
-        </el-descriptions-item>
-        <el-descriptions-item label="组织架构图" :span="2">
-          <FileAttachmentPreview
-            :name="detail.orgStructureChart?.fileName"
-            :url="detail.orgStructureChart?.fileUrl"
-            empty-text="未上传"
-            size="md"
-          />
-        </el-descriptions-item>
-        <el-descriptions-item label="备注" :span="2">
-          <div class="multiline">{{ detail.remark || '—' }}</div>
-        </el-descriptions-item>
-      </el-descriptions>
+      <div class="ro-form">
+        <div class="ro-row">
+          <span class="ro-label">分包单位名称</span>
+          <span class="ro-value">{{ detail.name || '—' }}</span>
+        </div>
+        <div class="ro-row">
+          <span class="ro-label">类型</span>
+          <span class="ro-value">{{ detail.unitType || '—' }}</span>
+        </div>
+        <div class="ro-row">
+          <span class="ro-label">所属项目</span>
+          <span class="ro-value">{{ detail.projectName || '—' }}</span>
+        </div>
+        <div class="ro-row">
+          <span class="ro-label">提交人</span>
+          <span class="ro-value">{{ detail.submitter || '—' }}</span>
+        </div>
+        <div class="ro-row">
+          <span class="ro-label">项目负责人姓名及电话</span>
+          <span class="ro-value">{{ detail.projectLeaderContact || '—' }}</span>
+        </div>
+        <div class="ro-row">
+          <span class="ro-label">安全管理人员姓名及电话</span>
+          <span class="ro-value">{{ detail.safetyManagerContact || '—' }}</span>
+        </div>
+        <div class="ro-row ro-row--block">
+          <span class="ro-label">分包组织架构说明</span>
+          <div class="ro-value multiline">{{ detail.orgStructureDesc || '—' }}</div>
+        </div>
+        <div class="ro-row ro-row--block">
+          <span class="ro-label">组织架构图</span>
+          <div class="ro-value">
+            <FileAttachmentPreview
+              :name="detail.orgStructureChart?.fileName"
+              :url="detail.orgStructureChart?.fileUrl"
+              empty-text="未上传"
+              size="md"
+            />
+          </div>
+        </div>
+        <div class="ro-row ro-row--block">
+          <span class="ro-label">备注</span>
+          <div class="ro-value multiline">{{ detail.remark || '—' }}</div>
+        </div>
+      </div>
     </section>
 
     <section class="info-section">
@@ -115,64 +134,81 @@ function formatLaborContractAmount(contract) {
 
     <section class="info-section">
       <div class="section-title">安全许可证</div>
-      <el-descriptions :column="2" border>
-        <el-descriptions-item label="许可证编号">
-          {{ detail.safetyLicense?.licenseNo || '—' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="有效期">
-          {{ formatSafetyLicenseExpiry(detail.safetyLicense) || '—' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="许可证附件" :span="2">
-          <FileAttachmentPreview
-            :name="detail.safetyLicense?.fileName"
-            :url="detail.safetyLicense?.fileUrl"
-            empty-text="未上传"
-            size="lg"
-          />
-        </el-descriptions-item>
-      </el-descriptions>
+      <div class="ro-form">
+        <div class="ro-row">
+          <span class="ro-label">许可证编号</span>
+          <span class="ro-value">{{ detail.safetyLicense?.licenseNo || '—' }}</span>
+        </div>
+        <div class="ro-row">
+          <span class="ro-label">有效期</span>
+          <span class="ro-value">{{ formatSafetyLicenseExpiry(detail.safetyLicense) || '—' }}</span>
+        </div>
+        <div class="ro-row ro-row--block">
+          <span class="ro-label">许可证附件</span>
+          <div class="ro-value">
+            <FileAttachmentPreview
+              :name="detail.safetyLicense?.fileName"
+              :url="detail.safetyLicense?.fileUrl"
+              empty-text="未上传"
+              size="lg"
+            />
+          </div>
+        </div>
+      </div>
     </section>
 
     <section class="info-section">
       <div class="section-title">劳务合同</div>
-      <el-descriptions :column="2" border>
-        <el-descriptions-item label="合同编号">
-          {{ detail.laborContract?.contractNo || '—' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="金额">
-          {{ formatLaborContractAmount(detail.laborContract) }}
-        </el-descriptions-item>
-        <el-descriptions-item label="附件" :span="2">
-          <FileAttachmentPreview
-            :name="detail.laborContract?.fileName"
-            :url="detail.laborContract?.fileUrl"
-            empty-text="未上传"
-            size="md"
-          />
-        </el-descriptions-item>
-      </el-descriptions>
+      <div class="ro-form">
+        <div class="ro-row">
+          <span class="ro-label">合同编号</span>
+          <span class="ro-value">{{ detail.laborContract?.contractNo || '—' }}</span>
+        </div>
+        <div class="ro-row">
+          <span class="ro-label">金额</span>
+          <span class="ro-value">{{ formatLaborContractAmount(detail.laborContract) }}</span>
+        </div>
+        <div class="ro-row ro-row--block">
+          <span class="ro-label">合同附件</span>
+          <div class="ro-value">
+            <FileAttachmentPreview
+              :name="detail.laborContract?.fileName"
+              :url="detail.laborContract?.fileUrl"
+              empty-text="未上传"
+              size="md"
+            />
+          </div>
+        </div>
+      </div>
     </section>
 
     <template v-if="showApproval">
       <section class="info-section">
         <div class="section-title">审批人</div>
-        <el-descriptions :column="2" border>
-          <el-descriptions-item label="项目经理">
-            {{ approverDisplay('projectManagerUserId', 'projectManagerName') }}
-          </el-descriptions-item>
-          <el-descriptions-item label="项目部部长">
-            {{ approverDisplay('deptHeadUserId', 'deptHeadName') }}
-          </el-descriptions-item>
-          <el-descriptions-item label="设计部负责人">
-            {{ approverDisplay('designHeadUserId', 'designHeadName') }}
-          </el-descriptions-item>
-          <el-descriptions-item label="设计部部长">
-            {{ approverDisplay('designDeptHeadUserId', 'designDeptHeadName') }}
-          </el-descriptions-item>
-          <el-descriptions-item label="抄送" :span="2">
-            抄送副指挥长（朱指挥）
-          </el-descriptions-item>
-        </el-descriptions>
+        <div class="ro-form">
+          <div class="ro-row">
+            <span class="ro-label">项目经理</span>
+            <span class="ro-value">{{ approverDisplay('projectManagerUserId', 'projectManagerName') }}</span>
+          </div>
+          <div class="ro-row">
+            <span class="ro-label">项目部部长</span>
+            <span class="ro-value">{{ approverDisplay('deptHeadUserId', 'deptHeadName') }}</span>
+          </div>
+          <div class="ro-row">
+            <span class="ro-label">设计部负责人</span>
+            <span class="ro-value">{{ approverDisplay('designHeadUserId', 'designHeadName') }}</span>
+          </div>
+          <div class="ro-row">
+            <span class="ro-label">设计部部长</span>
+            <span class="ro-value">{{
+              approverDisplay('designDeptHeadUserId', 'designDeptHeadName')
+            }}</span>
+          </div>
+          <div class="ro-row">
+            <span class="ro-label">抄送人</span>
+            <span class="ro-value">{{ approverDisplay('ccUserId', 'ccUserName') }}</span>
+          </div>
+        </div>
       </section>
 
       <section class="info-section">
@@ -233,6 +269,47 @@ function formatLaborContractAmount(contract) {
   font-weight: 600;
   color: var(--ap-text);
   border-left: 3px solid var(--ap-primary);
+}
+
+.ro-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.ro-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid #f0f2f5;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.ro-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.ro-row--block {
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ro-label {
+  flex: 0 0 160px;
+  color: #909399;
+}
+
+.ro-row--block .ro-label {
+  flex: none;
+}
+
+.ro-value {
+  flex: 1;
+  color: var(--ap-text, #303133);
+  word-break: break-word;
 }
 
 .multiline {

@@ -1,7 +1,7 @@
 <script setup>
 /**
  * 人员实名制 · 个人中心（移动端）
- * 流程中心与 Web 个人中心同源；预警中心独立展示。
+ * 消息中心与 Web 个人中心同源；预警中心独立展示。
  */
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -17,9 +17,13 @@ import {
   markWarningCenterRead,
 } from '../../mock/personalCenter.js'
 
+const CENTER_MSG = '消息中心'
+const CENTER_NOTICE = '通知信息'
+const CENTER_WARN = '预警中心'
+
 const router = useRouter()
 const route = useRoute()
-const activeCenter = ref('流程中心')
+const activeCenter = ref(CENTER_MSG)
 const activeTab = ref('todo')
 const keyword = ref('')
 const showFilter = ref(false)
@@ -34,9 +38,9 @@ onMounted(() => {
   document.querySelector('.page-viewport')?.scrollTo({ top: 0 })
   const tab = String(route.query.tab || '')
   if (tab === 'warning-center') {
-    activeCenter.value = '预警中心'
+    activeCenter.value = CENTER_WARN
   } else if (tab === 'notice') {
-    activeCenter.value = '消息提醒'
+    activeCenter.value = CENTER_NOTICE
   } else if (['todo', 'done', 'initiated', 'copied'].includes(tab)) {
     activeTab.value = tab
   }
@@ -179,9 +183,9 @@ function switchCenter(name) {
   nodeFilter.value = ''
   warnTypeFilter.value = ''
   warnStatusFilter.value = ''
-  if (name === '预警中心') {
+  if (name === CENTER_WARN) {
     router.replace({ query: { tab: 'warning-center' } })
-  } else if (name === '消息提醒') {
+  } else if (name === CENTER_NOTICE) {
     router.replace({ query: { tab: 'notice' } })
   } else {
     router.replace({ query: activeTab.value === 'todo' ? {} : { tab: activeTab.value } })
@@ -268,19 +272,19 @@ function goBack() {
 </script>
 
 <template>
-  <div class="message-page" :class="{ 'has-action-bar': activeCenter === '预警中心' && selectedWarningIds.length }">
+  <div class="message-page" :class="{ 'has-action-bar': activeCenter === CENTER_WARN && selectedWarningIds.length }">
     <header class="mobile-header">
       <button class="back-button" type="button" @click="goBack">‹</button>
-      <h1>个人中心</h1>
+      <h1>{{ activeCenter }}</h1>
       <span class="header-count">{{ pendingWarningCount }} 条待关注</span>
     </header>
 
     <section class="center-switcher">
       <button
         v-for="item in [
-          { name: '流程中心', icon: '⇄' },
-          { name: '消息提醒', icon: '◷' },
-          { name: '预警中心', icon: '⚠' },
+          { name: CENTER_MSG, icon: '⇄' },
+          { name: CENTER_NOTICE, icon: '◷' },
+          { name: CENTER_WARN, icon: '⚠' },
         ]"
         :key="item.name"
         type="button"
@@ -289,13 +293,13 @@ function goBack() {
       >
         <span class="center-icon">{{ item.icon }}</span>
         <span>{{ item.name }}</span>
-        <i v-if="item.name === '流程中心' && todos.length">{{ todos.length }}</i>
-        <i v-else-if="item.name === '消息提醒' && unreadNoticeCount">{{ unreadNoticeCount }}</i>
-        <i v-else-if="item.name === '预警中心' && pendingWarningCount">{{ pendingWarningCount }}</i>
+        <i v-if="item.name === CENTER_MSG && todos.length">{{ todos.length }}</i>
+        <i v-else-if="item.name === CENTER_NOTICE && unreadNoticeCount">{{ unreadNoticeCount }}</i>
+        <i v-else-if="item.name === CENTER_WARN && pendingWarningCount">{{ pendingWarningCount }}</i>
       </button>
     </section>
 
-    <template v-if="activeCenter === '流程中心'">
+    <template v-if="activeCenter === CENTER_MSG">
       <section class="search-row">
         <div class="search-box">
           <span>⌕</span>
@@ -351,7 +355,7 @@ function goBack() {
       </main>
     </template>
 
-    <template v-else-if="activeCenter === '消息提醒'">
+    <template v-else-if="activeCenter === CENTER_NOTICE">
       <section class="search-row">
         <div class="search-box">
           <span>⌕</span>

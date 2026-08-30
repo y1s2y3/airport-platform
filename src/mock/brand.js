@@ -10,22 +10,24 @@ import { getProjectDetail, displayProjectManagerName } from './projectBasicInfo.
 import {
   createBrandPmTodo,
   createBrandSupervisorTodo,
-  discardBrandTodos,
 } from './personalCenter.js'
-import { formatApproverCandidateLabel } from '../utils/approverDisplay'
+import {
+  formatApproverCandidateLabel,
+  formatApproverOptionLabel,
+} from '../utils/approverDisplay'
 import { parseOneContact } from '../utils/contactValue.js'
 
 export const MATERIAL_TYPE = { material: '材料', equipment: '设备' }
-/** 业务状态：待审批=待监理审；审批中=监理已通过、待项目经理审 */
+/** 业务状态：审批中（含监理审/项目经理审，由 current_node 区分）→ 已通过 / 已驳回 */
 export const STATUS_LABEL = {
-  pending: '待审批',
   in_approval: '审批中',
   approved: '已通过',
   rejected: '已驳回',
-  withdrawn: '已撤回',
 }
 
 export function statusLabel(status) {
+  if (status === 'pending') return '审批中'
+  if (status === 'withdrawn') return '已驳回'
   return STATUS_LABEL[status] || status || '—'
 }
 export const NODE_LABEL = {
@@ -364,7 +366,7 @@ const store = reactive({
       material_name: '防水卷材',
       material_type: 'material',
       use_part: '屋面',
-      status: 'pending',
+      status: 'in_approval',
       current_node: 'supervisor',
       applicant_user_id: 'u-contractor',
       applicant_name: '张工',
@@ -440,7 +442,7 @@ const store = reactive({
       material_name: '给水管',
       material_type: 'material',
       use_part: '生活区',
-      status: 'withdrawn',
+      status: 'rejected',
       current_node: 'none',
       applicant_user_id: 'u-contractor',
       applicant_name: '张工',
@@ -778,11 +780,11 @@ const store = reactive({
     {
       record_id: 'AR-005',
       application_id: 'PP-2026-006',
-      node_code: 'applicant',
-      action: 'withdraw',
-      opinion: '申请人撤回',
-      operator_user_id: 'u-contractor',
-      operator_name: '张工',
+      node_code: 'supervisor',
+      action: 'reject',
+      opinion: '资料不完整，请补充后重新报审',
+      operator_user_id: 'u-supervisor',
+      operator_name: '王监理',
       operate_time: '2026-07-05 14:00:00',
     },
     {
@@ -1036,15 +1038,16 @@ export function buildHqBrandApprovalStatsByProject() {
   return COC_PROJECT_OPTIONS.map((opt) => {
     const apps = listApplications(opt.id)
     const count = (status) => apps.filter((a) => a.status === status).length
+    // 兼容旧种子：pending 并入审批中；withdrawn 不再统计
+    const in_approval = count('in_approval') + count('pending')
     return {
       project_id: opt.id,
       project_name: opt.label,
       total: apps.length,
-      pending: count('pending'),
-      in_approval: count('in_approval'),
+      in_approval,
       approved: count('approved'),
-      rejected: count('rejected'),
-      withdrawn: count('withdrawn'),
+      rejected: count('rejected') + count('withdrawn'),
+      withdrawn: 0,
       ledger_count: listLedger(opt.id).length,
     }
   }).sort((a, b) => b.total - a.total || a.project_name.localeCompare(b.project_name, 'zh-CN'))
@@ -1056,18 +1059,15 @@ export function buildHqBrandApprovalSummary() {
     (acc, row) => {
       acc.projectCount += 1
       acc.total += row.total
-      acc.pending += row.pending
       acc.in_approval += row.in_approval
       acc.approved += row.approved
       acc.rejected += row.rejected
-      acc.withdrawn += row.withdrawn
       acc.ledger_count += row.ledger_count
       return acc
     },
     {
       projectCount: 0,
       total: 0,
-      pending: 0,
       in_approval: 0,
       approved: 0,
       rejected: 0,
@@ -1232,30 +1232,9 @@ export function buildCopyPayloadFromRejected(applicationId) {
   }
 }
 
-/** 已撤回原单重新编辑预填（保留 ledger_id） */
-export function buildReEditPayloadFromWithdrawn(applicationId) {
-  const detail = getApplicationDetail(applicationId)
-  if (!detail) return null
-  if (detail.app.status !== 'withdrawn') return null
-  return {
-    application_id: applicationId,
-    material_name: detail.app.material_name,
-    material_type: detail.app.material_type,
-    use_part: detail.app.use_part || '',
-    remark: detail.app.remark || '',
-    supervisor_approver_user_id: detail.app.supervisor_approver_user_id || '',
-    supervisor_approver_name: detail.app.supervisor_approver_name || '',
-    pm_approver_user_id: detail.app.pm_approver_user_id || '',
-    pm_approver_name: detail.app.pm_approver_name || '',
-    candidates: detail.candidates.map((c) => ({
-      ledger_id: c.ledger_id || '',
-      brand_name: c.brand_name,
-      manufacturer: c.manufacturer,
-      remark: c.remark || '',
-      is_primary: !!c.is_primary,
-      attachSlots: buildAttachSlotsFromRecords(c.attachments),
-    })),
-  }
+/** @deprecated 已取消「已撤回同单重提」；请用已驳回复制新建 */
+export function buildReEditPayloadFromWithdrawn() {
+  return null
 }
 
 function replaceBrandCandidates(application_id, project_id, validCandidates) {
@@ -1389,7 +1368,7 @@ export function submitApplication(payload) {
     material_type,
     use_part: payload.use_part || '',
     location_id: payload.location_id || '',
-    status: 'pending',
+    status: 'in_approval',
     current_node: 'supervisor',
     applicant_user_id: 'u-contractor',
     applicant_name: '当前用户',
@@ -1429,7 +1408,7 @@ export function copyApplicationFromRejected(sourceApplicationId, payload) {
     material_type: checked.material_type,
     use_part: payload.use_part || '',
     location_id: payload.location_id || '',
-    status: 'pending',
+    status: 'in_approval',
     current_node: 'supervisor',
     applicant_user_id: 'u-contractor',
     applicant_name: '当前用户',
@@ -1444,89 +1423,21 @@ export function copyApplicationFromRejected(sourceApplicationId, payload) {
   return { ok: true, data: app }
 }
 
-export function withdrawApplication(applicationId) {
-  const app = store.applications.find((a) => a.application_id === applicationId)
-  if (!app) return { ok: false, msg: '单据不存在' }
-  if (app.status !== 'pending') {
-    return { ok: false, msg: '仅待审批时可撤回' }
-  }
-  app.status = 'withdrawn'
-  app.current_node = 'none'
-  app.finish_time = nowStr()
-  store.seq.ar += 1
-  store.approvals.push({
-    record_id: `AR-${String(store.seq.ar).padStart(3, '0')}`,
-    application_id: applicationId,
-    node_code: 'applicant',
-    action: 'withdraw',
-    opinion: '申请人撤回',
-    operator_user_id: 'u-contractor',
-    operator_name: '当前用户',
-    operate_time: nowStr(),
-  })
-  discardBrandTodos(applicationId)
-  return { ok: true }
+/** 品牌报审不再支持撤回 */
+export function withdrawApplication() {
+  return { ok: false, msg: '不支持撤回' }
 }
 
-/** 已撤回原单重新提交 → 待审批（同单号） */
-export function resubmitWithdrawnBrand(applicationId, payload) {
-  const app = store.applications.find((a) => a.application_id === applicationId)
-  if (!app) return { ok: false, msg: '单据不存在' }
-  if (app.status !== 'withdrawn') return { ok: false, msg: '仅已撤回单可重新编辑提交' }
-
-  const checked = validateBrandSubmitPayload({
-    ...payload,
-    project_id: payload.project_id || app.project_id,
-  })
-  if (!checked.ok) return checked
-  const {
-    project_id,
-    material_name,
-    material_type,
-    validCandidates,
-  } = checked
-  if (project_id !== app.project_id) return { ok: false, msg: '不可跨项目重提' }
-
-  app.material_name = material_name
-  app.material_type = material_type
-  app.use_part = payload.use_part || ''
-  app.location_id = payload.location_id || app.location_id || ''
-  app.remark = payload.remark || ''
-  applyApproverSnapshotsToApp(app, checked)
-  app.status = 'pending'
-  app.current_node = 'supervisor'
-  app.submit_time = nowStr()
-  app.finish_time = ''
-  replaceBrandCandidates(applicationId, project_id, validCandidates)
-  saveApproverMemory(
-    project_id,
-    checked.supervisor_approver_user_id,
-    checked.supervisor_approver_name,
-    checked.pm_approver_user_id,
-    checked.pm_approver_name,
-  )
-
-  store.seq.ar += 1
-  store.approvals.push({
-    record_id: `AR-${String(store.seq.ar).padStart(3, '0')}`,
-    application_id: applicationId,
-    node_code: 'applicant',
-    action: 'submit',
-    opinion: '撤回后重新提交',
-    operator_user_id: 'u-contractor',
-    operator_name: '当前用户',
-    operate_time: nowStr(),
-  })
-  discardBrandTodos(applicationId)
-  createBrandSupervisorTodo(buildBrandTodoPayload(app))
-  return { ok: true, data: app }
+/** @deprecated 已取消「已撤回同单重提」；请用 copyApplicationFromRejected */
+export function resubmitWithdrawnBrand() {
+  return { ok: false, msg: '不支持已撤回同单重提，请从已驳回单重新报审（新单号）' }
 }
 
 export function supervisorApprove(applicationId, { action, opinion, operatorUserId } = {}) {
   const app = store.applications.find((a) => a.application_id === applicationId)
   if (!app) return { ok: false, msg: '单据不存在' }
-  if (app.status !== 'pending' || app.current_node !== 'supervisor') {
-    return { ok: false, msg: '当前不在待审批（待监理审）节点' }
+  if (app.status !== 'in_approval' || app.current_node !== 'supervisor') {
+    return { ok: false, msg: '当前不在审批中（待监理审）节点' }
   }
   const auth = assertBrandApprovalOperator(app, 'supervisor', operatorUserId)
   if (!auth.ok) return auth
@@ -1599,9 +1510,8 @@ export function pmApprove(applicationId, { action, opinion, operatorUserId } = {
 
 export function statusTagType(status) {
   if (status === 'approved') return 'success'
-  if (status === 'pending') return 'warning'
-  if (status === 'in_approval') return ''
-  if (status === 'rejected') return 'danger'
+  if (status === 'in_approval' || status === 'pending') return 'warning'
+  if (status === 'rejected' || status === 'withdrawn') return 'danger'
   return 'info'
 }
 
@@ -1684,7 +1594,7 @@ function seedDemoApplicationsForAllStatus() {
       material_name: '外墙真石漆',
       material_type: 'material',
       use_part: '外墙饰面',
-      status: 'pending',
+      status: 'in_approval',
       current_node: 'supervisor',
       submit_time: '2026-08-16 09:20:00',
       brands: [
@@ -1698,7 +1608,7 @@ function seedDemoApplicationsForAllStatus() {
       material_name: '电缆桥架',
       material_type: 'equipment',
       use_part: '机电竖井',
-      status: 'pending',
+      status: 'in_approval',
       current_node: 'supervisor',
       submit_time: '2026-08-15 14:10:00',
       brands: [
@@ -1823,7 +1733,7 @@ function seedDemoApplicationsForAllStatus() {
       material_name: '保温岩棉',
       material_type: 'material',
       use_part: '外墙保温',
-      status: 'withdrawn',
+      status: 'rejected',
       current_node: 'none',
       submit_time: '2026-08-09 10:00:00',
       finish_time: '2026-08-09 15:00:00',
@@ -1835,11 +1745,11 @@ function seedDemoApplicationsForAllStatus() {
       approvals: [
         {
           id: 'AR-017',
-          node_code: 'applicant',
-          action: 'withdraw',
-          opinion: '申请人撤回，拟调整备选品牌',
-          operator_user_id: 'u-contractor',
-          operator_name: '张工',
+          node_code: 'supervisor',
+          action: 'reject',
+          opinion: '备选品牌资料不足，请调整后重新报审',
+          operator_user_id: 'u-supervisor',
+          operator_name: '王监理',
           operate_time: '2026-08-09 15:00:00',
         },
       ],
@@ -1849,7 +1759,7 @@ function seedDemoApplicationsForAllStatus() {
       material_name: 'LED灯具',
       material_type: 'equipment',
       use_part: '公共区照明',
-      status: 'withdrawn',
+      status: 'rejected',
       current_node: 'none',
       submit_time: '2026-08-08 09:30:00',
       finish_time: '2026-08-08 11:00:00',
@@ -1861,11 +1771,11 @@ function seedDemoApplicationsForAllStatus() {
       approvals: [
         {
           id: 'AR-018',
-          node_code: 'applicant',
-          action: 'withdraw',
-          opinion: '申请人撤回',
-          operator_user_id: 'u-contractor',
-          operator_name: '张工',
+          node_code: 'supervisor',
+          action: 'reject',
+          opinion: '主选品牌与设计推荐不符，请调整后重新报审',
+          operator_user_id: 'u-supervisor',
+          operator_name: '王监理',
           operate_time: '2026-08-08 11:00:00',
         },
       ],
@@ -1965,7 +1875,7 @@ backfillApproverSnapshots()
 
 function seedOpenBrandTodos() {
   for (const app of store.applications) {
-    if (app.status === 'pending' && app.current_node === 'supervisor') {
+    if (app.status === 'in_approval' && app.current_node === 'supervisor') {
       createBrandSupervisorTodo(buildBrandTodoPayload(app))
     } else if (app.status === 'in_approval' && app.current_node === 'pm') {
       createBrandPmTodo(buildBrandTodoPayload(app))

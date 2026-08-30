@@ -1,9 +1,10 @@
 /**
  * 分包单位报审 / 指挥部台账 Mock
- * - 项目层：报审（待审批→审批中→已通过/已驳回；可撤回）
- * - 已驳回 / 已撤回：支持重新报审
+ * - 审批状态仅：审批中 / 已通过 / 已驳回（无待审批、无已撤回）
+ * - 提交即「审批中」；多节点流转中状态保持「审批中」，当前节点看 approvalFlow
+ * - 已驳回：重新报审 → 新单号；不支持撤回
  * - 指挥部：仅展示已通过记录
- * - 审批：个人中心待办推进；通过后同步项目画像
+ * - 审批：个人中心待办推进；终审通过后同步项目画像
  */
 import { reactive } from 'vue'
 import { projectList, getProjectDetail, displayProjectManagerName } from './projectBasicInfo'
@@ -15,18 +16,19 @@ import { nowStr } from '../utils/datetime.js'
 import { parseOneContact } from '../utils/contactValue.js'
 
 export const subcontractorTypeOptions = ['专业分包', '劳务分包']
-export const subcontractorApproveStatusOptions = ['待审批', '审批中', '已通过', '已驳回', '已撤回']
+export const subcontractorApproveStatusOptions = ['审批中', '已通过', '已驳回']
 
 export function isSubcontractorInApproval(status) {
-  return status === '待审批' || status === '审批中'
+  return status === '审批中'
 }
 
 export function canResubmitSubcontractor(status) {
-  return status === '已驳回' || status === '已撤回'
+  return status === '已驳回'
 }
 
-export function canWithdrawSubcontractor(status) {
-  return status === '待审批'
+/** 不支持撤回；保留导出以兼容旧引用 */
+export function canWithdrawSubcontractor() {
+  return false
 }
 
 function normalizeSafetyLicense(sl = {}) {
@@ -117,9 +119,8 @@ export const SUBCONTRACTOR_APPROVAL_NODES = [
 ]
 
 export const SUBCONTRACTOR_CC = {
-  key: 'cc_zhu',
-  title: '抄送副指挥长（朱指挥）',
-  user: '朱指挥',
+  key: 'cc',
+  title: '抄送',
 }
 
 /** 按项目记忆上次填报的审批人（下次新建/重新报审时回显） */
@@ -133,6 +134,8 @@ const subcontractorApproverMemoryByProject = reactive({
     designHeadName: '姚远东',
     designDeptHeadUserId: 'u-007',
     designDeptHeadName: '刘文强',
+    ccUserId: 'u-008',
+    ccUserName: '朱指挥',
     updatedAt: '2026-07-20 11:00:00',
   },
 })
@@ -151,6 +154,8 @@ function emptyApprovers() {
     designHeadName: '',
     designDeptHeadUserId: '',
     designDeptHeadName: '',
+    ccUserId: '',
+    ccUserName: '',
   }
 }
 
@@ -226,20 +231,55 @@ export function resolveDefaultApprovers(projectId) {
     result.designDeptHeadUserId = memory.designDeptHeadUserId
     result.designDeptHeadName = memory.designDeptHeadName || ''
   }
+  if (memory?.ccUserId) {
+    result.ccUserId = memory.ccUserId
+    result.ccUserName = memory.ccUserName || ''
+  } else {
+    const defaultCc = findSubcontractorApproverUser('u-008')
+    if (defaultCc) {
+      result.ccUserId = defaultCc.userId
+      result.ccUserName = defaultCc.name
+    }
+  }
   return result
 }
 
 function resolveNodeUserName(approvers, nodeKey) {
+  const idMap = {
+    pm: approvers?.projectManagerUserId,
+    dept_head: approvers?.deptHeadUserId,
+    design_head: approvers?.designHeadUserId,
+    design_dept_head: approvers?.designDeptHeadUserId,
+  }
   const nameMap = {
     pm: approvers?.projectManagerName,
     dept_head: approvers?.deptHeadName,
     design_head: approvers?.designHeadName,
     design_dept_head: approvers?.designDeptHeadName,
   }
-  const name = String(nameMap[nodeKey] || '').trim()
-  if (name) return name
+  const label = formatSubcontractorApproverDisplay(idMap[nodeKey], nameMap[nodeKey])
+  if (label && label !== '—') return label
   const node = SUBCONTRACTOR_APPROVAL_NODES.find((item) => item.key === nodeKey)
   return node?.roleLabel || '—'
+}
+
+function resolveCcUserLabel(approvers) {
+  const label = formatSubcontractorApproverDisplay(approvers?.ccUserId, approvers?.ccUserName)
+  if (label && label !== '—') return label
+  const fallback = findSubcontractorApproverUser('u-008')
+  return fallback?.optionLabel || fallback?.name || '—'
+}
+
+function buildCcFlowStep(approvers, { status = 'pending', time = '', remark = '审批通过后抄送' } = {}) {
+  return {
+    title: SUBCONTRACTOR_CC.title,
+    time,
+    user: resolveCcUserLabel(approvers),
+    remark,
+    status,
+    nodeKey: SUBCONTRACTOR_CC.key,
+    isCc: true,
+  }
 }
 
 function emptyQualification() {
@@ -320,15 +360,7 @@ function buildSubmitFlow(applicant, applyTime, approvers = {}) {
       status: index === 0 ? 'current' : 'pending',
       nodeKey: node.key,
     })),
-    {
-      title: SUBCONTRACTOR_CC.title,
-      time: '',
-      user: SUBCONTRACTOR_CC.user,
-      remark: '审批通过后抄送',
-      status: 'pending',
-      nodeKey: SUBCONTRACTOR_CC.key,
-      isCc: true,
-    },
+    buildCcFlowStep(approvers),
   ]
 }
 
@@ -376,36 +408,11 @@ function buildApprovedFlow(applicant, submitTime, approveTime, approvers = {}) {
       status: 'done',
       nodeKey: node.key,
     })),
-    {
-      title: SUBCONTRACTOR_CC.title,
+    buildCcFlowStep(approvers, {
+      status: 'done',
       time: approveTime,
-      user: SUBCONTRACTOR_CC.user,
       remark: '已抄送知悉',
-      status: 'done',
-      nodeKey: SUBCONTRACTOR_CC.key,
-      isCc: true,
-    },
-  ]
-}
-
-function buildWithdrawnFlow(applicant, submitTime, withdrawTime) {
-  return [
-    {
-      title: '施工单位提交',
-      time: submitTime,
-      user: applicant || '施工单位',
-      remark: '已提交报审',
-      status: 'done',
-      nodeKey: 'submit',
-    },
-    {
-      title: '申请人撤回',
-      time: withdrawTime,
-      user: applicant || '施工单位',
-      remark: '已撤回报审',
-      status: 'done',
-      nodeKey: 'withdraw',
-    },
+    }),
   ]
 }
 
@@ -487,7 +494,7 @@ const seedList = [
       fileUrl: '',
       amount: '960',
     },
-    status: '待审批',
+    status: '审批中',
     currentNodeKey: 'pm',
     submitter: '施工单位',
     submitTime: '2026-08-18 10:00:00',
@@ -584,11 +591,17 @@ const seedList = [
       fileUrl: '',
       amount: '1860',
     },
-    status: '已撤回',
+    status: '已驳回',
     currentNodeKey: '',
     submitter: '施工单位',
     submitTime: '2026-08-19 10:00:00',
-    approvalFlow: buildWithdrawnFlow('施工单位', '2026-08-19 10:00:00', '2026-08-19 15:10:00'),
+    approvalFlow: buildRejectedFlow(
+      '施工单位',
+      '2026-08-19 10:00:00',
+      '2026-08-19 15:10:00',
+      'pm',
+      '驳回：请完善组织架构说明后重新报审',
+    ),
     createdAt: '2026-08-19 14:20:00',
     updatedAt: '2026-08-19 15:10:00',
   },
@@ -751,11 +764,17 @@ const seedList = [
       fileUrl: '',
       amount: '2100',
     },
-    status: '已撤回',
+    status: '已驳回',
     currentNodeKey: '',
     submitter: '施工单位',
     submitTime: '2026-08-18 10:00:00',
-    approvalFlow: buildWithdrawnFlow('施工单位', '2026-08-18 10:00:00', '2026-08-18 16:40:00'),
+    approvalFlow: buildRejectedFlow(
+      '施工单位',
+      '2026-08-18 10:00:00',
+      '2026-08-18 16:40:00',
+      'pm',
+      '驳回：请补充劳务合同金额与附件后重新报审',
+    ),
     createdAt: '2026-08-18 16:00:00',
     updatedAt: '2026-08-18 16:40:00',
   },
@@ -815,7 +834,7 @@ const seedList = [
       fileUrl: '',
       amount: '380',
     },
-    status: '待审批',
+    status: '审批中',
     currentNodeKey: 'pm',
     submitter: '施工单位',
     submitTime: '2026-08-19 09:00:00',
@@ -896,7 +915,31 @@ const seedList = [
   },
 ]
 
-export const subcontractorList = reactive(seedList.map((item) => cloneSubcontractorApplication(item)))
+export const subcontractorList = reactive(
+  seedList.map((item) => {
+    const approvers = {
+      ...resolveDefaultApprovers(item.projectId),
+      ...(item.approvers || {}),
+    }
+    const approvalFlow = (item.approvalFlow || []).map((step) => {
+      if (step.isCc || step.nodeKey === 'cc' || step.nodeKey === 'cc_zhu') {
+        return {
+          ...step,
+          ...buildCcFlowStep(approvers, {
+            status: step.status || 'pending',
+            time: step.time || '',
+            remark: step.remark || '审批通过后抄送',
+          }),
+        }
+      }
+      if (step.nodeKey && step.nodeKey !== 'submit') {
+        return { ...step, user: resolveNodeUserName(approvers, step.nodeKey) }
+      }
+      return { ...step }
+    })
+    return cloneSubcontractorApplication({ ...item, approvers, approvalFlow })
+  }),
+)
 
 export function listApprovedSubcontractors(projectId = '') {
   return subcontractorList.filter((row) => {
@@ -934,6 +977,7 @@ function validateApprovers(approvers) {
     ['deptHeadUserId', '请选择项目部部长'],
     ['designHeadUserId', '请选择设计部负责人'],
     ['designDeptHeadUserId', '请选择设计部部长'],
+    ['ccUserId', '请选择抄送人'],
   ]
   for (const [key, msg] of checks) {
     if (!approvers?.[key]) return msg
@@ -975,13 +1019,12 @@ export function submitSubcontractorApplication(payload, options = {}) {
   if (err) return { ok: false, msg: err }
 
   const resubmitFromRejected = Boolean(payload.rejectedFromId)
-  const resubmitFromWithdrawn = payload.status === '已撤回' && !resubmitFromRejected
 
   if (
     payload?.status
     && !canResubmitSubcontractor(payload.status)
     && payload.status !== ''
-    && !resubmitFromWithdrawn
+    && !resubmitFromRejected
   ) {
     return { ok: false, msg: '当前状态不可重新提交' }
   }
@@ -989,7 +1032,7 @@ export function submitSubcontractorApplication(payload, options = {}) {
   const applyTime = nowStr()
   const data = cloneSubcontractorApplication(payload)
   data.name = data.name.trim()
-  data.status = '待审批'
+  data.status = '审批中'
   data.currentNodeKey = 'pm'
   const submitterUser = options.submitterName || getCurrentUserSnapshot(data.projectId)?.name
   data.submitter = String(submitterUser || payload.submitter || '当前用户').trim()
@@ -1011,18 +1054,8 @@ export function submitSubcontractorApplication(payload, options = {}) {
   return { ok: true, data: saved, needTodo: true }
 }
 
-export function withdrawSubcontractorApplication(id) {
-  const row = findSubcontractorApplication(id)
-  if (!row) return { ok: false, msg: '未找到报审单' }
-  if (!canWithdrawSubcontractor(row.status)) {
-    return { ok: false, msg: '仅待审批时可撤回' }
-  }
-  const now = nowStr()
-  row.status = '已撤回'
-  row.currentNodeKey = ''
-  row.approvalFlow = buildWithdrawnFlow(row.submitter, row.submitTime, now)
-  row.updatedAt = now
-  return { ok: true, data: row, needDiscardTodos: true }
+export function withdrawSubcontractorApplication() {
+  return { ok: false, msg: '不支持撤回' }
 }
 
 /** 项目级用户是否可查看该报审详情 */
@@ -1130,7 +1163,7 @@ export function approveSubcontractorApplication(id, opts = {}) {
     }
     row.approvalFlow = flow
     row.currentNodeKey = flow[nextIdx].nodeKey
-    // 首节点通过后进入后续节点 → 审批中
+    // 流转中保持「审批中」（首提即已为审批中）
     row.status = '审批中'
     row.updatedAt = now
     return {
@@ -1162,10 +1195,8 @@ export function approveSubcontractorApplication(id, opts = {}) {
 
 export function approveStatusTagClass(status) {
   if (status === '已通过') return 'ap-tag-enabled'
-  if (status === '待审批') return 'ap-tag-medium'
   if (status === '审批中') return 'ap-tag-medium'
   if (status === '已驳回') return 'ap-tag-high'
-  if (status === '已撤回') return 'ap-tag-draft'
   return 'ap-tag-draft'
 }
 

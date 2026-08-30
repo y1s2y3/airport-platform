@@ -2,15 +2,18 @@ import { findTreeNode, unifiedOrgTree } from '../mock/orgStructure'
 import { getPosition } from '../mock/positions'
 
 /**
- * 审批人下拉/详情展示：姓名-组织-岗位
- * 例：张三-T2空侧捷运线-安全总监
+ * 审批人下拉/详情展示：姓名（组织-岗位）
+ * 例：张三（T2空侧捷运线-安全总监）
  */
 export function formatApproverOptionLabel(name, orgName, postLabel) {
-  const parts = [name, orgName, postLabel]
-    .map((part) => String(part || '').trim())
-    .filter(Boolean)
-  if (!parts.length) return '—'
-  return parts.join('-')
+  const n = String(name || '').trim()
+  const org = String(orgName || '').trim()
+  const post = String(postLabel || '').trim()
+  const orgPost = [org, post].filter(Boolean).join('-')
+  if (!n && !orgPost) return '—'
+  if (!n) return orgPost
+  if (!orgPost) return n
+  return `${n}（${orgPost}）`
 }
 
 export function formatApproverCandidateLabel(candidate) {

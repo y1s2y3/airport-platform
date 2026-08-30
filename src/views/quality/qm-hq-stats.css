@@ -9,6 +9,22 @@
   grid-template-columns: repeat(7, minmax(0, 1fr));
 }
 
+.hq-stat-row.cols-9 {
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+}
+
+.hq-stat-row.cols-9 .hq-stat-card {
+  padding: 12px 10px;
+}
+
+.hq-stat-row.cols-9 .hq-stat-label {
+  font-size: 12px;
+}
+
+.hq-stat-row.cols-9 .hq-stat-value {
+  font-size: 20px;
+}
+
 .hq-stat-card {
   border: 1px solid var(--ap-border, #ebeef5);
   border-radius: 8px;
@@ -54,10 +70,39 @@
   font-weight: 600;
 }
 
+/* 指挥部下钻二级页：返回在标题左侧 */
+.hq-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-height: 32px;
+}
+
+.hq-title-row .page-title {
+  margin: 0;
+}
+
+.hq-title-project {
+  font-size: 14px;
+  color: var(--ap-text-muted, #606266);
+  font-weight: 400;
+}
+
 @media (max-width: 1400px) {
   .hq-stat-row,
   .hq-stat-row.cols-7 {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .hq-stat-row.cols-9 {
+    grid-template-columns: repeat(9, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1100px) {
+  .hq-stat-row.cols-9 {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
 
@@ -65,5 +110,9 @@
   .hq-stat-row,
   .hq-stat-row.cols-7 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .hq-stat-row.cols-9 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }

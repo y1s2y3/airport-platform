@@ -27,6 +27,17 @@ export const MENU_SCOPE_PROJECT = 'project'
 export const menuTree = [
   { key: 'workbench', label: '工作台', icon: 'Monitor', path: '/workbench', name: 'Workbench', component: 'WorkbenchView', levels: 'both' },
   { key: 'personal-center', label: '个人中心', icon: 'Notebook', path: '/personal-center', name: 'PersonalCenter', component: 'PersonalCenterView', levels: 'both' },
+  /** 建管 APP：顶层全屏壳（router/index.js），不进 AdminLayout；buildRoutes 跳过 /app */
+  {
+    key: 'jg-app',
+    label: '建管APP',
+    icon: 'Iphone',
+    path: '/app/login',
+    name: 'JgAppEntry',
+    component: 'AppLoginView',
+    levels: 'project',
+    description: '项目级建管 APP 演示入口（登录后进入底栏三 Tab）。',
+  },
 
   /** 指挥部 · 安全看板 */
   {
@@ -238,7 +249,6 @@ export const menuTree = [
       { key: 'bd-project-info', label: '项目信息管理', path: '/basic-data/project/info', name: 'ProjectBasicInfo', component: 'ProjectBasicInfoView', levels: 'both' },
       { key: 'bd-subcontractor', label: '分包单位管理', labelByLevel: { hq: '分包单位管理', project: '分包单位报审' }, path: '/basic-data/project/subcontractor', name: 'SubcontractorList', component: 'SubcontractorListView', levels: 'both' },
       { key: 'bd-entity-breakdown', label: '实体工程分解', path: '/basic-data/entity-breakdown', name: 'EntityBreakdown', component: 'EntityBreakdownView', levels: 'project' },
-      { key: 'bd-construction-location', label: '施工部位管理', path: '/basic-data/construction-location', name: 'ConstructionLocation', component: 'ConstructionLocationView', levels: 'project' },
     ],
   },
 
@@ -337,6 +347,7 @@ export const hiddenRoutes = [
   { key: 'mat-application-edit', path: '/qm/mat/applications/edit', name: 'MatApplicationEdit', component: 'MatApplicationEditView', label: '进场申报', sidebarKey: 'mat-application' },
   { key: 'mat-application-detail', path: '/qm/mat/applications/detail', name: 'MatApplicationDetail', component: 'MatApplicationDetailView', label: '进场详情', sidebarKey: 'mat-application' },
   { key: 'mobile-mat-entry-create', path: '/mobile/mat/entry/create', name: 'MobileMatEntryEdit', component: 'MobileMatEntryEditView', label: '进场申报（移动端）', sidebarKey: 'mobile-mat-entry' },
+  { key: 'mobile-mat-entry-detail', path: '/mobile/mat/entry/detail', name: 'MobileMatEntryDetail', component: 'MobileMatEntryDetailView', label: '进场详情（移动端）', sidebarKey: 'mobile-mat-entry' },
 
   // 实模一致验收子页
   { key: 'asbuilt-edit', path: '/qm/asbuilt/edit', name: 'AsbuiltEdit', component: 'AsbuiltEditView', label: '新建实模一致验收', sidebarKey: 'asbuilt-list' },
@@ -390,6 +401,7 @@ export const redirects = [
   { path: '/basic-data/division', redirect: '/basic-data/entity-breakdown' },
   { path: '/basic-data/sub-division', redirect: '/basic-data/entity-breakdown' },
   { path: '/basic-data/sub-item', redirect: '/basic-data/entity-breakdown' },
+  { path: '/basic-data/construction-location', redirect: '/basic-data/entity-breakdown' },
   { path: '/site-construction/work-declare', redirect: '/major-hazard/daily-work' },
   { path: '/safety-inspection/risk', redirect: '/safety-inspection/task' },
   { path: '/safety-inspection/risk/create', redirect: '/safety-inspection/task' },
@@ -576,6 +588,7 @@ export const viewLoaders = {
   MatExitView: () => import('../views/quality/mat/MatExitView.vue'),
   MobileMatEntryListView: () => import('../views/mobile/MobileMatEntryListView.vue'),
   MobileMatEntryEditView: () => import('../views/mobile/MobileMatEntryEditView.vue'),
+  MobileMatEntryDetailView: () => import('../views/mobile/MobileMatEntryDetailView.vue'),
   MobileMatExitView: () => import('../views/mobile/MobileMatExitView.vue'),
 
   AsbuiltListView: () => import('../views/quality/asbuilt/AsbuiltListView.vue'),
@@ -588,7 +601,6 @@ export const viewLoaders = {
   SubcontractorListView: () => import('../views/basicData/SubcontractorListView.vue'),
   SubcontractorDetailView: () => import('../views/basicData/SubcontractorDetailView.vue'),
   EntityBreakdownView: () => import('../views/basicData/EntityBreakdownView.vue'),
-  ConstructionLocationView: () => import('../views/basicData/ConstructionLocationView.vue'),
 
   AiDashboardView: () => import('../views/aiApp/AiDashboardView.vue'),
   AiAlertConfigView: () => import('../views/aiApp/AiAlertConfigView.vue'),
@@ -611,6 +623,9 @@ export const viewLoaders = {
   SystemLogView: () => import('../views/logs/SystemLogView.vue'),
   LoginLogView: () => import('../views/logs/LoginLogView.vue'),
   OperationLogView: () => import('../views/logs/OperationLogView.vue'),
+
+  /** 建管 APP（实际路由在 router/index.js 顶层挂载，此处仅满足 menu schema） */
+  AppLoginView: () => import('../views/app/AppLoginView.vue'),
 }
 
 /* ============================================================================
@@ -751,6 +766,8 @@ export function buildRoutes() {
   const routes = []
 
   const addLeaf = (item) => {
+    // 建管 APP 等顶层全屏页：不挂到 AdminLayout
+    if (String(item.path || '').startsWith('/app')) return
     if (seenPaths.has(item.path)) return
     seenPaths.add(item.path)
     const isCocAdmin = item.routeComponent === 'CocAdminPageView'

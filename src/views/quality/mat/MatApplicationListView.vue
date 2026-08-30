@@ -2,7 +2,6 @@
 import './mat-page.css'
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search, Refresh } from '@element-plus/icons-vue'
 import { useQmProjectScope } from '../../../composables/useCurrentProject'
 import {
@@ -11,8 +10,6 @@ import {
   STATUS_LABEL,
   statusLabel,
   statusTagType,
-  isReviewingStatus,
-  withdrawEntry,
   getEntryDetail,
 } from '../../../mock/mat.js'
 import { useMatArchiveExport } from '../../../composables/useMatArchiveExport.js'
@@ -72,35 +69,11 @@ function lineSpecQtyText(row) {
   return lineSpecQtyLines(row).join('；')
 }
 
-function onCopyNew(row) {
+function onResubmit(row) {
+  if (row.status !== 'rejected') return
   router.push(
     `/qm/mat/applications/edit?copyFrom=${row.entry_id}&entry_type=${row.entry_type || 'material'}`,
   )
-}
-
-function onReEdit(row) {
-  router.push(
-    `/qm/mat/applications/edit?id=${row.entry_id}&reEdit=1&entry_type=${row.entry_type || 'material'}`,
-  )
-}
-
-function onResubmit(row) {
-  if (row.status === 'withdrawn') onReEdit(row)
-  else if (row.status === 'rejected') onCopyNew(row)
-}
-
-async function onWithdraw(row) {
-  try {
-    await ElMessageBox.confirm(`确认撤回进场单 ${row.entry_id}？仅待审批时可撤。`, '撤回', {
-      type: 'warning',
-    })
-  } catch {
-    return
-  }
-  const r = withdrawEntry(row.entry_id)
-  if (!r.ok) return ElMessage.error(r.msg)
-  tick.value += 1
-  ElMessage.success('已撤回')
 }
 
 function onExportArchive(row) {
@@ -206,7 +179,7 @@ async function onConfirmExportArchive(selectedKeys) {
           </template>
         </el-table-column>
         <el-table-column prop="submit_time" label="提交时间" width="160" />
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column label="操作" width="240" fixed="right">
           <template #default="{ row }">
             <el-button
               link
@@ -225,20 +198,12 @@ async function onConfirmExportArchive(selectedKeys) {
               导出归档
             </el-button>
             <el-button
-              v-if="isReviewingStatus(row.status)"
-              link
-              type="warning"
-              @click="onWithdraw(row)"
-            >
-              撤回
-            </el-button>
-            <el-button
-              v-if="row.status === 'withdrawn' || row.status === 'rejected'"
+              v-if="row.status === 'rejected'"
               link
               type="primary"
               @click="onResubmit(row)"
             >
-              重新申报
+              重新报审
             </el-button>
           </template>
         </el-table-column>

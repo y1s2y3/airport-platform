@@ -144,7 +144,7 @@ function openConfig() {
   const query = {}
   if (props.projectId) query.project_id = props.projectId
   const href = router.resolve({
-    path: '/basic-data/construction-location',
+    path: '/basic-data/entity-breakdown',
     query,
   }).href
   window.open(href, '_blank', 'noopener,noreferrer')

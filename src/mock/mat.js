@@ -14,6 +14,21 @@ import {
   discardEqEntryTodos,
 } from './personalCenter.js'
 
+/** 合格证 / 现场照片：仅允许图片扩展名 */
+export function isImageAttachmentName(name) {
+  return /\.(jpe?g|png)$/i.test(String(name || '').trim())
+}
+
+/** 质量证明文件：仅 PDF */
+export function isPdfAttachmentName(name) {
+  return /\.pdf$/i.test(String(name || '').trim())
+}
+
+/** 其他附件：jpg / png / pdf / word */
+export function isOtherAttachmentName(name) {
+  return /\.(jpe?g|png|pdf|docx?)$/i.test(String(name || '').trim())
+}
+
 /**
  * 监理审批人候选（原型暂用与品牌报审一致的监理人员池）
  * 岗位口径对齐质量验评「监理单位人员」常见岗位；后续岗位字典定稿可替换。
@@ -97,10 +112,9 @@ export const ENTRY_TYPE_LABEL = {
 }
 
 export const STATUS_LABEL = {
-  reviewing: '待审批',
+  reviewing: '审批中',
   approved: '已通过',
   rejected: '已驳回',
-  withdrawn: '已撤回',
 }
 
 export function statusLabel(status) {
@@ -134,9 +148,8 @@ export function createDefaultUnpackItems() {
 export function statusTagType(status) {
   if (status === 'approved') return 'success'
   if (status === 'rejected') return 'danger'
-  if (status === 'withdrawn') return 'info'
-  if (status === 'pending_review') return 'info'
-  return 'warning'
+  if (status === 'pending_review' || status === 'reviewing') return 'warning'
+  return 'info'
 }
 
 export function isReviewingStatus(status) {
@@ -211,13 +224,13 @@ const store = reactive({
           unit: '桶',
           waybill_no: 'YD-20260701-01',
           batch_no: 'BATCH-20260701',
+          inspect_result_checked: true,
+          inspect_result_file: '送检结果-真石漆.pdf',
         },
       ],
-      cert_file: '合格证-真石漆.pdf',
+      cert_file: '合格证-真石漆.jpg',
       inspect_file: '质检报告-真石漆.pdf',
       photo_file: '进场现场-1.jpg',
-      inspect_result_checked: true,
-      inspect_result_file: '送检结果-真石漆.pdf',
       status: 'approved',
       current_node: 'none',
       applicant_name: '施工-王工',
@@ -241,25 +254,54 @@ const store = reactive({
       use_part: '屋面防水层',
       brand_name: '东方雨虹',
       manufacturer: '北京东方雨虹防水技术股份有限公司',
-      quantity: 500,
+      quantity: 800,
       unit: '卷',
       supplier: '雨虹授权经销商',
       batch_no: 'BATCH-20260720',
+      material_spec: 'SBS 改性沥青防水卷材 3mm',
+      waybill_no: 'YD-20260720',
       line_items: [
         {
           material_name: '防水卷材',
           material_spec: 'SBS 改性沥青防水卷材 3mm',
           quantity: 500,
           unit: '卷',
+          purpose: '屋面防水',
+          use_part: '屋面防水层',
           waybill_no: 'YD-20260720',
           batch_no: 'BATCH-20260720',
+          appearance_quality: '合格',
+          acceptance_result: '合格',
+          entry_date: '2026-07-27 14:00:00',
+          cert_file: '合格证-卷材-1.jpg',
+          inspect_file: '质检报告-卷材-1.pdf',
+          photo_file: '进场现场-卷材-1.jpg',
+          other_file: '出厂检验单-卷材.docx',
+          inspect_result_checked: true,
+          inspect_result_file: '送检结果-卷材.pdf',
+        },
+        {
+          material_name: '防水卷材',
+          material_spec: 'SBS 改性沥青防水卷材 4mm',
+          quantity: 300,
+          unit: '卷',
+          purpose: '地下室侧墙',
+          use_part: '地下室防水',
+          waybill_no: 'YD-20260720-B',
+          batch_no: 'BATCH-20260720-B',
+          appearance_quality: '合格',
+          acceptance_result: '合格',
+          entry_date: '2026-07-27 14:10:00',
+          cert_file: '合格证-卷材-2.jpg',
+          inspect_file: '质检报告-卷材-2.pdf',
+          photo_file: '进场现场-卷材-2.jpg',
+          other_file: '',
         },
       ],
-      cert_file: '合格证-卷材.pdf',
-      inspect_file: '质检报告-卷材.pdf',
-      photo_file: '进场现场-卷材.jpg',
-      inspect_result_checked: false,
-      inspect_result_file: '',
+      cert_file: '合格证-卷材-1.jpg',
+      inspect_file: '质检报告-卷材-1.pdf',
+      photo_file: '进场现场-卷材-1.jpg',
+      other_file: '出厂检验单-卷材.docx',
       status: 'reviewing',
       current_node: 'supervisor',
       applicant_name: '施工-李工',
@@ -295,13 +337,13 @@ const store = reactive({
           unit: '吨',
           waybill_no: 'YD-STEEL-01',
           batch_no: 'BATCH-STEEL-01',
+          inspect_result_checked: false,
+          inspect_result_file: '',
         },
       ],
-      cert_file: '合格证-钢筋.pdf',
+      cert_file: '合格证-钢筋.jpg',
       inspect_file: '质检报告-钢筋.pdf',
       photo_file: '进场-钢筋.jpg',
-      inspect_result_checked: false,
-      inspect_result_file: '',
       status: 'approved',
       current_node: 'none',
       applicant_name: '施工-赵工',
@@ -337,13 +379,13 @@ const store = reactive({
           unit: '卷',
           waybill_no: 'YD-REJECT-01',
           batch_no: 'BATCH-REJECT-01',
+          inspect_result_checked: false,
+          inspect_result_file: '',
         },
       ],
-      cert_file: '合格证-卷材-驳回.pdf',
+      cert_file: '合格证-卷材-驳回.jpg',
       inspect_file: '质检报告-卷材-驳回.pdf',
       photo_file: '进场-卷材-驳回.jpg',
-      inspect_result_checked: false,
-      inspect_result_file: '',
       status: 'rejected',
       current_node: 'none',
       applicant_name: '施工-李工',
@@ -373,17 +415,37 @@ const store = reactive({
       unit: '台',
       supplier: '施耐德授权经销商',
       serial_no: 'SN-BLK-202607',
+      line_items: [
+        {
+          equipment_name: '低压开关柜',
+          material_name: '低压开关柜',
+          model: 'Blokset',
+          quantity: 4,
+          unit: '台',
+          serial_no: 'SN-BLK-202607',
+          use_part: '变配电所',
+          cert_file: '合格证-开关柜.jpg',
+          inspect_file: '质检报告-开关柜.pdf',
+          photo_file: '到场现场-开关柜.jpg',
+          inspect_result_checked: true,
+          inspect_result_file: '送检结果-开关柜.pdf',
+          unpack_items: [
+            { key: 'nameplate', label: '铭牌', fixed: true, ok: true, remark: '' },
+            { key: 'tools', label: '随机工具', fixed: true, ok: true, remark: '' },
+            { key: 'manual', label: '技术手册', fixed: true, ok: true, remark: '' },
+            { key: 'parts', label: '配件完备性', fixed: true, ok: true, remark: '' },
+          ],
+        },
+      ],
       unpack_items: [
         { key: 'nameplate', label: '铭牌', fixed: true, ok: true, remark: '' },
         { key: 'tools', label: '随机工具', fixed: true, ok: true, remark: '' },
         { key: 'manual', label: '技术手册', fixed: true, ok: true, remark: '' },
         { key: 'parts', label: '配件完备性', fixed: true, ok: true, remark: '' },
       ],
-      cert_file: '合格证-开关柜.pdf',
+      cert_file: '合格证-开关柜.jpg',
       inspect_file: '质检报告-开关柜.pdf',
       photo_file: '到场现场-开关柜.jpg',
-      inspect_result_checked: true,
-      inspect_result_file: '送检结果-开关柜.pdf',
       status: 'approved',
       current_node: 'none',
       applicant_name: '施工-王工',
@@ -413,17 +475,69 @@ const store = reactive({
       unit: '台',
       supplier: '正泰项目供应部',
       serial_no: 'SN-NXB-0728',
+      line_items: [
+        {
+          equipment_name: '配电箱',
+          material_name: '配电箱',
+          model: 'NXB',
+          quantity: 8,
+          unit: '台',
+          serial_no: 'SN-NXB-0728-A',
+          purpose: '商业区配电',
+          use_part: '商业区配电间',
+          waybill_no: 'YD-EQ-0728-A',
+          batch_no: 'BATCH-EQ-0728-A',
+          appearance_quality: '合格',
+          acceptance_result: '合格',
+          entry_date: '2026-07-28 10:00:00',
+          cert_file: '合格证-配电箱-1.jpg',
+          inspect_file: '质检报告-配电箱-1.pdf',
+          photo_file: '到场现场-配电箱-1.jpg',
+          other_file: '',
+          unpack_items: [
+            { key: 'nameplate', label: '铭牌', fixed: true, ok: true, remark: '' },
+            { key: 'tools', label: '随机工具', fixed: true, ok: false, remark: '缺扳手一套' },
+            { key: 'manual', label: '技术手册', fixed: true, ok: true, remark: '' },
+            { key: 'parts', label: '配件完备性', fixed: true, ok: true, remark: '' },
+          ],
+          inspect_result_checked: true,
+          inspect_result_file: '送检结果-配电箱.pdf',
+        },
+        {
+          equipment_name: '配电箱',
+          material_name: '配电箱',
+          model: 'NXB-Ⅱ',
+          quantity: 4,
+          unit: '台',
+          serial_no: 'SN-NXB-0728-B',
+          purpose: '备用回路',
+          use_part: '商业区配电间',
+          waybill_no: 'YD-EQ-0728-B',
+          batch_no: 'BATCH-EQ-0728-B',
+          appearance_quality: '合格',
+          acceptance_result: '合格',
+          entry_date: '2026-07-28 10:05:00',
+          cert_file: '合格证-配电箱-2.jpg',
+          inspect_file: '质检报告-配电箱-2.pdf',
+          photo_file: '到场现场-配电箱-2.jpg',
+          other_file: '装箱单-配电箱.pdf',
+          unpack_items: [
+            { key: 'nameplate', label: '铭牌', fixed: true, ok: true, remark: '' },
+            { key: 'tools', label: '随机工具', fixed: true, ok: true, remark: '' },
+            { key: 'manual', label: '技术手册', fixed: true, ok: true, remark: '' },
+            { key: 'parts', label: '配件完备性', fixed: true, ok: true, remark: '' },
+          ],
+        },
+      ],
       unpack_items: [
         { key: 'nameplate', label: '铭牌', fixed: true, ok: true, remark: '' },
         { key: 'tools', label: '随机工具', fixed: true, ok: false, remark: '缺扳手一套' },
         { key: 'manual', label: '技术手册', fixed: true, ok: true, remark: '' },
         { key: 'parts', label: '配件完备性', fixed: true, ok: true, remark: '' },
       ],
-      cert_file: '合格证-配电箱.pdf',
-      inspect_file: '质检报告-配电箱.pdf',
-      photo_file: '到场现场-配电箱.jpg',
-      inspect_result_checked: false,
-      inspect_result_file: '',
+      cert_file: '合格证-配电箱-1.jpg',
+      inspect_file: '质检报告-配电箱-1.pdf',
+      photo_file: '到场现场-配电箱-1.jpg',
       status: 'reviewing',
       current_node: 'supervisor',
       applicant_name: '施工-李工',
@@ -459,11 +573,9 @@ const store = reactive({
         { key: 'manual', label: '技术手册', fixed: true, ok: true, remark: '' },
         { key: 'parts', label: '配件完备性', fixed: true, ok: true, remark: '' },
       ],
-      cert_file: '合格证-发电机.pdf',
+      cert_file: '合格证-发电机.jpg',
       inspect_file: '质检报告-发电机.pdf',
       photo_file: '到场现场-发电机.jpg',
-      inspect_result_checked: false,
-      inspect_result_file: '',
       status: 'approved',
       current_node: 'none',
       applicant_name: '施工-王工',
@@ -546,7 +658,7 @@ const store = reactive({
   approvalSeq: 5,
 })
 
-/** 进场申请列表：默认项目补齐全部业务状态示例（待审批 / 已通过 / 已驳回 / 已撤回） */
+/** 进场申请列表：默认项目补齐全部业务状态示例（审批中 / 已通过 / 已驳回） */
 function seedDemoEntriesForAllStatus() {
   const project_id = 'p-000'
   const extraEntries = [
@@ -575,14 +687,14 @@ function seedDemoEntriesForAllStatus() {
           unit: '吨',
           waybill_no: 'YD-MORTAR-WD',
           batch_no: 'BATCH-MORTAR-WD',
+          inspect_result_checked: false,
+          inspect_result_file: '',
         },
       ],
-      cert_file: '合格证-砂浆.pdf',
+      cert_file: '合格证-砂浆.jpg',
       inspect_file: '质检报告-砂浆.pdf',
       photo_file: '进场现场-砂浆.jpg',
-      inspect_result_checked: false,
-      inspect_result_file: '',
-      status: 'withdrawn',
+      status: 'rejected',
       current_node: 'none',
       applicant_name: '施工-王工',
       supervisor_approver_user_id: 'u-jl-01',
@@ -592,7 +704,7 @@ function seedDemoEntriesForAllStatus() {
       submit_time: '2026-08-12 09:40:00',
       finish_time: '2026-08-12 11:20:00',
       exited: false,
-      remark: '演示：已撤回，可重新编辑同号提交',
+      remark: '演示：已驳回，可复制新建重新报审',
     },
     {
       entry_id: 'ME-009',
@@ -611,18 +723,38 @@ function seedDemoEntriesForAllStatus() {
       unit: '台',
       supplier: '施耐德授权经销商',
       serial_no: 'SN-BLK-WD-0812',
+      line_items: [
+        {
+          equipment_name: '低压开关柜',
+          material_name: '低压开关柜',
+          model: 'Blokset',
+          quantity: 2,
+          unit: '台',
+          serial_no: 'SN-BLK-WD-0812',
+          use_part: '变配电所',
+          cert_file: '合格证-开关柜-驳回.jpg',
+          inspect_file: '质检报告-开关柜-驳回.pdf',
+          photo_file: '到场现场-开关柜-驳回.jpg',
+          inspect_result_checked: false,
+          inspect_result_file: '',
+          unpack_items: [
+            { key: 'nameplate', label: '铭牌', fixed: true, ok: true, remark: '' },
+            { key: 'tools', label: '随机工具', fixed: true, ok: true, remark: '' },
+            { key: 'manual', label: '技术手册', fixed: true, ok: false, remark: '手册待补' },
+            { key: 'parts', label: '配件完备性', fixed: true, ok: true, remark: '' },
+          ],
+        },
+      ],
       unpack_items: [
         { key: 'nameplate', label: '铭牌', fixed: true, ok: true, remark: '' },
         { key: 'tools', label: '随机工具', fixed: true, ok: true, remark: '' },
         { key: 'manual', label: '技术手册', fixed: true, ok: false, remark: '手册待补' },
         { key: 'parts', label: '配件完备性', fixed: true, ok: true, remark: '' },
       ],
-      cert_file: '合格证-开关柜-撤回.pdf',
-      inspect_file: '质检报告-开关柜-撤回.pdf',
-      photo_file: '到场现场-开关柜-撤回.jpg',
-      inspect_result_checked: false,
-      inspect_result_file: '',
-      status: 'withdrawn',
+      cert_file: '合格证-开关柜-驳回.jpg',
+      inspect_file: '质检报告-开关柜-驳回.pdf',
+      photo_file: '到场现场-开关柜-驳回.jpg',
+      status: 'rejected',
       current_node: 'none',
       applicant_name: '施工-李工',
       supervisor_approver_user_id: 'u-jl-01',
@@ -632,7 +764,7 @@ function seedDemoEntriesForAllStatus() {
       submit_time: '2026-08-11 14:00:00',
       finish_time: '2026-08-11 15:10:00',
       exited: false,
-      remark: '演示：设备已撤回，可重新编辑同号提交',
+      remark: '演示：设备已驳回，可复制新建重新报审',
     },
     {
       entry_id: 'ME-010',
@@ -651,17 +783,37 @@ function seedDemoEntriesForAllStatus() {
       unit: '台',
       supplier: '正泰项目供应部',
       serial_no: 'SN-NXB-RJ-0810',
+      line_items: [
+        {
+          equipment_name: '配电箱',
+          material_name: '配电箱',
+          model: 'NXB',
+          quantity: 6,
+          unit: '台',
+          serial_no: 'SN-NXB-RJ-0810',
+          use_part: '商业区配电间',
+          cert_file: '合格证-配电箱-驳回.jpg',
+          inspect_file: '质检报告-配电箱-驳回.pdf',
+          photo_file: '到场现场-配电箱-驳回.jpg',
+          inspect_result_checked: false,
+          inspect_result_file: '',
+          unpack_items: [
+            { key: 'nameplate', label: '铭牌', fixed: true, ok: true, remark: '' },
+            { key: 'tools', label: '随机工具', fixed: true, ok: false, remark: '缺绝缘手套' },
+            { key: 'manual', label: '技术手册', fixed: true, ok: true, remark: '' },
+            { key: 'parts', label: '配件完备性', fixed: true, ok: false, remark: '缺备用熔芯' },
+          ],
+        },
+      ],
       unpack_items: [
         { key: 'nameplate', label: '铭牌', fixed: true, ok: true, remark: '' },
         { key: 'tools', label: '随机工具', fixed: true, ok: false, remark: '缺绝缘手套' },
         { key: 'manual', label: '技术手册', fixed: true, ok: true, remark: '' },
         { key: 'parts', label: '配件完备性', fixed: true, ok: false, remark: '缺备用熔芯' },
       ],
-      cert_file: '合格证-配电箱-驳回.pdf',
+      cert_file: '合格证-配电箱-驳回.jpg',
       inspect_file: '质检报告-配电箱-驳回.pdf',
       photo_file: '到场现场-配电箱-驳回.jpg',
-      inspect_result_checked: false,
-      inspect_result_file: '',
       status: 'rejected',
       current_node: 'none',
       applicant_name: '施工-赵工',
@@ -680,19 +832,19 @@ function seedDemoEntriesForAllStatus() {
     {
       approval_id: 'AR-ME-6',
       entry_id: 'ME-008',
-      node: 'applicant',
-      action: 'withdraw',
-      opinion: '申请人撤回，拟核对砂浆批次后再报',
-      operator: '施工-王工',
+      node: 'supervisor',
+      action: 'reject',
+      opinion: '砂浆批次资料不全，请复制新建后补齐再报',
+      operator: '监理-周工',
       time: '2026-08-12 11:20:00',
     },
     {
       approval_id: 'AR-ME-7',
       entry_id: 'ME-009',
-      node: 'applicant',
-      action: 'withdraw',
-      opinion: '申请人撤回，技术手册未到齐',
-      operator: '施工-李工',
+      node: 'supervisor',
+      action: 'reject',
+      opinion: '技术手册未到齐，请复制新建后补齐再报',
+      operator: '监理-周工',
       time: '2026-08-11 15:10:00',
     },
     {
@@ -1059,8 +1211,6 @@ export function buildCopyPayloadFromRejectedMat(entryId) {
       inspect_file: entry.inspect_file || '',
       photo_file: entry.photo_file || '',
       other_file: entry.other_file || '',
-      inspect_result_checked: !!entry.inspect_result_checked,
-      inspect_result_file: entry.inspect_result_file || '',
       supervisor_approver_user_id: entry.supervisor_approver_user_id || '',
       supervisor_approver_name: entry.supervisor_approver_name || '',
       supervisor_approver_post: entry.supervisor_approver_post || '',
@@ -1069,49 +1219,9 @@ export function buildCopyPayloadFromRejectedMat(entryId) {
   }
 }
 
-/** 已撤回进场单重新编辑预填 */
-export function buildReEditPayloadFromWithdrawnMat(entryId) {
-  const entry = store.entries.find((e) => e.entry_id === entryId)
-  if (!entry) return { ok: false, msg: '单据不存在' }
-  if (entry.status !== 'withdrawn') return { ok: false, msg: '仅已撤回单可重新编辑' }
-  syncSampleAlias(entry)
-  return {
-    ok: true,
-    data: {
-      entry_id: entry.entry_id,
-      entry_type: entry.entry_type,
-      sample_application_id: entry.sample_application_id || '',
-      ledger_id: entry.ledger_id || '',
-      brand_name: entry.brand_name,
-      manufacturer: entry.manufacturer,
-      material_name: entry.material_name || '',
-      equipment_name: entry.equipment_name || '',
-      model: entry.model || '',
-      use_part: entry.use_part || '',
-      location_id: entry.location_id || '',
-      location_ids: Array.isArray(entry.location_ids) ? [...entry.location_ids] : [],
-      supplier: entry.supplier || '',
-      line_items: Array.isArray(entry.line_items)
-        ? entry.line_items.map((l) => ({ ...l }))
-        : [],
-      unpack_items: Array.isArray(entry.unpack_items)
-        ? entry.unpack_items.map((i) => ({ ...i }))
-        : createDefaultUnpackItems(),
-      quantity: entry.quantity,
-      unit: entry.unit,
-      serial_no: entry.serial_no || '',
-      cert_file: entry.cert_file || '',
-      inspect_file: entry.inspect_file || '',
-      photo_file: entry.photo_file || '',
-      other_file: entry.other_file || '',
-      inspect_result_checked: !!entry.inspect_result_checked,
-      inspect_result_file: entry.inspect_result_file || '',
-      supervisor_approver_user_id: entry.supervisor_approver_user_id || '',
-      supervisor_approver_name: entry.supervisor_approver_name || '',
-      supervisor_approver_post: entry.supervisor_approver_post || '',
-      supervisor_approver_post_label: entry.supervisor_approver_post_label || '',
-    },
-  }
+/** @deprecated 已取消同单号重新编辑；请从已驳回单复制新建 */
+export function buildReEditPayloadFromWithdrawnMat(_entryId) {
+  return { ok: false, msg: '不支持同单号重新编辑，请从已驳回单复制新建' }
 }
 
 function prepareEntryFields(payload) {
@@ -1191,6 +1301,10 @@ function prepareEntryFields(payload) {
           inspect_file: payload.inspect_file || '',
           photo_file: payload.photo_file || '',
           other_file: payload.other_file || '',
+          inspect_result_checked: !!payload.inspect_result_checked,
+          inspect_result_file: payload.inspect_result_checked
+            ? payload.inspect_result_file || ''
+            : '',
           unpack_items: Array.isArray(payload.unpack_items) ? payload.unpack_items : [],
         },
       ]
@@ -1232,9 +1346,25 @@ function prepareEntryFields(payload) {
       const inspect_file = String(row.inspect_file || payload.inspect_file || '').trim()
       const photo_file = String(row.photo_file || payload.photo_file || '').trim()
       const other_file = String(row.other_file || '').trim()
+      const inspect_result_checked = !!row.inspect_result_checked
+      const inspect_result_file = inspect_result_checked
+        ? String(row.inspect_result_file || '').trim()
+        : ''
       if (!cert_file) return { ok: false, msg: `设备明细第 ${i + 1} 组请上传合格证` }
+      if (!isImageAttachmentName(cert_file)) {
+        return { ok: false, msg: `设备明细第 ${i + 1} 组合格证仅支持图片` }
+      }
       if (!inspect_file) return { ok: false, msg: `设备明细第 ${i + 1} 组请上传质量证明文件` }
+      if (!isPdfAttachmentName(inspect_file)) {
+        return { ok: false, msg: `设备明细第 ${i + 1} 组质量证明文件仅支持 PDF` }
+      }
       if (!photo_file) return { ok: false, msg: `设备明细第 ${i + 1} 组请上传现场照片` }
+      if (!isImageAttachmentName(photo_file)) {
+        return { ok: false, msg: `设备明细第 ${i + 1} 组现场照片仅支持图片` }
+      }
+      if (other_file && !isOtherAttachmentName(other_file)) {
+        return { ok: false, msg: `设备明细第 ${i + 1} 组其他附件仅支持 jpg / png / pdf / word` }
+      }
       const unpack_items = Array.isArray(row.unpack_items) ? row.unpack_items : []
       if (!unpack_items.length) return { ok: false, msg: `设备明细第 ${i + 1} 组请完成开箱清单` }
       const missingFixed = UNPACK_FIXED.some(
@@ -1266,6 +1396,8 @@ function prepareEntryFields(payload) {
         inspect_file,
         photo_file,
         other_file,
+        inspect_result_checked,
+        inspect_result_file,
         unpack_items: unpack_items.map((item) => ({
           key: item.key,
           label: item.label,
@@ -1322,8 +1454,6 @@ function prepareEntryFields(payload) {
         inspect_file: first.inspect_file,
         photo_file: first.photo_file,
         other_file: first.other_file || '',
-        inspect_result_checked: !!payload.inspect_result_checked,
-        inspect_result_file: payload.inspect_result_checked ? payload.inspect_result_file || '' : '',
         supervisor_approver_user_id,
         supervisor_approver_name,
         supervisor_approver_post,
@@ -1373,9 +1503,25 @@ function prepareEntryFields(payload) {
     const inspect_file = String(row.inspect_file || payload.inspect_file || '').trim()
     const photo_file = String(row.photo_file || payload.photo_file || '').trim()
     const other_file = String(row.other_file || '').trim()
+    const inspect_result_checked = !!row.inspect_result_checked
+    const inspect_result_file = inspect_result_checked
+      ? String(row.inspect_result_file || '').trim()
+      : ''
     if (!cert_file) return { ok: false, msg: `进场明细第 ${i + 1} 组请上传合格证` }
+    if (!isImageAttachmentName(cert_file)) {
+      return { ok: false, msg: `进场明细第 ${i + 1} 组合格证仅支持图片` }
+    }
     if (!inspect_file) return { ok: false, msg: `进场明细第 ${i + 1} 组请上传质量证明文件` }
+    if (!isPdfAttachmentName(inspect_file)) {
+      return { ok: false, msg: `进场明细第 ${i + 1} 组质量证明文件仅支持 PDF` }
+    }
     if (!photo_file) return { ok: false, msg: `进场明细第 ${i + 1} 组请上传现场照片` }
+    if (!isImageAttachmentName(photo_file)) {
+      return { ok: false, msg: `进场明细第 ${i + 1} 组现场照片仅支持图片` }
+    }
+    if (other_file && !isOtherAttachmentName(other_file)) {
+      return { ok: false, msg: `进场明细第 ${i + 1} 组其他附件仅支持 jpg / png / pdf / word` }
+    }
     const rowLocationIds = Array.isArray(row.location_ids)
       ? row.location_ids.map(String).filter(Boolean)
       : []
@@ -1398,6 +1544,8 @@ function prepareEntryFields(payload) {
       inspect_file,
       photo_file,
       other_file,
+      inspect_result_checked,
+      inspect_result_file,
     })
   }
 
@@ -1446,8 +1594,6 @@ function prepareEntryFields(payload) {
       inspect_file: first.inspect_file,
       photo_file: first.photo_file,
       other_file: first.other_file || '',
-      inspect_result_checked: !!payload.inspect_result_checked,
-      inspect_result_file: payload.inspect_result_checked ? payload.inspect_result_file || '' : '',
       supervisor_approver_user_id,
       supervisor_approver_name,
       supervisor_approver_post,
@@ -1456,10 +1602,9 @@ function prepareEntryFields(payload) {
   }
 }
 
-/** @deprecated 请使用 resubmitWithdrawnEntry */
-export function resubmitEntry(entryId, payload) {
-  if (entryId && payload) return resubmitWithdrawnEntry(entryId, payload)
-  return { ok: false, msg: '请使用重新编辑提交已撤回单' }
+/** @deprecated 已取消同单号重提；请 submitEntry 从驳回单复制新建 */
+export function resubmitEntry(_entryId, _payload) {
+  return { ok: false, msg: '不支持同单号重新提交，请从已驳回单复制新建' }
 }
 
 /** @deprecated 兼容旧调用 */
@@ -1508,64 +1653,14 @@ export function submitEntry(payload) {
   return { ok: true, data: entry }
 }
 
-/** 已撤回原单重新提交 → 待审批（同单号） */
-export function resubmitWithdrawnEntry(entryId, payload) {
-  const entry = store.entries.find((e) => e.entry_id === entryId)
-  if (!entry) return { ok: false, msg: '单据不存在' }
-  if (entry.status !== 'withdrawn') return { ok: false, msg: '仅已撤回单可重新编辑提交' }
-
-  const prepared = prepareEntryFields({
-    ...payload,
-    project_id: payload.project_id || entry.project_id,
-  })
-  if (!prepared.ok) return prepared
-  const { fields } = prepared
-  if (fields.project_id !== entry.project_id) return { ok: false, msg: '不可跨项目重提' }
-
-  Object.assign(entry, fields, {
-    status: 'reviewing',
-    current_node: 'supervisor',
-    applicant_name: payload.applicant_name || entry.applicant_name || '当前用户',
-    submit_time: nowStr(),
-    finish_time: '',
-  })
-  if (fields.entry_type === 'equipment') {
-    // 设备明细保留 line_items
-  } else {
-    delete entry.unpack_items
-    delete entry.serial_no
-    delete entry.model
-    delete entry.equipment_name
-  }
-
-  store.approvalSeq += 1
-  store.approvals.push({
-    approval_id: `AR-ME-${store.approvalSeq}`,
-    entry_id: entryId,
-    node: 'applicant',
-    action: 'submit',
-    opinion: '撤回后重新提交',
-    operator: entry.applicant_name,
-    time: nowStr(),
-  })
-  discardMatEntryTodos(entryId)
-  discardEqEntryTodos(entryId)
-  pushTodo(entry)
-  return { ok: true, data: entry }
+/** @deprecated 已取消同单号重提；请 submitEntry 从驳回单复制新建 */
+export function resubmitWithdrawnEntry(_entryId, _payload) {
+  return { ok: false, msg: '不支持同单号重新提交，请从已驳回单复制新建' }
 }
 
-export function withdrawEntry(entryId) {
-  const entry = store.entries.find((e) => e.entry_id === entryId)
-  if (!entry) return { ok: false, msg: '单据不存在' }
-  if (entry.status !== 'reviewing' && entry.status !== 'pending_review') {
-    return { ok: false, msg: '仅待审批时可撤回' }
-  }
-  entry.status = 'withdrawn'
-  entry.current_node = 'none'
-  entry.finish_time = nowStr()
-  discardMatEntryTodos(entryId)
-  discardEqEntryTodos(entryId)
-  return { ok: true }
+/** 进场申请不再支持撤回 */
+export function withdrawEntry(_entryId) {
+  return { ok: false, msg: '不支持撤回' }
 }
 
 export function supervisorApproveEntry(entryId, { action, opinion } = {}) {

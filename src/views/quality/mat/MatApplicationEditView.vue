@@ -10,7 +10,6 @@ import {
   ENTRY_TYPE_LABEL,
   QUALITY_RESULT_OPTIONS,
   buildCopyPayloadFromRejectedMat,
-  buildReEditPayloadFromWithdrawnMat,
   createDefaultUnpackItems,
   findMatSupervisorApprover,
   listApprovedSamples,
@@ -20,7 +19,6 @@ import {
   parseBatchSeq,
   searchEntryBrands,
   submitEntry,
-  resubmitWithdrawnEntry,
 } from '../../../mock/mat.js'
 
 const route = useRoute()
@@ -28,8 +26,6 @@ const router = useRouter()
 const { isHqSelected, scopeProjectId, scopeProjectLabel } = useQmProjectScope()
 
 const copyFromId = ref(String(route.query.copyFrom || ''))
-const reEditId = ref(String(route.query.id || ''))
-const isReEdit = ref(route.query.reEdit === '1' || route.query.mode === 'resubmit')
 const entryType = ref(
   route.query.entry_type === 'equipment' ? 'equipment' : 'material',
 )
@@ -53,8 +49,6 @@ const form = reactive({
   inspect_file: '',
   photo_file: '',
   other_file: '',
-  inspect_result_checked: false,
-  inspect_result_file: '',
   supervisor_approver_user_id: '',
   supervisor_approver_name: '',
 })
@@ -97,6 +91,8 @@ function emptyLine() {
     inspect_file: '',
     photo_file: '',
     other_file: '',
+    inspect_result_checked: false,
+    inspect_result_file: '',
   }
 }
 
@@ -121,6 +117,8 @@ function emptyEquipmentLine() {
     inspect_file: '',
     photo_file: '',
     other_file: '',
+    inspect_result_checked: false,
+    inspect_result_file: '',
     unpack_items: createDefaultUnpackItems(),
   }
 }
@@ -149,6 +147,8 @@ function mapEquipmentLineFromData(l, data) {
   row.inspect_file = l.inspect_file || ''
   row.photo_file = l.photo_file || ''
   row.other_file = l.other_file || ''
+  row.inspect_result_checked = !!l.inspect_result_checked
+  row.inspect_result_file = l.inspect_result_file || ''
   if (Array.isArray(l.unpack_items) && l.unpack_items.length) {
     row.unpack_items = l.unpack_items.map((i) => ({ ...i }))
   }
@@ -178,6 +178,8 @@ function mapLineFromData(l, data) {
   row.inspect_file = l.inspect_file || ''
   row.photo_file = l.photo_file || ''
   row.other_file = l.other_file || ''
+  row.inspect_result_checked = !!l.inspect_result_checked
+  row.inspect_result_file = l.inspect_result_file || ''
   return row
 }
 
@@ -248,7 +250,7 @@ const materialNameOptions = computed(() => {
 })
 
 const pageTitle = computed(() => {
-  if (isReEdit.value || copyFromId.value) return '重新申报进场申请'
+  if (copyFromId.value) return '重新报审进场申请'
   return '进场申报'
 })
 
@@ -383,8 +385,6 @@ function applyCopyPayload(data) {
   form.inspect_file = data.inspect_file || ''
   form.photo_file = data.photo_file || ''
   form.other_file = data.other_file || ''
-  form.inspect_result_checked = !!data.inspect_result_checked
-  form.inspect_result_file = data.inspect_result_file || ''
   form.supervisor_approver_user_id = data.supervisor_approver_user_id || ''
   form.supervisor_approver_name = data.supervisor_approver_name || ''
   if (data.line_items?.length) {
@@ -396,6 +396,10 @@ function applyCopyPayload(data) {
           if (!row.inspect_file) row.inspect_file = data.inspect_file || ''
           if (!row.photo_file) row.photo_file = data.photo_file || ''
           if (!row.other_file) row.other_file = data.other_file || ''
+          if (!row.inspect_result_checked && data.inspect_result_checked) {
+            row.inspect_result_checked = true
+            row.inspect_result_file = data.inspect_result_file || ''
+          }
           if (!row.unpack_items?.length && data.unpack_items?.length) {
             row.unpack_items = data.unpack_items.map((i) => ({ ...i }))
           }
@@ -410,6 +414,10 @@ function applyCopyPayload(data) {
           if (!row.inspect_file) row.inspect_file = data.inspect_file || ''
           if (!row.photo_file) row.photo_file = data.photo_file || ''
           if (!row.other_file) row.other_file = data.other_file || ''
+          if (!row.inspect_result_checked && data.inspect_result_checked) {
+            row.inspect_result_checked = true
+            row.inspect_result_file = data.inspect_result_file || ''
+          }
         }
         return row
       })
@@ -425,6 +433,8 @@ function applyCopyPayload(data) {
         waybill_no: data.waybill_no,
         batch_no: data.batch_no,
         unpack_items: data.unpack_items,
+        inspect_result_checked: data.inspect_result_checked,
+        inspect_result_file: data.inspect_result_file,
       },
       data,
     )
@@ -442,6 +452,8 @@ function applyCopyPayload(data) {
         unit: data.unit,
         waybill_no: data.waybill_no,
         batch_no: data.batch_no,
+        inspect_result_checked: data.inspect_result_checked,
+        inspect_result_file: data.inspect_result_file,
       },
       data,
     )
@@ -455,18 +467,6 @@ function applyCopyPayload(data) {
 
 onMounted(() => {
   if (route.query.entry_type === 'equipment') entryType.value = 'equipment'
-  if (isReEdit.value && reEditId.value) {
-    const r = buildReEditPayloadFromWithdrawnMat(reEditId.value)
-    if (!r.ok) {
-      ElMessage.error(r.msg)
-      isReEdit.value = false
-      reEditId.value = ''
-      return
-    }
-    applyCopyPayload(r.data)
-    ElMessage.success(`已载入撤回单 ${reEditId.value}，修改后提交将回到待审批`)
-    return
-  }
   if (!copyFromId.value) return
   const r = buildCopyPayloadFromRejectedMat(copyFromId.value)
   if (!r.ok) {
@@ -476,6 +476,7 @@ onMounted(() => {
     return
   }
   applyCopyPayload(r.data)
+  ElMessage.success(`已从驳回单 ${copyFromId.value} 预填，提交将生成新单`)
 })
 
 function addEquipmentLine() {
@@ -502,9 +503,67 @@ function removeEntryLine(idx) {
   entryLines.value.splice(idx, 1)
 }
 
+function isImageUploadFile(file) {
+  const name = String(file?.name || '').toLowerCase()
+  const byExt = /\.(jpe?g|png)$/i.test(name)
+  const type = String(file?.type || '')
+  const byMime = type === 'image/jpeg' || type === 'image/png'
+  return byExt || byMime
+}
+
+function isPdfUploadFile(file) {
+  const name = String(file?.name || '').toLowerCase()
+  const type = String(file?.type || '')
+  return /\.pdf$/i.test(name) || type === 'application/pdf'
+}
+
+function isOtherUploadFile(file) {
+  const name = String(file?.name || '').toLowerCase()
+  const type = String(file?.type || '')
+  if (/\.(jpe?g|png|pdf|docx?)$/i.test(name)) return true
+  return (
+    type === 'image/jpeg' ||
+    type === 'image/png' ||
+    type === 'application/pdf' ||
+    type === 'application/msword' ||
+    type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  )
+}
+
+function validateAttachField(field, file) {
+  if (field === 'cert_file' || field === 'photo_file') {
+    if (!isImageUploadFile(file)) {
+      return field === 'cert_file'
+        ? '合格证仅支持上传图片（jpg / png）'
+        : '现场照片仅支持上传图片（jpg / png）'
+    }
+    return ''
+  }
+  if (field === 'inspect_file') {
+    if (!isPdfUploadFile(file)) return '质量证明文件仅支持 PDF'
+    return ''
+  }
+  if (field === 'other_file') {
+    if (!isOtherUploadFile(file)) return '其他仅支持 jpg / png / pdf / word'
+    return ''
+  }
+  if (field === 'inspect_result_file') {
+    if (!isImageUploadFile(file) && !isPdfUploadFile(file)) {
+      return '送检附件仅支持图片或 PDF'
+    }
+    return ''
+  }
+  return ''
+}
+
 function onPickLineFile(row, field, uploadFile) {
   const file = uploadFile.raw || uploadFile
   if (!file) return false
+  const err = validateAttachField(field, file)
+  if (err) {
+    ElMessage.warning(err)
+    return false
+  }
   if (file.size > 30 * 1024 * 1024) {
     ElMessage.warning('单个文件不超过 30MB')
     return false
@@ -517,6 +576,11 @@ function onPickLineFile(row, field, uploadFile) {
 function onPickFormFile(field, uploadFile) {
   const file = uploadFile.raw || uploadFile
   if (!file) return false
+  const err = validateAttachField(field, file)
+  if (err) {
+    ElMessage.warning(err)
+    return false
+  }
   if (file.size > 30 * 1024 * 1024) {
     ElMessage.warning('单个文件不超过 30MB')
     return false
@@ -613,6 +677,8 @@ function onSubmit() {
         inspect_file: row.inspect_file,
         photo_file: row.photo_file,
         other_file: row.other_file || '',
+        inspect_result_checked: !!row.inspect_result_checked,
+        inspect_result_file: row.inspect_result_checked ? row.inspect_result_file || '' : '',
         unpack_items: row.unpack_items.map((item) => ({ ...item })),
       })
     }
@@ -633,17 +699,12 @@ function onSubmit() {
       unpack_items: first.unpack_items,
       line_items,
     }
-    const r =
-      isReEdit.value && reEditId.value
-        ? resubmitWithdrawnEntry(reEditId.value, submitPayload)
-        : submitEntry(submitPayload)
+    const r = submitEntry(submitPayload)
     if (!r.ok) return ElMessage.error(r.msg)
     ElMessage.success(
-      isReEdit.value
-        ? `已重新申报 ${r.data.entry_id}，状态已回到待监理审批`
-        : copyFromId.value
-          ? `已重新申报 ${r.data.entry_id}，进入待监理审批`
-          : `已提交 ${r.data.entry_id}，进入待监理审批`,
+      copyFromId.value
+        ? `已重新报审 ${r.data.entry_id}，进入审批中`
+        : `已提交 ${r.data.entry_id}，进入审批中`,
     )
     router.push('/qm/mat/applications')
     return
@@ -699,6 +760,8 @@ function onSubmit() {
       inspect_file: row.inspect_file,
       photo_file: row.photo_file,
       other_file: row.other_file || '',
+      inspect_result_checked: !!row.inspect_result_checked,
+      inspect_result_file: row.inspect_result_checked ? row.inspect_result_file || '' : '',
     })
   }
 
@@ -715,17 +778,12 @@ function onSubmit() {
     other_file: first.other_file || '',
     line_items,
   }
-  const r =
-    isReEdit.value && reEditId.value
-      ? resubmitWithdrawnEntry(reEditId.value, submitPayload)
-      : submitEntry(submitPayload)
+  const r = submitEntry(submitPayload)
   if (!r.ok) return ElMessage.error(r.msg)
   ElMessage.success(
-    isReEdit.value
-      ? `已重新申报 ${r.data.entry_id}，状态已回到待监理审批`
-      : copyFromId.value
-        ? `已重新申报 ${r.data.entry_id}，进入待监理审批`
-        : `已提交 ${r.data.entry_id}，进入待监理审批`,
+    copyFromId.value
+      ? `已重新报审 ${r.data.entry_id}，进入审批中`
+      : `已提交 ${r.data.entry_id}，进入审批中`,
   )
   router.push('/qm/mat/applications')
 }
@@ -734,14 +792,11 @@ function onSubmit() {
 <template>
   <div class="qm-page page-card">
     <div class="page-header">
-      <div class="page-breadcrumb">材料设备进场 / 进场申请 / {{ isReEdit || copyFromId ? '重新申报' : '新建' }}</div>
+      <div class="page-breadcrumb">材料设备进场 / 进场申请 / {{ copyFromId ? '重新报审' : '新建' }}</div>
       <div class="title-row">
         <h1 class="page-title">{{ pageTitle }}</h1>
-        <el-tag v-if="isReEdit && reEditId" size="small" type="success" effect="plain">
-          原单 {{ reEditId }}
-        </el-tag>
         <el-tag v-if="copyFromId" size="small" type="warning" effect="plain">
-          从驳回单 {{ copyFromId }} 复制
+          从驳回单 {{ copyFromId }} 复制新建
         </el-tag>
       </div>
       <p class="page-tip">
@@ -952,50 +1007,102 @@ function onSubmit() {
           <el-row :gutter="16">
             <el-col :span="12">
               <el-form-item label="合格证" required>
-                <el-upload
-                  :show-file-list="false"
-                  :before-upload="(f) => onPickLineFile(row, 'cert_file', f)"
-                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                >
-                  <el-button :icon="UploadFilled">上传</el-button>
-                </el-upload>
-                <span class="muted" style="margin-left: 8px">{{ row.cert_file || '未上传' }}</span>
+                <div class="attach-field">
+                  <div class="attach-upload-row">
+                    <el-upload
+                      :show-file-list="false"
+                      :before-upload="(f) => onPickLineFile(row, 'cert_file', f)"
+                      accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                    >
+                      <el-button :icon="UploadFilled">上传图片</el-button>
+                    </el-upload>
+                    <span class="attach-file-name" :class="{ 'is-empty': !row.cert_file }">
+                      {{ row.cert_file || '未上传' }}
+                    </span>
+                  </div>
+                  <p class="attach-format-tip">仅支持图片（jpg / png）</p>
+                </div>
               </el-form-item>
             </el-col>
             <el-col :span="12">
               <el-form-item label="质量证明文件" required>
-                <el-upload
-                  :show-file-list="false"
-                  :before-upload="(f) => onPickLineFile(row, 'inspect_file', f)"
-                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                >
-                  <el-button :icon="UploadFilled">上传</el-button>
-                </el-upload>
-                <span class="muted" style="margin-left: 8px">{{ row.inspect_file || '未上传' }}</span>
+                <div class="attach-field">
+                  <div class="attach-upload-row">
+                    <el-upload
+                      :show-file-list="false"
+                      :before-upload="(f) => onPickLineFile(row, 'inspect_file', f)"
+                      accept=".pdf,application/pdf"
+                    >
+                      <el-button :icon="UploadFilled">上传 PDF</el-button>
+                    </el-upload>
+                    <span class="attach-file-name" :class="{ 'is-empty': !row.inspect_file }">
+                      {{ row.inspect_file || '未上传' }}
+                    </span>
+                  </div>
+                  <p class="attach-format-tip">仅支持 PDF</p>
+                </div>
               </el-form-item>
             </el-col>
             <el-col :span="12">
               <el-form-item label="现场照片" required>
-                <el-upload
-                  :show-file-list="false"
-                  :before-upload="(f) => onPickLineFile(row, 'photo_file', f)"
-                  accept=".jpg,.jpeg,.png,.webp,.gif"
-                >
-                  <el-button :icon="UploadFilled">上传</el-button>
-                </el-upload>
-                <span class="muted" style="margin-left: 8px">{{ row.photo_file || '未上传' }}</span>
+                <div class="attach-field">
+                  <div class="attach-upload-row">
+                    <el-upload
+                      :show-file-list="false"
+                      :before-upload="(f) => onPickLineFile(row, 'photo_file', f)"
+                      accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                    >
+                      <el-button :icon="UploadFilled">上传图片</el-button>
+                    </el-upload>
+                    <span class="attach-file-name" :class="{ 'is-empty': !row.photo_file }">
+                      {{ row.photo_file || '未上传' }}
+                    </span>
+                  </div>
+                  <p class="attach-format-tip">仅支持图片（jpg / png）</p>
+                </div>
               </el-form-item>
             </el-col>
             <el-col :span="12">
               <el-form-item label="其他">
-                <el-upload
-                  :show-file-list="false"
-                  :before-upload="(f) => onPickLineFile(row, 'other_file', f)"
-                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.zip"
-                >
-                  <el-button :icon="UploadFilled">上传</el-button>
-                </el-upload>
-                <span class="muted" style="margin-left: 8px">{{ row.other_file || '未上传' }}</span>
+                <div class="attach-field">
+                  <div class="attach-upload-row">
+                    <el-upload
+                      :show-file-list="false"
+                      :before-upload="(f) => onPickLineFile(row, 'other_file', f)"
+                      accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,image/jpeg,image/png,application/pdf"
+                    >
+                      <el-button :icon="UploadFilled">上传</el-button>
+                    </el-upload>
+                    <span class="attach-file-name" :class="{ 'is-empty': !row.other_file }">
+                      {{ row.other_file || '未上传' }}
+                    </span>
+                  </div>
+                  <p class="attach-format-tip">支持 jpg / png / pdf / word</p>
+                </div>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="送检">
+                <el-checkbox v-model="row.inspect_result_checked">已完成送检</el-checkbox>
+              </el-form-item>
+            </el-col>
+            <el-col v-if="row.inspect_result_checked" :span="12">
+              <el-form-item label="送检附件">
+                <div class="attach-field">
+                  <div class="attach-upload-row">
+                    <el-upload
+                      :show-file-list="false"
+                      :before-upload="(f) => onPickLineFile(row, 'inspect_result_file', f)"
+                      accept="image/*,.pdf"
+                    >
+                      <el-button :icon="UploadFilled">上传</el-button>
+                    </el-upload>
+                    <span class="attach-file-name" :class="{ 'is-empty': !row.inspect_result_file }">
+                      {{ row.inspect_result_file || '选填' }}
+                    </span>
+                  </div>
+                  <p class="attach-format-tip">选填；支持图片 / PDF</p>
+                </div>
               </el-form-item>
             </el-col>
           </el-row>
@@ -1137,50 +1244,102 @@ function onSubmit() {
           <el-row :gutter="16">
             <el-col :span="12">
               <el-form-item label="合格证" required>
-                <el-upload
-                  :show-file-list="false"
-                  :before-upload="(f) => onPickLineFile(row, 'cert_file', f)"
-                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                >
-                  <el-button :icon="UploadFilled">上传</el-button>
-                </el-upload>
-                <span class="muted" style="margin-left: 8px">{{ row.cert_file || '未上传' }}</span>
+                <div class="attach-field">
+                  <div class="attach-upload-row">
+                    <el-upload
+                      :show-file-list="false"
+                      :before-upload="(f) => onPickLineFile(row, 'cert_file', f)"
+                      accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                    >
+                      <el-button :icon="UploadFilled">上传图片</el-button>
+                    </el-upload>
+                    <span class="attach-file-name" :class="{ 'is-empty': !row.cert_file }">
+                      {{ row.cert_file || '未上传' }}
+                    </span>
+                  </div>
+                  <p class="attach-format-tip">仅支持图片（jpg / png）</p>
+                </div>
               </el-form-item>
             </el-col>
             <el-col :span="12">
               <el-form-item label="质量证明文件" required>
-                <el-upload
-                  :show-file-list="false"
-                  :before-upload="(f) => onPickLineFile(row, 'inspect_file', f)"
-                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                >
-                  <el-button :icon="UploadFilled">上传</el-button>
-                </el-upload>
-                <span class="muted" style="margin-left: 8px">{{ row.inspect_file || '未上传' }}</span>
+                <div class="attach-field">
+                  <div class="attach-upload-row">
+                    <el-upload
+                      :show-file-list="false"
+                      :before-upload="(f) => onPickLineFile(row, 'inspect_file', f)"
+                      accept=".pdf,application/pdf"
+                    >
+                      <el-button :icon="UploadFilled">上传 PDF</el-button>
+                    </el-upload>
+                    <span class="attach-file-name" :class="{ 'is-empty': !row.inspect_file }">
+                      {{ row.inspect_file || '未上传' }}
+                    </span>
+                  </div>
+                  <p class="attach-format-tip">仅支持 PDF</p>
+                </div>
               </el-form-item>
             </el-col>
             <el-col :span="12">
               <el-form-item label="现场照片" required>
-                <el-upload
-                  :show-file-list="false"
-                  :before-upload="(f) => onPickLineFile(row, 'photo_file', f)"
-                  accept=".jpg,.jpeg,.png,.webp,.gif"
-                >
-                  <el-button :icon="UploadFilled">上传</el-button>
-                </el-upload>
-                <span class="muted" style="margin-left: 8px">{{ row.photo_file || '未上传' }}</span>
+                <div class="attach-field">
+                  <div class="attach-upload-row">
+                    <el-upload
+                      :show-file-list="false"
+                      :before-upload="(f) => onPickLineFile(row, 'photo_file', f)"
+                      accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                    >
+                      <el-button :icon="UploadFilled">上传图片</el-button>
+                    </el-upload>
+                    <span class="attach-file-name" :class="{ 'is-empty': !row.photo_file }">
+                      {{ row.photo_file || '未上传' }}
+                    </span>
+                  </div>
+                  <p class="attach-format-tip">仅支持图片（jpg / png）</p>
+                </div>
               </el-form-item>
             </el-col>
             <el-col :span="12">
               <el-form-item label="其他">
-                <el-upload
-                  :show-file-list="false"
-                  :before-upload="(f) => onPickLineFile(row, 'other_file', f)"
-                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.zip"
-                >
-                  <el-button :icon="UploadFilled">上传</el-button>
-                </el-upload>
-                <span class="muted" style="margin-left: 8px">{{ row.other_file || '未上传' }}</span>
+                <div class="attach-field">
+                  <div class="attach-upload-row">
+                    <el-upload
+                      :show-file-list="false"
+                      :before-upload="(f) => onPickLineFile(row, 'other_file', f)"
+                      accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,image/jpeg,image/png,application/pdf"
+                    >
+                      <el-button :icon="UploadFilled">上传</el-button>
+                    </el-upload>
+                    <span class="attach-file-name" :class="{ 'is-empty': !row.other_file }">
+                      {{ row.other_file || '未上传' }}
+                    </span>
+                  </div>
+                  <p class="attach-format-tip">支持 jpg / png / pdf / word</p>
+                </div>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="送检">
+                <el-checkbox v-model="row.inspect_result_checked">已完成送检</el-checkbox>
+              </el-form-item>
+            </el-col>
+            <el-col v-if="row.inspect_result_checked" :span="12">
+              <el-form-item label="送检附件">
+                <div class="attach-field">
+                  <div class="attach-upload-row">
+                    <el-upload
+                      :show-file-list="false"
+                      :before-upload="(f) => onPickLineFile(row, 'inspect_result_file', f)"
+                      accept="image/*,.pdf"
+                    >
+                      <el-button :icon="UploadFilled">上传</el-button>
+                    </el-upload>
+                    <span class="attach-file-name" :class="{ 'is-empty': !row.inspect_result_file }">
+                      {{ row.inspect_result_file || '选填' }}
+                    </span>
+                  </div>
+                  <p class="attach-format-tip">选填；支持图片 / PDF</p>
+                </div>
               </el-form-item>
             </el-col>
           </el-row>
@@ -1200,31 +1359,6 @@ function onSubmit() {
         <div class="entry-line-add">
           <el-button type="primary" plain :icon="Plus" @click="addEquipmentLine">新增一组设备</el-button>
         </div>
-      </section>
-
-      <section class="form-section">
-        <h2 class="section-title">送检结果</h2>
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item label="送检">
-              <el-checkbox v-model="form.inspect_result_checked">已完成送检</el-checkbox>
-            </el-form-item>
-          </el-col>
-          <el-col v-if="form.inspect_result_checked" :span="12">
-            <el-form-item label="送检附件">
-              <el-upload
-                :show-file-list="false"
-                :before-upload="(f) => onPickFormFile('inspect_result_file', f)"
-                accept="image/*,.pdf"
-              >
-                <el-button :icon="UploadFilled">上传</el-button>
-              </el-upload>
-              <span class="muted" style="margin-left: 8px">
-                {{ form.inspect_result_file || '选填' }}
-              </span>
-            </el-form-item>
-          </el-col>
-        </el-row>
       </section>
 
       <section class="form-section">
@@ -1256,7 +1390,9 @@ function onSubmit() {
 
       <div class="op-bar">
         <el-button @click="router.push('/qm/mat/applications')">取消</el-button>
-        <el-button type="primary" @click="onSubmit">提交进场</el-button>
+        <el-button type="primary" @click="onSubmit">
+          {{ copyFromId ? '重新报审' : '提交进场' }}
+        </el-button>
       </div>
     </el-form>
   </div>
@@ -1282,6 +1418,36 @@ function onSubmit() {
   margin: 6px 0 0;
   font-size: 12px;
   color: #e6a23c;
+}
+.attach-field {
+  width: 100%;
+}
+.attach-upload-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.attach-file-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: #606266;
+  line-height: 1.4;
+  word-break: break-all;
+}
+.attach-file-name.is-empty {
+  color: #c0c4cc;
+}
+.attach-format-tip {
+  margin: 8px 0 0;
+  padding: 4px 10px;
+  display: inline-block;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #909399;
+  background: #f4f4f5;
+  border-radius: 4px;
 }
 .entry-line-card {
   margin-bottom: 12px;

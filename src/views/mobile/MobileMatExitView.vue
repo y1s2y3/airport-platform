@@ -254,16 +254,43 @@ function goBack() {
     <template v-else-if="mode === 'detail' && detail">
       <div class="form-body">
         <section class="form-section">
-          <div class="fs-title">退场详情</div>
-          <div class="detail-row"><span>退场单号</span><b>{{ detail.exit_id }}</b></div>
-          <div class="detail-row"><span>进场单号</span><b>{{ detail.entry_id }}</b></div>
-          <div class="detail-row"><span>材料名称</span><b>{{ detail.material_name || '—' }}</b></div>
-          <div class="detail-row">
-            <span>退场数量</span><b>{{ detail.exit_qty }}{{ detail.unit || '' }}</b>
+          <div class="fs-title">退场信息</div>
+          <div class="form-row">
+            <span class="form-label">退场单号</span>
+            <span class="form-value">{{ detail.exit_id }}</span>
           </div>
-          <div class="detail-row"><span>退场原因</span><b>{{ detail.reason || '—' }}</b></div>
-          <div class="detail-row"><span>现场照片</span><b>{{ detail.photo_file || '—' }}</b></div>
-          <div class="detail-row"><span>登记时间</span><b>{{ detail.exit_time || '—' }}</b></div>
+          <div class="form-row">
+            <span class="form-label">进场单号</span>
+            <span class="form-value">{{ detail.entry_id }}</span>
+          </div>
+          <div class="form-row">
+            <span class="form-label">材料名称</span>
+            <span class="form-value">{{ detail.material_name || '—' }}</span>
+          </div>
+          <div class="form-row">
+            <span class="form-label">品牌</span>
+            <span class="form-value">{{ detail.brand_name || '—' }}</span>
+          </div>
+          <div class="form-row">
+            <span class="form-label">供应商</span>
+            <span class="form-value">{{ detail.supplier || '—' }}</span>
+          </div>
+          <div class="form-row">
+            <span class="form-label">退场数量</span>
+            <span class="form-value">{{ detail.exit_qty }}{{ detail.unit || '' }}</span>
+          </div>
+          <div class="form-row">
+            <span class="form-label">退场原因</span>
+            <span class="form-value">{{ detail.reason || '—' }}</span>
+          </div>
+          <div class="form-row">
+            <span class="form-label">现场照片</span>
+            <span class="form-value">{{ detail.photo_file || '未上传' }}</span>
+          </div>
+          <div class="form-row">
+            <span class="form-label">登记时间</span>
+            <span class="form-value">{{ detail.exit_time || '—' }}</span>
+          </div>
         </section>
       </div>
     </template>
@@ -402,6 +429,15 @@ function goBack() {
   flex-shrink: 0;
   width: 72px;
   font-size: 13px;
+  padding-top: 8px;
+}
+.form-value {
+  flex: 1;
+  color: #303133;
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: right;
+  word-break: break-all;
   padding-top: 8px;
 }
 .required-mark {

@@ -52,6 +52,14 @@ onMounted(() => {
 })
 
 function goBack() {
+  if (route.path.startsWith('/app') || route.query.from === 'app') {
+    const tab = String(route.query.tab || 'warning-center')
+    router.push({
+      path: '/app/personal',
+      query: tab === 'todo' ? {} : { tab },
+    })
+    return
+  }
   router.push({
     name: 'LaborMobilePersonalCenter',
     query: backTab.value === 'todo' ? {} : { tab: backTab.value },

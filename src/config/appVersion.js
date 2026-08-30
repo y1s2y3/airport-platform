@@ -7,7 +7,7 @@
 export const APP_VERSION_BASE = '2.7.1'
 
 /** GitHub Pages 发布序号（从 0 开始；仓库内为「当前即将发布 / 下一版」序号） */
-export const APP_VERSION_PATCH = 2
+export const APP_VERSION_PATCH = 3
 
 export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
 
@@ -16,6 +16,16 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  * highlights 宜短句，便于页头问号弹窗快速阅读
  */
 export const VERSION_CHANGELOG = [
+  {
+    version: 'v2.7.1.3',
+    date: '2026-08-30',
+    highlights: [
+      '实体工程 + 施工部位菜单合并为统一树',
+      '个人中心处置页（品牌 / 分包 / 验评）按填报展示',
+      '审批人「姓名（组织-岗位）」+ 分包抄送选人',
+      '建管 APP：新增登录页及框架原型',
+    ],
+  },
   {
     version: 'v2.7.1.2',
     date: '2026-08-28',

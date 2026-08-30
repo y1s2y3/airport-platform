@@ -1,8 +1,9 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Search, Refresh, Download } from '@element-plus/icons-vue'
-import { useLaborProjectScope, selectedProjectId } from '../../composables/useCurrentProject'
+import { Search, Refresh, Download, ArrowLeft } from '@element-plus/icons-vue'
+import { useLaborProjectScope, selectedProjectId, useCurrentProject } from '../../composables/useCurrentProject'
+import { HQ_PROJECT_OPTION } from '../../config/projectOptions'
 import {
   projectTree,
   getProjectPersonnel,
@@ -20,6 +21,8 @@ import { REALNAME_ENTRY_LABEL } from '../../constants/laborPersonStatus'
 const route = useRoute()
 const router = useRouter()
 const { isHqSelected, treeProjectId, scopeProjectId, scopeProjectLabel, onTreeNodeClick } = useLaborProjectScope()
+const { headerProjectLabel } = useCurrentProject()
+const fromHq = computed(() => route.query.from === 'hq')
 const keyword = ref('')
 const filters = ref({ work_type: '', personnel_category: '', entry_status: '', unit_name: '' })
 const visiblePhoneIds = ref(new Set())
@@ -103,6 +106,11 @@ function viewPhone(row) {
 function isPhoneVisible(id) {
   return visiblePhoneIds.value.has(id)
 }
+
+function goBackToHQ() {
+  selectedProjectId.value = HQ_PROJECT_OPTION.id
+  router.push('/labor/realname-stats')
+}
 </script>
 
 <template>
@@ -115,6 +123,11 @@ function isPhoneVisible(id) {
           <el-button :icon="Download">导出</el-button>
         </div>
       </div>
+    </div>
+
+    <div v-if="fromHq && !isHqSelected" class="hq-drill-back-bar">
+      <el-button link type="primary" :icon="ArrowLeft" @click="goBackToHQ">返回</el-button>
+      <span class="hq-drill-back-project">{{ headerProjectLabel || scopeProjectLabel }}</span>
     </div>
 
     <div class="page-layout" :class="{ 'with-tree': isHqSelected }">
@@ -228,6 +241,16 @@ function isPhoneVisible(id) {
 .page-breadcrumb { font-size: 13px; color: var(--ap-text-muted); margin-bottom: 8px; }
 .page-heading { display: flex; align-items: center; justify-content: space-between; }
 .page-title { font-size: 20px; font-weight: 600; color: var(--ap-text); }
+.hq-drill-back-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.hq-drill-back-project {
+  font-size: 14px;
+  color: #606266;
+}
 .page-panel { border: 1px solid var(--ap-border); border-radius: 8px; background: #fff; padding: 16px; }
 .page-layout.with-tree {
   display: grid;

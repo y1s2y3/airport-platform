@@ -8,6 +8,11 @@ import { nowStr } from '../utils/datetime.js'
 import { listEntries } from './mat.js'
 import { COC_PROJECT_OPTIONS } from '../config/projectOptions.js'
 import { listMaterialApps, listProcessApps } from './sample.js'
+import {
+  formatSpecialtiesDisplay,
+  getEffectiveSpecialties,
+} from '../constants/wbsSpecialty.js'
+import { entityBreakdownTreeTypeLabel } from '../constants/wbsEntityLabels.js'
 
 /** @type {Array<{
  *  id: string
@@ -806,4 +811,91 @@ function mapLocNodeForManage(n) {
     raw: n.raw,
     children: (n.children || []).map(mapLocNodeForManage),
   }
+}
+
+/**
+ * 实体工程分解（合并施工部位）树表数据
+ * 列：节点名称、节点类型、编码、专业、完整路径、排序值
+ * 部位专业继承所属分项
+ */
+export function buildEntityBreakdownTableTree(projectId) {
+  const entityTree = buildLocationManageEntityTree(projectId)
+
+  const mapRow = (n, parentPath) => {
+    const isLoc = n.node_type === 'loc' || n.is_loc
+    const locRaw = isLoc ? n.raw?.raw || n.raw : null
+    const wbsRaw = !isLoc ? n.raw : null
+    const nodeName = isLoc
+      ? n.label || locRaw?.name || ''
+      : n.node_type === 9
+        ? '实体工程'
+        : n.label || wbsRaw?.node_name || ''
+    const fullPath = parentPath ? `${parentPath} / ${nodeName}` : nodeName
+
+    let specialties = []
+    if (isLoc) {
+      const item = wbsNodes.find((w) => w.id === n.wbs_node_id)
+      specialties = getEffectiveSpecialties(item)
+    } else {
+      specialties = getEffectiveSpecialties(wbsRaw)
+    }
+
+    return {
+      id: n.id,
+      kind: isLoc ? 'loc' : 'wbs',
+      node_name: nodeName,
+      node_type: isLoc ? 'loc' : n.node_type,
+      type_label: isLoc
+        ? '施工部位'
+        : n.type_label || entityBreakdownTreeTypeLabel(n.node_type),
+      code: isLoc ? locRaw?.code || '' : wbsRaw?.location_code || '',
+      specialties: [...specialties],
+      specialty_display: formatSpecialtiesDisplay(specialties),
+      full_path: fullPath,
+      sort_no: isLoc ? Number(locRaw?.sort_no) || 0 : Number(wbsRaw?.sort_no) || 0,
+      wbs_node_id: isLoc ? n.wbs_node_id : n.id,
+      parent_id: isLoc ? locRaw?.parent_id || '' : wbsRaw?.parent_id || '',
+      project_id: isLoc ? locRaw?.project_id : wbsRaw?.project_id,
+      status: isLoc ? (locRaw?.status === 0 ? 0 : 1) : 1,
+      children: (n.children || []).map((c) => mapRow(c, fullPath)),
+    }
+  }
+
+  return entityTree.map((n) => mapRow(n, ''))
+}
+
+/** 默认展开到单位工程可见：展开「实体工程」根节点 */
+export function collectEntityBreakdownDefaultExpandKeys(rows) {
+  const keys = []
+  const walk = (list) => {
+    ;(list || []).forEach((r) => {
+      if (r.kind === 'wbs' && r.node_type === 9) keys.push(r.id)
+      if (r.children?.length) walk(r.children)
+    })
+  }
+  walk(rows)
+  return keys
+}
+
+/** 按关键字过滤树（保留命中节点及其祖先） */
+export function filterEntityBreakdownTableTree(rows, keyword) {
+  const kw = String(keyword || '').trim()
+  if (!kw) return rows
+  const match = (r) =>
+    String(r.node_name || '').includes(kw) ||
+    String(r.code || '').includes(kw) ||
+    String(r.full_path || '').includes(kw) ||
+    String(r.type_label || '').includes(kw)
+
+  const walk = (list) => {
+    const out = []
+    ;(list || []).forEach((r) => {
+      const kids = walk(r.children || [])
+      if (match(r) || kids.length) {
+        out.push({ ...r, children: kids })
+      }
+    })
+    return out
+  }
+  return walk(rows)
 }

@@ -93,6 +93,18 @@ const initialUsers = [
     orgId: 'org-hq',
     positions: [],
   },
+  {
+    id: 'u-008',
+    name: '朱指挥',
+    loginAccount: 'zhuzhihui',
+    phone: '13800008888',
+    email: 'zhuzhihui@szairport.com',
+    gender: '男',
+    status: true,
+    remark: '副指挥长',
+    orgId: 'org-leaders',
+    positions: [],
+  },
 ]
 
 const PROJECT_USER_TEMPLATES = [

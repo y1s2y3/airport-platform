@@ -1,7 +1,10 @@
 <script setup>
 import { computed, reactive, ref, watch, nextTick } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { ArrowLeft } from '@element-plus/icons-vue'
 import { useQmProjectScope } from '../../composables/useCurrentProject'
+import { COC_PROJECT_OPTIONS } from '../../config/projectOptions.js'
 import {
   batchTypes,
   buildWbsTree,
@@ -18,8 +21,36 @@ import {
   WBS_TREE_NODE_TYPES,
   wbsNodes,
 } from '../../mock/qm.js'
+import './qm-hq-stats.css'
 
+const route = useRoute()
+const router = useRouter()
 const { isHqSelected, scopeProjectId, scopeProjectLabel } = useQmProjectScope()
+const fromHq = computed(() => route.query.from === 'hq')
+const queryProjectId = computed(() => String(route.query.projectId || '').trim())
+
+/** 指挥部下钻：不切顶栏项目，用 query.projectId 查看；项目级仍用顶栏 scope */
+const viewProjectId = computed(() => {
+  if (fromHq.value && queryProjectId.value) return queryProjectId.value
+  if (!isHqSelected.value && scopeProjectId.value) return scopeProjectId.value
+  return ''
+})
+
+const viewProjectLabel = computed(() => {
+  if (!viewProjectId.value) return ''
+  const found = COC_PROJECT_OPTIONS.find((p) => p.id === viewProjectId.value)
+  return found?.label || viewProjectId.value
+})
+
+const canViewTree = computed(() => !!viewProjectId.value)
+/** 仅项目级可维护；指挥部二级页只读查看 */
+const canMaintain = computed(
+  () => !fromHq.value && !isHqSelected.value && !!scopeProjectId.value,
+)
+
+function goBackToHQ() {
+  router.push('/qm/inspect/dashboard')
+}
 const keyword = ref('')
 const treeRef = ref(null)
 const selectedNodeId = ref('')
@@ -41,12 +72,10 @@ const form = reactive({
   sort_no: 0,
 })
 
-const canMaintain = computed(() => !isHqSelected.value && !!scopeProjectId.value)
-
 const treeData = computed(() => {
-  if (!canMaintain.value) return []
-  ensureWbsScaffold(scopeProjectId.value)
-  return buildWbsTree(scopeProjectId.value)
+  if (!canViewTree.value) return []
+  ensureWbsScaffold(viewProjectId.value)
+  return buildWbsTree(viewProjectId.value)
 })
 
 /** 新增可选类型：按父节点约束 */
@@ -172,9 +201,13 @@ const parentOptions = computed(() =>
 const formOptions = computed(() => formTemplates.filter((t) => t.status === 1))
 
 function pickDefaultNode() {
-  ensureWbsScaffold(scopeProjectId.value)
+  if (!viewProjectId.value) {
+    selectedNodeId.value = ''
+    return
+  }
+  ensureWbsScaffold(viewProjectId.value)
   const root = wbsNodes.find(
-    (n) => n.project_id === scopeProjectId.value && n.node_type === 8 && !n.parent_id,
+    (n) => n.project_id === viewProjectId.value && n.node_type === 8 && !n.parent_id,
   )
   selectedNodeId.value = root?.id || ''
 }
@@ -193,14 +226,16 @@ function defaultChildType(parent_id) {
 }
 
 watch(
-  () => [canMaintain.value, scopeProjectId.value, treeData.value],
+  () => [canViewTree.value, viewProjectId.value, treeData.value],
   async () => {
-    if (!canMaintain.value) {
+    if (!canViewTree.value) {
       selectedNodeId.value = ''
       listFilter.value = 'total'
       return
     }
-    const exists = wbsNodes.some((n) => n.id === selectedNodeId.value)
+    const exists = wbsNodes.some(
+      (n) => n.id === selectedNodeId.value && n.project_id === viewProjectId.value,
+    )
     if (!exists) {
       pickDefaultNode()
       listFilter.value = 'total'
@@ -245,7 +280,7 @@ function openCreate(parent_id = '') {
     return ElMessage.warning('该节点下不可再添加子节点')
   }
   form.id = ''
-  form.project_id = scopeProjectId.value
+  form.project_id = viewProjectId.value || scopeProjectId.value
   form.parent_id = pid
   form.node_type = defaultChildType(pid)
   form.node_name = ''
@@ -284,7 +319,7 @@ function openEdit(row) {
 
 function submit() {
   if (!canMaintain.value) return ElMessage.warning('请切换到具体项目后再维护目录树')
-  const r = upsertWbsNode({ ...form, project_id: scopeProjectId.value }, form.id)
+  const r = upsertWbsNode({ ...form, project_id: viewProjectId.value || scopeProjectId.value }, form.id)
   if (!r.ok) return ElMessage.error(r.msg)
   ElMessage.success(form.id ? '节点已更新' : '节点已创建')
   visible.value = false
@@ -309,21 +344,36 @@ async function onRemove(row) {
 <template>
   <div class="qm-page page-card">
     <div class="page-header">
-      <div class="page-breadcrumb">质量验评 / 验评目录树</div>
-      <h1 class="page-title">验评目录树</h1>
+      <div class="page-breadcrumb">
+        {{ fromHq ? '质量看板 / 质量验评看板' : '质量验评' }} / 验评目录树
+      </div>
+      <div class="hq-title-row">
+        <el-button
+          v-if="fromHq && canViewTree"
+          link
+          type="primary"
+          :icon="ArrowLeft"
+          @click="goBackToHQ"
+        >
+          返回
+        </el-button>
+        <h1 class="page-title">验评目录树</h1>
+        <span v-if="fromHq && canViewTree" class="hq-title-project">{{ viewProjectLabel }}</span>
+      </div>
       <p class="page-tip">
-        树结构：项目竣工验收 → 实体工程验收(分类，不做验收) / 专项验收。当前项目：{{
-          isHqSelected ? '请切换到具体项目' : scopeProjectLabel
+        树结构：项目竣工验收 → 实体工程验收(分类，不做验收) / 专项验收。当前查看：{{
+          viewProjectLabel || (isHqSelected ? '请从看板选择项目查看' : scopeProjectLabel)
         }}
+        <template v-if="fromHq">（指挥部只读）</template>
       </p>
     </div>
 
     <el-alert
-      v-if="!canMaintain"
+      v-if="!canViewTree"
       type="warning"
       :closable="false"
       show-icon
-      title="请先在顶部切换到具体项目，再维护本项目的验评目录树"
+      title="请先在顶部切换到具体项目，或从指挥部质量验评看板进入项目目录树"
       class="mb"
     />
 
@@ -331,7 +381,15 @@ async function onRemove(row) {
       <aside class="tree-panel">
         <div class="panel-title">节点树</div>
         <el-input v-model="keyword" clearable placeholder="筛选节点名称" style="margin-bottom: 12px" aria-label="筛选节点名称"/>
-        <el-button type="primary" size="small" style="margin-bottom: 8px" @click="openCreate()">新增节点</el-button>
+        <el-button
+          v-if="canMaintain"
+          type="primary"
+          size="small"
+          style="margin-bottom: 8px"
+          @click="openCreate()"
+        >
+          新增节点
+        </el-button>
         <el-tree
           ref="treeRef"
           :data="treeData"
@@ -426,7 +484,7 @@ async function onRemove(row) {
             <el-table-column label="表单模板" min-width="140">
               <template #default="{ row }">{{ resolveTemplateName(row.form_template_id) }}</template>
             </el-table-column>
-            <el-table-column label="操作" width="220" fixed="right">
+            <el-table-column v-if="canMaintain" label="操作" width="220" fixed="right">
               <template #default="{ row }">
                 <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
                 <el-button
@@ -452,6 +510,7 @@ async function onRemove(row) {
             点击上方统计可筛选直接下级；默认展示总数（含当前节点）。当前筛选：{{
               STAT_FILTERS.find((i) => i.key === listFilter)?.label
             }}。
+            <template v-if="fromHq">指挥部层级仅可查看，不可维护。</template>
           </p>
         </template>
       </section>

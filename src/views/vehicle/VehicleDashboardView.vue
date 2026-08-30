@@ -1,13 +1,15 @@
 <script setup>
 import { computed } from 'vue'
-import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { useRoute, useRouter } from 'vue-router'
+import { ArrowLeft } from '@element-plus/icons-vue'
 import { selectedProjectId, useCurrentProject } from '../../composables/useCurrentProject'
 import { HQ_PROJECT_OPTION } from '../../config/projectOptions'
 import { getVehicleDashboardData } from '../../mock/vehicleManagement'
 
+const route = useRoute()
 const router = useRouter()
-const { isHqSelected } = useCurrentProject()
+const { isHqSelected, headerProjectLabel } = useCurrentProject()
+const fromHq = computed(() => route.query.from === 'hq')
 
 const dashboardScopeId = computed(() =>
   isHqSelected.value ? HQ_PROJECT_OPTION.id : selectedProjectId.value,
@@ -15,11 +17,15 @@ const dashboardScopeId = computed(() =>
 
 const data = computed(() => getVehicleDashboardData(dashboardScopeId.value))
 
-async function viewProjectDetail(row) {
+function viewProjectDetail(row) {
   if (!row?.project_id) return
   selectedProjectId.value = row.project_id
-  await router.push('/vehicle/access')
-  ElMessage.success(`已切换至项目：${row.project_name}（进出场记录）`)
+  router.push({ path: '/vehicle/dashboard', query: { from: 'hq' } })
+}
+
+function goBackToHQ() {
+  selectedProjectId.value = HQ_PROJECT_OPTION.id
+  router.push('/vehicle/dashboard')
 }
 </script>
 
@@ -30,8 +36,16 @@ async function viewProjectDetail(row) {
         车辆管理 / 车辆管理看板
       </div>
       <div class="page-heading">
-      <h1 class="page-title">车辆管理看板</h1>
+        <h1 class="page-title">车辆管理看板</h1>
       </div>
+      <p v-if="!isHqSelected" class="page-tip">
+        当前项目：{{ headerProjectLabel || selectedProjectId }}
+      </p>
+    </div>
+
+    <div v-if="!isHqSelected && fromHq" class="hq-drill-back-bar">
+      <el-button link type="primary" :icon="ArrowLeft" @click="goBackToHQ">返回</el-button>
+      <span class="hq-drill-back-project">{{ headerProjectLabel || selectedProjectId }}</span>
     </div>
 
     <div class="summary-grid">
@@ -50,7 +64,7 @@ async function viewProjectDetail(row) {
     </div>
 
     <section class="dashboard-panel">
-      <div class="panel-title">各项目车辆统计</div>
+      <div class="panel-title">{{ isHqSelected ? '各项目车辆统计' : '本项目车辆统计' }}</div>
       <el-table :data="data.projectStats" border stripe class="ap-table">
         <el-table-column type="index" label="序号" width="60" align="center" />
         <el-table-column prop="project_name" label="项目" min-width="160" show-overflow-tooltip />
@@ -88,6 +102,24 @@ async function viewProjectDetail(row) {
   font-size: 20px;
   font-weight: 600;
   color: var(--ap-text);
+}
+
+.page-tip {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: #606266;
+}
+
+.hq-drill-back-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.hq-drill-back-project {
+  font-size: 14px;
+  color: #606266;
 }
 
 .summary-grid {

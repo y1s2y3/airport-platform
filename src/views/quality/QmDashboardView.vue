@@ -1,11 +1,18 @@
 <script setup>
 import { computed } from 'vue'
-import { useQmProjectScope } from '../../composables/useCurrentProject'
-import { COC_PROJECT_OPTIONS } from '../../config/projectOptions.js'
+import { useRoute, useRouter } from 'vue-router'
+import { ArrowLeft } from '@element-plus/icons-vue'
+import { selectedProjectId, useQmProjectScope, useCurrentProject } from '../../composables/useCurrentProject'
+import { COC_PROJECT_OPTIONS, HQ_PROJECT_OPTION } from '../../config/projectOptions.js'
 import { buildHqQmDashboardPanels, buildQmDashboardPanels } from '../../mock/qm.js'
 import QmLedgerTable from './components/QmLedgerTable.vue'
+import './qm-hq-stats.css'
 
+const route = useRoute()
+const router = useRouter()
 const { isHqSelected, scopeProjectId, scopeProjectLabel } = useQmProjectScope()
+const { headerProjectLabel } = useCurrentProject()
+const fromHq = computed(() => route.query.from === 'hq')
 
 const panels = computed(() =>
   isHqSelected.value
@@ -15,6 +22,11 @@ const panels = computed(() =>
 const projects = computed(() => panels.value.projects || null)
 const physical = computed(() => panels.value.physical)
 const special = computed(() => panels.value.special)
+
+function goBackToHQ() {
+  selectedProjectId.value = HQ_PROJECT_OPTION.id
+  router.push('/qm/inspect/dashboard')
+}
 </script>
 
 <template>
@@ -23,7 +35,21 @@ const special = computed(() => panels.value.special)
       <div class="page-breadcrumb">
         {{ isHqSelected ? '质量看板' : '质量验评' }} / 质量验评看板
       </div>
-      <h1 class="page-title">质量验评看板</h1>
+      <div class="hq-title-row">
+        <el-button
+          v-if="!isHqSelected && fromHq"
+          link
+          type="primary"
+          :icon="ArrowLeft"
+          @click="goBackToHQ"
+        >
+          返回
+        </el-button>
+        <h1 class="page-title">质量验评看板</h1>
+        <span v-if="!isHqSelected && fromHq" class="hq-title-project">
+          {{ headerProjectLabel || scopeProjectLabel }}
+        </span>
+      </div>
       <p class="page-tip">范围：{{ isHqSelected ? '全部项目（指挥部）' : scopeProjectLabel }}</p>
     </div>
 

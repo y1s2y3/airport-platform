@@ -11,9 +11,7 @@ import {
   searchLedgerBrands,
   submitApplication,
   copyApplicationFromRejected,
-  resubmitWithdrawnBrand,
   buildCopyPayloadFromRejected,
-  buildReEditPayloadFromWithdrawn,
   listBrandProjectUsers,
   resolveDefaultApprovers,
   findBrandProjectUser,
@@ -27,9 +25,6 @@ import ConstructionLocationSelect from '../../../components/ConstructionLocation
 const route = useRoute()
 const router = useRouter()
 const { isHqSelected, scopeProjectId, scopeProjectLabel } = useQmProjectScope()
-
-const reEditId = ref(String(route.query.id || ''))
-const isReEdit = ref(route.query.reEdit === '1' || route.query.mode === 'resubmit')
 
 const form = reactive({
   material_name: '',
@@ -100,31 +95,6 @@ function onApproverChange(role) {
 }
 
 onMounted(() => {
-  if (isReEdit.value && reEditId.value) {
-    const payload = buildReEditPayloadFromWithdrawn(reEditId.value)
-    if (!payload) {
-      ElMessage.warning('无法重新申报，请确认该单为已撤回状态')
-      isReEdit.value = false
-      reEditId.value = ''
-      applyDefaultApprovers()
-      return
-    }
-    form.material_name = payload.material_name
-    form.material_type = payload.material_type
-    form.use_part = payload.use_part
-    applyApproverFields(payload)
-    form.candidates = payload.candidates.length
-      ? payload.candidates
-      : [
-          { ...createEmptyCandidate(), is_primary: true },
-          createEmptyCandidate(),
-          createEmptyCandidate(),
-        ]
-    syncPrimaryByPosition()
-    ElMessage.success(`已载入撤回单 ${reEditId.value}，修改后提交将回到待审批`)
-    return
-  }
-
   const copyFrom = String(route.query.copyFrom || '')
   if (copyFrom) {
     const payload = buildCopyPayloadFromRejected(copyFrom)
@@ -147,7 +117,7 @@ onMounted(() => {
         ]
     syncPrimaryByPosition()
     copyFromLabel.value = copyFrom
-    ElMessage.success(`已从驳回单 ${copyFrom} 预填，请核对后提交`)
+    ElMessage.success(`已从驳回单 ${copyFrom} 预填，请核对后提交（将生成新报审单号）`)
     return
   }
 
@@ -207,22 +177,17 @@ function onSubmit() {
     pm_approver_name: form.pm_approver_name,
     candidates: form.candidates,
   }
-  const r =
-    isReEdit.value && reEditId.value
-      ? resubmitWithdrawnBrand(reEditId.value, payload)
-      : form.copy_from_application_id
-        ? copyApplicationFromRejected(form.copy_from_application_id, payload)
-        : submitApplication(payload)
+  const r = form.copy_from_application_id
+    ? copyApplicationFromRejected(form.copy_from_application_id, payload)
+    : submitApplication(payload)
   if (!r.ok) return ElMessage.error(r.msg)
   if (duplicateMaterialHits.value.length) {
     ElMessage.warning(duplicateMaterialTip.value)
   }
   ElMessage.success(
-    isReEdit.value
-      ? `已重新申报 ${r.data.application_id}，状态已回到待审批`
-      : copyFromLabel.value
-        ? `已重新申报 ${r.data.application_id}，已进入个人中心待办（待监理审）`
-        : `已提交 ${r.data.application_id}，已进入个人中心待办（待监理审）`,
+    copyFromLabel.value
+      ? `已重新申报 ${r.data.application_id}（新单），状态为审批中，已进入个人中心待办（待监理审）`
+      : `已提交 ${r.data.application_id}，状态为审批中，已进入个人中心待办（待监理审）`,
   )
   router.push('/qm/brand/applications')
 }
@@ -236,12 +201,9 @@ function openSourceApplication(applicationId) {
 <template>
   <div class="qm-page page-card brand-create">
     <div class="page-header">
-      <div class="page-breadcrumb">品牌报审 / 报审申请 / {{ isReEdit || copyFromLabel ? '重新申报' : '新建' }}</div>
+      <div class="page-breadcrumb">品牌报审 / 报审申请 / {{ copyFromLabel ? '重新申报' : '新建' }}</div>
       <div class="title-row">
-        <h1 class="page-title">{{ isReEdit || copyFromLabel ? '重新申报品牌报审' : '新增品牌报审' }}</h1>
-        <el-tag v-if="isReEdit && reEditId" size="small" type="success" effect="light">
-          原单 {{ reEditId }}
-        </el-tag>
+        <h1 class="page-title">{{ copyFromLabel ? '重新申报品牌报审' : '新增品牌报审' }}</h1>
         <el-tag v-if="copyFromLabel" size="small" type="warning" effect="light">
           源单 {{ copyFromLabel }}
         </el-tag>

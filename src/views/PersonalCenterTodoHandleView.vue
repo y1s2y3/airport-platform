@@ -1,6 +1,6 @@
 ﻿<script setup>
 import { computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useTodoHandleContext } from './personalCenter/composables/useTodoHandleContext.js'
 import TodoHandleShell from './personalCenter/components/TodoHandleShell.vue'
 import TodoApprovalFlowSection from './personalCenter/components/TodoApprovalFlowSection.vue'
@@ -24,6 +24,7 @@ import {
 import './personalCenter/styles/todoHandleBlocks.css'
 
 const router = useRouter()
+const route = useRoute()
 
 const {
   fromTab,
@@ -110,6 +111,17 @@ const todoSourceLabel = computed(() => {
 
 function goBack() {
   const tab = fromTab.value
+  // 建管 APP 壳内处置页：返回 APP 个人中心
+  if (route.path.startsWith('/app')) {
+    const q =
+      tab === 'todo'
+        ? {}
+        : tab === 'warning-center'
+          ? { tab: 'warning-center' }
+          : { tab }
+    router.push({ path: '/app/personal', query: q })
+    return
+  }
   router.push({
     path: '/personal-center',
     query: tab === 'todo' ? {} : { tab },

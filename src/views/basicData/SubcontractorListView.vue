@@ -12,11 +12,9 @@ import {
   createEmptySubcontractorApplication,
   cloneSubcontractorApplication,
   submitSubcontractorApplication,
-  withdrawSubcontractorApplication,
   approveStatusTagClass,
   listApprovedSubcontractors,
   canResubmitSubcontractor,
-  canWithdrawSubcontractor,
   listSubcontractorApproverUsers,
   findSubcontractorApproverUser,
   resolveDefaultApprovers,
@@ -28,7 +26,6 @@ import {
 } from '../../mock/subcontractorManagement'
 import {
   createSubcontractorApprovalTodo,
-  discardSubcontractorTodos,
   seedOpenSubcontractorTodosFromStore,
 } from '../../mock/personalCenter'
 import { getCurrentUserSnapshot } from '../../mock/currentUser'
@@ -99,7 +96,7 @@ const filteredList = computed(() => {
 
 const dialogTitle = computed(() => {
   if (formMode.value === 'create') return '新建分包单位报审'
-  if (formMode.value === 'resubmit-withdrawn' || formMode.value === 'resubmit-rejected') {
+  if (formMode.value === 'resubmit-rejected') {
     return formModel.value?.name ? `重新报审 · ${formModel.value.name}` : '重新报审'
   }
   return formModel.value?.name ? `编辑报审 · ${formModel.value.name}` : '编辑分包单位报审'
@@ -127,6 +124,7 @@ function onApproverChange(role) {
     deptHead: ['deptHeadUserId', 'deptHeadName'],
     designHead: ['designHeadUserId', 'designHeadName'],
     designDeptHead: ['designDeptHeadUserId', 'designDeptHeadName'],
+    cc: ['ccUserId', 'ccUserName'],
   }
   const [idKey, nameKey] = fieldMap[role] || []
   if (!idKey) return
@@ -212,35 +210,23 @@ function openCreate() {
 
 function openResubmit(row) {
   if (!canResubmitSubcontractor(row.status)) {
-    ElMessage.warning('仅已驳回或已撤回的单据可重新报审')
+    ElMessage.warning('仅已驳回的单据可重新报审')
     return
   }
-  if (row.status === '已撤回') {
-    formMode.value = 'resubmit-withdrawn'
-    formModel.value = cloneSubcontractorApplication(row)
-  } else {
-    formMode.value = 'resubmit-rejected'
-    const base = cloneSubcontractorApplication(row)
-    formModel.value = {
-      ...base,
-      id: `sc-app-${Date.now()}`,
-      rejectedFromId: row.id,
-      status: '',
-      currentNodeKey: '',
-      submitTime: '',
-      approvalFlow: [],
-    }
+  formMode.value = 'resubmit-rejected'
+  const base = cloneSubcontractorApplication(row)
+  formModel.value = {
+    ...base,
+    id: `sc-app-${Date.now()}`,
+    rejectedFromId: row.id,
+    status: '',
+    currentNodeKey: '',
+    submitTime: '',
+    approvalFlow: [],
   }
   mergeApproversFromProject(formModel.value)
   loadSafetyContactList(formModel.value)
   dialogVisible.value = true
-}
-
-async function handleWithdraw(row) {
-  const r = withdrawSubcontractorApplication(row.id)
-  if (!r.ok) return ElMessage.warning(r.msg)
-  if (r.needDiscardTodos) discardSubcontractorTodos(row.id)
-  ElMessage.success('已撤回报审')
 }
 
 function openDetail(row) {
@@ -295,9 +281,7 @@ function handleSubmit() {
   const successMsg =
     formMode.value === 'resubmit-rejected'
       ? '已重新提交报审（新单号）'
-      : formMode.value === 'resubmit-withdrawn'
-        ? '已重新提交报审'
-        : '已提交，审批待办已进入个人中心'
+      : '已提交，审批待办已进入个人中心'
   ElMessage.success(successMsg)
   closeDialog()
 }
@@ -415,17 +399,9 @@ function handleSubmit() {
             {{ row.approvalFlow?.find((s) => s.status === 'current')?.title || '—' }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" :width="isHqSelected ? 88 : 220" fixed="right" align="center">
+        <el-table-column label="操作" :width="isHqSelected ? 88 : 160" fixed="right" align="center">
           <template #default="{ row }">
             <el-button link type="primary" @click="openDetail(row)">查看</el-button>
-            <el-button
-              v-if="!isHqSelected && canWithdrawSubcontractor(row.status)"
-              link
-              type="warning"
-              @click="handleWithdraw(row)"
-            >
-              撤回
-            </el-button>
             <el-button
               v-if="!isHqSelected && canResubmitSubcontractor(row.status)"
               link
@@ -834,15 +810,30 @@ function handleSubmit() {
             </el-form-item>
           </el-col>
         </el-row>
-        <el-form-item label="抄送">
-          <span class="cc-fixed-text">抄送副指挥长（朱指挥）</span>
+        <el-form-item label="抄送人" required>
+          <el-select
+            v-model="formModel.approvers.ccUserId"
+            placeholder="请从系统用户中选择抄送人"
+            filterable
+            clearable
+            style="width: 100%"
+            aria-label="请选择抄送人"
+            @change="onApproverChange('cc')"
+          >
+            <el-option
+              v-for="user in approverUsers"
+              :key="`cc-${user.userId}`"
+              :label="user.optionLabel"
+              :value="user.userId"
+            />
+          </el-select>
         </el-form-item>
       </el-form>
 
       <template #footer>
         <el-button @click="closeDialog">取消</el-button>
         <el-button class="ap-btn-primary" type="primary" @click="handleSubmit">
-          {{ formMode === 'resubmit-withdrawn' || formMode === 'resubmit-rejected' ? '重新提交' : '提交审批' }}
+          {{ formMode === 'resubmit-rejected' ? '重新提交' : '提交审批' }}
         </el-button>
       </template>
     </el-dialog>
@@ -1087,11 +1078,6 @@ function handleSubmit() {
   gap: 8px;
   flex-shrink: 0;
   white-space: nowrap;
-}
-
-.cc-fixed-text {
-  font-size: 14px;
-  color: var(--ap-text-secondary);
 }
 
 .expiry-range {

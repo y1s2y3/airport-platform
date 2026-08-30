@@ -12,7 +12,6 @@ import {
 } from './laborWarningList.js'
 import {
   SUBCONTRACTOR_APPROVAL_NODES,
-  SUBCONTRACTOR_CC,
   approveSubcontractorApplication,
   findSubcontractorApplication,
   subcontractorList,
@@ -40,8 +39,7 @@ export const PROCESS_CATEGORY_OPTIONS = [
   '质量验评',
   '品牌报审',
   '样板管理',
-  '材料进场',
-  '设备进场',
+  '材料设备进场',
   '巡检管理',
   '人员实名',
   '车辆管理',
@@ -2719,7 +2717,9 @@ function pushSubcontractorCc(row) {
       project: row.projectName,
       unitName: row.name,
       unitType: row.unitType,
-      summary: `分包单位「${row.name}」报审已通过，抄送${SUBCONTRACTOR_CC.user}知悉。`,
+      summary: `分包单位「${row.name}」报审已通过，抄送${
+        row.approvers?.ccUserName || '相关人员'
+      }知悉。`,
     },
     approvalFlow: (row.approvalFlow || []).map((step) => ({ ...step })),
   }
@@ -2765,7 +2765,7 @@ export function handleSubcontractorTodo(todoId, { action, opinion } = {}) {
   return { ok: true, ...r }
 }
 
-/** 为待审批/审批中单据补待办（列表页挂载时调用） */
+/** 为审批中单据补待办（列表页挂载时调用） */
 export function seedOpenSubcontractorTodosFromStore(list = []) {
   for (const row of list) {
     if (!isSubcontractorInApproval(row.status) || !row.currentNodeKey) continue
@@ -2795,6 +2795,20 @@ export function listLaborPersonalDone() {
 
 export function listLaborPersonalNotices() {
   return personalNotices
+}
+
+/** 通知信息批量已读 */
+export function markPersonalNoticesRead(ids = []) {
+  const set = new Set((ids || []).map(String))
+  let n = 0
+  for (const row of personalNotices) {
+    if (!set.has(String(row.id))) continue
+    if (row.readStatus === '未读') {
+      row.readStatus = '已读'
+      n += 1
+    }
+  }
+  return n
 }
 
 export function listLaborPersonalStarted() {

@@ -4,9 +4,7 @@
  */
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
 import { Search, Refresh } from '@element-plus/icons-vue'
-import { selectedProjectId } from '../../../composables/useCurrentProject'
 import { COC_PROJECT_OPTIONS } from '../../../config/projectOptions.js'
 import { buildQmLedgerByProject } from '../../../mock/qm.js'
 
@@ -38,9 +36,11 @@ function reset() {
 
 function viewProjectDetail(row) {
   if (!row?.project_id) return
-  selectedProjectId.value = row.project_id
-  ElMessage.success(`已切换至项目：${row.project_name}`)
-  router.push('/qm/inspect/dashboard')
+  // 保持指挥部顶栏不变，二级页用 projectId 查看该项目目录树
+  router.push({
+    path: '/qm/inspect/tree',
+    query: { from: 'hq', projectId: row.project_id },
+  })
 }
 </script>
 

@@ -24,6 +24,7 @@ import {
   DataAnalysis,
   Cpu,
   MapLocation,
+  Iphone,
 } from '@element-plus/icons-vue'
 
 const props = defineProps({
@@ -57,6 +58,7 @@ const icons = {
   DataAnalysis,
   Cpu,
   MapLocation,
+  Iphone,
 }
 
 function iconComponent(name) {

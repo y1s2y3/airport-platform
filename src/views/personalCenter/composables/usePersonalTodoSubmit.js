@@ -233,7 +233,7 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
       if (r.finished && !r.rejected) {
         return afterSubmit(
           '审批通过',
-          '终审通过，已同步至项目画像「专业分包及劳务分包」，并抄送副指挥长',
+          '终审通过，已同步至项目画像「专业分包及劳务分包」，并已抄送',
         )
       }
       if (r.finished && r.rejected) {

@@ -180,7 +180,7 @@ const warningList = [
     status: '待处理',
     current_level: 2,
     triggered_at: '2026-06-29 21:05:00',
-    trigger_reason: '2026-06-29 进场 07:02，截至 21:05 未出场，连续作业时长 14 小时，超过阈值 12 小时。',
+    trigger_reason: '2026-06-29  07:02进场，2026-06-30  07:02出场，连续作业时长 14 小时，超过阈值 12 小时。',
     disposal_records: [
       { time: '2026-06-29 21:05:00', type: 'trigger', operator: '系统', content: '触发连续工作超12小时预警' },
       { time: '2026-06-30 09:00:00', type: 'escalate', operator: '系统', content: '超 1 天未处置，自动上报至一级责任人（总监理）' },
