@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, defineAsyncComponent, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { getCocAdminItem } from '../../config/menu.js'
 import { ensureDailyWorkSeed } from '../../coc/utils/dailyWorkStorage.js'
@@ -19,6 +19,13 @@ onMounted(() => {
 const route = useRoute()
 
 const item = computed(() => getCocAdminItem(route.meta.cocAdminKey))
+
+/** viewLoaders 为 () => import(...)，须包一层 defineAsyncComponent 才能作为 :is 渲染 */
+const contentComponent = computed(() => {
+  const loader = item.value?.component
+  if (!loader) return null
+  return defineAsyncComponent(loader)
+})
 </script>
 
 <template>
@@ -27,7 +34,12 @@ const item = computed(() => getCocAdminItem(route.meta.cocAdminKey))
       <span class="role-label">适用角色</span>
       <el-tag v-for="role in item.roles" :key="role" size="small" type="info">{{ role }}</el-tag>
     </div>
-    <component :is="item.component" :title="item.label" :description="item.description" />
+    <component
+      :is="contentComponent"
+      v-if="contentComponent"
+      :title="item.label"
+      :description="item.description"
+    />
   </div>
 </template>
 
