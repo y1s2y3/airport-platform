@@ -19,7 +19,7 @@ const taskMap = {
     inspector: '监理',
     companions: [],
     deadline: '2026-07-28',
-    inspDate: '2026-07-28',
+    inspDate: '',
     status: '待执行',
     submittedAt: '',
     result: '',
@@ -136,7 +136,7 @@ function normalizeTaskDetail(raw) {
     inspector: raw.inspector || raw.executor || '—',
     companions: Array.isArray(raw.companions) ? raw.companions : [],
     deadline: raw.deadline || '—',
-    inspDate: raw.inspDate || raw.deadline || '—',
+    inspDate: raw.inspectionDate || raw.inspDate || '',
     status: raw.status || '待执行',
     submittedAt: raw.submittedAt || '',
     result: raw.result || '',
@@ -167,7 +167,7 @@ function goBack() {
   <div class="mp">
     <header class="mh">
       <button class="mb" @click="goBack">‹</button>
-      <h1 class="mt">检查结果</h1>
+      <h1 class="mt">巡检任务详情</h1>
       <span v-if="taskInfo.status === '已完成'" style="color: #34a853; font-size: 13px; font-weight: 600">✓ 已完成</span>
       <span v-else style="color: #f5a623; font-size: 13px; font-weight: 600">待执行</span>
     </header>
@@ -189,12 +189,13 @@ function goBack() {
       <div class="sc-row"><span class="sc-lbl">项目名称</span><span>{{ taskInfo.project }}</span></div>
       <div class="sc-row"><span class="sc-lbl">执行人</span><span>{{ taskInfo.executor || '-' }}</span></div>
       <div class="sc-row"><span class="sc-lbl">巡检分类</span><span>{{ taskInfo.inspectionCategory }}</span></div>
-      <div class="sc-row"><span class="sc-lbl">同行人</span><span>{{ taskInfo.companions.length ? taskInfo.companions.join('、') : '-' }}</span></div>
+      <div class="sc-row"><span class="sc-lbl">同行人</span><span>{{ taskInfo.companions.length ? taskInfo.companions.join('、') : '' }}</span></div>
+      <div class="sc-row"><span class="sc-lbl">截止日期</span><span>{{ taskInfo.deadline }}</span></div>
       <div class="sc-row"><span class="sc-lbl">巡检日期</span><span>{{ taskInfo.inspDate }}</span></div>
-      <div class="sc-row"><span class="sc-lbl">状态</span><span style="color: #34a853; font-weight: 600">{{ taskInfo.status }}</span></div>
+      <div class="sc-row"><span class="sc-lbl">状态</span><span :style="{ color: taskInfo.status === '已完成' ? '#34a853' : '#f5a623', fontWeight: 600 }">{{ taskInfo.status }}</span></div>
     </div>
 
-    <div class="sc-card">
+    <div v-if="taskInfo.status === '已完成'" class="sc-card">
       <div class="sc-title">巡检结果</div>
       <div class="sc-row">
         <span class="sc-lbl">结果</span>

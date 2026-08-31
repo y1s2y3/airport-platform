@@ -6,8 +6,8 @@ import { useLaborProjectScope, selectedProjectId } from '../../composables/useCu
 import { HQ_PROJECT_OPTION } from '../../config/projectOptions'
 import { getProjectInspectorLabel } from '../../composables/useInspectionPersonConfig'
 import { DEFAULT_INSPECTOR_LABEL } from '../../config/inspectionManagement'
-import { projectTree } from '../../mock/laborRealName.js'
 import { listMobileInspectionTasks } from '../../mock/mobileInspectionTasks'
+import { INSPECTION_DEMO_TODAY, inspectionProjectTree } from '../../mock/inspectionDemoData'
 
 const router = useRouter()
 const route = useRoute()
@@ -29,7 +29,7 @@ function handleTreeNodeClick(data) {
 }
 
 const treeDataWithCount = computed(() => {
-  const root = projectTree[0]
+  const root = inspectionProjectTree[0]
   const children = root.children
     .map(node => {
       const count = taskData.value.filter(t => t.project_id === node.id).length
@@ -45,37 +45,43 @@ const treeDataWithCount = computed(() => {
 // 与移动端共用任务数据，下发后立即出现在 Web 台账和移动端待办中。
 const taskData = computed(() => listMobileInspectionTasks().map(task => ({
   ...task,
-  inspector: task.inspector || task.executor || getProjectInspectorLabel(task.project_id) || DEFAULT_INSPECTOR_LABEL,
+  project_id: task.project_id || task.projectId,
+  inspector: task.inspector || task.executor || getProjectInspectorLabel(task.project_id || task.projectId) || DEFAULT_INSPECTOR_LABEL,
   inspectionDate: task.inspectionDate || task.inspDate || '',
   hazardItems: task.hazardItems || [],
 })))
 
 // ===== 项目树数据 =====
-const treeData = computed(() => projectTree)
+const treeData = computed(() => inspectionProjectTree)
 
 // ===== 筛选 =====
 const filterForm = reactive({ keyword: '', category: '', status: '', source: '', result: '', overdue: '' })
 
 const hqProjectKeyword = ref('')
-const hqProjectStats = computed(() => projectTree[0].children.map(project => {
+const hqProjectStats = computed(() => inspectionProjectTree[0].children.map(project => {
   const rows = taskData.value.filter(item => item.project_id === project.id)
+  const completedCount = rows.filter(item => item.status === '已完成').length
   return {
     project_id: project.id,
     project_name: project.label,
     totalCount: rows.length,
     pendingCount: rows.filter(item => item.status === '待执行').length,
-    completedCount: rows.filter(item => item.status === '已完成').length,
+    completedCount,
+    executionRate: rows.length ? Math.round(completedCount / rows.length * 100) : 0,
     overdueCount: rows.filter(item => isOverdue(item)).length,
     hazardCount: rows.reduce((sum, item) => sum + (item.hazardCount || 0), 0),
   }
 }))
 const filteredHQProjects = computed(() => hqProjectStats.value.filter(item =>
   !hqProjectKeyword.value || item.project_name.includes(hqProjectKeyword.value),
-))
+).sort((a, b) => a.executionRate - b.executionRate || b.totalCount - a.totalCount))
 const hqTotalStats = computed(() => ({
   totalCount: filteredHQProjects.value.reduce((sum, item) => sum + item.totalCount, 0),
   pendingCount: filteredHQProjects.value.reduce((sum, item) => sum + item.pendingCount, 0),
   completedCount: filteredHQProjects.value.reduce((sum, item) => sum + item.completedCount, 0),
+  executionRate: filteredHQProjects.value.reduce((sum, item) => sum + item.totalCount, 0)
+    ? Math.round(filteredHQProjects.value.reduce((sum, item) => sum + item.completedCount, 0) / filteredHQProjects.value.reduce((sum, item) => sum + item.totalCount, 0) * 100)
+    : 0,
   overdueCount: filteredHQProjects.value.reduce((sum, item) => sum + item.overdueCount, 0),
   hazardCount: filteredHQProjects.value.reduce((sum, item) => sum + item.hazardCount, 0),
 }))
@@ -92,12 +98,12 @@ const filteredTasks = computed(() => {
     if (filterForm.overdue === '是') {
       if (!t.deadline) return false
       if (t.status === '已完成') return false
-      if (new Date(t.deadline) >= new Date('2026-07-16')) return false
+      if (new Date(t.deadline) >= new Date(INSPECTION_DEMO_TODAY)) return false
     }
     if (filterForm.overdue === '否') {
       if (!t.deadline) return true
       if (t.status === '已完成') return true
-      if (new Date(t.deadline) >= new Date('2026-07-16')) return true
+      if (new Date(t.deadline) >= new Date(INSPECTION_DEMO_TODAY)) return true
     }
     if (filterForm.keyword) {
       const kw = filterForm.keyword
@@ -110,7 +116,7 @@ const filteredTasks = computed(() => {
 function isOverdue(row) {
   if (row.status === '已完成') return false
   if (!row.deadline) return false
-  return new Date(row.deadline) < new Date('2026-07-16')
+  return new Date(row.deadline) < new Date(INSPECTION_DEMO_TODAY)
 }
 
 function getTaskExecutor(row) {
@@ -125,8 +131,9 @@ function viewDetail(row) { router.push(`/safety-inspection/task/${row.id}`) }
 function goRectify(id) { router.push(`/safety-inspection/hazard/${id}`) }
 function handleReset() { Object.keys(filterForm).forEach(k => filterForm[k] = '') }
 function viewProjectDetail(row) {
-  selectedProjectId.value = row.project_id
-  router.push({ path: '/safety-inspection/task', query: { from: 'hq' } })
+  router.push({ path:'/safety-inspection/task', query:{ from:'hq' } }).then(() => {
+    selectedProjectId.value = row.project_id
+  })
 }
 function goBackToHQ() {
   selectedProjectId.value = HQ_PROJECT_OPTION.id
@@ -148,11 +155,12 @@ function goBackToHQ() {
           <div class="stat-card"><div class="sc-value">{{ hqTotalStats.totalCount }}</div><div class="sc-label">任务总数</div></div>
           <div class="stat-card"><div class="sc-value text-warn">{{ hqTotalStats.pendingCount }}</div><div class="sc-label">待执行</div></div>
           <div class="stat-card"><div class="sc-value text-success">{{ hqTotalStats.completedCount }}</div><div class="sc-label">已完成</div></div>
+          <div class="stat-card"><div class="sc-value text-success">{{ hqTotalStats.executionRate }}%</div><div class="sc-label">执行率</div></div>
           <div class="stat-card"><div class="sc-value text-danger">{{ hqTotalStats.overdueCount }}</div><div class="sc-label">逾期任务</div></div>
           <div class="stat-card"><div class="sc-value text-danger">{{ hqTotalStats.hazardCount }}</div><div class="sc-label">隐患总数</div></div>
         </div>
         <div class="hq-filter-bar">
-          <el-input v-model="hqProjectKeyword" placeholder="搜索项目名称..." clearable style="width:240px" :prefix-icon="Search" aria-label="搜索项目名称..."/>
+          <el-input v-model="hqProjectKeyword" placeholder="搜索项目名称..." clearable style="width:240px" :prefix-icon="Search" />
         </div>
         <el-table :data="filteredHQProjects" border stripe style="width:100%;margin-top:12px" class="hq-table">
           <el-table-column type="index" label="序号" width="55" align="center" />
@@ -160,7 +168,12 @@ function goBackToHQ() {
           <el-table-column prop="totalCount" label="任务数量" align="center" />
           <el-table-column prop="pendingCount" label="待执行数量" align="center" />
           <el-table-column prop="completedCount" label="已完成数量" align="center" />
-          <el-table-column prop="overdueCount" label="逾期数量" align="center" />
+          <el-table-column label="执行率" align="center">
+            <template #default="{ row }"><span :class="{ 'rate-low': row.executionRate < 60 }">{{ row.executionRate }}%</span></template>
+          </el-table-column>
+          <el-table-column label="逾期数量" align="center">
+            <template #default="{ row }"><span :class="{ 'overdue-count': row.overdueCount > 0 }">{{ row.overdueCount }}</span></template>
+          </el-table-column>
           <el-table-column prop="hazardCount" label="隐患数量" align="center" />
           <el-table-column label="操作" width="110" align="center">
             <template #default="{ row }"><el-button link type="primary" :icon="View" @click="viewProjectDetail(row)">查看详情</el-button></template>
@@ -177,20 +190,20 @@ function goBackToHQ() {
       <div class="page-panel">
         <!-- 筛选栏 -->
         <div class="filter-bar">
-          <el-input v-model="filterForm.keyword" placeholder="搜索编号/名称/整改单..." clearable style="width:240px" :prefix-icon="Search" aria-label="搜索编号/名称/整改单..."/>
-          <el-select v-model="filterForm.category" placeholder="巡检分类" clearable style="width:100px" aria-label="巡检分类">
+          <el-input v-model="filterForm.keyword" placeholder="搜索编号/名称/整改单..." clearable style="width:240px" :prefix-icon="Search" />
+          <el-select v-model="filterForm.category" placeholder="巡检分类" clearable style="width:100px">
             <el-option label="安全" value="安全" /><el-option label="质量" value="质量" />
           </el-select>
-          <el-select v-model="filterForm.status" placeholder="任务状态" clearable style="width:100px" aria-label="任务状态">
+          <el-select v-model="filterForm.status" placeholder="任务状态" clearable style="width:100px">
             <el-option label="待执行" value="待执行" /><el-option label="已完成" value="已完成" />
           </el-select>
-          <el-select v-model="filterForm.source" placeholder="任务来源" clearable style="width:110px" aria-label="任务来源">
+          <el-select v-model="filterForm.source" placeholder="任务来源" clearable style="width:110px">
             <el-option label="任务下发" value="任务下发" /><el-option label="系统自建" value="系统自建" />
           </el-select>
-          <el-select v-model="filterForm.result" placeholder="巡检结果" clearable style="width:100px" aria-label="巡检结果">
+          <el-select v-model="filterForm.result" placeholder="巡检结果" clearable style="width:100px">
             <el-option label="正常" value="正常" /><el-option label="有隐患" value="有隐患" />
           </el-select>
-          <el-select v-model="filterForm.overdue" placeholder="是否逾期" clearable style="width:100px" aria-label="是否逾期">
+          <el-select v-model="filterForm.overdue" placeholder="是否逾期" clearable style="width:100px">
             <el-option label="是" value="是" /><el-option label="否" value="否" />
           </el-select>
           <el-button @click="handleReset">重置</el-button>
@@ -291,6 +304,8 @@ function goBackToHQ() {
 .text-warn { color:#f5a623; }
 .text-success { color:#34a853; }
 .text-danger { color:#e53935; }
+.rate-low { color:#e53935; font-weight:600; }
+.overdue-count { color:#e53935; font-weight:600; }
 .hq-filter-bar { display:flex; justify-content:flex-end; }
 .back-bar { display:flex; align-items:center; gap:10px; margin-bottom:12px; padding:8px 12px; background:#f5f7fa; border-radius:6px; font-size:14px; font-weight:600; }
 

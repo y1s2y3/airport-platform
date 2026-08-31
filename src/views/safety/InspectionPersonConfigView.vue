@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useCurrentProject } from '../../composables/useCurrentProject'
 import {
@@ -10,6 +10,7 @@ import {
 } from '../../composables/useInspectionPersonConfig'
 
 const { laborProjectId, projectLabel } = useCurrentProject()
+const isEditing = ref(false)
 
 const form = reactive({
   manager: '',
@@ -31,7 +32,20 @@ function loadForm() {
   form.reviewerId = config?.reviewerId || 'insp-supervisor'
 }
 
-watch(laborProjectId, loadForm, { immediate: true })
+watch(laborProjectId, () => {
+  loadForm()
+  isEditing.value = false
+}, { immediate: true })
+
+function startEdit() {
+  loadForm()
+  isEditing.value = true
+}
+
+function cancelEdit() {
+  loadForm()
+  isEditing.value = false
+}
 
 function handleSave() {
   if (!form.inspectorId) {
@@ -52,6 +66,7 @@ function handleSave() {
     rectifierId: form.rectifierId,
     reviewerId: form.reviewerId,
   })
+  isEditing.value = false
   ElMessage.success('人员配置已保存，任务和隐患将默认带入巡检人、整改人及复查人')
 }
 </script>
@@ -60,70 +75,52 @@ function handleSave() {
   <div class="person-config-page">
     <div class="page-head">
       <div>
-        <h3 class="page-title">人员配置</h3>
-        <div class="page-desc">由项目经理配置本项目巡检人、默认整改人和复查人；任务下发及发现隐患时自动带入，仍可修改。</div>
+        <h3 class="page-title">人员配置详情</h3>
+        <div class="page-desc">查看本项目巡检人、复查人和整改人配置。</div>
+      </div>
+      <el-button v-if="!isEditing" type="primary" @click="startEdit">编辑</el-button>
+      <div v-else class="head-actions">
+        <el-button @click="cancelEdit">取消</el-button>
+        <el-button type="primary" @click="handleSave">保存</el-button>
       </div>
     </div>
 
     <el-card class="config-card" shadow="never">
-      <el-form label-width="110px" class="config-form">
-        <el-form-item label="所属项目">
-          <el-input :model-value="projectLabel" disabled />
-        </el-form-item>
-        <el-form-item label="巡检人" required>
-          <el-select v-model="form.inspectorId" placeholder="请选择巡检人" style="width:100%" aria-label="请选择巡检人">
-            <el-option
-              v-for="item in inspectorCandidates"
-              :key="item.id"
-              :label="`${item.name}（${item.role}）`"
-              :value="item.id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="默认整改人" required>
-          <el-select v-model="form.rectifierId" placeholder="请选择默认整改人" style="width: 100%" aria-label="请选择默认整改人">
-            <el-option
-              v-for="item in inspectorCandidates"
-              :key="item.id"
-              :label="`${item.name}（${item.role}）`"
-              :value="item.id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="默认复查人" required>
-          <el-select v-model="form.reviewerId" placeholder="请选择默认复查人" style="width: 100%" aria-label="请选择默认复查人">
-            <el-option
-              v-for="item in inspectorCandidates"
-              :key="item.id"
-              :label="`${item.name}（${item.role}）`"
-              :value="item.id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSave">保存配置</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
-
-    <el-card class="config-card" shadow="never">
       <template #header>
-        <span>当前配置</span>
+        <div class="card-header">
+          <span>基本信息</span>
+          <el-tag v-if="isEditing" type="warning" effect="light">编辑中</el-tag>
+        </div>
       </template>
-      <el-descriptions :column="2" border>
+      <el-descriptions :column="2" border class="config-detail">
         <el-descriptions-item label="项目">{{ projectLabel }}</el-descriptions-item>
         <el-descriptions-item label="配置人">{{ form.manager || '-' }}</el-descriptions-item>
         <el-descriptions-item label="巡检人">
-          <span v-if="currentInspector">{{ currentInspector.name }}（{{ currentInspector.role }}，{{ currentInspector.phone }}）</span>
-          <span v-else>-</span>
+          <el-select v-if="isEditing" v-model="form.inspectorId" placeholder="请选择巡检人" class="person-select">
+            <el-option v-for="item in inspectorCandidates" :key="item.id" :label="`${item.name}（${item.role}）`" :value="item.id" />
+          </el-select>
+          <template v-else>
+            <span v-if="currentInspector">{{ currentInspector.name }}（{{ currentInspector.role }}，{{ currentInspector.phone }}）</span>
+            <span v-else>-</span>
+          </template>
         </el-descriptions-item>
-        <el-descriptions-item label="默认整改人">
-          <span v-if="currentRectifier">{{ currentRectifier.name }}（{{ currentRectifier.role }}，{{ currentRectifier.phone }}）</span>
-          <span v-else>-</span>
+        <el-descriptions-item label="复查人">
+          <el-select v-if="isEditing" v-model="form.reviewerId" placeholder="请选择复查人" class="person-select">
+            <el-option v-for="item in inspectorCandidates" :key="item.id" :label="`${item.name}（${item.role}）`" :value="item.id" />
+          </el-select>
+          <template v-else>
+            <span v-if="currentReviewer">{{ currentReviewer.name }}（{{ currentReviewer.role }}，{{ currentReviewer.phone }}）</span>
+            <span v-else>-</span>
+          </template>
         </el-descriptions-item>
-        <el-descriptions-item label="默认复查人">
-          <span v-if="currentReviewer">{{ currentReviewer.name }}（{{ currentReviewer.role }}，{{ currentReviewer.phone }}）</span>
-          <span v-else>-</span>
+        <el-descriptions-item label="整改人">
+          <el-select v-if="isEditing" v-model="form.rectifierId" placeholder="请选择整改人" class="person-select">
+            <el-option v-for="item in inspectorCandidates" :key="item.id" :label="`${item.name}（${item.role}）`" :value="item.id" />
+          </el-select>
+          <template v-else>
+            <span v-if="currentRectifier">{{ currentRectifier.name }}（{{ currentRectifier.role }}，{{ currentRectifier.phone }}）</span>
+            <span v-else>-</span>
+          </template>
         </el-descriptions-item>
       </el-descriptions>
     </el-card>
@@ -136,5 +133,8 @@ function handleSave() {
 .page-title { font-size:18px; font-weight:600; color:#1f2329; margin:0 0 6px; }
 .page-desc { font-size:13px; color:#666; line-height:1.6; }
 .config-card { border-radius:8px; }
-.config-form { max-width:720px; }
+.head-actions { display:flex; gap:8px; }
+.card-header { display:flex; align-items:center; justify-content:space-between; }
+.person-select { width:100%; max-width:420px; }
+.config-detail :deep(.el-descriptions__cell) { height:56px; }
 </style>

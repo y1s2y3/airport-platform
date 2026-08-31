@@ -24,12 +24,20 @@ const rectDate = ref('')
 const rectPhotos = ref([])
 const rectNote = ref('')
 const flowCollapsed = ref(false)
-onMounted(() => document.querySelector('.page-viewport')?.scrollTo({ top:0 }))
+onMounted(() => {
+  document.querySelector('.page-viewport')?.scrollTo({ top:0 })
+  // 重新整改时，编辑栏只回显上一轮提交内容，不再另起历史记录区块。
+  if (isRejected.value && info.value.prev) {
+    rectDate.value = info.value.prev.rd || ''
+    rectPhotos.value = [...(info.value.prev.rp || [])]
+    rectNote.value = info.value.prev.rn || ''
+  }
+})
 
 const flowRecords = computed(() => isRejected.value ? [
   { a:'下发整改单', d:'2026-07-20 14:00' },
   { a:'整改人提交整改结果', d:'2026-07-22 16:30' },
-  { a:'复查不通过，退回继续整改', d:'2026-07-24 10:00', dt:'整改不彻底' },
+  { a:'复查不通过，退回继续整改', d:'2026-07-24 10:00', dt:info.value.prv?.c || '复查不通过，请重新整改' },
   { a:'等待整改人重新整改', d:'', cur:true },
 ] : [
   { a:'下发整改单', d:'2026-07-25 09:00' },
@@ -65,14 +73,12 @@ function goBack() { const tab = route.query.tab; router.push(tab ? `/mobile/rect
 
     <div class="task-bar">
       <div class="tbn">⚠ {{ info.rn }}</div>
-      <div class="tbi">巡检任务单编号：{{ info.tn }}</div>
-      <div class="tbi">巡检分类：{{ info.cat }}</div>
-      <div class="tbi">
-        <span>{{ info.pj }}</span>
-        <span>整改人：{{ info.rf }}</span>
-        <span>复查人：{{ info.rv }}</span>
-        <span>截止：{{ info.dl }}</span>
-      </div>
+      <div class="tbi"><span class="tbi-label">巡检任务单编号：</span><span class="tbi-value">{{ info.tn }}</span></div>
+      <div class="tbi"><span class="tbi-label">巡检分类：</span><span class="tbi-value">{{ info.cat }}</span></div>
+      <div class="tbi"><span class="tbi-label">项目名称：</span><span class="tbi-value">{{ info.pj }}</span></div>
+      <div class="tbi"><span class="tbi-label">整改人：</span><span class="tbi-value">{{ info.rf }}</span></div>
+      <div class="tbi"><span class="tbi-label">复查人：</span><span class="tbi-value">{{ info.rv }}</span></div>
+      <div class="tbi"><span class="tbi-label">截止日期：</span><span class="tbi-value">{{ info.dl }}</span></div>
     </div>
 
     <!-- 流程记录 -->
@@ -100,19 +106,6 @@ function goBack() { const tab = route.query.tab; router.push(tab ? `/mobile/rect
       <div class="sct">隐患信息</div>
       <div class="ir"><span class="il">隐患说明</span><span>{{ info.item.desc }}</span></div>
       <div class="ir" v-if="info.item.p"><span class="il">隐患照片</span><span>{{ info.item.p.join('、') }}</span></div>
-    </div>
-
-    <!-- 继续整改：上次整改情况 -->
-    <div v-if="isRejected" class="sc">
-      <div class="sct">📋 上次整改情况</div>
-      <div class="ir"><span class="il">整改日期</span><span>{{ info.prev.rd }}</span></div>
-      <div class="ir"><span class="il">整改照片</span><span>{{ info.prev.rp.join('、') }}</span></div>
-      <div class="ir"><span class="il">整改说明</span><span>{{ info.prev.rn }}</span></div>
-      <div class="dv"></div>
-      <div class="sct" style="color:#e53935;border-left-color:#e53935">复查结果</div>
-      <div class="ir"><span class="il">复查日期</span><span>{{ info.prv.d }}</span></div>
-      <div class="ir"><span class="il">复查意见</span><span>{{ info.prv.c }}</span></div>
-      <div class="ir"><span class="il">结果</span><span style="color:#e53935;font-weight:600">{{ info.prv.r }}</span></div>
     </div>
 
     <!-- 本次整改 -->
@@ -143,7 +136,9 @@ function goBack() { const tab = route.query.tab; router.push(tab ? `/mobile/rect
 
 .task-bar { background:#fff; padding:14px 16px; border-bottom:1px solid #eee; }
 .tbn { font-size:15px; font-weight:600; color:#1f2329; margin-bottom:6px; }
-.tbi { display:flex; gap:10px; font-size:12px; color:#999; flex-wrap:wrap; }
+.tbi { display:grid; grid-template-columns:96px minmax(0,1fr); gap:0 8px; align-items:start; font-size:12px; line-height:1.6; color:#999; }
+.tbi-label { text-align:right; white-space:nowrap; }
+.tbi-value { min-width:0; color:#666; word-break:break-word; }
 
 .sc { background:#fff; border-radius:10px; padding:14px 16px; margin:12px 16px; box-shadow:0 1px 3px rgba(0,0,0,0.04); }
 .sct { font-size:13px; font-weight:600; color:#1f2329; margin-bottom:10px; padding-left:8px; border-left:3px solid #8f0045; }

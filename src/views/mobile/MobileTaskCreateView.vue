@@ -87,10 +87,15 @@ function submitInspection() {
   if (!form.value.inspDate) { ElMessage.warning('请选择巡检日期'); return }
   if (!form.value.project) { ElMessage.warning('请选择所属项目'); return }
   if (!form.value.result) { ElMessage.warning('请选择巡检结果'); return }
+  if (form.value.result === 'normal' && form.value.photos.length === 0) {
+    ElMessage.warning('全部正常时请至少上传一张巡检照片')
+    return
+  }
   if (form.value.result === 'hazard') {
     if (form.value.hazardItems.length === 0) { ElMessage.warning('请至少添加一条隐患'); return }
     for (const [i,item] of form.value.hazardItems.entries()) {
       if (!item.desc.trim()) { ElMessage.warning(`第 ${i+1} 条隐患请填写说明`); return }
+      if (!item.photos?.length) { ElMessage.warning(`第 ${i+1} 条隐患请至少上传一张照片`); return }
       if (!item.rectifyPerson) {
         ElMessage.warning(`第 ${i+1} 条隐患请选择整改人`)
         return
@@ -203,7 +208,7 @@ function goBack() { router.push('/mobile/tasks') }
         <div class="fs-title">巡检结果</div>
 
         <div v-if="form.result === 'normal'" class="form-row">
-          <span class="form-label">巡检照片</span>
+          <span class="form-label">巡检照片<span class="required-mark">*</span></span>
           <div class="photo-group">
             <div v-for="(url,i) in form.photos" :key="i" class="photo-box"><span>📷 已拍</span><button class="photo-del" @click="removePhoto(i)">✕</button></div>
             <button class="photo-add" @click="triggerPhoto">+ 拍照</button>
@@ -230,7 +235,7 @@ function goBack() { router.push('/mobile/tasks') }
               <textarea v-model="item.desc" class="form-textarea" placeholder="请描述隐患情况..." rows="2"></textarea>
             </div>
             <div class="form-row">
-              <span class="form-label" style="width:56px">照片</span>
+              <span class="form-label" style="width:56px">照片<span class="required-mark">*</span></span>
               <div class="photo-group">
                 <div v-for="(url,pi) in item.photos" :key="pi" class="photo-box"><span>📷</span><button class="photo-del" @click="removeHazardPhoto(idx, pi)">✕</button></div>
                 <button class="photo-add" @click="triggerHazardPhoto(idx)">+ 拍照</button>

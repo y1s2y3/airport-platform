@@ -7,7 +7,7 @@ import {
   getProjectFullName,
   projectNamePair,
 } from '../../config/projectCatalog.js'
-import { getHiddenProjectIdSet, findProjectById } from '../../mock/projectBasicInfo.js'
+import { getHiddenProjectIdSet, findProjectById, displayProjectStatus } from '../../mock/projectBasicInfo.js'
 
 export const DESIGN_WIDTH = 1920
 export const DESIGN_HEIGHT = 1080
@@ -486,7 +486,10 @@ export function buildProjects() {
     if (hiddenIds.has(id)) return null
     const isFocus = id === FOCUS_PROJECT_ID
     const basic = findProjectById(id)
-    const status = basic?.status || (i < 6 ? '前期' : i < 34 ? '在建' : '历史')
+    const mapped = displayProjectStatus(basic?.status)
+    const status = mapped !== '—'
+      ? mapped
+      : (i < 6 ? '前期' : i < 34 ? '在建' : '历史')
     const planRate = Math.round(55 + rand() * 40)
     const actualRate = Math.round(planRate - rand() * 18)
     const deviation = Math.max(0, planRate - actualRate)

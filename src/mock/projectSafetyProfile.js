@@ -130,11 +130,14 @@ export function createSubcontractorBlock(overrides = {}) {
   }
   merged.qualifications = normalizeQualificationTriple(overrides.qualifications || merged.qualifications)
   if (overrides.hasSafetyLicense === undefined) {
-    merged.hasSafetyLicense = Boolean(
-      merged.safetyLicenseNo &&
-        merged.safetyLicenseExpiry &&
-        merged.safetyLicensePhoto,
+    const expiryText = String(merged.safetyLicenseExpiry || '')
+    const endMatch = expiryText.match(/(\d{4}-\d{2}-\d{2})\s*$/)
+    const expiryEnd = endMatch ? endMatch[1] : ''
+    const today = new Date().toISOString().slice(0, 10)
+    const complete = Boolean(
+      merged.safetyLicenseNo && merged.safetyLicenseExpiry && merged.safetyLicensePhoto,
     )
+    merged.hasSafetyLicense = complete && (!expiryEnd || expiryEnd >= today)
   }
   return merged
 }
@@ -221,7 +224,7 @@ export function createSafetyProfile(overrides = {}) {
         safetyManagerContact: '赵安全 / 13500135007；钱安全 / 13400134008',
         hasSafetyLicense: true,
         safetyLicenseNo: '（粤）JZ安许证字〔2023〕009876',
-        safetyLicenseExpiry: '2026-12-31',
+        safetyLicenseExpiry: '2024-01-01 ~ 2026-12-31',
         qualifications: [{ label: '资格证书', possessed: true }],
       }),
       createSubcontractorBlock({
@@ -230,7 +233,7 @@ export function createSafetyProfile(overrides = {}) {
         safetyManagerContact: '冯安全 / 12700127015',
         hasSafetyLicense: true,
         safetyLicenseNo: '（粤）JZ安许证字〔2021〕003210',
-        safetyLicenseExpiry: '2025-12-31',
+        safetyLicenseExpiry: '2023-06-01 ~ 2025-12-31',
         qualifications: [{ label: '资格证书', possessed: true }],
       }),
     ],
@@ -333,11 +336,40 @@ export function listProfileMajorHazards(projectId = '') {
   return rows.filter((row) => row.projectId === projectId)
 }
 
-/** 与 COC 危险作业清单同源，按项目过滤 */
+/** 与 COC 危险作业清单同源，按项目过滤；无同源数据时补演示行，保证画像右侧图有数 */
 export function listProfileDangerWorks(projectId = '') {
   const rows = getDerivedDangerWorkList()
   if (!projectId) return rows
-  return rows.filter((row) => row.projectId === projectId)
+  const filtered = rows.filter((row) => row.projectId === projectId)
+  if (filtered.length) return filtered
+  return buildDemoDangerWorks(projectId)
+}
+
+function buildDemoDangerWorks(projectId = '') {
+  const seed = seedFromId(projectId)
+  const types = ['动火', '高处', '深基坑', '夜间作业']
+  const subTypes = {
+    动火: ['一级动火', '焊接切割'],
+    高处: ['外架搭设', '幕墙安装'],
+    深基坑: ['深基坑开挖', '土方开挖'],
+    夜间作业: ['夜间混凝土浇筑', '夜间设备安装'],
+  }
+  const statuses = ['进行中', '已完成', '待审批', '已许可']
+  const count = 5 + (seed % 4)
+  return Array.from({ length: count }, (_, i) => {
+    const type = types[(seed + i) % types.length]
+    const subs = subTypes[type]
+    return {
+      id: `demo-dw-${projectId || 'all'}-${i + 1}`,
+      projectId,
+      contractor: i % 2 === 0 ? '中建三局深圳机场项目部' : '中交一航局机场工程公司',
+      type,
+      subType: subs[i % subs.length],
+      date: `2026-08-${String(((seed + i) % 27) + 1).padStart(2, '0')}`,
+      location: ['东侧基坑', '钢结构区', '地下室B2', '幕墙作业面'][(seed + i) % 4],
+      status: statuses[(seed + i) % statuses.length],
+    }
+  })
 }
 
 /**

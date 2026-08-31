@@ -1,16 +1,17 @@
 import { reactive, computed } from 'vue'
-import { buildInspectionTaskNo, resolveInspectionProjectId, DEFAULT_INSPECTOR_LABEL } from '../config/inspectionManagement'
+import { buildInspectionTaskNo, DEFAULT_INSPECTOR_LABEL } from '../config/inspectionManagement'
 import { addMobileInspectionTask, updateMobileInspectionTaskByNo } from '../mock/mobileInspectionTasks'
+import { COC_PROJECT_OPTIONS } from '../config/projectOptions'
+import { inspectionTaskSeeds } from '../mock/inspectionDemoData'
+import { getProjectInspectorLabel } from './useInspectionPersonConfig'
 
 // ========== 项目列表 ==========
-export const projectOptions = [
-  { id: 'proj-1', label: 'T3 航站楼扩建工程', status: '在建' },
-  { id: 'proj-2', label: '飞行区跑道延长工程', status: '在建' },
-  { id: 'proj-3', label: '新货运站建设工程', status: '在建' },
-  { id: 'proj-4', label: '机场北片区路网工程', status: '在建' },
-  { id: 'proj-5', label: '员工宿舍楼工程', status: '竣工' },
-  { id: 'proj-6', label: '供油管线迁改工程', status: '竣工' },
-]
+export const projectOptions = COC_PROJECT_OPTIONS.map(project => ({
+  id: project.id,
+  label: project.label,
+  fullName: project.fullName,
+  status: '在建',
+}))
 
 export const activeProjects = computed(() => projectOptions.filter(p => p.status === '在建'))
 
@@ -167,8 +168,8 @@ export const planData = reactive([
     id: 'plan-003',
     inspectionCategory: '安全',
     assigned: true, executors: ['user-2', 'user-3'], planNo: 'AQXJ20260718001', name: '雨季临时用电检查',
-    projects: ['T3 航站楼扩建工程'],
-    projectIds: ['proj-1'],
+    projects: ['T1航站区配套'],
+    projectIds: ['p-001'],
     checkConfig: [
       { categoryId: 'cat-2', itemIds: ['item-2-1','item-2-2','item-2-3','item-2-4','item-2-5','item-2-6','item-2-7','item-2-8'] },
     ],
@@ -182,8 +183,8 @@ export const planData = reactive([
     id: 'plan-004',
     inspectionCategory: '质量',
     assigned: true, executors: ['user-2'], planNo: 'ZLXJ20260731004', name: '材料进场质量检查',
-    projects: ['新货运站建设工程'],
-    projectIds: ['proj-3'],
+    projects: ['二跑道FOD探测'],
+    projectIds: ['p-003'],
     checkConfig: [
       { categoryId: 'cat-q1', itemIds: ['item-q1-1','item-q1-2','item-q1-3'] },
       { categoryId: 'cat-q2', itemIds: ['item-q2-1','item-q2-2','item-q2-3'] },
@@ -198,8 +199,8 @@ export const planData = reactive([
     id: 'plan-005',
     inspectionCategory: '安全',
     assigned: true, executors: ['user-2'], planNo: 'AQXJ20260728001', name: '防台防汛安全检查',
-    projects: ['飞行区跑道延长工程'],
-    projectIds: ['proj-2'],
+    projects: ['T2航站区配套'],
+    projectIds: ['p-000'],
     checkConfig: [
       { categoryId: 'cat-1', itemIds: ['item-1-7', 'item-1-8'] },
       { categoryId: 'cat-3', itemIds: ['item-3-1', 'item-3-2'] },
@@ -210,13 +211,73 @@ export const planData = reactive([
     createdBy: 'admin', updatedBy: 'admin',
     createdAt: '2026-08-06 09:30', updatedAt: '2026-08-06 09:30',
   },
+  ...inspectionTaskSeeds
+    .filter(task => task.source === '任务下发' && [0, 3].includes(task.demoSlot))
+    .map((task, index) => ({
+      id: `plan-${task.id}`,
+      inspectionCategory: task.inspectionCategory,
+      assigned: true,
+      executors: ['user-3'],
+      planNo: task.taskNo,
+      name: task.taskName,
+      projects: [task.project],
+      projectIds: [task.project_id],
+      checkConfig: task.checkConfig.map(config => ({
+        categoryId: config.categoryId,
+        itemIds: [...config.itemIds],
+      })),
+      responsiblePerson: 'user-3',
+      ccPersons: index % 2 === 0 ? ['user-1', 'user-5'] : ['user-2'],
+      deadlineDate: task.deadline,
+      status: '已下发',
+      remark: index % 2 === 0 ? '请按检查项逐项核查并及时反馈隐患。' : '专项检查任务，请在截止日期前完成。',
+      createdBy: '刘指挥长',
+      updatedBy: index % 2 === 0 ? '刘指挥长' : '张工',
+      createdAt: `2026-08-${String(12 + (index % 12)).padStart(2, '0')} 09:30`,
+      updatedAt: `2026-08-${String(12 + (index % 12)).padStart(2, '0')} 10:15`,
+    })),
 ])
 
 export function getPlanById(id) {
   return planData.find(p => p.id === id)
 }
 
+function resolvePrimaryProject(plan) {
+  const projectId = plan.projectIds?.[0] || plan.project_id || ''
+  return projectOptions.find(project => project.id === projectId) || null
+}
+
+function createMobileTask(plan, project, taskNo, itemCount) {
+  addMobileInspectionTask({
+    id: `mt-${String(Date.now()).slice(-8)}`,
+    taskNo,
+    taskName: plan.name,
+    source: '任务下发',
+    inspectionCategory: plan.inspectionCategory,
+    project: project.label,
+    projectId: project.id,
+    project_id: project.id,
+    executor: getProjectInspectorLabel(project.id) || DEFAULT_INSPECTOR_LABEL,
+    inspector: getProjectInspectorLabel(project.id) || DEFAULT_INSPECTOR_LABEL,
+    companions: [],
+    deadline: plan.deadlineDate,
+    inspectionDate: '',
+    status: '待执行',
+    overdue: false,
+    hasRectify: false,
+    itemCount,
+    hazardCount: 0,
+    result: '',
+    normalPhotos: [],
+    hazardItems: [],
+    checkConfig: plan.checkConfig.map(item => ({ categoryId: item.categoryId, itemIds: [...item.itemIds] })),
+  })
+}
+
+/** 单项目下发（保留正式工程口径，不支持一次多选项目批量下发） */
 export function addPlan(plan) {
+  const project = resolvePrimaryProject(plan)
+  if (!project) return null
   const newId = 'plan-' + String(Date.now()).slice(-6)
   const t = now()
   const date = new Date()
@@ -224,49 +285,47 @@ export function addPlan(plan) {
   const prefix = plan.inspectionCategory === '质量' ? 'ZLXJ' : 'AQXJ'
   const sequence = planData.filter(item => item.planNo?.startsWith(`${prefix}${dateText}`)).length + 1
   const taskNo = buildInspectionTaskNo(plan.inspectionCategory, date, sequence)
-  planData.unshift({
-    id: newId, planNo: taskNo, ...plan,
-    assigned: true, status: '已下发',
-    createdBy: '当前用户', updatedBy: '当前用户',
-    createdAt: t, updatedAt: t,
-  })
-
   const itemCount = plan.checkConfig.reduce((sum, item) => sum + item.itemIds.length, 0)
-  addMobileInspectionTask({
-    id: `mt-${String(Date.now()).slice(-8)}`,
-    taskNo,
-    taskName: plan.name,
-    source: '任务下发',
-    inspectionCategory: plan.inspectionCategory,
-    project: plan.projects[0] || '',
-    projectId: resolveInspectionProjectId(plan.projects[0] || ''),
-    executor: DEFAULT_INSPECTOR_LABEL,
-    companions: [],
-    deadline: plan.deadlineDate,
-    status: '待执行',
-    overdue: false,
-    hasRectify: false,
-    itemCount,
-    hazardCount: 0,
-    checkConfig: plan.checkConfig.map(item => ({ categoryId: item.categoryId, itemIds: [...item.itemIds] })),
-  })
+  const record = {
+    id: newId,
+    planNo: taskNo,
+    ...plan,
+    projects: [project.label],
+    projectIds: [project.id],
+    assigned: true,
+    status: '已下发',
+    createdBy: '当前用户',
+    updatedBy: '当前用户',
+    createdAt: t,
+    updatedAt: t,
+  }
+  createMobileTask(record, project, taskNo, itemCount)
+  planData.unshift(record)
   return newId
 }
 
 export function updatePlan(id, data) {
   const item = planData.find(p => p.id === id)
-  if (item) {
-    Object.assign(item, data, { updatedAt: now(), updatedBy: '当前用户' })
-    updateMobileInspectionTaskByNo(item.planNo, {
-      taskName: item.name,
-      inspectionCategory: item.inspectionCategory,
-      project: item.projects[0] || '',
-      projectId: resolveInspectionProjectId(item.projects[0] || ''),
-      deadline: item.deadlineDate,
-      itemCount: item.checkConfig.reduce((sum, config) => sum + config.itemIds.length, 0),
-      checkConfig: item.checkConfig.map(config => ({ categoryId: config.categoryId, itemIds: [...config.itemIds] })),
-    })
-  }
+  const project = resolvePrimaryProject(data)
+  if (!item || !project) return
+  Object.assign(item, data, {
+    projects: [project.label],
+    projectIds: [project.id],
+    updatedAt: now(),
+    updatedBy: '当前用户',
+  })
+  updateMobileInspectionTaskByNo(item.planNo, {
+    taskName: item.name,
+    inspectionCategory: item.inspectionCategory,
+    project: project.label,
+    projectId: project.id,
+    project_id: project.id,
+    executor: getProjectInspectorLabel(project.id) || DEFAULT_INSPECTOR_LABEL,
+    inspector: getProjectInspectorLabel(project.id) || DEFAULT_INSPECTOR_LABEL,
+    deadline: item.deadlineDate,
+    itemCount: item.checkConfig.reduce((sum, config) => sum + config.itemIds.length, 0),
+    checkConfig: item.checkConfig.map(config => ({ categoryId: config.categoryId, itemIds: [...config.itemIds] })),
+  })
 }
 
 export function deletePlan(id) {

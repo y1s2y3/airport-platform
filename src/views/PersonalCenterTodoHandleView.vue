@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useTodoHandleContext } from './personalCenter/composables/useTodoHandleContext.js'
 import TodoHandleShell from './personalCenter/components/TodoHandleShell.vue'
 import TodoApprovalFlowSection from './personalCenter/components/TodoApprovalFlowSection.vue'
+import SubcontractorApprovalFlow from '../components/basicData/SubcontractorApprovalFlow.vue'
 import {
   resolveTodoHandlerMeta,
   resolveCommonApprovePanel,
@@ -151,8 +152,13 @@ function goBack() {
         :is-readonly="isReadonly"
         :on-back="goBack"
       />
+      <SubcontractorApprovalFlow
+        v-if="todo.type === 'subcontractor'"
+        panel
+        :approval-flow="approvalFlow"
+      />
       <TodoApprovalFlowSection
-        v-if="todo.type !== 'qm_inspect' && todo.type !== 'module_warning' && todo.type !== 'labor_warning'"
+        v-else-if="todo.type !== 'qm_inspect' && todo.type !== 'module_warning' && todo.type !== 'labor_warning'"
         :approval-flow="approvalFlow"
         :is-inspection="false"
       />
@@ -190,7 +196,13 @@ function goBack() {
         />
       </template>
 
+      <SubcontractorApprovalFlow
+        v-if="todo.type === 'subcontractor'"
+        panel
+        :approval-flow="approvalFlow"
+      />
       <TodoApprovalFlowSection
+        v-else
         :approval-flow="approvalFlow"
         :is-inspection="todo.type === 'inspection'"
       />

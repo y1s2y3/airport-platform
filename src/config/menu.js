@@ -282,6 +282,7 @@ export const menuTree = [
 export const hiddenRoutes = [
   // 个人中心
   { key: 'personal-center-todo-handle', path: '/personal-center/todo/handle', name: 'PersonalCenterTodoHandle', component: 'PersonalCenterTodoHandleView', label: '流程详情', sidebarKey: 'personal-center' },
+  { key: 'personal-center-started-edit', path: '/personal-center/started/:id/edit', name: 'PersonalCenterStartedEdit', component: 'PersonalCenterStartedEditView', label: '编辑发起记录', sidebarKey: 'personal-center' },
 
   // 人员实名制子页
   { key: 'labor-realname-form', path: '/labor/realname/form', name: 'RealNamePersonnelForm', component: 'RealNamePersonnelDetailView', label: '人员详情', sidebarKey: 'labor-realname', redirect: '/labor/realname' },
@@ -461,6 +462,7 @@ export const viewLoaders = {
   WorkbenchView: () => import('../views/WorkbenchView.vue'),
   PersonalCenterView: () => import('../views/PersonalCenterView.vue'),
   PersonalCenterTodoHandleView: () => import('../views/PersonalCenterTodoHandleView.vue'),
+  PersonalCenterStartedEditView: () => import('../views/PersonalCenterStartedEditView.vue'),
   CocAdminPageView: () => import('../views/cocAdmin/CocAdminPageView.vue'),
   VideoMonitorPageView: () => import('../views/videoMonitor/VideoMonitorPageView.vue'),
   TrackSystemListView: () => import('../views/track/TrackSystemListView.vue'),

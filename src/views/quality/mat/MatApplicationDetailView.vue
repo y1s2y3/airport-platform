@@ -2,7 +2,7 @@
 import './mat-page.css'
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Download } from '@element-plus/icons-vue'
+import { Download, Clock } from '@element-plus/icons-vue'
 import {
   getEntryDetail,
   ENTRY_TYPE_LABEL,
@@ -134,6 +134,95 @@ const lineItems = computed(() => {
       '',
   }))
 })
+
+const isInApproval = computed(() => {
+  const s = detail.value?.status
+  return s === 'reviewing' || s === 'pending_review'
+})
+
+const lastSupervisorRecord = computed(() => {
+  const rows = (detail.value?.approvals || []).filter(
+    (r) => !r.node || r.node === 'supervisor',
+  )
+  return rows[rows.length - 1] || null
+})
+
+/** 顶部步骤条：施工提交 → 监理审批（对齐品牌报审展示） */
+const processSteps = computed(() => {
+  const d = detail.value
+  if (!d) return []
+  const last = lastSupervisorRecord.value
+
+  function supervisorStep() {
+    if (last?.action === 'agree') return { status: 'success', desc: last.time || '已同意' }
+    if (last?.action === 'reject') return { status: 'error', desc: last.time || '已退回' }
+    if (isInApproval.value) return { status: 'process', desc: '审批中' }
+    return { status: 'wait', desc: '等待' }
+  }
+
+  return [
+    { title: '施工提交', status: 'success', desc: d.submit_time || '已提交' },
+    { title: '监理审批', ...supervisorStep() },
+  ]
+})
+
+const ACTION_LABEL = { submit: '提交', agree: '同意', reject: '退回' }
+
+/** 时间线：提交 + 已办审批 + 当前待办（对齐品牌报审） */
+const approvalTimeline = computed(() => {
+  const d = detail.value
+  if (!d) return []
+  const steps = [
+    {
+      key: 'submit',
+      title: '施工提交',
+      action: 'submit',
+      actionLabel: ACTION_LABEL.submit,
+      operator: d.applicant_name || '—',
+      time: d.submit_time || '—',
+      remark: '提交进场报审',
+      status: 'done',
+    },
+  ]
+  for (const r of d.approvals || []) {
+    steps.push({
+      key: r.approval_id,
+      title: '监理审批',
+      action: r.action,
+      actionLabel: ACTION_LABEL[r.action] || r.action,
+      operator: r.operator || '—',
+      time: r.time || '—',
+      remark: r.opinion || '',
+      status: r.action === 'reject' ? 'rejected' : 'done',
+    })
+  }
+  if (isInApproval.value) {
+    steps.push({
+      key: 'pending-supervisor',
+      title: '监理审批',
+      action: '',
+      actionLabel: '待办理',
+      operator: supervisorApproverDisplay(d),
+      time: '',
+      remark: '等待审批（个人中心待办）',
+      status: 'current',
+    })
+  }
+  return steps
+})
+
+function timelineType(status) {
+  if (status === 'done') return 'success'
+  if (status === 'rejected') return 'danger'
+  if (status === 'current') return 'warning'
+  return 'info'
+}
+
+function actionTagType(action) {
+  if (action === 'agree' || action === 'submit') return 'success'
+  if (action === 'reject') return 'danger'
+  return 'warning'
+}
 </script>
 
 <template>
@@ -161,7 +250,7 @@ const lineItems = computed(() => {
     <template v-else>
       <PersonalCenterReadonlyHint v-if="showReadonlyHint" />
       <h3 class="section-title">品牌与定样</h3>
-      <el-descriptions :column="2" border size="small" class="mb">
+      <el-descriptions :column="2" border class="mb info-desc">
         <el-descriptions-item label="进场单号">{{ detail.entry_id }}</el-descriptions-item>
         <el-descriptions-item label="进场类型">
           {{ ENTRY_TYPE_LABEL[detail.entry_type] || '材料' }}
@@ -190,7 +279,10 @@ const lineItems = computed(() => {
         </el-descriptions-item>
         <el-descriptions-item label="提交时间">{{ detail.submit_time }}</el-descriptions-item>
         <el-descriptions-item label="办结时间">{{ detail.finish_time || '—' }}</el-descriptions-item>
-        <el-descriptions-item v-if="detail.entry_type === 'material'" label="退场状态">
+        <el-descriptions-item
+          v-if="detail.status === 'approved' && detail.entry_type === 'material'"
+          label="退场状态"
+        >
           <el-tag size="small" :type="detail.exited ? 'warning' : 'info'" effect="plain">
             {{ detail.exited ? '已退场' : '未退场' }}
           </el-tag>
@@ -201,7 +293,7 @@ const lineItems = computed(() => {
         <h3 class="section-title">材料进场明细</h3>
         <div v-for="(row, idx) in lineItems" :key="`${row.material_name}-${idx}`" class="line-card mb">
           <div class="line-card-title">材料 {{ idx + 1 }}</div>
-          <el-descriptions :column="2" border size="small">
+          <el-descriptions :column="2" border class="info-desc">
             <el-descriptions-item label="材料名称">{{ row.material_name || '—' }}</el-descriptions-item>
             <el-descriptions-item label="规格型号">{{ row.material_spec || '—' }}</el-descriptions-item>
             <el-descriptions-item label="数量">
@@ -243,7 +335,7 @@ const lineItems = computed(() => {
           class="line-card mb"
         >
           <div class="line-card-title">设备 {{ idx + 1 }}</div>
-          <el-descriptions :column="2" border size="small">
+          <el-descriptions :column="2" border class="info-desc">
             <el-descriptions-item label="设备名称">{{ row.equipment_name || '—' }}</el-descriptions-item>
             <el-descriptions-item label="规格型号">{{ row.model || '—' }}</el-descriptions-item>
             <el-descriptions-item label="数量">
@@ -294,14 +386,14 @@ const lineItems = computed(() => {
       </template>
 
       <el-card
-        v-if="detail.entry_type !== 'equipment'"
+        v-if="detail.status === 'approved' && detail.entry_type !== 'equipment'"
         shadow="never"
         class="mb"
         :class="{ 'exit-card': detail.exited }"
       >
         <template #header>
           <div class="title-row">
-            <span>退场信息</span>
+            <span class="exit-card-title">退场信息</span>
             <el-tag v-if="detail.exited" size="small" type="warning">已登记退场</el-tag>
           </div>
         </template>
@@ -310,7 +402,7 @@ const lineItems = computed(() => {
           description="尚未登记退场"
           :image-size="56"
         />
-        <el-descriptions v-else :column="2" border size="small">
+        <el-descriptions v-else :column="2" border class="info-desc">
           <el-descriptions-item label="退场单号">{{ detail.exit.exit_id }}</el-descriptions-item>
           <el-descriptions-item label="登记人">{{ detail.exit.operator || '—' }}</el-descriptions-item>
           <el-descriptions-item label="退场数量">
@@ -325,17 +417,52 @@ const lineItems = computed(() => {
         </el-descriptions>
       </el-card>
 
-      <h3 class="section-title">审批记录</h3>
-      <el-table :data="detail.approvals" stripe border empty-text="暂无审批记录">
-        <el-table-column prop="time" label="时间" width="170" />
-        <el-table-column prop="operator" label="处理人" width="120" />
-        <el-table-column label="动作" width="100">
-          <template #default="{ row }">
-            {{ row.action === 'agree' ? '同意' : '退回' }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="opinion" label="意见" min-width="200" />
-      </el-table>
+      <section class="flow-section">
+        <header class="flow-section-head">
+          <el-icon class="flow-section-icon"><Clock /></el-icon>
+          <h3 class="section-title flow-section-title">审批过程</h3>
+        </header>
+        <div class="flow-section-body">
+          <el-steps class="process-steps" align-center>
+            <el-step
+              v-for="s in processSteps"
+              :key="s.title"
+              :title="s.title"
+              :description="s.desc"
+              :status="s.status"
+            />
+          </el-steps>
+
+          <el-timeline v-if="approvalTimeline.length" class="approval-timeline">
+            <el-timeline-item
+              v-for="step in approvalTimeline"
+              :key="step.key"
+              :type="timelineType(step.status)"
+              :hollow="step.status === 'current'"
+              :timestamp="step.time || '进行中'"
+              placement="top"
+            >
+              <div class="flow-card" :class="step.status">
+                <div class="flow-title">
+                  <span>{{ step.title }}</span>
+                  <el-tag v-if="step.status === 'current'" size="small" type="warning">当前</el-tag>
+                  <el-tag
+                    v-else-if="step.actionLabel"
+                    size="small"
+                    :type="actionTagType(step.action)"
+                    effect="light"
+                  >
+                    {{ step.actionLabel }}
+                  </el-tag>
+                </div>
+                <div class="flow-meta">处理人：{{ step.operator }}</div>
+                <div v-if="step.remark" class="flow-remark">意见：{{ step.remark }}</div>
+              </div>
+            </el-timeline-item>
+          </el-timeline>
+          <el-empty v-else description="暂无审批记录" :image-size="60" />
+        </div>
+      </section>
     </template>
 
     <MatArchiveExportDialog
@@ -347,41 +474,66 @@ const lineItems = computed(() => {
 </template>
 
 <style scoped>
+/* 字号对齐品牌报审详情：分区标题 16px，描述列表默认 14px（非 size=small） */
 .section-title {
-  margin: 0 0 8px;
-  font-size: 15px;
+  margin: 0 0 12px;
+  font-size: 16px;
   font-weight: 600;
-  color: #303133;
+  color: #1f2329;
+  line-height: 1.4;
 }
+
 .sub-title {
   margin: 12px 0 8px;
   font-size: 14px;
   font-weight: 600;
   color: #606266;
 }
+
+.exit-card-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2329;
+}
+
 .exit-card :deep(.el-card__header) {
   background: #fdf6ec;
 }
+
 .muted {
   margin-left: 6px;
   color: #909399;
-  font-size: 12px;
+  font-size: 13px;
 }
+
 .line-card {
-  padding: 10px 12px 12px;
+  padding: 14px 16px;
   border: 1px solid #ebeef5;
   border-radius: 8px;
   background: #fafbfc;
 }
+
 .line-card-title {
-  margin-bottom: 8px;
-  font-size: 13px;
+  margin-bottom: 12px;
+  font-size: 14px;
   font-weight: 600;
-  color: #606266;
+  color: #303133;
 }
+
+.info-desc :deep(.el-descriptions__label) {
+  color: #909399;
+  font-size: 14px;
+}
+
+.info-desc :deep(.el-descriptions__content) {
+  font-size: 14px;
+  color: #303133;
+}
+
 .unpack-grid {
   margin-bottom: 8px;
 }
+
 .unpack-card {
   margin-bottom: 12px;
   padding: 10px 12px;
@@ -389,23 +541,104 @@ const lineItems = computed(() => {
   border-radius: 6px;
   background: #fff;
 }
+
 .unpack-card-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
 }
+
 .unpack-label {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: #606266;
 }
+
 .unpack-remark {
   margin-top: 6px;
-  font-size: 12px;
+  font-size: 13px;
   color: #909399;
 }
+
 .mb {
   margin-bottom: 16px;
+}
+
+.flow-section {
+  background: #fff;
+  border: 1px solid #ebeef5;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.flow-section-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px 12px;
+  background: linear-gradient(180deg, #fafbfc 0%, #fff 100%);
+  border-bottom: 1px solid #f0f2f5;
+}
+
+.flow-section-icon {
+  font-size: 18px;
+  color: var(--el-color-primary);
+}
+
+.flow-section-title {
+  margin: 0;
+}
+
+.flow-section-body {
+  padding: 16px 18px 18px;
+}
+
+.process-steps {
+  margin: 4px 0 20px;
+}
+
+.approval-timeline {
+  padding: 4px 8px 0;
+}
+
+.flow-card {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #ebeef5;
+}
+
+.flow-card.done {
+  border-color: #e1f3d8;
+  background: #f0f9eb;
+}
+
+.flow-card.rejected {
+  border-color: #fde2e2;
+  background: #fef0f0;
+}
+
+.flow-card.current {
+  border-color: #f5dab1;
+  background: #fdf6ec;
+}
+
+.flow-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  color: #303133;
+}
+
+.flow-meta,
+.flow-remark {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #606266;
+  line-height: 1.5;
 }
 </style>

@@ -1,6 +1,11 @@
 <script setup>
 import { computed } from 'vue'
-import { getApplicationDetail } from '../../../mock/brand.js'
+import {
+  getApplicationDetail,
+  MATERIAL_TYPE,
+  statusLabel,
+  statusTagType,
+} from '../../../mock/brand.js'
 import BrandCandidateAttachBlock from '../../quality/brand/BrandCandidateAttachBlock.vue'
 import '../styles/todoHandleBlocks.css'
 
@@ -14,6 +19,8 @@ const brandLiveDetail = computed(() => {
   return getApplicationDetail(appId)
 })
 
+const app = computed(() => brandLiveDetail.value?.app || null)
+
 const brandCandidates = computed(() => {
   if (brandLiveDetail.value?.candidates?.length) return brandLiveDetail.value.candidates
   return (props.todo?.brandCandidates || []).map((c) => ({
@@ -23,43 +30,48 @@ const brandCandidates = computed(() => {
   }))
 })
 
-const brandNodeLabel = computed(() => {
-  if (props.todo?.brandNode === 'supervisor') return '待监理审'
-  if (props.todo?.brandNode === 'pm') return '待项目经理审'
-  return props.todo?.detail?.currentNode || ''
+const materialTypeText = computed(() => {
+  if (app.value?.material_type) return MATERIAL_TYPE[app.value.material_type] || app.value.material_type
+  return props.todo?.detail?.materialType || '—'
 })
 </script>
 
 <template>
+  <!-- 材料/设备信息：字段与字号对齐品牌报审详情 -->
   <section class="block block--panel">
     <div class="block-head">
-      <div class="block-title">报审信息</div>
-      <el-tag v-if="brandNodeLabel" size="small" type="warning" effect="light">
-        {{ brandNodeLabel }}
-      </el-tag>
+      <div class="block-title">材料/设备信息</div>
     </div>
-    <el-descriptions :column="2" border size="small" class="desc-panel">
+    <el-descriptions :column="2" border class="info-desc">
       <el-descriptions-item label="报审编号">
-        {{ todo.detail?.applicationId || '—' }}
+        {{ app?.application_id || todo.detail?.applicationId || '—' }}
       </el-descriptions-item>
-      <el-descriptions-item label="项目">
+      <el-descriptions-item label="状态">
+        <el-tag v-if="app?.status" size="small" :type="statusTagType(app.status)">
+          {{ statusLabel(app.status) }}
+        </el-tag>
+        <span v-else>—</span>
+      </el-descriptions-item>
+      <el-descriptions-item label="材料/设备名称">
+        {{ app?.material_name || todo.detail?.materialName || '—' }}
+      </el-descriptions-item>
+      <el-descriptions-item label="类型">{{ materialTypeText }}</el-descriptions-item>
+      <el-descriptions-item label="施工部位">
+        {{ app?.use_part || todo.detail?.usePart || '—' }}
+      </el-descriptions-item>
+      <el-descriptions-item label="所属项目">
         {{ todo.detail?.project || todo.projectName || '—' }}
       </el-descriptions-item>
-      <el-descriptions-item label="材料/设备">
-        {{ todo.detail?.materialName || '—' }}
-      </el-descriptions-item>
-      <el-descriptions-item label="材料类型">
-        {{ todo.detail?.materialType || '—' }}
-      </el-descriptions-item>
-      <el-descriptions-item label="施工部位">
-        {{ todo.detail?.usePart || '—' }}
-      </el-descriptions-item>
       <el-descriptions-item label="申请人">
-        {{ todo.applicant || '—' }}
+        {{ app?.applicant_name || todo.applicant || '—' }}
         <span v-if="todo.dept" class="meta-sep">· {{ todo.dept }}</span>
       </el-descriptions-item>
-      <el-descriptions-item label="申请时间">
-        {{ todo.applyTime || '—' }}
+      <el-descriptions-item label="提交时间">
+        {{ app?.submit_time || todo.applyTime || '—' }}
+      </el-descriptions-item>
+      <el-descriptions-item label="办结时间" :span="2">{{ app?.finish_time || '—' }}</el-descriptions-item>
+      <el-descriptions-item v-if="app?.remark" label="备注" :span="2">
+        {{ app.remark }}
       </el-descriptions-item>
     </el-descriptions>
   </section>
@@ -67,7 +79,6 @@ const brandNodeLabel = computed(() => {
   <section class="block block--panel">
     <div class="block-head">
       <div class="block-title">报审品牌</div>
-      <el-tag size="small" type="info" effect="plain">共 {{ brandCandidates.length }} 条</el-tag>
     </div>
     <div class="brand-cand-list">
       <div
@@ -84,16 +95,10 @@ const brandNodeLabel = computed(() => {
             <el-tag v-else size="small" type="info" effect="plain">备选品牌</el-tag>
           </div>
         </div>
-        <div class="cand-fields">
-          <div class="cand-field-row">
-            <span class="cand-label">品牌名称</span>
-            <span class="cand-value">{{ c.brand_name || '—' }}</span>
-          </div>
-          <div class="cand-field-row">
-            <span class="cand-label">生产厂家</span>
-            <span class="cand-value">{{ c.manufacturer || '—' }}</span>
-          </div>
-        </div>
+        <el-descriptions :column="2" border class="cand-desc info-desc">
+          <el-descriptions-item label="品牌名称">{{ c.brand_name || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="生产厂家">{{ c.manufacturer || '—' }}</el-descriptions-item>
+        </el-descriptions>
         <BrandCandidateAttachBlock :candidate="c" :editable="false" />
       </div>
     </div>
@@ -106,21 +111,25 @@ const brandNodeLabel = computed(() => {
   flex-direction: column;
   gap: 12px;
 }
+
 .brand-cand-card {
-  padding: 14px;
-  border: 1px solid #e4e7ed;
-  border-radius: 10px;
-  background: #fff;
+  padding: 14px 16px;
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  background: #fafbfc;
 }
+
 .brand-cand-card-head {
-  margin-bottom: 6px;
+  margin-bottom: 12px;
 }
+
 .brand-cand-card-title {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
 }
+
 .cand-badge {
   display: inline-flex;
   align-items: center;
@@ -133,32 +142,19 @@ const brandNodeLabel = computed(() => {
   font-size: 12px;
   font-weight: 600;
 }
-.cand-fields {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+
+.cand-desc {
   margin-bottom: 12px;
-  padding: 12px 14px;
-  background: #fafbfc;
-  border: 1px solid #eef0f3;
-  border-radius: 8px;
 }
-.cand-field-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  line-height: 1.5;
-}
-.cand-label {
-  flex: 0 0 72px;
-  font-size: 13px;
+
+/* 与详情页 el-descriptions 默认字号一致 */
+.info-desc :deep(.el-descriptions__label) {
   color: #909399;
-}
-.cand-value {
-  flex: 1;
-  min-width: 0;
   font-size: 14px;
-  color: #303133;
-  word-break: break-all;
+}
+
+.info-desc :deep(.el-descriptions__content) {
+  font-size: 14px;
+  color: var(--ap-text, #303133);
 }
 </style>

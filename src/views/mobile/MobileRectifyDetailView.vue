@@ -32,7 +32,6 @@ const managerApproval = computed(() => {
 // ===== 流程记录 =====
 const closedFlowRecords = isRetry ? [
   { action:'下发整改单',                date:'2026-07-20 09:00' },
-  { action:'整改人提交整改结果',        date:'2026-07-24 15:30' },
   { action:'复查不通过，退回继续整改',  date:'2026-07-26 10:00', detail:'整改不彻底，需重新处理' },
   { action:'整改人重新提交整改结果',    date:'2026-07-28 16:20' },
   { action:'复查通过，提交项目经理审批',date:'2026-07-30 10:30' },
@@ -64,8 +63,7 @@ const flowCollapsed = ref(false)
 
 // ===== 复查记录 =====
 const fallbackReviewRecords = isRetry ? [
-  { round:1, date:'2026-07-26', comment:'整改不彻底，需重新处理', result:'不通过' },
-  { round:2, date:'2026-07-30', comment:'整改到位，同意关闭',      result:'通过' },
+  { round:1, date:'2026-07-30', comment:'整改到位，同意关闭', result:'通过' },
 ] : [
   { round:1, date:'2026-07-25', comment:'整改合格，同意关闭',      result:'通过' },
 ]
@@ -91,7 +89,6 @@ const onceItems = [
 const retryItems = [
   { desc:'消防器材过期未更换', inspPhotos:['📷 隐患照片1','📷 隐患照片2'],
     rectifications: [
-      { round:1, date:'2026-07-24', photos:['📷 整改照片1'], note:'已购买新灭火器' },
       { round:2, date:'2026-07-28', photos:['📷 整改照片1','📷 整改照片2'], note:'已全部更换并设置检查记录卡' },
     ] },
 ]
@@ -110,6 +107,12 @@ if (workflowRecord?.hazard) {
     }]
   }
 }
+
+// 详情只保留最新一轮整改结果；多轮失败说明统一在流程记录中查看。
+const currentRectifications = computed(() => {
+  const rows = currentHazard.rectifications || []
+  return rows.length ? [rows[rows.length - 1]] : []
+})
 
 function goBack() { const tab = route.query.tab; router.push(tab ? `/mobile/rectify?tab=${tab}` : '/mobile/rectify') }
 </script>
@@ -147,16 +150,12 @@ function goBack() { const tab = route.query.tab; router.push(tab ? `/mobile/rect
     <div v-if="['待复查', '已复查', '已关闭'].includes(statusText)" class="section">
       <div class="section-title">整改信息</div>
       <div
-        v-for="(rct,ri) in currentHazard.rectifications"
-        :key="ri"
+        v-for="rct in currentRectifications"
+        :key="rct.date"
         class="hc-round"
-        :class="{ 'hc-round-fail': ri === 0 && currentHazard.rectifications.length > 1, 'hc-round-pass': ri === currentHazard.rectifications.length - 1 }"
       >
         <div class="hc-round-title">
-          <template v-if="currentHazard.rectifications.length > 1">{{ ri === currentHazard.rectifications.length - 1 ? '本次整改' : '历史整改' }}</template>
-          <template v-else>整改</template>
-          <span v-if="ri === 0 && currentHazard.rectifications.length > 1" style="color:#e53935;font-size:11px;font-weight:400">（退回）</span>
-          <span v-if="ri === currentHazard.rectifications.length - 1 && currentHazard.rectifications.length > 1" style="color:#34a853;font-size:11px;font-weight:400">（通过）</span>
+          整改
         </div>
         <div class="hc-row"><span class="il">日期</span><span>{{ rct.date }}</span></div>
         <div class="hc-row"><span class="il">照片</span><span>{{ rct.photos.join('、') }}</span></div>
@@ -167,10 +166,9 @@ function goBack() { const tab = route.query.tab; router.push(tab ? `/mobile/rect
     <!-- 复查信息 -->
     <div v-if="['已复查', '已关闭'].includes(statusText)" class="section">
       <div class="section-title">复查信息</div>
-      <div v-for="(rv,ri) in reviewRecords" :key="ri" class="review-record" :class="{ pass: rv.result === '通过' }">
+      <div v-for="rv in reviewRecords" :key="rv.date" class="review-record" :class="{ pass: rv.result === '通过' }">
         <div class="rr-top">
-          <span v-if="reviewRecords.length > 1" class="rr-round">{{ ri === reviewRecords.length - 1 ? '本次复查' : '历史复查' }}</span>
-          <span v-else class="rr-round">复查</span>
+          <span class="rr-round">复查</span>
           <span class="rr-date">{{ rv.date }}</span>
           <span class="rr-result" :class="{ pass: rv.result === '通过' }">
             {{ rv.result === '通过' ? '✅ 通过' : '❌ 不通过' }}

@@ -12,13 +12,13 @@ const workflowRecord = getMobileRectification(rid)
 const isSecondRound = rid === 'rec-003'
 
 const infoMap = {
-  'rec-002': { rn:'ZG202607002', tn:'AQXJ20260728001', cat:'安全', pj:'飞行区跑道延长工程', rf:'王工（项目安全员）', rv:'陈工（监理工程师）', sd:'2026-07-25', is2:false,
+  'rec-002': { rn:'ZG202607002', tn:'AQXJ20260728001', cat:'安全', pj:'飞行区跑道延长工程', rf:'王工（项目安全员）', rv:'陈工（监理工程师）', is2:false,
     items:[{ desc:'五芯电缆破损，线路未按规范敷设', p:['📷 隐患照片1'], rd:'2026-07-25', rp:['📷 整改照片1'], rn:'已更换合规电缆' }] },
-  'rec-003': { rn:'ZG202607003', tn:'ZLXJ20260721003', cat:'质量', pj:'T3航站楼扩建工程', rf:'刘工（专职安全员）', rv:'陈工（监理工程师）', sd:'2026-07-27', is2:true,
+  'rec-003': { rn:'ZG202607003', tn:'ZLXJ20260721003', cat:'质量', pj:'T3航站楼扩建工程', rf:'刘工（专职安全员）', rv:'陈工（监理工程师）', is2:true,
     items:[{ desc:'脚手架施工方案未报审即施工', p:['📷 隐患照片1'], rd:'2026-07-27', rp:['📷 整改照片1'], rn:'已重新补报方案并通过审核' }],
     preItems:[{ desc:'脚手架施工方案未报审即施工', p:['📷 隐患照片1'], rd:'2026-07-23', rp:['📷 整改照片1'], rn:'已补报方案' }],
     prv:{ d:'2026-07-25', c:'整改不彻底', r:'不通过' } },
-  'rec-008': { rn:'ZG202607008', tn:'ZLXJ20260730002', cat:'质量', pj:'T3航站楼扩建工程', rf:'刘工（专职安全员）', rv:'陈工（监理工程师）', sd:'2026-07-30', is2:false,
+  'rec-008': { rn:'ZG202607008', tn:'ZLXJ20260730002', cat:'质量', pj:'T3航站楼扩建工程', rf:'刘工（专职安全员）', rv:'陈工（监理工程师）', is2:false,
     items:[{ desc:'混凝土外观存在蜂窝麻面', p:['📷 隐患照片1'], rd:'2026-07-30', rp:['📷 整改照片1'], rn:'已完成缺陷修补并养护' }] },
 }
 
@@ -30,6 +30,12 @@ const flowRecords = info.is2 ? [
   { a:'复查不通过，退回继续整改', d:'2026-07-25 09:00', dt:'整改不彻底' },
   { a:'整改人重新提交整改结果', d:'2026-07-27 16:30' },
   { a:'待复查人审核', d:'', cur:true },
+] : workflowRecord?.approvalRejected ? [
+  { a:'下发整改单', d:'2026-07-20 14:00' },
+  { a:'整改人提交整改结果', d:'2026-07-30 10:30' },
+  { a:'复查人复查通过，提交项目经理审批', d:'2026-07-30 17:20' },
+  { a:'项目经理审批不通过，退回复查', d:'2026-07-30 18:10', dt:workflowRecord.approvalReason },
+  { a:'复查人重新复查', d:'', cur:true },
 ] : [
   { a:'下发整改单', d:'2026-07-20 14:00' },
   { a:'整改人提交整改结果', d:'2026-07-25 10:30' },
@@ -37,7 +43,6 @@ const flowRecords = info.is2 ? [
 ]
 
 const flowCollapsed = ref(false)
-const prevCollapsed = ref(true)
 const reviewComment = ref('')
 const reviewDate = ref('')
 onMounted(() => document.querySelector('.page-viewport')?.scrollTo({ top:0 }))
@@ -60,10 +65,12 @@ function goBack() { const tab = route.query.tab; router.push(tab ? `/mobile/rect
     </header>
 
     <div class="ib">
-      <div class="ibn">⚠ {{ info.rn }}</div>
-      <div class="ibm">巡检任务单编号：{{ info.tn }}</div>
-      <div class="ibm">巡检分类：{{ info.cat }}</div>
-      <div class="ibm">{{ info.pj }} · 整改人：{{ info.rf }} · 复查人：{{ info.rv }} · 提交：{{ info.sd }}</div>
+      <div class="ibn"><span class="ibn-label">整改单编号：</span>{{ info.rn }}</div>
+      <div class="ibm"><span class="ibm-label">巡检任务单编号：</span><span class="ibm-value">{{ info.tn }}</span></div>
+      <div class="ibm"><span class="ibm-label">巡检分类：</span><span class="ibm-value">{{ info.cat }}</span></div>
+      <div class="ibm"><span class="ibm-label">项目名称：</span><span class="ibm-value">{{ info.pj }}</span></div>
+      <div class="ibm"><span class="ibm-label">整改人：</span><span class="ibm-value">{{ info.rf }}</span></div>
+      <div class="ibm"><span class="ibm-label">复查人：</span><span class="ibm-value">{{ info.rv }}</span></div>
     </div>
 
     <div v-if="workflowRecord?.approvalRejected" class="approval-reject-tip">
@@ -85,27 +92,6 @@ function goBack() { const tab = route.query.tab; router.push(tab ? `/mobile/rect
             </div>
             <span v-if="f.dt" class="fdl">{{ f.dt }}</span>
           </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 二次：上次整改情况 -->
-    <div v-if="info.is2" class="sc">
-      <div class="sct colps" @click="prevCollapsed=!prevCollapsed"><span>上次整改情况</span><span class="ca">{{ prevCollapsed?'展开 ▸':'收起 ▾' }}</span></div>
-      <div v-show="!prevCollapsed">
-        <div v-for="(item,i) in info.preItems" :key="i" class="ic">
-          <div class="ir"><span class="il">隐患说明</span><span>{{ item.desc }}</span></div>
-          <div class="ir" v-if="item.p"><span class="il">隐患照片</span><span>{{ item.p.join('、') }}</span></div>
-          <div class="dv"></div>
-          <div class="ir"><span class="il">整改日期</span><span>{{ item.rd }}</span></div>
-          <div class="ir"><span class="il">整改照片</span><span>{{ item.rp.join('、') }}</span></div>
-          <div class="ir"><span class="il">整改说明</span><span>{{ item.rn }}</span></div>
-        </div>
-        <div class="pv">
-          <div class="pvt">❌ 复查结果</div>
-          <div class="ir"><span class="il">日期</span><span>{{ info.prv.d }}</span></div>
-          <div class="ir"><span class="il">意见</span><span>{{ info.prv.c }}</span></div>
-          <div class="ir"><span class="il">结果</span><span style="color:#e53935;font-weight:600">{{ info.prv.r }}</span></div>
         </div>
       </div>
     </div>
@@ -146,8 +132,11 @@ function goBack() { const tab = route.query.tab; router.push(tab ? `/mobile/rect
 .mt { flex:1; font-size:18px; font-weight:600; margin:0; }
 
 .ib { background:#fff; padding:14px 16px; border-bottom:1px solid #eee; }
-.ibn { font-size:15px; font-weight:600; color:#1f2329; margin-bottom:4px; }
-.ibm { font-size:12px; color:#999; }
+.ibn { font-size:15px; font-weight:600; color:#1f2329; margin-bottom:6px; }
+.ibn-label { font-size:12px; font-weight:400; color:#999; }
+.ibm { display:flex; align-items:flex-start; gap:4px; font-size:12px; line-height:1.6; color:#999; }
+.ibm-label { flex:0 0 96px; text-align:right; white-space:nowrap; }
+.ibm-value { flex:1; min-width:0; color:#666; word-break:break-word; }
 .approval-reject-tip { margin:12px 16px 0; padding:12px 14px; border-radius:10px; background:#fff2f2; border:1px solid #ffc9c9; display:flex; flex-direction:column; gap:4px; color:#d93025; font-size:13px; }
 .approval-reject-tip small { color:#999; }
 
@@ -159,6 +148,7 @@ function goBack() { const tab = route.query.tab; router.push(tab ? `/mobile/rect
 .ic { background:#fafafa; border-radius:8px; padding:12px; margin-bottom:8px; }
 .ir { display:flex; gap:6px; font-size:13px; line-height:1.6; margin-bottom:4px; }
 .il { color:#999; flex-shrink:0; width:68px; }
+.ir > span:last-child { flex:1; min-width:0; word-break:break-word; }
 .dv { height:1px; background:#eee; margin:8px 0; }
 
 .pv { background:#fff; border-radius:8px; padding:12px; border-left:3px solid #e53935; margin-top:8px; }
@@ -168,8 +158,8 @@ function goBack() { const tab = route.query.tab; router.push(tab ? `/mobile/rect
 .fr { display:flex; gap:8px; margin-bottom:10px; align-items:flex-start; }
 .fl-label { font-size:13px; color:#666; flex-shrink:0; width:72px; padding-top:4px; }
 .req { color:#e53935; font-style:normal; margin-left:2px; }
-.fi-input { flex:1; padding:8px 10px; border:1px solid #ddd; border-radius:8px; font-size:13px; background:#fff; }
-.fta { flex:1; width:100%; padding:10px 12px; border:1px solid #ddd; border-radius:8px; font-size:13px; font-family:inherit; resize:none; background:#fff; box-sizing:border-box; }
+.fi-input { flex:1; min-width:0; box-sizing:border-box; padding:8px 10px; border:1px solid #ddd; border-radius:8px; font-size:13px; background:#fff; }
+.fta { flex:1; min-width:0; width:100%; padding:10px 12px; border:1px solid #ddd; border-radius:8px; font-size:13px; font-family:inherit; resize:none; background:#fff; box-sizing:border-box; }
 .ra { display:flex; gap:10px; margin-top:10px; }
 .ab { flex:1; padding:14px; border-radius:10px; font-size:15px; font-weight:600; cursor:pointer; text-align:center; border:1.5px solid; }
 .ab.pass { background:#e8f5e9; color:#34a853; border-color:#34a853; }

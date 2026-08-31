@@ -6,8 +6,6 @@ import {
   ENTRY_TYPE_LABEL,
   STATUS_LABEL,
   statusTagType,
-  findMatSupervisorApprover,
-  formatMatSupervisorApproverLabel,
 } from '../../../mock/mat.js'
 import FileAttachmentPreview from '../../../components/basicData/FileAttachmentPreview.vue'
 import '../styles/todoHandleBlocks.css'
@@ -38,17 +36,6 @@ const statusLabel = computed(() => {
   if (s === 'pending_review') return STATUS_LABEL.reviewing
   return STATUS_LABEL[s] || s
 })
-
-function supervisorApproverDisplay(row) {
-  if (!row) return '—'
-  const user = findMatSupervisorApprover(row.supervisor_approver_user_id)
-  if (user) return formatMatSupervisorApproverLabel(user)
-  if (row.supervisor_approver_name) {
-    const post = row.supervisor_approver_post_label
-    return post ? `${row.supervisor_approver_name}（${post}）` : row.supervisor_approver_name
-  }
-  return '—'
-}
 
 /** 与进场详情页一致：多组明细 + 表头附件回填首组 */
 const lineItems = computed(() => {
@@ -138,20 +125,22 @@ const lineItems = computed(() => {
   <section class="block block--panel mat-todo-panel">
     <div class="block-head">
       <div class="block-title">{{ panelTitle }}</div>
-      <el-tag size="small" :type="statusTagType(entryDetail?.status) || 'warning'" effect="light">
-        {{ statusLabel }}
-      </el-tag>
     </div>
 
     <el-empty v-if="!entryDetail" description="未找到关联进场单" :image-size="64" />
 
     <template v-else>
-      <!-- 品牌与定样（对齐填报/详情） -->
+      <!-- 品牌与定样（字号对齐进场详情；审批状态置于本模块内） -->
       <div class="section-label">品牌与定样</div>
-      <el-descriptions :column="2" border size="small" class="desc-panel">
+      <el-descriptions :column="2" border class="info-desc">
         <el-descriptions-item label="进场单号">{{ entryDetail.entry_id }}</el-descriptions-item>
         <el-descriptions-item label="进场类型">
           {{ ENTRY_TYPE_LABEL[entryDetail.entry_type] || (isEquipment ? '设备' : '材料') }}
+        </el-descriptions-item>
+        <el-descriptions-item label="审批状态">
+          <el-tag size="small" :type="statusTagType(entryDetail.status) || 'warning'">
+            {{ statusLabel }}
+          </el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="项目">
           {{ entryDetail.project_label || todo.detail?.project || '—' }}
@@ -176,9 +165,6 @@ const lineItems = computed(() => {
         <el-descriptions-item label="申请人">
           {{ entryDetail.applicant_name || todo.applicant || '—' }}
         </el-descriptions-item>
-        <el-descriptions-item label="监理审批人">
-          {{ supervisorApproverDisplay(entryDetail) }}
-        </el-descriptions-item>
         <el-descriptions-item label="提交时间">
           {{ entryDetail.submit_time || todo.applyTime || '—' }}
         </el-descriptions-item>
@@ -193,7 +179,7 @@ const lineItems = computed(() => {
           class="line-card"
         >
           <div class="line-card-title">材料 {{ idx + 1 }}</div>
-          <el-descriptions :column="2" border size="small" class="desc-panel">
+          <el-descriptions :column="2" border class="info-desc">
             <el-descriptions-item label="材料名称">
               {{ row.material_name || '—' }}
             </el-descriptions-item>
@@ -220,27 +206,23 @@ const lineItems = computed(() => {
             </el-descriptions-item>
             <el-descriptions-item label="进场日期">{{ row.entry_date || '—' }}</el-descriptions-item>
             <el-descriptions-item label="合格证" :span="2">
-              <FileAttachmentPreview :name="row.cert_file" empty-text="未上传" size="sm" />
+              <FileAttachmentPreview :name="row.cert_file" empty-text="未上传" />
             </el-descriptions-item>
             <el-descriptions-item label="质量证明文件" :span="2">
-              <FileAttachmentPreview :name="row.inspect_file" empty-text="未上传" size="sm" />
+              <FileAttachmentPreview :name="row.inspect_file" empty-text="未上传" />
             </el-descriptions-item>
             <el-descriptions-item label="现场照片" :span="2">
-              <FileAttachmentPreview :name="row.photo_file" empty-text="未上传" size="sm" />
+              <FileAttachmentPreview :name="row.photo_file" empty-text="未上传" />
             </el-descriptions-item>
             <el-descriptions-item label="其他" :span="2">
-              <FileAttachmentPreview :name="row.other_file" empty-text="未上传" size="sm" />
+              <FileAttachmentPreview :name="row.other_file" empty-text="未上传" />
             </el-descriptions-item>
             <el-descriptions-item label="已完成送检">
               {{ row.inspect_result_checked ? '是' : '否' }}
             </el-descriptions-item>
             <el-descriptions-item label="送检附件">
               <template v-if="row.inspect_result_checked">
-                <FileAttachmentPreview
-                  :name="row.inspect_result_file"
-                  empty-text="未上传"
-                  size="sm"
-                />
+                <FileAttachmentPreview :name="row.inspect_result_file" empty-text="未上传" />
               </template>
               <template v-else>—</template>
             </el-descriptions-item>
@@ -257,7 +239,7 @@ const lineItems = computed(() => {
           class="line-card"
         >
           <div class="line-card-title">设备 {{ idx + 1 }}</div>
-          <el-descriptions :column="2" border size="small" class="desc-panel">
+          <el-descriptions :column="2" border class="info-desc">
             <el-descriptions-item label="设备名称">
               {{ row.equipment_name || '—' }}
             </el-descriptions-item>
@@ -283,33 +265,29 @@ const lineItems = computed(() => {
             </el-descriptions-item>
             <el-descriptions-item label="进场日期">{{ row.entry_date || '—' }}</el-descriptions-item>
             <el-descriptions-item label="合格证" :span="2">
-              <FileAttachmentPreview :name="row.cert_file" empty-text="未上传" size="sm" />
+              <FileAttachmentPreview :name="row.cert_file" empty-text="未上传" />
             </el-descriptions-item>
             <el-descriptions-item label="质量证明文件" :span="2">
-              <FileAttachmentPreview :name="row.inspect_file" empty-text="未上传" size="sm" />
+              <FileAttachmentPreview :name="row.inspect_file" empty-text="未上传" />
             </el-descriptions-item>
             <el-descriptions-item label="现场照片" :span="2">
-              <FileAttachmentPreview :name="row.photo_file" empty-text="未上传" size="sm" />
+              <FileAttachmentPreview :name="row.photo_file" empty-text="未上传" />
             </el-descriptions-item>
             <el-descriptions-item label="其他" :span="2">
-              <FileAttachmentPreview :name="row.other_file" empty-text="未上传" size="sm" />
+              <FileAttachmentPreview :name="row.other_file" empty-text="未上传" />
             </el-descriptions-item>
             <el-descriptions-item label="已完成送检">
               {{ row.inspect_result_checked ? '是' : '否' }}
             </el-descriptions-item>
             <el-descriptions-item label="送检附件">
               <template v-if="row.inspect_result_checked">
-                <FileAttachmentPreview
-                  :name="row.inspect_result_file"
-                  empty-text="未上传"
-                  size="sm"
-                />
+                <FileAttachmentPreview :name="row.inspect_result_file" empty-text="未上传" />
               </template>
               <template v-else>—</template>
             </el-descriptions-item>
           </el-descriptions>
           <div class="sub-label">开箱清单</div>
-          <el-row v-if="row.unpack_items?.length" :gutter="12">
+          <el-row v-if="row.unpack_items?.length" :gutter="16">
             <el-col
               v-for="unpackRow in row.unpack_items"
               :key="unpackRow.key || unpackRow.label"
@@ -319,12 +297,12 @@ const lineItems = computed(() => {
             >
               <div class="unpack-card">
                 <div class="unpack-card-head">
-                  <span>{{ unpackRow.label }}</span>
+                  <span class="unpack-label">{{ unpackRow.label }}</span>
                   <el-tag size="small" :type="unpackRow.ok ? 'success' : 'danger'">
                     {{ unpackRow.ok ? '合格' : '不合格' }}
                   </el-tag>
                 </div>
-                <div class="unpack-card-remark">{{ unpackRow.remark || '无备注' }}</div>
+                <div class="unpack-remark">{{ unpackRow.remark || '无备注' }}</div>
               </div>
             </el-col>
           </el-row>
@@ -336,6 +314,7 @@ const lineItems = computed(() => {
 </template>
 
 <style scoped>
+/* 字号对齐进场详情：分区标题 16px，描述列表默认 14px（非 size=small） */
 .mat-todo-panel {
   display: flex;
   flex-direction: column;
@@ -343,10 +322,11 @@ const lineItems = computed(() => {
 }
 
 .section-label {
-  margin: 16px 0 8px;
-  font-size: 14px;
+  margin: 16px 0 12px;
+  font-size: 16px;
   font-weight: 600;
-  color: #303133;
+  color: #1f2329;
+  line-height: 1.4;
 }
 
 .section-label:first-of-type {
@@ -354,30 +334,30 @@ const lineItems = computed(() => {
 }
 
 .line-card {
-  margin-bottom: 12px;
-  padding: 12px 12px 4px;
+  margin-bottom: 16px;
+  padding: 14px 16px;
   border: 1px solid #ebeef5;
   border-radius: 8px;
   background: #fafbfc;
 }
 
 .line-card-title {
-  margin-bottom: 8px;
-  font-size: 13px;
+  margin-bottom: 12px;
+  font-size: 14px;
   font-weight: 600;
-  color: #606266;
+  color: #303133;
 }
 
 .sub-label {
-  margin: 10px 0 8px;
-  font-size: 13px;
+  margin: 12px 0 8px;
+  font-size: 14px;
   font-weight: 600;
   color: #606266;
 }
 
 .unpack-card {
-  margin-bottom: 8px;
-  padding: 8px 10px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
   border: 1px solid #ebeef5;
   border-radius: 6px;
   background: #fff;
@@ -385,23 +365,36 @@ const lineItems = computed(() => {
 
 .unpack-card-head {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  font-size: 13px;
+}
+
+.unpack-label {
+  font-size: 14px;
   font-weight: 600;
   color: #606266;
 }
 
-.unpack-card-remark {
-  margin-top: 4px;
-  font-size: 12px;
+.unpack-remark {
+  margin-top: 6px;
+  font-size: 13px;
   color: #909399;
 }
 
 .muted-empty {
   margin-bottom: 8px;
-  font-size: 12px;
+  font-size: 13px;
   color: #909399;
+}
+
+.info-desc :deep(.el-descriptions__label) {
+  color: #909399;
+  font-size: 14px;
+}
+
+.info-desc :deep(.el-descriptions__content) {
+  font-size: 14px;
+  color: #303133;
 }
 </style>

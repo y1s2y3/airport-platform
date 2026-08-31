@@ -2,9 +2,12 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import * as echarts from 'echarts'
+import { COC_PROJECT_OPTIONS } from '../../config/projectOptions'
+import { listMobileInspectionTasks } from '../../mock/mobileInspectionTasks'
+import { INSPECTION_DEMO_TODAY, inspectionHazards } from '../../mock/inspectionDemoData'
 
 const router = useRouter()
-const TODAY = new Date('2026-07-16')
+const TODAY = new Date(INSPECTION_DEMO_TODAY)
 const timePreset = ref('month')
 const customDateRange = ref([])
 const inspectionCategory = ref('')
@@ -82,40 +85,8 @@ function calcOverdue(d) {
   return { overdue: diff > 0, days: diff > 0 ? diff : 0 }
 }
 
-const hazardData = [
-  { id:'rec-001', project:'飞行区跑道延长工程', pid:'p-000', status:'待整改', issueDate:'2026-07-15', deadline:'2026-07-30', desc:'五芯电缆破损' },
-  { id:'rec-006', project:'T3航站楼扩建工程', pid:'p-001', status:'待整改', issueDate:'2026-07-08', deadline:'2026-07-10', desc:'脚手架方案未报审' },
-  { id:'rec-002', project:'飞行区跑道延长工程', pid:'p-000', status:'待复查', issueDate:'2026-07-12', deadline:'2026-07-28', desc:'五芯电缆破损' },
-  { id:'rec-003', project:'T3航站楼扩建工程', pid:'p-001', status:'待复查', issueDate:'2026-07-14', deadline:'2026-07-28', desc:'脚手架方案未报审' },
-  { id:'rec-007', project:'飞行区跑道延长工程', pid:'p-000', status:'已复查', issueDate:'2026-07-15', deadline:'2026-07-31', desc:'临边防护栏杆局部缺失' },
-  { id:'rec-004', project:'飞行区跑道延长工程', pid:'p-000', status:'已关闭', issueDate:'2026-06-28', desc:'电缆破损' },
-  { id:'rec-011', project:'T3航站楼扩建工程', pid:'p-001', status:'已关闭', issueDate:'2026-07-03', desc:'消防器材过期' },
-  { id:'rec-020', project:'综合配套区工程', pid:'p-004', status:'待整改', issueDate:'2026-07-10', deadline:'2026-07-15', desc:'临边防护缺失' },
-  { id:'rec-021', project:'综合配套区工程', pid:'p-004', status:'已关闭', issueDate:'2026-05-26', desc:'配电箱接地不良' },
-  { id:'rec-030', project:'捷运系统工程', pid:'p-005', status:'待复查', issueDate:'2026-07-13', deadline:'2026-07-25', desc:'轨道区积水' },
-  { id:'rec-031', project:'捷运系统工程', pid:'p-005', status:'已关闭', issueDate:'2026-04-18', desc:'安全标识缺失' },
-  { id:'rec-040', project:'机坪扩建工程', pid:'p-006', status:'待整改', issueDate:'2026-07-01', deadline:'2026-07-12', desc:'灯具接地不可靠' },
-  { id:'rec-041', project:'机坪扩建工程', pid:'p-006', status:'待复查', issueDate:'2026-07-09', deadline:'2026-07-26', desc:'电缆敷设不规范' },
-  { id:'rec-050', project:'航站楼连接线工程', pid:'p-007', status:'待整改', issueDate:'2026-06-25', deadline:'2026-07-05', desc:'高处作业平台无护栏' },
-  { id:'rec-051', project:'航站楼连接线工程', pid:'p-007', status:'已关闭', issueDate:'2026-03-16', desc:'焊接作业未设防火' },
-]
-
-const taskData = [
-  { id:'mt-000', taskNo:'AQXJ20260730001', project:'飞行区跑道延长工程', pid:'p-000', status:'待执行', deadline:'2026-07-10', desc:'6月底安全巡检', hazardCount:0 },
-  { id:'mt-001', taskNo:'AQXJ20260728001', project:'飞行区跑道延长工程', pid:'p-000', status:'待执行', deadline:'2026-07-28', desc:'7月第4周安全巡检', hazardCount:0 },
-  { id:'mt-002', taskNo:'AQXJ20260720002', project:'T3航站楼扩建工程', pid:'p-001', status:'已完成', deadline:'2026-07-20', inspectionDate:'2026-07-20', desc:'临时用电专项检查', hazardCount:2 },
-  { id:'mt-003', taskNo:'AQXJ20260721003', project:'T3航站楼扩建工程', pid:'p-001', status:'已完成', deadline:'2026-07-21', inspectionDate:'2026-07-21', desc:'7月第三周安全巡检', hazardCount:0 },
-  { id:'mt-004', taskNo:'ZLXJ20260731004', project:'新货运站建设工程', pid:'p-003', status:'已完成', inspectionDate:'2026-07-31', desc:'月检巡检', hazardCount:0 },
-  { id:'mt-005', taskNo:'ZLXJ20260728005', project:'飞行区跑道延长工程', pid:'p-000', status:'已完成', inspectionDate:'2026-07-28', desc:'专项巡检', hazardCount:1 },
-  { id:'mt-010', taskNo:'AQXJ20260715006', project:'综合配套区工程', pid:'p-004', status:'待执行', deadline:'2026-07-08', desc:'综合配套区周检', hazardCount:0 },
-  { id:'mt-011', taskNo:'ZLXJ20260722007', project:'综合配套区工程', pid:'p-004', status:'已完成', inspectionDate:'2026-07-22', desc:'综合配套区专项检查', hazardCount:1 },
-  { id:'mt-020', taskNo:'AQXJ20260718008', project:'捷运系统工程', pid:'p-005', status:'待执行', deadline:'2026-07-25', desc:'捷运系统月检', hazardCount:0 },
-  { id:'mt-021', taskNo:'AQXJ20260725009', project:'捷运系统工程', pid:'p-005', status:'已完成', deadline:'2026-07-25', inspectionDate:'2026-07-25', desc:'捷运系统专项巡检', hazardCount:0 },
-  { id:'mt-030', taskNo:'AQXJ20260705010', project:'机坪扩建工程', pid:'p-006', status:'待执行', deadline:'2026-07-05', desc:'机坪扩建周检', hazardCount:0 },
-  { id:'mt-031', taskNo:'ZLXJ20260728011', project:'机坪扩建工程', pid:'p-006', status:'已完成', inspectionDate:'2026-07-28', desc:'机坪扩建巡检', hazardCount:1 },
-  { id:'mt-040', taskNo:'AQXJ20260712012', project:'航站楼连接线工程', pid:'p-007', status:'待执行', deadline:'2026-07-22', desc:'连接线工程周检', hazardCount:0 },
-  { id:'mt-041', taskNo:'ZLXJ20260726013', project:'航站楼连接线工程', pid:'p-007', status:'已完成', deadline:'2026-07-26', inspectionDate:'2026-07-26', desc:'连接线工程月检', hazardCount:0 },
-]
+const hazardData = inspectionHazards
+const taskData = listMobileInspectionTasks()
 
 // ===== 统计 =====
 const scopedHazardData = computed(() =>
@@ -147,8 +118,9 @@ const taskStats = computed(() => {
 })
 
 // ===== 图表数据 =====
-const projectNames = ['飞行区跑道延长工程','T3航站楼扩建工程','新货运站建设工程','综合配套区工程','捷运系统工程','机坪扩建工程','航站楼连接线工程']
-const projectShort = ['飞行区跑道','T3航站楼','新货运站','综合配套区','捷运系统','机坪扩建','连接线工程']
+const dashboardProjects = COC_PROJECT_OPTIONS.slice(0, 8)
+const projectNames = dashboardProjects.map(project => project.label)
+const projectShort = dashboardProjects.map(project => project.label)
 
 const filteredTaskChartItems = computed(() =>
   scopedTaskData.value.filter(item => isWithinSelectedTime(item.inspectionDate || item.deadline))
@@ -178,7 +150,7 @@ const overdueItems = computed(() => {
 })
 
 const hazardNoMap = { 'rec-001':'ZG202607001','rec-006':'ZG202607006','rec-002':'ZG202607002','rec-003':'ZG202607003','rec-007':'ZG202607007','rec-004':'ZG202607004','rec-011':'ZG202607011','rec-020':'ZG202607020','rec-021':'ZG202607021','rec-030':'ZG202607030','rec-031':'ZG202607031','rec-040':'ZG202607040','rec-041':'ZG202607041','rec-050':'ZG202607050','rec-051':'ZG202607051' }
-function getHazardNo(id) { return hazardNoMap[id] || id }
+function getHazardNo(id) { return inspectionHazards.find(item => item.id === id)?.rectifyNo || hazardNoMap[id] || id }
 
 // ===== ECharts =====
 const pieTaskRef = ref(null), pieHazardRef = ref(null)
@@ -202,6 +174,7 @@ function initCharts() {
           ],
         }],
       })
+      chPieTask.on('click', () => goTaskList())
     }
     // 环形图2：隐患整改状态
     if (pieHazardRef.value) {
@@ -220,6 +193,7 @@ function initCharts() {
           ],
         }],
       })
+      chPieHazard.on('click', () => goHazardList())
     }
     // 柱状图1：巡检统计
     if (barTaskRef.value) {
@@ -240,6 +214,7 @@ function initCharts() {
           { name:'完成率', type:'line', yAxisIndex:1, data:d.map(v=>v.rate), itemStyle:{color:'#4285f4'}, lineStyle:{width:2}, symbol:'circle', symbolSize:6 },
         ],
       })
+      chBarTask.on('click', () => goTaskList())
     }
     // 柱状图2：隐患整改统计
     if (barHazardRef.value) {
@@ -262,6 +237,7 @@ function initCharts() {
           { name:'整改率', type:'line', yAxisIndex:1, data:d.map(v=>v.rate), itemStyle:{color:'#e53935'}, lineStyle:{width:2}, symbol:'circle', symbolSize:6 },
         ],
       })
+      chBarHazard.on('click', () => goHazardList())
     }
   })
 }
@@ -331,6 +307,7 @@ function goHazardList() { router.push('/safety-inspection/hazard') }
         <h3 class="page-title">巡检看板</h3>
         <span class="page-subtitle">工程指挥部 · 全项目统计</span>
       </div>
+      <span class="drilldown-tip">交互说明：点击统计卡片、饼图、项目统计或逾期清单，可下钻查看对应任务/隐患明细</span>
       <el-radio-group v-model="inspectionCategory" size="large" class="category-tabs">
         <el-radio-button value="">全部</el-radio-button>
         <el-radio-button value="安全">安全</el-radio-button>
@@ -372,21 +349,21 @@ function goHazardList() { router.push('/safety-inspection/hazard') }
       </el-col>
     </el-row>
 
-    <!-- 环形图 + 逾期清单（等宽三栏） -->
+    <!-- 环形图 + 逾期清单（两个饼图合计占一半） -->
     <el-row :gutter="16" class="chart-row status-chart-row">
-      <el-col :span="8">
-        <div class="chart-card status-chart-card">
+      <el-col :span="6">
+        <div class="chart-card status-chart-card drilldown-card" @click="goTaskList">
           <div class="chart-title">巡检任务状态</div>
           <div ref="pieTaskRef" class="chart-box-pie"></div>
         </div>
       </el-col>
-      <el-col :span="8">
-        <div class="chart-card status-chart-card">
+      <el-col :span="6">
+        <div class="chart-card status-chart-card drilldown-card" @click="goHazardList">
           <div class="chart-title">隐患整改状态</div>
           <div ref="pieHazardRef" class="chart-box-pie"></div>
         </div>
       </el-col>
-      <el-col :span="8">
+      <el-col :span="12">
         <div class="overdue-section">
           <div class="overdue-title">⚠ 逾期清单</div>
           <el-table :data="overdueItems" stripe border size="small" max-height="210" style="width:100%" class="overdue-table" @row-click="r => goDetail(r.type, r.id)">
@@ -441,7 +418,8 @@ function goHazardList() { router.push('/safety-inspection/hazard') }
           end-placeholder="结束日期"
           :clearable="false"
           size="small"
-          class="custom-date-picker" aria-label="开始日期"/>
+          class="custom-date-picker"
+        />
       </div>
     </div>
     <el-row :gutter="16" class="chart-row">
@@ -473,6 +451,7 @@ function goHazardList() { router.push('/safety-inspection/hazard') }
 .page-title-row { display:flex; align-items:baseline; gap:12px; }
 .page-title { font-size:18px; font-weight:600; color:#1f2329; margin:0; }
 .page-subtitle { font-size:12px; color:#999; }
+.drilldown-tip { color:#8f0045; font-size:12px; background:#fceef4; border-radius:4px; padding:5px 9px; }
 .category-tabs { margin-top:8px; }
 .category-tabs :deep(.el-radio-button__inner) { min-width:96px; padding:11px 28px; font-size:15px; font-weight:600; }
 .stat-row { margin-bottom:10px !important; cursor:pointer; }
@@ -490,6 +469,7 @@ function goHazardList() { router.push('/safety-inspection/hazard') }
 .chart-card { background:#fff; border-radius:8px; padding:16px; border:1px solid #eee; }
 .status-chart-row { align-items:flex-start; }
 .status-chart-card { height:270px; box-sizing:border-box; }
+.drilldown-card { cursor:pointer; }
 .chart-title { font-size:14px; font-weight:600; color:#1f2329; margin-bottom:10px; padding-left:10px; border-left:3px solid #8f0045; }
 .chart-title-wrap { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
 .chart-date-basis { color:#999; font-size:12px; line-height:22px; white-space:nowrap; }

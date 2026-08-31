@@ -182,8 +182,8 @@ watch(isHqSelected, (hq) => {
 })
 
 /* ---------- 顶栏 ---------- */
-function resolveScreenHref(routeName, fallbackPath) {
-  const { href, fullPath } = router.resolve({ name: routeName })
+function resolveScreenHref(routeName, fallbackPath, query = {}) {
+  const { href, fullPath } = router.resolve({ name: routeName, query })
   if (/^https?:\/\//i.test(href)) return href
   const hash = href.startsWith('#')
     ? href
@@ -193,6 +193,11 @@ function resolveScreenHref(routeName, fallbackPath) {
 }
 
 const cocScreenHref = computed(() => resolveScreenHref('CocScreen', 'coc'))
+const safetyScreenHref = computed(() => resolveScreenHref(
+  'SafetySituationScreen',
+  'safety-situation-screen',
+  { projectId: selectedProjectId.value || HQ_PROJECT_OPTION.id },
+))
 
 async function handleLogout() {
   try {
@@ -283,6 +288,16 @@ function skipToMain(e) {
           aria-label="打开 COC 调度大屏"
         >
           COC调度大屏
+        </a>
+        <a
+          class="screen-btn safety-screen-btn"
+          :href="safetyScreenHref"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="打开安全态势大屏"
+          aria-label="打开安全态势大屏"
+        >
+          安全态势大屏
         </a>
         <div class="user-block">
           <el-avatar :size="32" class="user-avatar">调</el-avatar>
@@ -644,6 +659,16 @@ function skipToMain(e) {
 
 .screen-btn:hover {
   background: var(--ap-primary);
+  color: #fff;
+}
+
+.safety-screen-btn {
+  border-color: #0d7377;
+  color: #0d7377;
+}
+
+.safety-screen-btn:hover {
+  background: #0d7377;
   color: #fff;
 }
 

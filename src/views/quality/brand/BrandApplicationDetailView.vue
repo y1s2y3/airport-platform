@@ -2,14 +2,13 @@
 import './brand-page.css'
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Document, Box, Clock, UserFilled } from '@element-plus/icons-vue'
+import { Document, Box, Clock } from '@element-plus/icons-vue'
 import {
   getApplicationDetail,
   MATERIAL_TYPE,
   NODE_LABEL,
   statusLabel,
   statusTagType,
-  formatBrandApproverSnapshot,
 } from '../../../mock/brand.js'
 import BrandCandidateAttachBlock from './BrandCandidateAttachBlock.vue'
 import PersonalCenterReadonlyHint from '../../../components/PersonalCenterReadonlyHint.vue'
@@ -210,16 +209,10 @@ function timelineType(status) {
                 <el-tag v-else size="small" type="info" effect="plain">备选品牌</el-tag>
               </div>
             </div>
-            <div class="cand-fields">
-              <div class="cand-field-row">
-                <span class="cand-label">品牌名称</span>
-                <span class="cand-value">{{ row.brand_name || '—' }}</span>
-              </div>
-              <div class="cand-field-row">
-                <span class="cand-label">生产厂家</span>
-                <span class="cand-value">{{ row.manufacturer || '—' }}</span>
-              </div>
-            </div>
+            <el-descriptions :column="2" border class="cand-desc">
+              <el-descriptions-item label="品牌名称">{{ row.brand_name || '—' }}</el-descriptions-item>
+              <el-descriptions-item label="生产厂家">{{ row.manufacturer || '—' }}</el-descriptions-item>
+            </el-descriptions>
             <BrandCandidateAttachBlock :candidate="row" :editable="false" />
           </div>
         </div>
@@ -227,31 +220,9 @@ function timelineType(status) {
 
       <section class="form-section">
         <header class="section-head">
-          <el-icon class="section-icon"><UserFilled /></el-icon>
-          <div class="section-head-main">
-            <h2 class="section-title">审批人配置</h2>
-          </div>
-        </header>
-        <div class="section-body">
-          <el-descriptions :column="2" border>
-            <el-descriptions-item label="监理单位审批">
-              {{ formatBrandApproverSnapshot(detail.app, 'supervisor') }}
-            </el-descriptions-item>
-            <el-descriptions-item label="项目经理审批">
-              {{ formatBrandApproverSnapshot(detail.app, 'pm') }}
-            </el-descriptions-item>
-          </el-descriptions>
-        </div>
-      </section>
-
-      <section class="form-section">
-        <header class="section-head">
           <el-icon class="section-icon"><Clock /></el-icon>
           <div class="section-head-main">
-            <div class="section-title-row">
-              <h2 class="section-title">审批流程</h2>
-              <el-tag size="small" effect="plain" type="info">施工提交 → 监理审批 → 项目经理终审</el-tag>
-            </div>
+            <h2 class="section-title">审批流程</h2>
           </div>
         </header>
         <div class="section-body">
@@ -402,36 +373,8 @@ function timelineType(status) {
   font-weight: 600;
 }
 
-.cand-fields {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+.cand-desc {
   margin-bottom: 12px;
-  padding: 12px 14px;
-  background: #fff;
-  border: 1px solid #eef0f3;
-  border-radius: 8px;
-}
-
-.cand-field-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  line-height: 1.5;
-}
-
-.cand-label {
-  flex: 0 0 72px;
-  font-size: 13px;
-  color: #909399;
-}
-
-.cand-value {
-  flex: 1;
-  min-width: 0;
-  font-size: 14px;
-  color: #303133;
-  word-break: break-all;
 }
 
 .process-steps {

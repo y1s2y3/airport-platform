@@ -4,8 +4,11 @@ import { useRouter, useRoute } from 'vue-router'
 import { Search, View, ArrowLeft } from '@element-plus/icons-vue'
 import { useLaborProjectScope, selectedProjectId } from '../../composables/useCurrentProject'
 import { HQ_PROJECT_OPTION } from '../../config/projectOptions'
-import { projectTree } from '../../mock/laborRealName.js'
-import { getProjectRectifierLabel, getProjectReviewerLabel } from '../../composables/useInspectionPersonConfig'
+import {
+  INSPECTION_DEMO_TODAY,
+  inspectionHazards,
+  inspectionProjectTree,
+} from '../../mock/inspectionDemoData'
 
 const router = useRouter()
 const route = useRoute()
@@ -27,7 +30,7 @@ function handleTreeNodeClick(data) {
 }
 
 const treeDataWithCount = computed(() => {
-  const root = projectTree[0]
+  const root = inspectionProjectTree[0]
   const children = root.children
     .map(node => {
       const count = rectifyData.filter(d => d.project_id === node.id).length
@@ -41,20 +44,12 @@ const treeDataWithCount = computed(() => {
 })
 
 // 整改单状态：待整改 → 待复查 → 已复查（项目经理审批中）→ 已关闭
-const rectifyData = [
-  { id:'rec-001', rectifyNo:'ZG202607001', taskNo:'AQXJ20260728001', inspectionCategory:'安全', project:'飞行区跑道延长工程', project_id:'p-000', rectifier:getProjectRectifierLabel('p-000'), reviewer:getProjectReviewerLabel('p-000'), deadline:'2026-07-30', status:'待整改', rectDate:'', reviewDate:'' },
-  { id:'rec-006', rectifyNo:'ZG202607006', taskNo:'AQXJ20260721003', inspectionCategory:'安全', project:'T3航站楼扩建工程', project_id:'p-001', rectifier:getProjectRectifierLabel('p-001'), reviewer:getProjectReviewerLabel('p-001'), deadline:'2026-07-22', status:'待整改', rectDate:'2026-07-20', reviewDate:'2026-07-22' },
-  { id:'rec-002', rectifyNo:'ZG202607002', taskNo:'AQXJ20260728001', inspectionCategory:'安全', project:'飞行区跑道延长工程', project_id:'p-000', rectifier:getProjectRectifierLabel('p-000'), reviewer:getProjectReviewerLabel('p-000'), deadline:'2026-07-28', status:'待复查', rectDate:'2026-07-25', reviewDate:'' },
-  { id:'rec-003', rectifyNo:'ZG202607003', taskNo:'ZLXJ20260721003', inspectionCategory:'质量', project:'T3航站楼扩建工程', project_id:'p-001', rectifier:getProjectRectifierLabel('p-001'), reviewer:getProjectReviewerLabel('p-001'), deadline:'2026-07-28', status:'待复查', rectDate:'2026-07-27', reviewDate:'2026-07-25' },
-  { id:'rec-007', rectifyNo:'ZG202607007', taskNo:'AQXJ20260730001', inspectionCategory:'安全', project:'飞行区跑道延长工程', project_id:'p-000', rectifier:getProjectRectifierLabel('p-000'), reviewer:getProjectReviewerLabel('p-000'), deadline:'2026-07-31', status:'已复查', rectDate:'2026-07-29', reviewDate:'2026-07-30' },
-  { id:'rec-004', rectifyNo:'ZG202607004', taskNo:'ZLXJ20260728005', inspectionCategory:'质量', project:'飞行区跑道延长工程', project_id:'p-000', rectifier:getProjectRectifierLabel('p-000'), reviewer:getProjectReviewerLabel('p-000'), deadline:'2026-07-20', status:'已关闭', rectDate:'2026-07-22', reviewDate:'2026-07-25' },
-  { id:'rec-011', rectifyNo:'ZG202607011', taskNo:'AQXJ20260721003', inspectionCategory:'安全', project:'T3航站楼扩建工程', project_id:'p-001', rectifier:getProjectRectifierLabel('p-001'), reviewer:getProjectReviewerLabel('p-001'), deadline:'2026-07-25', status:'已关闭', rectDate:'2026-07-24', reviewDate:'2026-07-26' },
-]
+const rectifyData = inspectionHazards
 
 const filterForm = reactive({ keyword: '', category: '', status: '', overdue: '' })
 
 const hqProjectKeyword = ref('')
-const hqProjectStats = computed(() => projectTree[0].children.map(project => {
+const hqProjectStats = computed(() => inspectionProjectTree[0].children.map(project => {
   const rows = rectifyData.filter(item => item.project_id === project.id)
   return {
     project_id: project.id,
@@ -69,7 +64,7 @@ const hqProjectStats = computed(() => projectTree[0].children.map(project => {
 }))
 const filteredHQProjects = computed(() => hqProjectStats.value.filter(item =>
   !hqProjectKeyword.value || item.project_name.includes(hqProjectKeyword.value),
-))
+).sort((a, b) => b.totalCount - a.totalCount || b.overdueCount - a.overdueCount))
 const hqTotalStats = computed(() => ({
   totalCount: filteredHQProjects.value.reduce((sum, item) => sum + item.totalCount, 0),
   pendingCount: filteredHQProjects.value.reduce((sum, item) => sum + item.pendingCount, 0),
@@ -79,7 +74,7 @@ const hqTotalStats = computed(() => ({
   overdueCount: filteredHQProjects.value.reduce((sum, item) => sum + item.overdueCount, 0),
 }))
 
-const treeData = computed(() => projectTree)
+const treeData = computed(() => inspectionProjectTree)
 
 const filteredData = computed(() => {
   let list = rectifyData
@@ -90,12 +85,12 @@ const filteredData = computed(() => {
     if (filterForm.overdue === '是') {
       if (!d.deadline) return false
       if (['已复查', '已关闭'].includes(d.status)) return false
-      if (new Date(d.deadline) >= new Date('2026-07-16')) return false
+      if (new Date(d.deadline) >= new Date(INSPECTION_DEMO_TODAY)) return false
     }
     if (filterForm.overdue === '否') {
       if (!d.deadline) return true
       if (['已复查', '已关闭'].includes(d.status)) return true
-      if (new Date(d.deadline) >= new Date('2026-07-16')) return true
+      if (new Date(d.deadline) >= new Date(INSPECTION_DEMO_TODAY)) return true
     }
     if (filterForm.keyword) {
       const kw = filterForm.keyword
@@ -108,14 +103,15 @@ const filteredData = computed(() => {
 function isOverdue(row) {
   if (['已复查', '已关闭'].includes(row.status)) return false
   if (!row.deadline) return false
-  return new Date(row.deadline) < new Date('2026-07-16')
+  return new Date(row.deadline) < new Date(INSPECTION_DEMO_TODAY)
 }
 
 function viewDetail(row) { router.push(`/safety-inspection/hazard/${row.id}`) }
 function handleReset() { Object.keys(filterForm).forEach(k => filterForm[k] = '') }
 function viewProjectDetail(row) {
-  selectedProjectId.value = row.project_id
-  router.push({ path: '/safety-inspection/hazard', query: { from: 'hq' } })
+  router.push({ path:'/safety-inspection/hazard', query:{ from:'hq' } }).then(() => {
+    selectedProjectId.value = row.project_id
+  })
 }
 function goBackToHQ() {
   selectedProjectId.value = HQ_PROJECT_OPTION.id
@@ -141,7 +137,7 @@ function goBackToHQ() {
           <div class="stat-card"><div class="sc-value text-danger">{{ hqTotalStats.overdueCount }}</div><div class="sc-label">逾期隐患</div></div>
         </div>
         <div class="hq-filter-bar">
-          <el-input v-model="hqProjectKeyword" placeholder="搜索项目名称..." clearable style="width:240px" :prefix-icon="Search" aria-label="搜索项目名称..."/>
+          <el-input v-model="hqProjectKeyword" placeholder="搜索项目名称..." clearable style="width:240px" :prefix-icon="Search" />
         </div>
         <el-table :data="filteredHQProjects" border stripe style="width:100%;margin-top:12px" class="hq-table">
           <el-table-column type="index" label="序号" width="55" align="center" />
@@ -151,7 +147,9 @@ function goBackToHQ() {
           <el-table-column prop="reviewCount" label="待复查数量" align="center" />
           <el-table-column prop="reviewedCount" label="已复查数量" align="center" />
           <el-table-column prop="closedCount" label="已关闭数量" align="center" />
-          <el-table-column prop="overdueCount" label="逾期数量" align="center" />
+          <el-table-column label="逾期数量" align="center">
+            <template #default="{ row }"><span :class="{ 'overdue-count': row.overdueCount > 0 }">{{ row.overdueCount }}</span></template>
+          </el-table-column>
           <el-table-column label="操作" width="110" align="center">
             <template #default="{ row }"><el-button link type="primary" :icon="View" @click="viewProjectDetail(row)">查看详情</el-button></template>
           </el-table-column>
@@ -166,14 +164,14 @@ function goBackToHQ() {
       </div>
       <div class="page-panel">
         <div class="filter-bar">
-          <el-input v-model="filterForm.keyword" placeholder="搜索整改单编号/巡检任务单编号..." clearable style="width:280px" :prefix-icon="Search" aria-label="搜索整改单编号/巡检任务单编号..."/>
-          <el-select v-model="filterForm.category" placeholder="巡检分类" clearable style="width:100px" aria-label="巡检分类">
+          <el-input v-model="filterForm.keyword" placeholder="搜索整改单编号/巡检任务单编号..." clearable style="width:280px" :prefix-icon="Search" />
+          <el-select v-model="filterForm.category" placeholder="巡检分类" clearable style="width:100px">
             <el-option label="安全" value="安全" /><el-option label="质量" value="质量" />
           </el-select>
-          <el-select v-model="filterForm.status" placeholder="整改状态" clearable style="width:110px" aria-label="整改状态">
+          <el-select v-model="filterForm.status" placeholder="整改状态" clearable style="width:110px">
             <el-option label="待整改" value="待整改" /><el-option label="待复查" value="待复查" /><el-option label="已复查" value="已复查" /><el-option label="已关闭" value="已关闭" />
           </el-select>
-          <el-select v-model="filterForm.overdue" placeholder="是否逾期" clearable style="width:100px" aria-label="是否逾期">
+          <el-select v-model="filterForm.overdue" placeholder="是否逾期" clearable style="width:100px">
             <el-option label="是" value="是" /><el-option label="否" value="否" />
           </el-select>
           <el-button @click="handleReset">重置</el-button>
@@ -239,6 +237,7 @@ function goBackToHQ() {
 .text-reviewed { color:#8f0045; }
 .text-success { color:#34a853; }
 .text-danger { color:#e53935; }
+.overdue-count { color:#e53935; font-weight:600; }
 .hq-filter-bar { display:flex; justify-content:flex-end; }
 .back-bar { display:flex; align-items:center; gap:10px; margin-bottom:12px; padding:8px 12px; background:#f5f7fa; border-radius:6px; font-size:14px; font-weight:600; }
 

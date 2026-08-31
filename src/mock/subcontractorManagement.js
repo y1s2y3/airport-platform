@@ -34,9 +34,16 @@ export function canWithdrawSubcontractor() {
 function normalizeSafetyLicense(sl = {}) {
   const src = { ...sl }
   if (src.expiry && !src.expiryStart && !src.expiryEnd) {
-    src.expiryEnd = src.expiry
-    const year = String(src.expiry).slice(0, 4)
-    src.expiryStart = year ? `${year}-01-01` : ''
+    const text = String(src.expiry).trim()
+    const range = text.match(/^(\d{4}-\d{2}-\d{2})\s*[~～]\s*(\d{4}-\d{2}-\d{2})$/)
+    if (range) {
+      src.expiryStart = range[1]
+      src.expiryEnd = range[2]
+    } else {
+      src.expiryEnd = text
+      const year = text.slice(0, 4)
+      src.expiryStart = /^\d{4}$/.test(year) ? `${year}-01-01` : ''
+    }
     delete src.expiry
   }
   return {
@@ -1068,12 +1075,13 @@ export function canAccessSubcontractorDetail(row, { isHq = false, projectId = ''
 
 function toPortraitBlock(row) {
   const sl = normalizeSafetyLicense(row.safetyLicense || {})
-  const hasLicense = hasSubcontractorSafetyLicense(row)
+  // 与列表「有效/失效」一致：齐全且结束日 ≥ 当日 → true（有效）
+  const licenseValid = isSubcontractorSafetyLicenseValid(row)
   return createSubcontractorBlock({
     unitName: row.name,
     projectLeaderContact: row.projectLeaderContact,
     safetyManagerContact: row.safetyManagerContact,
-    hasSafetyLicense: hasLicense,
+    hasSafetyLicense: licenseValid,
     safetyLicenseNo: sl.licenseNo || '',
     safetyLicenseExpiry: formatSafetyLicenseExpiry(sl),
     safetyLicensePhoto: sl.fileName || sl.fileUrl || '',

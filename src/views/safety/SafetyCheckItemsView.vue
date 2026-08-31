@@ -180,7 +180,7 @@ function deleteItem(row) {
       </div>
       <div class="page-actions">
         <el-button type="primary" size="default" @click="openAddItem"><el-icon><Plus /></el-icon>新增检查项</el-button>
-        <el-input v-model="filterText" placeholder="搜索分类..." clearable size="default" style="width: 200px" aria-label="搜索分类..."/>
+        <el-input v-model="filterText" placeholder="搜索分类..." clearable size="default" style="width: 200px" />
       </div>
     </div>
 
@@ -235,7 +235,7 @@ function deleteItem(row) {
           <el-input :model-value="inspectionCategory" disabled />
         </el-form-item>
         <el-form-item label="分类名称" required>
-          <el-input v-model="catForm.label" placeholder="请输入分类名称" maxlength="50" aria-label="请输入分类名称"/>
+          <el-input v-model="catForm.label" placeholder="请输入分类名称" maxlength="50" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -254,7 +254,7 @@ function deleteItem(row) {
           <el-input :model-value="currentCategoryName" disabled />
         </el-form-item>
         <el-form-item label="检查内容" required>
-          <el-input v-model="itemForm.checkPoint" type="textarea" :rows="3" placeholder="请输入检查项内容" maxlength="200" show-word-limit aria-label="请输入检查项内容"/>
+          <el-input v-model="itemForm.checkPoint" type="textarea" :rows="3" placeholder="请输入检查项内容" maxlength="200" show-word-limit />
         </el-form-item>
       </el-form>
       <template #footer>

@@ -6,7 +6,6 @@ import { ElMessage } from 'element-plus'
 import { useCurrentProject } from '../../composables/useCurrentProject'
 import {
   getSubcontractorDetail,
-  approveStatusTagClass,
   isSubcontractorInApproval,
   canAccessSubcontractorDetail,
   canResubmitSubcontractor,
@@ -72,11 +71,8 @@ function handleResubmit() {
           <el-button :icon="ArrowLeft" @click="goBack">返回列表</el-button>
           <div>
             <h1 class="page-title">{{ detail.name }}</h1>
-            <div class="sub-meta">
-              <span>{{ detail.projectName }}</span>
-              <span>{{ detail.unitType }}</span>
-              <span class="ap-status-tag" :class="approveStatusTagClass(detail.status)">{{ detail.status }}</span>
-              <span v-if="detail.submitTime">提交：{{ detail.submitTime }}</span>
+            <div v-if="detail.projectName || detail.rejectedFromId" class="sub-meta">
+              <span v-if="detail.projectName">{{ detail.projectName }}</span>
               <span v-if="detail.rejectedFromId">关联驳回单：{{ detail.rejectedFromId }}</span>
             </div>
           </div>

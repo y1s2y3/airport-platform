@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { Plus } from '@element-plus/icons-vue'
 import { planData, userOptions } from '../../composables/useInspectionPlan'
 import { listMobileInspectionTasks } from '../../mock/mobileInspectionTasks'
+import { getProjectInspectorLabel } from '../../composables/useInspectionPersonConfig'
 
 const router = useRouter()
 
@@ -32,6 +33,9 @@ function getExecutionTask(row) {
 function getExecutionStatus(row) {
   return getExecutionTask(row)?.status === '已完成' ? '已完成' : '未完成'
 }
+function getTaskReceiver(row) {
+  return getProjectInspectorLabel(row.projectIds?.[0]) || '—'
+}
 function goTaskDetail(row) {
   const task = getExecutionTask(row)
   if (task) {
@@ -53,11 +57,11 @@ function goTaskDetail(row) {
       </el-button>
     </div>
     <div class="filter-bar">
-      <el-select v-model="filterForm.category" placeholder="巡检分类" clearable style="width: 110px" aria-label="巡检分类">
+      <el-select v-model="filterForm.category" placeholder="巡检分类" clearable style="width: 110px">
         <el-option label="安全" value="安全" />
         <el-option label="质量" value="质量" />
       </el-select>
-      <el-input v-model="filterForm.keyword" placeholder="搜索任务名称..." clearable style="width: 240px" aria-label="搜索任务名称..."/>
+      <el-input v-model="filterForm.keyword" placeholder="搜索任务名称..." clearable style="width: 240px" />
     </div>
     <div class="table-wrap">
       <el-table :data="filteredPlans" border stripe class="ap-table" style="width: 100%">
@@ -72,7 +76,7 @@ function goTaskDetail(row) {
         </el-table-column>
         <el-table-column prop="inspectionCategory" label="巡检分类" width="85" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.inspectionCategory === '质量' ? 'warning' : 'success'" size="small" effect="plain">
+            <el-tag :type="row.inspectionCategory === '质量' ? 'warning' : 'success'" size="small" effect="plain" disable-transitions>
               {{ row.inspectionCategory || '安全' }}
             </el-tag>
           </template>
@@ -81,7 +85,7 @@ function goTaskDetail(row) {
           <template #default="{ row }">{{ row.projects.join('、') }}</template>
         </el-table-column>
         <el-table-column label="任务接收人" min-width="150" align="center">
-          <template #default>监理</template>
+          <template #default="{ row }">{{ getTaskReceiver(row) }}</template>
         </el-table-column>
         <el-table-column label="截止日期" min-width="110" align="center">
           <template #default="{ row }">{{ row.deadlineDate || row.endDate || '—' }}</template>
@@ -90,16 +94,11 @@ function goTaskDetail(row) {
           <template #default="{ row }">{{ getUpdatedByName(row) }}</template>
         </el-table-column>
         <el-table-column label="更新时间"  align="center">
-          <template #default="{ row }">{{ row.updated_at }}</template>
-        </el-table-column>
-        <el-table-column label="下发状态" width="90" align="center">
-          <template #default="{ row }">
-            <el-tag type="success" size="small" effect="light">{{ row.status || '已下发' }}</el-tag>
-          </template>
+          <template #default="{ row }">{{ row.updatedAt || row.updated_at || '—' }}</template>
         </el-table-column>
         <el-table-column label="任务执行状态" width="110" align="center">
           <template #default="{ row }">
-            <el-tag :type="getExecutionStatus(row) === '已完成' ? 'success' : 'warning'" size="small" effect="light">
+            <el-tag :type="getExecutionStatus(row) === '已完成' ? 'success' : 'warning'" size="small" effect="light" disable-transitions>
               {{ getExecutionStatus(row) }}
             </el-tag>
           </template>

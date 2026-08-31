@@ -1,3 +1,5 @@
+import { COC_PROJECT_OPTIONS } from './projectOptions.js'
+
 /** 巡检管理公共配置 */
 export const INSPECTION_CATEGORIES = ['安全', '质量']
 
@@ -33,5 +35,8 @@ export const INSPECTION_PROJECT_ID_BY_NAME = {
 
 export function resolveInspectionProjectId(projectIdOrName = '') {
   if (String(projectIdOrName).startsWith('p-')) return projectIdOrName
-  return INSPECTION_PROJECT_ID_BY_NAME[projectIdOrName] || 'p-000'
+  const catalogProject = COC_PROJECT_OPTIONS.find(project =>
+    project.label === projectIdOrName || project.fullName === projectIdOrName,
+  )
+  return INSPECTION_PROJECT_ID_BY_NAME[projectIdOrName] || catalogProject?.id || 'p-000'
 }

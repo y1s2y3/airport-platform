@@ -33,6 +33,8 @@ import {
   registerWarningCenterBizDisposedHook,
   runWithoutBizToWarningCenterSync,
 } from './warningCenterBizHook.js'
+import { INSPECTION_DEMO_TODAY, inspectionHazards } from './inspectionDemoData.js'
+import { mobileInspectionTasks } from './mobileInspectionTasks.js'
 
 export const PROCESS_STATUS_OPTIONS = ['审批中', '已通过', '已驳回', '已撤回']
 export const PROCESS_CATEGORY_OPTIONS = [
@@ -1558,6 +1560,44 @@ export const personalTodoStore = reactive({
   todos: [
     ...seedQmInspectTodos(),
     ...inspectionTodoExamples,
+    {
+      id: 'todo-inspection-reread-rectify-1',
+      type: 'inspection',
+      sourceLabel: '巡检管理',
+      category: '巡检管理',
+      bizType: '整改',
+      inspectionBizType: '整改',
+      processName: '隐患整改（复查不通过重新整改）·ZG202608003',
+      applicant: '王工（项目安全员）',
+      dept: '工程管理部',
+      applyTime: '2026-08-13 09:20:00',
+      detail: {
+        project: '飞行区跑道延长工程',
+        inspectionCategory: '安全',
+        taskNo: 'AQXJ20260803003',
+        rectifyNo: 'ZG202608003',
+        currentNode: '整改人重新整改',
+        status: '待整改',
+        hazard: '临时用电配电箱接地线脱落，箱门标识缺失。',
+        hazardPhotos: ['隐患照片1.jpg'],
+        rectifier: '王工（项目安全员）',
+        reviewer: '陈工（监理工程师）',
+        deadline: '2026-08-16 17:30:00',
+        rectificationDate: '2026-08-13',
+        rectificationPhotos: ['整改照片1.jpg'],
+        rectificationNote: '已重新紧固接地线并补齐标识，请复查。',
+        reviewDate: '',
+        reviewResult: '',
+        reviewComment: '',
+        summary: '复查不通过，整改人需重新整改后再次提交复查。',
+      },
+      approvalFlow: [
+        { title: '下发整改单', time: '2026-08-11 09:00:00', user: '陈工（监理工程师）', remark: '已下发整改任务', status: 'done' },
+        { title: '整改人提交整改结果', time: '2026-08-13 10:20:00', user: '王工（项目安全员）', remark: '已提交整改', status: 'done' },
+        { title: '复查人复查', time: '2026-08-14 15:30:00', user: '陈工（监理工程师）', remark: '复查不通过：接地线仍松动', status: 'done' },
+        { title: '整改人重新整改', time: '', user: '当前用户', remark: '待重新整改并提交', status: 'current' },
+      ],
+    },
     ...seedTodos(),
   ],
   done: [
@@ -1726,7 +1766,122 @@ export const personalStarted = reactive([
       { title: '办结', time: '2026-07-09 15:40:18', user: '系统', remark: '已通过', status: 'done' },
     ],
   },
+  {
+    id: 'start-inspection-rejected-1',
+    type: 'inspection',
+    sourceLabel: '巡检管理',
+    category: '巡检管理',
+    bizType: '整改',
+    inspectionBizType: '整改',
+    processName: '隐患整改·复查不通过重新整改（ZG202608003）',
+    status: '已驳回',
+    applicant: '当前用户',
+    dept: '工程管理部',
+    applyTime: '2026-08-12 10:20:00',
+    endTime: '2026-08-14 15:30:00',
+    rejectTime: '2026-08-14 15:30:00',
+    rejectReason: '复查不通过：现场复查仍有接地线松动，需重新整改。',
+    editable: true,
+    detail: {
+      project: '飞行区跑道延长工程',
+      inspectionCategory: '安全',
+      taskNo: 'AQXJ20260803003',
+      rectifyNo: 'ZG202608003',
+      currentNode: '整改人重新整改',
+      status: '待整改',
+      hazard: '临时用电配电箱接地线脱落，箱门标识缺失。',
+      hazardPhotos: ['隐患照片1.jpg'],
+      rectifier: '王工（项目安全员）',
+      reviewer: '陈工（监理工程师）',
+      deadline: '2026-08-16 17:30:00',
+      rectificationDate: '2026-08-13',
+      rectificationPhotos: ['整改照片1.jpg'],
+      rectificationNote: '已重新紧固接地线并补齐标识，请复查。',
+      reviewDate: '',
+      reviewResult: '',
+      reviewComment: '',
+      summary: '复查不通过，整改人需重新整改后再次提交复查。',
+    },
+    approvalFlow: [
+      { title: '下发整改单', time: '2026-08-11 09:00:00', user: '陈工（监理工程师）', remark: '已下发整改任务', status: 'done' },
+      { title: '整改人提交整改结果', time: '2026-08-13 10:20:00', user: '王工（项目安全员）', remark: '已提交整改', status: 'done' },
+      { title: '复查人复查', time: '2026-08-14 15:30:00', user: '陈工（监理工程师）', remark: '复查不通过：接地线仍松动', status: 'done' },
+      { title: '整改人重新整改', time: '', user: '当前用户', remark: '待重新整改并提交', status: 'current' },
+    ],
+  },
 ])
+
+/**
+ * 已驳回巡检发起记录：编辑后重新提交
+ * 更新「我发起的」状态为审批中，并生成「复查」待办，继续流程流转。
+ */
+export function resubmitInspectionStarted(id, payload = {}) {
+  const row = personalStarted.find((item) => String(item.id) === String(id))
+  if (!row) return null
+  if (row.status !== '已驳回') return null
+
+  const now = new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-')
+  const detail = {
+    ...(row.detail || {}),
+    rectificationDate: payload.rectDate || row.detail?.rectificationDate || '',
+    rectificationNote: payload.rectNote || row.detail?.rectificationNote || '',
+    rectificationPhotos: Array.isArray(payload.rectPhotos) && payload.rectPhotos.length
+      ? payload.rectPhotos.map((item) => (typeof item === 'string' ? item : item.name || item.url || ''))
+      : [...(row.detail?.rectificationPhotos || [])],
+    reviewDate: '',
+    reviewResult: '',
+    reviewComment: '',
+    status: '待复查',
+    currentNode: '复查人复查',
+  }
+
+  const flow = (row.approvalFlow || []).map((step) => {
+    if (step.status === 'current') {
+      return { ...step, status: 'done', time: now, user: '当前用户', remark: '已重新提交整改' }
+    }
+    return { ...step }
+  })
+  flow.push({
+    title: '复查人复查',
+    time: '',
+    user: detail.reviewer || '复查人',
+    remark: '待复查',
+    status: 'current',
+  })
+
+  Object.assign(row, {
+    status: '审批中',
+    endTime: '',
+    rejectTime: '',
+    rejectReason: '',
+    applyTime: now,
+    processName: payload.processName || row.processName,
+    detail,
+    approvalFlow: flow,
+  })
+
+  const rectifyNo = detail.rectifyNo || row.detail?.rectifyNo || row.rectifyId || 'ZG'
+  const todo = {
+    id: `todo-inspection-rereview-${Date.now()}`,
+    type: 'inspection',
+    sourceLabel: '巡检管理',
+    category: '巡检管理',
+    bizType: '复查',
+    inspectionBizType: '复查',
+    processName: `隐患整改复查·${rectifyNo}`,
+    applicant: '当前用户',
+    dept: '工程管理部',
+    applyTime: now,
+    detail: {
+      ...detail,
+      currentNode: '复查人复查',
+      status: '待复查',
+    },
+    approvalFlow: flow.map((step) => ({ ...step })),
+  }
+  personalTodoStore.todos.unshift(todo)
+  return row
+}
 
 /** 热更新/办理后若缺失，补回质量验评 / 人员实名制预警假数据（不重复插入） */
 export function ensureQmPersonalCenterSeeds() {
@@ -1920,27 +2075,22 @@ export const personalCc = reactive([
   },
   {
     id: 'cc-2',
-    type: 'common',
+    type: 'inspection_dispatch_cc',
     sourceLabel: '巡检管理',
     category: '巡检管理',
-    bizType: '任务抄送',
-    processName: '夜间巡检任务抄送',
-    projectName: '空侧捷运线',
-    applicant: '刘海峰',
+    bizType: '任务下发抄送',
+    processName: '巡检任务下发抄送',
+    projectName: 'T1航站区配套',
+    applicant: 'admin',
     dept: '安监部',
     readStatus: '已读',
-    applyTime: '2026-07-15 22:10:00',
-    endTime: '2026-07-16 06:05:00',
+    applyTime: '2026-07-18 16:30:00',
+    inspectionPlanId: 'plan-003',
     detail: {
-      project: '空侧捷运线',
-      planName: '夜间巡检任务 2026-07-15',
-      summary: '夜间巡检已完成，重点关注临边防护与临时用电，抄送相关责任人。',
+      taskNo: 'AQXJ20260718001',
+      taskName: '雨季临时用电检查',
+      project: 'T1航站区配套',
     },
-    approvalFlow: [
-      { title: '下发巡检任务', time: '2026-07-15 22:10:00', user: '刘海峰', remark: '抄送知悉', status: 'done' },
-      { title: '巡检执行', time: '2026-07-16 03:20:00', user: '巡检组', remark: '已完成巡检', status: 'done' },
-      { title: '任务关闭', time: '2026-07-16 06:05:00', user: '系统', remark: '已办结', status: 'done' },
-    ],
   },
 ])
 
@@ -2619,6 +2769,53 @@ export const personalNotices = [
     readStatus: '已读',
   },
 ]
+
+/** 巡检/整改逾期提醒：同一批逾期数据只生成一次，避免重复提醒。 */
+export const inspectionOverdueReminders = reactive([])
+const inspectionReminderKeys = new Set()
+
+function isInspectionOverdue(item, doneStatuses = []) {
+  if (!item?.deadline || doneStatuses.includes(item.status)) return false
+  return new Date(item.deadline) < new Date(INSPECTION_DEMO_TODAY)
+}
+
+function buildInspectionReminder(type, rows) {
+  if (!rows.length) return null
+  const freshRows = rows.filter((row) => !inspectionReminderKeys.has(`${type}:${row.id}`))
+  if (!freshRows.length) return null
+  const keys = freshRows.map((row) => `${type}:${row.id}`)
+  keys.forEach((key) => inspectionReminderKeys.add(key))
+  const sample = freshRows.slice(0, 3).map((row) =>
+    type === 'task' ? `${row.taskNo}（${row.project}）` : `${row.rectifyNo}（${row.project}）`,
+  )
+  const more = freshRows.length > sample.length ? `等${freshRows.length}项` : ''
+  return {
+    id: `inspection-overdue-${type}-${inspectionOverdueReminders.length + 1}`,
+    module: '巡检管理',
+    title: type === 'task' ? '巡检逾期提醒' : '整改逾期提醒',
+    content: `${type === 'task' ? '巡检任务' : '隐患整改'}新增逾期${freshRows.length}项：${sample.join('、')}${more}，请及时处理。`,
+    time: `${INSPECTION_DEMO_TODAY} 09:00:00`,
+    readStatus: '未读',
+    reminderKey: keys.join(','),
+  }
+}
+
+export function ensureInspectionOverdueReminders() {
+  const overdueTasks = mobileInspectionTasks.filter((item) => isInspectionOverdue(item, ['已完成']))
+  const overdueRectifications = inspectionHazards.filter((item) =>
+    isInspectionOverdue(item, ['已复查', '已关闭']),
+  )
+  for (const [type, rows] of [
+    ['task', overdueTasks],
+    ['rectify', overdueRectifications],
+  ]) {
+    const reminder = buildInspectionReminder(type, rows)
+    if (!reminder) continue
+    personalNotices.unshift(reminder)
+    inspectionOverdueReminders.unshift(reminder)
+  }
+  return inspectionOverdueReminders
+}
 
 /**
  * —— 分包单位报审：个人中心待办 / 发起 / 抄送 ——

@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getProjectRectifierLabel, getProjectReviewerLabel } from '../../composables/useInspectionPersonConfig'
+import { getInspectionHazardDetail } from '../../mock/inspectionDemoData'
 import PersonalCenterReadonlyHint from '../../components/PersonalCenterReadonlyHint.vue'
 
 const route = useRoute()
@@ -9,7 +10,6 @@ const router = useRouter()
 const rid = route.params.id
 
 const flowCollapsed = ref(false)
-const prevCollapsed = ref(true)
 
 const d = {
   // ===== 待整改 =====
@@ -30,7 +30,7 @@ const d = {
     flow:[
       { a:'下发整改单', d:'2026-07-20 14:00' },
       { a:'整改人提交整改结果', d:'2026-07-22 16:30' },
-      { a:'复查不通过，退回继续整改', d:'2026-07-24 10:00', dt:'整改不彻底' },
+      { a:'复查不通过，退回继续整改', d:'2026-07-24 10:00', dt:'整改不彻底，电缆接头处仍有裸露' },
       { a:'等待整改人重新整改', d:'', cur:true },
     ],
   },
@@ -112,16 +112,26 @@ const d = {
   },
 }
 const info = computed(() => {
-  const source = d[rid] || d['rec-001']
+  const source = getInspectionHazardDetail(rid) || d[rid] || d['rec-001']
+  const projectKey = source.project_id || source.pj
   return {
     ...source,
-    cat: ['rec-003', 'rec-004'].includes(rid) ? '质量' : '安全',
-    rf: getProjectRectifierLabel(source.pj),
-    rv: getProjectReviewerLabel(source.pj),
+    cat: source.cat || (['rec-003', 'rec-004'].includes(rid) ? '质量' : '安全'),
+    rf: source.rf || getProjectRectifierLabel(projectKey),
+    rv: source.rv || getProjectReviewerLabel(projectKey),
   }
 })
-const isRetry = computed(() => rid === 'rec-003' || rid === 'rec-011')
-const isRejected = computed(() => rid === 'rec-006')
+// 多次整改/复查只展示当前最新一轮；历史失败原因统一保留在流程记录中。
+const latestRectifications = computed(() => {
+  if (info.value.rectifications?.length) {
+    return [info.value.rectifications[info.value.rectifications.length - 1]]
+  }
+  return info.value.rectification ? [info.value.rectification] : []
+})
+const latestReviews = computed(() => {
+  if (!info.value.reviews?.length) return []
+  return [info.value.reviews[info.value.reviews.length - 1]]
+})
 
 const showReadonlyHint = computed(() => {
   const st = info.value?.st
@@ -165,67 +175,17 @@ function goBack() { router.push('/safety-inspection/hazard') }
       <div class="rf" v-if="info.hazard.photos?.length"><label>隐患照片</label><span>{{ info.hazard.photos.join('、') }}</span></div>
     </div>
 
-    <!-- ===== 待整改：上次整改情况+复查结果 ===== -->
-    <template v-if="isRejected">
-      <div class="sc">
-        <div class="sct">上次整改情况</div>
-        <div class="rf"><label>整改日期</label><span>{{ info.prevRect.date }}</span></div>
-        <div class="rf"><label>整改照片</label><span>{{ info.prevRect.photos.join('、') }}</span></div>
-        <div class="rf"><label>整改说明</label><span>{{ info.prevRect.note }}</span></div>
-      </div>
-      <div class="sc">
-        <div class="sct" style="color:#e53935;border-left-color:#e53935">❌ 复查结果</div>
-        <div class="rf"><label>复查日期</label><span>{{ info.prevReview.date }}</span></div>
-        <div class="rf"><label>复查意见</label><span>{{ info.prevReview.comment }}</span></div>
-        <div class="rf"><label>结果</label><span style="color:#e53935;font-weight:600">{{ info.prevReview.result }}</span></div>
-      </div>
-    </template>
-
-    <!-- ===== 待复查：上次整改情况+复查结果（可收起） ===== -->
-    <template v-if="isRetry && info.st === '待复查'">
-      <div class="sc">
-        <div class="sct colps" @click="prevCollapsed = !prevCollapsed">
-          <span>上次整改情况</span>
-          <span class="ar">{{ prevCollapsed ? '展开 ▸' : '收起 ▾' }}</span>
-        </div>
-        <div v-show="!prevCollapsed">
-          <div class="sc-inner">
-            <div class="inner-title">历史整改</div>
-            <div class="rf"><label>日期</label><span>{{ info.prevRect.date }}</span></div>
-            <div class="rf"><label>照片</label><span>{{ info.prevRect.photos.join('、') }}</span></div>
-            <div class="rf"><label>说明</label><span>{{ info.prevRect.note }}</span></div>
-          </div>
-          <div class="sc-inner" style="border-left-color:#e53935">
-            <div class="inner-title" style="color:#e53935">❌ 复查结果</div>
-            <div class="rf"><label>日期</label><span>{{ info.prevReview.date }}</span></div>
-            <div class="rf"><label>意见</label><span>{{ info.prevReview.comment }}</span></div>
-            <div class="rf"><label>结果</label><span style="color:#e53935;font-weight:600">{{ info.prevReview.result }}</span></div>
-          </div>
-        </div>
-      </div>
-    </template>
-
     <!-- ===== 整改信息（待复查/已复查/已关闭展示） ===== -->
     <template v-if="['待复查', '已复查', '已关闭'].includes(info.st)">
       <div class="sc">
         <div class="sct">整改信息</div>
-        <div v-if="info.rectifications" v-for="(rct, ri) in info.rectifications" :key="ri" class="sc-inner" :class="{ 'inner-fail': ri===0 && info.rectifications.length>1, 'inner-pass': ri===info.rectifications.length-1 }">
+        <div v-for="rct in latestRectifications" :key="rct.date" class="sc-inner">
           <div class="inner-title">
-            <template v-if="info.rectifications.length>1">{{ ri === info.rectifications.length - 1 ? '本次整改' : '历史整改' }}</template>
-            <template v-else>整改</template>
-            <span v-if="ri===0 && info.rectifications.length>1" class="tag-fail">退回</span>
-            <span v-if="ri===info.rectifications.length-1 && info.rectifications.length>1" class="tag-pass">通过</span>
+            整改
           </div>
           <div class="rf"><label>日期</label><span>{{ rct.date }}</span></div>
           <div class="rf"><label>照片</label><span>{{ rct.photos.join('、') }}</span></div>
           <div class="rf"><label>说明</label><span>{{ rct.note }}</span></div>
-        </div>
-        <!-- 待复查：单条整改 -->
-        <div v-if="info.rectification" class="sc-inner">
-          <div class="inner-title">整改</div>
-          <div class="rf"><label>日期</label><span>{{ info.rectification.date }}</span></div>
-          <div class="rf"><label>照片</label><span>{{ info.rectification.photos.join('、') }}</span></div>
-          <div class="rf"><label>说明</label><span>{{ info.rectification.note }}</span></div>
         </div>
       </div>
     </template>
@@ -234,10 +194,9 @@ function goBack() { router.push('/safety-inspection/hazard') }
     <template v-if="['已复查', '已关闭'].includes(info.st)">
       <div class="sc">
         <div class="sct">复查信息</div>
-        <div v-for="(rv, ri) in info.reviews" :key="ri" class="rv-item" :class="{ 'rv-pass': rv.result==='通过' }">
+        <div v-for="rv in latestReviews" :key="rv.date" class="rv-item" :class="{ 'rv-pass': rv.result==='通过' }">
           <div class="rv-top">
-            <span v-if="info.reviews.length>1" class="rv-round">{{ ri === info.reviews.length - 1 ? '本次复查' : '历史复查' }}</span>
-            <span v-else class="rv-round">复查</span>
+            <span class="rv-round">复查</span>
             <span class="rv-date">{{ rv.date }}</span>
             <span class="rv-result" :class="{ 'rv-result-pass': rv.result==='通过' }">{{ rv.result==='通过' ? '✅ 通过' : '❌ 不通过' }}</span>
           </div>

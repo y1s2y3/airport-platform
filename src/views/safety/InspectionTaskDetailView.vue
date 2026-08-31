@@ -3,7 +3,6 @@ import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getMobileInspectionTask } from '../../mock/mobileInspectionTasks'
 import { checkCategoryTree } from '../../composables/useInspectionPlan'
-import PersonalCenterReadonlyHint from '../../components/PersonalCenterReadonlyHint.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -112,11 +111,6 @@ function goRectify(id) { if (id) router.push(`/safety-inspection/hazard/${id}`) 
       <button class="back-btn" @click="goBack">‹ 返回</button>
       <h3 class="page-title">巡检任务详情</h3>
     </div>
-
-    <PersonalCenterReadonlyHint
-      v-if="isPending"
-      title="本页为只读查看；待执行的巡检任务请在「个人中心 → 我的待办」或移动端任务中心处理。"
-    />
 
     <!-- ===== 基本信息 ===== -->
     <div class="info-card">

@@ -263,6 +263,7 @@ onUnmounted(() => {
     <div class="stat-pane is-clickable" title="点击查看危大工程清单" @click="openMajorAll">
       <div class="stat-title">
         危大工程作业（按状态）
+        <el-tag type="warning" size="small" effect="plain" class="stat-dev-tag">开发中</el-tag>
         <span class="stat-tip">点击查看清单 · 扇区可筛选</span>
       </div>
       <div ref="leftChartRef" class="stat-chart" @click.stop />
@@ -335,6 +336,12 @@ onUnmounted(() => {
   font-weight: 600;
   color: #1a1a1a;
   text-align: center;
+}
+
+.stat-dev-tag {
+  margin-left: 6px;
+  vertical-align: middle;
+  font-weight: 600;
 }
 
 .stat-tip {

@@ -6,19 +6,6 @@ export const yesNoNaOptions = ['是', '否', '不适用']
 
 export const canteenFuelOptions = ['燃气', '电气']
 
-export const superiorManagementUnitOptions = [
-  '中国建筑股份有限公司',
-  '中国建筑第三工程局有限公司',
-  '中国建筑第五工程局有限公司',
-  '中国建筑第八工程局有限公司',
-  '广东建工集团有限公司',
-  '中铁建工集团有限公司',
-  '深圳市政集团有限公司',
-  '深圳市深水兆业工程顾问有限公司',
-  '深圳市政监理有限公司',
-  '深圳监理公司',
-]
-
 function uniqueSorted(values) {
   return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-CN'))
 }

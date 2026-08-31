@@ -16,7 +16,27 @@ export const permitStatusOptions = [
   '已办理机场区域管理部门施工备案',
   '未办理',
 ]
-export const projectStatusOptions = ['前期', '在建', '历史']
+export const projectStatusOptions = [
+  { value: 'preliminary', label: '前期' },
+  { value: 'in_progress', label: '在建' },
+  { value: 'historical', label: '历史' },
+]
+
+/** 状态存储码 → 中文展示（兼容历史 Mock 中文值） */
+export function displayProjectStatus(status) {
+  const raw = String(status || '').trim()
+  if (!raw) return '—'
+  const hit = projectStatusOptions.find((opt) => opt.value === raw || opt.label === raw)
+  return hit ? hit.label : raw
+}
+
+/** 任意输入规范为存储码 */
+export function normalizeProjectStatus(status) {
+  const raw = String(status || '').trim()
+  if (!raw) return 'in_progress'
+  const hit = projectStatusOptions.find((opt) => opt.value === raw || opt.label === raw)
+  return hit ? hit.value : raw
+}
 
 const PUMP_OVERVIEW = `深圳宝安国际机场T2航站区及配套设施工程-新建2号雨水提升泵站工程位于2#调蓄池与新建机场九道南侧之间的空地范围内，泵站进水口直接连通2#调蓄池水体，泵站出水口为福永河。泵站共有一条进场道路，场内道路通过宝安大道、机场九道工程相通。泵站枢纽主要由泵站建筑物和放空自排涵组成。其中泵站建筑物包括进水口、进水箱涵、进水池、泵房、出水池、出水箱涵、出水口等。进水箱涵6孔，进水箱涵进口处设置检修门1道，中部设置安全格栅1道；出水箱涵3孔，出水箱涵出口处设置检修闸门1道。
 泵站汇水面积4.7km2，设计排涝流量为52m³/s，装设6台套潜水贯流泵机组，单台设计流量为8.7m³/s，配套电机功率630KW，全站总装机容量3780KW，水泵与电机采用齿轮减速箱联接。内河进水流道前设一道检修工作闸门，外河出水流道出口布置一道工作闸门和一道事故兼检修闸门。泵站内河进水池布置一道回转格栅清污机及皮带传输机。`
@@ -33,7 +53,7 @@ export function createProjectFields(overrides = {}) {
     constructionSiteLat: '',
     entryTime: '',
     plannedCompletionTime: '',
-    status: '前期',
+    status: 'in_progress',
     personInCharge: '',
     peakPersonnelCount: '',
     totalInvestment: '',
@@ -50,6 +70,7 @@ export function createProjectFields(overrides = {}) {
   return {
     ...base,
     ...rest,
+    status: normalizeProjectStatus(rest.status ?? base.status),
     safetyProfile: mergeSafetyProfile(safetyProfile ?? rest.safetyProfile),
   }
 }
@@ -60,11 +81,11 @@ export const projectList = [
     shortName: 'T2项目',
     hidden: false,
     projectCode: 't2hangzhanqunuew',
-    status: '前期',
+    status: 'preliminary',
     personInCharge: '姚远东',
     ...createProjectFields({
       projectName: '宝安国际机场T2航站区及配套工程',
-      status: '前期',
+      status: 'preliminary',
       personInCharge: '姚远东',
       contractorUnit: '中建三局第一建设工程有限责任公司',
       supervisorUnit: '深圳市政监理有限公司',
@@ -99,11 +120,11 @@ export const projectList = [
     shortName: 'T1 项目',
     hidden: false,
     projectCode: '',
-    status: '前期',
+    status: 'preliminary',
     personInCharge: '管术枝',
     ...createProjectFields({
       projectName: '深圳宝安国际机场T1航站区及配套设施工程项目',
-      status: '前期',
+      status: 'preliminary',
       personInCharge: '管术枝',
       contractorUnit: '中建三局',
       supervisorUnit: '深圳监理公司',
@@ -130,11 +151,11 @@ export const projectList = [
     shortName: '东航站区及停车场',
     hidden: false,
     projectCode: '',
-    status: '前期',
+    status: 'preliminary',
     personInCharge: '林建源',
     ...createProjectFields({
       projectName: '深圳宝安国际机场东航站区、停车楼及配套业务设施项目',
-      status: '前期',
+      status: 'preliminary',
       personInCharge: '林建源',
       contractorUnit: '中建八局南方公司',
       supervisorUnit: '深圳市政监理有限公司',
@@ -156,11 +177,11 @@ export const projectList = [
     shortName: '综合配套三期',
     hidden: false,
     projectCode: '',
-    status: '前期',
+    status: 'preliminary',
     personInCharge: '戴毅峰',
     ...createProjectFields({
       projectName: '综合配套三期(A319-004-04-03-02)及南区下穿通道工程(A319-004-04-01-01)项目',
-      status: '前期',
+      status: 'preliminary',
       personInCharge: '戴毅峰',
       contractorUnit: '中铁建工集团华南分公司',
       supervisorUnit: '深圳市政监理有限公司',
@@ -182,11 +203,11 @@ export const projectList = [
     shortName: '东职站坪',
     hidden: false,
     projectCode: '',
-    status: '前期',
+    status: 'preliminary',
     personInCharge: '戴毅峰',
     ...createProjectFields({
       projectName: '空港区截中心配套站坪、竖和站坪及机务区地基处理工程项目',
-      status: '前期',
+      status: 'preliminary',
       personInCharge: '戴毅峰',
       contractorUnit: '广东建工集团有限公司',
       supervisorUnit: '深圳监理公司',
@@ -208,11 +229,11 @@ export const projectList = [
     shortName: '2号雨水泵站',
     hidden: false,
     projectCode: 't2-yushui-bengzhan-002',
-    status: '在建',
+    status: 'in_progress',
     personInCharge: '裴云龙',
     ...createProjectFields({
       projectName: '深圳宝安国际机场T2航站区及配套设施工程-新建2号雨水提升泵站工程',
-      status: '在建',
+      status: 'in_progress',
       personInCharge: '裴云龙',
       contractorUnit: '中国建筑第五工程局有限公司',
       supervisorUnit: '深圳市深水兆业工程顾问有限公司',
@@ -293,11 +314,11 @@ export const projectList = [
     shortName: '三跑道扩建',
     hidden: false,
     projectCode: 'sanpaodao',
-    status: '在建',
+    status: 'in_progress',
     personInCharge: '赵磊',
     ...createProjectFields({
       projectName: '深圳机场三跑道扩建工程',
-      status: '在建',
+      status: 'in_progress',
       personInCharge: '赵磊',
       contractorUnit: '广东建工集团有限公司',
       supervisorUnit: '深圳监理公司',
@@ -343,7 +364,7 @@ export function buildCocProjectOptions() {
       id: item.id,
       label: item.shortName || item.projectName,
       fullName: item.projectName,
-      status: item.status,
+      status: displayProjectStatus(item.status),
     }))
 }
 
@@ -364,9 +385,8 @@ export function createEmptyProject() {
     shortName: '',
     hidden: false,
     projectCode: id,
-    status: '在建',
     personInCharge: '',
-    ...createProjectFields(),
+    ...createProjectFields({ status: 'in_progress' }),
   }
 }
 

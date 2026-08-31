@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import {
   findSubcontractorApplication,
   formatSafetyLicenseExpiry,
+  approveStatusTagClass,
 } from '../../../mock/subcontractorManagement.js'
 import FileAttachmentPreview from '../../../components/basicData/FileAttachmentPreview.vue'
 import '../styles/todoHandleBlocks.css'
@@ -17,11 +18,13 @@ const detail = computed(() => {
   return findSubcontractorApplication(id)
 })
 
-const currentNodeLabel = computed(() => {
-  const flow = detail.value?.approvalFlow || []
-  const current = flow.find((s) => s.status === 'current')
-  return current?.title || props.todo?.detail?.currentNode || '待审批'
-})
+const applicationId = computed(
+  () =>
+    props.todo.detail?.applicationId ||
+    props.todo.subcontractorApplicationId ||
+    detail.value?.id ||
+    '—',
+)
 
 function formatLaborContractAmount(contract) {
   const amount = contract?.amount
@@ -35,18 +38,22 @@ function formatLaborContractAmount(contract) {
     <el-empty v-if="!detail" description="未找到关联报审单" :image-size="64" />
 
     <template v-else>
-      <!-- 报审信息：对齐品牌/样板等处置详情 -->
+      <!-- 报审信息：与分包详情页 SubcontractorDetailBody 字段布局一致 -->
       <section class="block block--panel">
         <div class="block-head">
           <div class="block-title">报审信息</div>
-          <el-tag size="small" type="warning" effect="light">{{ currentNodeLabel }}</el-tag>
         </div>
-        <el-descriptions :column="2" border size="small" class="desc-panel">
-          <el-descriptions-item label="报审编号">
-            {{ todo.detail?.applicationId || todo.subcontractorApplicationId || detail.id || '—' }}
-          </el-descriptions-item>
-          <el-descriptions-item label="所属项目">
-            {{ detail.projectName || todo.detail?.project || todo.projectName || '—' }}
+        <el-descriptions :column="2" border class="info-desc">
+          <el-descriptions-item label="报审编号">{{ applicationId }}</el-descriptions-item>
+          <el-descriptions-item label="状态">
+            <span
+              v-if="detail.status"
+              class="ap-status-tag"
+              :class="approveStatusTagClass(detail.status)"
+            >
+              {{ detail.status }}
+            </span>
+            <span v-else>—</span>
           </el-descriptions-item>
           <el-descriptions-item label="分包单位名称">
             {{ detail.name || todo.detail?.unitName || '—' }}
@@ -54,10 +61,20 @@ function formatLaborContractAmount(contract) {
           <el-descriptions-item label="类型">
             {{ detail.unitType || todo.detail?.unitType || '—' }}
           </el-descriptions-item>
-          <el-descriptions-item label="项目负责人姓名及电话" :span="2">
+          <el-descriptions-item label="所属项目" :span="2">
+            {{ detail.projectName || todo.detail?.project || todo.projectName || '—' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="提交人">
+            {{ detail.submitter || todo.applicant || '—' }}
+            <span v-if="todo.dept" class="meta-sep">· {{ todo.dept }}</span>
+          </el-descriptions-item>
+          <el-descriptions-item label="提交时间">
+            {{ detail.submitTime || todo.applyTime || '—' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="项目负责人姓名及电话">
             {{ detail.projectLeaderContact || '—' }}
           </el-descriptions-item>
-          <el-descriptions-item label="安全管理人员姓名及电话" :span="2">
+          <el-descriptions-item label="安全管理人员姓名及电话">
             {{ detail.safetyManagerContact || '—' }}
           </el-descriptions-item>
           <el-descriptions-item label="分包组织架构说明" :span="2">
@@ -74,13 +91,6 @@ function formatLaborContractAmount(contract) {
           <el-descriptions-item label="备注" :span="2">
             <div class="multiline">{{ detail.remark || '—' }}</div>
           </el-descriptions-item>
-          <el-descriptions-item label="申请人">
-            {{ detail.submitter || todo.applicant || '—' }}
-            <span v-if="todo.dept" class="meta-sep">· {{ todo.dept }}</span>
-          </el-descriptions-item>
-          <el-descriptions-item label="申请时间">
-            {{ detail.submitTime || todo.applyTime || '—' }}
-          </el-descriptions-item>
         </el-descriptions>
       </section>
 
@@ -94,7 +104,8 @@ function formatLaborContractAmount(contract) {
         <el-table
           :data="detail.qualifications || []"
           border
-          size="small"
+          stripe
+          class="ap-table"
           empty-text="暂无资质证书"
         >
           <el-table-column type="index" label="序号" width="60" align="center" />
@@ -116,7 +127,7 @@ function formatLaborContractAmount(contract) {
         <div class="block-head">
           <div class="block-title">安全许可证</div>
         </div>
-        <el-descriptions :column="2" border size="small" class="desc-panel">
+        <el-descriptions :column="2" border class="info-desc">
           <el-descriptions-item label="许可证编号">
             {{ detail.safetyLicense?.licenseNo || '—' }}
           </el-descriptions-item>
@@ -128,7 +139,7 @@ function formatLaborContractAmount(contract) {
               :name="detail.safetyLicense?.fileName"
               :url="detail.safetyLicense?.fileUrl"
               empty-text="未上传"
-              size="sm"
+              size="lg"
             />
           </el-descriptions-item>
         </el-descriptions>
@@ -138,7 +149,7 @@ function formatLaborContractAmount(contract) {
         <div class="block-head">
           <div class="block-title">劳务合同</div>
         </div>
-        <el-descriptions :column="2" border size="small" class="desc-panel">
+        <el-descriptions :column="2" border class="info-desc">
           <el-descriptions-item label="合同编号">
             {{ detail.laborContract?.contractNo || '—' }}
           </el-descriptions-item>
@@ -150,7 +161,7 @@ function formatLaborContractAmount(contract) {
               :name="detail.laborContract?.fileName"
               :url="detail.laborContract?.fileUrl"
               empty-text="未上传"
-              size="sm"
+              size="md"
             />
           </el-descriptions-item>
         </el-descriptions>
@@ -164,6 +175,17 @@ function formatLaborContractAmount(contract) {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+/* 与详情页 el-descriptions 默认字号一致（非 size=small） */
+.info-desc :deep(.el-descriptions__label) {
+  color: #909399;
+  font-size: 14px;
+}
+
+.info-desc :deep(.el-descriptions__content) {
+  font-size: 14px;
+  color: var(--ap-text, #303133);
 }
 
 .multiline {

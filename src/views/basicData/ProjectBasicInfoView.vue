@@ -7,6 +7,7 @@ import {
   formatConstructionPeriod,
   formatTotalInvestment,
   displayProjectManagerName,
+  displayProjectStatus,
 } from '../../mock/projectBasicInfo'
 import { useCurrentProject } from '../../composables/useCurrentProject'
 
@@ -134,7 +135,11 @@ function formatPeriod(row) {
             {{ row.projectCode || '—' }}
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="项目状态" width="96" align="center" />
+        <el-table-column prop="status" label="项目状态" width="96" align="center">
+          <template #default="{ row }">
+            {{ displayProjectStatus(row.status) }}
+          </template>
+        </el-table-column>
         <el-table-column label="项目总投资(万元)" width="148" align="right" header-align="center">
           <template #default="{ row }">
             {{ formatTotalInvestment(row.totalInvestment) }}

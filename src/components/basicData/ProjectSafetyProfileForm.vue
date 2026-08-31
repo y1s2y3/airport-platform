@@ -24,7 +24,6 @@ import {
 } from '../../mock/projectSafetyProfile'
 import {
   canteenFuelOptions,
-  superiorManagementUnitOptions,
 } from '../../mock/profilePortraitOptions'
 import {
   subcontractorList,
@@ -279,7 +278,12 @@ function openEquipmentRow(row) {
               style="width: 100%"
               aria-label="请选择项目状态"
             >
-              <el-option v-for="opt in projectStatusOptions" :key="opt" :label="opt" :value="opt" />
+              <el-option
+                v-for="opt in projectStatusOptions"
+                :key="opt.value"
+                :label="opt.label"
+                :value="opt.value"
+              />
             </el-select>
           </td>
         </tr>
@@ -470,21 +474,12 @@ function openEquipmentRow(row) {
           </td>
           <td colspan="2" class="cell-label">项目上级管理单位全称</td>
           <td colspan="2" class="cell-value">
-            <el-select
-              v-if="!readonly"
+            <el-input
               v-model="model.safetyProfile.supervisorUnit.superiorManagementUnit"
-              filterable
-              clearable
-              placeholder="请选择上级管理单位"
-              style="width: 100%" aria-label="请选择上级管理单位">
-              <el-option
-                v-for="opt in superiorManagementUnitOptions"
-                :key="`sup-org-${opt}`"
-                :label="opt"
-                :value="opt"
-              />
-            </el-select>
-            <span v-else class="inline-readonly">{{ model.safetyProfile.supervisorUnit.superiorManagementUnit || '—' }}</span>
+              :readonly="readonly"
+              placeholder="请输入项目上级管理单位全称"
+              aria-label="请输入项目上级管理单位全称"
+            />
           </td>
         </tr>
         <tr>
@@ -631,21 +626,12 @@ function openEquipmentRow(row) {
           </td>
           <td colspan="2" class="cell-label">项目上级管理单位全称</td>
           <td colspan="2" class="cell-value">
-            <el-select
-              v-if="!readonly"
+            <el-input
               v-model="model.safetyProfile.generalContractor.superiorManagementUnit"
-              filterable
-              clearable
-              placeholder="请选择上级管理单位"
-              style="width: 100%" aria-label="请选择上级管理单位">
-              <el-option
-                v-for="opt in superiorManagementUnitOptions"
-                :key="`gc-org-${opt}`"
-                :label="opt"
-                :value="opt"
-              />
-            </el-select>
-            <span v-else class="inline-readonly">{{ model.safetyProfile.generalContractor.superiorManagementUnit || '—' }}</span>
+              :readonly="readonly"
+              placeholder="请输入项目上级管理单位全称"
+              aria-label="请输入项目上级管理单位全称"
+            />
           </td>
         </tr>
         <tr>
@@ -736,7 +722,7 @@ function openEquipmentRow(row) {
                     <th class="col-sub-person">项目负责人姓名及电话</th>
                     <th class="col-sub-person">安全管理人员姓名及电话</th>
                     <th class="col-sub-mark">资格证书</th>
-                    <th class="col-sub-mark">安全生产许可证</th>
+                    <th class="col-sub-license-valid">安全许可证是否有效</th>
                     <th class="col-sub-license">单位安全生产许可证编号</th>
                     <th class="col-sub-expiry">安全生产许可证有效期</th>
                   </tr>
@@ -769,10 +755,11 @@ function openEquipmentRow(row) {
                         {{ getSubQual(row, '资格证书').possessed ? '✓' : '—' }}
                       </span>
                     </td>
-                    <td class="col-sub-mark">
-                      <span class="possess-mark" :class="{ ok: row.hasSafetyLicense }">
-                        {{ row.hasSafetyLicense ? '✓' : '—' }}
-                      </span>
+                    <td class="col-sub-license-valid">
+                      <span
+                        class="ap-status-tag"
+                        :class="row.hasSafetyLicense ? 'ap-tag-enabled' : 'ap-tag-high'"
+                      >{{ row.hasSafetyLicense ? '有效' : '失效' }}</span>
                     </td>
                     <td class="col-sub-license">
                       <el-tooltip :content="row.safetyLicenseNo || '—'" placement="top">
@@ -793,7 +780,9 @@ function openEquipmentRow(row) {
         </tr>
 
         <tr>
-          <td colspan="12" class="section-row">三、危大工程、危险作业信息</td>
+          <td colspan="12" class="section-row">
+            三、危大工程、危险作业信息
+          </td>
         </tr>
         <tr>
           <td colspan="12" class="cell-value chart-cell">
@@ -807,7 +796,10 @@ function openEquipmentRow(row) {
         </tr>
 
         <tr>
-          <td colspan="12" class="section-row">四、工地施工机械、设备情况</td>
+          <td colspan="12" class="section-row">
+            四、工地施工机械、设备情况
+            <el-tag type="warning" size="small" effect="plain" class="section-dev-tag">开发中</el-tag>
+          </td>
         </tr>
         <tr>
           <td colspan="12" class="cell-value chart-cell">
@@ -1446,12 +1438,18 @@ function openEquipmentRow(row) {
   white-space: nowrap;
 }
 
+.inner-sub-table .col-sub-license-valid {
+  width: 120px;
+  text-align: center;
+  white-space: nowrap;
+}
+
 .inner-sub-table .col-sub-license {
   min-width: 120px;
 }
 
 .inner-sub-table .col-sub-expiry {
-  width: 110px;
+  min-width: 168px;
   text-align: center;
   white-space: nowrap;
 }
@@ -1640,6 +1638,12 @@ function openEquipmentRow(row) {
   background: #dceaf5;
   border: 1px solid #7ea8c9;
   text-align: left;
+}
+
+.section-dev-tag {
+  margin-left: 8px;
+  vertical-align: middle;
+  font-weight: 600;
 }
 
 .section-row-sub {

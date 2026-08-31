@@ -1,26 +1,30 @@
 import { reactive } from 'vue'
 import {
-  DEFAULT_INSPECTOR,
   DEFAULT_INSPECTOR_LABEL,
   resolveInspectionProjectId,
 } from '../config/inspectionManagement'
+import {
+  getDemoInspectionPeople,
+  inspectionPeoplePool,
+} from '../mock/inspectionDemoData'
+import { COC_PROJECT_OPTIONS } from '../config/projectOptions'
 
-export const inspectorCandidates = [
-  DEFAULT_INSPECTOR,
-  { id: 'insp-001', name: '王工', role: '项目安全员', phone: '138****1024' },
-  { id: 'insp-002', name: '刘工', role: '专职安全员', phone: '138****2048' },
-  { id: 'insp-003', name: '陈工', role: '安全主管', phone: '138****3096' },
-  { id: 'insp-004', name: '吴工', role: '巡检员', phone: '138****4072' },
-  { id: 'insp-005', name: '赵工', role: '项目安全负责人', phone: '138****5068' },
-]
+export const inspectorCandidates = inspectionPeoplePool
 
-export const inspectionPersonConfigs = reactive([
-  { projectId: 'p-000', manager: '赵经理', inspectorId: 'insp-supervisor', rectifierId: 'insp-001', reviewerId: 'insp-supervisor' },
-  { projectId: 'p-001', manager: '李经理', inspectorId: 'insp-supervisor', rectifierId: 'insp-002', reviewerId: 'insp-supervisor' },
-  { projectId: 'p-003', manager: '周经理', inspectorId: 'insp-supervisor', rectifierId: 'insp-003', reviewerId: 'insp-supervisor' },
-  { projectId: 'p-004', manager: '钱经理', inspectorId: 'insp-supervisor', rectifierId: 'insp-004', reviewerId: 'insp-supervisor' },
-  { projectId: 'p-005', manager: '孙经理', inspectorId: 'insp-supervisor', rectifierId: 'insp-005', reviewerId: 'insp-supervisor' },
-])
+export const inspectionPersonConfigs = reactive(COC_PROJECT_OPTIONS.map(project => {
+  const people = getDemoInspectionPeople(project.id)
+  return {
+    projectId: project.id,
+    manager: people.manager,
+    inspectorId: people.inspector.id,
+    rectifierId: people.rectifier.id,
+    reviewerId: people.reviewer.id,
+  }
+}))
+
+// 演示一条未配置巡检人的项目，供下发任务的置灰/前置条件场景使用。
+const unconfiguredInspectorProject = inspectionPersonConfigs.find(item => item.projectId === 'p-004')
+if (unconfiguredInspectorProject) unconfiguredInspectorProject.inspectorId = ''
 
 export function getInspectionPersonConfig(projectIdOrName) {
   const projectId = resolveInspectionProjectId(projectIdOrName)
@@ -31,11 +35,22 @@ export function getInspectorById(id) {
   return inspectorCandidates.find(item => item.id === id)
 }
 
-/** 巡检任务优先使用项目人员配置，未配置时默认监理。 */
+/** 巡检任务使用项目人员配置；兜底值仅用于异常数据展示。 */
 export function getProjectInspectorLabel(projectIdOrName) {
   const config = getInspectionPersonConfig(projectIdOrName)
   const person = getInspectorById(config?.inspectorId)
   return person ? `${person.name}（${person.role}）` : DEFAULT_INSPECTOR_LABEL
+}
+
+export function hasCompleteInspectionPersonConfig(projectIdOrName) {
+  const config = getInspectionPersonConfig(projectIdOrName)
+  return Boolean(config?.inspectorId && config?.rectifierId && config?.reviewerId)
+}
+
+/** 下发任务选择项目时，巡检人是项目可选的前置条件。 */
+export function hasInspectionInspectorConfig(projectIdOrName) {
+  const config = getInspectionPersonConfig(projectIdOrName)
+  return Boolean(config?.inspectorId)
 }
 
 export function getProjectRectifierLabel(projectIdOrName) {
