@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import './mat-page.css'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -222,9 +222,7 @@ const equipmentNameOptions = computed(() => {
     { materialType: 'equipment' },
   )
   const sample = samples.value.find(
-    (x) =>
-      x.sample_application_id === form.sample_application_id ||
-      x.sample_id === form.sample_application_id,
+    (x) => x.sample_application_id === form.sample_application_id,
   )
   const extra = sample?.material_name || ''
   if (extra && !names.includes(extra)) names.push(extra)
@@ -240,9 +238,7 @@ const materialNameOptions = computed(() => {
     { materialType: 'material' },
   )
   const sample = samples.value.find(
-    (x) =>
-      x.sample_application_id === form.sample_application_id ||
-      x.sample_id === form.sample_application_id,
+    (x) => x.sample_application_id === form.sample_application_id,
   )
   const extra = sample?.material_name || ''
   if (extra && !names.includes(extra)) names.push(extra)
@@ -327,7 +323,7 @@ watch(
   (id) => {
     brandLockedFromSample.value = false
     if (!id) return
-    const s = samples.value.find((x) => x.sample_application_id === id || x.sample_id === id)
+    const s = samples.value.find((x) => x.sample_application_id === id)
     if (!s) return
     form.brand_name = s.brand_name || ''
     form.manufacturer = s.manufacturer || ''
@@ -614,7 +610,7 @@ function onSubmit() {
     cert_file: form.cert_file,
     inspect_file: form.inspect_file,
     photo_file: form.photo_file,
-    copy_from_entry_id: copyFromId.value,
+    copy_from_entry_no: copyFromId.value,
     supervisor_approver_user_id: form.supervisor_approver_user_id,
     supervisor_approver_name: form.supervisor_approver_name,
   }
@@ -703,8 +699,8 @@ function onSubmit() {
     if (!r.ok) return ElMessage.error(r.msg)
     ElMessage.success(
       copyFromId.value
-        ? `已重新报审 ${r.data.entry_id}，进入审批中`
-        : `已提交 ${r.data.entry_id}，进入审批中`,
+        ? `已重新报审 ${r.data.entry_no}，进入审批中`
+        : `已提交 ${r.data.entry_no}，进入审批中`,
     )
     router.push('/qm/mat/applications')
     return
@@ -782,8 +778,8 @@ function onSubmit() {
   if (!r.ok) return ElMessage.error(r.msg)
   ElMessage.success(
     copyFromId.value
-      ? `已重新报审 ${r.data.entry_id}，进入审批中`
-      : `已提交 ${r.data.entry_id}，进入审批中`,
+      ? `已重新报审 ${r.data.entry_no}，进入审批中`
+      : `已提交 ${r.data.entry_no}，进入审批中`,
   )
   router.push('/qm/mat/applications')
 }
@@ -870,9 +866,9 @@ function onSubmit() {
                 style="width: 100%" aria-label="可选：已通过定样">
                 <el-option
                   v-for="s in samples"
-                  :key="s.sample_application_id || s.sample_id"
-                  :label="`${s.sample_application_id || s.sample_id} · ${s.material_name}`"
-                  :value="s.sample_application_id || s.sample_id"
+                  :key="s.sample_application_id"
+                  :label="`${s.sample_application_id} · ${s.material_name}`"
+                  :value="s.sample_application_id"
                 />
               </el-select>
             </el-form-item>

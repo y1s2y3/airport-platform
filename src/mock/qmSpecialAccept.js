@@ -1,7 +1,7 @@
 /**
  * 专项验收任务创建 — 挂接目录树专项节点（消防/人防等），不做验收计划
  */
-import { inspectionTasks, nowStr, wbsNodes } from './qmInspect.js'
+import { inspectionTasks, isWbsAlive, nowStr, primaryFormTemplateId, wbsNodes } from './qmInspect.js'
 import { ensureTaskItems, syncNodeAccept } from './qmInspectOps.js'
 import { getSpecialAcceptType } from './qmSpecialTypes.js'
 
@@ -23,7 +23,7 @@ export function createSpecialTask({
   if (!project_id) return { ok: false, msg: '请先选择项目' }
   if (!wbs_node_id) return { ok: false, msg: '请选择专项验收节点（目录树·专项验收下）' }
 
-  const node = wbsNodes.find((n) => n.id === wbs_node_id)
+  const node = wbsNodes.find((n) => isWbsAlive(n) && n.id === wbs_node_id)
   if (!node) return { ok: false, msg: '专项节点不存在' }
   if (node.project_id !== project_id) return { ok: false, msg: '节点不属于当前项目' }
   if (Number(node.node_type) !== 7) return { ok: false, msg: '请选择专项节点（消防/人防等）' }
@@ -34,6 +34,7 @@ export function createSpecialTask({
   const typeMeta = getSpecialAcceptType(typeCode)
   if (!typeMeta) return { ok: false, msg: '专项验收类型无效' }
 
+  const tplId = primaryFormTemplateId(node) || typeMeta.form_template_id || 'ft-special-fire'
   // 一节点可上报多个任务（不再做「一节点一有效任务」拦截）
   const id = `tk-${Date.now()}`
   const task = {
@@ -49,9 +50,9 @@ export function createSpecialTask({
     special_type: typeCode,
     specialty: typeMeta.label,
     location_name: location_name || node.location_code || node.node_name,
-    form_template_id: node.form_template_id || typeMeta.form_template_id || 'ft-special-fire',
+    form_template_id: tplId,
     form_data: {
-      [node.form_template_id || typeMeta.form_template_id || 'ft-special-fire']: {
+      [tplId]: {
         专项名称: `${typeMeta.label}专项验收`,
       },
     },

@@ -129,8 +129,8 @@ export const wbsNodes = reactive([
     node_name: '项目竣工验收',
     location_code: 'T2',
     batch_type_id: '',
-    form_template_id: 'ft-complete',
-    specialty: '通用',
+    form_template_ids: ['ft-complete'],
+    specialties: [],
     is_hidden_work: 0,
     is_critical: 0,
     accept_status: 0,
@@ -149,8 +149,8 @@ export const wbsNodes = reactive([
     node_name: '实体工程验收',
     location_code: '',
     batch_type_id: '',
-    form_template_id: '',
-    specialty: '通用',
+    form_template_ids: [],
+    specialties: [],
     is_hidden_work: 0,
     is_critical: 0,
     accept_status: 0,
@@ -169,8 +169,8 @@ export const wbsNodes = reactive([
     node_name: '专项验收',
     location_code: '',
     batch_type_id: '',
-    form_template_id: '',
-    specialty: '通用',
+    form_template_ids: [],
+    specialties: [],
     is_hidden_work: 0,
     is_critical: 0,
     accept_status: 0,
@@ -189,8 +189,8 @@ export const wbsNodes = reactive([
     node_name: 'T2航站楼主体单位工程',
     location_code: 'T2-主体',
     batch_type_id: '',
-    form_template_id: 'ft-unit-record',
-    specialty: '结构',
+    form_template_ids: ['ft-unit-record'],
+    specialties: ['结构'],
     is_hidden_work: 0,
     is_critical: 0,
     accept_status: 2,
@@ -209,8 +209,8 @@ export const wbsNodes = reactive([
     node_name: 'T2航站楼机电单位工程',
     location_code: 'T2-机电',
     batch_type_id: '',
-    form_template_id: 'ft-unit-record',
-    specialty: '机电',
+    form_template_ids: ['ft-unit-record'],
+    specialties: ['机电'],
     is_hidden_work: 0,
     is_critical: 0,
     accept_status: 2,
@@ -229,8 +229,8 @@ export const wbsNodes = reactive([
     node_name: '空侧捷运线单位工程',
     location_code: 'AGT',
     batch_type_id: '',
-    form_template_id: 'ft-unit-record',
-    specialty: '市政',
+    form_template_ids: ['ft-unit-record'],
+    specialties: ['市政'],
     is_hidden_work: 0,
     is_critical: 0,
     accept_status: 2,
@@ -249,8 +249,8 @@ export const wbsNodes = reactive([
     node_name: '飞行区下穿通道单位工程',
     location_code: 'TUN',
     batch_type_id: '',
-    form_template_id: 'ft-unit-record',
-    specialty: '结构',
+    form_template_ids: ['ft-unit-record'],
+    specialties: ['结构'],
     is_hidden_work: 0,
     is_critical: 0,
     accept_status: 2,
@@ -269,8 +269,8 @@ export const wbsNodes = reactive([
     node_name: '强电系统子单位工程',
     location_code: 'T2-机电-强电',
     batch_type_id: '',
-    form_template_id: '',
-    specialty: '机电',
+    form_template_ids: [],
+    specialties: ['机电'],
     is_hidden_work: 0,
     is_critical: 0,
     accept_status: 0,
@@ -289,8 +289,8 @@ export const wbsNodes = reactive([
     node_name: '供配电分部',
     location_code: 'T2-机电-配电',
     batch_type_id: '',
-    form_template_id: 'ft-div-record',
-    specialty: '机电',
+    form_template_ids: ['ft-div-record'],
+    specialties: ['机电'],
     is_hidden_work: 0,
     is_critical: 0,
     accept_status: 2,
@@ -309,8 +309,8 @@ export const wbsNodes = reactive([
     node_name: '电缆敷设分项',
     location_code: 'T2-机电-电缆',
     batch_type_id: '',
-    form_template_id: 'ft-item-record',
-    specialty: '机电',
+    form_template_ids: ['ft-item-record'],
+    specialties: ['机电'],
     is_hidden_work: 0,
     is_critical: 0,
     accept_status: 2,
@@ -329,8 +329,8 @@ export const wbsNodes = reactive([
     node_name: '低压电缆检验批-B1区',
     location_code: 'T2-B1-电缆',
     batch_type_id: 'bt-concrete',
-    form_template_id: '',
-    specialty: '机电',
+    form_template_ids: [],
+    specialties: ['机电'],
     is_hidden_work: 0,
     is_critical: 0,
     accept_status: 2,
@@ -349,8 +349,8 @@ export const wbsNodes = reactive([
     node_name: '轨道梁分部',
     location_code: 'AGT-梁',
     batch_type_id: '',
-    form_template_id: 'ft-div-record',
-    specialty: '市政',
+    form_template_ids: ['ft-div-record'],
+    specialties: ['市政'],
     is_hidden_work: 0,
     is_critical: 0,
     accept_status: 0,
@@ -369,8 +369,8 @@ export const wbsNodes = reactive([
     node_name: '预制梁子分部',
     location_code: 'AGT-预制梁',
     batch_type_id: '',
-    form_template_id: 'ft-subdiv-custom',
-    specialty: '市政',
+    form_template_ids: ['ft-subdiv-custom'],
+    specialties: ['市政'],
     is_hidden_work: 0,
     is_critical: 0,
     accept_status: 0,
@@ -389,8 +389,8 @@ export const wbsNodes = reactive([
     node_name: '混凝土分项',
     location_code: 'AGT-砼',
     batch_type_id: '',
-    form_template_id: 'ft-item-record',
-    specialty: '市政',
+    form_template_ids: ['ft-item-record'],
+    specialties: ['市政'],
     is_hidden_work: 0,
     is_critical: 0,
     accept_status: 0,
@@ -409,8 +409,8 @@ export const wbsNodes = reactive([
     node_name: '轨道梁混凝土检验批-DK0+100',
     location_code: 'AGT-DK0+100',
     batch_type_id: 'bt-concrete',
-    form_template_id: '',
-    specialty: '市政',
+    form_template_ids: [],
+    specialties: ['市政'],
     is_hidden_work: 0,
     is_critical: 1,
     accept_status: 0,
@@ -429,8 +429,8 @@ export const wbsNodes = reactive([
     node_name: '结构主体分部',
     location_code: 'TUN-主体',
     batch_type_id: '',
-    form_template_id: 'ft-div-record',
-    specialty: '结构',
+    form_template_ids: ['ft-div-record'],
+    specialties: ['结构'],
     is_hidden_work: 0,
     is_critical: 0,
     accept_status: 2,
@@ -449,8 +449,8 @@ export const wbsNodes = reactive([
     node_name: '防水分项',
     location_code: 'TUN-防水',
     batch_type_id: '',
-    form_template_id: 'ft-item-record',
-    specialty: '结构',
+    form_template_ids: ['ft-item-record'],
+    specialties: ['结构'],
     is_hidden_work: 1,
     is_critical: 0,
     accept_status: 0,
@@ -469,8 +469,8 @@ export const wbsNodes = reactive([
     node_name: '三跑道道面单位工程',
     location_code: 'RWY3',
     batch_type_id: '',
-    form_template_id: 'ft-unit-record',
-    specialty: '道面',
+    form_template_ids: ['ft-unit-record'],
+    specialties: ['道面'],
     is_hidden_work: 0,
     is_critical: 0,
     accept_status: 0,
@@ -489,8 +489,8 @@ export const wbsNodes = reactive([
     node_name: '主体结构分部',
     location_code: 'T2-主体',
     batch_type_id: '',
-    form_template_id: 'ft-div-record',
-    specialty: '结构',
+    form_template_ids: ['ft-div-record'],
+    specialties: ['结构'],
     is_hidden_work: 0,
     is_critical: 0,
     accept_status: 0,
@@ -509,8 +509,8 @@ export const wbsNodes = reactive([
     node_name: '钢筋分项工程',
     location_code: 'T2-F3',
     batch_type_id: '',
-    form_template_id: 'ft-item-record',
-    specialty: '结构',
+    form_template_ids: ['ft-item-record'],
+    specialties: ['结构'],
     is_hidden_work: 0,
     is_critical: 0,
     accept_status: 1,
@@ -529,8 +529,8 @@ export const wbsNodes = reactive([
     node_name: '三层梁板钢筋检验批-轴1~5',
     location_code: 'T2-F3-A区',
     batch_type_id: 'bt-rebar',
-    form_template_id: '',
-    specialty: '结构',
+    form_template_ids: [],
+    specialties: ['结构'],
     is_hidden_work: 1,
     is_critical: 1,
     accept_status: 1,
@@ -549,8 +549,8 @@ export const wbsNodes = reactive([
     node_name: '三层梁板钢筋检验批-轴6~10',
     location_code: 'T2-F3-B区',
     batch_type_id: 'bt-rebar',
-    form_template_id: '',
-    specialty: '结构',
+    form_template_ids: [],
+    specialties: ['结构'],
     is_hidden_work: 1,
     is_critical: 0,
     accept_status: 0,
@@ -569,8 +569,8 @@ export const wbsNodes = reactive([
     node_name: '柱钢筋检验批-C区',
     location_code: 'T2-F3-C区',
     batch_type_id: 'bt-rebar',
-    form_template_id: '',
-    specialty: '结构',
+    form_template_ids: [],
+    specialties: ['结构'],
     is_hidden_work: 1,
     is_critical: 0,
     accept_status: 4,
@@ -589,8 +589,8 @@ export const wbsNodes = reactive([
     node_name: '水泥混凝土面层分项',
     location_code: 'RWY3-面层',
     batch_type_id: '',
-    form_template_id: 'ft-item-record',
-    specialty: '道面',
+    form_template_ids: ['ft-item-record'],
+    specialties: ['道面'],
     is_hidden_work: 0,
     is_critical: 0,
     accept_status: 0,
@@ -609,8 +609,8 @@ export const wbsNodes = reactive([
     node_name: '三跑道道面混凝土检验批-K3+100',
     location_code: 'RWY3-K3',
     batch_type_id: 'bt-concrete',
-    form_template_id: '',
-    specialty: '道面',
+    form_template_ids: [],
+    specialties: ['道面'],
     is_hidden_work: 0,
     is_critical: 0,
     accept_status: 0,
@@ -629,8 +629,8 @@ export const wbsNodes = reactive([
     node_name: '板面钢筋检验批-D区',
     location_code: 'T2-F3-D区',
     batch_type_id: 'bt-rebar',
-    form_template_id: '',
-    specialty: '结构',
+    form_template_ids: [],
+    specialties: ['结构'],
     is_hidden_work: 0,
     is_critical: 0,
     accept_status: 4,
@@ -649,8 +649,8 @@ export const wbsNodes = reactive([
     node_name: '二层梁板钢筋检验批（已办结）',
     location_code: 'T2-F2-A区',
     batch_type_id: 'bt-rebar',
-    form_template_id: '',
-    specialty: '结构',
+    form_template_ids: [],
+    specialties: ['结构'],
     is_hidden_work: 1,
     is_critical: 0,
     accept_status: 2,
@@ -669,8 +669,8 @@ export const wbsNodes = reactive([
     node_name: '模板分项工程（可报验样例）',
     location_code: 'T2-F3-模板',
     batch_type_id: '',
-    form_template_id: 'ft-item-record',
-    specialty: '结构',
+    form_template_ids: ['ft-item-record'],
+    specialties: ['结构'],
     is_hidden_work: 0,
     is_critical: 0,
     accept_status: 0,
@@ -689,8 +689,8 @@ export const wbsNodes = reactive([
     node_name: '模板安装检验批（已通过）',
     location_code: 'T2-F3-模板-1',
     batch_type_id: 'bt-rebar',
-    form_template_id: '',
-    specialty: '结构',
+    form_template_ids: [],
+    specialties: ['结构'],
     is_hidden_work: 0,
     is_critical: 0,
     accept_status: 2,
@@ -709,8 +709,8 @@ export const wbsNodes = reactive([
     node_name: '消防验收',
     location_code: 'T2',
     batch_type_id: '',
-    form_template_id: 'ft-special-fire',
-    specialty: '消防',
+    form_template_ids: ['ft-special-fire'],
+    specialties: ['消防'],
     special_type: 'fire',
     is_hidden_work: 0,
     is_critical: 0,
@@ -730,8 +730,8 @@ export const wbsNodes = reactive([
     node_name: '人防验收',
     location_code: 'T2-B1',
     batch_type_id: '',
-    form_template_id: 'ft-special-fire',
-    specialty: '人防',
+    form_template_ids: ['ft-special-fire'],
+    specialties: ['人防'],
     special_type: 'civil_defense',
     is_hidden_work: 0,
     is_critical: 0,
@@ -751,8 +751,8 @@ export const wbsNodes = reactive([
     node_name: '节能验收',
     location_code: 'T2',
     batch_type_id: '',
-    form_template_id: 'ft-special-fire',
-    specialty: '节能',
+    form_template_ids: ['ft-special-fire'],
+    specialties: ['节能'],
     special_type: 'energy',
     is_hidden_work: 0,
     is_critical: 0,
@@ -772,8 +772,8 @@ export const wbsNodes = reactive([
     node_name: '规划验收',
     location_code: 'T2',
     batch_type_id: '',
-    form_template_id: 'ft-special-fire',
-    specialty: '规划',
+    form_template_ids: ['ft-special-fire'],
+    specialties: ['结构'],
     special_type: 'planning',
     is_hidden_work: 0,
     is_critical: 0,
@@ -793,8 +793,8 @@ export const wbsNodes = reactive([
     node_name: '特种设备验收',
     location_code: 'T2-电梯',
     batch_type_id: '',
-    form_template_id: 'ft-special-fire',
-    specialty: '特种设备',
+    form_template_ids: ['ft-special-fire'],
+    specialties: ['消防'],
     special_type: 'special_equip',
     is_hidden_work: 0,
     is_critical: 0,
@@ -814,7 +814,7 @@ export const batchTypes = reactive([
     id: 'bt-rebar',
     type_code: 'REBAR',
     type_name: '钢筋工程检验批',
-    specialty: '结构',
+    specialties: ['结构'],
     status: 1,
     remark: '',
   },
@@ -822,7 +822,7 @@ export const batchTypes = reactive([
     id: 'bt-concrete',
     type_code: 'CONCRETE',
     type_name: '混凝土工程检验批',
-    specialty: '结构',
+    specialties: ['结构'],
     status: 1,
     remark: '',
   },
@@ -946,7 +946,7 @@ export const inspectionTasks = reactive([
     unplanned_flag: 0,
     parent_task_id: '',
     task_type: 1,
-    specialty: '结构',
+    specialties: ['结构'],
     location_name: 'T2-F3-A区 轴1~5',
     location_id: 'loc-rebar-a1',
     location_ids: ['loc-rebar-a1', 'loc-rebar-a2'],
@@ -984,7 +984,7 @@ export const inspectionTasks = reactive([
     unplanned_flag: 0,
     parent_task_id: '',
     task_type: 1,
-    specialty: '结构',
+    specialties: ['结构'],
     location_name: 'T2-F3-B区 轴6~10',
     form_template_id: 'ft-batch-rebar',
     form_data: {},
@@ -1021,7 +1021,7 @@ export const inspectionTasks = reactive([
     unplanned_flag: 0,
     parent_task_id: '',
     task_type: 1,
-    specialty: '结构',
+    specialties: ['结构'],
     location_name: 'T2-F3-C区 柱钢筋',
     form_template_id: 'ft-batch-rebar',
     form_data: {},
@@ -1057,7 +1057,7 @@ export const inspectionTasks = reactive([
     unplanned_flag: 0,
     parent_task_id: '',
     task_type: 1,
-    specialty: '结构',
+    specialties: ['结构'],
     location_name: 'T2-F3-D区',
     form_template_id: 'ft-batch-rebar',
     form_data: {},
@@ -1093,7 +1093,7 @@ export const inspectionTasks = reactive([
     unplanned_flag: 1,
     parent_task_id: '',
     task_type: 1,
-    specialty: '道面',
+    specialties: ['道面'],
     location_name: '三跑道 K3+100',
     form_template_id: 'ft-batch-concrete',
     form_data: {},
@@ -1129,7 +1129,7 @@ export const inspectionTasks = reactive([
     unplanned_flag: 0,
     parent_task_id: '',
     task_type: 1,
-    specialty: '结构',
+    specialties: ['结构'],
     location_name: 'T2-F2-A区（历史已办结样例）',
     form_template_id: 'ft-batch-rebar',
     form_data: {},
@@ -1165,7 +1165,7 @@ export const inspectionTasks = reactive([
     unplanned_flag: 1,
     parent_task_id: '',
     task_type: 2,
-    specialty: '结构',
+    specialties: ['结构'],
     location_name: 'T2-F3-模板',
     form_template_id: 'ft-item-record',
     form_data: { 'ft-item-record': { 分项工程名称: '模板分项工程', 检验批数量: '1' } },
@@ -1203,7 +1203,7 @@ export const inspectionTasks = reactive([
     parent_task_id: '',
     task_type: 6,
     special_type: 'fire',
-    specialty: '消防',
+    specialties: ['消防'],
     location_name: 'T2消防专项',
     form_template_id: 'ft-special-fire',
     form_data: { 'ft-special-fire': { 专项名称: '消防专项验收' } },
@@ -1241,7 +1241,7 @@ export const inspectionTasks = reactive([
     parent_task_id: '',
     task_type: 6,
     special_type: 'planning',
-    specialty: '规划',
+    specialties: ['结构'],
     location_name: 'T2规划核实',
     form_template_id: 'ft-special-fire',
     form_data: { 'ft-special-fire': { 专项名称: '规划专项验收' } },
@@ -1280,7 +1280,7 @@ export const inspectionTasks = reactive([
     parent_task_id: '',
     task_type: 6,
     special_type: 'civil_defense',
-    specialty: '人防',
+    specialties: ['人防'],
     location_name: 'T2-B1人防',
     form_template_id: 'ft-special-fire',
     form_data: { 'ft-special-fire': { 专项名称: '人防专项验收' } },
@@ -1319,7 +1319,7 @@ export const inspectionTasks = reactive([
     parent_task_id: '',
     task_type: 6,
     special_type: 'energy',
-    specialty: '节能',
+    specialties: ['节能'],
     location_name: 'T2节能专项',
     form_template_id: 'ft-special-fire',
     form_data: { 'ft-special-fire': { 专项名称: '节能专项验收' } },
@@ -1357,7 +1357,7 @@ export const inspectionTasks = reactive([
     parent_task_id: '',
     task_type: 6,
     special_type: 'special_equip',
-    specialty: '特种设备',
+    specialties: ['消防'],
     location_name: 'T2客梯/扶梯',
     form_template_id: 'ft-special-fire',
     form_data: { 'ft-special-fire': { 专项名称: '特种设备专项验收' } },
@@ -1395,7 +1395,7 @@ export const inspectionTasks = reactive([
     parent_task_id: '',
     task_type: 6,
     special_type: 'civil_defense',
-    specialty: '人防',
+    specialties: ['人防'],
     location_name: 'T2-B1人防口部',
     form_template_id: 'ft-special-fire',
     form_data: { 'ft-special-fire': { 专项名称: '人防专项验收' } },
@@ -1433,7 +1433,7 @@ export const inspectionTasks = reactive([
     parent_task_id: '',
     task_type: 6,
     special_type: 'energy',
-    specialty: '节能',
+    specialties: ['节能'],
     location_name: 'T2外围护结构',
     form_template_id: 'ft-special-fire',
     form_data: { 'ft-special-fire': { 专项名称: '节能专项验收' } },
@@ -1471,7 +1471,7 @@ export const inspectionTasks = reactive([
     parent_task_id: '',
     task_type: 6,
     special_type: 'civil_defense',
-    specialty: '人防',
+    specialties: ['人防'],
     location_name: 'T2-B1人防主体',
     form_template_id: 'ft-special-fire',
     form_data: { 'ft-special-fire': { 专项名称: '人防专项验收' } },
@@ -1509,7 +1509,7 @@ export const inspectionTasks = reactive([
     parent_task_id: '',
     task_type: 6,
     special_type: 'energy',
-    specialty: '节能',
+    specialties: ['节能'],
     location_name: 'T2屋面保温',
     form_template_id: 'ft-special-fire',
     form_data: { 'ft-special-fire': { 专项名称: '节能专项验收' } },
@@ -1547,7 +1547,7 @@ export const inspectionTasks = reactive([
     parent_task_id: '',
     task_type: 6,
     special_type: 'planning',
-    specialty: '规划',
+    specialties: ['结构'],
     location_name: 'T2规划核实',
     form_template_id: 'ft-special-fire',
     form_data: { 'ft-special-fire': { 专项名称: '规划专项验收' } },
@@ -1585,7 +1585,7 @@ export const inspectionTasks = reactive([
     parent_task_id: '',
     task_type: 6,
     special_type: 'special_equip',
-    specialty: '特种设备',
+    specialties: ['消防'],
     location_name: 'T2货梯',
     form_template_id: 'ft-special-fire',
     form_data: { 'ft-special-fire': { 专项名称: '特种设备专项验收' } },
@@ -1621,7 +1621,7 @@ export const inspectionTasks = reactive([
     unplanned_flag: 1,
     parent_task_id: '',
     task_type: 1,
-    specialty: '结构',
+    specialties: ['结构'],
     location_name: 'T2-F3-模板-1',
     form_template_id: 'ft-batch-rebar',
     form_data: {},
@@ -1657,7 +1657,7 @@ export const inspectionTasks = reactive([
     unplanned_flag: 0,
     parent_task_id: '',
     task_type: 5,
-    specialty: '结构',
+    specialties: ['结构'],
     location_name: 'T2-主体',
     form_template_id: 'ft-unit-record',
     form_data: { 'ft-unit-record': { 单位工程名称: 'T2航站楼主体单位工程' } },
@@ -1693,7 +1693,7 @@ export const inspectionTasks = reactive([
     unplanned_flag: 1,
     parent_task_id: '',
     task_type: 5,
-    specialty: '机电',
+    specialties: ['机电'],
     location_name: 'T2-机电',
     form_template_id: 'ft-unit-record',
     form_data: {},
@@ -1729,7 +1729,7 @@ export const inspectionTasks = reactive([
     unplanned_flag: 1,
     parent_task_id: '',
     task_type: 5,
-    specialty: '结构',
+    specialties: ['结构'],
     location_name: 'TUN',
     form_template_id: 'ft-unit-record',
     form_data: {},
@@ -2051,14 +2051,15 @@ function pushScaffoldNode(partial) {
   const node = {
     location_code: '',
     batch_type_id: '',
-    form_template_id: '',
-    specialty: '通用',
+    form_template_ids: [],
+    specialties: [],
     special_type: '',
     is_hidden_work: 0,
     is_critical: 0,
     accept_status: 0,
     batch_scheme_id: '',
     sort_no: 0,
+    del_status: 0,
     created_by: 'system',
     created_at: now,
     updated_by: 'system',
@@ -2069,14 +2070,49 @@ function pushScaffoldNode(partial) {
   return node
 }
 
+/** 未逻辑删除的 WBS 节点 */
+export function isWbsAlive(n) {
+  return Boolean(n) && !Number(n.del_status)
+}
+
+/** 节点绑定的表单模板 id 列表（兼容历史单列 form_template_id） */
+export function getNodeFormTemplateIds(node) {
+  if (!node) return []
+  if (Array.isArray(node.form_template_ids)) {
+    return node.form_template_ids.map(String).map((s) => s.trim()).filter(Boolean)
+  }
+  if (node.form_template_id) return [String(node.form_template_id)]
+  return []
+}
+
+export function primaryFormTemplateId(node) {
+  return getNodeFormTemplateIds(node)[0] || ''
+}
+
+export function normalizeFormTemplateIdsInput(payload) {
+  if (!payload) return []
+  if (payload.form_template_ids !== undefined) {
+    const raw = payload.form_template_ids
+    if (Array.isArray(raw)) return raw.map(String).map((s) => s.trim()).filter(Boolean)
+    if (raw == null || raw === '') return []
+    return [String(raw)].filter(Boolean)
+  }
+  if (payload.form_template_id !== undefined && payload.form_template_id !== null) {
+    const s = String(payload.form_template_id).trim()
+    return s ? [s] : []
+  }
+  return undefined
+}
+
 /**
- * 确保项目具备验评树骨架：竣工验收(根) → 实体工程验收 / 专项验收
- * 并将历史「无父单位工程 / 无父专项节点」挂到对应二级容器下
+ * 确保项目具备验评树骨架：竣工验收(根) + 实体工程根 + 专项验收
+ * 实体根可挂在竣工下，也可 parent_id 为空（不强制挂竣工）。
+ * 并将历史「无父单位工程 / 无父专项节点」挂到对应容器下
  */
 export function ensureWbsScaffold(project_id) {
   if (!project_id) return null
   let complete = wbsNodes.find(
-    (n) => n.project_id === project_id && n.node_type === 8 && !n.parent_id,
+    (n) => isWbsAlive(n) && n.project_id === project_id && n.node_type === 8 && !n.parent_id,
   )
   if (!complete) {
     complete = pushScaffoldNode({
@@ -2085,21 +2121,22 @@ export function ensureWbsScaffold(project_id) {
       parent_id: '',
       node_type: 8,
       node_name: '项目竣工验收',
-      form_template_id: 'ft-complete',
+      form_template_ids: ['ft-complete'],
       sort_no: 0,
     })
   } else if (!String(complete.node_name || '').includes('竣工')) {
     complete.node_name = '项目竣工验收'
   }
 
+  // 任意父（含空 / 挂竣工）均可；不强制改挂
   let entity = wbsNodes.find(
-    (n) => n.project_id === project_id && n.node_type === 9 && n.parent_id === complete.id,
+    (n) => isWbsAlive(n) && n.project_id === project_id && n.node_type === 9,
   )
   if (!entity) {
     entity = pushScaffoldNode({
       id: `wn-entity-${project_id}`,
       project_id,
-      parent_id: complete.id,
+      parent_id: '',
       node_type: 9,
       node_name: '实体工程验收',
       sort_no: 1,
@@ -2107,7 +2144,11 @@ export function ensureWbsScaffold(project_id) {
   }
 
   let special = wbsNodes.find(
-    (n) => n.project_id === project_id && n.node_type === 10 && n.parent_id === complete.id,
+    (n) =>
+      isWbsAlive(n) &&
+      n.project_id === project_id &&
+      n.node_type === 10 &&
+      n.parent_id === complete.id,
   )
   if (!special) {
     special = pushScaffoldNode({
@@ -2123,6 +2164,7 @@ export function ensureWbsScaffold(project_id) {
   wbsNodes
     .filter(
       (n) =>
+        isWbsAlive(n) &&
         n.project_id === project_id &&
         n.node_type === 1 &&
         (!n.parent_id || n.parent_id === complete.id),
@@ -2134,6 +2176,7 @@ export function ensureWbsScaffold(project_id) {
   wbsNodes
     .filter(
       (n) =>
+        isWbsAlive(n) &&
         n.project_id === project_id &&
         n.node_type === 7 &&
         (!n.parent_id || n.parent_id === complete.id),
@@ -2148,7 +2191,11 @@ export function ensureWbsScaffold(project_id) {
 export function getCompleteRootNode(project_id) {
   if (!project_id) return null
   ensureWbsScaffold(project_id)
-  return wbsNodes.find((n) => n.project_id === project_id && n.node_type === 8 && !n.parent_id) || null
+  return (
+    wbsNodes.find(
+      (n) => isWbsAlive(n) && n.project_id === project_id && n.node_type === 8 && !n.parent_id,
+    ) || null
+  )
 }
 
 export function getEntityRootNode(project_id) {
@@ -2166,7 +2213,9 @@ export function getSpecialRootNode(project_id) {
 /** 验评目录树：竣工验收为根，含实体/专项二级及全部业务节点 */
 export function buildWbsTree(project_id) {
   if (project_id) ensureWbsScaffold(project_id)
-  let list = wbsNodes.filter((n) => WBS_TREE_NODE_TYPES.includes(n.node_type))
+  let list = wbsNodes.filter(
+    (n) => isWbsAlive(n) && WBS_TREE_NODE_TYPES.includes(n.node_type),
+  )
   if (project_id) list = list.filter((n) => n.project_id === project_id)
   const map = new Map()
   list.forEach((n) => {

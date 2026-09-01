@@ -68,27 +68,27 @@ async function viewProjectDetail(row) {
     <div class="hq-stat-row">
       <div class="hq-stat-card">
         <span class="hq-stat-label">覆盖项目数</span>
-        <span class="hq-stat-value">{{ summary.projectCount }}</span>
+        <span class="hq-stat-value">{{ summary.coverage_projects }}</span>
       </div>
       <div class="hq-stat-card">
         <span class="hq-stat-label">品牌总数</span>
-        <span class="hq-stat-value">{{ summary.ledger_count }}</span>
+        <span class="hq-stat-value">{{ summary.brand_total }}</span>
       </div>
       <div class="hq-stat-card">
         <span class="hq-stat-label">报审单合计</span>
-        <span class="hq-stat-value">{{ summary.total }}</span>
+        <span class="hq-stat-value">{{ summary.application_total }}</span>
       </div>
       <div class="hq-stat-card">
         <span class="hq-stat-label">审批中</span>
-        <span class="hq-stat-value warn">{{ summary.in_approval }}</span>
+        <span class="hq-stat-value warn">{{ summary.in_approval_count }}</span>
       </div>
       <div class="hq-stat-card">
         <span class="hq-stat-label">已通过</span>
-        <span class="hq-stat-value ok">{{ summary.approved }}</span>
+        <span class="hq-stat-value ok">{{ summary.approved_count }}</span>
       </div>
       <div class="hq-stat-card">
         <span class="hq-stat-label">已驳回</span>
-        <span class="hq-stat-value danger">{{ summary.rejected }}</span>
+        <span class="hq-stat-value danger">{{ summary.rejected_count }}</span>
       </div>
     </div>
 
@@ -107,17 +107,17 @@ async function viewProjectDetail(row) {
       <el-table-column type="index" label="序号" width="64" align="center" />
       <el-table-column prop="project_name" label="项目名称" min-width="200" show-overflow-tooltip />
       <el-table-column prop="project_id" label="项目编号" width="100" />
-      <el-table-column prop="ledger_count" label="品牌总数" width="110" align="center" />
-      <el-table-column prop="total" label="报审合计" width="100" align="center" />
+      <el-table-column prop="brand_total" label="品牌总数" width="110" align="center" />
+      <el-table-column prop="application_total" label="报审合计" width="100" align="center" />
       <el-table-column label="审批中" width="90" align="center">
         <template #default="{ row }">
-          <span :class="{ 'warn-num': row.in_approval > 0 }">{{ row.in_approval }}</span>
+          <span :class="{ 'warn-num': row.in_approval_count > 0 }">{{ row.in_approval_count }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="approved" label="已通过" width="90" align="center" />
+      <el-table-column prop="approved_count" label="已通过" width="90" align="center" />
       <el-table-column label="已驳回" width="90" align="center">
         <template #default="{ row }">
-          <span :class="{ 'danger-num': row.rejected > 0 }">{{ row.rejected }}</span>
+          <span :class="{ 'danger-num': row.rejected_count > 0 }">{{ row.rejected_count }}</span>
         </template>
       </el-table-column>
       <el-table-column label="操作" width="130" fixed="right" align="center">

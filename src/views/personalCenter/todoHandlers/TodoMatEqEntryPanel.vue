@@ -32,8 +32,7 @@ const panelTitle = '材料设备进场报验信息'
 
 const statusLabel = computed(() => {
   const s = entryDetail.value?.status
-  if (!s) return props.todo?.detail?.currentNode || '审核中'
-  if (s === 'pending_review') return STATUS_LABEL.reviewing
+  if (!s) return props.todo?.detail?.currentNode || '监理审批'
   return STATUS_LABEL[s] || s
 })
 
@@ -133,7 +132,7 @@ const lineItems = computed(() => {
       <!-- 品牌与定样（字号对齐进场详情；审批状态置于本模块内） -->
       <div class="section-label">品牌与定样</div>
       <el-descriptions :column="2" border class="info-desc">
-        <el-descriptions-item label="进场单号">{{ entryDetail.entry_id }}</el-descriptions-item>
+        <el-descriptions-item label="进场单号">{{ entryDetail.entry_no }}</el-descriptions-item>
         <el-descriptions-item label="进场类型">
           {{ ENTRY_TYPE_LABEL[entryDetail.entry_type] || (isEquipment ? '设备' : '材料') }}
         </el-descriptions-item>
@@ -157,7 +156,6 @@ const lineItems = computed(() => {
         <el-descriptions-item label="关联定样">
           {{
             entryDetail.sample_application_id ||
-            entryDetail.sample_id ||
             todo.detail?.sampleId ||
             '—'
           }}

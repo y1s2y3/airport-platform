@@ -209,21 +209,21 @@ function seedTodos() {
       },
       approvalFlow: [
         {
-          title: '施工提交报审',
+          title: '施工提交',
           time: '2026-07-20 11:00:00',
           user: '张工',
           remark: '直接提交，进入审批中',
           status: 'done',
         },
         {
-          title: '监理审批',
+          title: '待监理审',
           time: '',
           user: '当前用户',
-          remark: '待审批',
+          remark: '待办理',
           status: 'current',
         },
         {
-          title: '项目经理终审',
+          title: '待项目经理审',
           time: '',
           user: '项目经理',
           remark: '待流转',
@@ -261,24 +261,24 @@ function seedTodos() {
       ],
       approvalFlow: [
         {
-          title: '施工提交报审',
+          title: '施工提交',
           time: '2026-07-18 14:30:00',
           user: '张工',
           remark: '提交钢筋品牌报审',
           status: 'done',
         },
         {
-          title: '监理审批',
+          title: '待监理审',
           time: '2026-07-19 09:00:00',
           user: '王监理',
           remark: '同意报审',
           status: 'done',
         },
         {
-          title: '项目经理终审',
+          title: '待项目经理审',
           time: '',
           user: '当前用户',
-          remark: '待终审',
+          remark: '待办理',
           status: 'current',
         },
       ],
@@ -2270,44 +2270,44 @@ function buildBrandTodo(payload) {
     approvalFlow: isPm
       ? [
           {
-            title: '施工提交报审',
+            title: '施工提交',
             time: payload.applyTime || '',
             user: payload.applicantName || '施工',
             remark: '直接提交',
             status: 'done',
           },
           {
-            title: '监理审批',
+            title: '待监理审',
             time: payload.supervisorTime || '',
             user: payload.supervisorName || '监理',
             remark: '同意报审',
             status: 'done',
           },
           {
-            title: '项目经理终审',
+            title: '待项目经理审',
             time: '',
             user: payload.assigneeName || payload.pmApproverName || '项目经理',
-            remark: '待终审',
+            remark: '待办理',
             status: 'current',
           },
         ]
       : [
           {
-            title: '施工提交报审',
+            title: '施工提交',
             time: payload.applyTime || '',
             user: payload.applicantName || '施工',
             remark: '直接提交，进入审批中',
             status: 'done',
           },
           {
-            title: '监理审批',
+            title: '待监理审',
             time: '',
             user: payload.assigneeName || payload.supervisorName || '监理',
-            remark: '待审批',
+            remark: '待办理',
             status: 'current',
           },
           {
-            title: '项目经理终审',
+            title: '待项目经理审',
             time: '',
             user: payload.pmApproverName || '项目经理',
             remark: '待流转',
@@ -2539,14 +2539,14 @@ function buildMatEntryTodo(payload) {
       brandName: payload.brandName || '—',
       sampleId: payload.sampleId || '—',
       quantity: payload.quantity || '—',
-      currentNode: '审核中',
+      currentNode: '监理审批',
     },
     approvalFlow: [
       {
         title: '施工提交进场',
         time: payload.applyTime || '',
         user: payload.applicantName || '施工',
-        remark: '直接提交，进入审核中',
+        remark: '直接提交，进入监理审批',
         status: 'done',
       },
       {

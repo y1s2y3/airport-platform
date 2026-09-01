@@ -1,7 +1,7 @@
 ﻿<script setup>
 /**
  * APP · 进场申报（合格证/现场照片仅图片：拍照或相册）
- * 材料明细：多组，字段与 Web 进场申报对齐
+ * 材料/设备明细：多组，字段与 Web 进场申报对齐
  */
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -62,6 +62,7 @@ const photoPreview = reactive({
 
 const unpackItems = ref(createDefaultUnpackItems())
 const entryLines = ref([emptyLine()])
+const equipmentLines = ref([emptyEquipmentLine()])
 
 const supervisorApprovers = computed(() =>
   scopeProjectId.value ? listMatSupervisorApprovers(scopeProjectId.value) : [],
@@ -106,6 +107,64 @@ function emptyLine() {
     inspect_result_file: '',
     inspect_result_preview: '',
   }
+}
+
+function emptyEquipmentLine() {
+  return {
+    key: `eq-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    equipment_name: '',
+    model: '',
+    quantity: '',
+    unit: '台',
+    purpose: '',
+    use_part: '',
+    location_id: '',
+    location_ids: [],
+    waybill_no: '',
+    batch_no: 1,
+    serial_no: '',
+    appearance_quality: '合格',
+    acceptance_result: '合格',
+    entry_date: nowEntryDate(),
+    cert_file: '',
+    inspect_file: '',
+    photo_file: '',
+    other_file: '',
+    cert_preview: '',
+    inspect_preview: '',
+    photo_preview: '',
+    other_preview: '',
+    inspect_result_checked: false,
+    inspect_result_file: '',
+    inspect_result_preview: '',
+    unpack_items: createDefaultUnpackItems(),
+  }
+}
+
+function mapEquipmentLineFromData(l, data) {
+  const row = emptyEquipmentLine()
+  row.equipment_name = l.equipment_name || l.material_name || ''
+  row.model = l.model || l.material_spec || ''
+  row.quantity = l.quantity != null ? String(l.quantity) : ''
+  row.unit = l.unit || '台'
+  row.purpose = l.purpose || ''
+  row.use_part = l.use_part || data.use_part || ''
+  row.waybill_no = l.waybill_no || ''
+  row.batch_no = parseBatchSeq(l.batch_no, 1)
+  row.serial_no = l.serial_no || ''
+  row.appearance_quality = l.appearance_quality || '合格'
+  row.acceptance_result = l.acceptance_result || '合格'
+  row.entry_date = l.entry_date || nowEntryDate()
+  row.cert_file = l.cert_file || ''
+  row.inspect_file = l.inspect_file || ''
+  row.photo_file = l.photo_file || ''
+  row.other_file = l.other_file || ''
+  row.inspect_result_checked = !!l.inspect_result_checked
+  row.inspect_result_file = l.inspect_result_file || ''
+  if (Array.isArray(l.unpack_items) && l.unpack_items.length) {
+    row.unpack_items = l.unpack_items.map((i) => ({ ...i }))
+  }
+  return row
 }
 
 function mapLineFromData(l, data) {
@@ -161,13 +220,21 @@ const materialNameOptions = computed(() => {
     { materialType: 'material' },
   )
   const sample = samples.value.find(
-    (x) =>
-      x.sample_application_id === form.sample_application_id ||
-      x.sample_id === form.sample_application_id,
+    (x) => x.sample_application_id === form.sample_application_id,
   )
   const extra = sample?.material_name || ''
   if (extra && !names.includes(extra)) names.push(extra)
   return names
+})
+
+const equipmentNameOptions = computed(() => {
+  if (!scopeProjectId.value || !form.brand_name || !form.manufacturer) return []
+  return listMaterialsForEntryBrand(
+    scopeProjectId.value,
+    form.brand_name,
+    form.manufacturer,
+    { materialType: 'equipment' },
+  )
 })
 
 function addEntryLine() {
@@ -188,10 +255,35 @@ function removeEntryLine(idx) {
   entryLines.value.splice(idx, 1)
 }
 
+function addEquipmentLine() {
+  equipmentLines.value.push(emptyEquipmentLine())
+}
+
+function removeEquipmentLine(idx) {
+  if (equipmentLines.value.length <= 1) {
+    equipmentLines.value[0] = emptyEquipmentLine()
+    return
+  }
+  const removed = equipmentLines.value[idx]
+  ;['cert_preview', 'inspect_preview', 'photo_preview', 'other_preview', 'inspect_result_preview'].forEach(
+    (k) => {
+      if (removed?.[k]) URL.revokeObjectURL(removed[k])
+    },
+  )
+  equipmentLines.value.splice(idx, 1)
+}
+
 function pruneLineMaterials() {
   const allow = new Set(materialNameOptions.value)
   entryLines.value.forEach((row) => {
     if (row.material_name && !allow.has(row.material_name)) row.material_name = ''
+  })
+}
+
+function pruneEquipmentNames() {
+  const allow = new Set(equipmentNameOptions.value)
+  equipmentLines.value.forEach((row) => {
+    if (row.equipment_name && !allow.has(row.equipment_name)) row.equipment_name = ''
   })
 }
 
@@ -201,31 +293,45 @@ function applyPayload(data) {
   form.ledger_id = data.ledger_id || ''
   form.brand_name = data.brand_name || ''
   form.manufacturer = data.manufacturer || ''
-  form.equipment_name = data.equipment_name || ''
-  form.model = data.model || ''
   form.use_part = data.use_part || ''
   form.supplier = data.supplier || ''
-  form.quantity = data.quantity != null ? String(data.quantity) : ''
-  form.unit = data.unit || (entryType.value === 'equipment' ? '台' : '件')
-  form.serial_no = data.serial_no || ''
-  form.cert_file = data.cert_file || ''
-  form.inspect_file = data.inspect_file || ''
-  form.photo_file = data.photo_file || ''
-  form.other_file = data.other_file || ''
-  form.inspect_result_checked = !!(
-    data.line_items?.[0]?.inspect_result_checked ?? data.inspect_result_checked
-  )
-  form.inspect_result_file =
-    data.line_items?.[0]?.inspect_result_file || data.inspect_result_file || ''
   form.supervisor_approver_user_id = data.supervisor_approver_user_id || ''
   form.supervisor_approver_name = data.supervisor_approver_name || ''
-  if (data.unpack_items?.length) {
-    unpackItems.value = data.unpack_items.map((i) => ({ ...i }))
-  }
   if (data.entry_type === 'equipment') {
+    if (data.line_items?.length) {
+      equipmentLines.value = data.line_items.map((l) => mapEquipmentLineFromData(l, data))
+    } else {
+      equipmentLines.value = [
+        mapEquipmentLineFromData(
+          {
+            equipment_name: data.equipment_name,
+            model: data.model,
+            quantity: data.quantity,
+            unit: data.unit,
+            serial_no: data.serial_no,
+            waybill_no: data.waybill_no,
+            batch_no: data.batch_no,
+            unpack_items: data.unpack_items,
+            cert_file: data.cert_file,
+            inspect_file: data.inspect_file,
+            photo_file: data.photo_file,
+            other_file: data.other_file,
+            inspect_result_checked: data.inspect_result_checked,
+            inspect_result_file: data.inspect_result_file,
+            appearance_quality: data.appearance_quality,
+            acceptance_result: data.acceptance_result,
+            entry_date: data.entry_date,
+            purpose: data.purpose,
+            use_part: data.use_part,
+          },
+          data,
+        ),
+      ]
+    }
     entryLines.value = [emptyLine()]
   } else if (data.line_items?.length) {
     entryLines.value = data.line_items.map((l) => mapLineFromData(l, data))
+    equipmentLines.value = [emptyEquipmentLine()]
   } else {
     const row = mapLineFromData(
       {
@@ -239,6 +345,7 @@ function applyPayload(data) {
       data,
     )
     entryLines.value = [row]
+    equipmentLines.value = [emptyEquipmentLine()]
   }
 }
 
@@ -256,14 +363,15 @@ onMounted(() => {
 
 watch(entryType, (t) => {
   if (copyFromId.value) return
-  form.unit = t === 'equipment' ? '台' : '件'
   form.ledger_id = ''
   form.brand_name = ''
   form.manufacturer = ''
   if (t === 'equipment') {
-    unpackItems.value = createDefaultUnpackItems()
+    equipmentLines.value = [emptyEquipmentLine()]
+    entryLines.value = [emptyLine()]
   } else {
     entryLines.value = [emptyLine()]
+    equipmentLines.value = [emptyEquipmentLine()]
   }
 })
 
@@ -287,7 +395,12 @@ watch(
       }
       pruneLineMaterials()
     } else {
-      form.equipment_name = hit.material_name || ''
+      if (hit.material_name) {
+        equipmentLines.value.forEach((row, idx) => {
+          if (idx === 0 || !row.equipment_name) row.equipment_name = hit.material_name
+        })
+      }
+      pruneEquipmentNames()
     }
   },
 )
@@ -296,7 +409,7 @@ watch(
   () => form.sample_application_id,
   (id) => {
     if (!id) return
-    const s = samples.value.find((x) => x.sample_application_id === id || x.sample_id === id)
+    const s = samples.value.find((x) => x.sample_application_id === id)
     if (!s) return
     form.use_part = s.use_part || form.use_part
     form.brand_name = s.brand_name || ''
@@ -319,8 +432,13 @@ watch(
       if (s.use_part && entryLines.value.length && !entryLines.value[0].use_part) {
         entryLines.value[0].use_part = s.use_part
       }
-    } else {
-      form.equipment_name = s.material_name || form.equipment_name
+    } else if (s.material_name && equipmentLines.value.length) {
+      if (!equipmentLines.value[0].equipment_name) {
+        equipmentLines.value[0].equipment_name = s.material_name
+      }
+      if (s.use_part && !equipmentLines.value[0].use_part) {
+        equipmentLines.value[0].use_part = s.use_part
+      }
     }
   },
 )
@@ -506,32 +624,89 @@ function onSubmit() {
     manufacturer: form.manufacturer,
     use_part: form.use_part,
     supplier: form.supplier,
-    copy_from_entry_id: copyFromId.value,
+    copy_from_entry_no: copyFromId.value,
     supervisor_approver_user_id: form.supervisor_approver_user_id,
     supervisor_approver_name: form.supervisor_approver_name,
   }
 
   let payload
   if (entryType.value === 'equipment') {
-    if (!form.cert_file) return ElMessage.warning('请拍照上传合格证')
-    if (!form.inspect_file) return ElMessage.warning('请上传质量证明文件（PDF）')
-    if (!form.photo_file) return ElMessage.warning('请拍照上传现场照片')
-    if (!form.equipment_name.trim()) return ElMessage.warning('请确认设备名称')
-    if (!form.quantity || Number(form.quantity) <= 0) return ElMessage.warning('请填写有效数量')
+    if (!form.brand_name || !form.manufacturer) {
+      return ElMessage.warning('请先选择品牌，再填写设备明细')
+    }
+    const line_items = []
+    const allow = equipmentNameOptions.value
+    for (let i = 0; i < equipmentLines.value.length; i += 1) {
+      const row = equipmentLines.value[i]
+      const equipment_name = String(row.equipment_name || '').trim()
+      const model = String(row.model || '').trim()
+      const quantity = String(row.quantity || '').trim()
+      const unit = String(row.unit || '').trim()
+      if (!equipment_name) return ElMessage.warning(`设备明细第 ${i + 1} 组请选择设备名称`)
+      if (allow.length && !allow.includes(equipment_name)) {
+        return ElMessage.warning(`设备明细第 ${i + 1} 组设备不在所选品牌对应范围内`)
+      }
+      if (!model) return ElMessage.warning(`设备明细第 ${i + 1} 组请填写规格型号`)
+      if (!unit) return ElMessage.warning(`设备明细第 ${i + 1} 组请填写数量单位`)
+      if (!quantity || Number(quantity) <= 0) {
+        return ElMessage.warning(`设备明细第 ${i + 1} 组请填写有效数量`)
+      }
+      if (!row.appearance_quality) {
+        return ElMessage.warning(`设备明细第 ${i + 1} 组请选择外观质量`)
+      }
+      if (!row.acceptance_result) {
+        return ElMessage.warning(`设备明细第 ${i + 1} 组请选择验收结论`)
+      }
+      if (!row.entry_date) {
+        return ElMessage.warning(`设备明细第 ${i + 1} 组请填写进场日期`)
+      }
+      if (!row.cert_file) return ElMessage.warning(`设备明细第 ${i + 1} 组请拍照上传合格证`)
+      if (!row.inspect_file) {
+        return ElMessage.warning(`设备明细第 ${i + 1} 组请上传质量证明文件（PDF）`)
+      }
+      if (!row.photo_file) return ElMessage.warning(`设备明细第 ${i + 1} 组请拍照上传现场照片`)
+      if (!row.unpack_items?.length) {
+        return ElMessage.warning(`设备明细第 ${i + 1} 组请填写开箱清单`)
+      }
+      line_items.push({
+        equipment_name,
+        material_name: equipment_name,
+        model,
+        material_spec: model,
+        quantity: Number(quantity),
+        unit,
+        serial_no: String(row.serial_no || '').trim(),
+        purpose: String(row.purpose || '').trim(),
+        use_part: String(row.use_part || '').trim(),
+        waybill_no: String(row.waybill_no || '').trim(),
+        batch_no: parseBatchSeq(row.batch_no, 1),
+        appearance_quality: row.appearance_quality,
+        acceptance_result: row.acceptance_result,
+        entry_date: row.entry_date,
+        cert_file: row.cert_file,
+        inspect_file: row.inspect_file,
+        photo_file: row.photo_file,
+        other_file: row.other_file || '',
+        inspect_result_checked: !!row.inspect_result_checked,
+        inspect_result_file: row.inspect_result_checked ? row.inspect_result_file || '' : '',
+        unpack_items: row.unpack_items.map((item) => ({ ...item })),
+      })
+    }
+    const first = line_items[0]
     payload = {
       ...base,
-      equipment_name: form.equipment_name,
-      model: form.model,
-      quantity: Number(form.quantity),
-      unit: form.unit,
-      serial_no: form.serial_no,
-      unpack_items: unpackItems.value,
-      cert_file: form.cert_file,
-      inspect_file: form.inspect_file,
-      photo_file: form.photo_file,
-      other_file: form.other_file,
-      inspect_result_checked: !!form.inspect_result_checked,
-      inspect_result_file: form.inspect_result_checked ? form.inspect_result_file || '' : '',
+      equipment_name: first.equipment_name,
+      model: first.model,
+      use_part: first.use_part || form.use_part,
+      serial_no: first.serial_no,
+      quantity: first.quantity,
+      unit: first.unit,
+      cert_file: first.cert_file,
+      inspect_file: first.inspect_file,
+      photo_file: first.photo_file,
+      other_file: first.other_file || '',
+      unpack_items: first.unpack_items,
+      line_items,
     }
   } else {
     if (!form.brand_name || !form.manufacturer) {
@@ -609,8 +784,8 @@ function onSubmit() {
   if (!r.ok) return ElMessage.error(r.msg)
   ElMessage.success(
     copyFromId.value
-      ? `已重新报审 ${r.data.entry_id}，进入审批中`
-      : `已提交 ${r.data.entry_id}，进入审批中`,
+      ? `已重新报审 ${r.data.entry_no}，进入审批中`
+      : `已提交 ${r.data.entry_no}，进入审批中`,
   )
   router.push('/mobile/mat/entry')
 }
@@ -657,10 +832,10 @@ function goBack() {
             <option value="">不关联（可选）</option>
             <option
               v-for="s in samples"
-              :key="s.sample_application_id || s.sample_id"
-              :value="s.sample_application_id || s.sample_id"
+              :key="s.sample_application_id"
+              :value="s.sample_application_id"
             >
-              {{ s.sample_application_id || s.sample_id }} · {{ s.material_name }}
+              {{ s.sample_application_id }} · {{ s.material_name }}
             </option>
           </select>
         </div>
@@ -877,126 +1052,116 @@ function goBack() {
       </section>
 
       <section v-else class="form-section">
-        <div class="fs-title">设备信息</div>
-        <div class="form-row">
-          <span class="form-label">施工部位</span>
-          <input v-model="form.use_part" class="form-input" placeholder="选填" />
-        </div>
-        <div class="form-row">
-          <span class="form-label">设备名称<span class="required-mark">*</span></span>
-          <input v-model="form.equipment_name" class="form-input" disabled placeholder="台账带出" />
-        </div>
-        <div class="form-row">
-          <span class="form-label">型号</span>
-          <input v-model="form.model" class="form-input" placeholder="选填" />
-        </div>
-        <div class="form-row">
-          <span class="form-label">数量<span class="required-mark">*</span></span>
-          <input v-model="form.quantity" class="form-input" type="number" placeholder="数量" />
-        </div>
-        <div class="form-row">
-          <span class="form-label">单位</span>
-          <input v-model="form.unit" class="form-input" />
-        </div>
-        <div class="form-row">
-          <span class="form-label">出厂编号</span>
-          <input v-model="form.serial_no" class="form-input" placeholder="选填" />
-        </div>
-        <div class="unpack">
-          <div class="unpack-title">开箱清单</div>
-          <label v-for="item in unpackItems" :key="item.key" class="unpack-item">
-            <input v-model="item.ok" type="checkbox" />
-            <span>{{ item.label }}</span>
-          </label>
-        </div>
-      </section>
-
-      <section v-if="entryType === 'equipment'" class="form-section">
-        <div class="fs-title">附件</div>
-        <div
-          v-for="slot in [
-            { field: 'cert_file', label: '合格证', required: true, mode: 'image' },
-            { field: 'inspect_file', label: '质量证明文件', required: true, mode: 'pdf' },
-            { field: 'photo_file', label: '现场照片', required: true, mode: 'image' },
-            { field: 'other_file', label: '其他', required: false, mode: 'other' },
-          ]"
-          :key="slot.field"
-          class="form-row"
-        >
-          <span class="form-label">
-            {{ slot.label }}
-            <span v-if="slot.required" class="required-mark">*</span>
-          </span>
-          <div class="photo-group">
-            <div v-if="form[slot.field]" class="photo-box">
-              <img v-if="photoPreview[slot.field]" :src="photoPreview[slot.field]" alt="" />
-              <span v-else>📄 已上传</span>
-              <button type="button" class="photo-del" @click="clearPhoto(slot.field)">✕</button>
-            </div>
-            <template v-else-if="slot.mode === 'image'">
-              <button
-                type="button"
-                class="photo-add"
-                @click="takePhoto(slot.field, slot.label)"
-              >
-                + 拍照
-              </button>
-              <button
-                type="button"
-                class="photo-add"
-                @click="pickAlbumPhoto(slot.field, slot.label)"
-              >
-                相册
-              </button>
-            </template>
-            <button
-              v-else
-              type="button"
-              class="photo-add"
-              @click="pickFormDoc(slot.field, slot.label, slot.mode)"
-            >
-              {{ slot.mode === 'pdf' ? '+ 选择 PDF' : '+ 选择文件' }}
-            </button>
+        <div class="fs-title">设备进场明细</div>
+        <p class="section-tip">一个进场单可对应多组设备；每组含设备信息、附件与开箱清单，默认一组。</p>
+        <div v-for="(row, idx) in equipmentLines" :key="row.key" class="line-card">
+          <div class="line-head">
+            <span class="line-title">设备 {{ idx + 1 }}</span>
+            <button type="button" class="line-del" :disabled="equipmentLines.length <= 1" @click="removeEquipmentLine(idx)">删除</button>
           </div>
-          <div v-if="slot.mode === 'image'" class="attach-hint">仅支持图片（jpg / png）</div>
-          <div v-else-if="slot.mode === 'pdf'" class="attach-hint">仅支持 PDF</div>
-          <div v-else class="attach-hint">支持 jpg / png / pdf / word</div>
-        </div>
-      </section>
-
-      <section v-if="entryType === 'equipment'" class="form-section">
-        <div class="fs-title">送检结果</div>
-        <div class="form-row">
-          <span class="form-label">送检</span>
-          <label class="check-row">
-            <input v-model="form.inspect_result_checked" type="checkbox" />
-            <span>已完成送检</span>
-          </label>
-        </div>
-        <div v-if="form.inspect_result_checked" class="form-row">
-          <span class="form-label">送检照片</span>
-          <div class="photo-group">
-            <div v-if="form.inspect_result_file" class="photo-box">
-              <img
-                v-if="photoPreview.inspect_result_file"
-                :src="photoPreview.inspect_result_file"
-                alt=""
-              />
-              <span v-else>📷 已拍</span>
-              <button type="button" class="photo-del" @click="clearPhoto('inspect_result_file')">
-                ✕
-              </button>
+          <div class="form-row">
+            <span class="form-label">设备名称<span class="required-mark">*</span></span>
+            <select v-model="row.equipment_name" class="form-input" :disabled="!equipmentNameOptions.length">
+              <option value="" disabled>{{ equipmentNameOptions.length ? '请选择设备' : '请先选择品牌' }}</option>
+              <option v-for="name in equipmentNameOptions" :key="name" :value="name">{{ name }}</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <span class="form-label">规格型号<span class="required-mark">*</span></span>
+            <input v-model="row.model" class="form-input" placeholder="规格型号" />
+          </div>
+          <div class="form-row">
+            <span class="form-label">数量<span class="required-mark">*</span></span>
+            <input v-model="row.quantity" class="form-input qty-num" type="number" placeholder="数量" />
+            <input v-model="row.unit" class="form-input qty-unit" placeholder="单位" />
+          </div>
+          <div class="form-row"><span class="form-label">用途</span><input v-model="row.purpose" class="form-input" placeholder="选填" /></div>
+          <div class="form-row"><span class="form-label">施工部位</span><input v-model="row.use_part" class="form-input" placeholder="选填" /></div>
+          <div class="form-row"><span class="form-label">出厂编号</span><input v-model="row.serial_no" class="form-input" placeholder="选填" /></div>
+          <div class="form-row"><span class="form-label">运单号</span><input v-model="row.waybill_no" class="form-input" placeholder="选填" /></div>
+          <div class="form-row">
+            <span class="form-label">批次号</span>
+            <div class="batch-row">
+              <span class="batch-affix">第</span>
+              <input v-model.number="row.batch_no" class="form-input batch-input" type="number" min="1" step="1" />
+              <span class="batch-affix">批</span>
             </div>
-            <button
-              v-else
-              type="button"
-              class="photo-add"
-              @click="takePhoto('inspect_result_file', '送检结果')"
-            >
-              + 拍照
-            </button>
+          </div>
+          <div class="form-row">
+            <span class="form-label">外观质量<span class="required-mark">*</span></span>
+            <div class="radio-row">
+              <label v-for="opt in QUALITY_RESULT_OPTIONS" :key="opt.value" class="radio-item">
+                <input v-model="row.appearance_quality" type="radio" :value="opt.value" /><span>{{ opt.label }}</span>
+              </label>
+            </div>
+          </div>
+          <div class="form-row">
+            <span class="form-label">验收结论<span class="required-mark">*</span></span>
+            <div class="radio-row">
+              <label v-for="opt in QUALITY_RESULT_OPTIONS" :key="'a'+opt.value" class="radio-item">
+                <input v-model="row.acceptance_result" type="radio" :value="opt.value" /><span>{{ opt.label }}</span>
+              </label>
+            </div>
+          </div>
+          <div class="form-row">
+            <span class="form-label">进场日期<span class="required-mark">*</span></span>
+            <input v-model="row.entry_date" class="form-input" placeholder="YYYY-MM-DD HH:mm:ss" />
+          </div>
+          <div class="unpack">
+            <div class="unpack-title">开箱清单<span class="required-mark">*</span></div>
+            <label v-for="item in row.unpack_items" :key="item.key" class="unpack-item">
+              <input v-model="item.ok" type="checkbox" /><span>{{ item.label }}</span>
+            </label>
+          </div>
+          <div class="attach-title">附件</div>
+          <div
+            v-for="slot in [
+              { field: 'cert_file', label: '合格证', required: true, preview: 'cert_preview', mode: 'image' },
+              { field: 'inspect_file', label: '质量证明文件', required: true, preview: 'inspect_preview', mode: 'pdf' },
+              { field: 'photo_file', label: '现场照片', required: true, preview: 'photo_preview', mode: 'image' },
+              { field: 'other_file', label: '其他', required: false, preview: 'other_preview', mode: 'other' },
+            ]"
+            :key="slot.field"
+            class="form-row"
+          >
+            <span class="form-label">{{ slot.label }}<span v-if="slot.required" class="required-mark">*</span></span>
+            <div class="photo-group">
+              <div v-if="row[slot.field]" class="photo-box">
+                <img v-if="row[slot.preview]" :src="row[slot.preview]" alt="" />
+                <span v-else>📄 已上传</span>
+                <button type="button" class="photo-del" @click="clearLinePhoto(row, slot.field)">✕</button>
+              </div>
+              <template v-else-if="slot.mode === 'image'">
+                <button type="button" class="photo-add" @click="takeLinePhoto(row, slot.field, slot.label)">+ 拍照</button>
+                <button type="button" class="photo-add" @click="pickLineAlbum(row, slot.field, slot.label)">相册</button>
+              </template>
+              <button v-else type="button" class="photo-add" @click="pickLineDoc(row, slot.field, slot.label, slot.mode)">{{ slot.mode === 'pdf' ? '+ 选择 PDF' : '+ 选择文件' }}</button>
+            </div>
+            <div v-if="slot.mode === 'image'" class="attach-hint">仅支持图片（jpg / png）</div>
+            <div v-else-if="slot.mode === 'pdf'" class="attach-hint">仅支持 PDF</div>
+            <div v-else class="attach-hint">支持 jpg / png / pdf / word</div>
+          </div>
+          <div class="form-row">
+            <span class="form-label">送检</span>
+            <label class="check-row"><input v-model="row.inspect_result_checked" type="checkbox" /><span>已完成送检</span></label>
+          </div>
+          <div v-if="row.inspect_result_checked" class="form-row">
+            <span class="form-label">送检附件</span>
+            <div class="photo-group">
+              <div v-if="row.inspect_result_file" class="photo-box">
+                <img v-if="row.inspect_result_preview" :src="row.inspect_result_preview" alt="" />
+                <span v-else>📄 已上传</span>
+                <button type="button" class="photo-del" @click="clearLinePhoto(row, 'inspect_result_file')">✕</button>
+              </div>
+              <template v-else>
+                <button type="button" class="photo-add" @click="takeLinePhoto(row, 'inspect_result_file', '送检结果')">+ 拍照</button>
+                <button type="button" class="photo-add" @click="pickLineDoc(row, 'inspect_result_file', '送检结果', 'other')">+ 文件</button>
+              </template>
+            </div>
+            <div class="attach-hint">选填；支持图片 / PDF</div>
           </div>
         </div>
+        <button type="button" class="add-line-btn" @click="addEquipmentLine">＋ 新增一组设备</button>
       </section>
 
       <section class="form-section">

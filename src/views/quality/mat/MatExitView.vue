@@ -20,7 +20,7 @@ const detailVisible = ref(false)
 const detail = ref(null)
 
 const form = reactive({
-  entry_id: '',
+  entry_no: '',
   exit_qty: '',
   reason: '',
   photo_file: '',
@@ -38,14 +38,14 @@ const exitable = computed(() => {
   return listExitableEntries(scopeProjectId.value)
 })
 
-const selected = computed(() => exitable.value.find((e) => e.entry_id === form.entry_id) || null)
+const selected = computed(() => exitable.value.find((e) => e.entry_no === form.entry_no) || null)
 
 function resetFilter() {
   keyword.value = ''
 }
 
 function resetForm() {
-  form.entry_id = ''
+  form.entry_no = ''
   form.exit_qty = ''
   form.reason = ''
   form.photo_file = ''
@@ -60,7 +60,7 @@ function openCreate() {
 }
 
 function openDetail(row) {
-  detail.value = getExitDetail(row.exit_id)
+  detail.value = getExitDetail(row.exit_no)
   detailVisible.value = true
 }
 
@@ -90,12 +90,12 @@ function onSubmit() {
   if (isHqSelected.value || !scopeProjectId.value) {
     return ElMessage.warning('请先切换到具体项目')
   }
-  if (!form.entry_id) return ElMessage.warning('请选择进场单')
+  if (!form.entry_no) return ElMessage.warning('请选择进场单')
   if (!form.exit_qty || Number(form.exit_qty) <= 0) return ElMessage.warning('请填写有效退场数量')
   if (!String(form.reason || '').trim()) return ElMessage.warning('请填写退场原因')
 
   const r = registerExit({
-    entry_id: form.entry_id,
+    entry_no: form.entry_no,
     exit_qty: form.exit_qty,
     reason: form.reason,
     photo_file: form.photo_file,
@@ -114,7 +114,7 @@ function onSubmit() {
       <div class="page-breadcrumb">材料设备进场 / 退场登记</div>
       <h1 class="page-title">退场登记</h1>
       <p class="page-tip">
-        仅材料类、已通过且未退场的进场单可登记 · 登记即生效，无需审批 · 现场照片选填
+        已通过且未退场的进场单（材料/设备）可登记 · 登记即生效，无需审批 · 现场照片选填
       </p>
     </div>
 
@@ -143,9 +143,9 @@ function onSubmit() {
       </div>
 
       <el-table :data="list" stripe border empty-text="暂无退场记录">
-        <el-table-column prop="exit_id" label="退场单号" width="130" />
-        <el-table-column prop="entry_id" label="进场单号" width="110" />
-        <el-table-column prop="material_name" label="材料名称" min-width="120" show-overflow-tooltip />
+        <el-table-column prop="exit_no" label="退场单号" width="130" />
+        <el-table-column prop="entry_no" label="进场单号" width="110" />
+        <el-table-column prop="material_name" label="材料/设备" min-width="120" show-overflow-tooltip />
         <el-table-column prop="brand_name" label="品牌" width="100" show-overflow-tooltip />
         <el-table-column prop="supplier" label="供应商" min-width="120" show-overflow-tooltip>
           <template #default="{ row }">{{ row.supplier || '—' }}</template>
@@ -154,7 +154,7 @@ function onSubmit() {
           <template #default="{ row }">{{ row.exit_qty }}{{ row.unit || '' }}</template>
         </el-table-column>
         <el-table-column prop="reason" label="退场原因" min-width="160" show-overflow-tooltip />
-        <el-table-column prop="operator" label="登记人" width="100" />
+        <el-table-column prop="operator_name" label="登记人" width="100" />
         <el-table-column prop="exit_time" label="登记时间" width="170" />
         <el-table-column label="操作" width="90" fixed="right">
           <template #default="{ row }">
@@ -174,7 +174,7 @@ function onSubmit() {
       <el-form label-width="100px">
         <el-form-item label="进场单" required>
           <el-select
-            v-model="form.entry_id"
+            v-model="form.entry_no"
             filterable
             clearable
             placeholder="选择已通过且未退场的进场单"
@@ -184,9 +184,9 @@ function onSubmit() {
           >
             <el-option
               v-for="e in exitable"
-              :key="e.entry_id"
-              :label="`${e.entry_id} · ${e.material_name} · ${e.quantity}${e.unit}`"
-              :value="e.entry_id"
+              :key="e.entry_no"
+              :label="`${e.entry_no} · ${e.entry_type === 'equipment' ? e.equipment_name || e.material_name : e.material_name} · ${e.quantity}${e.unit}`"
+              :value="e.entry_no"
             />
           </el-select>
         </el-form-item>
@@ -247,10 +247,10 @@ function onSubmit() {
     <el-dialog v-model="detailVisible" title="退场详情" width="640px" destroy-on-close>
       <template v-if="detail">
         <el-descriptions :column="2" border>
-          <el-descriptions-item label="退场单号">{{ detail.exit_id }}</el-descriptions-item>
-          <el-descriptions-item label="进场单号">{{ detail.entry_id }}</el-descriptions-item>
-          <el-descriptions-item label="材料名称">{{ detail.material_name || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="关联定样">{{ detail.sample_id || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="退场单号">{{ detail.exit_no }}</el-descriptions-item>
+          <el-descriptions-item label="进场单号">{{ detail.entry_no }}</el-descriptions-item>
+          <el-descriptions-item label="材料/设备">{{ detail.material_name || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="关联定样">{{ detail.sample_application_id || '—' }}</el-descriptions-item>
           <el-descriptions-item label="品牌">{{ detail.brand_name || '—' }}</el-descriptions-item>
           <el-descriptions-item label="供应商">{{ detail.supplier || '—' }}</el-descriptions-item>
           <el-descriptions-item label="生产厂家">{{ detail.manufacturer || '—' }}</el-descriptions-item>
@@ -262,7 +262,7 @@ function onSubmit() {
           <el-descriptions-item label="退场数量">
             {{ detail.exit_qty }}{{ detail.unit || '' }}
           </el-descriptions-item>
-          <el-descriptions-item label="登记人">{{ detail.operator || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="登记人">{{ detail.operator_name || '—' }}</el-descriptions-item>
           <el-descriptions-item label="登记时间">{{ detail.exit_time }}</el-descriptions-item>
           <el-descriptions-item label="退场原因" :span="2">{{ detail.reason }}</el-descriptions-item>
           <el-descriptions-item label="现场照片" :span="2">

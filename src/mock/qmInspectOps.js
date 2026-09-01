@@ -25,11 +25,16 @@ import {
   ensureWbsScaffold,
   getCompleteRootNode,
   getEntityRootNode,
+  getNodeFormTemplateIds,
   getSpecialRootNode,
+  isWbsAlive,
+  normalizeFormTemplateIdsInput,
+  primaryFormTemplateId,
   rectificationOrders,
   reinspectRounds,
   wbsNodes,
 } from './qmInspect.js'
+import { allowedEntityParentTypes } from '../constants/wbsEntityLabels.js'
 import { joinLocationLabels, constructionLocations, collectDescendantItemIds } from './constructionLocation.js'
 import {
   batchTypeForms,
@@ -484,7 +489,7 @@ export function createTask({
   need_archive,
   related_reject_id = '',
 }) {
-  const node = wbsNodes.find((n) => n.id === wbs_node_id)
+  const node = wbsNodes.find((n) => isWbsAlive(n) && n.id === wbs_node_id)
   if (!node) return { ok: false, msg: '验评节点不存在' }
   if (Number(node.node_type) === 9) {
     return { ok: false, msg: '「实体工程验收」仅为目录分类，不可发起验收；请选择单位工程及以下节点' }
@@ -504,18 +509,19 @@ export function createTask({
     }
   }
 
+  const nodeTplIds = getNodeFormTemplateIds(node)
   if (node.node_type === 6) {
     if (!node.batch_type_id) return { ok: false, msg: '检验批节点须绑定检验批类型' }
     const forms = getEnabledFormsByBatchType(node.batch_type_id)
     if (!forms.length) return { ok: false, msg: '检验批类型未绑定启用表单，不可创建任务' }
-  } else if ([3, 4, 5].includes(node.node_type) && !node.form_template_id) {
+  } else if ([3, 4, 5].includes(node.node_type) && !nodeTplIds.length) {
     return { ok: false, msg: `${NODE_TYPE_LABEL[node.node_type]}节点须绑定表单模板` }
   }
 
   const task_type = NODE_TO_TASK_TYPE[node.node_type]
   if (!task_type) return { ok: false, msg: '任务类型与节点类型映射不存在' }
 
-  let form_template_id = node.form_template_id || ''
+  let form_template_id = primaryFormTemplateId(node)
   let batch_type_id = node.batch_type_id || ''
   if (node.node_type === 6) {
     const forms = getEnabledFormsByBatchType(batch_type_id)
@@ -702,14 +708,14 @@ export function saveTaskDraft(task, patch = {}) {
       if (!task_type) return { ok: false, msg: '任务类型与节点类型映射不存在' }
       if (node.node_type === 6) {
         if (!node.batch_type_id) return { ok: false, msg: '检验批节点须绑定检验批类型' }
-      } else if ([3, 4, 5].includes(node.node_type) && !node.form_template_id) {
+      } else if ([3, 4, 5].includes(node.node_type) && !getNodeFormTemplateIds(node).length) {
         return { ok: false, msg: `${NODE_TYPE_LABEL[node.node_type]}节点须绑定表单模板` }
       }
       task.wbs_node_id = newId
       task.task_type = task_type
       task.specialty = node.specialty || task.specialty || ''
       task.batch_type_id = node.batch_type_id || ''
-      task.form_template_id = node.form_template_id || task.form_template_id || ''
+      task.form_template_id = primaryFormTemplateId(node) || task.form_template_id || ''
       if (node.node_type === 7) {
         task.special_type = node.special_type || task.special_type || ''
       }
@@ -1285,6 +1291,20 @@ export function cancelPlan(plan) {
 }
 
 /* —— WBS —— */
+function isWbsSelfOrDescendant(candidateId, nodeId) {
+  if (!candidateId || !nodeId) return false
+  if (candidateId === nodeId) return true
+  const seen = new Set()
+  let cur = wbsNodes.find((n) => isWbsAlive(n) && n.id === candidateId)
+  while (cur?.parent_id) {
+    if (cur.parent_id === nodeId) return true
+    if (seen.has(cur.id)) break
+    seen.add(cur.id)
+    cur = wbsNodes.find((n) => isWbsAlive(n) && n.id === cur.parent_id)
+  }
+  return false
+}
+
 export function upsertWbsNode(payload, id = '') {
   if (!payload.node_name || !payload.project_id || !payload.node_type) {
     return { ok: false, msg: '节点名称、项目、类型必填' }
@@ -1298,22 +1318,24 @@ export function upsertWbsNode(payload, id = '') {
 
   // 系统骨架节点仅允许改名称等展示字段
   if (id) {
-    const exist = wbsNodes.find((n) => n.id === id)
+    const exist = wbsNodes.find((n) => isWbsAlive(n) && n.id === id)
     if (exist && WBS_SYSTEM_NODE_TYPES.includes(exist.node_type)) {
-      Object.assign(exist, {
+      const nextSys = {
         node_name: payload.node_name || exist.node_name,
         location_code: payload.location_code ?? exist.location_code,
         specialties:
           payload.specialties != null || payload.specialty != null
             ? payloadSpecialties
             : getEffectiveSpecialties(exist),
-        form_template_id:
-          exist.node_type === 8
-            ? payload.form_template_id || exist.form_template_id
-            : exist.form_template_id,
         updated_at: nowStr(),
         updated_by: 'u-sg-01',
-      })
+      }
+      // 竣工节点可改模板；未传不覆盖。实体/专项目录不改模板
+      if (exist.node_type === 8) {
+        const ids = normalizeFormTemplateIdsInput(payload)
+        if (ids !== undefined) nextSys.form_template_ids = ids.length ? ids : ['ft-complete']
+      }
+      Object.assign(exist, nextSys)
       syncSpecialtyFields(exist)
       return { ok: true, node: exist }
     }
@@ -1330,7 +1352,7 @@ export function upsertWbsNode(payload, id = '') {
   if (node_type === 1 && !parent_id) parent_id = getEntityRootNode(payload.project_id)?.id || ''
   if (node_type === 7 && !parent_id) parent_id = getSpecialRootNode(payload.project_id)?.id || ''
 
-  const parent = parent_id ? wbsNodes.find((n) => n.id === parent_id) : null
+  const parent = parent_id ? wbsNodes.find((n) => isWbsAlive(n) && n.id === parent_id) : null
   if (node_type === 1 && (!parent || parent.node_type !== 9)) {
     return { ok: false, msg: '单位工程须挂在「实体工程验收」下' }
   }
@@ -1340,23 +1362,32 @@ export function upsertWbsNode(payload, id = '') {
   if ([2, 3, 4, 5, 6].includes(node_type) && !parent) {
     return { ok: false, msg: '请选择父节点' }
   }
+  const entityParentTypes = allowedEntityParentTypes(node_type)
+  if (entityParentTypes.length && (!parent || !entityParentTypes.includes(parent.node_type))) {
+    return { ok: false, msg: '父节点类型与当前节点类型不匹配，无法挂接' }
+  }
+  if (node_type === 6 && parent && parent.node_type !== 5) {
+    return { ok: false, msg: '检验批须挂在分项工程下' }
+  }
+  if (id && parent_id && isWbsSelfOrDescendant(parent_id, id)) {
+    return { ok: false, msg: '不可将节点挂接到自身或其下级之下' }
+  }
   if (node_type === 7 && !payload.special_type) {
     return { ok: false, msg: '专项节点须选择专项类型（消防/人防等）' }
   }
   if (node_type === 6 && !payload.batch_type_id) {
     return { ok: false, msg: '检验批须选择检验批类型' }
   }
-  if ([3, 4, 5].includes(node_type) && !payload.form_template_id) {
-    return { ok: false, msg: '分项/子分部/分部须绑定表单模板' }
-  }
+  // form_template_ids：归属质量验评赋值；基础数据「实体工程分解」不读写、未传不覆盖
   if (node_type === 6) {
     const forms = getEnabledFormsByBatchType(payload.batch_type_id)
     if (!forms.length) return { ok: false, msg: '所选类型未绑定启用表单' }
   }
+  const normalizedTplIds = normalizeFormTemplateIdsInput(payload)
   if (id) {
-    const node = wbsNodes.find((n) => n.id === id)
+    const node = wbsNodes.find((n) => isWbsAlive(n) && n.id === id)
     if (!node) return { ok: false, msg: '节点不存在' }
-    Object.assign(node, {
+    const next = {
       ...payload,
       parent_id,
       node_type,
@@ -1368,7 +1399,15 @@ export function upsertWbsNode(payload, id = '') {
       is_critical: node_type === 6 ? Number(payload.is_critical) || 0 : 0,
       updated_at: nowStr(),
       updated_by: 'u-sg-01',
-    })
+    }
+    delete next.form_template_id
+    if (normalizedTplIds === undefined) {
+      delete next.form_template_ids
+    } else {
+      next.form_template_ids = normalizedTplIds
+    }
+    Object.assign(node, next)
+    if ('form_template_id' in node) delete node.form_template_id
     syncSpecialtyFields(node)
     return { ok: true, node }
   }
@@ -1380,7 +1419,7 @@ export function upsertWbsNode(payload, id = '') {
     node_name: payload.node_name,
     location_code: payload.location_code || '',
     batch_type_id: payload.batch_type_id || '',
-    form_template_id: payload.form_template_id || '',
+    form_template_ids: normalizedTplIds === undefined ? [] : normalizedTplIds,
     specialties: payloadSpecialties,
     special_type: node_type === 7 ? payload.special_type || '' : '',
     is_hidden_work: Number(payload.is_hidden_work) || 0,
@@ -1388,6 +1427,7 @@ export function upsertWbsNode(payload, id = '') {
     accept_status: 0,
     batch_scheme_id: node_type === 1 ? payload.batch_scheme_id || '' : '',
     sort_no: Number(payload.sort_no) || 0,
+    del_status: 0,
     created_by: 'u-sg-01',
     created_at: nowStr(),
     updated_by: 'u-sg-01',
@@ -1399,12 +1439,12 @@ export function upsertWbsNode(payload, id = '') {
 }
 
 export function removeWbsNode(id) {
-  const node = wbsNodes.find((n) => n.id === id)
+  const node = wbsNodes.find((n) => isWbsAlive(n) && n.id === id)
   if (!node) return { ok: false, msg: '节点不存在' }
   if (WBS_SYSTEM_NODE_TYPES.includes(node.node_type)) {
     return { ok: false, msg: '系统骨架节点（竣工/实体工程/专项验收）不可删除' }
   }
-  const hasChild = wbsNodes.some((n) => n.parent_id === id)
+  const hasChild = wbsNodes.some((n) => isWbsAlive(n) && n.parent_id === id)
   if (hasChild) return { ok: false, msg: '请先删除子节点' }
   const scopedItemIds =
     node.node_type === 5
@@ -1412,14 +1452,20 @@ export function removeWbsNode(id) {
       : collectDescendantItemIds(node.project_id, node.id)
   if (scopedItemIds.length) {
     const hasLoc = constructionLocations.some(
-      (loc) => loc.project_id === node.project_id && scopedItemIds.includes(loc.wbs_node_id),
+      (loc) =>
+        !Number(loc.del_status) &&
+        loc.project_id === node.project_id &&
+        scopedItemIds.includes(loc.wbs_node_id),
     )
     if (hasLoc) return { ok: false, msg: '请先解除已挂接的施工部位' }
   }
   const hasTask = inspectionTasks.some((t) => t.wbs_node_id === id)
-  if (hasTask) return { ok: false, msg: '节点已关联验评任务，不可删除' }
-  const idx = wbsNodes.findIndex((n) => n.id === id)
-  wbsNodes.splice(idx, 1)
+  if (hasTask) {
+    return { ok: false, msg: '节点已关联验评任务（含进行中与历史），不可删除' }
+  }
+  node.del_status = 1
+  node.updated_at = nowStr()
+  node.updated_by = 'u-sg-01'
   return { ok: true }
 }
 

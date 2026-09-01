@@ -25,9 +25,7 @@ const detail = computed(() => {
 })
 
 const showReadonlyHint = computed(
-  () =>
-    detail.value &&
-    (detail.value.status === 'reviewing' || detail.value.status === 'pending_review'),
+  () => detail.value && detail.value.status === 'reviewing',
 )
 
 function supervisorApproverDisplay(row) {
@@ -135,14 +133,11 @@ const lineItems = computed(() => {
   }))
 })
 
-const isInApproval = computed(() => {
-  const s = detail.value?.status
-  return s === 'reviewing' || s === 'pending_review'
-})
+const isInApproval = computed(() => detail.value?.status === 'reviewing')
 
 const lastSupervisorRecord = computed(() => {
   const rows = (detail.value?.approvals || []).filter(
-    (r) => !r.node || r.node === 'supervisor',
+    (r) => r.node === 'supervisor' || (!r.node && r.action !== 'submit'),
   )
   return rows[rows.length - 1] || null
 })
@@ -154,8 +149,8 @@ const processSteps = computed(() => {
   const last = lastSupervisorRecord.value
 
   function supervisorStep() {
-    if (last?.action === 'agree') return { status: 'success', desc: last.time || '已同意' }
-    if (last?.action === 'reject') return { status: 'error', desc: last.time || '已退回' }
+    if (last?.action === 'agree') return { status: 'success', desc: last.time || '已通过' }
+    if (last?.action === 'reject') return { status: 'error', desc: last.time || '已驳回' }
     if (isInApproval.value) return { status: 'process', desc: '审批中' }
     return { status: 'wait', desc: '等待' }
   }
@@ -166,31 +161,48 @@ const processSteps = computed(() => {
   ]
 })
 
-const ACTION_LABEL = { submit: '提交', agree: '同意', reject: '退回' }
+const ACTION_LABEL = { submit: '提交', agree: '通过', reject: '驳回' }
 
 /** 时间线：提交 + 已办审批 + 当前待办（对齐品牌报审） */
 const approvalTimeline = computed(() => {
   const d = detail.value
   if (!d) return []
-  const steps = [
-    {
+  const records = d.approvals || []
+  const submitRec = records.find((r) => r.action === 'submit' || r.node === 'submit' || r.node === 'applicant')
+  const steps = []
+  if (submitRec) {
+    steps.push({
+      key: submitRec.approval_id || 'submit',
+      title: '施工提交',
+      action: 'submit',
+      actionLabel: ACTION_LABEL.submit,
+      operator: submitRec.operator_name || d.applicant_name || '—',
+      time: submitRec.time || d.submit_time || '—',
+      remark: submitRec.opinion || '提交进场报审',
+      status: 'done',
+    })
+  } else {
+    steps.push({
       key: 'submit',
       title: '施工提交',
       action: 'submit',
       actionLabel: ACTION_LABEL.submit,
       operator: d.applicant_name || '—',
       time: d.submit_time || '—',
-      remark: '提交进场报审',
+      remark: d.copy_from_entry_no
+        ? `从 ${d.copy_from_entry_no} 复制新建提交`
+        : '提交进场报审',
       status: 'done',
-    },
-  ]
-  for (const r of d.approvals || []) {
+    })
+  }
+  for (const r of records) {
+    if (r.action === 'submit' || r.node === 'submit' || r.node === 'applicant') continue
     steps.push({
       key: r.approval_id,
       title: '监理审批',
       action: r.action,
       actionLabel: ACTION_LABEL[r.action] || r.action,
-      operator: r.operator || '—',
+      operator: r.operator_name || '—',
       time: r.time || '—',
       remark: r.opinion || '',
       status: r.action === 'reject' ? 'rejected' : 'done',
@@ -230,7 +242,7 @@ function actionTagType(action) {
     <div class="page-header">
       <div class="page-breadcrumb">材料设备进场 / 进场详情</div>
       <div class="title-row">
-        <h1 class="page-title">进场详情 {{ detail?.entry_id || '' }}</h1>
+        <h1 class="page-title">进场详情 {{ detail?.entry_no || '' }}</h1>
         <el-tag v-if="detail?.exited" type="warning" effect="plain">已退场</el-tag>
         <el-button
           v-if="canExportArchive"
@@ -251,7 +263,7 @@ function actionTagType(action) {
       <PersonalCenterReadonlyHint v-if="showReadonlyHint" />
       <h3 class="section-title">品牌与定样</h3>
       <el-descriptions :column="2" border class="mb info-desc">
-        <el-descriptions-item label="进场单号">{{ detail.entry_id }}</el-descriptions-item>
+        <el-descriptions-item label="进场单号">{{ detail.entry_no }}</el-descriptions-item>
         <el-descriptions-item label="进场类型">
           {{ ENTRY_TYPE_LABEL[detail.entry_type] || '材料' }}
         </el-descriptions-item>
@@ -260,8 +272,8 @@ function actionTagType(action) {
             {{ statusLabel(detail.status) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item v-if="detail.copy_from_entry_id" label="复制来源">
-          {{ detail.copy_from_entry_id }}
+        <el-descriptions-item v-if="detail.copy_from_entry_no" label="复制来源">
+          {{ detail.copy_from_entry_no }}
         </el-descriptions-item>
         <el-descriptions-item v-else-if="detail.related_reject_id" label="关联驳回原单">
           {{ detail.related_reject_id }}
@@ -271,7 +283,7 @@ function actionTagType(action) {
         <el-descriptions-item label="生产厂家">{{ detail.manufacturer || '—' }}</el-descriptions-item>
         <el-descriptions-item label="供应商">{{ detail.supplier || '—' }}</el-descriptions-item>
         <el-descriptions-item label="关联定样">{{
-          detail.sample_application_id || detail.sample_id || '—'
+          detail.sample_application_id || '—'
         }}</el-descriptions-item>
         <el-descriptions-item label="申请人">{{ detail.applicant_name }}</el-descriptions-item>
         <el-descriptions-item label="监理审批人">
@@ -280,7 +292,7 @@ function actionTagType(action) {
         <el-descriptions-item label="提交时间">{{ detail.submit_time }}</el-descriptions-item>
         <el-descriptions-item label="办结时间">{{ detail.finish_time || '—' }}</el-descriptions-item>
         <el-descriptions-item
-          v-if="detail.status === 'approved' && detail.entry_type === 'material'"
+          v-if="detail.status === 'approved'"
           label="退场状态"
         >
           <el-tag size="small" :type="detail.exited ? 'warning' : 'info'" effect="plain">
@@ -386,7 +398,7 @@ function actionTagType(action) {
       </template>
 
       <el-card
-        v-if="detail.status === 'approved' && detail.entry_type !== 'equipment'"
+        v-if="detail.status === 'approved'"
         shadow="never"
         class="mb"
         :class="{ 'exit-card': detail.exited }"
@@ -403,8 +415,8 @@ function actionTagType(action) {
           :image-size="56"
         />
         <el-descriptions v-else :column="2" border class="info-desc">
-          <el-descriptions-item label="退场单号">{{ detail.exit.exit_id }}</el-descriptions-item>
-          <el-descriptions-item label="登记人">{{ detail.exit.operator || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="退场单号">{{ detail.exit.exit_no }}</el-descriptions-item>
+          <el-descriptions-item label="登记人">{{ detail.exit.operator_name || '—' }}</el-descriptions-item>
           <el-descriptions-item label="退场数量">
             {{ detail.exit.exit_qty }}{{ detail.unit }}
             <span class="muted">（进场 {{ detail.quantity }}{{ detail.unit }}）</span>

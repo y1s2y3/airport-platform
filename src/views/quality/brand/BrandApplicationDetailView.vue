@@ -21,10 +21,11 @@ const fromLedger = computed(
 )
 
 const ACTION_LABEL = { submit: '提交', agree: '同意', reject: '驳回' }
+/** 与 NODE_LABEL / 02 §6.1.3 统一为「××审」口径；申请人提交用施工提交 */
 const APPROVAL_NODE_LABEL = {
   applicant: '施工提交',
-  supervisor: '监理审批',
-  pm: '项目经理终审',
+  supervisor: '待监理审',
+  pm: '待项目经理审',
 }
 
 function goBack() {
@@ -68,16 +69,34 @@ const processSteps = computed(() => {
 
   return [
     { title: '施工提交', status: 'success', desc: app.submit_time || '已提交' },
-    { title: '监理审批', ...nodeStep(sup, app.current_node === 'supervisor') },
-    { title: '项目经理终审', ...nodeStep(pm, app.current_node === 'pm') },
+    { title: '待监理审', ...nodeStep(sup, app.current_node === 'supervisor') },
+    { title: '待项目经理审', ...nodeStep(pm, app.current_node === 'pm') },
   ]
 })
 
 const approvalTimeline = computed(() => {
   const d = detail.value
   if (!d) return []
-  const steps = [
-    {
+  const records = d.approvals || []
+  const submitRec = records.find((r) => r.action === 'submit' || r.node_code === 'applicant')
+  const steps = []
+  if (submitRec) {
+    steps.push({
+      key: submitRec.record_id || 'submit',
+      title: APPROVAL_NODE_LABEL.applicant,
+      action: 'submit',
+      actionLabel: '提交',
+      operator: submitRec.operator_name || d.app.applicant_name || '—',
+      time: submitRec.operate_time || d.app.submit_time || '—',
+      remark:
+        submitRec.opinion ||
+        (d.app.copy_from_application_id
+          ? `从 ${d.app.copy_from_application_id} 重新申报`
+          : '提交报审'),
+      status: 'done',
+    })
+  } else {
+    steps.push({
       key: 'submit',
       title: '施工提交',
       action: 'submit',
@@ -88,9 +107,10 @@ const approvalTimeline = computed(() => {
         ? `从 ${d.app.copy_from_application_id} 重新申报`
         : '提交报审',
       status: 'done',
-    },
-  ]
-  for (const r of d.approvals || []) {
+    })
+  }
+  for (const r of records) {
+    if (r.action === 'submit' || r.node_code === 'applicant') continue
     steps.push({
       key: r.record_id,
       title: APPROVAL_NODE_LABEL[r.node_code] || r.node_code || '节点',

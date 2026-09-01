@@ -140,6 +140,8 @@ export const menuTree = [
         children: [
           { key: 'major-hazard-daily-work', label: '每日施工作业', path: '/major-hazard/daily-work', name: 'MajorHazardDailyWork', component: 'DailyWorkView', levels: 'both' },
           { key: 'major-hazard-list', label: '危大工程清单', path: '/major-hazard/hazard-list', name: 'MajorHazardList', component: 'HazardListView', levels: 'both' },
+          { key: 'risk-manage', label: '风险管理', path: '/site-construction/risk-manage', name: 'RiskManagePlaceholder', component: 'RiskManagePlaceholderView', levels: 'project' },
+          { key: 'engineering-work', label: '工程作业管理', path: '/site-construction/engineering-work', name: 'EngineeringWorkPlaceholder', component: 'EngineeringWorkPlaceholderView', levels: 'project' },
         ],
       },
       {
@@ -521,6 +523,8 @@ export const viewLoaders = {
   MachineryLedgerDetailView: () => import('../views/safety/MachineryLedgerDetailView.vue'),
   DailyWorkView: () => import('../views/majorHazard/DailyWorkView.vue'),
   HazardListView: () => import('../views/majorHazard/HazardListView.vue'),
+  RiskManagePlaceholderView: () => import('../views/siteConstruction/RiskManagePlaceholderView.vue'),
+  EngineeringWorkPlaceholderView: () => import('../views/siteConstruction/EngineeringWorkPlaceholderView.vue'),
   DeepFoundationPitView: () => import('../views/majorHazard/DeepFoundationPitView.vue'),
   SubwayProtectionView: () => import('../views/majorHazard/SubwayProtectionView.vue'),
   HighFormworkView: () => import('../views/majorHazard/HighFormworkView.vue'),

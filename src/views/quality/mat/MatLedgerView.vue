@@ -66,9 +66,9 @@ const { dialogVisible, exportLoading, openExportDialog, confirmExport } = useMat
 
 function onExportArchive(row) {
   if (exportLoadingId.value || exportLoading.value) return
-  exportLoadingId.value = row.entry_id
+  exportLoadingId.value = row.entry_no
   try {
-    const detail = getEntryDetail(row.entry_id)
+    const detail = getEntryDetail(row.entry_no)
     openExportDialog(detail)
   } finally {
     exportLoadingId.value = ''
@@ -159,7 +159,7 @@ function goBackToHQ() {
         empty-text="暂无已通过进场记录"
         :default-sort="{ prop: 'submit_time', order: 'descending' }"
       >
-        <el-table-column prop="entry_id" label="进场单号" width="110" fixed />
+        <el-table-column prop="entry_no" label="进场单号" width="110" fixed />
         <el-table-column label="类型" width="80" sortable prop="entry_type">
           <template #default="{ row }">{{ ENTRY_TYPE_LABEL[row.entry_type] || '材料' }}</template>
         </el-table-column>
@@ -169,7 +169,7 @@ function goBackToHQ() {
         <el-table-column prop="brand_name" label="品牌" width="100" />
         <el-table-column label="定样单号" width="100">
           <template #default="{ row }">{{
-            row.sample_application_id || row.sample_id || '—'
+            row.sample_application_id || '—'
           }}</template>
         </el-table-column>
         <el-table-column label="进场数量" width="100">
@@ -195,15 +195,15 @@ function goBackToHQ() {
         <el-table-column prop="exit_time" label="退场时间" width="160">
           <template #default="{ row }">{{ row.exit_time || '—' }}</template>
         </el-table-column>
-        <el-table-column prop="exit_reason" label="退场原因" min-width="140" show-overflow-tooltip>
-          <template #default="{ row }">{{ row.exit_reason || '—' }}</template>
+        <el-table-column prop="reason" label="退场原因" min-width="140" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.reason || '—' }}</template>
         </el-table-column>
         <el-table-column label="操作" width="170" fixed="right">
           <template #default="{ row }">
             <el-button
               link
               type="primary"
-              @click="router.push(`/qm/mat/applications/detail?id=${row.entry_id}`)"
+              @click="router.push(`/qm/mat/applications/detail?id=${row.entry_no}`)"
             >
               详情
             </el-button>
@@ -211,7 +211,7 @@ function goBackToHQ() {
               link
               type="primary"
               :icon="Download"
-              :loading="exportLoadingId === row.entry_id || exportLoading"
+              :loading="exportLoadingId === row.entry_no || exportLoading"
               @click="onExportArchive(row)"
             >
               导出归档

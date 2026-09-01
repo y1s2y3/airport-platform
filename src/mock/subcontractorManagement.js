@@ -1077,7 +1077,25 @@ function toPortraitBlock(row) {
   const sl = normalizeSafetyLicense(row.safetyLicense || {})
   // 与列表「有效/失效」一致：齐全且结束日 ≥ 当日 → true（有效）
   const licenseValid = isSubcontractorSafetyLicenseValid(row)
-  return createSubcontractorBlock({
+  const qualifications = (row.qualifications || []).map((q) => {
+    const certNo = String(q.certNo || '').trim()
+    const fileName = String(q.fileName || '').trim()
+    const fileUrl = String(q.fileUrl || '').trim()
+    const photo = fileName || fileUrl || String(q.photo || '').trim()
+    const possessed = Boolean(certNo || photo || hasAttachment(q.fileName, q.fileUrl))
+    return {
+      label: '资格证书',
+      certNo,
+      fileName,
+      fileUrl,
+      photo,
+      possessed,
+    }
+  })
+  const portraitQuals = qualifications.length
+    ? qualifications
+    : [{ label: '资格证书', certNo: '', fileName: '', fileUrl: '', photo: '', possessed: false }]
+  const block = createSubcontractorBlock({
     unitName: row.name,
     projectLeaderContact: row.projectLeaderContact,
     safetyManagerContact: row.safetyManagerContact,
@@ -1085,17 +1103,11 @@ function toPortraitBlock(row) {
     safetyLicenseNo: sl.licenseNo || '',
     safetyLicenseExpiry: formatSafetyLicenseExpiry(sl),
     safetyLicensePhoto: sl.fileName || sl.fileUrl || '',
-    qualifications: [
-      {
-        label: '资格证书',
-        possessed: (row.qualifications || []).some(
-          (q) =>
-            String(q.certNo || '').trim()
-            || hasAttachment(q.fileName, q.fileUrl),
-        ),
-      },
-    ],
+    qualifications: portraitQuals,
   })
+  // createSubcontractorBlock 会压成固定三元组；覆盖为报审行级映射（保留 possessed 供画像勾选）
+  block.qualifications = portraitQuals
+  return block
 }
 
 /** 审批通过后同步到项目画像「专业分包及劳务分包」 */

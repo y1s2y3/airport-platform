@@ -20,7 +20,7 @@ const tick = ref(0)
 const mode = ref('list') // list | create | detail
 
 const form = reactive({
-  entry_id: '',
+  entry_no: '',
   exit_qty: '',
   reason: '',
   photo_file: '',
@@ -40,19 +40,19 @@ const exitable = computed(() => {
   return listExitableEntries(scopeProjectId.value)
 })
 
-const selected = computed(() => exitable.value.find((e) => e.entry_id === form.entry_id) || null)
+const selected = computed(() => exitable.value.find((e) => e.entry_no === form.entry_no) || null)
 
 watch(
-  () => form.entry_id,
+  () => form.entry_no,
   (id) => {
     if (!id) return
-    const row = exitable.value.find((e) => e.entry_id === id)
+    const row = exitable.value.find((e) => e.entry_no === id)
     if (row && !form.exit_qty) form.exit_qty = String(row.quantity || '')
   },
 )
 
 function resetForm() {
-  form.entry_id = ''
+  form.entry_no = ''
   form.exit_qty = ''
   form.reason = ''
   form.photo_file = ''
@@ -71,7 +71,7 @@ function openCreate() {
 }
 
 function openDetail(row) {
-  detail.value = getExitDetail(row.exit_id)
+  detail.value = getExitDetail(row.exit_no)
   mode.value = 'detail'
 }
 
@@ -128,12 +128,12 @@ function clearPhoto() {
 }
 
 function onSubmit() {
-  if (!form.entry_id) return ElMessage.warning('请选择进场单')
+  if (!form.entry_no) return ElMessage.warning('请选择进场单')
   if (!form.exit_qty || Number(form.exit_qty) <= 0) return ElMessage.warning('请填写退场数量')
   if (!form.reason.trim()) return ElMessage.warning('请填写退场原因')
 
   const r = registerExit({
-    entry_id: form.entry_id,
+    entry_no: form.entry_no,
     exit_qty: form.exit_qty,
     reason: form.reason,
     photo_file: form.photo_file,
@@ -173,18 +173,18 @@ function goBack() {
         <div v-if="!list.length" class="empty">暂无退场记录</div>
         <button
           v-for="row in list"
-          :key="row.exit_id"
+          :key="row.exit_no"
           type="button"
           class="card"
           @click="openDetail(row)"
         >
           <div class="card-top">
-            <span class="card-id">{{ row.exit_id }}</span>
+            <span class="card-id">{{ row.exit_no }}</span>
             <span class="card-time">{{ row.exit_time }}</span>
           </div>
-          <div class="card-title">{{ row.material_name || row.entry_id }}</div>
+          <div class="card-title">{{ row.material_name || row.entry_no }}</div>
           <div class="card-meta">
-            进场单 {{ row.entry_id }} · 退场 {{ row.exit_qty }}{{ row.unit || '' }}
+            进场单 {{ row.entry_no }} · 退场 {{ row.exit_qty }}{{ row.unit || '' }}
           </div>
           <div class="card-meta">{{ row.reason || '—' }}</div>
         </button>
@@ -201,10 +201,12 @@ function goBack() {
           <div class="fs-title">退场信息</div>
           <div class="form-row">
             <span class="form-label">进场单<span class="required-mark">*</span></span>
-            <select v-model="form.entry_id" class="form-input">
+            <select v-model="form.entry_no" class="form-input">
               <option value="" disabled>请选择可退场进场单</option>
-              <option v-for="e in exitable" :key="e.entry_id" :value="e.entry_id">
-                {{ e.entry_id }} · {{ e.material_name }} · 余量 {{ e.quantity }}{{ e.unit }}
+              <option v-for="e in exitable" :key="e.entry_no" :value="e.entry_no">
+                {{ e.entry_no }} ·
+                {{ e.entry_type === 'equipment' ? e.equipment_name || e.material_name : e.material_name }}
+                · 余量 {{ e.quantity }}{{ e.unit }}
               </option>
             </select>
           </div>
@@ -257,14 +259,14 @@ function goBack() {
           <div class="fs-title">退场信息</div>
           <div class="form-row">
             <span class="form-label">退场单号</span>
-            <span class="form-value">{{ detail.exit_id }}</span>
+            <span class="form-value">{{ detail.exit_no }}</span>
           </div>
           <div class="form-row">
             <span class="form-label">进场单号</span>
-            <span class="form-value">{{ detail.entry_id }}</span>
+            <span class="form-value">{{ detail.entry_no }}</span>
           </div>
           <div class="form-row">
-            <span class="form-label">材料名称</span>
+            <span class="form-label">材料/设备</span>
             <span class="form-value">{{ detail.material_name || '—' }}</span>
           </div>
           <div class="form-row">

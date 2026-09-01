@@ -206,7 +206,7 @@ function buildReportBody(detail, lines) {
 function buildSupervisorBlock(detail) {
   const agree = (detail.approvals || []).find((a) => a.action === 'agree')
   const opinion = agree?.opinion || '同意进场'
-  const operator = agree?.operator || ''
+  const operator = agree?.operator_name || ''
   const dateText = formatYmd(agree?.time || detail.finish_time) || '             年      月       日'
   return (
     `进场前审查意见：${opinion}\n\n\n` +
@@ -305,7 +305,7 @@ function fillArchiveDocument(doc, detail) {
   setTableCell(tables, 1, 3, 2, entryDateText)
   setTableCell(tables, 1, 4, 1, qtySummary)
   setTableCell(tables, 1, 4, 4, first.cert_file || '项目部资料室')
-  setTableCell(tables, 1, 4, 6, detail.remark || detail.entry_id || '')
+  setTableCell(tables, 1, 4, 6, detail.remark || detail.entry_no || '')
 
   // GD-C1-342 施工物资产品质量证明文件汇总核查表
   setTableCell(tables, 2, 0, 4, projectLabel)
@@ -372,7 +372,7 @@ function fillArchiveDocument(doc, detail) {
     setTableCell(tables, 3, 11, 2, summarizeUnpackItems(first.unpack_items))
     setTableCell(tables, 3, 12, 2, collectUnpackDefects(first.unpack_items))
     const eqSupervisor =
-      `${agree?.opinion || '同意验收'}\n${agree?.operator || ''}\n${formatYmd(agree?.time || detail.finish_time)}`
+      `${agree?.opinion || '同意验收'}\n${agree?.operator_name || ''}\n${formatYmd(agree?.time || detail.finish_time)}`
     setTableCell(tables, 3, 16, 1, eqSupervisor)
   }
 
@@ -487,7 +487,7 @@ export async function exportMatEntryArchive(detail, options = {}) {
     const name =
       detail.entry_type === 'equipment' ? detail.equipment_name : detail.material_name
     const safeName = String(name || typeLabel).replace(/[\\/:*?"<>|]/g, '_')
-    downloadBlob(out, `材料设备归档_${detail.entry_id}_${safeName}.docx`)
+    downloadBlob(out, `材料设备归档_${detail.entry_no}_${safeName}.docx`)
     return { ok: true }
   } catch (err) {
     return { ok: false, msg: err?.message || '导出归档文件失败' }

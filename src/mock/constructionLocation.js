@@ -3,7 +3,7 @@
  * 与验评目录树 / 实体工程分解同源依赖 wbsNodes 分项节点
  */
 import { reactive } from 'vue'
-import { ensureWbsScaffold, inspectionTasks, wbsNodes } from './qmInspect.js'
+import { ensureWbsScaffold, inspectionTasks, isWbsAlive, wbsNodes } from './qmInspect.js'
 import { nowStr } from '../utils/datetime.js'
 import { listEntries } from './mat.js'
 import { COC_PROJECT_OPTIONS } from '../config/projectOptions.js'
@@ -303,7 +303,7 @@ export function listItemNodes(projectId) {
   if (!projectId) return []
   ensureWbsScaffold(projectId)
   return wbsNodes
-    .filter((n) => n.project_id === projectId && n.node_type === 5)
+    .filter((n) => isWbsAlive(n) && n.project_id === projectId && n.node_type === 5)
     .slice()
     .sort((a, b) => (a.sort_no || 0) - (b.sort_no || 0))
 }
@@ -313,6 +313,7 @@ export function listLocations(projectId, wbsNodeId = '') {
   return constructionLocations
     .filter(
       (r) =>
+        !Number(r.del_status) &&
         r.project_id === projectId &&
         (!wbsNodeId || r.wbs_node_id === wbsNodeId),
     )
@@ -508,7 +509,9 @@ export function isLocationInWbsScope(locationId, wbsNodeId) {
 }
 
 export function getLocationById(id) {
-  return constructionLocations.find((r) => r.id === id) || null
+  const row = constructionLocations.find((r) => r.id === id) || null
+  if (!row || Number(row.del_status)) return null
+  return row
 }
 
 function collectRecordLocationIds(record) {
@@ -615,7 +618,11 @@ export function upsertLocation(payload, id = '') {
     return { ok: false, msg: '项目、归属分项、部位名称必填' }
   }
   const item = wbsNodes.find(
-    (n) => n.id === payload.wbs_node_id && n.node_type === 5 && n.project_id === payload.project_id,
+    (n) =>
+      isWbsAlive(n) &&
+      n.id === payload.wbs_node_id &&
+      n.node_type === 5 &&
+      n.project_id === payload.project_id,
   )
   if (!item) return { ok: false, msg: '归属分项不存在或不属于当前项目' }
 
@@ -662,6 +669,7 @@ export function upsertLocation(payload, id = '') {
     code,
     sort_no,
     status,
+    del_status: 0,
     created_at: ts,
     updated_at: ts,
   }
@@ -681,13 +689,16 @@ function isDescendantOf(candidateId, ancestorId) {
 }
 
 export function removeLocation(id) {
-  const idx = constructionLocations.findIndex((r) => r.id === id)
-  if (idx < 0) return { ok: false, msg: '部位不存在' }
-  const hasChild = constructionLocations.some((r) => r.parent_id === id)
+  const row = constructionLocations.find((r) => r.id === id && !Number(r.del_status))
+  if (!row) return { ok: false, msg: '部位不存在' }
+  const hasChild = constructionLocations.some(
+    (r) => !Number(r.del_status) && r.parent_id === id,
+  )
   if (hasChild) return { ok: false, msg: '请先删除下级部位' }
   const refSource = findLocationReferenceSource(id)
   if (refSource) return { ok: false, msg: `该部位已被${refSource}引用，不可删除` }
-  constructionLocations.splice(idx, 1)
+  row.del_status = 1
+  row.updated_at = nowStr()
   return { ok: true }
 }
 
@@ -696,7 +707,9 @@ export function buildEntityBreakdownTree(projectId) {
   if (!projectId) return []
   ensureWbsScaffold(projectId)
   const allow = new Set([1, 2, 3, 4, 5, 9])
-  const list = wbsNodes.filter((n) => n.project_id === projectId && allow.has(n.node_type))
+  const list = wbsNodes.filter(
+    (n) => isWbsAlive(n) && n.project_id === projectId && allow.has(n.node_type),
+  )
   const map = new Map()
   list.forEach((n) => {
     map.set(n.id, {
@@ -738,7 +751,12 @@ export function collectDescendantItemIds(projectId, wbsNodeId) {
   ensureWbsScaffold(projectId)
   const byParent = new Map()
   wbsNodes
-    .filter((n) => n.project_id === projectId && [1, 2, 3, 4, 5].includes(n.node_type))
+    .filter(
+      (n) =>
+        isWbsAlive(n) &&
+        n.project_id === projectId &&
+        [1, 2, 3, 4, 5].includes(n.node_type),
+    )
     .forEach((n) => {
       const key = n.parent_id || ''
       if (!byParent.has(key)) byParent.set(key, [])
@@ -746,7 +764,7 @@ export function collectDescendantItemIds(projectId, wbsNodeId) {
     })
   const items = []
   const walk = (id) => {
-    const node = wbsNodes.find((n) => n.id === id)
+    const node = wbsNodes.find((n) => isWbsAlive(n) && n.id === id)
     if (!node || node.project_id !== projectId) return
     if (node.node_type === 5) items.push(node.id)
     const kids = byParent.get(id) || []
@@ -763,6 +781,7 @@ export function listLocationsUnderWbs(projectId, wbsNodeId, { rootsOnly = false 
   return constructionLocations
     .filter(
       (r) =>
+        !Number(r.del_status) &&
         r.project_id === projectId &&
         itemIds.has(r.wbs_node_id) &&
         (!rootsOnly || !r.parent_id),

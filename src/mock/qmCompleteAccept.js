@@ -6,7 +6,9 @@ import {
   ensureWbsScaffold,
   getCompleteRootNode,
   inspectionTasks,
+  isWbsAlive,
   nowStr,
+  primaryFormTemplateId,
   TASK_STATUS,
   wbsNodes,
 } from './qmInspect.js'
@@ -34,7 +36,9 @@ export function buildCompleteGate(project_id) {
   ensureWbsScaffold(project_id)
 
   // 实体工程验收情况：按目录树「单位工程」节点列出完成情况（node_type=1）
-  const units = wbsNodes.filter((n) => n.project_id === project_id && n.node_type === 1)
+  const units = wbsNodes.filter(
+    (n) => isWbsAlive(n) && n.project_id === project_id && n.node_type === 1,
+  )
   const physicalRows = units.map((n) => {
     const task = inspectionTasks.find(
       (t) => t.wbs_node_id === n.id && [5, 8].includes(Number(t.task_type)),
@@ -58,7 +62,9 @@ export function buildCompleteGate(project_id) {
   const physicalTotal = physicalRows.length
   const physicalDone = physicalTotal > 0 && physicalPassed === physicalTotal
 
-  const specialNodes = wbsNodes.filter((n) => n.project_id === project_id && n.node_type === 7)
+  const specialNodes = wbsNodes.filter(
+    (n) => isWbsAlive(n) && n.project_id === project_id && n.node_type === 7,
+  )
   const specialRows = specialNodes.map((n) => {
     const task = inspectionTasks.find((t) => t.wbs_node_id === n.id)
     const passed = n.accept_status === 2 || Number(task?.status) === 2
@@ -202,7 +208,7 @@ export function createCompleteTask({
     task_type: 7,
     specialty: '竣工',
     location_name: location_name || root?.node_name || '项目竣工验收',
-    form_template_id: root?.form_template_id || 'ft-complete',
+    form_template_id: primaryFormTemplateId(root) || 'ft-complete',
     form_data: {
       'ft-complete': {
         工程名称: location_name || root?.node_name || '项目竣工验收',

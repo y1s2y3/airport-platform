@@ -84,13 +84,11 @@ const filteredList = computed(() => {
   if (!isHqSelected.value && appliedFilters.value.status) {
     rows = rows.filter((row) => row.status === appliedFilters.value.status)
   }
-  if (!isHqSelected.value) {
-    rows = [...rows].sort((a, b) => {
-      const timeCompare = String(b.submitTime || '').localeCompare(String(a.submitTime || ''))
-      if (timeCompare !== 0) return timeCompare
-      return String(a.name || '').localeCompare(String(b.name || ''), 'zh-CN')
-    })
-  }
+  rows = [...rows].sort((a, b) => {
+    const timeCompare = String(b.submitTime || '').localeCompare(String(a.submitTime || ''))
+    if (timeCompare !== 0) return timeCompare
+    return String(a.name || '').localeCompare(String(b.name || ''), 'zh-CN')
+  })
   return rows
 })
 
@@ -568,7 +566,7 @@ function handleSubmit() {
                   <div class="attach-actions">
                     <el-upload
                       :show-file-list="false"
-                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp"
+                      accept=".pdf,.jpg,.jpeg,.png,.gif,.webp"
                       :before-upload="(f) => onFilePick(f, row, 'fileName', 'fileUrl')"
                     >
                       <el-button size="small" :icon="UploadFilled">
@@ -700,13 +698,13 @@ function handleSubmit() {
                 size="md"
               />
               <div v-if="!formModel.laborContract.fileName" class="file-drop-sub">
-                支持 PDF / Word / 图片
+                支持图片 / PDF
               </div>
             </div>
             <div class="file-drop-actions">
               <el-upload
                 :show-file-list="false"
-                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp"
+                accept=".pdf,.jpg,.jpeg,.png,.gif,.webp"
                 :before-upload="(f) => onFilePick(f, formModel.laborContract, 'fileName', 'fileUrl')"
               >
                 <el-button size="small" type="primary" plain>

@@ -221,9 +221,11 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
         row?.type !== 'eq_entry' &&
         row?.type !== 'asbuilt')
     if (needRemark && !commonForm.remark.trim()) {
-      return ElMessage.warning(
-        approved ? '请填写说明' : row?.type === 'brand' ? '请填写驳回意见' : '请填写退回意见',
-      )
+      const rejectHint =
+        row?.type === 'brand' || row?.type === 'mat_entry' || row?.type === 'eq_entry'
+          ? '请填写驳回意见'
+          : '请填写退回意见'
+      return ElMessage.warning(approved ? '请填写说明' : rejectHint)
     }
     if (row?.type === 'subcontractor' && row.subcontractorApplicationId) {
       const action = approved ? 'agree' : 'reject'
@@ -271,8 +273,8 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
       const r = supervisorApproveEntry(entryId, { action, opinion })
       if (!r.ok) return ElMessage.error(r.msg)
       return afterSubmit(
-        approved ? '监理同意' : '监理退回',
-        approved ? '进场审批通过' : '已退回施工单位',
+        approved ? '监理通过' : '监理驳回',
+        approved ? '进场审批通过' : '已驳回施工单位',
       )
     }
     if (row?.type === 'brand' && row.brandApplicationId) {
@@ -284,7 +286,7 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
         if (!r.ok) return ElMessage.error(r.msg)
         return afterSubmit(
           approved ? '监理同意' : '监理驳回',
-          approved ? '已同意，项目经理终审待办已生成（个人中心）' : '报审单已驳回至施工',
+          approved ? '已同意，待项目经理审待办已生成（个人中心）' : '报审单已驳回至施工',
         )
       }
       if (row.brandNode === 'pm') {

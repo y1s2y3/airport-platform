@@ -35,12 +35,12 @@ function goCreate() {
 function goResubmit(row) {
   if (row.status !== 'rejected') return
   router.push(
-    `/mobile/mat/entry/create?copyFrom=${row.entry_id}&entry_type=${row.entry_type || 'material'}`,
+    `/mobile/mat/entry/create?copyFrom=${row.entry_no}&entry_type=${row.entry_type || 'material'}`,
   )
 }
 
 function goDetail(row) {
-  router.push(`/mobile/mat/entry/detail?id=${row.entry_id}`)
+  router.push(`/mobile/mat/entry/detail?id=${row.entry_no}`)
 }
 
 function goBack() {
@@ -63,10 +63,10 @@ function goBack() {
 
     <div class="list-body">
       <div v-if="!list.length" class="empty">暂无进场申请</div>
-      <div v-for="row in list" :key="row.entry_id" class="card">
+      <div v-for="row in list" :key="row.entry_no" class="card">
         <button type="button" class="card-main" @click="goDetail(row)">
           <div class="card-top">
-            <span class="card-id">{{ row.entry_id }}</span>
+            <span class="card-id">{{ row.entry_no }}</span>
             <el-tag size="small" :type="statusTagType(row.status)">
               {{ statusLabel(row.status) || STATUS_LABEL[row.status] || row.status }}
             </el-tag>

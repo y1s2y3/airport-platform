@@ -9,6 +9,7 @@ import { useQmProjectScope } from '../../composables/useCurrentProject'
 import {
   ensureWbsScaffold,
   getEntityRootNode,
+  isWbsAlive,
   removeWbsNode,
   upsertWbsNode,
   WBS_SYSTEM_NODE_TYPES,
@@ -38,6 +39,8 @@ import {
 import {
   ENTITY_BREAKDOWN_NODE_TYPES,
   WBS_ENTITY_TYPE_LABEL,
+  allowedEntityChildTypes,
+  allowedEntityParentTypes,
   displayEntityBreakdownNodeName,
 } from '../../constants/wbsEntityLabels.js'
 
@@ -80,27 +83,43 @@ const rawTree = computed(() => {
 
 const tableData = computed(() => filterEntityBreakdownTableTree(rawTree.value, keyword.value))
 
+function isWbsSelfOrDescendant(candidateId, nodeId) {
+  if (!candidateId || !nodeId) return false
+  if (candidateId === nodeId) return true
+  const seen = new Set()
+  let cur = wbsNodes.find((n) => isWbsAlive(n) && n.id === candidateId)
+  while (cur?.parent_id) {
+    if (cur.parent_id === nodeId) return true
+    if (seen.has(cur.id)) break
+    seen.add(cur.id)
+    cur = wbsNodes.find((n) => isWbsAlive(n) && n.id === cur.parent_id)
+  }
+  return false
+}
+
 const creatableTypeOptions = computed(() => {
-  const parent = wbsNodes.find((n) => n.id === wbsForm.parent_id)
-  let allow = []
-  if (!parent || parent.node_type === 9) allow = [1]
-  else if (parent.node_type === 1) allow = [2, 3]
-  else if (parent.node_type === 2) allow = [3]
-  else if (parent.node_type === 3) allow = [4, 5]
-  else if (parent.node_type === 4) allow = [5]
-  else allow = []
-  return allow.map((t) => ({ value: t, label: WBS_ENTITY_TYPE_LABEL[t] }))
+  const parent = wbsNodes.find((n) => isWbsAlive(n) && n.id === wbsForm.parent_id)
+  return allowedEntityChildTypes(parent?.node_type).map((t) => ({
+    value: t,
+    label: WBS_ENTITY_TYPE_LABEL[t],
+  }))
 })
 
-const parentOptions = computed(() =>
-  wbsNodes.filter(
+const parentOptions = computed(() => {
+  const sameProject = wbsNodes.filter(
     (n) =>
+      isWbsAlive(n) &&
       n.project_id === wbsForm.project_id &&
-      (n.node_type === 9 || ENTITY_BREAKDOWN_NODE_TYPES.includes(n.node_type)) &&
-      n.node_type !== 5 &&
-      n.id !== wbsForm.id,
-  ),
-)
+      (n.node_type === 9 || ENTITY_BREAKDOWN_NODE_TYPES.includes(n.node_type)),
+  )
+  if (wbsForm.id && wbsForm.node_type !== 9) {
+    const allowedParents = allowedEntityParentTypes(wbsForm.node_type)
+    return sameProject.filter(
+      (n) => allowedParents.includes(n.node_type) && !isWbsSelfOrDescendant(n.id, wbsForm.id),
+    )
+  }
+  return sameProject.filter((n) => allowedEntityChildTypes(n.node_type).length > 0)
+})
 
 const itemOptions = computed(() => listItemNodes(scopeProjectId.value))
 
@@ -286,13 +305,11 @@ function openEdit(row) {
   else openEditWbs(row)
 }
 
-watch(
-  () => wbsForm.parent_id,
-  (pid) => {
-    if (!visible.value || formMode.value !== 'wbs' || wbsForm.id) return
-    applyInheritedSpecialties(pid)
-  },
-)
+function onWbsParentChange(pid) {
+  if (wbsForm.id) return
+  applyInheritedSpecialties(pid)
+  wbsForm.node_type = null
+}
 
 function submit() {
   if (!canMaintain.value) return ElMessage.warning('请切换到具体项目后再维护')
@@ -322,8 +339,16 @@ function submitWbs() {
     visible.value = false
     return
   }
+  if (wbsForm.node_type == null || wbsForm.node_type === '') {
+    return ElMessage.warning('请选择节点类型')
+  }
   if (!ENTITY_BREAKDOWN_NODE_TYPES.includes(Number(wbsForm.node_type))) {
     return ElMessage.error('本页仅可维护单位工程～分项')
+  }
+  const parent = wbsNodes.find((n) => isWbsAlive(n) && n.id === wbsForm.parent_id)
+  const allow = allowedEntityChildTypes(parent?.node_type)
+  if (!allow.includes(Number(wbsForm.node_type))) {
+    return ElMessage.warning('当前父节点下不可选择该节点类型，请重新选择')
   }
   if (!String(wbsForm.node_name || '').trim()) {
     return ElMessage.warning('请填写节点名称')
@@ -334,12 +359,6 @@ function submitWbs() {
       specialties,
       project_id: scopeProjectId.value,
       batch_type_id: '',
-      form_template_id:
-        wbsForm.node_type === 5
-          ? 'ft-item-record'
-          : wbsForm.node_type === 3 || wbsForm.node_type === 4
-            ? 'ft-div-record'
-            : '',
       is_hidden_work: 0,
       is_critical: 0,
     },
@@ -516,8 +535,14 @@ function addChildLabel(row) {
         <el-form-item label="所属项目">
           <el-input :model-value="scopeProjectLabel" disabled />
         </el-form-item>
-        <el-form-item v-if="wbsForm.node_type !== 9" label="父节点">
-          <el-select v-model="wbsForm.parent_id" filterable style="width: 100%">
+        <el-form-item v-if="!(wbsForm.id && wbsForm.node_type === 9)" label="父节点">
+          <el-select
+            v-model="wbsForm.parent_id"
+            filterable
+            style="width: 100%"
+            placeholder="请选择父节点"
+            @change="onWbsParentChange"
+          >
             <el-option
               v-for="n in parentOptions"
               :key="n.id"
@@ -526,8 +551,13 @@ function addChildLabel(row) {
             />
           </el-select>
         </el-form-item>
-        <el-form-item v-if="wbsForm.node_type !== 9" label="节点类型" required>
-          <el-select v-model="wbsForm.node_type" style="width: 100%" :disabled="!!wbsForm.id">
+        <el-form-item v-if="!(wbsForm.id && wbsForm.node_type === 9)" label="节点类型" required>
+          <el-select
+            v-model="wbsForm.node_type"
+            style="width: 100%"
+            placeholder="请选择节点类型"
+            :disabled="!!wbsForm.id"
+          >
             <el-option
               v-for="opt in creatableTypeOptions"
               :key="opt.value"

@@ -24,7 +24,7 @@ const dash = computed(() => {
       total_batches: 0,
       material_count: 0,
       equipment_count: 0,
-      pending_count: 0,
+      in_approval_count: 0,
       approved_count: 0,
       rejected_count: 0,
       exited_count: 0,
@@ -111,7 +111,7 @@ async function viewProjectDetail(row) {
         </div>
         <div class="hq-stat-card">
           <span class="hq-stat-label">审批中</span>
-          <span class="hq-stat-value warn">{{ hqSummary.pending_count }}</span>
+          <span class="hq-stat-value warn">{{ hqSummary.in_approval_count }}</span>
         </div>
         <div class="hq-stat-card">
           <span class="hq-stat-label">已通过</span>
@@ -150,7 +150,7 @@ async function viewProjectDetail(row) {
         <el-table-column prop="equipment_exited_count" label="设备退场" width="100" align="center" />
         <el-table-column label="审批中" width="90" align="center">
           <template #default="{ row }">
-            <span :class="{ 'warn-num': row.pending_count > 0 }">{{ row.pending_count }}</span>
+            <span :class="{ 'warn-num': row.in_approval_count > 0 }">{{ row.in_approval_count }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="approved_count" label="已通过" width="90" align="center" />
@@ -191,7 +191,7 @@ async function viewProjectDetail(row) {
         </div>
         <div class="stat-card">
           <div class="label">审批中</div>
-          <div class="value">{{ dash.pending_count }}</div>
+          <div class="value">{{ dash.in_approval_count }}</div>
         </div>
         <div class="stat-card">
           <div class="label">已通过</div>

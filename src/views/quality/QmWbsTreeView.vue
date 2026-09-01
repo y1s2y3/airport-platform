@@ -10,6 +10,7 @@ import {
   buildWbsTree,
   ensureWbsScaffold,
   formTemplates,
+  getNodeFormTemplateIds,
   removeWbsNode,
   resolveBatchTypeName,
   resolveTemplateName,
@@ -63,7 +64,7 @@ const form = reactive({
   node_name: '',
   location_code: '',
   batch_type_id: '',
-  form_template_id: '',
+  form_template_ids: [],
   specialty: '结构',
   special_type: '',
   is_hidden_work: 0,
@@ -286,7 +287,7 @@ function openCreate(parent_id = '') {
   form.node_name = ''
   form.location_code = ''
   form.batch_type_id = form.node_type === 6 ? 'bt-rebar' : ''
-  form.form_template_id = form.node_type === 7 ? 'ft-special-fire' : ''
+  form.form_template_ids = form.node_type === 7 ? ['ft-special-fire'] : []
   form.specialty = form.node_type === 7 ? '消防' : '结构'
   form.special_type = form.node_type === 7 ? 'fire' : ''
   form.is_hidden_work = 0
@@ -306,7 +307,7 @@ function openEdit(row) {
     node_name: row.node_name,
     location_code: row.location_code || '',
     batch_type_id: row.batch_type_id || '',
-    form_template_id: row.form_template_id || '',
+    form_template_ids: getNodeFormTemplateIds(row),
     specialty: row.specialty || '',
     special_type: row.special_type || '',
     is_hidden_work: row.is_hidden_work,
@@ -481,8 +482,15 @@ async function onRemove(row) {
             <el-table-column label="检验批类型" min-width="130">
               <template #default="{ row }">{{ resolveBatchTypeName(row.batch_type_id) }}</template>
             </el-table-column>
-            <el-table-column label="表单模板" min-width="140">
-              <template #default="{ row }">{{ resolveTemplateName(row.form_template_id) }}</template>
+            <el-table-column label="表单模板" min-width="160">
+              <template #default="{ row }">
+                {{
+                  getNodeFormTemplateIds(row)
+                    .map((id) => resolveTemplateName(id))
+                    .filter(Boolean)
+                    .join('、') || '—'
+                }}
+              </template>
             </el-table-column>
             <el-table-column v-if="canMaintain" label="操作" width="220" fixed="right">
               <template #default="{ row }">
@@ -577,7 +585,15 @@ async function onRemove(row) {
           </el-select>
         </el-form-item>
         <el-form-item v-if="[1, 2, 3, 4, 5, 7].includes(form.node_type)" label="表单模板">
-          <el-select v-model="form.form_template_id" clearable filterable style="width: 100%">
+          <el-select
+            v-model="form.form_template_ids"
+            multiple
+            clearable
+            filterable
+            collapse-tags
+            collapse-tags-tooltip
+            style="width: 100%"
+          >
             <el-option
               v-for="t in formOptions"
               :key="t.id"

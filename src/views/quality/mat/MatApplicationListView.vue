@@ -72,15 +72,15 @@ function lineSpecQtyText(row) {
 function onResubmit(row) {
   if (row.status !== 'rejected') return
   router.push(
-    `/qm/mat/applications/edit?copyFrom=${row.entry_id}&entry_type=${row.entry_type || 'material'}`,
+    `/qm/mat/applications/edit?copyFrom=${row.entry_no}&entry_type=${row.entry_type || 'material'}`,
   )
 }
 
 function onExportArchive(row) {
   if (exportLoadingId.value || exportLoading.value) return
-  exportLoadingId.value = row.entry_id
+  exportLoadingId.value = row.entry_no
   try {
-    const detail = getEntryDetail(row.entry_id)
+    const detail = getEntryDetail(row.entry_no)
     openExportDialog(detail)
   } finally {
     exportLoadingId.value = ''
@@ -143,7 +143,7 @@ async function onConfirmExportArchive(selectedKeys) {
       </div>
 
       <el-table :data="list" stripe border empty-text="暂无进场申请">
-        <el-table-column prop="entry_id" label="进场单号" width="110" />
+        <el-table-column prop="entry_no" label="进场单号" width="110" />
         <el-table-column label="类型" width="80">
           <template #default="{ row }">
             {{ ENTRY_TYPE_LABEL[row.entry_type] || '材料' }}
@@ -151,7 +151,7 @@ async function onConfirmExportArchive(selectedKeys) {
         </el-table-column>
         <el-table-column label="关联定样" width="100">
           <template #default="{ row }">{{
-            row.sample_application_id || row.sample_id || '—'
+            row.sample_application_id || '—'
           }}</template>
         </el-table-column>
         <el-table-column label="名称" min-width="120" show-overflow-tooltip>
@@ -184,7 +184,7 @@ async function onConfirmExportArchive(selectedKeys) {
             <el-button
               link
               type="primary"
-              @click="router.push(`/qm/mat/applications/detail?id=${row.entry_id}`)"
+              @click="router.push(`/qm/mat/applications/detail?id=${row.entry_no}`)"
             >
               详情
             </el-button>
@@ -192,7 +192,7 @@ async function onConfirmExportArchive(selectedKeys) {
               v-if="row.status === 'approved'"
               link
               type="primary"
-              :loading="exportLoadingId === row.entry_id || exportLoading"
+              :loading="exportLoadingId === row.entry_no || exportLoading"
               @click="onExportArchive(row)"
             >
               导出归档
