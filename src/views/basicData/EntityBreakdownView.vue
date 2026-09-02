@@ -21,6 +21,8 @@ import {
   filterEntityBreakdownTableTree,
   getLocationById,
   getLocationDepth,
+  inheritLocationSpecialties,
+  getLocationEffectiveSpecialties,
   listItemNodes,
   listLocations,
   MAX_LOCATION_DEPTH,
@@ -69,6 +71,7 @@ const locForm = reactive({
   parent_id: '',
   name: '',
   code: '',
+  specialties: [...WBS_SPECIALTY_DEFAULTS],
   sort_no: 0,
   status: 1,
 })
@@ -123,15 +126,46 @@ const parentOptions = computed(() => {
 
 const itemOptions = computed(() => listItemNodes(scopeProjectId.value))
 
+function isLocDescendantOf(candidateId, ancestorId) {
+  if (!candidateId || !ancestorId) return false
+  let cur = getLocationById(candidateId)
+  const guard = new Set()
+  while (cur?.parent_id && !guard.has(cur.id)) {
+    guard.add(cur.id)
+    if (cur.parent_id === ancestorId) return true
+    cur = getLocationById(cur.parent_id)
+  }
+  return false
+}
+
+/** 上级部位仅可选一、二级（三级部位不可再挂下级），编辑时排除自身及子孙 */
 const parentLocOptions = computed(() => {
   if (!locForm.wbs_node_id) return []
-  return listLocations(scopeProjectId.value, locForm.wbs_node_id).filter((r) => r.id !== locForm.id)
+  return listLocations(scopeProjectId.value, locForm.wbs_node_id).filter(
+    (r) =>
+      r.id !== locForm.id &&
+      getLocationDepth(r.id) < MAX_LOCATION_DEPTH &&
+      !isLocDescendantOf(r.id, locForm.id),
+  )
 })
 
-const locSpecialtyList = computed(() => {
-  const item = wbsNodes.find((n) => n.id === locForm.wbs_node_id)
-  return getEffectiveSpecialties(item)
-})
+function applyInheritedLocSpecialties() {
+  locForm.specialties = inheritLocationSpecialties({
+    wbs_node_id: locForm.wbs_node_id,
+    parent_id: locForm.parent_id,
+  })
+}
+
+function onLocWbsNodeChange() {
+  if (locForm.id) return
+  locForm.parent_id = ''
+  applyInheritedLocSpecialties()
+}
+
+function onLocParentChange() {
+  if (locForm.id) return
+  applyInheritedLocSpecialties()
+}
 
 const dialogTitle = computed(() => {
   if (formMode.value === 'loc') return locForm.id ? '编辑施工部位' : '新增施工部位'
@@ -278,6 +312,7 @@ function openCreateLocation(row) {
   }
   locForm.name = ''
   locForm.code = ''
+  applyInheritedLocSpecialties()
   locForm.sort_no = 0
   locForm.status = 1
   visible.value = true
@@ -294,6 +329,7 @@ function openEditLocation(row) {
     parent_id: loc.parent_id || '',
     name: loc.name,
     code: loc.code || '',
+    specialties: [...getLocationEffectiveSpecialties(loc)],
     sort_no: loc.sort_no || 0,
     status: loc.status === 0 ? 0 : 1,
   })
@@ -376,7 +412,11 @@ function submitLocation() {
   if (!locForm.wbs_node_id) {
     return ElMessage.warning('请选择归属分项')
   }
-  const r = upsertLocation({ ...locForm }, locForm.id)
+  const specialties = normalizeSpecialties(locForm.specialties)
+  if (specialties.length && !isValidWbsSpecialties(specialties)) {
+    return ElMessage.warning('请选择有效的专业')
+  }
+  const r = upsertLocation({ ...locForm, specialties }, locForm.id)
   if (!r.ok) return ElMessage.error(r.msg)
   ElMessage.success(locForm.id ? '部位已更新' : '部位已创建')
   visible.value = false
@@ -616,6 +656,7 @@ function addChildLabel(row) {
             filterable
             style="width: 100%"
             :disabled="!!locForm.id"
+            @change="onLocWbsNodeChange"
           >
             <el-option
               v-for="n in itemOptions"
@@ -633,6 +674,7 @@ function addChildLabel(row) {
             style="width: 100%"
             placeholder="空=挂在分项下"
             aria-label="上级部位"
+            @change="onLocParentChange"
           >
             <el-option
               v-for="n in parentLocOptions"
@@ -641,6 +683,7 @@ function addChildLabel(row) {
               :value="n.id"
             />
           </el-select>
+          <div class="field-hint">仅可选择一、二级部位，三级部位不支持再选择为上级</div>
         </el-form-item>
         <el-form-item label="部位名称" required>
           <el-input v-model="locForm.name" maxlength="80" />
@@ -649,19 +692,29 @@ function addChildLabel(row) {
           <el-input v-model="locForm.code" maxlength="40" />
         </el-form-item>
         <el-form-item label="专业">
-          <div v-if="locSpecialtyList.length" class="specialty-tags">
-            <el-tag
-              v-for="sp in locSpecialtyList"
-              :key="sp"
-              size="small"
-              effect="plain"
-              class="specialty-tag"
+          <el-select
+            v-model="locForm.specialties"
+            multiple
+            filterable
+            clearable
+            placeholder="请选择专业（可多选）"
+            class="specialty-select"
+            style="width: 100%"
+          >
+            <el-option-group
+              v-for="grp in WBS_SPECIALTY_GROUPS"
+              :key="grp.label"
+              :label="grp.label"
             >
-              {{ wbsSpecialtyLabel(sp) }}
-            </el-tag>
-          </div>
-          <span v-else class="muted-dash">—</span>
-          <div class="field-hint">继承所属分项专业，请在分项节点上维护</div>
+              <el-option
+                v-for="opt in grp.options"
+                :key="opt.value"
+                :label="opt.label"
+                :value="opt.value"
+              />
+            </el-option-group>
+          </el-select>
+          <div v-if="!locForm.id" class="field-hint">默认继承上级部位或所属分项专业，可删减或增补</div>
         </el-form-item>
         <el-form-item label="排序值">
           <el-input-number v-model="locForm.sort_no" :min="0" :max="9999" />

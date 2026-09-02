@@ -105,7 +105,7 @@ function goView(row) {
       <h1 class="page-title">节点档案清单</h1>
       <p class="page-tip">
         当前：{{ isHqSelected ? '请切换到项目' : scopeProjectLabel }}
-        · 左侧选择验收节点，右侧查看档案文档及填报状态；点「查看」新标签打开档案填报页
+        · 左侧选择验收节点，右侧查看档案文档及填报状态；点「查看」新标签打开档案管理页
       </p>
     </div>
 

@@ -378,16 +378,43 @@ function rebuildUnifiedTree() {
   return orgState.orgTree.map((n) => toTreeNode(n))
 }
 
-function ensureUnifiedOrgTree() {
+export function ensureUnifiedOrgTree() {
   if (!unifiedOrgTree.value.length) {
     unifiedOrgTree.value = rebuildUnifiedTree()
   }
+  return unifiedOrgTree.value
 }
 
 export const unifiedOrgTree = ref([])
 
 export function refreshOrgTree() {
   unifiedOrgTree.value = rebuildUnifiedTree()
+}
+
+/** 组织展示名（不含人数后缀）；查前确保树已初始化 */
+export function getOrgDisplayName(orgId) {
+  if (!orgId) return ''
+  ensureUnifiedOrgTree()
+  const node = findTreeNode(unifiedOrgTree.value, orgId)
+  if (!node) return ''
+  // 项目下属部门：审批人展示优先用项目名，贴近「姓名（项目-岗位）」
+  if (node.orgLevel === '部门') {
+    const raw = findRawNode(orgId)
+    if (raw?.parent?.orgLevel === '项目') {
+      return raw.parent.label || node.rawLabel || node.label || ''
+    }
+  }
+  return node.rawLabel || node.label || ''
+}
+
+/** 按岗位 id 查找名称（组织侧岗位表优先，兼容岗位管理台账） */
+export function findOrgPositionById(positionId) {
+  if (!positionId) return null
+  for (const list of Object.values(orgPositionsMap)) {
+    const hit = (list || []).find((item) => item.id === positionId)
+    if (hit) return hit
+  }
+  return null
 }
 
 export function getDefaultNodeId() {

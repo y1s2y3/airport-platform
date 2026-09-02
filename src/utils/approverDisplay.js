@@ -1,4 +1,4 @@
-import { findTreeNode, unifiedOrgTree } from '../mock/orgStructure'
+import { getOrgDisplayName, findOrgPositionById } from '../mock/orgStructure'
 import { getPosition } from '../mock/positions'
 
 /**
@@ -34,14 +34,12 @@ export function formatApproverCandidateLabel(candidate) {
 }
 
 export function resolveSysUserOrgName(orgId) {
-  if (!orgId) return ''
-  const node = findTreeNode(unifiedOrgTree.value, orgId)
-  return node?.label || node?.rawLabel || ''
+  return getOrgDisplayName(orgId)
 }
 
 export function resolveSysUserPostLabel(positionIds) {
   const labels = (positionIds || [])
-    .map((id) => getPosition(id)?.name)
+    .map((id) => findOrgPositionById(id)?.name || getPosition(id)?.name)
     .filter(Boolean)
   return labels.join('、')
 }

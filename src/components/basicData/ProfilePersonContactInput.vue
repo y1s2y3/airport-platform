@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { Plus, CircleClose } from '@element-plus/icons-vue'
 import { listSysUsers } from '../../mock/sysUsers'
-import { unifiedOrgTree, findTreeNode } from '../../mock/orgStructure'
+import { ensureUnifiedOrgTree, findTreeNode, unifiedOrgTree, findOrgPositionById } from '../../mock/orgStructure'
 import { getPosition } from '../../mock/positions'
 import { formatContact, parseContacts, parseOneContact } from '../../utils/contactValue'
 import { maskPhone } from '../../utils/mask'
@@ -44,13 +44,14 @@ const dialogPhoneVisibleIds = ref([])
 
 function getUserOrgPath(orgId) {
   if (!orgId) return '—'
+  ensureUnifiedOrgTree()
   const node = findTreeNode(unifiedOrgTree.value, orgId)
-  return node?.orgPath || '—'
+  return node?.orgPath || node?.rawLabel || '—'
 }
 
 function getUserPositionLabels(positionIds) {
   const labels = (positionIds || [])
-    .map((id) => getPosition(id)?.name)
+    .map((id) => findOrgPositionById(id)?.name || getPosition(id)?.name)
     .filter(Boolean)
   return labels.length ? labels.join('、') : '—'
 }

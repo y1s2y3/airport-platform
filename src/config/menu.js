@@ -184,7 +184,8 @@ export const menuTree = [
       {
         key: 'qm-archive-mgmt', label: '档案管理', levels: 'project',
         children: [
-          { key: 'qm-archive-fill', label: '档案填报', path: '/qm/inspect/archive-jump', name: 'QmArchiveJump', component: 'QmArchiveJumpView', levels: 'project', openInNewTab: true },
+          { key: 'qm-archive-fill', label: '档案管理', path: '/qm/inspect/archive-jump', name: 'QmArchiveJump', component: 'QmArchiveJumpView', levels: 'project', openInNewTab: true },
+          { key: 'qm-provincial-form', label: '省统表管理', path: '/qm/inspect/provincial-forms', name: 'QmProvincialForm', component: 'QmProvincialFormView', levels: 'project' },
           { key: 'qm-node-archive-list', label: '节点档案清单', path: '/qm/inspect/node-archive-list', name: 'QmNodeArchiveList', component: 'QmNodeArchiveListView', levels: 'project' },
         ],
       },
@@ -421,7 +422,7 @@ export const redirects = [
   { path: '/qm/inspect/plans/edit', redirect: '/qm/inspect/form-fill-deep' },
   { path: '/qm/inspect/plans/review', redirect: '/qm/inspect/form-fill-deep' },
   { path: '/qm/inspect/ledger', redirect: '/qm/inspect/dashboard' },
-  { path: '/qm/inspect/forms', redirect: '/qm/inspect/form-fill-deep' },
+  { path: '/qm/inspect/forms', redirect: '/qm/inspect/provincial-forms' },
   { path: '/qm/inspect/batch-types', redirect: '/qm/inspect/form-fill-deep' },
   { path: '/qm/inspect/unit-scheme', redirect: '/qm/inspect/form-fill-deep' },
   { path: '/qm/inspect/approver-config', redirect: '/qm/inspect/seal-user' },
@@ -570,6 +571,7 @@ export const viewLoaders = {
   QmDashboardView: () => import('../views/quality/QmDashboardView.vue'),
   QmSealUserConfigView: () => import('../views/quality/QmSealUserConfigView.vue'),
   QmArchiveJumpView: () => import('../views/quality/QmArchiveJumpView.vue'),
+  QmProvincialFormView: () => import('../views/quality/QmProvincialFormView.vue'),
   QmNodeArchiveListView: () => import('../views/quality/QmNodeArchiveListView.vue'),
 
   BrandLedgerView: () => import('../views/quality/brand/BrandLedgerView.vue'),

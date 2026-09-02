@@ -7,7 +7,7 @@
 export const APP_VERSION_BASE = '2.7.1'
 
 /** GitHub Pages 发布序号（从 0 开始；仓库内为「当前即将发布 / 下一版」序号） */
-export const APP_VERSION_PATCH = 6
+export const APP_VERSION_PATCH = 7
 
 export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
 
@@ -16,6 +16,15 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  * highlights 宜短句，便于页头问号弹窗快速阅读
  */
 export const VERSION_CHANGELOG = [
+  {
+    version: 'v2.7.1.7',
+    date: '2026-09-02',
+    highlights: [
+      '分包报审：修复审批人下拉「姓名（组织-岗位）」展示（组织树初始化与岗位解析）',
+      '实体工程 / 施工部位：专业可多选维护，新建时默认继承上级',
+      '质量管理：恢复「省统表管理」；档案入口文案统一为「档案管理」',
+    ],
+  },
   {
     version: 'v2.7.1.6',
     date: '2026-09-02',

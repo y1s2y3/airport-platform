@@ -11,6 +11,9 @@ import { listMaterialApps, listProcessApps } from './sample.js'
 import {
   formatSpecialtiesDisplay,
   getEffectiveSpecialties,
+  inheritSpecialtiesFromParent,
+  isValidWbsSpecialties,
+  normalizeSpecialties,
 } from '../constants/wbsSpecialty.js'
 import { entityBreakdownTreeTypeLabel } from '../constants/wbsEntityLabels.js'
 
@@ -23,6 +26,7 @@ import { entityBreakdownTreeTypeLabel } from '../constants/wbsEntityLabels.js'
  *  code: string
  *  sort_no: number
  *  status: 1|0
+ *  specialties?: string[]
  *  created_at: string
  *  updated_at: string
  * }>} */
@@ -514,6 +518,32 @@ export function getLocationById(id) {
   return row
 }
 
+/** 部位展示用专业：自身配置优先，否则继承上级部位或所属分项 */
+export function getLocationEffectiveSpecialties(loc) {
+  if (!loc) return []
+  const own = getEffectiveSpecialties(loc)
+  if (own.length) return own
+  if (loc.parent_id) {
+    const parent = getLocationById(loc.parent_id)
+    if (parent) return getLocationEffectiveSpecialties(parent)
+  }
+  const item = wbsNodes.find((n) => n.id === loc.wbs_node_id)
+  return getEffectiveSpecialties(item)
+}
+
+/** 新建/切换归属时默认继承：上级部位 → 所属分项 */
+export function inheritLocationSpecialties({ wbs_node_id, parent_id } = {}) {
+  if (parent_id) {
+    const parent = getLocationById(parent_id)
+    if (parent) {
+      const inherited = getLocationEffectiveSpecialties(parent)
+      if (inherited.length) return [...inherited]
+    }
+  }
+  const item = wbsNodes.find((n) => n.id === wbs_node_id)
+  return inheritSpecialtiesFromParent(item)
+}
+
 function collectRecordLocationIds(record) {
   const ids = new Set()
   if (!record) return ids
@@ -644,6 +674,10 @@ export function upsertLocation(payload, id = '') {
   const code = (payload.code || '').trim()
   const sort_no = Number(payload.sort_no) || 0
   const status = Number(payload.status) === 0 ? 0 : 1
+  const specialties = normalizeSpecialties(payload.specialties)
+  if (specialties.length && !isValidWbsSpecialties(specialties)) {
+    return { ok: false, msg: '请选择有效的专业' }
+  }
   const ts = nowStr()
 
   if (id) {
@@ -655,6 +689,7 @@ export function upsertLocation(payload, id = '') {
       parent_id,
       sort_no,
       status,
+      specialties,
       updated_at: ts,
     })
     return { ok: true, row: exist }
@@ -669,6 +704,7 @@ export function upsertLocation(payload, id = '') {
     code,
     sort_no,
     status,
+    specialties,
     del_status: 0,
     created_at: ts,
     updated_at: ts,
@@ -835,7 +871,7 @@ function mapLocNodeForManage(n) {
 /**
  * 实体工程分解（合并施工部位）树表数据
  * 列：节点名称、节点类型、编码、专业、完整路径、排序值
- * 部位专业继承所属分项
+ * 部位专业：自身配置优先，否则继承上级部位或所属分项
  */
 export function buildEntityBreakdownTableTree(projectId) {
   const entityTree = buildLocationManageEntityTree(projectId)
@@ -853,8 +889,7 @@ export function buildEntityBreakdownTableTree(projectId) {
 
     let specialties = []
     if (isLoc) {
-      const item = wbsNodes.find((w) => w.id === n.wbs_node_id)
-      specialties = getEffectiveSpecialties(item)
+      specialties = getLocationEffectiveSpecialties(locRaw)
     } else {
       specialties = getEffectiveSpecialties(wbsRaw)
     }

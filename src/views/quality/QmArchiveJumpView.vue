@@ -48,8 +48,8 @@ onMounted(() => {
 <template>
   <div class="qm-page page-card">
     <div class="page-header">
-      <div class="page-breadcrumb">档案管理 / 档案填报（外跳模拟）</div>
-      <h1 class="page-title">档案填报 · 外跳模拟</h1>
+      <div class="page-breadcrumb">档案管理 / 档案管理（外跳模拟）</div>
+      <h1 class="page-title">档案管理 · 外跳模拟</h1>
       <p class="page-tip">
         <template v-if="fromMenu">
           模拟外部档案系统入口（新标签打开）· 可从「节点档案清单」或验评「填报电子档案」携带节点进入
