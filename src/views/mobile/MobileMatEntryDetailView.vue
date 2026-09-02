@@ -350,35 +350,56 @@ function goBack() {
       <section
         v-if="entry.status === 'approved'"
         class="form-section"
-        :class="{ 'exit-section': entry.exited }"
+        :class="{ 'exit-section': entry.exit_status !== 'none' }"
       >
-        <div class="fs-title">退场信息</div>
-        <template v-if="entry.exited && entry.exit">
+        <div class="fs-title">
+          退场信息
+          <span v-if="entry.exit_status !== 'none'" class="exit-badge">{{
+            entry.exit_status_label
+          }}</span>
+        </div>
+        <template v-if="entry.exits?.length">
           <div class="form-row">
-            <span class="form-label">退场单号</span>
-            <span class="form-value">{{ entry.exit.exit_no || '—' }}</span>
+            <span class="form-label">进场数量</span>
+            <span class="form-value">{{ entry.quantity }}{{ entry.unit || '' }}</span>
           </div>
           <div class="form-row">
-            <span class="form-label">登记人</span>
-            <span class="form-value">{{ entry.exit.operator_name || '—' }}</span>
+            <span class="form-label">累计已退</span>
+            <span class="form-value">{{ entry.exit_qty_total }}{{ entry.unit || '' }}</span>
           </div>
           <div class="form-row">
-            <span class="form-label">退场数量</span>
-            <span class="form-value">
-              {{ entry.exit.exit_qty }}{{ entry.unit || '' }}
-            </span>
+            <span class="form-label">剩余可退</span>
+            <span class="form-value">{{ entry.remaining_qty }}{{ entry.unit || '' }}</span>
           </div>
-          <div class="form-row">
-            <span class="form-label">登记时间</span>
-            <span class="form-value">{{ entry.exit.exit_time || '—' }}</span>
-          </div>
-          <div class="form-row">
-            <span class="form-label">退场原因</span>
-            <span class="form-value">{{ entry.exit.reason || '—' }}</span>
-          </div>
-          <div class="form-row">
-            <span class="form-label">退场照片</span>
-            <span class="form-value">{{ entry.exit.photo_file || '未上传' }}</span>
+          <div
+            v-for="x in entry.exits"
+            :key="x.exit_no"
+            class="exit-record"
+          >
+            <div class="form-row">
+              <span class="form-label">退场单号</span>
+              <span class="form-value">{{ x.exit_no || '—' }}</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">退场数量</span>
+              <span class="form-value">{{ x.exit_qty }}{{ entry.unit || '' }}</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">登记人</span>
+              <span class="form-value">{{ x.operator_name || '—' }}</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">登记时间</span>
+              <span class="form-value">{{ x.exit_time || '—' }}</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">退场原因</span>
+              <span class="form-value">{{ x.reason || '—' }}</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">退场照片</span>
+              <span class="form-value">{{ x.photo_file || '未上传' }}</span>
+            </div>
           </div>
         </template>
         <div v-else class="muted exit-empty">尚未登记退场</div>
@@ -502,6 +523,17 @@ function goBack() {
 .exit-empty {
   padding: 4px 0 10px;
   font-size: 13px;
+}
+.exit-badge {
+  margin-left: 8px;
+  font-size: 12px;
+  font-weight: 400;
+  color: #e6a23c;
+}
+.exit-record {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #e5e6eb;
 }
 .unpack-row .bad {
   color: #f56c6c;

@@ -7,7 +7,7 @@
 export const APP_VERSION_BASE = '2.7.1'
 
 /** GitHub Pages 发布序号（从 0 开始；仓库内为「当前即将发布 / 下一版」序号） */
-export const APP_VERSION_PATCH = 5
+export const APP_VERSION_PATCH = 6
 
 export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
 
@@ -16,6 +16,15 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  * highlights 宜短句，便于页头问号弹窗快速阅读
  */
 export const VERSION_CHANGELOG = [
+  {
+    version: 'v2.7.1.6',
+    date: '2026-09-02',
+    highlights: [
+      '材料设备进场：同一进场单支持多次退场，累计退场数量不超过进场数量',
+      '退场状态区分未退场 / 部分退场 / 已退场；台账与详情展示累计已退与剩余可退',
+      'Web 与移动端退场登记、进场详情退场记录列表规则一致',
+    ],
+  },
   {
     version: 'v2.7.1.5',
     date: '2026-09-01',

@@ -47,7 +47,7 @@ watch(
   (id) => {
     if (!id) return
     const row = exitable.value.find((e) => e.entry_no === id)
-    if (row && !form.exit_qty) form.exit_qty = String(row.quantity || '')
+    if (row) form.exit_qty = String(row.remaining_qty || '')
   },
 )
 
@@ -167,7 +167,9 @@ function goBack() {
     <template v-if="mode === 'list'">
       <MobileMatSubNav />
       <div v-if="isHqSelected" class="tip-banner">请先在顶部切换到具体项目</div>
-      <div v-else class="tip-banner muted">当前：{{ scopeProjectLabel }} · 现场照片选填</div>
+      <div v-else class="tip-banner muted">
+        当前：{{ scopeProjectLabel }} · 可多次退场 · 累计不超过进场数量 · 现场照片选填
+      </div>
 
       <div class="list-body">
         <div v-if="!list.length" class="empty">暂无退场记录</div>
@@ -202,16 +204,18 @@ function goBack() {
           <div class="form-row">
             <span class="form-label">进场单<span class="required-mark">*</span></span>
             <select v-model="form.entry_no" class="form-input">
-              <option value="" disabled>请选择可退场进场单</option>
+              <option value="" disabled>请选择仍有剩余可退的进场单</option>
               <option v-for="e in exitable" :key="e.entry_no" :value="e.entry_no">
                 {{ e.entry_no }} ·
                 {{ e.entry_type === 'equipment' ? e.equipment_name || e.material_name : e.material_name }}
-                · 余量 {{ e.quantity }}{{ e.unit }}
+                · 剩余 {{ e.remaining_qty }}{{ e.unit }}
               </option>
             </select>
           </div>
           <div v-if="selected" class="hint-box">
-            品牌 {{ selected.brand_name || '—' }} · 供应商 {{ selected.supplier || '—' }}
+            品牌 {{ selected.brand_name || '—' }} · 供应商 {{ selected.supplier || '—' }} · 已退
+            {{ selected.exit_qty_total }}{{ selected.unit }} / 进场 {{ selected.quantity
+            }}{{ selected.unit }}
           </div>
           <div class="form-row">
             <span class="form-label">退场数量<span class="required-mark">*</span></span>
@@ -219,7 +223,9 @@ function goBack() {
               v-model="form.exit_qty"
               class="form-input"
               type="number"
-              :placeholder="selected ? `最多 ${selected.quantity}${selected.unit || ''}` : '数量'"
+              :placeholder="
+                selected ? `最多 ${selected.remaining_qty}${selected.unit || ''}` : '本次数量'
+              "
             />
           </div>
           <div class="form-row">
@@ -278,8 +284,21 @@ function goBack() {
             <span class="form-value">{{ detail.supplier || '—' }}</span>
           </div>
           <div class="form-row">
-            <span class="form-label">退场数量</span>
+            <span class="form-label">本次退场数量</span>
             <span class="form-value">{{ detail.exit_qty }}{{ detail.unit || '' }}</span>
+          </div>
+          <div class="form-row">
+            <span class="form-label">累计已退</span>
+            <span class="form-value">
+              {{ detail.exit_qty_total != null ? detail.exit_qty_total : '—'
+              }}{{ detail.unit || '' }}
+            </span>
+          </div>
+          <div class="form-row">
+            <span class="form-label">剩余可退</span>
+            <span class="form-value">
+              {{ detail.remaining_qty != null ? detail.remaining_qty : '—' }}{{ detail.unit || '' }}
+            </span>
           </div>
           <div class="form-row">
             <span class="form-label">退场原因</span>

@@ -226,7 +226,7 @@ const store = reactive({
       supervisor_approver_post_label: '总监理工程师',
       submit_time: '2026-07-15 10:20:00',
       finish_time: '2026-07-16 09:10:00',
-      exited: true,
+      exited: false,
       remark: '',
     },
     {
@@ -683,10 +683,19 @@ const store = reactive({
     {
       exit_no: 'EX-ME-001',
       entry_no: 'ME-001',
-      exit_qty: 50,
-      reason: '色差超标，退回供应商更换',
-      photo_file: '退场现场-真石漆.jpg',
+      exit_qty: 30,
+      reason: '色差超标，首批退回供应商更换',
+      photo_file: '退场现场-真石漆-1.jpg',
       exit_time: '2026-07-20 15:30:00',
+      operator_name: '施工-王工',
+    },
+    {
+      exit_no: 'EX-ME-008',
+      entry_no: 'ME-001',
+      exit_qty: 20,
+      reason: '色差复检仍不合格，二次退场',
+      photo_file: '退场现场-真石漆-2.jpg',
+      exit_time: '2026-07-22 10:00:00',
       operator_name: '施工-王工',
     },
     {
@@ -700,6 +709,7 @@ const store = reactive({
     },
   ],
   approvalSeq: 12,
+  exitSeq: 8,
 })
 
 /** 进场申请列表：默认项目补齐全部业务状态示例（审批中 / 已通过 / 已驳回） */
@@ -1032,6 +1042,65 @@ export function formatBatchNo(value) {
   return raw
 }
 
+/** 进场单关联退场记录（登记时间降序） */
+export function listExitsByEntry(entryNo) {
+  return store.exits
+    .filter((x) => x.entry_no === entryNo)
+    .slice()
+    .sort((a, b) => (a.exit_time < b.exit_time ? 1 : -1))
+}
+
+export function sumExitQty(entryNo) {
+  return listExitsByEntry(entryNo).reduce((s, x) => s + Number(x.exit_qty || 0), 0)
+}
+
+/** 退场展示态：未退场 / 部分退场 / 已退场 */
+export function getExitStatusMeta(entry) {
+  const qty = Number(entry?.quantity || 0)
+  const exit_qty_total = sumExitQty(entry?.entry_no)
+  const remaining_qty = Math.max(0, qty - exit_qty_total)
+  let exit_status = 'none'
+  let exit_status_label = '未退场'
+  if (exit_qty_total > 0 && remaining_qty > 0) {
+    exit_status = 'partial'
+    exit_status_label = '部分退场'
+  } else if (exit_qty_total > 0 && remaining_qty <= 0) {
+    exit_status = 'full'
+    exit_status_label = '已退场'
+  }
+  return {
+    exit_qty_total,
+    remaining_qty,
+    exit_status,
+    exit_status_label,
+    exited: exit_status === 'full',
+  }
+}
+
+function enrichEntryWithExits(e) {
+  const exits = listExitsByEntry(e.entry_no)
+  const latest = exits[0] || null
+  const meta = getExitStatusMeta(e)
+  return {
+    ...e,
+    ...meta,
+    exits,
+    exit: latest,
+    exit_qty: meta.exit_qty_total > 0 ? meta.exit_qty_total : null,
+    exit_time: latest?.exit_time || '',
+    reason: latest?.reason || '',
+    exit_operator: latest?.operator_name || '',
+    exit_photo: latest?.photo_file || '',
+    exit_no: latest?.exit_no || '',
+  }
+}
+
+function syncEntryExitFlag(entry) {
+  const meta = getExitStatusMeta(entry)
+  entry.exited = meta.exited
+  return meta
+}
+
 export function listEntries(
   projectId,
   { keyword = '', status = '', exited = '', entry_type = '' } = {},
@@ -1040,8 +1109,11 @@ export function listEntries(
   if (projectId) rows = rows.filter((e) => e.project_id === projectId)
   if (entry_type) rows = rows.filter((e) => e.entry_type === entry_type)
   if (status) rows = rows.filter((e) => e.status === status)
-  if (exited === '1') rows = rows.filter((e) => e.exited)
-  if (exited === '0') rows = rows.filter((e) => !e.exited)
+  if (exited === '1') rows = rows.filter((e) => getExitStatusMeta(e).exit_status === 'full')
+  if (exited === '0') rows = rows.filter((e) => getExitStatusMeta(e).exit_status === 'none')
+  if (exited === 'partial') {
+    rows = rows.filter((e) => getExitStatusMeta(e).exit_status === 'partial')
+  }
   const kw = keyword.trim().toLowerCase()
   if (kw) {
     rows = rows.filter((e) => {
@@ -1066,19 +1138,7 @@ export function listEntries(
     })
   }
   return rows
-    .map((e) => {
-      const exit = store.exits.find((x) => x.entry_no === e.entry_no) || null
-      return {
-        ...e,
-        exit,
-        exit_qty: exit?.exit_qty ?? e.exit_qty ?? null,
-        exit_time: exit?.exit_time ?? e.exit_time ?? '',
-        reason: exit?.reason ?? e.reason ?? '',
-        exit_operator: exit?.operator_name ?? e.exit_operator ?? '',
-        exit_photo: exit?.photo_file ?? e.exit_photo ?? '',
-        exit_no: exit?.exit_no ?? e.exit_no ?? '',
-      }
-    })
+    .map((e) => enrichEntryWithExits(e))
     .sort((a, b) => {
       if (a.submit_time !== b.submit_time) {
         return a.submit_time < b.submit_time ? 1 : -1
@@ -1098,14 +1158,15 @@ export function getEntryDetail(entryId) {
   const approvals = store.approvals
     .filter((a) => a.entry_no === entryId)
     .sort((a, b) => (a.time > b.time ? 1 : -1))
-  const exit = store.exits.find((x) => x.entry_no === entryId) || null
-  return { ...entry, approvals, exit, project_label: getProjectLabel(entry.project_id) }
+  const enriched = enrichEntryWithExits(entry)
+  return { ...enriched, approvals, project_label: getProjectLabel(entry.project_id) }
 }
 
 export function getDashboard(projectId, { entry_type = '' } = {}) {
   let rows = projectId ? store.entries.filter((e) => e.project_id === projectId) : [...store.entries]
   if (entry_type) rows = rows.filter((e) => e.entry_type === entry_type)
-  // 看板仅统计 PRD 状态 reviewing/approved/rejected
+  // 看板「退场」仅计完全退完（exited=true）；部分退场不计
+  const fullyExited = (e) => getExitStatusMeta(e).exited
   return {
     total_batches: rows.length,
     material_count: rows.filter((e) => e.entry_type === 'material').length,
@@ -1113,9 +1174,11 @@ export function getDashboard(projectId, { entry_type = '' } = {}) {
     in_approval_count: rows.filter((e) => e.status === 'reviewing').length,
     approved_count: rows.filter((e) => e.status === 'approved').length,
     rejected_count: rows.filter((e) => e.status === 'rejected').length,
-    exited_count: rows.filter((e) => e.exited).length,
-    material_exited_count: rows.filter((e) => e.entry_type === 'material' && e.exited).length,
-    equipment_exited_count: rows.filter((e) => e.entry_type === 'equipment' && e.exited).length,
+    exited_count: rows.filter((e) => fullyExited(e)).length,
+    material_exited_count: rows.filter((e) => e.entry_type === 'material' && fullyExited(e)).length,
+    equipment_exited_count: rows.filter(
+      (e) => e.entry_type === 'equipment' && fullyExited(e),
+    ).length,
   }
 }
 
@@ -1770,9 +1833,18 @@ export function supervisorApproveEntry(entryId, { action, opinion } = {}) {
 }
 
 export function listExitableEntries(projectId) {
-  return store.entries.filter(
-    (e) => e.project_id === projectId && e.status === 'approved' && !e.exited,
-  )
+  return store.entries
+    .filter((e) => {
+      if (e.project_id !== projectId || e.status !== 'approved') return false
+      return getExitStatusMeta(e).remaining_qty > 0
+    })
+    .map((e) => {
+      const meta = getExitStatusMeta(e)
+      return {
+        ...e,
+        ...meta,
+      }
+    })
 }
 
 export function listExits(projectId, { keyword = '' } = {}) {
@@ -1784,6 +1856,7 @@ export function listExits(projectId, { keyword = '' } = {}) {
     })
     .map((x) => {
       const e = store.entries.find((row) => row.entry_no === x.entry_no)
+      const meta = e ? getExitStatusMeta(e) : {}
       return {
         ...x,
         entry_type: e?.entry_type || 'material',
@@ -1797,6 +1870,8 @@ export function listExits(projectId, { keyword = '' } = {}) {
         use_part: e?.use_part || '',
         unit: e?.unit || '',
         quantity: e?.quantity ?? null,
+        remaining_qty: meta.remaining_qty,
+        exit_qty_total: meta.exit_qty_total,
         sample_application_id: e?.sample_application_id || '',
       }
     })
@@ -1819,6 +1894,7 @@ export function getExitDetail(exitId) {
   if (!x) return null
   const e = store.entries.find((row) => row.entry_no === x.entry_no)
   if (!e) return { ...x }
+  const meta = getExitStatusMeta(e)
   return {
     ...x,
     entry_type: e.entry_type || 'material',
@@ -1832,6 +1908,8 @@ export function getExitDetail(exitId) {
     use_part: e.use_part || '',
     unit: e.unit,
     quantity: e.quantity,
+    remaining_qty: meta.remaining_qty,
+    exit_qty_total: meta.exit_qty_total,
     sample_application_id: e.sample_application_id || '',
     material_spec: e.material_spec || e.model || '',
   }
@@ -1841,15 +1919,22 @@ export function registerExit(payload) {
   const entry = store.entries.find((e) => e.entry_no === payload.entry_no)
   if (!entry) return { ok: false, msg: '进场单不存在' }
   if (entry.status !== 'approved') return { ok: false, msg: '仅已通过进场单可退场' }
-  if (entry.exited) return { ok: false, msg: '该进场单已退场' }
   if (!payload.reason?.trim()) return { ok: false, msg: '请填写退场原因' }
   const exit_qty = Number(payload.exit_qty)
   if (!exit_qty || exit_qty <= 0) return { ok: false, msg: '请填写有效退场数量' }
-  if (exit_qty > entry.quantity) return { ok: false, msg: '退场数量不可大于进场数量' }
+  const meta = getExitStatusMeta(entry)
+  if (meta.remaining_qty <= 0) return { ok: false, msg: '该进场单已全部退场' }
+  if (exit_qty > meta.remaining_qty) {
+    return {
+      ok: false,
+      msg: `退场数量不可大于剩余可退数量（${meta.remaining_qty}${entry.unit || ''}）`,
+    }
+  }
 
+  store.exitSeq = (store.exitSeq || 8) + 1
   const operator_name = payload.operator_name || payload.operator || '当前用户'
   const row = {
-    exit_no: `EX-${entry.entry_no}`,
+    exit_no: `EX-ME-${String(store.exitSeq).padStart(3, '0')}`,
     entry_no: entry.entry_no,
     exit_qty,
     reason: payload.reason.trim(),
@@ -1858,14 +1943,14 @@ export function registerExit(payload) {
     operator_name,
   }
   store.exits.unshift(row)
-  entry.exited = true
+  const after = syncEntryExitFlag(entry)
   entry.exit_no = row.exit_no
-  entry.exit_qty = row.exit_qty
+  entry.exit_qty = after.exit_qty_total
   entry.exit_time = row.exit_time
   entry.reason = row.reason
   entry.exit_operator = row.operator_name
   entry.exit_photo = row.photo_file
-  return { ok: true, data: row }
+  return { ok: true, data: { ...row, remaining_qty: after.remaining_qty, exited: after.exited } }
 }
 
 export function listSelectableForInspect(
@@ -1876,7 +1961,11 @@ export function listSelectableForInspect(
   const part = String(usePart || '').trim().toLowerCase()
   const locId = String(locationId || '').trim()
   return store.entries
-    .filter((e) => e.project_id === projectId && e.status === 'approved' && !e.exited)
+    .filter((e) => {
+      if (e.project_id !== projectId || e.status !== 'approved') return false
+      // 仅完全退完不可选；部分退场仍可选
+      return getExitStatusMeta(e).remaining_qty > 0
+    })
     .filter((e) => {
       if (locId || part) {
         const ids = Array.isArray(e.location_ids) ? e.location_ids.map(String) : []

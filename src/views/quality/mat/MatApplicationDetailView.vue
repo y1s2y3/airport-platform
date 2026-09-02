@@ -243,7 +243,9 @@ function actionTagType(action) {
       <div class="page-breadcrumb">材料设备进场 / 进场详情</div>
       <div class="title-row">
         <h1 class="page-title">进场详情 {{ detail?.entry_no || '' }}</h1>
-        <el-tag v-if="detail?.exited" type="warning" effect="plain">已退场</el-tag>
+        <el-tag v-if="detail?.exit_status_label && detail.exit_status !== 'none'" type="warning" effect="plain">
+          {{ detail.exit_status_label }}
+        </el-tag>
         <el-button
           v-if="canExportArchive"
           type="primary"
@@ -295,8 +297,18 @@ function actionTagType(action) {
           v-if="detail.status === 'approved'"
           label="退场状态"
         >
-          <el-tag size="small" :type="detail.exited ? 'warning' : 'info'" effect="plain">
-            {{ detail.exited ? '已退场' : '未退场' }}
+          <el-tag
+            size="small"
+            :type="
+              detail.exit_status === 'full'
+                ? 'warning'
+                : detail.exit_status === 'partial'
+                  ? ''
+                  : 'info'
+            "
+            effect="plain"
+          >
+            {{ detail.exit_status_label || '未退场' }}
           </el-tag>
         </el-descriptions-item>
       </el-descriptions>
@@ -401,32 +413,42 @@ function actionTagType(action) {
         v-if="detail.status === 'approved'"
         shadow="never"
         class="mb"
-        :class="{ 'exit-card': detail.exited }"
+        :class="{ 'exit-card': detail.exit_status !== 'none' }"
       >
         <template #header>
           <div class="title-row">
             <span class="exit-card-title">退场信息</span>
-            <el-tag v-if="detail.exited" size="small" type="warning">已登记退场</el-tag>
+            <el-tag v-if="detail.exit_status !== 'none'" size="small" type="warning">
+              {{ detail.exit_status_label }}
+            </el-tag>
           </div>
         </template>
-        <el-empty
-          v-if="!detail.exited || !detail.exit"
-          description="尚未登记退场"
-          :image-size="56"
-        />
-        <el-descriptions v-else :column="2" border class="info-desc">
-          <el-descriptions-item label="退场单号">{{ detail.exit.exit_no }}</el-descriptions-item>
-          <el-descriptions-item label="登记人">{{ detail.exit.operator_name || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="退场数量">
-            {{ detail.exit.exit_qty }}{{ detail.unit }}
-            <span class="muted">（进场 {{ detail.quantity }}{{ detail.unit }}）</span>
-          </el-descriptions-item>
-          <el-descriptions-item label="登记时间">{{ detail.exit.exit_time }}</el-descriptions-item>
-          <el-descriptions-item label="退场原因" :span="2">{{ detail.exit.reason }}</el-descriptions-item>
-          <el-descriptions-item label="退场照片" :span="2">
-            {{ detail.exit.photo_file || '未上传' }}
-          </el-descriptions-item>
-        </el-descriptions>
+        <template v-if="detail.exits?.length">
+          <el-descriptions :column="2" border class="info-desc mb">
+            <el-descriptions-item label="进场数量">
+              {{ detail.quantity }}{{ detail.unit }}
+            </el-descriptions-item>
+            <el-descriptions-item label="累计已退">
+              {{ detail.exit_qty_total }}{{ detail.unit }}
+            </el-descriptions-item>
+            <el-descriptions-item label="剩余可退" :span="2">
+              {{ detail.remaining_qty }}{{ detail.unit }}
+            </el-descriptions-item>
+          </el-descriptions>
+          <el-table :data="detail.exits" stripe border size="small" empty-text="暂无退场记录">
+            <el-table-column prop="exit_no" label="退场单号" width="120" />
+            <el-table-column label="退场数量" width="100">
+              <template #default="{ row }">{{ row.exit_qty }}{{ detail.unit }}</template>
+            </el-table-column>
+            <el-table-column prop="reason" label="退场原因" min-width="160" show-overflow-tooltip />
+            <el-table-column prop="operator_name" label="登记人" width="100" />
+            <el-table-column prop="exit_time" label="登记时间" width="170" />
+            <el-table-column label="现场照片" min-width="120" show-overflow-tooltip>
+              <template #default="{ row }">{{ row.photo_file || '未上传' }}</template>
+            </el-table-column>
+          </el-table>
+        </template>
+        <el-empty v-else description="尚未登记退场" :image-size="56" />
       </el-card>
 
       <section class="flow-section">

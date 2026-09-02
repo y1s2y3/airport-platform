@@ -81,8 +81,8 @@ function clearPhoto() {
 }
 
 function onEntryChange() {
-  if (selected.value && !form.exit_qty) {
-    form.exit_qty = String(selected.value.quantity || '')
+  if (selected.value) {
+    form.exit_qty = String(selected.value.remaining_qty || '')
   }
 }
 
@@ -114,7 +114,8 @@ function onSubmit() {
       <div class="page-breadcrumb">材料设备进场 / 退场登记</div>
       <h1 class="page-title">退场登记</h1>
       <p class="page-tip">
-        已通过且未退场的进场单（材料/设备）可登记 · 登记即生效，无需审批 · 现场照片选填
+        已通过且仍有剩余可退数量的进场单（材料/设备）可多次登记退场 · 累计退场数量不得超过进场数量 ·
+        登记即生效，无需审批 · 现场照片选填
       </p>
     </div>
 
@@ -177,15 +178,15 @@ function onSubmit() {
             v-model="form.entry_no"
             filterable
             clearable
-            placeholder="选择已通过且未退场的进场单"
+            placeholder="选择仍有剩余可退数量的进场单"
             style="width: 100%"
-            aria-label="选择已通过且未退场的进场单"
+            aria-label="选择仍有剩余可退数量的进场单"
             @change="onEntryChange"
           >
             <el-option
               v-for="e in exitable"
               :key="e.entry_no"
-              :label="`${e.entry_no} · ${e.entry_type === 'equipment' ? e.equipment_name || e.material_name : e.material_name} · ${e.quantity}${e.unit}`"
+              :label="`${e.entry_no} · ${e.entry_type === 'equipment' ? e.equipment_name || e.material_name : e.material_name} · 剩余 ${e.remaining_qty}${e.unit}（进场 ${e.quantity}${e.unit}）`"
               :value="e.entry_no"
             />
           </el-select>
@@ -196,15 +197,22 @@ function onSubmit() {
         <el-form-item v-if="selected" label="施工部位">
           <span>{{ selected.use_part || '—' }}</span>
         </el-form-item>
+        <el-form-item v-if="selected" label="退场进度">
+          <span>
+            已退 {{ selected.exit_qty_total }}{{ selected.unit }} / 进场
+            {{ selected.quantity }}{{ selected.unit }} · 剩余可退
+            {{ selected.remaining_qty }}{{ selected.unit }}
+          </span>
+        </el-form-item>
         <el-form-item label="退场数量" required>
           <el-input
             v-model="form.exit_qty"
-            placeholder="数量"
+            placeholder="本次退场数量"
             style="width: 160px"
             aria-label="退场数量"
           />
           <span v-if="selected" class="muted" style="margin-left: 8px">
-            进场 {{ selected.quantity }}{{ selected.unit }}
+            不得超过剩余 {{ selected.remaining_qty }}{{ selected.unit }}
           </span>
         </el-form-item>
         <el-form-item label="退场原因" required>
@@ -259,8 +267,14 @@ function onSubmit() {
             <template v-if="detail.quantity != null">{{ detail.quantity }}{{ detail.unit }}</template>
             <template v-else>—</template>
           </el-descriptions-item>
-          <el-descriptions-item label="退场数量">
+          <el-descriptions-item label="本次退场数量">
             {{ detail.exit_qty }}{{ detail.unit || '' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="累计已退">
+            {{ detail.exit_qty_total != null ? detail.exit_qty_total : '—' }}{{ detail.unit || '' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="剩余可退">
+            {{ detail.remaining_qty != null ? detail.remaining_qty : '—' }}{{ detail.unit || '' }}
           </el-descriptions-item>
           <el-descriptions-item label="登记人">{{ detail.operator_name || '—' }}</el-descriptions-item>
           <el-descriptions-item label="登记时间">{{ detail.exit_time }}</el-descriptions-item>
