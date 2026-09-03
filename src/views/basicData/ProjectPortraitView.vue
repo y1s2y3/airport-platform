@@ -139,7 +139,11 @@ function handleSave() {
     </div>
 
     <div v-if="model" class="portrait-body">
-      <ProjectSafetyProfileForm :model="model" :readonly="!editing" />
+      <ProjectSafetyProfileForm
+        :model="model"
+        :readonly="!editing"
+        lock-belong-org-and-code
+      />
     </div>
   </div>
 </template>

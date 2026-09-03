@@ -48,6 +48,13 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  /**
+   * 锁定所属组织、项目编码（编辑已有项目时不可改；新增时可填）
+   */
+  lockBelongOrgAndCode: {
+    type: Boolean,
+    default: false,
+  },
 })
 
 function mapOrgTreeSelectNodes(nodes) {
@@ -77,6 +84,9 @@ const belongOrgDisplay = computed(() => {
 })
 
 const canEditHidden = computed(() => props.allowHiddenEdit && !props.readonly)
+
+/** 所属组织 / 项目编码：仅新增可填；编辑态锁定 */
+const canEditOrgAndCode = computed(() => !props.readonly && !props.lockBelongOrgAndCode)
 
 function getSubQual(block, label) {
   if (!block.qualifications) block.qualifications = []
@@ -328,10 +338,10 @@ function openEquipmentRow(row) {
 
         <tr>
           <td colspan="2" class="cell-label">
-            所属组织<span v-if="!readonly" class="req-star">*</span>
+            所属组织<span v-if="canEditOrgAndCode" class="req-star">*</span>
           </td>
           <td colspan="2" class="cell-value">
-            <template v-if="readonly">
+            <template v-if="!canEditOrgAndCode">
               <span class="inline-readonly">{{ belongOrgDisplay }}</span>
             </template>
             <el-tree-select
@@ -350,10 +360,10 @@ function openEquipmentRow(row) {
             />
           </td>
           <td colspan="2" class="cell-label">
-            项目编码<span v-if="!readonly" class="req-star">*</span>
+            项目编码<span v-if="canEditOrgAndCode" class="req-star">*</span>
           </td>
           <td colspan="2" class="cell-value">
-            <template v-if="readonly">
+            <template v-if="!canEditOrgAndCode">
               <span class="inline-readonly">{{ model.projectEncode || '—' }}</span>
             </template>
             <el-input
