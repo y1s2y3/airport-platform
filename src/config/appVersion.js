@@ -17,6 +17,17 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.7.1.8',
+    date: '2026-09-03',
+    highlights: [
+      '项目画像：所属组织/项目编码/是否隐藏必填；组织改树选；是否隐藏改单选',
+      '材料设备进场：台账按明细入库；申请详情不展示退场；台账详情改为进退场详情（无审批/无导出）',
+      '材料设备台账去掉导出归档；进退场详情补齐监理审批人与办结时间',
+      '进场申报品牌台账下拉仅展示品牌·厂家，不展示材料',
+      '个人中心品牌报审：申请人仅展示姓名',
+    ],
+  },
+  {
     version: 'v2.7.1.7',
     date: '2026-09-02',
     highlights: [

@@ -18,6 +18,7 @@ import {
   listMatSupervisorApprovers,
   formatMatSupervisorApproverLabel,
   parseBatchSeq,
+  searchEntryBrandGroups,
   searchEntryBrands,
   submitEntry,
 } from '../../mock/mat.js'
@@ -206,7 +207,7 @@ const samples = computed(() =>
 
 const brandOptions = computed(() => {
   if (!scopeProjectId.value) return []
-  return searchEntryBrands('', scopeProjectId.value, {
+  return searchEntryBrandGroups('', scopeProjectId.value, {
     materialType: entryType.value === 'equipment' ? 'equipment' : 'material',
   })
 })
@@ -387,19 +388,10 @@ watch(
     if (!hit) return
     form.brand_name = hit.brand_name
     form.manufacturer = hit.manufacturer
+    // 材料/设备名称在明细行选择，不随品牌台账带出
     if (entryType.value === 'material') {
-      if (hit.material_name) {
-        entryLines.value.forEach((row, idx) => {
-          if (idx === 0 || !row.material_name) row.material_name = hit.material_name
-        })
-      }
       pruneLineMaterials()
     } else {
-      if (hit.material_name) {
-        equipmentLines.value.forEach((row, idx) => {
-          if (idx === 0 || !row.equipment_name) row.equipment_name = hit.material_name
-        })
-      }
       pruneEquipmentNames()
     }
   },
@@ -842,9 +834,9 @@ function goBack() {
         <div class="form-row">
           <span class="form-label">品牌台账<span class="required-mark">*</span></span>
           <select v-model="form.ledger_id" class="form-input">
-            <option value="" disabled>请选择品牌·厂家·材料</option>
+            <option value="" disabled>请选择品牌·厂家</option>
             <option v-for="b in brandOptions" :key="b.ledger_id" :value="b.ledger_id">
-              {{ b.label || `${b.brand_name} · ${b.material_name}` }}
+              {{ b.label || `${b.brand_name} · ${b.manufacturer}` }}
             </option>
           </select>
         </div>

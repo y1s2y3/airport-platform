@@ -17,6 +17,7 @@ import {
   listMatSupervisorApprovers,
   formatMatSupervisorApproverLabel,
   parseBatchSeq,
+  searchEntryBrandGroups,
   searchEntryBrands,
   submitEntry,
 } from '../../../mock/mat.js'
@@ -193,10 +194,10 @@ const samples = computed(() =>
 const ledgerOptions = computed(() => {
   if (!scopeProjectId.value) return []
   const materialType = entryType.value === 'equipment' ? 'equipment' : 'material'
-  const list = searchEntryBrands(brandKeyword.value, scopeProjectId.value, { materialType })
+  const list = searchEntryBrandGroups(brandKeyword.value, scopeProjectId.value, { materialType })
   if (form.ledger_id && !list.some((b) => b.ledger_id === form.ledger_id)) {
     const cur =
-      searchEntryBrands('', scopeProjectId.value, { materialType }).find(
+      searchEntryBrandGroups('', scopeProjectId.value, { materialType }).find(
         (b) => b.ledger_id === form.ledger_id,
       ) ||
       (form.brand_name && form.manufacturer
@@ -204,8 +205,7 @@ const ledgerOptions = computed(() => {
             ledger_id: form.ledger_id,
             brand_name: form.brand_name,
             manufacturer: form.manufacturer,
-            material_name: form.material_name || form.equipment_name || '',
-            label: `${form.brand_name} · ${form.manufacturer} · ${form.material_name || form.equipment_name || ''}`,
+            label: `${form.brand_name} · ${form.manufacturer}`,
           }
         : null)
     if (cur) list.unshift(cur)
@@ -280,23 +280,16 @@ function onLedgerChange(id) {
   const materialType = entryType.value === 'equipment' ? 'equipment' : 'material'
   const hit =
     ledgerOptions.value.find((b) => b.ledger_id === id) ||
-    searchEntryBrands('', scopeProjectId.value, { materialType }).find((b) => b.ledger_id === id)
+    searchEntryBrandGroups('', scopeProjectId.value, { materialType }).find(
+      (b) => b.ledger_id === id,
+    )
   if (!hit) return
   form.brand_name = hit.brand_name
   form.manufacturer = hit.manufacturer
+  // 材料/设备名称在明细行选择，不随品牌台账带出
   if (entryType.value === 'material') {
-    if (hit.material_name) {
-      entryLines.value.forEach((row, idx) => {
-        if (idx === 0 || !row.material_name) row.material_name = hit.material_name
-      })
-    }
     pruneLineMaterials()
   } else {
-    if (hit.material_name) {
-      equipmentLines.value.forEach((row, idx) => {
-        if (idx === 0 || !row.equipment_name) row.equipment_name = hit.material_name
-      })
-    }
     pruneLineEquipments()
   }
 }
@@ -822,11 +815,7 @@ function onSubmit() {
                 remote
                 :remote-method="(q) => (brandKeyword = q)"
                 clearable
-                :placeholder="
-                  entryType === 'equipment'
-                    ? '搜索：品牌 / 厂家 / 设备'
-                    : '搜索：品牌 / 厂家 / 材料'
-                "
+                :placeholder="'搜索：品牌 / 厂家'"
                 style="width: 100%"
                 :disabled="brandLockedFromSample"
               >
@@ -838,7 +827,7 @@ function onSubmit() {
                 />
               </el-select>
               <p v-if="brandLockedFromSample" class="field-hint">已选定样，品牌台账只读带出</p>
-              <p v-else class="field-hint">从本项目品牌台账下拉选择（品牌·厂家·材料/设备）</p>
+              <p v-else class="field-hint">从本项目品牌台账下拉选择（品牌·厂家）；材料/设备在明细中选择</p>
             </el-form-item>
           </el-col>
           <el-col :span="12">

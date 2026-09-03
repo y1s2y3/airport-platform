@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { Download, Clock } from '@element-plus/icons-vue'
 import {
   getEntryDetail,
+  getLedgerLineDetail,
   ENTRY_TYPE_LABEL,
   statusLabel,
   statusTagType,
@@ -19,13 +20,27 @@ import PersonalCenterReadonlyHint from '../../../components/PersonalCenterReadon
 const route = useRoute()
 const router = useRouter()
 
+const isLedgerMode = computed(() => String(route.query.from || '') === 'ledger')
+const lineIndex = computed(() => {
+  const n = Number(route.query.line)
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0
+})
+
 const detail = computed(() => {
   const id = String(route.query.id || '')
-  return id ? getEntryDetail(id) : null
+  if (!id) return null
+  if (isLedgerMode.value) return getLedgerLineDetail(id, lineIndex.value)
+  return getEntryDetail(id)
+})
+
+const pageTitle = computed(() => {
+  const no = detail.value?.entry_no || ''
+  if (isLedgerMode.value) return `材料设备进退场详情 ${no}`.trim()
+  return `进场详情 ${no}`.trim()
 })
 
 const showReadonlyHint = computed(
-  () => detail.value && detail.value.status === 'reviewing',
+  () => !isLedgerMode.value && detail.value && detail.value.status === 'reviewing',
 )
 
 function supervisorApproverDisplay(row) {
@@ -39,11 +54,13 @@ function supervisorApproverDisplay(row) {
   return '—'
 }
 
-const canExportArchive = computed(() => detail.value?.status === 'approved')
+const canExportArchive = computed(
+  () => !isLedgerMode.value && detail.value?.status === 'approved',
+)
 const { dialogVisible, exportLoading, openExportDialog, confirmExport } = useMatArchiveExport()
 
 function onExportArchive() {
-  if (!detail.value || exportLoading.value) return
+  if (!detail.value || exportLoading.value || isLedgerMode.value) return
   openExportDialog(detail.value)
 }
 
@@ -145,7 +162,7 @@ const lastSupervisorRecord = computed(() => {
 /** 顶部步骤条：施工提交 → 监理审批（对齐品牌报审展示） */
 const processSteps = computed(() => {
   const d = detail.value
-  if (!d) return []
+  if (!d || isLedgerMode.value) return []
   const last = lastSupervisorRecord.value
 
   function supervisorStep() {
@@ -166,7 +183,7 @@ const ACTION_LABEL = { submit: '提交', agree: '通过', reject: '驳回' }
 /** 时间线：提交 + 已办审批 + 当前待办（对齐品牌报审） */
 const approvalTimeline = computed(() => {
   const d = detail.value
-  if (!d) return []
+  if (!d || isLedgerMode.value) return []
   const records = d.approvals || []
   const submitRec = records.find((r) => r.action === 'submit' || r.node === 'submit' || r.node === 'applicant')
   const steps = []
@@ -240,10 +257,17 @@ function actionTagType(action) {
 <template>
   <div class="qm-page page-card">
     <div class="page-header">
-      <div class="page-breadcrumb">材料设备进场 / 进场详情</div>
+      <div class="page-breadcrumb">
+        材料设备进场 /
+        {{ isLedgerMode ? '材料设备进退场详情' : '进场详情' }}
+      </div>
       <div class="title-row">
-        <h1 class="page-title">进场详情 {{ detail?.entry_no || '' }}</h1>
-        <el-tag v-if="detail?.exit_status_label && detail.exit_status !== 'none'" type="warning" effect="plain">
+        <h1 class="page-title">{{ pageTitle }}</h1>
+        <el-tag
+          v-if="isLedgerMode && detail?.exit_status_label && detail.exit_status !== 'none'"
+          type="warning"
+          effect="plain"
+        >
           {{ detail.exit_status_label }}
         </el-tag>
         <el-button
@@ -269,7 +293,7 @@ function actionTagType(action) {
         <el-descriptions-item label="进场类型">
           {{ ENTRY_TYPE_LABEL[detail.entry_type] || '材料' }}
         </el-descriptions-item>
-        <el-descriptions-item label="审批状态">
+        <el-descriptions-item v-if="!isLedgerMode" label="审批状态">
           <el-tag size="small" :type="statusTagType(detail.status)">
             {{ statusLabel(detail.status) }}
           </el-tag>
@@ -292,31 +316,17 @@ function actionTagType(action) {
           {{ supervisorApproverDisplay(detail) }}
         </el-descriptions-item>
         <el-descriptions-item label="提交时间">{{ detail.submit_time }}</el-descriptions-item>
-        <el-descriptions-item label="办结时间">{{ detail.finish_time || '—' }}</el-descriptions-item>
-        <el-descriptions-item
-          v-if="detail.status === 'approved'"
-          label="退场状态"
-        >
-          <el-tag
-            size="small"
-            :type="
-              detail.exit_status === 'full'
-                ? 'warning'
-                : detail.exit_status === 'partial'
-                  ? ''
-                  : 'info'
-            "
-            effect="plain"
-          >
-            {{ detail.exit_status_label || '未退场' }}
-          </el-tag>
+        <el-descriptions-item label="办结时间">
+          {{ detail.finish_time || '—' }}
         </el-descriptions-item>
       </el-descriptions>
 
       <template v-if="detail.entry_type !== 'equipment'">
-        <h3 class="section-title">材料进场明细</h3>
+        <h3 class="section-title">
+          {{ isLedgerMode ? '材料进场记录' : '材料进场明细' }}
+        </h3>
         <div v-for="(row, idx) in lineItems" :key="`${row.material_name}-${idx}`" class="line-card mb">
-          <div class="line-card-title">材料 {{ idx + 1 }}</div>
+          <div v-if="!isLedgerMode" class="line-card-title">材料 {{ idx + 1 }}</div>
           <el-descriptions :column="2" border class="info-desc">
             <el-descriptions-item label="材料名称">{{ row.material_name || '—' }}</el-descriptions-item>
             <el-descriptions-item label="规格型号">{{ row.material_spec || '—' }}</el-descriptions-item>
@@ -352,13 +362,15 @@ function actionTagType(action) {
       </template>
 
       <template v-if="detail.entry_type === 'equipment'">
-        <h3 class="section-title">设备进场明细</h3>
+        <h3 class="section-title">
+          {{ isLedgerMode ? '设备进场记录' : '设备进场明细' }}
+        </h3>
         <div
           v-for="(row, idx) in lineItems"
           :key="`${row.equipment_name}-${idx}`"
           class="line-card mb"
         >
-          <div class="line-card-title">设备 {{ idx + 1 }}</div>
+          <div v-if="!isLedgerMode" class="line-card-title">设备 {{ idx + 1 }}</div>
           <el-descriptions :column="2" border class="info-desc">
             <el-descriptions-item label="设备名称">{{ row.equipment_name || '—' }}</el-descriptions-item>
             <el-descriptions-item label="规格型号">{{ row.model || '—' }}</el-descriptions-item>
@@ -410,14 +422,14 @@ function actionTagType(action) {
       </template>
 
       <el-card
-        v-if="detail.status === 'approved'"
+        v-if="isLedgerMode"
         shadow="never"
         class="mb"
         :class="{ 'exit-card': detail.exit_status !== 'none' }"
       >
         <template #header>
           <div class="title-row">
-            <span class="exit-card-title">退场信息</span>
+            <span class="exit-card-title">退场记录</span>
             <el-tag v-if="detail.exit_status !== 'none'" size="small" type="warning">
               {{ detail.exit_status_label }}
             </el-tag>
@@ -435,7 +447,13 @@ function actionTagType(action) {
               {{ detail.remaining_qty }}{{ detail.unit }}
             </el-descriptions-item>
           </el-descriptions>
-          <el-table :data="detail.exits" stripe border size="small" empty-text="暂无退场记录">
+          <el-table
+            class="exit-records-table"
+            :data="detail.exits"
+            stripe
+            border
+            empty-text="暂无退场记录"
+          >
             <el-table-column prop="exit_no" label="退场单号" width="120" />
             <el-table-column label="退场数量" width="100">
               <template #default="{ row }">{{ row.exit_qty }}{{ detail.unit }}</template>
@@ -451,7 +469,7 @@ function actionTagType(action) {
         <el-empty v-else description="尚未登记退场" :image-size="56" />
       </el-card>
 
-      <section class="flow-section">
+      <section v-if="!isLedgerMode" class="flow-section">
         <header class="flow-section-head">
           <el-icon class="flow-section-icon"><Clock /></el-icon>
           <h3 class="section-title flow-section-title">审批过程</h3>
@@ -500,6 +518,7 @@ function actionTagType(action) {
     </template>
 
     <MatArchiveExportDialog
+      v-if="!isLedgerMode"
       v-model="dialogVisible"
       :loading="exportLoading"
       @confirm="onConfirmExportArchive"
@@ -532,6 +551,28 @@ function actionTagType(action) {
 
 .exit-card :deep(.el-card__header) {
   background: #fdf6ec;
+}
+
+.exit-records-table {
+  font-size: 14px;
+}
+
+.exit-records-table :deep(.el-table__header th) {
+  font-size: 14px;
+  font-weight: 600;
+  color: #606266;
+  background: #fafbfc;
+}
+
+.exit-records-table :deep(.el-table__body td) {
+  font-size: 14px;
+  color: #303133;
+  line-height: 1.5;
+}
+
+.exit-records-table :deep(.el-table__empty-text) {
+  font-size: 14px;
+  color: #909399;
 }
 
 .muted {

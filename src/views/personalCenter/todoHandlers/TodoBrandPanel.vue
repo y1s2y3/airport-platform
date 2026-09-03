@@ -64,7 +64,6 @@ const materialTypeText = computed(() => {
       </el-descriptions-item>
       <el-descriptions-item label="申请人">
         {{ app?.applicant_name || todo.applicant || '—' }}
-        <span v-if="todo.dept" class="meta-sep">· {{ todo.dept }}</span>
       </el-descriptions-item>
       <el-descriptions-item label="提交时间">
         {{ app?.submit_time || todo.applyTime || '—' }}

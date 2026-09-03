@@ -2,12 +2,10 @@
 import './mat-page.css'
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Search, Refresh, Download, ArrowLeft } from '@element-plus/icons-vue'
+import { Search, Refresh, ArrowLeft } from '@element-plus/icons-vue'
 import { useQmProjectScope } from '../../../composables/useCurrentProject'
 import { COC_PROJECT_OPTIONS } from '../../../config/projectOptions'
-import { listLedger, ENTRY_TYPE_LABEL, getEntryDetail } from '../../../mock/mat.js'
-import { useMatArchiveExport } from '../../../composables/useMatArchiveExport.js'
-import MatArchiveExportDialog from './components/MatArchiveExportDialog.vue'
+import { listLedger, ENTRY_TYPE_LABEL } from '../../../mock/mat.js'
 import '../qm-hq-stats.css'
 
 const route = useRoute()
@@ -61,22 +59,9 @@ function displayName(row) {
   return row.entry_type === 'equipment' ? row.equipment_name : row.material_name
 }
 
-const exportLoadingId = ref('')
-const { dialogVisible, exportLoading, openExportDialog, confirmExport } = useMatArchiveExport()
-
-function onExportArchive(row) {
-  if (exportLoadingId.value || exportLoading.value) return
-  exportLoadingId.value = row.entry_no
-  try {
-    const detail = getEntryDetail(row.entry_no)
-    openExportDialog(detail)
-  } finally {
-    exportLoadingId.value = ''
-  }
-}
-
-async function onConfirmExportArchive(selectedKeys) {
-  await confirmExport(selectedKeys)
+function goDetail(row) {
+  const line = row.line_index != null ? row.line_index : 0
+  router.push(`/qm/mat/applications/detail?id=${row.entry_no}&from=ledger&line=${line}`)
 }
 
 function goBackToHQ() {
@@ -104,7 +89,7 @@ function goBackToHQ() {
         <span v-if="fromHq && canViewList" class="hq-title-project">{{ viewProjectLabel }}</span>
       </div>
       <p class="page-tip">
-        仅展示审批通过的进场记录（含退场信息）· 当前：{{
+        仅展示审批通过的进场明细（一明细一行，含退场信息）· 当前：{{
           viewProjectLabel || (isHqSelected ? '请从看板选择项目查看' : scopeProjectLabel)
         }}
         <template v-if="fromHq">（指挥部只读）</template>
@@ -167,6 +152,9 @@ function goBackToHQ() {
         <el-table-column label="名称" min-width="120">
           <template #default="{ row }">{{ displayName(row) }}</template>
         </el-table-column>
+        <el-table-column label="规格型号" min-width="140" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.material_spec || row.model || '—' }}</template>
+        </el-table-column>
         <el-table-column prop="brand_name" label="品牌" width="100" />
         <el-table-column label="定样单号" width="100">
           <template #default="{ row }">{{
@@ -217,33 +205,12 @@ function goBackToHQ() {
         <el-table-column prop="reason" label="最近退场原因" min-width="140" show-overflow-tooltip>
           <template #default="{ row }">{{ row.reason || '—' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="170" fixed="right">
+        <el-table-column label="操作" width="90" fixed="right">
           <template #default="{ row }">
-            <el-button
-              link
-              type="primary"
-              @click="router.push(`/qm/mat/applications/detail?id=${row.entry_no}`)"
-            >
-              详情
-            </el-button>
-            <el-button
-              link
-              type="primary"
-              :icon="Download"
-              :loading="exportLoadingId === row.entry_no || exportLoading"
-              @click="onExportArchive(row)"
-            >
-              导出归档
-            </el-button>
+            <el-button link type="primary" @click="goDetail(row)">详情</el-button>
           </template>
         </el-table-column>
       </el-table>
-
-      <MatArchiveExportDialog
-        v-model="dialogVisible"
-        :loading="exportLoading"
-        @confirm="onConfirmExportArchive"
-      />
     </template>
   </div>
 </template>
@@ -251,5 +218,8 @@ function goBackToHQ() {
 <style scoped>
 .mb {
   margin-bottom: 12px;
+}
+.muted {
+  color: #909399;
 }
 </style>

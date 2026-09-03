@@ -287,17 +287,17 @@ const store = reactive({
       inspect_file: '质检报告-卷材-1.pdf',
       photo_file: '进场现场-卷材-1.jpg',
       other_file: '出厂检验单-卷材.docx',
-      status: 'reviewing',
-      current_node_key: 'supervisor',
+      status: 'approved',
+      current_node_key: 'none',
       applicant_name: '施工-李工',
       supervisor_approver_user_id: 'u-jl-01',
       supervisor_approver_name: '李总监',
       supervisor_approver_post: 'jl_chief',
       supervisor_approver_post_label: '总监理工程师',
       submit_time: '2026-07-27 14:30:00',
-      finish_time: '',
+      finish_time: '2026-07-28 09:20:00',
       exited: false,
-      remark: '',
+      remark: '演示：一单两明细入库台账',
     },
     {
       entry_no: 'ME-003',
@@ -596,6 +596,15 @@ const store = reactive({
       opinion: '提交进场报审',
       operator_name: '施工-李工',
       time: '2026-07-27 14:30:00',
+    },
+    {
+      approval_id: 'AR-ME-S2A',
+      entry_no: 'ME-002',
+      node: 'supervisor',
+      action: 'agree',
+      opinion: '两明细资料齐全，同意进场',
+      operator_name: '李总监',
+      time: '2026-07-28 09:20:00',
     },
     {
       approval_id: 'AR-ME-S3',
@@ -1147,9 +1156,127 @@ export function listEntries(
     })
 }
 
+/** 进场单展开为台账行：无明细时回退为表头一行 */
+function expandEntryLineItems(entry) {
+  const lines = Array.isArray(entry.line_items) ? entry.line_items : []
+  if (!lines.length) {
+    return [
+      {
+        line_index: 0,
+        line_id: `${entry.entry_no}-L0`,
+        material_name: entry.material_name || '',
+        equipment_name: entry.equipment_name || '',
+        material_spec: entry.material_spec || entry.model || '',
+        model: entry.model || entry.material_spec || '',
+        quantity: entry.quantity,
+        unit: entry.unit || '',
+        use_part: entry.use_part || '',
+        waybill_no: entry.waybill_no || '',
+        batch_no: entry.batch_no || '',
+        serial_no: entry.serial_no || '',
+        purpose: '',
+        appearance_quality: '',
+        acceptance_result: '',
+        entry_date: entry.submit_time || '',
+        cert_file: entry.cert_file || '',
+        inspect_file: entry.inspect_file || '',
+        photo_file: entry.photo_file || '',
+        other_file: entry.other_file || '',
+        inspect_result_checked: !!entry.inspect_result_checked,
+        inspect_result_file: entry.inspect_result_file || '',
+        unpack_items: entry.unpack_items || [],
+      },
+    ]
+  }
+  return lines.map((line, idx) => ({
+    ...line,
+    line_index: idx,
+    line_id: line.line_id || `${entry.entry_no}-L${idx}`,
+  }))
+}
+
+/**
+ * 台账行退场态：退场仍挂整单；数量分母取当前明细数量（单明细与整单一致）
+ */
+function getLineExitStatusMeta(entry, lineQty) {
+  const qty = Number(lineQty || 0)
+  const exit_qty_total = sumExitQty(entry?.entry_no)
+  const remaining_qty = Math.max(0, qty - exit_qty_total)
+  let exit_status = 'none'
+  let exit_status_label = '未退场'
+  if (exit_qty_total > 0 && remaining_qty > 0) {
+    exit_status = 'partial'
+    exit_status_label = '部分退场'
+  } else if (exit_qty_total > 0 && remaining_qty <= 0) {
+    exit_status = 'full'
+    exit_status_label = '已退场'
+  }
+  return {
+    exit_qty_total,
+    remaining_qty,
+    exit_status,
+    exit_status_label,
+    exited: exit_status === 'full',
+  }
+}
+
+function toLedgerRow(entry, line) {
+  const exits = listExitsByEntry(entry.entry_no)
+  const latest = exits[0] || null
+  const meta = getLineExitStatusMeta(entry, line.quantity)
+  const isEq = entry.entry_type === 'equipment'
+  return {
+    ...entry,
+    line_index: line.line_index,
+    line_id: line.line_id,
+    material_name: isEq
+      ? line.equipment_name || line.material_name || entry.equipment_name || entry.material_name || ''
+      : line.material_name || entry.material_name || '',
+    equipment_name:
+      line.equipment_name || line.material_name || entry.equipment_name || entry.material_name || '',
+    material_spec: line.material_spec || line.model || entry.material_spec || entry.model || '',
+    model: line.model || line.material_spec || entry.model || entry.material_spec || '',
+    quantity: line.quantity,
+    unit: line.unit || entry.unit || '',
+    use_part: line.use_part || entry.use_part || '',
+    waybill_no: line.waybill_no || entry.waybill_no || '',
+    batch_no: line.batch_no || entry.batch_no || '',
+    serial_no: line.serial_no || entry.serial_no || '',
+    ...meta,
+    exits,
+    exit: latest,
+    exit_qty: meta.exit_qty_total > 0 ? meta.exit_qty_total : null,
+    exit_time: latest?.exit_time || '',
+    reason: latest?.reason || '',
+    exit_operator: latest?.operator_name || '',
+    exit_photo: latest?.photo_file || '',
+    exit_no: latest?.exit_no || '',
+  }
+}
+
 export function listLedger(projectId, filters = {}) {
-  // 材料设备台账仅展示审批通过单据，不按状态筛选
-  return listEntries(projectId, { ...filters, status: 'approved' })
+  // 材料设备台账：审批通过单据按明细展开，一明细一行
+  const { exited: exitedFilter = '', ...rest } = filters
+  const entries = listEntries(projectId, { ...rest, status: 'approved', exited: '' })
+  const rows = []
+  for (const entry of entries) {
+    const lines = expandEntryLineItems(entry)
+    for (const line of lines) {
+      const row = toLedgerRow(entry, line)
+      if (exitedFilter === '1' && row.exit_status !== 'full') continue
+      if (exitedFilter === '0' && row.exit_status !== 'none') continue
+      if (exitedFilter === 'partial' && row.exit_status !== 'partial') continue
+      rows.push(row)
+    }
+  }
+  return rows.sort((a, b) => {
+    if (a.submit_time !== b.submit_time) {
+      return a.submit_time < b.submit_time ? 1 : -1
+    }
+    const noCmp = String(a.entry_no).localeCompare(String(b.entry_no), 'zh-CN')
+    if (noCmp !== 0) return noCmp
+    return (a.line_index || 0) - (b.line_index || 0)
+  })
 }
 
 export function getEntryDetail(entryId) {
@@ -1160,6 +1287,24 @@ export function getEntryDetail(entryId) {
     .sort((a, b) => (a.time > b.time ? 1 : -1))
   const enriched = enrichEntryWithExits(entry)
   return { ...enriched, approvals, project_label: getProjectLabel(entry.project_id) }
+}
+
+/** 台账进退场详情：仅当前明细 + 整单退场记录列表 */
+export function getLedgerLineDetail(entryId, lineIndex = 0) {
+  const detail = getEntryDetail(entryId)
+  if (!detail) return null
+  const lines = expandEntryLineItems(detail)
+  const idx = Math.max(0, Number(lineIndex) || 0)
+  const line = lines[idx] || lines[0]
+  if (!line) return null
+  const row = toLedgerRow(detail, line)
+  return {
+    ...detail,
+    ...row,
+    line_items: [line],
+    approvals: [],
+    project_label: detail.project_label,
+  }
 }
 
 export function getDashboard(projectId, { entry_type = '' } = {}) {

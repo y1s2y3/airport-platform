@@ -11,6 +11,11 @@ import {
   permitStatusOptions,
   projectStatusOptions,
 } from '../../mock/projectBasicInfo'
+import {
+  ensureUnifiedOrgTree,
+  getOrgDisplayName,
+  unifiedOrgTree,
+} from '../../mock/orgStructure'
 import { profileDemoImages } from '../../mock/profileImageDemo'
 import {
   yesNoOptions,
@@ -38,7 +43,40 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  /** 仅指挥部可切换是否隐藏；项目级只读展示 */
+  allowHiddenEdit: {
+    type: Boolean,
+    default: false,
+  },
 })
+
+function mapOrgTreeSelectNodes(nodes) {
+  return (nodes || []).map((node) => ({
+    value: node.id,
+    label: node.rawLabel || node.label,
+    children: node.children?.length ? mapOrgTreeSelectNodes(node.children) : undefined,
+  }))
+}
+
+const orgTreeData = computed(() => {
+  ensureUnifiedOrgTree()
+  return mapOrgTreeSelectNodes(unifiedOrgTree.value)
+})
+
+function onBelongOrgChange(orgId) {
+  props.model.belongOrgId = orgId || ''
+  props.model.belongOrgName = orgId ? getOrgDisplayName(orgId) : ''
+}
+
+const belongOrgDisplay = computed(() => {
+  const name = String(props.model?.belongOrgName || '').trim()
+  if (name) return name
+  const id = String(props.model?.belongOrgId || '').trim()
+  if (!id) return '—'
+  return getOrgDisplayName(id) || id
+})
+
+const canEditHidden = computed(() => props.allowHiddenEdit && !props.readonly)
 
 function getSubQual(block, label) {
   if (!block.qualifications) block.qualifications = []
@@ -285,6 +323,59 @@ function openEquipmentRow(row) {
                 :value="opt.value"
               />
             </el-select>
+          </td>
+        </tr>
+
+        <tr>
+          <td colspan="2" class="cell-label">
+            所属组织<span v-if="!readonly" class="req-star">*</span>
+          </td>
+          <td colspan="2" class="cell-value">
+            <template v-if="readonly">
+              <span class="inline-readonly">{{ belongOrgDisplay }}</span>
+            </template>
+            <el-tree-select
+              v-else
+              :model-value="model.belongOrgId"
+              :data="orgTreeData"
+              clearable
+              filterable
+              check-strictly
+              :render-after-expand="false"
+              default-expand-all
+              placeholder="请选择所属组织"
+              style="width: 100%"
+              aria-label="请选择所属组织"
+              @update:model-value="onBelongOrgChange"
+            />
+          </td>
+          <td colspan="2" class="cell-label">
+            项目编码<span v-if="!readonly" class="req-star">*</span>
+          </td>
+          <td colspan="2" class="cell-value">
+            <template v-if="readonly">
+              <span class="inline-readonly">{{ model.projectEncode || '—' }}</span>
+            </template>
+            <el-input
+              v-else
+              v-model="model.projectEncode"
+              placeholder="请输入项目编码"
+              aria-label="请输入项目编码"
+            />
+          </td>
+          <td colspan="2" class="cell-label">
+            是否隐藏<span v-if="!readonly" class="req-star">*</span>
+          </td>
+          <td colspan="2" class="cell-value">
+            <el-radio-group
+              v-if="canEditHidden"
+              v-model="model.hidden"
+              aria-label="是否隐藏"
+            >
+              <el-radio :value="true">是</el-radio>
+              <el-radio :value="false">否</el-radio>
+            </el-radio-group>
+            <span v-else class="inline-readonly">{{ model.hidden ? '是' : '否' }}</span>
           </td>
         </tr>
 

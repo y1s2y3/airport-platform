@@ -1,13 +1,22 @@
 import { parseOneContact, isValidContactStorageFormat } from '../utils/contactValue'
 import { listSysUsers } from './sysUsers'
 
-/** 项目画像必填校验：项目名称、项目简称、项目经理 */
+/** 项目画像必填校验：项目名称、项目简称、所属组织、项目编码、是否隐藏、项目经理 */
 export function validateProjectPortraitRequired(data) {
   if (!String(data?.projectName || '').trim()) {
     return { ok: false, msg: '请填写项目名称' }
   }
   if (!String(data?.shortName || '').trim()) {
     return { ok: false, msg: '请填写项目简称' }
+  }
+  if (!String(data?.belongOrgId || '').trim()) {
+    return { ok: false, msg: '请选择所属组织' }
+  }
+  if (!String(data?.projectEncode || '').trim()) {
+    return { ok: false, msg: '请填写项目编码' }
+  }
+  if (typeof data?.hidden !== 'boolean') {
+    return { ok: false, msg: '请选择是否隐藏' }
   }
   const manager = parseOneContact(data?.projectManagerContact)
   if (!manager.name || !manager.phone) {
