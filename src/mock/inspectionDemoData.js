@@ -1,7 +1,7 @@
 import { COC_PROJECT_OPTIONS } from '../config/projectOptions.js'
 import { DEFAULT_INSPECTOR } from '../config/inspectionManagement.js'
 
-export const INSPECTION_DEMO_TODAY = '2026-07-16'
+export const INSPECTION_DEMO_TODAY = '2026-08-27'
 
 export const inspectionPeoplePool = [
   DEFAULT_INSPECTOR,

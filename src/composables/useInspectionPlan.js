@@ -242,14 +242,16 @@ export function getPlanById(id) {
   return planData.find(p => p.id === id)
 }
 
-function resolvePrimaryProject(plan) {
-  const projectId = plan.projectIds?.[0] || plan.project_id || ''
-  return projectOptions.find(project => project.id === projectId) || null
+function getSelectedProjects(plan) {
+  const selectedIds = [...new Set(plan.projectIds || [])]
+  return selectedIds
+    .map(id => projectOptions.find(project => project.id === id))
+    .filter(Boolean)
 }
 
-function createMobileTask(plan, project, taskNo, itemCount) {
+function createMobileTask(plan, project, taskNo, itemCount, index = 0) {
   addMobileInspectionTask({
-    id: `mt-${String(Date.now()).slice(-8)}`,
+    id: `mt-${Date.now()}-${index}`,
     taskNo,
     taskName: plan.name,
     source: '任务下发',
@@ -274,58 +276,67 @@ function createMobileTask(plan, project, taskNo, itemCount) {
   })
 }
 
-/** 单项目下发（保留正式工程口径，不支持一次多选项目批量下发） */
 export function addPlan(plan) {
-  const project = resolvePrimaryProject(plan)
-  if (!project) return null
-  const newId = 'plan-' + String(Date.now()).slice(-6)
   const t = now()
   const date = new Date()
   const dateText = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`
   const prefix = plan.inspectionCategory === '质量' ? 'ZLXJ' : 'AQXJ'
-  const sequence = planData.filter(item => item.planNo?.startsWith(`${prefix}${dateText}`)).length + 1
-  const taskNo = buildInspectionTaskNo(plan.inspectionCategory, date, sequence)
+  const firstSequence = planData.filter(item => item.planNo?.startsWith(`${prefix}${dateText}`)).length + 1
+  const selectedProjects = getSelectedProjects(plan)
   const itemCount = plan.checkConfig.reduce((sum, item) => sum + item.itemIds.length, 0)
-  const record = {
-    id: newId,
-    planNo: taskNo,
-    ...plan,
-    projects: [project.label],
-    projectIds: [project.id],
-    assigned: true,
-    status: '已下发',
-    createdBy: '当前用户',
-    updatedBy: '当前用户',
-    createdAt: t,
-    updatedAt: t,
-  }
-  createMobileTask(record, project, taskNo, itemCount)
-  planData.unshift(record)
-  return newId
+  const records = selectedProjects.map((project, index) => {
+    const taskNo = buildInspectionTaskNo(plan.inspectionCategory, date, firstSequence + index)
+    createMobileTask(plan, project, taskNo, itemCount, index)
+    return {
+      id: `plan-${Date.now()}-${index}`,
+      planNo: taskNo,
+      ...plan,
+      projects: [project.label],
+      projectIds: [project.id],
+      assigned: true,
+      status: '已下发',
+      createdBy: '当前用户',
+      updatedBy: '当前用户',
+      createdAt: t,
+      updatedAt: t,
+    }
+  })
+  planData.unshift(...records)
+  return records.length
 }
 
 export function updatePlan(id, data) {
   const item = planData.find(p => p.id === id)
-  const project = resolvePrimaryProject(data)
-  if (!item || !project) return
-  Object.assign(item, data, {
-    projects: [project.label],
-    projectIds: [project.id],
-    updatedAt: now(),
-    updatedBy: '当前用户',
-  })
-  updateMobileInspectionTaskByNo(item.planNo, {
-    taskName: item.name,
-    inspectionCategory: item.inspectionCategory,
-    project: project.label,
-    projectId: project.id,
-    project_id: project.id,
-    executor: getProjectInspectorLabel(project.id) || DEFAULT_INSPECTOR_LABEL,
-    inspector: getProjectInspectorLabel(project.id) || DEFAULT_INSPECTOR_LABEL,
-    deadline: item.deadlineDate,
-    itemCount: item.checkConfig.reduce((sum, config) => sum + config.itemIds.length, 0),
-    checkConfig: item.checkConfig.map(config => ({ categoryId: config.categoryId, itemIds: [...config.itemIds] })),
-  })
+  const selectedProjects = getSelectedProjects(data)
+  if (item && selectedProjects.length > 0) {
+    const [primaryProject, ...additionalProjects] = selectedProjects
+    Object.assign(item, data, {
+      projects: [primaryProject.label],
+      projectIds: [primaryProject.id],
+      updatedAt: now(),
+      updatedBy: '当前用户',
+    })
+    updateMobileInspectionTaskByNo(item.planNo, {
+      taskName: item.name,
+      inspectionCategory: item.inspectionCategory,
+      project: primaryProject.label,
+      projectId: primaryProject.id,
+      project_id: primaryProject.id,
+      executor: getProjectInspectorLabel(primaryProject.id) || DEFAULT_INSPECTOR_LABEL,
+      inspector: getProjectInspectorLabel(primaryProject.id) || DEFAULT_INSPECTOR_LABEL,
+      deadline: item.deadlineDate,
+      itemCount: item.checkConfig.reduce((sum, config) => sum + config.itemIds.length, 0),
+      checkConfig: item.checkConfig.map(config => ({ categoryId: config.categoryId, itemIds: [...config.itemIds] })),
+    })
+    if (additionalProjects.length > 0) {
+      return addPlan({
+        ...data,
+        projects: additionalProjects.map(project => project.label),
+        projectIds: additionalProjects.map(project => project.id),
+      })
+    }
+  }
+  return 0
 }
 
 export function deletePlan(id) {

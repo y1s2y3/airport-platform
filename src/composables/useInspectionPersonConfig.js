@@ -22,9 +22,26 @@ export const inspectionPersonConfigs = reactive(COC_PROJECT_OPTIONS.map(project 
   }
 }))
 
-// 演示一条未配置巡检人的项目，供下发任务的置灰/前置条件场景使用。
-const unconfiguredInspectorProject = inspectionPersonConfigs.find(item => item.projectId === 'p-004')
-if (unconfiguredInspectorProject) unconfiguredInspectorProject.inspectorId = ''
+/**
+ * 演示「人员未配置 / 配置不全」假数据（须使用台账真实 projectId）：
+ * - 未配巡检人 → 下发任务项目下拉置灰不可选
+ * - 已配巡检人但缺整改人/复查人 → 可选，但提交时拦截
+ */
+const DEMO_PERSON_CONFIG_GAPS = [
+  // 未配置巡检人（置灰）
+  { projectId: 'p-pump-002', inspectorId: '', rectifierId: '', reviewerId: '' },
+  { projectId: 'p-east-apron', inspectorId: '', rectifierId: '', reviewerId: '' },
+  // 配置不全：有巡检人，缺整改人与复查人（可选但不可下发）
+  { projectId: 'p-phase3', rectifierId: '', reviewerId: '' },
+]
+
+for (const gap of DEMO_PERSON_CONFIG_GAPS) {
+  const row = inspectionPersonConfigs.find(item => item.projectId === gap.projectId)
+  if (!row) continue
+  if ('inspectorId' in gap) row.inspectorId = gap.inspectorId
+  if ('rectifierId' in gap) row.rectifierId = gap.rectifierId
+  if ('reviewerId' in gap) row.reviewerId = gap.reviewerId
+}
 
 export function getInspectionPersonConfig(projectIdOrName) {
   const projectId = resolveInspectionProjectId(projectIdOrName)

@@ -9,6 +9,11 @@ import {
   checkCategoryTree, getCategoryLabel, getItemLabel,
   getPlanById, addPlan, updatePlan,
 } from '../../composables/useInspectionPlan'
+import {
+  getProjectInspectorLabel,
+  hasInspectionInspectorConfig,
+  hasCompleteInspectionPersonConfig,
+} from '../../composables/useInspectionPersonConfig'
 
 const route = useRoute()
 const router = useRouter()
@@ -18,12 +23,20 @@ const pageTitle = computed(() => isEdit.value ? '编辑巡检任务' : '下发�
 const form = reactive({
   name: '',
   inspectionCategory: '安全',
-  project_id: '',
+  projectIds: [],
   responsiblePerson: '',
   ccPersons: [],
   deadlineDate: '',
   remark: '',
   checkConfig: [],
+})
+
+const receiverSummary = computed(() => {
+  const selected = projectOptions.filter(project => form.projectIds.includes(project.id))
+  if (!selected.length) return '选择项目后自动带入已配置的巡检人'
+  return selected
+    .map(project => `${project.label}：${getProjectInspectorLabel(project.id) || '未配置'}`)
+    .join('；')
 })
 
 // ===== 检查内容选择对话框 =====
@@ -114,7 +127,7 @@ onMounted(() => {
     if (plan) {
       form.name = plan.name
       form.inspectionCategory = plan.inspectionCategory || '安全'
-      form.project_id = plan.projectIds?.[0] || ''
+      form.projectIds = [...(plan.projectIds || [])]
       form.responsiblePerson = plan.responsiblePerson
       form.ccPersons = [...plan.ccPersons]
       form.deadlineDate = plan.deadlineDate || plan.endDate || ''
@@ -129,23 +142,43 @@ onMounted(() => {
 function handleSave() {
   if (!form.name.trim()) { ElMessage.warning('请输入任务名称'); return }
   if (!form.inspectionCategory) { ElMessage.warning('请选择巡检分类'); return }
-  if (!form.project_id) { ElMessage.warning('请选择所属项目'); return }
+  if (form.projectIds.length === 0) { ElMessage.warning('请选择所属项目'); return }
+  const incompleteProject = projectOptions.find(project =>
+    form.projectIds.includes(project.id) && !hasCompleteInspectionPersonConfig(project.id),
+  )
+  if (incompleteProject) {
+    ElMessage.warning(`${incompleteProject.label}尚未完整配置巡检人、整改人和复查人，请先完成人员配置`)
+    return
+  }
   if (form.checkConfig.length === 0) { ElMessage.warning('请配置检查内容'); return }
   if (!form.deadlineDate) { ElMessage.warning('请选择截止日期'); return }
 
-  const projectLabel = projectOptions.find(p => p.id === form.project_id)?.label || ''
+  const selectedProjects = projectOptions.filter(p => form.projectIds.includes(p.id))
   const payload = {
     name: form.name.trim(), inspectionCategory: form.inspectionCategory,
-    projects: [projectLabel], projectIds: [form.project_id],
+    projects: selectedProjects.map(project => project.label), projectIds: selectedProjects.map(project => project.id),
     checkConfig: form.checkConfig.map(c => ({ categoryId: c.categoryId, itemIds: [...c.itemIds] })),
     responsiblePerson: form.responsiblePerson, ccPersons: [...form.ccPersons],
     deadlineDate: form.deadlineDate, remark: form.remark.trim(),
   }
-  if (isEdit.value) { updatePlan(route.params.id, payload); ElMessage.success('任务已更新') }
-  else { addPlan(payload); ElMessage.success('巡检任务已直接下发给监理') }
+  if (isEdit.value) {
+    const addedCount = updatePlan(route.params.id, payload)
+    ElMessage.success(addedCount > 0 ? `任务已更新，并新增下发 ${addedCount} 条任务` : '任务已更新')
+  } else {
+    const count = addPlan(payload)
+    ElMessage.success(`已向 ${count} 个项目直接下发巡检任务`)
+  }
   router.push('/safety-inspection/plan')
 }
 function handleCancel() { router.push('/safety-inspection/plan') }
+
+function removeConfig(index) {
+  if (index < 0 || index >= form.checkConfig.length) return
+  const removed = form.checkConfig.splice(index, 1)[0]
+  if (removed && displayTreeCat.value === removed.categoryId) {
+    displayTreeCat.value = form.checkConfig[0]?.categoryId || ''
+  }
+}
 </script>
 
 <template>
@@ -160,7 +193,7 @@ function handleCancel() { router.push('/safety-inspection/plan') }
       <!-- ===== 基本信息 ===== -->
       <h4 class="form-section-title">基本信息</h4>
       <el-form-item label="任务名称" required>
-        <el-input v-model="form.name" placeholder="如：雨季临时用电检查" maxlength="50" aria-label="如：雨季临时用电检查"/>
+        <el-input v-model="form.name" placeholder="如：雨季临时用电检查" maxlength="50" />
       </el-form-item>
       <el-form-item label="巡检分类" required>
         <el-radio-group v-model="form.inspectionCategory">
@@ -170,25 +203,35 @@ function handleCancel() { router.push('/safety-inspection/plan') }
         </el-radio-group>
       </el-form-item>
       <el-form-item label="所属项目" required>
-        <el-select v-model="form.project_id" placeholder="请选择项目" style="width: 100%" aria-label="请选择项目">
-          <el-option v-for="p in activeProjects" :key="p.id" :label="p.label" :value="p.id" />
+        <el-select v-model="form.projectIds" multiple collapse-tags collapse-tags-tooltip placeholder="请选择项目（可多选）" style="width: 100%">
+          <el-option
+            v-for="p in activeProjects"
+            :key="p.id"
+            :label="p.label"
+            :value="p.id"
+            :disabled="!hasInspectionInspectorConfig(p.id)"
+          >
+            <span>{{ p.label }}</span>
+            <span v-if="!hasInspectionInspectorConfig(p.id)" class="project-disabled-note">（未配置巡检人）</span>
+          </el-option>
         </el-select>
-        <div class="form-tip">已竣工项目自动隐藏</div>
+        <div class="form-tip">支持选择多个在建项目；提交后将按项目分别生成并下发巡检任务，已竣工项目自动隐藏。</div>
+        <div class="form-tip project-config-tip">未配置巡检人的项目已置灰，无法选择；请先在“人员配置”中完成巡检人配置。</div>
       </el-form-item>
 
       <!-- ===== 下发信息 ===== -->
       <h4 class="form-section-title" style="margin-top: 28px">下发信息</h4>
       <el-form-item label="任务接收人">
-        <el-input model-value="监理" disabled />
-        <div class="form-tip">提交后立即生成一份巡检任务并下发给项目监理，不再滚动生成计划</div>
+        <el-input :model-value="receiverSummary" disabled />
+        <div class="form-tip">按各项目人员配置自动确定巡检人；三类人员配置完整后才可下发任务</div>
       </el-form-item>
       <el-form-item label="抄送人">
-        <el-select v-model="form.ccPersons" multiple placeholder="可选，多人" style="width: 100%" aria-label="可选，多人">
+        <el-select v-model="form.ccPersons" multiple placeholder="可选，多人" style="width: 100%">
           <el-option v-for="u in userOptions" :key="u.id" :label="`${u.label}（${u.role}）`" :value="u.id" />
         </el-select>
       </el-form-item>
       <el-form-item label="截止日期" required>
-        <el-date-picker v-model="form.deadlineDate" type="date" placeholder="选择截止日期" value-format="YYYY-MM-DD" style="width: 100%" aria-label="选择截止日期"/>
+        <el-date-picker v-model="form.deadlineDate" type="date" placeholder="选择截止日期" value-format="YYYY-MM-DD" style="width: 100%" />
       </el-form-item>
 
       <!-- ===== 配置检查内容 ===== -->
@@ -230,7 +273,7 @@ function handleCancel() { router.push('/safety-inspection/plan') }
       </el-form-item>
 
       <el-form-item label="备注">
-        <el-input v-model="form.remark" type="textarea" :rows="3" placeholder="备注..." maxlength="200" show-word-limit aria-label="备注..."/>
+        <el-input v-model="form.remark" type="textarea" :rows="3" placeholder="备注..." maxlength="200" show-word-limit />
       </el-form-item>
     </el-form>
 
@@ -305,6 +348,8 @@ function handleCancel() { router.push('/safety-inspection/plan') }
 .plan-form { padding: 8px 0; }
 .type-radio { padding: 8px 18px; border-radius: 6px; }
 .form-tip { font-size: 11px; color: var(--ap-text-muted); margin-top: 4px; }
+.project-config-tip { color: #e6a23c; }
+.project-disabled-note { color: #999; margin-left: 4px; }
 .rule-tip { margin-top:14px; }
 .date-sep { display: block; text-align: center; font-size: 12px; color: var(--ap-text-muted); padding: 4px 0; }
 .form-actions { display: flex; justify-content: flex-end; gap: 12px; padding-bottom: 24px; }
