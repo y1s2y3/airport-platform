@@ -149,10 +149,6 @@ function goBackToHQ() {
           <span class="hq-stat-value ok">{{ hqSummary.process_approved }}</span>
         </div>
         <div class="hq-stat-card">
-          <span class="hq-stat-label">待审批</span>
-          <span class="hq-stat-value warn">{{ hqSummary.pending }}</span>
-        </div>
-        <div class="hq-stat-card">
           <span class="hq-stat-label">审批中</span>
           <span class="hq-stat-value warn">{{ hqSummary.in_approval }}</span>
         </div>
@@ -185,11 +181,6 @@ function goBackToHQ() {
         <el-table-column prop="ledger_count" label="台账条数" width="100" align="center" />
         <el-table-column prop="material_approved" label="材料定样已通过" width="140" align="center" />
         <el-table-column prop="process_approved" label="工序样板已通过" width="140" align="center" />
-        <el-table-column label="待审批" width="90" align="center">
-          <template #default="{ row }">
-            <span :class="{ 'warn-num': row.pending > 0 }">{{ row.pending }}</span>
-          </template>
-        </el-table-column>
         <el-table-column label="审批中" width="90" align="center">
           <template #default="{ row }">
             <span :class="{ 'warn-num': row.in_approval > 0 }">{{ row.in_approval }}</span>

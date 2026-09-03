@@ -24,8 +24,14 @@ defineProps({
       <el-descriptions-item label="名称">
         {{ todo.detail?.title || '—' }}
       </el-descriptions-item>
-      <el-descriptions-item label="施工部位">
+      <el-descriptions-item label="使用部位">
         {{ todo.detail?.usePart || '—' }}
+      </el-descriptions-item>
+      <el-descriptions-item
+        v-if="todo.sampleBizType === 'material' && todo.detail?.unitName"
+        label="单位工程"
+      >
+        {{ todo.detail.unitName }}
       </el-descriptions-item>
       <el-descriptions-item label="项目">
         {{ todo.detail?.project || '—' }}
@@ -36,32 +42,51 @@ defineProps({
       <el-descriptions-item v-if="todo.sampleBizType === 'material'" label="材料类型">
         {{ todo.detail?.materialType || '—' }}
       </el-descriptions-item>
-      <el-descriptions-item v-if="todo.sampleBizType === 'material'" label="供应商">
-        {{ todo.detail?.supplier || '—' }}
+      <el-descriptions-item
+        v-if="todo.sampleBizType === 'material' && todo.detail?.sampleDate"
+        label="送样日期"
+      >
+        {{ todo.detail.sampleDate }}
+      </el-descriptions-item>
+      <el-descriptions-item
+        v-if="todo.sampleBizType === 'material' && todo.detail?.brandName"
+        label="品牌"
+      >
+        {{ todo.detail.brandName }}
+      </el-descriptions-item>
+      <el-descriptions-item v-if="todo.sampleBizType === 'material'" label="生产厂家">
+        {{ todo.detail?.manufacturer || todo.detail?.supplier || '—' }}
       </el-descriptions-item>
       <el-descriptions-item
         v-if="todo.sampleBizType === 'material'"
-        label="材料指标说明"
+        label="规格（或技术参数）"
         :span="2"
       >
-        {{ todo.detail?.indicatorDesc || todo.detail?.briefing || '—' }}
+        {{ todo.detail?.spec || todo.detail?.indicatorDesc || todo.detail?.briefing || '—' }}
       </el-descriptions-item>
       <el-descriptions-item v-else label="关键工序样板说明" :span="2">
         {{ todo.detail?.briefing || '—' }}
       </el-descriptions-item>
       <el-descriptions-item
         v-if="todo.sampleBizType === 'material' && todo.detail?.effectImages?.length"
-        label="效果图"
+        label="样品照片"
         :span="2"
       >
         {{ todo.detail.effectImages.map((f) => f.name || f).join('、') }}
       </el-descriptions-item>
       <el-descriptions-item
         v-if="todo.sampleBizType === 'material' && todo.detail?.approvalFiles?.length"
-        label="审批文件"
+        label="材料设备送样定板报审签字附件"
         :span="2"
       >
         {{ todo.detail.approvalFiles.map((f) => f.name || f).join('、') }}
+      </el-descriptions-item>
+      <el-descriptions-item
+        v-if="todo.sampleBizType === 'material' && todo.detail?.certificateFiles?.length"
+        label="样品出厂质量证明文件"
+        :span="2"
+      >
+        {{ todo.detail.certificateFiles.map((f) => f.name || f).join('、') }}
       </el-descriptions-item>
     </el-descriptions>
   </section>

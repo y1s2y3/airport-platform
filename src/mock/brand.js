@@ -1046,6 +1046,31 @@ export function listLedger(projectId, { keyword = '' } = {}) {
   })
 }
 
+/** 定样报审：品牌台账下拉（材料+设备；同品牌厂家去重） */
+export function listSampleBrandOptionsFromLedger(projectId = '') {
+  if (!projectId) return []
+  const rows = store.ledger.filter((r) => {
+    if (r.project_id !== projectId) return false
+    const t = r.material_type || 'material'
+    return t === 'material' || t === 'equipment' || !r.material_type
+  })
+  const map = new Map()
+  for (const row of rows) {
+    const brand = String(row.brand_name || '').trim()
+    const manufacturer = String(row.manufacturer || '').trim()
+    if (!brand) continue
+    const key = `${brand}\0${manufacturer}`
+    if (map.has(key)) continue
+    map.set(key, {
+      brand_name: brand,
+      manufacturer,
+      material_type: row.material_type || 'material',
+      label: manufacturer ? `${brand} · ${manufacturer}` : brand,
+    })
+  }
+  return [...map.values()].sort((a, b) => a.label.localeCompare(b.label, 'zh-CN'))
+}
+
 /** 台账联想：按台账行返回（同品牌不同材料为多条，不合并） */
 export function searchLedgerBrands(keyword = '', projectId = '', { materialType = '' } = {}) {
   if (!projectId) return []

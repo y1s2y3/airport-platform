@@ -35,7 +35,7 @@ function reset() {
 
 async function onWithdraw(row) {
   try {
-    await ElMessageBox.confirm(`确认撤回报审单 ${row.application_id}？仅待审批时可撤。`, '撤回', {
+    await ElMessageBox.confirm(`确认撤回报审单 ${row.application_id}？仅审批中（待监理审）时可撤。`, '撤回', {
       type: 'warning',
     })
   } catch {
@@ -61,7 +61,7 @@ function onReEdit(row) {
     <div class="page-header">
       <div class="page-breadcrumb">样板管理 / 关键工序样板报审</div>
       <h1 class="page-title">关键工序样板报审</h1>
-      <p class="page-tip">已撤回可重新编辑回待审批 · 已驳回请复制新建</p>
+      <p class="page-tip">已撤回可重新编辑回审批中 · 已驳回请复制新建</p>
     </div>
 
     <el-alert
@@ -121,7 +121,7 @@ function onReEdit(row) {
               详情
             </el-button>
             <el-button
-              v-if="row.status === 'pending'"
+              v-if="row.status === 'in_approval' || row.status === 'pending'"
               link
               type="warning"
               @click="onWithdraw(row)"

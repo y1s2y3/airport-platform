@@ -200,7 +200,7 @@ export const menuTree = [
         key: 'sample-mgmt', label: '样板管理', levels: 'project',
         children: [
           { key: 'sample-ledger', label: '样板台账', path: '/qm/sample/ledger', name: 'SampleLedger', component: 'SampleLedgerView', levels: 'project' },
-          { key: 'sample-material-app', label: '材料定样报审', path: '/qm/sample/material/applications', name: 'SampleMaterialApp', component: 'SampleMaterialAppListView', levels: 'project' },
+          { key: 'sample-material-app', label: '定样审批', path: '/qm/sample/material/applications', name: 'SampleMaterialApp', component: 'SampleMaterialAppListView', levels: 'project' },
           { key: 'sample-process-app', label: '关键工序样板报审', path: '/qm/sample/process/applications', name: 'SampleProcessApp', component: 'SampleProcessAppListView', levels: 'project' },
         ],
       },
@@ -342,8 +342,8 @@ export const hiddenRoutes = [
   { key: 'brand-ledger-detail', path: '/qm/brand/ledger/detail', name: 'BrandLedgerDetail', component: 'BrandApplicationDetailView', label: '报审详情', sidebarKey: 'brand-ledger' },
 
   // 样板管理子页（审批仅个人中心待办，无独立审批列表路由）
-  { key: 'sample-material-edit', path: '/qm/sample/material/applications/edit', name: 'SampleMaterialEdit', component: 'SampleMaterialEditView', label: '新建材料定样', sidebarKey: 'sample-material-app' },
-  { key: 'sample-material-detail', path: '/qm/sample/material/applications/detail', name: 'SampleMaterialDetail', component: 'SampleMaterialDetailView', label: '材料定样详情', sidebarKey: 'sample-material-app' },
+  { key: 'sample-material-edit', path: '/qm/sample/material/applications/edit', name: 'SampleMaterialEdit', component: 'SampleMaterialEditView', label: '新建材料设备定样报审', sidebarKey: 'sample-material-app' },
+  { key: 'sample-material-detail', path: '/qm/sample/material/applications/detail', name: 'SampleMaterialDetail', component: 'SampleMaterialDetailView', label: '材料设备定样详情', sidebarKey: 'sample-material-app' },
   { key: 'sample-process-edit', path: '/qm/sample/process/applications/edit', name: 'SampleProcessEdit', component: 'SampleProcessEditView', label: '新建工序样板', sidebarKey: 'sample-process-app' },
   { key: 'sample-process-detail', path: '/qm/sample/process/applications/detail', name: 'SampleProcessDetail', component: 'SampleProcessDetailView', label: '工序样板详情', sidebarKey: 'sample-process-app' },
 

@@ -22,15 +22,21 @@ const detail = computed(() => {
 })
 
 const showReadonlyHint = computed(
-  () =>
-    detail.value &&
-    (detail.value.status === 'pending' || detail.value.status === 'in_approval'),
+  () => detail.value && detail.value.status === 'in_approval',
 )
 
 function fileNames(list) {
   if (!Array.isArray(list)) return '—'
   const names = list.map((f) => (typeof f === 'string' ? f : f?.name)).filter(Boolean)
   return names.length ? names.join('、') : '—'
+}
+
+function samplePhotos(d) {
+  return d.sample_photos?.length ? d.sample_photos : d.effect_images
+}
+
+function signFiles(d) {
+  return d.sign_files?.length ? d.sign_files : d.approval_files
 }
 
 function approverDetailLabel(userId, fallbackName) {
@@ -43,8 +49,8 @@ function approverDetailLabel(userId, fallbackName) {
 <template>
   <div class="qm-page page-card">
     <div class="page-header">
-      <div class="page-breadcrumb">样板管理 / 材料定样报审 / 详情</div>
-      <h1 class="page-title">材料定样详情 {{ id }}</h1>
+      <div class="page-breadcrumb">样板管理 / 定样审批 / 详情</div>
+      <h1 class="page-title">材料设备定样详情 {{ id }}</h1>
     </div>
 
     <el-empty v-if="!detail" description="单据不存在" />
@@ -54,13 +60,19 @@ function approverDetailLabel(userId, fallbackName) {
       <el-descriptions :column="2" border class="mb">
         <el-descriptions-item label="报审编号">{{ detail.application_id }}</el-descriptions-item>
         <el-descriptions-item label="项目">{{ detail.project_label }}</el-descriptions-item>
-        <el-descriptions-item label="材料名称">{{ detail.material_name }}</el-descriptions-item>
+        <el-descriptions-item label="样品名称">{{
+          detail.sample_name || detail.material_name
+        }}</el-descriptions-item>
+        <el-descriptions-item label="送样日期">{{ detail.sample_date || '—' }}</el-descriptions-item>
         <el-descriptions-item label="材料类型">{{
           materialTypeLabel(detail.material_type)
         }}</el-descriptions-item>
         <el-descriptions-item label="品牌">{{ detail.brand_name || '—' }}</el-descriptions-item>
-        <el-descriptions-item label="供应商">{{ detail.supplier || '—' }}</el-descriptions-item>
-        <el-descriptions-item label="施工部位">{{ detail.use_part }}</el-descriptions-item>
+        <el-descriptions-item label="生产厂家">{{
+          detail.manufacturer || detail.supplier || '—'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="单位工程">{{ detail.unit_name || '—' }}</el-descriptions-item>
+        <el-descriptions-item label="使用部位">{{ detail.use_part || '—' }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag size="small" :type="statusTagType(detail.status)">{{
             statusLabel(detail.status)
@@ -68,20 +80,23 @@ function approverDetailLabel(userId, fallbackName) {
         </el-descriptions-item>
         <el-descriptions-item label="申请人">{{ detail.applicant_name }}</el-descriptions-item>
         <el-descriptions-item label="提交时间">{{ detail.submit_time }}</el-descriptions-item>
-        <el-descriptions-item v-if="detail.copy_from_application_id" label="复制来源">
+        <el-descriptions-item v-if="detail.copy_from_application_id" label="重新申报来源">
           {{ detail.copy_from_application_id }}
         </el-descriptions-item>
         <el-descriptions-item label="备注" :span="2">{{ detail.remark || '—' }}</el-descriptions-item>
       </el-descriptions>
 
-      <h3 class="section-title">材料指标说明</h3>
-      <div class="text-block mb">{{ detail.indicator_desc || '—' }}</div>
+      <h3 class="section-title">规格（或技术参数）</h3>
+      <div class="text-block mb">{{ detail.spec || detail.indicator_desc || '—' }}</div>
 
-      <h3 class="section-title">效果图</h3>
-      <div class="text-block mb">{{ fileNames(detail.effect_images) }}</div>
+      <h3 class="section-title">样品照片</h3>
+      <div class="text-block mb">{{ fileNames(samplePhotos(detail)) }}</div>
 
-      <h3 class="section-title">审批文件</h3>
-      <div class="text-block mb">{{ fileNames(detail.approval_files) }}</div>
+      <h3 class="section-title">材料设备送样定板报审签字附件</h3>
+      <div class="text-block mb">{{ fileNames(signFiles(detail)) }}</div>
+
+      <h3 class="section-title">样品出厂质量证明文件</h3>
+      <div class="text-block mb">{{ fileNames(detail.certificate_files) }}</div>
 
       <h3 class="section-title">审批人</h3>
       <el-descriptions :column="2" border class="mb">
@@ -126,5 +141,8 @@ function approverDetailLabel(userId, fallbackName) {
   line-height: 1.6;
   color: #606266;
   white-space: pre-wrap;
+}
+.form-actions {
+  margin-top: 16px;
 }
 </style>

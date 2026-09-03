@@ -931,6 +931,71 @@ export function collectEntityBreakdownDefaultExpandKeys(rows) {
   return keys
 }
 
+/**
+ * 定样报审：实体工程分解树（单位～分项均可选；分类根 node_type=9 禁用）
+ * 供 el-tree-select 使用
+ */
+export function listEntityPartSelectTree(projectId) {
+  if (!projectId) return []
+  ensureWbsScaffold(projectId)
+  const mapNode = (n) => ({
+    id: n.id,
+    label: n.label,
+    node_type: n.node_type,
+    type_label: n.type_label,
+    disabled: n.node_type === 9,
+    children: (n.children || []).map(mapNode),
+  })
+  return buildEntityBreakdownTree(projectId).map(mapNode)
+}
+
+/** 实体 WBS 节点路径标签（祖先 → 自身） */
+export function getEntityNodePathLabel(wbsNodeId) {
+  if (!wbsNodeId) return ''
+  const node = wbsNodes.find((n) => isWbsAlive(n) && n.id === wbsNodeId)
+  if (!node) return ''
+  const parts = []
+  let cur = node
+  const guard = new Set()
+  while (cur && !guard.has(cur.id)) {
+    guard.add(cur.id)
+    if (cur.node_type !== 9) {
+      parts.unshift(cur.node_name || '')
+    }
+    cur = cur.parent_id ? wbsNodes.find((n) => isWbsAlive(n) && n.id === cur.parent_id) : null
+  }
+  return parts.filter(Boolean).join(' / ')
+}
+
+/** 单位工程 / 子单位展示名 */
+export function getUnitSubunitLabel(wbsNodeId) {
+  if (!wbsNodeId) return ''
+  const node = wbsNodes.find((n) => isWbsAlive(n) && n.id === wbsNodeId)
+  return node?.node_name || ''
+}
+
+/**
+ * 由所选实体节点向上解析单位工程 / 子单位（优先子单位 node_type=2，其次单位工程=1）
+ */
+export function resolveUnitSubunitFromWbsNode(wbsNodeId) {
+  if (!wbsNodeId) return { unit_wbs_id: '', unit_name: '' }
+  const start = wbsNodes.find((n) => isWbsAlive(n) && n.id === wbsNodeId)
+  if (!start) return { unit_wbs_id: '', unit_name: '' }
+  let subunit = null
+  let unit = null
+  let cur = start
+  const guard = new Set()
+  while (cur && !guard.has(cur.id)) {
+    guard.add(cur.id)
+    if (cur.node_type === 2 && !subunit) subunit = cur
+    if (cur.node_type === 1 && !unit) unit = cur
+    cur = cur.parent_id ? wbsNodes.find((n) => isWbsAlive(n) && n.id === cur.parent_id) : null
+  }
+  const hit = subunit || unit
+  if (!hit) return { unit_wbs_id: '', unit_name: '' }
+  return { unit_wbs_id: hit.id, unit_name: hit.node_name || '' }
+}
+
 /** 按关键字过滤树（保留命中节点及其祖先） */
 export function filterEntityBreakdownTableTree(rows, keyword) {
   const kw = String(keyword || '').trim()
