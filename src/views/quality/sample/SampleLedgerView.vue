@@ -170,10 +170,10 @@ function goBackToHQ() {
         <el-input
           v-model="hqKeyword"
           clearable
-          placeholder="项目名称 / 编号"
+          placeholder="项目名称"
           style="width: 260px"
           :prefix-icon="Search"
-          aria-label="项目名称 / 编号"
+          aria-label="项目名称"
         />
         <el-button type="primary" :icon="Search" @click="handleHqSearch">查询</el-button>
         <el-button :icon="Refresh" @click="resetHq">重置</el-button>
@@ -182,7 +182,6 @@ function goBackToHQ() {
       <el-table :data="hqFiltered" stripe border empty-text="暂无样板统计数据">
         <el-table-column type="index" label="序号" width="64" align="center" />
         <el-table-column prop="project_name" label="项目名称" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="project_id" label="项目编号" width="100" />
         <el-table-column prop="ledger_count" label="台账条数" width="100" align="center" />
         <el-table-column prop="material_approved" label="材料定样已通过" width="140" align="center" />
         <el-table-column prop="process_approved" label="工序样板已通过" width="140" align="center" />

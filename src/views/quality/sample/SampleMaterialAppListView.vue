@@ -10,6 +10,7 @@ import {
   STATUS_LABEL,
   statusLabel,
   statusTagType,
+  materialTypeLabel,
   withdrawSampleApp,
 } from '../../../mock/sample.js'
 
@@ -98,6 +99,9 @@ function onReEdit(row) {
       <el-table :data="list" stripe border empty-text="暂无材料定样报审单">
         <el-table-column prop="application_id" label="报审编号" width="110" />
         <el-table-column prop="material_name" label="材料名称" min-width="140" />
+        <el-table-column label="材料类型" width="100">
+          <template #default="{ row }">{{ materialTypeLabel(row.material_type) }}</template>
+        </el-table-column>
         <el-table-column prop="brand_name" label="品牌" width="120" show-overflow-tooltip />
         <el-table-column prop="supplier" label="供应商" min-width="160" show-overflow-tooltip />
         <el-table-column prop="use_part" label="施工部位" min-width="120" show-overflow-tooltip />

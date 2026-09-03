@@ -127,9 +127,9 @@ async function viewProjectDetail(row) {
         <el-input
           v-model="keyword"
           clearable
-          placeholder="项目名称 / 编号"
+          placeholder="项目名称"
           style="width: 260px"
-          :prefix-icon="Search" aria-label="项目名称 / 编号"/>
+          :prefix-icon="Search" aria-label="项目名称"/>
         <el-button type="primary" :icon="Search" @click="handleSearch">查询</el-button>
         <el-button :icon="Refresh" @click="resetKw">重置</el-button>
       </div>
@@ -142,7 +142,6 @@ async function viewProjectDetail(row) {
           min-width="200"
           show-overflow-tooltip
         />
-        <el-table-column prop="project_id" label="项目编号" width="100" />
         <el-table-column prop="total_batches" label="进场合计" width="100" align="center" />
         <el-table-column prop="material_count" label="材料进场" width="100" align="center" />
         <el-table-column prop="material_exited_count" label="材料退场" width="100" align="center" />

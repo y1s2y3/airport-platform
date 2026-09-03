@@ -33,6 +33,9 @@ defineProps({
       <el-descriptions-item label="申请人">
         {{ todo.applicant || '—' }}
       </el-descriptions-item>
+      <el-descriptions-item v-if="todo.sampleBizType === 'material'" label="材料类型">
+        {{ todo.detail?.materialType || '—' }}
+      </el-descriptions-item>
       <el-descriptions-item v-if="todo.sampleBizType === 'material'" label="供应商">
         {{ todo.detail?.supplier || '—' }}
       </el-descriptions-item>

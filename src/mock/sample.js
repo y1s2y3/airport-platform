@@ -13,6 +13,7 @@ import {
   resolveDefaultApprovers,
   rememberBrandProjectApprovers,
   formatBrandProjectUserLabel,
+  MATERIAL_TYPE,
 } from './brand.js'
 import {
   createSampleSupervisorTodo,
@@ -64,6 +65,18 @@ export const BIZ_TYPE_LABEL = {
   process: '工序样板',
 }
 
+/** 材料类型：与品牌报审 / 进场同源 */
+export { MATERIAL_TYPE }
+
+export function normalizeMaterialType(type) {
+  return type === 'equipment' ? 'equipment' : 'material'
+}
+
+export function materialTypeLabel(type) {
+  const key = normalizeMaterialType(type)
+  return MATERIAL_TYPE[key] || MATERIAL_TYPE.material
+}
+
 export function statusTagType(status) {
   if (status === 'approved') return 'success'
   if (status === 'pending') return 'warning'
@@ -91,6 +104,7 @@ const store = reactive({
       application_id: 'MS-001',
       project_id: 'p-000',
       material_name: '外墙真石漆',
+      material_type: 'material',
       brand_name: '亚士',
       supplier: '亚士创能科技股份有限公司',
       use_part: 'T3 航站楼外立面',
@@ -113,6 +127,7 @@ const store = reactive({
       application_id: 'MS-002',
       project_id: 'p-000',
       material_name: '室内地砖 800×800',
+      material_type: 'material',
       brand_name: '马可波罗',
       supplier: '某陶瓷集团',
       use_part: '商业区公区',
@@ -131,6 +146,7 @@ const store = reactive({
       application_id: 'MS-003',
       project_id: 'p-001',
       material_name: '铝单板幕墙',
+      material_type: 'equipment',
       brand_name: '兴发',
       supplier: '某幕墙材料厂',
       use_part: '连廊立面',
@@ -149,6 +165,7 @@ const store = reactive({
       application_id: 'MS-004',
       project_id: 'p-000',
       material_name: '防水卷材',
+      material_type: 'material',
       brand_name: '东方雨虹',
       supplier: '北京东方雨虹防水技术股份有限公司',
       use_part: '屋面防水层',
@@ -334,6 +351,8 @@ function buildTodoPayload(bizType, app) {
     briefing: isMaterial ? app.indicator_desc || '' : app.briefing_content || '',
     indicatorDesc: isMaterial ? app.indicator_desc || '' : '',
     supplier: isMaterial ? app.supplier || '' : '',
+    materialType: isMaterial ? materialTypeLabel(app.material_type) : '',
+    material_type: isMaterial ? normalizeMaterialType(app.material_type) : '',
     effectImages: isMaterial ? normalizeFileList(app.effect_images) : [],
     approvalFiles: isMaterial ? normalizeFileList(app.approval_files) : [],
     supervisorName: app.supervisor_approver_name || '监理用户',
@@ -469,6 +488,7 @@ export function getRejectedMaterialAppsForCopy(projectId) {
     .map((a) => ({
       application_id: a.application_id,
       material_name: a.material_name,
+      material_type: normalizeMaterialType(a.material_type),
       brand_name: a.brand_name || '',
       supplier: a.supplier,
       use_part: a.use_part,
@@ -486,6 +506,7 @@ export function buildCopyPayloadFromRejectedMaterial(applicationId) {
     data: {
       copy_from_application_id: app.application_id,
       material_name: app.material_name,
+      material_type: normalizeMaterialType(app.material_type),
       brand_name: app.brand_name || '',
       supplier: app.supplier,
       use_part: app.use_part,
@@ -513,6 +534,7 @@ export function buildReEditPayloadFromWithdrawnMaterial(applicationId) {
     data: {
       application_id: app.application_id,
       material_name: app.material_name,
+      material_type: normalizeMaterialType(app.material_type),
       brand_name: app.brand_name || '',
       supplier: app.supplier,
       use_part: app.use_part,
@@ -606,6 +628,10 @@ export function resubmitWithdrawnSample(bizType, applicationId, payload) {
     const supplier = (payload.supplier || '').trim()
     if (!material_name) return { ok: false, msg: '请选择材料名称' }
     if (!supplier) return { ok: false, msg: '请选择供应商' }
+    if (!payload.material_type || !['material', 'equipment'].includes(payload.material_type)) {
+      return { ok: false, msg: '请选择材料类型' }
+    }
+    const material_type = normalizeMaterialType(payload.material_type)
 
     const ids = Array.isArray(payload.location_ids) ? payload.location_ids.map(String).filter(Boolean) : []
     if (payload.location_id && !ids.length) ids.push(String(payload.location_id))
@@ -630,6 +656,7 @@ export function resubmitWithdrawnSample(bizType, applicationId, payload) {
     }
 
     app.material_name = material_name
+    app.material_type = material_type
     app.brand_name = brand
     app.supplier = supplier
     app.use_part = part
@@ -883,6 +910,7 @@ export function submitMaterialApp(payload) {
   const {
     project_id,
     material_name,
+    material_type: materialTypeRaw,
     brand_name = '',
     supplier,
     use_part,
@@ -899,6 +927,10 @@ export function submitMaterialApp(payload) {
   if (!project_id) return { ok: false, msg: '请选择项目' }
   if (!(material_name || '').trim()) return { ok: false, msg: '请选择材料名称' }
   if (!(supplier || '').trim()) return { ok: false, msg: '请选择供应商' }
+  if (!materialTypeRaw || !['material', 'equipment'].includes(materialTypeRaw)) {
+    return { ok: false, msg: '请选择材料类型' }
+  }
+  const material_type = normalizeMaterialType(materialTypeRaw)
 
   const ids = Array.isArray(location_ids) ? location_ids.map(String).filter(Boolean) : []
   if (location_id && !ids.length) ids.push(String(location_id))
@@ -940,6 +972,7 @@ export function submitMaterialApp(payload) {
     application_id,
     project_id,
     material_name: material_name.trim(),
+    material_type,
     brand_name: brand,
     supplier: supplier.trim(),
     use_part: part,

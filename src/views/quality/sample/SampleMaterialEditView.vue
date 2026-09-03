@@ -17,6 +17,7 @@ import {
   resolveDefaultApprovers,
   findBrandProjectUser,
   formatBrandProjectUserLabel,
+  MATERIAL_TYPE,
 } from '../../../mock/sample.js'
 import {
   listSampleMaterialsFromBrand,
@@ -38,6 +39,7 @@ const form = reactive({
   location_id: '',
   location_ids: [],
   material_name: '',
+  material_type: 'material',
   brand_name: '',
   supplier: '',
   indicator_desc: '',
@@ -139,6 +141,7 @@ function applyCopyPayload(data) {
   form.location_id = data.location_id || ''
   form.location_ids = Array.isArray(data.location_ids) ? [...data.location_ids] : []
   form.material_name = data.material_name || ''
+  form.material_type = data.material_type || 'material'
   form.brand_name = data.brand_name || ''
   form.supplier = data.supplier || ''
   form.indicator_desc = data.indicator_desc || ''
@@ -194,6 +197,7 @@ function onSubmit() {
   }
   if (!form.supplier.trim()) return ElMessage.warning('请选择供应商')
   if (!form.material_name.trim()) return ElMessage.warning('请选择材料名称')
+  if (!form.material_type) return ElMessage.warning('请选择材料类型')
   if (!form.indicator_desc.trim()) return ElMessage.warning('请填写材料指标说明')
   const effects = toEffectNames(effectImages.value)
   if (!effects.length) return ElMessage.warning('请至少上传 1 张效果图')
@@ -202,6 +206,7 @@ function onSubmit() {
   const payload = {
     project_id: scopeProjectId.value,
     material_name: form.material_name,
+    material_type: form.material_type,
     brand_name: form.brand_name,
     supplier: form.supplier,
     use_part: form.use_part,
@@ -281,6 +286,17 @@ function onSubmit() {
           <p v-if="!supplierOptions.length" class="field-hint">
             本项目暂无已通过的品牌报审，请先完成品牌报审
           </p>
+        </el-form-item>
+        <el-form-item label="材料类型" required>
+          <el-radio-group v-model="form.material_type" aria-label="材料类型">
+            <el-radio
+              v-for="(label, value) in MATERIAL_TYPE"
+              :key="value"
+              :value="value"
+            >
+              {{ label }}
+            </el-radio>
+          </el-radio-group>
         </el-form-item>
         <el-form-item label="材料名称" required>
           <el-select

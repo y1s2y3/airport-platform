@@ -6,6 +6,7 @@ import {
   getMaterialDetail,
   statusLabel,
   statusTagType,
+  materialTypeLabel,
   findBrandProjectUser,
   formatBrandProjectUserLabel,
 } from '../../../mock/sample.js'
@@ -54,6 +55,9 @@ function approverDetailLabel(userId, fallbackName) {
         <el-descriptions-item label="报审编号">{{ detail.application_id }}</el-descriptions-item>
         <el-descriptions-item label="项目">{{ detail.project_label }}</el-descriptions-item>
         <el-descriptions-item label="材料名称">{{ detail.material_name }}</el-descriptions-item>
+        <el-descriptions-item label="材料类型">{{
+          materialTypeLabel(detail.material_type)
+        }}</el-descriptions-item>
         <el-descriptions-item label="品牌">{{ detail.brand_name || '—' }}</el-descriptions-item>
         <el-descriptions-item label="供应商">{{ detail.supplier || '—' }}</el-descriptions-item>
         <el-descriptions-item label="施工部位">{{ detail.use_part }}</el-descriptions-item>

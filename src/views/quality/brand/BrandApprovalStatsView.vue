@@ -96,9 +96,9 @@ async function viewProjectDetail(row) {
       <el-input
         v-model="keyword"
         clearable
-        placeholder="项目名称 / 编号"
+        placeholder="项目名称"
         style="width: 260px"
-        :prefix-icon="Search" aria-label="项目名称 / 编号"/>
+        :prefix-icon="Search" aria-label="项目名称"/>
       <el-button type="primary" :icon="Search" @click="handleSearch">查询</el-button>
       <el-button :icon="Refresh" @click="reset">重置</el-button>
     </div>
@@ -106,7 +106,6 @@ async function viewProjectDetail(row) {
     <el-table :data="filtered" stripe border empty-text="暂无报审统计数据" class="stats-table">
       <el-table-column type="index" label="序号" width="64" align="center" />
       <el-table-column prop="project_name" label="项目名称" min-width="200" show-overflow-tooltip />
-      <el-table-column prop="project_id" label="项目编号" width="100" />
       <el-table-column prop="brand_total" label="品牌总数" width="110" align="center" />
       <el-table-column prop="application_total" label="报审合计" width="100" align="center" />
       <el-table-column label="审批中" width="90" align="center">
