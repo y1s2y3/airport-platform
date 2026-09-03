@@ -7,7 +7,7 @@
 export const APP_VERSION_BASE = '2.7.1'
 
 /** GitHub Pages 发布序号（从 0 开始；仓库内为「当前即将发布 / 下一版」序号） */
-export const APP_VERSION_PATCH = 9
+export const APP_VERSION_PATCH = 10
 
 export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
 
