@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import './sample-page.css'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -244,6 +244,17 @@ function onSubmit() {
           </ul>
         </div>
       </el-form-item>
+      <el-form-item label="备注">
+        <el-input
+          v-model="form.remark"
+          type="textarea"
+          :rows="2"
+          maxlength="500"
+          show-word-limit
+          placeholder="选填"
+          aria-label="备注"
+        />
+      </el-form-item>
 
       <section class="form-section">
         <h2 class="section-title">审批人配置</h2>
@@ -264,13 +275,9 @@ function onSubmit() {
               :value="u.user_id"
             />
           </el-select>
-          <p class="field-hint">工序样板仅监理终审，须指定监理审批人</p>
         </el-form-item>
       </section>
 
-      <el-form-item label="备注">
-        <el-input v-model="form.remark" placeholder="选填" aria-label="选填"/>
-      </el-form-item>
       <div class="form-actions">
         <el-button @click="router.back()">取消</el-button>
         <el-button type="primary" @click="onSubmit">提交报审</el-button>
@@ -282,6 +289,9 @@ function onSubmit() {
 <style scoped>
 .create-form {
   max-width: 760px;
+}
+.create-form :deep(.el-form-item) {
+  margin-bottom: 20px;
 }
 .doc-upload {
   width: 100%;
@@ -312,9 +322,30 @@ function onSubmit() {
   font-size: 13px;
   color: #606266;
 }
+.form-section {
+  margin: 8px 0 20px;
+  padding: 14px 16px 8px;
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  background: #fafbfc;
+}
+.section-title {
+  margin: 0 0 14px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #303133;
+  line-height: 1.4;
+}
+.form-section :deep(.el-form-item) {
+  margin-bottom: 16px;
+}
+.form-section :deep(.el-form-item__label) {
+  white-space: nowrap;
+}
 .form-actions {
   padding-left: 140px;
   display: flex;
   gap: 8px;
+  margin-top: 8px;
 }
 </style>

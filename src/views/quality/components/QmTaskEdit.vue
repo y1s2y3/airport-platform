@@ -2,6 +2,7 @@
 import { computed, defineAsyncComponent, nextTick, reactive, ref, shallowRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { Clock } from '@element-plus/icons-vue'
 import QmCompletePrereqPanel from './QmCompletePrereqPanel.vue'
 import { useQmProjectScope } from '../../../composables/useCurrentProject'
 import {
@@ -9,7 +10,6 @@ import {
   approvalRecords,
   APPROVER_ROLES,
   buildCompleteGate,
-  buildWbsTree,
   checkUnlock,
   createSpecialTask,
   createTask,
@@ -18,24 +18,21 @@ import {
   findTask,
   getApprovalChain,
   getAttachments,
-  getItemsByTaskId,
-  getArchiveInstance,
+  getCurrentManualNode,
   getTaskMaterialLinks,
   getTaskSampleLinks,
   getTaskAsbuiltLinks,
   defaultManualLevelLabel,
   QM_APPROVER_CANDIDATES,
   removeAttachment,
+  resolveApproverName,
   resolveProjectName,
   ORG_LABEL,
   saveTaskDraft,
   SPECIAL_ACCEPT_TYPES,
   specialTypeLabel,
   submitInspect,
-  TASK_STATUS,
   TASK_TYPE_LABEL,
-  findRectify,
-  rectificationOrders,
   taskMaterialLinks,
   taskSampleLinks,
   taskAsbuiltLinks,
@@ -43,8 +40,7 @@ import {
   wbsNodes,
   ELEC_ARCHIVE_STATUS,
   listNodeArchiveDocs,
-  listApproverCandidatesForNodeType,
-  getApprovalPostForNodeType,
+  candidatesByRole,
   refreshTaskElecArchiveStatus,
 } from '../../../mock/qm.js'
 import { listAsbuiltForInspectLink } from '../../../mock/asbuilt.js'
@@ -71,7 +67,6 @@ const router = useRouter()
 const { scopeProjectId, scopeProjectLabel } = useQmProjectScope()
 const task = ref(null)
 const items = ref([])
-const rectifyMeasure = ref('')
 const activeTpl = ref('')
 const formDataLocal = ref({})
 /** 触发现场资料列表刷新 */
@@ -80,7 +75,7 @@ const siteAttTick = ref(0)
 const linkTick = ref(0)
 /** 填报三步向导当前步（0 系统数据 / 1 档案 / 2 审批流程确认） */
 const activeStep = ref(0)
-/** 只读详情切页：系统信息（含审批记录） / 档案（第三方嵌入） */
+/** 详情页已取消切页栏，保留变量兼容旧逻辑 */
 const detailTab = ref('system')
 /** 档案面板：list 列表 / fill 表格填写（填写页隐藏向导按钮） */
 const archiveViewMode = ref('list')
@@ -237,41 +232,9 @@ function collectExpandToUnitLevel(nodes, expandTypes, acc = []) {
 }
 
 function rebuildWbsTreeOptions() {
-  // 新建或草稿/待验评可编辑时需要节点树
-  const editableDraft =
-    !!task.value &&
-    (Number(task.value.is_draft) === 1 || Number(task.value.status) === 0)
-  if (!isCreateMode.value && !editableDraft) {
-    wbsTreeOptions.value = []
-    wbsDefaultExpandedKeys.value = []
-    return
-  }
-  const pid = (task.value?.project_id || scopeProjectId.value) || undefined
-  const full = buildWbsTree(pid)
-  let source = full
-  const special = isSpecialContext.value
-  if (special) source = takeSpecialBranch(full)
-  else source = takeEntityBranch(full)
-
-  const mark = (nodes) =>
-    (nodes || []).map((n) => {
-      const selectable = special
-        ? n.node_type === 7
-        : [1, 2, 3, 4, 5, 6].includes(n.node_type)
-      const typeLabel = n.type_label || ''
-      const children = n.children?.length ? mark(n.children) : undefined
-      return {
-        id: n.id,
-        label: typeLabel ? `[${typeLabel}] ${n.label}` : n.label,
-        node_type: n.node_type,
-        disabled: !selectable,
-        children,
-      }
-    })
-  const tree = mark(source)
-  wbsTreeOptions.value = tree
-  const expandTypes = special ? [8, 10] : [8, 9]
-  wbsDefaultExpandedKeys.value = collectExpandToUnitLevel(tree, expandTypes)
+  // 发起验收已改走列表弹窗；填报页头信息只读，不再构建整棵验评树（避免进页卡顿）
+  wbsTreeOptions.value = []
+  wbsDefaultExpandedKeys.value = []
 }
 
 watch(
@@ -285,12 +248,11 @@ watch(
     task.value?.project_id,
   ],
   () => rebuildWbsTreeOptions(),
-  { immediate: true },
 )
 
 const wbsTreeSelectKey = computed(
   () =>
-    `wbs-${task.value?.project_id || scopeProjectId.value || ''}-${isSpecialContext.value ? 's' : 'e'}-${wbsDefaultExpandedKeys.value.join('_')}`,
+    `wbs-${task.value?.project_id || scopeProjectId.value || ''}-${isSpecialContext.value ? 's' : 'e'}`,
 )
 
 const selectedNodeLabel = computed(() => {
@@ -321,6 +283,67 @@ const createUnlockTip = computed(() => {
   }
   return '请选择单位工程及以下节点发起验收；「实体工程验收」仅为分类，不可发起。下级节点全部通过后，上级节点方可发起（检验批可直接发起）'
 })
+
+/** 填报页审批人配置（对齐品牌报审：监理 + 项目经理）
+ * 须在 load / immediate watch 之前声明，否则 syncApproverFormFromTask 会触发 TDZ 导致整页白屏 */
+const approverForm = reactive({
+  supervisor_approver_user_id: '',
+  supervisor_approver_name: '',
+  pm_approver_user_id: '',
+  pm_approver_name: '',
+})
+const supervisorCandidates = computed(() => candidatesByRole('jl_pro') || [])
+const pmCandidates = computed(() => candidatesByRole('js_pm') || [])
+
+function formatQmApproverLabel(u) {
+  if (!u) return ''
+  return `${u.name}${u.org ? `（${u.org}）` : ''}`
+}
+
+function syncApproverFormFromTask() {
+  const t = task.value
+  if (!t) {
+    approverForm.supervisor_approver_user_id = ''
+    approverForm.supervisor_approver_name = ''
+    approverForm.pm_approver_user_id = ''
+    approverForm.pm_approver_name = ''
+    return
+  }
+  approverForm.supervisor_approver_user_id = t.supervisor_approver_user_id || ''
+  approverForm.supervisor_approver_name = t.supervisor_approver_name || ''
+  approverForm.pm_approver_user_id = t.pm_approver_user_id || ''
+  approverForm.pm_approver_name = t.pm_approver_name || ''
+  // 无历史选择时默认带出各岗位首个候选人，便于演示
+  if (!approverForm.supervisor_approver_user_id && supervisorCandidates.value[0]) {
+    const u = supervisorCandidates.value[0]
+    approverForm.supervisor_approver_user_id = u.id
+    approverForm.supervisor_approver_name = u.name
+  }
+  if (!approverForm.pm_approver_user_id && pmCandidates.value[0]) {
+    const u = pmCandidates.value[0]
+    approverForm.pm_approver_user_id = u.id
+    approverForm.pm_approver_name = u.name
+  }
+}
+
+function onApproverChange(role) {
+  if (role === 'supervisor') {
+    const u = supervisorCandidates.value.find((x) => x.id === approverForm.supervisor_approver_user_id)
+    approverForm.supervisor_approver_name = u?.name || ''
+  } else {
+    const u = pmCandidates.value.find((x) => x.id === approverForm.pm_approver_user_id)
+    approverForm.pm_approver_name = u?.name || ''
+  }
+}
+
+function collectApproverPatch() {
+  return {
+    supervisor_approver_user_id: approverForm.supervisor_approver_user_id,
+    supervisor_approver_name: approverForm.supervisor_approver_name,
+    pm_approver_user_id: approverForm.pm_approver_user_id,
+    pm_approver_name: approverForm.pm_approver_name,
+  }
+}
 
 function load(forcedId) {
   // watch 回调首参是监听源的新值，不能当作任务 id；仅显式传入字符串时才使用
@@ -353,18 +376,14 @@ function load(forcedId) {
   }
   task.value = found
   ensureTaskItems(task.value)
-  items.value = getItemsByTaskId(task.value.id).map((i) => ({ ...i }))
+  items.value = []
   formDataLocal.value = JSON.parse(JSON.stringify(task.value.form_data || {}))
   syncManualFlowFromTask()
-  const tplIds = [...new Set(items.value.map((i) => i.form_template_id).filter(Boolean))]
-  activeTpl.value = tplIds[0] || task.value.form_template_id || ''
+  syncApproverFormFromTask()
+  activeTpl.value = task.value.form_template_id || ''
   if (activeTpl.value && !formDataLocal.value[activeTpl.value]) {
     formDataLocal.value[activeTpl.value] = {}
   }
-  const rectify = task.value.current_rectify_id
-    ? findRectify(task.value.current_rectify_id)
-    : rectificationOrders.find((r) => r.source_task_id === task.value.id && r.status !== 3)
-  rectifyMeasure.value = rectify?.measure || ''
   headerMeta.task_name = task.value.task_name || ''
   headerMeta.wbs_node_id = task.value.wbs_node_id || ''
   headerMeta.location_name = task.value.location_name || ''
@@ -459,10 +478,10 @@ function ensureTaskCreated(opts = {}) {
   lastLoadedId = r.task.id
   task.value = r.task
   ensureTaskItems(task.value)
-  items.value = getItemsByTaskId(task.value.id).map((i) => ({ ...i }))
+  items.value = []
   formDataLocal.value = JSON.parse(JSON.stringify(task.value.form_data || {}))
-  const tplIds = [...new Set(items.value.map((i) => i.form_template_id).filter(Boolean))]
-  activeTpl.value = tplIds[0] || task.value.form_template_id || ''
+  syncApproverFormFromTask()
+  activeTpl.value = task.value.form_template_id || ''
   headerMeta.task_name = keptHeader.task_name
   headerMeta.wbs_node_id = keptHeader.wbs_node_id
   headerMeta.location_name = keptHeader.location_name
@@ -505,19 +524,35 @@ const records = computed(() =>
   task.value ? approvalRecords.filter((r) => r.task_id === task.value.id) : [],
 )
 
-/** 页头档案摘要（Q12 一任务一档案文档） */
-const archiveBrief = computed(() => {
-  if (!task.value) return '未登记'
-  const inst = getArchiveInstance(task.value.id)
-  return inst ? `已登记 ${inst.archive_doc_id}` : '未登记'
+/** 待提交可填报（V2 无草稿）；须在 flowSteps 之前声明 */
+const canEdit = computed(() => {
+  if (!task.value) return false
+  return Number(task.value.status) === 0
 })
 
 /** 按验收类型的默认审批流程：施工报验 → 审批链 → 办结 */
 const flowSteps = computed(() => {
   if (!task.value) return []
-  const chain = canEdit.value
-    ? manualFlow.value.map((n, i) => n.label || defaultManualLevelLabel(i + 1))
-    : getApprovalChain(task.value)
+  let chain = []
+  if (canEdit.value) {
+    chain = [
+      approverForm.supervisor_approver_name
+        ? `监理单位审批（${approverForm.supervisor_approver_name}）`
+        : '监理单位审批',
+      approverForm.pm_approver_name
+        ? `项目经理审批（${approverForm.pm_approver_name}）`
+        : '项目经理审批',
+    ]
+  } else if (Array.isArray(task.value.manual_approval_flow) && task.value.manual_approval_flow.length) {
+    chain = [...task.value.manual_approval_flow]
+      .sort((a, b) => Number(a.level) - Number(b.level))
+      .map((n) => {
+        const who = (n.approver_names && n.approver_names[0]) || ''
+        return who ? `${n.label}（${who}）` : n.label
+      })
+  } else {
+    chain = getApprovalChain(task.value)
+  }
   const typeLabel = TASK_TYPE_LABEL[task.value.task_type] || '验评'
   return [
     { title: '施工报验', desc: '自检提交' },
@@ -529,31 +564,165 @@ const flowSteps = computed(() => {
 const flowTip = computed(() => {
   if (!task.value) return ''
   const typeLabel = TASK_TYPE_LABEL[task.value.task_type] || '验评'
-  const chain = canEdit.value
-    ? manualFlow.value.map((n, i) => n.label || defaultManualLevelLabel(i + 1))
-    : getApprovalChain(task.value)
-  if (!chain.length) {
-    return `${typeLabel}：请在上方配置审批流程后再提交`
+  const titles = flowSteps.value.map((s) => s.title)
+  if (titles.length <= 2) {
+    return `${typeLabel}：请配置审批人后再提交`
   }
-  const path = ['施工报验', ...chain, '办结通过'].join(' → ')
-  return `${typeLabel}审批流程：${path}`
+  return `${typeLabel}审批流程：${titles.join(' → ')}`
 })
 
-/** 待提交可填报（V2 无草稿） */
-const canEdit = computed(() => {
-  if (!task.value) return false
-  return Number(task.value.status) === 0
+const QM_APPROVAL_ACTION_LABEL = { 1: '提交', 2: '通过', 3: '不通过' }
+
+function qmApprovalActionTagType(action) {
+  const a = Number(action)
+  if (a === 1 || a === 2) return 'success'
+  if (a === 3) return 'danger'
+  return 'warning'
+}
+
+function qmTimelineType(status) {
+  if (status === 'done') return 'success'
+  if (status === 'rejected') return 'danger'
+  if (status === 'current') return 'warning'
+  return 'info'
+}
+
+/** 详情「审批过程」步骤条（样式对齐品牌报审） */
+const approvalProcessSteps = computed(() => {
+  if (!task.value) return []
+  const t = task.value
+  const status = Number(t.status)
+  const recs = records.value
+  const typeLabel = TASK_TYPE_LABEL[t.task_type] || '验评'
+
+  let midNodes = []
+  if (Array.isArray(t.manual_approval_flow) && t.manual_approval_flow.length) {
+    midNodes = [...t.manual_approval_flow]
+      .sort((a, b) => Number(a.level) - Number(b.level))
+      .map((n) => {
+        const who = (n.approver_names && n.approver_names[0]) || ''
+        return {
+          label: n.label || '审批',
+          title: who ? `${n.label}（${who}）` : n.label || '审批',
+        }
+      })
+  } else if (t.supervisor_approver_name || t.pm_approver_name || status === 0) {
+    midNodes = [
+      {
+        label: '监理单位审批',
+        title: t.supervisor_approver_name
+          ? `监理单位审批（${t.supervisor_approver_name}）`
+          : '监理单位审批',
+      },
+      {
+        label: '项目经理审批',
+        title: t.pm_approver_name ? `项目经理审批（${t.pm_approver_name}）` : '项目经理审批',
+      },
+    ]
+  } else {
+    midNodes = getApprovalChain(t).map((label) => ({ label, title: label }))
+  }
+
+  const currentNode = status === 1 ? getCurrentManualNode(t) : null
+  const currentLabel = currentNode?.label || ''
+
+  function midStep(node) {
+    const rejectRec = [...recs]
+      .reverse()
+      .find(
+        (r) =>
+          Number(r.action) === 3 &&
+          (r.node_name === node.label || r.operator_role === node.label),
+      )
+    if (rejectRec) {
+      return { status: 'error', desc: rejectRec.action_time || '已驳回' }
+    }
+    const passRec = [...recs]
+      .reverse()
+      .find(
+        (r) =>
+          Number(r.action) === 2 &&
+          (r.node_name === node.label || r.operator_role === node.label),
+      )
+    if (passRec) {
+      return { status: 'success', desc: passRec.action_time || '已通过' }
+    }
+    if (status === 2) {
+      return { status: 'success', desc: '已通过' }
+    }
+    if (status === 1 && currentLabel === node.label) {
+      return { status: 'process', desc: '审批中' }
+    }
+    return { status: 'wait', desc: '等待' }
+  }
+
+  return [
+    {
+      title: '施工报验',
+      ...(status === 0
+        ? { status: 'wait', desc: '待提交' }
+        : { status: 'success', desc: t.submit_time || '已提交' }),
+    },
+    ...midNodes.map((n) => ({ title: n.title, ...midStep(n) })),
+    {
+      title: '办结通过',
+      ...(status === 2
+        ? { status: 'success', desc: t.finish_time || typeLabel }
+        : status === 3
+          ? { status: 'error', desc: '未通过' }
+          : { status: 'wait', desc: '等待' }),
+    },
+  ]
 })
 
-/** 系统信息区：填报页或详情「系统信息」 */
-const showSystemContent = computed(
-  () => canEdit.value || (!canEdit.value && detailTab.value === 'system'),
-)
+/** 详情「审批过程」时间线（卡片样式对齐品牌报审） */
+const approvalTimeline = computed(() => {
+  if (!task.value) return []
+  const t = task.value
+  const steps = []
+  for (const r of records.value) {
+    const action = Number(r.action)
+    const who =
+      resolveApproverName(r.operator_id) ||
+      r.operator_role ||
+      '—'
+    steps.push({
+      key: r.id,
+      title: r.node_name || r.operator_role || '节点',
+      action,
+      actionLabel: QM_APPROVAL_ACTION_LABEL[action] || '办理',
+      operator: who,
+      time: r.action_time || '—',
+      remark: r.opinion || '',
+      status: action === 3 ? 'rejected' : 'done',
+    })
+  }
+  if (Number(t.status) === 1) {
+    const node = getCurrentManualNode(t)
+    if (node) {
+      const who = (node.approver_names && node.approver_names[0]) || '审批人'
+      steps.push({
+        key: `pending-${node.level || node.label}`,
+        title: node.label || '待审批',
+        action: '',
+        actionLabel: '待办理',
+        operator: who,
+        time: '',
+        remark: '等待审批（个人中心待办）',
+        status: 'current',
+      })
+    }
+  }
+  return steps
+})
+
+/** 填报页与详情均展示本系统数据（已去掉「系统信息」切页栏） */
+const showSystemContent = computed(() => true)
 
 /** 档案嵌入向导已废止；详情不再嵌档案面板 */
 const showArchiveContent = computed(() => false)
 
-/** 本系统内不配多级审批链 */
+/** 本系统内不配多级审批链（填报页用品牌式双审批人） */
 const showManualFlowConfig = computed(() => false)
 
 const elecArchiveDocs = computed(() => {
@@ -561,16 +730,6 @@ const elecArchiveDocs = computed(() => {
   return listNodeArchiveDocs(task.value.wbs_node_id)
 })
 
-const submitDialogVisible = ref(false)
-const submitApproverId = ref('')
-const submitCandidates = computed(() => {
-  const node = wbsNodes.find((n) => n.id === task.value?.wbs_node_id)
-  return listApproverCandidatesForNodeType(node?.node_type) || []
-})
-const submitPostLabel = computed(() => {
-  const node = wbsNodes.find((n) => n.id === task.value?.wbs_node_id)
-  return getApprovalPostForNodeType(node?.node_type)?.approval_post_name || '—'
-})
 /** 任务信息回显：项目名称（系统当前项目 / 任务所属项目） */
 const displayProjectName = computed(() => {
   if (task.value?.project_id) return resolveProjectName(task.value.project_id)
@@ -586,12 +745,13 @@ const displayContractorName = computed(() => {
   return ORG_LABEL[orgId] || orgId || '—'
 })
 
-const isCompleteTask = computed(() => Number(task.value?.task_type) === 7)
-
-const currentRectify = computed(() => {
-  if (!task.value?.current_rectify_id) return null
-  return findRectify(task.value.current_rectify_id)
+const displayApplicantName = computed(() => {
+  const id = task.value?.applicant_id || task.value?.created_by || ''
+  if (!id) return '—'
+  return resolveApproverName(id) || id
 })
+
+const isCompleteTask = computed(() => Number(task.value?.task_type) === 7)
 
 /** 竣工填报页顶部：实体/专项完成情况 */
 const completeGate = computed(() => {
@@ -831,6 +991,8 @@ function onConfirmMatPick() {
       material_name: row.material_name,
       batch_no: row.batch_no || '',
       supplier: row.supplier || '',
+      brand_name: row.brand_name || '',
+      quantity_text: row.quantity_text || '',
       use_part: row.use_part || '',
       source_label: row.source_label || '',
       link_time: now,
@@ -880,6 +1042,7 @@ function onConfirmSamplePick() {
       sample_id: row.sample_id,
       sample_name: row.sample_name,
       sample_category: row.sample_category || '',
+      brand_name: row.brand_name || '',
       use_part: row.use_part || '',
       link_time: now,
     })
@@ -924,6 +1087,7 @@ function onPickAsbuilt(row) {
     title: row.title,
     compare_url: row.compare_url,
     report_names: row.report_names,
+    node_paths: row.node_paths || '',
     status: row.status,
     link_time: new Date().toISOString().slice(0, 19).replace('T', ' '),
   })
@@ -955,14 +1119,21 @@ function onSaveDraft() {
     is_hidden_work: task.value.is_hidden_work,
     wbs_node_id: task.value.wbs_node_id,
     form_data: formDataLocal.value,
+    ...collectApproverPatch(),
   })
   if (!r.ok) return ElMessage.error(r.msg)
   refreshTaskElecArchiveStatus(task.value)
   ElMessage.success('已保存')
 }
 
-function openSubmitDialog() {
+function onSubmit() {
   if (!task.value) return ElMessage.warning('请从列表发起验收后再填报')
+  if (!approverForm.supervisor_approver_user_id) {
+    return ElMessage.warning('请选择监理单位审批人')
+  }
+  if (!approverForm.pm_approver_user_id) {
+    return ElMessage.warning('请选择项目经理审批人')
+  }
   const draftSave = saveTaskDraft(task.value, {
     task_name: task.value.task_name,
     remark: task.value.remark || '',
@@ -970,25 +1141,12 @@ function openSubmitDialog() {
     is_hidden_work: task.value.is_hidden_work,
     wbs_node_id: task.value.wbs_node_id,
     form_data: formDataLocal.value,
+    ...collectApproverPatch(),
   })
   if (!draftSave.ok) return ElMessage.error(draftSave.msg)
   refreshTaskElecArchiveStatus(task.value)
-  if (!submitCandidates.value.length) {
-    return ElMessage.error('流程中心未配置该节点类型审批岗位候选人或岗位下无人')
-  }
-  submitApproverId.value = submitCandidates.value[0]?.id || ''
-  submitDialogVisible.value = true
-}
-
-function onSubmit() {
-  openSubmitDialog()
-}
-
-function confirmSubmit() {
-  if (!task.value) return
-  const r = submitInspect(task.value, { approver_id: submitApproverId.value })
+  const r = submitInspect(task.value, collectApproverPatch())
   if (!r.ok) return ElMessage.error(r.msg)
-  submitDialogVisible.value = false
   ElMessage.success('已提交报验；审批请在个人中心处理')
   if (props.embedded) {
     load()
@@ -997,10 +1155,6 @@ function confirmSubmit() {
   router.push(props.listPath)
 }
 
-/** 整改入口已废止（V2） */
-void findRectify
-void rectificationOrders
-
 function goWizardNext() {
   /* V2 无三步向导 */
 }
@@ -1008,8 +1162,6 @@ function goWizardNext() {
 function saveStepQuietly() {
   return { ok: true }
 }
-
-/** 整改提交在个人中心处理；业务详情仅只读展示整改信息 */
 </script>
 
 <template>
@@ -1026,39 +1178,14 @@ function saveStepQuietly() {
           <template v-if="task">{{ task.task_no }} · {{ TASK_TYPE_LABEL[task.task_type] }}</template>
           <template v-else>{{ isSpecialCreate ? '新建专项验收' : '新建实体工程验收' }}</template>
         </h1>
-        <p v-if="task" class="page-tip">
-          {{ resolveProjectName(task.project_id) }} · {{ nodeName }} · {{ TASK_STATUS[task.status] }}
-          <el-tag v-if="task.is_draft === 1" size="small" type="info" effect="plain">草稿</el-tag>
-          · 档案：{{ archiveBrief }}
-        </p>
       </div>
-      <div class="edit-topbar-center">
-        <p v-if="canEdit" class="v2-fill-hint">待提交填报：工程影像、附件、材料设备、样板；可关联实模一致验收资料；电子档案文件自动带入（只读）</p>
-      </div>
+      <div class="edit-topbar-center" />
       <div class="edit-topbar-right">
         <el-button size="small" @click="router.push(listPath)">返回列表</el-button>
       </div>
     </div>
-    <div v-else-if="task" class="embed-status">
-      <el-tag size="small" type="info">{{ task.task_no }}</el-tag>
-      <el-tag size="small" :type="Number(task.status) === 0 ? 'warning' : 'success'">
-        {{ TASK_STATUS[task.status] }}
-      </el-tag>
-      <el-tag v-if="task.is_draft === 1" size="small" type="info" effect="plain">草稿</el-tag>
-      <span class="embed-status-tip">档案：{{ archiveBrief }}</span>
-    </div>
 
     <div class="edit-body">
-    <!-- 只读详情：系统信息 / 档案 双切页（档案为第三方嵌入） -->
-    <el-tabs
-      v-if="!canEdit && task"
-      v-model="detailTab"
-      class="detail-tabs mb"
-    >
-      <el-tab-pane label="系统信息" name="system" />
-      <el-tab-pane v-if="false" label="档案" name="archive" />
-    </el-tabs>
-
     <template v-if="completeGate && showSystemContent">
       <div class="section-title">前置完成情况</div>
       <QmCompletePrereqPanel :gate="completeGate" compact class="mb" />
@@ -1075,13 +1202,23 @@ function saveStepQuietly() {
       <el-step title="填报系统数据" />
     </el-steps>
 
-    <!-- 第 1 步 / 详情·系统信息：本系统数据 -->
+    <!-- 填报 / 详情：本系统数据 -->
     <template v-if="showSystemContent">
-    <!-- 顶部：发起时已填字段，填报页只读展示 -->
+    <!-- 顶部：发起时已填字段，填报页只读展示（与详情字段口径一致，不含检查项） -->
     <template v-if="canEdit && !isCompleteTask">
       <div class="section-title">任务信息</div>
       <el-form label-width="110px" class="header-meta-form mb" @submit.prevent>
         <el-row :gutter="24">
+          <el-col :span="12">
+            <el-form-item label="验评单号">
+              <span class="readonly-text">{{ task.task_no || '—' }}</span>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="验收类型">
+              <span class="readonly-text">{{ TASK_TYPE_LABEL[task.task_type] || '—' }}</span>
+            </el-form-item>
+          </el-col>
           <el-col :span="12">
             <el-form-item label="项目名称">
               <span class="readonly-text">{{ displayProjectName }}</span>
@@ -1102,7 +1239,12 @@ function saveStepQuietly() {
               <span class="readonly-text">{{ nodeName }}</span>
             </el-form-item>
           </el-col>
-          <el-col :span="12">
+          <el-col v-if="isSpecialContext" :span="12">
+            <el-form-item label="专项类型">
+              <span class="readonly-text">{{ specialTypeLabel(task.special_type) || '—' }}</span>
+            </el-form-item>
+          </el-col>
+          <el-col v-if="!isSpecialContext" :span="12">
             <el-form-item label="施工部位">
               <span class="readonly-text">{{ task.location_name || headerMeta.location_name || '—' }}</span>
             </el-form-item>
@@ -1128,22 +1270,27 @@ function saveStepQuietly() {
       </el-descriptions>
     </template>
 
-    <!-- 只读详情：编辑态已有「任务信息」，勿再叠一层 ① 基本信息（上传静默建任务后易误显） -->
+    <!-- 只读详情：字段对齐个人中心任务信息（不含检查项；专项无部位/隐蔽） -->
     <template v-else-if="task && !canEdit && !isCompleteTask">
       <div class="section-title">基本信息</div>
-      <el-descriptions :column="3" border size="small" class="mb">
+      <el-descriptions :column="2" border size="small" class="mb">
         <el-descriptions-item label="验评单号">{{ task.task_no || '—' }}</el-descriptions-item>
+        <el-descriptions-item label="验收类型">
+          {{ TASK_TYPE_LABEL[task.task_type] || '—' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="项目名称">{{ displayProjectName }}</el-descriptions-item>
+        <el-descriptions-item label="施工单位">{{ displayContractorName }}</el-descriptions-item>
         <el-descriptions-item label="验收任务名称">{{ task.task_name || headerMeta.task_name || '—' }}</el-descriptions-item>
+        <el-descriptions-item label="验收节点">{{ nodeName }}</el-descriptions-item>
         <el-descriptions-item v-if="task.task_type === 6" label="专项类型">
           {{ specialTypeLabel(task.special_type) }}
         </el-descriptions-item>
-        <el-descriptions-item label="验收节点">{{ nodeName }}</el-descriptions-item>
-        <el-descriptions-item label="施工部位">{{ task.location_name || '—' }}</el-descriptions-item>
+        <el-descriptions-item v-if="task.task_type !== 6" label="施工部位">{{ task.location_name || '—' }}</el-descriptions-item>
         <el-descriptions-item v-if="task.task_type !== 6" label="是否隐蔽工程">
           {{ task.is_hidden_work === 1 ? '是' : '否' }}
         </el-descriptions-item>
-        <el-descriptions-item label="业主终审">{{ task.owner_final_required === 1 ? '需要' : '否' }}</el-descriptions-item>
-        <el-descriptions-item label="一次通过">{{ formatFirstPass(task.first_pass_flag) }}</el-descriptions-item>
+        <el-descriptions-item label="申请人">{{ displayApplicantName }}</el-descriptions-item>
+        <el-descriptions-item label="申请时间">{{ task.submit_time || '—' }}</el-descriptions-item>
       </el-descriptions>
     </template>
 
@@ -1156,6 +1303,7 @@ function saveStepQuietly() {
       class="mb"
       title="提交报验前须至少上传一份工程影像（图片或视频，默认必填）"
     />
+    <!-- 第一行：工程影像 | 附件资料 -->
     <div class="site-materials mb">
       <div class="site-block">
         <div class="site-block-head">
@@ -1176,22 +1324,22 @@ function saveStepQuietly() {
           </div>
         </div>
         <el-table :data="siteMediaList" border size="small" empty-text="暂无工程影像">
-          <el-table-column label="类型" width="88">
+          <el-table-column label="类型" width="72">
             <template #default="{ row }">
               <el-tag size="small" :type="isVideoExt(row.file_ext) || row.file_category === 2 ? 'warning' : 'success'">
                 {{ isVideoExt(row.file_ext) || row.file_category === 2 ? '视频' : '图片' }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="file_name" label="文件名" min-width="200" show-overflow-tooltip />
-          <el-table-column label="类别" width="120">
+          <el-table-column prop="file_name" label="文件名" min-width="120" show-overflow-tooltip />
+          <el-table-column label="类别" width="100">
             <template #default="{ row }">{{ FILE_CATEGORY[row.file_category] || '—' }}</template>
           </el-table-column>
-          <el-table-column label="大小" width="90">
+          <el-table-column label="大小" width="80">
             <template #default="{ row }">{{ formatFileSize(row.file_size) }}</template>
           </el-table-column>
-          <el-table-column prop="upload_time" label="上传时间" width="160" />
-          <el-table-column v-if="canEdit" label="操作" width="80" fixed="right">
+          <el-table-column prop="upload_time" label="上传时间" width="150" />
+          <el-table-column v-if="canEdit" label="操作" width="72" fixed="right">
             <template #default="{ row }">
               <el-button link type="danger" @click="onRemoveSiteAtt(row)">删除</el-button>
             </template>
@@ -1213,20 +1361,20 @@ function saveStepQuietly() {
           </div>
         </div>
         <el-table :data="siteMaterialList" border size="small" empty-text="暂无附件资料">
-          <el-table-column label="格式" width="80">
+          <el-table-column label="格式" width="72">
             <template #default="{ row }">
               <el-tag size="small" type="info">{{ String(row.file_ext || '').toUpperCase() || 'FILE' }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="file_name" label="文件名" min-width="220" show-overflow-tooltip />
-          <el-table-column label="类别" width="140">
+          <el-table-column prop="file_name" label="文件名" min-width="120" show-overflow-tooltip />
+          <el-table-column label="类别" width="100">
             <template #default="{ row }">{{ FILE_CATEGORY[row.file_category] || '—' }}</template>
           </el-table-column>
-          <el-table-column label="大小" width="90">
+          <el-table-column label="大小" width="80">
             <template #default="{ row }">{{ formatFileSize(row.file_size) }}</template>
           </el-table-column>
-          <el-table-column prop="upload_time" label="上传时间" width="160" />
-          <el-table-column v-if="canEdit" label="操作" width="80" fixed="right">
+          <el-table-column prop="upload_time" label="上传时间" width="150" />
+          <el-table-column v-if="canEdit" label="操作" width="72" fixed="right">
             <template #default="{ row }">
               <el-button link type="danger" @click="onRemoveSiteAtt(row)">删除</el-button>
             </template>
@@ -1235,110 +1383,8 @@ function saveStepQuietly() {
       </div>
     </div>
 
+    <!-- 第二行：电子档案文件 | 材料设备 -->
     <div class="site-materials mb">
-      <div class="site-block">
-        <div class="site-block-head">
-          <div>
-            <div class="site-block-title">
-              材料设备
-              <el-tag size="small" type="info" effect="plain" class="req-tag">可选</el-tag>
-            </div>
-            <div class="site-block-tip">从材料设备台账选择已通过记录，可按施工部位筛选后勾选</div>
-          </div>
-          <div v-if="canEdit" class="filter-bar">
-            <el-button size="small" native-type="button" @click.stop="onLinkMaterial">关联材料设备</el-button>
-          </div>
-        </div>
-        <el-table :data="materialLinks" border size="small" empty-text="暂无关联材料设备">
-          <el-table-column prop="source_label" label="类型" width="70">
-            <template #default="{ row }">{{ row.source_label || '—' }}</template>
-          </el-table-column>
-          <el-table-column prop="material_name" label="材料设备名称" min-width="160" show-overflow-tooltip />
-          <el-table-column prop="use_part" label="施工部位" min-width="120" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.use_part || '—' }}</template>
-          </el-table-column>
-          <el-table-column prop="batch_no" label="批次/编号" width="130" show-overflow-tooltip />
-          <el-table-column prop="supplier" label="供应商" min-width="110" show-overflow-tooltip />
-          <el-table-column v-if="canEdit" label="操作" width="80" fixed="right">
-            <template #default="{ row }">
-              <el-button link type="danger" @click="onUnlinkMaterial(row)">解除</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-      </div>
-
-      <div class="site-block">
-        <div class="site-block-head">
-          <div>
-            <div class="site-block-title">
-              定版定样关联
-              <el-tag size="small" type="info" effect="plain" class="req-tag">可选</el-tag>
-            </div>
-            <div class="site-block-tip">从样板管理选择已通过定版定样，可按施工部位筛选后勾选</div>
-          </div>
-          <div v-if="canEdit" class="filter-bar">
-            <el-button size="small" native-type="button" @click.stop="onLinkSample">关联定样</el-button>
-          </div>
-        </div>
-        <el-table :data="sampleLinks" border size="small" empty-text="暂无关联定版定样">
-          <el-table-column prop="sample_name" label="定样名称" min-width="160" show-overflow-tooltip />
-          <el-table-column prop="sample_category" label="类别" width="110" />
-          <el-table-column prop="use_part" label="施工部位" min-width="120" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.use_part || '—' }}</template>
-          </el-table-column>
-          <el-table-column prop="link_time" label="关联时间" width="160" />
-          <el-table-column v-if="canEdit" label="操作" width="80" fixed="right">
-            <template #default="{ row }">
-              <el-button link type="danger" @click="onUnlinkSample(row)">解除</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-      </div>
-    </div>
-
-    <div class="site-materials mb">
-      <div class="site-block">
-        <div class="site-block-head">
-          <div>
-            <div class="site-block-title">
-              实模对比报告
-              <el-tag size="small" type="info" effect="plain" class="req-tag">可选·引用</el-tag>
-            </div>
-            <div class="site-block-tip">
-              从「实模一致验收」选用已通过单据，引用其 PDF 报告与对比地址（不在本页上传）
-            </div>
-          </div>
-          <div v-if="canEdit" class="filter-bar">
-            <el-button size="small" native-type="button" @click.stop="onOpenAsbuiltPick">
-              关联实模一致
-            </el-button>
-          </div>
-        </div>
-        <el-table :data="asbuiltLinks" border size="small" empty-text="暂未关联实模一致验收">
-          <el-table-column prop="biz_no" label="验收单号" width="130" />
-          <el-table-column prop="title" label="任务名称" min-width="140" show-overflow-tooltip />
-          <el-table-column prop="report_names" label="报告附件" min-width="160" show-overflow-tooltip />
-          <el-table-column label="对比地址" min-width="120">
-            <template #default="{ row }">
-              <el-button
-                v-if="row.compare_url"
-                link
-                type="primary"
-                @click="openAsbuiltCompare(row.compare_url)"
-              >
-                打开
-              </el-button>
-              <span v-else>—</span>
-            </template>
-          </el-table-column>
-          <el-table-column v-if="canEdit" label="操作" width="80" fixed="right">
-            <template #default="{ row }">
-              <el-button link type="danger" @click="onUnlinkAsbuilt(row)">解除</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-      </div>
-
       <div class="site-block">
         <div class="site-block-head">
           <div>
@@ -1358,7 +1404,7 @@ function saveStepQuietly() {
           size="small"
           empty-text="暂无档案文档"
         >
-          <el-table-column prop="doc_name" label="文档名称" min-width="200" />
+          <el-table-column prop="doc_name" label="文档名称" min-width="140" show-overflow-tooltip />
           <el-table-column label="状态" width="100">
             <template #default="{ row }">
               <el-tag size="small" :type="row.filled ? 'success' : 'warning'" effect="plain">
@@ -1369,56 +1415,223 @@ function saveStepQuietly() {
         </el-table>
         <el-empty v-else description="本单无需电子档案归档" :image-size="48" />
       </div>
+
+      <div class="site-block">
+        <div class="site-block-head">
+          <div>
+            <div class="site-block-title">
+              材料设备
+              <el-tag size="small" type="info" effect="plain" class="req-tag">可选</el-tag>
+            </div>
+            <div class="site-block-tip">从材料设备台账选择已通过记录，可按施工部位筛选后勾选</div>
+          </div>
+          <div v-if="canEdit" class="filter-bar">
+            <el-button size="small" native-type="button" @click.stop="onLinkMaterial">关联材料设备</el-button>
+          </div>
+        </div>
+        <el-table :data="materialLinks" border size="small" empty-text="暂无关联材料设备">
+          <el-table-column prop="source_label" label="类型" width="70">
+            <template #default="{ row }">{{ row.source_label || '—' }}</template>
+          </el-table-column>
+          <el-table-column prop="material_id" label="进场单号" width="110" show-overflow-tooltip />
+          <el-table-column prop="material_name" label="名称" min-width="120" show-overflow-tooltip />
+          <el-table-column prop="use_part" label="施工部位" min-width="100" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.use_part || '—' }}</template>
+          </el-table-column>
+          <el-table-column prop="brand_name" label="品牌" width="100" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.brand_name || '—' }}</template>
+          </el-table-column>
+          <el-table-column prop="quantity_text" label="规格及数量" width="110" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.quantity_text || '—' }}</template>
+          </el-table-column>
+          <el-table-column prop="supplier" label="供应商" min-width="90" show-overflow-tooltip />
+          <el-table-column v-if="canEdit" label="操作" width="72" fixed="right">
+            <template #default="{ row }">
+              <el-button link type="danger" @click="onUnlinkMaterial(row)">解除</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </div>
+
+    <!-- 第三行：定版定样 | 实模对比报告 -->
+    <div class="site-materials mb">
+      <div class="site-block">
+        <div class="site-block-head">
+          <div>
+            <div class="site-block-title">
+              定版定样
+              <el-tag size="small" type="info" effect="plain" class="req-tag">可选</el-tag>
+            </div>
+            <div class="site-block-tip">从样板管理选择已通过定版定样，可按施工部位筛选后勾选</div>
+          </div>
+          <div v-if="canEdit" class="filter-bar">
+            <el-button size="small" native-type="button" @click.stop="onLinkSample">关联定版定样</el-button>
+          </div>
+        </div>
+        <el-table :data="sampleLinks" border size="small" empty-text="暂无关联定版定样">
+          <el-table-column prop="sample_id" label="报审编号" width="120" show-overflow-tooltip />
+          <el-table-column prop="sample_name" label="名称" min-width="120" show-overflow-tooltip />
+          <el-table-column prop="sample_category" label="类型" width="100" />
+          <el-table-column prop="brand_name" label="品牌" width="100" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.brand_name || '—' }}</template>
+          </el-table-column>
+          <el-table-column prop="use_part" label="使用部位" min-width="100" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.use_part || '—' }}</template>
+          </el-table-column>
+          <el-table-column v-if="canEdit" label="操作" width="72" fixed="right">
+            <template #default="{ row }">
+              <el-button link type="danger" @click="onUnlinkSample(row)">解除</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+
+      <div class="site-block">
+        <div class="site-block-head">
+          <div>
+            <div class="site-block-title">
+              实模对比报告
+              <el-tag size="small" type="info" effect="plain" class="req-tag">可选·引用</el-tag>
+            </div>
+            <div class="site-block-tip">
+              从「实模一致验收」选用已通过单据，引用其 PDF 报告与对比地址（不在本页上传）
+            </div>
+          </div>
+          <div v-if="canEdit" class="filter-bar">
+            <el-button size="small" native-type="button" @click.stop="onOpenAsbuiltPick">
+              关联实模一致
+            </el-button>
+          </div>
+        </div>
+        <el-table :data="asbuiltLinks" border size="small" empty-text="暂未关联实模一致验收">
+          <el-table-column prop="biz_no" label="验收单号" width="120" />
+          <el-table-column prop="title" label="任务名称" min-width="110" show-overflow-tooltip />
+          <el-table-column prop="node_paths" label="所选节点" min-width="120" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.node_paths || '—' }}</template>
+          </el-table-column>
+          <el-table-column prop="report_names" label="报告附件" min-width="120" show-overflow-tooltip />
+          <el-table-column label="对比地址" min-width="90">
+            <template #default="{ row }">
+              <el-button
+                v-if="row.compare_url"
+                link
+                type="primary"
+                @click="openAsbuiltCompare(row.compare_url)"
+              >
+                打开
+              </el-button>
+              <span v-else>—</span>
+            </template>
+          </el-table-column>
+          <el-table-column v-if="canEdit" label="操作" width="72" fixed="right">
+            <template #default="{ row }">
+              <el-button link type="danger" @click="onUnlinkAsbuilt(row)">解除</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </div>
+
+    <div v-if="canEdit" class="approver-config mb">
+      <div class="section-title">审批人配置</div>
+      <p class="flow-tip">提交前须指定监理单位与项目经理审批人（交互对齐品牌报审）。</p>
+      <el-form label-width="120px" class="approver-form">
+        <el-row :gutter="24">
+          <el-col :span="12">
+            <el-form-item label="监理单位审批" required>
+              <el-select
+                v-model="approverForm.supervisor_approver_user_id"
+                placeholder="请选择监理单位审批人"
+                filterable
+                clearable
+                style="width: 100%"
+                aria-label="请选择监理单位审批人"
+                @change="onApproverChange('supervisor')"
+              >
+                <el-option
+                  v-for="u in supervisorCandidates"
+                  :key="u.id"
+                  :label="formatQmApproverLabel(u)"
+                  :value="u.id"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="项目经理审批" required>
+              <el-select
+                v-model="approverForm.pm_approver_user_id"
+                placeholder="请选择项目经理审批人"
+                filterable
+                clearable
+                style="width: 100%"
+                aria-label="请选择项目经理审批人"
+                @change="onApproverChange('pm')"
+              >
+                <el-option
+                  v-for="u in pmCandidates"
+                  :key="u.id"
+                  :label="formatQmApproverLabel(u)"
+                  :value="u.id"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+      </el-form>
     </div>
 
     </template>
 
-    <template v-if="task && task.status === 4 && currentRectify">
-      <div class="section-title">整改信息 · {{ currentRectify.order_no }}</div>
-      <el-descriptions :column="3" border size="small" class="mb">
-        <el-descriptions-item label="问题描述" :span="3">{{ currentRectify.problem_desc }}</el-descriptions-item>
-        <el-descriptions-item label="整改期限">{{ currentRectify.deadline || '—' }}</el-descriptions-item>
-        <el-descriptions-item label="状态变更时间">{{ currentRectify.status_changed_at || '—' }}</el-descriptions-item>
-        <el-descriptions-item label="复验轮次">{{ currentRectify.round_count ?? 0 }}</el-descriptions-item>
-        <el-descriptions-item label="整改措施" :span="3">
-          {{ currentRectify.measure || rectifyMeasure || '—' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="关联档案文档状态" :span="3">
-          <el-tag size="small" type="warning" effect="plain">{{ currentRectify.archive_doc_status || '—' }}</el-tag>
-        </el-descriptions-item>
-      </el-descriptions>
-    </template>
-
-    <!-- 详情·系统信息：审批记录（含办理留痕） -->
+    <!-- 详情：审批过程（样式对齐品牌报审） -->
     <template v-if="!canEdit">
-    <el-divider class="approve-divider" />
-    <div class="section-title">审批记录</div>
-    <p class="flow-tip">{{ flowTip }}</p>
-    <el-timeline v-if="records.length" class="approve-timeline mb">
-      <el-timeline-item
-        v-for="r in records"
-        :key="r.id"
-        :timestamp="r.action_time"
-        :type="r.action === 3 ? 'danger' : r.action === 2 ? 'success' : 'primary'"
-      >
-        <div class="approve-record-line">
-          <span class="approve-record-role">{{ r.operator_role }}</span>
-          <el-tag
-            size="small"
-            :type="r.action === 3 ? 'danger' : r.action === 2 ? 'success' : 'info'"
-            effect="plain"
+    <section class="approve-flow-section mb">
+      <header class="approve-flow-head">
+        <el-icon class="approve-flow-icon"><Clock /></el-icon>
+        <h3 class="approve-flow-title">审批过程</h3>
+      </header>
+      <div class="approve-flow-body">
+        <el-steps class="process-steps" align-center>
+          <el-step
+            v-for="(s, idx) in approvalProcessSteps"
+            :key="`proc-${s.title}-${idx}`"
+            :title="s.title"
+            :description="s.desc"
+            :status="s.status"
+          />
+        </el-steps>
+
+        <el-timeline v-if="approvalTimeline.length" class="approval-timeline">
+          <el-timeline-item
+            v-for="step in approvalTimeline"
+            :key="step.key"
+            :type="qmTimelineType(step.status)"
+            :hollow="step.status === 'current'"
+            :timestamp="step.time || '进行中'"
+            placement="top"
           >
-            {{ { 1: '提交', 2: '通过', 3: '不通过' }[r.action] || '办理' }}
-          </el-tag>
-        </div>
-        <p v-if="r.opinion" class="approve-record-opinion">{{ r.opinion }}</p>
-      </el-timeline-item>
-    </el-timeline>
-    <el-empty
-      v-else
-      description="暂无办理记录；上方为按验收类型预设的审批流程"
-      :image-size="56"
-    />
+            <div class="flow-card" :class="step.status">
+              <div class="flow-title">
+                <span>{{ step.title }}</span>
+                <el-tag v-if="step.status === 'current'" size="small" type="warning">当前</el-tag>
+                <el-tag
+                  v-else-if="step.actionLabel"
+                  size="small"
+                  :type="qmApprovalActionTagType(step.action)"
+                  effect="light"
+                >
+                  {{ step.actionLabel }}
+                </el-tag>
+              </div>
+              <div class="flow-meta">处理人：{{ step.operator }}</div>
+              <div v-if="step.remark" class="flow-remark">意见：{{ step.remark }}</div>
+            </div>
+          </el-timeline-item>
+        </el-timeline>
+        <el-empty v-else description="暂无审批记录" :image-size="60" />
+      </div>
+    </section>
     </template>
     </template>
 
@@ -1547,26 +1760,6 @@ function saveStepQuietly() {
       <el-button type="primary" native-type="button" @click="onSubmit">提交报验</el-button>
     </div>
 
-    <el-dialog v-model="submitDialogVisible" title="选择审批人" width="480px" destroy-on-close>
-      <p class="form-hint mb">审批岗位（流程中心）：{{ submitPostLabel }}</p>
-      <el-form label-width="100px">
-        <el-form-item label="审批人" required>
-          <el-select v-model="submitApproverId" filterable placeholder="请选择" style="width: 100%" aria-label="请选择">
-            <el-option
-              v-for="u in submitCandidates"
-              :key="u.id"
-              :label="`${u.name}（${u.org || ''}）`"
-              :value="u.id"
-            />
-          </el-select>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="submitDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="confirmSubmit">确认提交</el-button>
-      </template>
-    </el-dialog>
-
     <el-dialog
       v-model="asbuiltPickVisible"
       title="关联实模一致验收"
@@ -1632,7 +1825,7 @@ function saveStepQuietly() {
         <el-table-column prop="material_name" label="名称" min-width="140" show-overflow-tooltip />
         <el-table-column prop="use_part" label="施工部位" min-width="120" show-overflow-tooltip />
         <el-table-column prop="brand_name" label="品牌" width="100" show-overflow-tooltip />
-        <el-table-column prop="quantity_text" label="数量" width="90" />
+        <el-table-column prop="quantity_text" label="规格及数量" width="110" />
         <el-table-column prop="supplier" label="供应商" min-width="110" show-overflow-tooltip />
       </el-table>
       <template #footer>
@@ -1676,10 +1869,10 @@ function saveStepQuietly() {
         @selection-change="(rows) => (samplePickSelection = rows)"
       >
         <el-table-column type="selection" width="48" />
-        <el-table-column prop="sample_id" label="定样单号" width="120" />
-        <el-table-column prop="sample_name" label="定样名称" min-width="160" show-overflow-tooltip />
-        <el-table-column prop="sample_category" label="类别" width="110" />
-        <el-table-column prop="use_part" label="施工部位" min-width="130" show-overflow-tooltip />
+        <el-table-column prop="sample_id" label="报审编号" width="120" />
+        <el-table-column prop="sample_name" label="名称" min-width="160" show-overflow-tooltip />
+        <el-table-column prop="sample_category" label="类型" width="110" />
+        <el-table-column prop="use_part" label="使用部位" min-width="130" show-overflow-tooltip />
         <el-table-column prop="brand_name" label="品牌" width="100" show-overflow-tooltip>
           <template #default="{ row }">{{ row.brand_name || '—' }}</template>
         </el-table-column>
@@ -1756,13 +1949,6 @@ function saveStepQuietly() {
   color: #606266;
   line-height: 1.5;
 }
-.embed-status {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-.embed-status-tip { font-size: 12px; color: #909399; }
 .complete-meta-form {
   border: 1px solid #ebeef5;
   border-radius: 8px;
@@ -1775,15 +1961,6 @@ function saveStepQuietly() {
   margin: 4px 0 0;
   font-size: 18px;
   font-weight: 600;
-  line-height: 1.35;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.page-tip {
-  margin: 4px 0 0;
-  font-size: 12px;
-  color: #606266;
   line-height: 1.35;
   white-space: nowrap;
   overflow: hidden;
@@ -1831,12 +2008,6 @@ function saveStepQuietly() {
 .edit-topbar .wizard-steps :deep(.el-step__main) {
   white-space: nowrap;
 }
-.v2-fill-hint {
-  margin: 0;
-  font-size: 13px;
-  color: #606266;
-  text-align: center;
-}
 .form-hint { font-size: 13px; color: #606266; }
 .filter-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .self-check-actions { margin-top: 4px; }
@@ -1849,6 +2020,73 @@ function saveStepQuietly() {
 .node-tip { margin: 4px 0 0; font-size: 12px; color: #909399; line-height: 1.5; }
 .readonly-text { color: #303133; line-height: 32px; }
 .approve-divider { margin: 8px 0 4px; }
+.approve-flow-section {
+  background: #fff;
+  border: 1px solid #ebeef5;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.approve-flow-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px 12px;
+  background: linear-gradient(180deg, #fafbfc 0%, #fff 100%);
+  border-bottom: 1px solid #f0f2f5;
+}
+.approve-flow-icon {
+  font-size: 18px;
+  color: var(--el-color-primary);
+}
+.approve-flow-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2329;
+  line-height: 1.4;
+}
+.approve-flow-body {
+  padding: 16px 18px 18px;
+}
+.process-steps {
+  margin: 4px 0 20px;
+}
+.approval-timeline {
+  padding: 4px 8px 0;
+}
+.flow-card {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #ebeef5;
+}
+.flow-card.done {
+  border-color: #e1f3d8;
+  background: #f0f9eb;
+}
+.flow-card.rejected {
+  border-color: #fde2e2;
+  background: #fef0f0;
+}
+.flow-card.current {
+  border-color: #f5dab1;
+  background: #fdf6ec;
+}
+.flow-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  color: #303133;
+}
+.flow-meta,
+.flow-remark {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #606266;
+  line-height: 1.5;
+}
 .approve-timeline { padding-left: 4px; }
 .approve-record-line {
   display: flex;
@@ -1897,4 +2135,13 @@ function saveStepQuietly() {
   color: #909399;
 }
 .req-tag { margin-left: 8px; }
+.approver-config {
+  border: 1px solid #ebeef5;
+  border-radius: 6px;
+  background: #fff;
+  padding: 12px 14px 4px;
+}
+.approver-form :deep(.el-form-item) {
+  margin-bottom: 14px;
+}
 </style>

@@ -3,12 +3,14 @@
  */
 import { inspectionTasks, isWbsAlive, nowStr, primaryFormTemplateId, wbsNodes } from './qmInspect.js'
 import { ensureTaskItems, syncNodeAccept } from './qmInspectOps.js'
+import { findActiveTaskOnNode } from './qmInspectV2.js'
 import { getSpecialAcceptType } from './qmSpecialTypes.js'
 
 export * from './qmSpecialTypes.js'
 
 /**
  * 创建专项验收任务（须选择目录树专项节点 node_type=7）
+ * 一节点仅一张有效单；已驳回可并存并支持重新申报
  */
 export function createSpecialTask({
   project_id,
@@ -19,6 +21,8 @@ export function createSpecialTask({
   remark = '',
   contractor_org_id = 'org-sg-01',
   supervisor_org_id = 'org-jl-01',
+  related_reject_id = '',
+  need_archive,
 }) {
   if (!project_id) return { ok: false, msg: '请先选择项目' }
   if (!wbs_node_id) return { ok: false, msg: '请选择专项验收节点（目录树·专项验收下）' }
@@ -34,8 +38,15 @@ export function createSpecialTask({
   const typeMeta = getSpecialAcceptType(typeCode)
   if (!typeMeta) return { ok: false, msg: '专项验收类型无效' }
 
+  const active = findActiveTaskOnNode(wbs_node_id)
+  if (active) {
+    return {
+      ok: false,
+      msg: `该验收节点已有有效验收单（${active.task_no || active.id}），一节点仅允许一张有效单；已驳回单可并存`,
+    }
+  }
+
   const tplId = primaryFormTemplateId(node) || typeMeta.form_template_id || 'ft-special-fire'
-  // 一节点可上报多个任务（不再做「一节点一有效任务」拦截）
   const id = `tk-${Date.now()}`
   const task = {
     id,
@@ -73,8 +84,9 @@ export function createSpecialTask({
     archive_status: 0,
     archive_pkg_no: '',
     archive_instance_id: '',
-    is_draft: 1,
-    owner_final_required: 1,
+    is_draft: 0,
+    need_archive: need_archive === undefined ? 1 : Number(need_archive) === 1 ? 1 : 0,
+    related_reject_id: related_reject_id || '',
     remark: remark || '',
     manual_approval_flow: [],
     created_by: 'u-sg-01',

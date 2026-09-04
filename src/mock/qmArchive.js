@@ -178,9 +178,9 @@ export const projectSealUsers = reactive([
   {
     id: 'psu-001',
     project_id: 'p-000',
+    user_id: 'u-pm-02',
     user_name: '陈项目经理',
-    org_name: '中建某局深圳机场项目部',
-    cert_no: 'CA-SG-4403-0001',
+    post_label: '项目经理',
     phone: '13800007001',
     status: 1,
     pushed_at: '2026-07-05 09:30:00',
@@ -189,9 +189,9 @@ export const projectSealUsers = reactive([
   {
     id: 'psu-002',
     project_id: 'p-000',
+    user_id: 'u-jl-01',
     user_name: '李总监',
-    org_name: '深圳某监理有限公司',
-    cert_no: 'CA-JL-4403-0002',
+    post_label: '总监理工程师',
     phone: '13800001001',
     status: 1,
     pushed_at: '2026-07-05 09:35:00',
@@ -230,19 +230,9 @@ export function needsManualApprovalFlow(task) {
 
 /**
  * 任务审批链（D2）：档案回传非空时用回传链；空时由调用方改读手动配置。
- * owner_final_required 的业主/总监终审为本地规则，仅叠加在非空档案链之后。
  */
 export function getArchiveChain(task) {
-  const base = getArchiveReturnedChain(task)
-  if (
-    base.length &&
-    task.task_type === 1 &&
-    task.owner_final_required === 1 &&
-    !base.includes('业主/总监')
-  ) {
-    base.push('业主/总监')
-  }
-  return base
+  return getArchiveReturnedChain(task)
 }
 
 /** 任务所属节点需填报的档案文件清单（C2 拦截依据；空 = 不拦截） */
@@ -411,37 +401,37 @@ export function listSealUsers(project_id) {
 /** 保存用章人（新增/编辑）→ 保存即下传档案系统（status=1，pushed_at=保存时间） */
 export function saveSealUser(payload, id = '') {
   if (!payload.project_id) return { ok: false, msg: '请先选择项目' }
+  if (!payload.user_id?.trim() && !payload.user_name?.trim()) {
+    return { ok: false, msg: '请选择用章人' }
+  }
   if (!payload.user_name?.trim()) return { ok: false, msg: '用章人姓名必填' }
-  if (!payload.cert_no?.trim()) return { ok: false, msg: 'CA 证书编号必填' }
-  const dup = projectSealUsers.find(
-    (u) => u.project_id === payload.project_id && u.cert_no === payload.cert_no && u.id !== id,
-  )
-  if (dup) return { ok: false, msg: '该项目下已存在相同证书编号的用章人' }
+  const userId = String(payload.user_id || '').trim()
+  if (userId) {
+    const dup = projectSealUsers.find(
+      (u) => u.project_id === payload.project_id && u.user_id === userId && u.id !== id,
+    )
+    if (dup) return { ok: false, msg: '该项目下已存在相同用户的用章人' }
+  }
   const now = nowStr()
+  const next = {
+    user_id: userId,
+    user_name: payload.user_name.trim(),
+    post_label: String(payload.post_label || '').trim(),
+    phone: String(payload.phone || '').trim(),
+    remark: payload.remark || '',
+    status: 1,
+    pushed_at: now,
+  }
   if (id) {
     const row = projectSealUsers.find((u) => u.id === id)
     if (!row) return { ok: false, msg: '用章人不存在' }
-    Object.assign(row, {
-      user_name: payload.user_name.trim(),
-      org_name: payload.org_name || '',
-      cert_no: payload.cert_no.trim(),
-      phone: payload.phone || '',
-      remark: payload.remark || '',
-      status: 1,
-      pushed_at: now,
-    })
+    Object.assign(row, next)
     return { ok: true, user: row }
   }
   const user = {
     id: `psu-${Date.now()}`,
     project_id: payload.project_id,
-    user_name: payload.user_name.trim(),
-    org_name: payload.org_name || '',
-    cert_no: payload.cert_no.trim(),
-    phone: payload.phone || '',
-    status: 1,
-    pushed_at: now,
-    remark: payload.remark || '',
+    ...next,
   }
   projectSealUsers.push(user)
   return { ok: true, user }

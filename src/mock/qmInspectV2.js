@@ -7,10 +7,10 @@ import { nodeArchiveDocConfigs } from './qmArchive.js'
 import { candidatesByRole, getApproverRoleMeta } from './qmApproverConfig.js'
 import { inspectionTasks, nowStr, wbsNodes } from './qmInspect.js'
 
-/** 验收状态：0待提交 1验评中 2已通过 3已驳回 */
+/** 验收状态：0待提交 1审批中 2已通过 3已驳回 */
 export const ACCEPTANCE_STATUS = {
   0: '待提交',
-  1: '验评中',
+  1: '审批中',
   2: '已通过',
   3: '已驳回',
 }
@@ -140,7 +140,7 @@ export function canSubmitByElecArchive(task) {
   return s === 0 || s === 2 || s === 3
 }
 
-/** 一节点仅允许一张有效单（待提交/验评中/已通过）；已驳回可多张 */
+/** 一节点仅允许一张有效单（待提交/审批中/已通过）；已驳回可多张 */
 export function findActiveTaskOnNode(wbs_node_id, excludeId = '') {
   return inspectionTasks.find(
     (t) =>
@@ -162,24 +162,147 @@ export function markNodeDocFilled(node_id, doc_key, filled = true) {
     .forEach((t) => refreshTaskElecArchiveStatus(t))
 }
 
+/**
+ * 演示假数据：为若干验收节点预置电子档案填报进度，
+ * 使列表可同时见到「未完成 / 部分完成 / 全部完成」。
+ * 口径：已通过单所在节点不得为「未完成」（见 enforcePassedTaskElecArchive）。
+ * fillCount：已填份数；fillAll：全部填完。
+ */
+export function seedElecArchiveDemoStates() {
+  const presets = [
+    // 全部完成（含已通过样例所在节点）
+    { node_id: 'wn-batch-1', fillAll: true },
+    { node_id: 'wn-batch-hist', fillAll: true },
+    { node_id: 'wn-batch-ready-1', fillAll: true },
+    { node_id: 'wn-special-fire', fillAll: true },
+    { node_id: 'wn-special-planning', fillAll: true },
+    { node_id: 'wn-special-energy', fillAll: true },
+    { node_id: 'wn-special-cd', fillAll: true },
+    { node_id: 'wn-special-equip', fillAll: true },
+    { node_id: 'wn-unit-1', fillAll: true },
+    { node_id: 'wn-unit-4', fillAll: true },
+    { node_id: 'wn-item-ready', fillAll: true },
+    // 部分完成（仅挂待提交/审批中/已驳回，或可与已通过并存时须≥部分完成——此处挂未通过链路节点）
+    { node_id: 'wn-batch-2', fillCount: 1 },
+    { node_id: 'wn-unit-2', fillCount: 1 },
+    // 未完成（仅挂非已通过任务：待提交/审批中/已驳回）
+    { node_id: 'wn-batch-3', fillCount: 0 },
+    { node_id: 'wn-batch-4', fillCount: 0 },
+    { node_id: 'wn-batch-5', fillCount: 0 },
+    { node_id: 'wn-item-1', fillCount: 0 },
+  ]
+
+  presets.forEach(({ node_id, fillAll, fillCount }) => {
+    const node = wbsNodes.find((n) => n.id === node_id)
+    if (!node) return
+    const docs = ensureNodeDocState(node_id, node.node_type)
+    if (!docs.length) return
+    const n = fillAll ? docs.length : Math.max(0, Math.min(docs.length, Number(fillCount) || 0))
+    docs.forEach((d, i) => {
+      d.filled = i < n
+      d.updated_at = d.filled
+        ? `2026-08-${String(5 + (i % 5)).padStart(2, '0')} ${String(10 + i).padStart(2, '0')}:20:00`
+        : `2026-07-${String(18 + (i % 8)).padStart(2, '0')} 09:00:00`
+    })
+  })
+}
+
+/** 已通过 ⇒ 电子档案不得为「未完成」：将该节点档案全部置为已填并回写任务状态 */
+function enforcePassedTaskElecArchive() {
+  const passedNeedArchive = inspectionTasks.filter(
+    (t) => Number(t.status) === 2 && Number(t.need_archive) === 1,
+  )
+  const nodeIds = [...new Set(passedNeedArchive.map((t) => t.wbs_node_id).filter(Boolean))]
+  nodeIds.forEach((node_id) => {
+    const node = wbsNodes.find((n) => n.id === node_id)
+    if (!node) return
+    const docs = ensureNodeDocState(node_id, node.node_type)
+    if (!docs.length) return
+    const status = computeElecArchiveStatus(true, node_id)
+    if (status !== 1) return
+    docs.forEach((d, i) => {
+      d.filled = true
+      d.updated_at = `2026-08-${String(8 + (i % 2)).padStart(2, '0')} 16:00:00`
+    })
+  })
+  inspectionTasks.forEach((t) => refreshTaskElecArchiveStatus(t))
+}
+
 /** 将历史 seed 对齐 V2 四态（去掉草稿/整改中/待复验主路径语义） */
 export function migrateTasksToV2() {
+  const docsLenByNodeType = new Map(
+    nodeArchiveDocConfigs.map((c) => [Number(c.node_type), (c.docs || []).length]),
+  )
+  const nodeTypeById = new Map(wbsNodes.map((n) => [n.id, Number(n.node_type)]))
+
+  // 先预置节点档案进度，再回写任务电子档案状态
+  seedElecArchiveDemoStates()
+
   inspectionTasks.forEach((t) => {
     t.is_draft = 0
     if (Number(t.status) === 4 || Number(t.status) === 5) t.status = 3
     if (t.need_archive === undefined) {
-      const empty = nodeRequiredDocsEmpty(t.wbs_node_id)
-      t.need_archive = empty ? 0 : 1
+      const nt = nodeTypeById.get(t.wbs_node_id)
+      const docLen = docsLenByNodeType.get(nt) || 0
+      t.need_archive = docLen > 0 ? 1 : 0
     }
     if (t.related_reject_id === undefined) t.related_reject_id = ''
     if (t.approval_post_id === undefined) t.approval_post_id = ''
     if (t.approval_post_name === undefined) t.approval_post_name = ''
     if (t.approver_id === undefined) t.approver_id = ''
     if (t.approver_name === undefined) t.approver_name = ''
+    if (t.supervisor_approver_user_id === undefined) t.supervisor_approver_user_id = ''
+    if (t.supervisor_approver_name === undefined) t.supervisor_approver_name = ''
+    if (t.pm_approver_user_id === undefined) t.pm_approver_user_id = ''
+    if (t.pm_approver_name === undefined) t.pm_approver_name = ''
+    // 业主终审已废弃
+    if ('owner_final_required' in t) delete t.owner_final_required
+    // 审批中且无手动链：补齐监理+项目经理双审批人（对齐 submitInspect）
+    if (
+      Number(t.status) === 1 &&
+      (!Array.isArray(t.manual_approval_flow) || !t.manual_approval_flow.length)
+    ) {
+      const jl = candidatesByRole('jl_pro')[0]
+      const pm = candidatesByRole('js_pm')[0]
+      if (jl && pm) {
+        t.supervisor_approver_user_id = t.supervisor_approver_user_id || jl.id
+        t.supervisor_approver_name = t.supervisor_approver_name || jl.name
+        t.pm_approver_user_id = t.pm_approver_user_id || pm.id
+        t.pm_approver_name = t.pm_approver_name || pm.name
+        t.manual_approval_flow = [
+          {
+            level: 1,
+            role: 'jl_pro',
+            role_label: '专业监理工程师',
+            label: '监理单位审批',
+            approver_ids: [jl.id],
+            approver_names: [jl.name],
+            need_seal: 0,
+            cc_ids: [],
+            mode: 'orsign',
+          },
+          {
+            level: 2,
+            role: 'js_pm',
+            role_label: '建设单位项目负责人',
+            label: '项目经理审批',
+            approver_ids: [pm.id],
+            approver_names: [pm.name],
+            need_seal: 0,
+            cc_ids: [],
+            mode: 'orsign',
+          },
+        ]
+      }
+    }
     refreshTaskElecArchiveStatus(t)
     t.updated_at = t.updated_at || nowStr()
   })
-  // 一节点一有效单：同节点多张有效单时保留最新一张，其余标为已驳回
+
+  // 已通过不可仍为电子档案「未完成」
+  enforcePassedTaskElecArchive()
+
+  // 一节点一有效单（实体/专项/竣工均适用）；已驳回可并存
   const byNode = {}
   inspectionTasks.forEach((t) => {
     if (![0, 1, 2].includes(Number(t.status))) return
@@ -195,5 +318,10 @@ export function migrateTasksToV2() {
         t.status = 3
         t.result = 2
       })
+  })
+
+  // 节点验收状态废止整改中(4)/待复验(5) → 已驳回(3)
+  wbsNodes.forEach((n) => {
+    if (Number(n.accept_status) === 4 || Number(n.accept_status) === 5) n.accept_status = 3
   })
 }

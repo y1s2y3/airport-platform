@@ -85,6 +85,11 @@
   background: #f0f9eb;
 }
 
+.flow-card.rejected {
+  border-color: #fde2e2;
+  background: #fef0f0;
+}
+
 .flow-title {
   display: flex;
   align-items: center;

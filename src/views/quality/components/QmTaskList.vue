@@ -1,11 +1,12 @@
 ﻿<script setup>
-import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onMounted, reactive, ref, shallowRef, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search, Refresh } from '@element-plus/icons-vue'
 import { useQmProjectScope } from '../../../composables/useCurrentProject'
 import {
   buildWbsTree,
+  createSpecialTask,
   createTask,
   deletePendingTask,
   ELEC_ARCHIVE_STATUS,
@@ -22,7 +23,11 @@ import {
   wbsNodeTypeTagType,
   wbsNodes,
 } from '../../../mock/qm.js'
-import ConstructionLocationSelect from '../../../components/ConstructionLocationSelect.vue'
+
+/** 施工部位选择较重，仅发起弹窗打开时再加载 */
+const ConstructionLocationSelect = defineAsyncComponent(() =>
+  import('../../../components/ConstructionLocationSelect.vue'),
+)
 
 const props = defineProps({
   taskTypes: { type: Array, required: true },
@@ -70,6 +75,13 @@ const archiveLocked = ref(false)
 /** 编辑回填时跳过「选节点带出隐蔽标记」 */
 const suppressNodePrefill = ref(false)
 const dialogTitle = computed(() => (editingTaskId.value ? '编辑验收' : '发起验收'))
+/** 项目层级不搜项目名；指挥部层级保留「项目」关键词提示 */
+const keywordPlaceholder = computed(() => {
+  if (props.specialMode) {
+    return isHqSelected.value ? '验收单号/项目/类型' : '验收单号/类型'
+  }
+  return isHqSelected.value ? '验收单号/项目/部位' : '验收单号/部位'
+})
 
 const list = computed(() => {
   void listTick.value
@@ -131,8 +143,12 @@ function collectExpandKeys(nodes, expandTypes, acc = []) {
   return acc
 }
 
-/** 发起验收：验收节点取验评目录树结构（实体/专项分支） */
-const createNodeTree = computed(() => {
+/** 发起验收：验收节点树（浅层缓存，仅弹窗打开时构建，避免进页卡顿） */
+const createNodeTree = shallowRef([])
+const createNodeExpandedKeys = shallowRef([])
+const createNodeTreeKey = ref('create-wbs-empty')
+
+function rebuildCreateNodeTree() {
   const pid = scopeProjectId.value || undefined
   const full = buildWbsTree(pid)
   let source = full
@@ -148,22 +164,22 @@ const createNodeTree = computed(() => {
       disabled: !isNodeSelectable(n.node_type),
       children: n.children?.length ? mark(n.children) : undefined,
     }))
-  return mark(source)
-})
-
-const createNodeExpandedKeys = computed(() => {
+  const tree = mark(source)
+  createNodeTree.value = tree
   const expandTypes = props.specialMode ? [8, 10] : [8, 9]
-  return collectExpandKeys(createNodeTree.value, expandTypes)
-})
+  createNodeExpandedKeys.value = collectExpandKeys(tree, expandTypes)
+  createNodeTreeKey.value = `create-wbs-${pid || ''}-${props.specialMode ? 's' : 'e'}-${Date.now()}`
+}
 
-const createNodeTreeKey = computed(
-  () =>
-    `create-wbs-${scopeProjectId.value || ''}-${props.specialMode ? 's' : 'e'}-${createNodeExpandedKeys.value.join('_')}`,
-)
+const wbsNameById = computed(() => {
+  const map = new Map()
+  for (const n of wbsNodes) map.set(n.id, n.node_name)
+  return map
+})
 
 function nodeName(id) {
   if (!id) return '—'
-  return wbsNodes.find((n) => n.id === id)?.node_name || id
+  return wbsNameById.value.get(id) || id
 }
 
 function reset() {
@@ -182,6 +198,7 @@ function openCreate() {
   createForm.is_hidden_work = 0
   createForm.need_archive = 0
   archiveLocked.value = false
+  rebuildCreateNodeTree()
   createVisible.value = true
 }
 
@@ -204,6 +221,7 @@ function openEdit(row) {
   const empty = row.wbs_node_id ? nodeRequiredDocsEmpty(row.wbs_node_id) : false
   archiveLocked.value = empty
   if (empty) createForm.need_archive = 0
+  rebuildCreateNodeTree()
   createVisible.value = true
   nextTick(() => {
     suppressNodePrefill.value = false
@@ -247,9 +265,9 @@ async function confirmCreate() {
       const r = saveTaskDraft(task, {
         task_name: createForm.task_name.trim(),
         wbs_node_id: createForm.wbs_node_id,
-        location_name: createForm.location_name.trim(),
-        location_id: createForm.location_id || '',
-        location_ids: [...(createForm.location_ids || [])],
+        location_name: props.specialMode ? '' : createForm.location_name.trim(),
+        location_id: props.specialMode ? '' : createForm.location_id || '',
+        location_ids: props.specialMode ? [] : [...(createForm.location_ids || [])],
         is_hidden_work: props.specialMode ? 0 : createForm.is_hidden_work,
         need_archive: createForm.need_archive,
       })
@@ -260,16 +278,23 @@ async function confirmCreate() {
       ElMessage.success('已保存')
       return
     }
-    const r = createTask({
-      project_id: scopeProjectId.value,
-      wbs_node_id: createForm.wbs_node_id,
-      task_name: createForm.task_name.trim(),
-      location_name: createForm.location_name.trim(),
-      location_id: createForm.location_id || '',
-      location_ids: [...(createForm.location_ids || [])],
-      is_hidden_work: props.specialMode ? 0 : createForm.is_hidden_work,
-      need_archive: createForm.need_archive,
-    })
+    const r = props.specialMode
+      ? createSpecialTask({
+          project_id: scopeProjectId.value,
+          wbs_node_id: createForm.wbs_node_id,
+          task_name: createForm.task_name.trim(),
+          location_name: '',
+        })
+      : createTask({
+          project_id: scopeProjectId.value,
+          wbs_node_id: createForm.wbs_node_id,
+          task_name: createForm.task_name.trim(),
+          location_name: createForm.location_name.trim(),
+          location_id: createForm.location_id || '',
+          location_ids: [...(createForm.location_ids || [])],
+          is_hidden_work: createForm.is_hidden_work,
+          need_archive: createForm.need_archive,
+        })
     if (!r.ok) return ElMessage.error(r.msg)
     createVisible.value = false
     listTick.value += 1
@@ -321,7 +346,7 @@ function goFillArchive(row) {
 async function onReDeclare(row) {
   try {
     await ElMessageBox.confirm(
-      `将基于「${row.task_no}」新建验收单并关联本驳回单，确认重新申报？`,
+      `将基于「${row.task_no}」复制表单新建验收单并关联本驳回单，确认重新申报？`,
       '重新申报验收',
       { type: 'warning' },
     )
@@ -331,7 +356,7 @@ async function onReDeclare(row) {
   const r = reDeclareAcceptance(row)
   if (!r.ok) return ElMessage.error(r.msg)
   listTick.value += 1
-  ElMessage.success('已新建验收单')
+  ElMessage.success('已复制建新单，请完善后提交报审')
   router.push(`${resolveEditPath(r.task)}?id=${r.task.id}`)
 }
 
@@ -347,7 +372,7 @@ onMounted(() => {
       <h1 class="page-title">{{ title }}</h1>
       <p class="page-tip">
         当前：{{ isHqSelected ? '请切换到项目查看业务单' : scopeProjectLabel }}
-        · 弹窗发起 → 待提交填报 → 提交时选审批人；审批在个人中心办理。一节点仅一张有效单。
+        · 弹窗发起 → 待提交填报 → 提交时选审批人；审批在个人中心办理。一节点仅一张有效单；已驳回可重新申报。
       </p>
     </div>
 
@@ -355,9 +380,11 @@ onMounted(() => {
       <el-input
         v-model="keyword"
         clearable
-        :placeholder="specialMode ? '验收单号/项目/类型/部位' : '验收单号/项目/部位'"
+        :placeholder="keywordPlaceholder"
         style="width: 240px"
-        :prefix-icon="Search" aria-label="specialMode ? '验收单号/项目/类型/部位' : '验收单号/项目/部位'"/>
+        :prefix-icon="Search"
+        :aria-label="keywordPlaceholder"
+      />
       <el-select v-model="statusFilter" clearable placeholder="验收状态" style="width: 140px" aria-label="验收状态">
         <el-option
           v-for="opt in TASK_STATUS_FILTER_OPTIONS"
@@ -372,7 +399,7 @@ onMounted(() => {
     </div>
 
     <el-table :data="list" stripe border>
-      <el-table-column label="项目名称" min-width="150" fixed>
+      <el-table-column v-if="isHqSelected" label="项目名称" min-width="150" fixed>
         <template #default="{ row }">{{ resolveProjectName(row.project_id) }}</template>
       </el-table-column>
       <el-table-column prop="task_no" label="验收单号" width="130" />
@@ -388,7 +415,7 @@ onMounted(() => {
       <el-table-column label="验收节点" min-width="150">
         <template #default="{ row }">{{ nodeName(row.wbs_node_id) }}</template>
       </el-table-column>
-      <el-table-column prop="location_name" label="施工部位" min-width="120" />
+      <el-table-column v-if="!specialMode" prop="location_name" label="施工部位" min-width="120" />
       <el-table-column label="验收状态" width="100">
         <template #default="{ row }">
           <el-tag :type="getTaskDisplayStatus(row).tagType" size="small">
@@ -488,21 +515,17 @@ onMounted(() => {
             </template>
           </el-tree-select>
         </el-form-item>
-        <el-form-item label="施工部位">
+        <el-form-item v-if="!specialMode" label="施工部位">
           <ConstructionLocationSelect
             v-model:location-id="createForm.location_id"
             v-model:location-ids="createForm.location_ids"
             v-model:location-name="createForm.location_name"
             :project-id="scopeProjectId"
-            :scope-wbs-node-id="specialMode ? '' : createForm.wbs_node_id"
-            :require-scope="!specialMode"
+            :scope-wbs-node-id="createForm.wbs_node_id"
+            require-scope
             scope-mode="focus"
             multiple
-            :placeholder="
-              specialMode
-                ? '可多选施工部位（非必填）'
-                : '按验收节点定位所属分项，可多选且不限其他部位'
-            "
+            placeholder="按验收节点定位所属分项，可多选且不限其他部位"
           />
         </el-form-item>
         <el-form-item v-if="!specialMode" label="是否隐蔽工程">

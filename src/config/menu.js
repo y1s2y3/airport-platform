@@ -178,6 +178,7 @@ export const menuTree = [
           { key: 'qm-form-fill-deep', label: '实体工程验收', path: '/qm/inspect/form-fill-deep', name: 'QmFormFillDeep', component: 'QmFormFillDeepView', levels: 'project' },
           { key: 'qm-special-deep', label: '专项验收', path: '/qm/inspect/special-deep', name: 'QmSpecialDeep', component: 'QmSpecialDeepView', levels: 'project' },
           { key: 'qm-complete-deep', label: '竣工验收', path: '/qm/inspect/complete-deep', name: 'QmCompleteDeep', component: 'QmCompleteDeepView', levels: 'project' },
+          { key: 'qm-node-archive-list', label: '节点档案清单', path: '/qm/inspect/node-archive-list', name: 'QmNodeArchiveList', component: 'QmNodeArchiveListView', levels: 'project' },
           { key: 'qm-seal-user', label: '项目用章人配置', path: '/qm/inspect/seal-user', name: 'QmSealUserConfig', component: 'QmSealUserConfigView', levels: 'project' },
         ],
       },
@@ -186,7 +187,6 @@ export const menuTree = [
         children: [
           { key: 'qm-archive-fill', label: '档案管理', path: '/qm/inspect/archive-jump', name: 'QmArchiveJump', component: 'QmArchiveJumpView', levels: 'project', openInNewTab: true },
           { key: 'qm-provincial-form', label: '省统表管理', path: '/qm/inspect/provincial-forms', name: 'QmProvincialForm', component: 'QmProvincialFormView', levels: 'project' },
-          { key: 'qm-node-archive-list', label: '节点档案清单', path: '/qm/inspect/node-archive-list', name: 'QmNodeArchiveList', component: 'QmNodeArchiveListView', levels: 'project' },
         ],
       },
       {

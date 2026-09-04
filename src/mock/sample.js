@@ -411,6 +411,7 @@ function buildTodoPayload(bizType, app) {
     effectImages: photos,
     approvalFiles: signs,
     certificateFiles: certs,
+    remark: app.remark || '',
     supervisorName: app.supervisor_approver_name || '监理用户',
     pmApproverName: app.pm_approver_name || '项目经理',
     assigneeName:

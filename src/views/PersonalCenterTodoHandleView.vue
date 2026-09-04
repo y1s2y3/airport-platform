@@ -100,13 +100,12 @@ const todoSourceLabel = computed(() => {
     inspection: '巡检管理',
   }
   if (typeLabels[todo.value.type]) return typeLabels[todo.value.type]
-  if (todo.value.processName?.includes('品牌报审')) return '品牌报审'
-  if (todo.value.processName?.includes('检验批') || todo.value.processName?.includes('验收')) {
-    return '质量验评'
-  }
-  if (todo.value.processName?.includes('巡检') || todo.value.processName?.includes('隐患')) {
-    return '巡检管理'
-  }
+  const pn = todo.value.processName || ''
+  if (pn.startsWith('品牌报审')) return '品牌报审'
+  if (pn.startsWith('质量验评')) return '质量验评'
+  if (pn.startsWith('巡检任务') || pn.startsWith('隐患整改')) return '巡检管理'
+  if (pn.startsWith('调度隐患')) return '调度隐患'
+  if (pn.startsWith('处罚单')) return '处罚单'
   return '流程'
 })
 

@@ -40,7 +40,6 @@ const canViewProjectLedger = computed(() => !isHqLedgerPage.value && !!viewProje
 
 const keyword = ref('')
 const bizType = ref('')
-const usePart = ref('')
 const hqKeyword = ref('')
 
 const hqRows = computed(() => buildHqSampleStatsByProject())
@@ -56,14 +55,12 @@ const list = computed(() => {
   return listLedger(viewProjectId.value, {
     bizType: bizType.value,
     keyword: keyword.value,
-    usePart: usePart.value,
   })
 })
 
 function reset() {
   keyword.value = ''
   bizType.value = ''
-  usePart.value = ''
 }
 
 function resetHq() {
@@ -230,7 +227,6 @@ function goBackToHQ() {
               :value="val"
             />
           </el-select>
-          <el-input v-model="usePart" clearable placeholder="部位" style="width: 160px" aria-label="部位" />
           <el-button type="primary" :icon="Search">查询</el-button>
           <el-button :icon="Refresh" @click="reset">重置</el-button>
         </div>

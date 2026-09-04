@@ -7,19 +7,13 @@ import PersonalCenterReadonlyHint from '../../../components/PersonalCenterReadon
 import {
   approveStep,
   approvalRecords,
-  createRectify,
   findTask,
   getApprovalChain,
   getArchiveInstance,
   getArchiveSync,
   getCurrentManualNode,
-  getItemsByTaskId,
   getManualLevelProgress,
   getNextApprovalRole,
-  hasBlockFailItems,
-  hasOnlyGeneralFail,
-  ITEM_CATEGORY,
-  JUDGE_RESULT,
   MANUAL_APPROVAL_MODE,
   rejectTask,
   resolveApproverName,
@@ -192,7 +186,6 @@ const nextRolePeople = computed(() => {
     : []
 })
 
-const items = computed(() => (task.value ? getItemsByTaskId(task.value.id) : []))
 const records = computed(() =>
   task.value ? approvalRecords.filter((r) => r.task_id === task.value.id) : [],
 )
@@ -207,7 +200,7 @@ const archiveSync = computed(() => (task.value ? getArchiveSync(task.value.id) :
 const archiveInstance = computed(() => (task.value ? getArchiveInstance(task.value.id) : null))
 const chainSourceTip = computed(() => {
   if (isManualChain.value) {
-    return '审批链来源：本系统流程配置（填报第 3 步：级别 / 岗位 / 审批人 / 是否签章 / 抄送人）'
+    return '审批链来源：本系统双审批人（监理 → 项目经理）'
   }
   if (archiveSync.value) {
     return `审批链来源：档案同步快照（登记时锁定，同步于 ${archiveSync.value.synced_at}）——兼容未配置本系统流程的历史任务`
@@ -248,22 +241,7 @@ async function onApprove() {
     if (!node) return ElMessage.warning('审批链已完成')
     const uid = demoApproverId.value
     if (!uid) return ElMessage.warning('请选择本级审批人')
-    let opinion = ''
-    if (hasOnlyGeneralFail(task.value.id)) {
-      try {
-        const { value } = await ElMessageBox.prompt(
-          '一般项目存在不合格，方案B须填写审批意见',
-          '确认通过',
-          {
-            inputType: 'textarea',
-            inputValidator: (v) => (!!String(v || '').trim() ? true : '审批意见不能为空'),
-          },
-        )
-        opinion = value
-      } catch {
-        return
-      }
-    }
+    const opinion = ''
     const r = approveStep(task.value, {
       opinion,
       operator_role: node.label,
@@ -284,24 +262,8 @@ async function onApprove() {
   if (!isChainRoleConfigured(task.value.project_id, role)) {
     return ElMessage.warning(`「${role}」暂无可用审批人（审批人名单由档案侧同步）`)
   }
-  let opinion = ''
-  if (hasOnlyGeneralFail(task.value.id)) {
-    try {
-      const { value } = await ElMessageBox.prompt(
-        '一般项目存在不合格，方案B须填写审批意见',
-        '确认通过',
-        {
-          inputType: 'textarea',
-          inputValidator: (v) => (!!String(v || '').trim() ? true : '审批意见不能为空'),
-        },
-      )
-      opinion = value
-    } catch {
-      return
-    }
-  }
   const r = approveStep(task.value, {
-    opinion,
+    opinion: '',
     operator_role: role,
   })
   if (!r.ok) return ElMessage.error(r.msg)
@@ -317,7 +279,7 @@ async function onApprove() {
 
 async function onReject() {
   try {
-    const { value } = await ElMessageBox.prompt('请填写退回意见（必填）', '审核不通过', {
+    const { value } = await ElMessageBox.prompt('请填写驳回意见（必填）', '审核不通过', {
       inputType: 'textarea',
       inputValidator: (v) => (!!String(v || '').trim() ? true : '意见不能为空'),
     })
@@ -329,20 +291,8 @@ async function onReject() {
     }
     const r = rejectTask(task.value, value, role)
     if (!r.ok) return ElMessage.error(r.msg)
-    ElMessage.warning('已判定不通过（退回状态已先写入档案系统并同步回本系统）')
+    ElMessage.warning('已驳回并存档，可在列表「重新申报」复制建新单')
     syncPersonalTodoFinish('审批不通过')
-    try {
-      await ElMessageBox.confirm(
-        '是否按驳回意见生成整改单？整改为驳回的结果，由任务提交人整改，不存在单独下发动作。',
-        '整改（驳回结果）',
-        { type: 'warning', confirmButtonText: '生成整改单', cancelButtonText: '暂不' },
-      )
-      const cr = createRectify(task.value, value)
-      if (!cr.ok) return ElMessage.error(cr.msg)
-      ElMessage.success(`已生成整改单 ${cr.order.order_no}，整改人=任务提交人`)
-    } catch {
-      /* skip */
-    }
     if (!props.embedded) {
       router.push(`${props.editPath}?id=${task.value.id}`)
     }
@@ -360,8 +310,6 @@ function onRollback() {
     router.push(`${props.editPath}?id=${task.value.id}`)
   }
 }
-
-void hasBlockFailItems
 </script>
 
 <template>
@@ -395,7 +343,7 @@ void hasBlockFailItems
         :closable="false"
         show-icon
         class="mb"
-        title="本任务为手动审批链：会签须本级全员通过，或签任一人通过即可进入下一级（不校验档案签章）"
+        title="本任务为手动审批链：或签任一人通过即可进入下一级（不校验档案签章）"
       />
       <div class="filter-bar op-actions-inline">
         <template v-if="isManualChain">
@@ -522,22 +470,8 @@ void hasBlockFailItems
       :closable="false"
       show-icon
       class="mb"
-      title="本任务为手动审批链：会签须本级全员通过，或签任一人通过即可进入下一级（不校验档案签章）"
+      title="本任务为手动审批链：或签任一人通过即可进入下一级（不校验档案签章）"
     />
-
-    <div class="section-title">检查项核查</div>
-    <el-table :data="items" border size="small" class="mb">
-      <el-table-column prop="seq_no" label="序号" width="60" />
-      <el-table-column label="类别" width="70">
-        <template #default="{ row }">{{ ITEM_CATEGORY[row.item_category] }}</template>
-      </el-table-column>
-      <el-table-column prop="item_name" label="检查项" min-width="160" />
-      <el-table-column prop="measured_value" label="实测值" min-width="120" />
-      <el-table-column label="判定" width="90">
-        <template #default="{ row }">{{ JUDGE_RESULT[row.judge_result] }}</template>
-      </el-table-column>
-    </el-table>
-    <p class="hint">主控/观感不合格禁止通过；仅一般不合格可走方案B（须填意见）。</p>
 
     <div class="section-title">签章记录</div>
     <el-table :data="signs" border size="small" class="mb" empty-text="暂无签章">

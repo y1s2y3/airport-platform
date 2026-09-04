@@ -129,18 +129,20 @@ const listFilter = ref('total')
 
 const STAT_FILTERS = [
   { key: 'total', label: '下级节点总数', valueClass: '' },
-  { key: 'inProgress', label: '验收中数量', valueClass: 'primary' },
+  { key: 'inProgress', label: '审批中数量', valueClass: 'primary' },
   { key: 'completed', label: '已完成数量', valueClass: 'success' },
   { key: 'pending', label: '未开始数量', valueClass: 'muted' },
-  { key: 'rectifying', label: '整改中数量', valueClass: 'danger' },
+  { key: 'rejected', label: '已驳回数量', valueClass: 'danger' },
 ]
 
 function matchChildFilter(node, key) {
+  const st = Number(node.accept_status)
+  const norm = st === 4 || st === 5 ? 3 : st
   if (key === 'total') return true
-  if (key === 'inProgress') return node.accept_status === 1
-  if (key === 'completed') return node.accept_status === 2
-  if (key === 'pending') return node.accept_status === 0
-  if (key === 'rectifying') return node.accept_status === 4
+  if (key === 'inProgress') return norm === 1
+  if (key === 'completed') return norm === 2
+  if (key === 'pending') return norm === 0
+  if (key === 'rejected') return norm === 3
   return true
 }
 
@@ -157,12 +159,16 @@ function setListFilter(key) {
 
 const stats = computed(() => {
   const children = directChildren.value
+  const norm = (n) => {
+    const st = Number(n.accept_status)
+    return st === 4 || st === 5 ? 3 : st
+  }
   return {
     total: children.length,
-    inProgress: children.filter((n) => n.accept_status === 1).length,
-    completed: children.filter((n) => n.accept_status === 2).length,
-    pending: children.filter((n) => n.accept_status === 0).length,
-    rectifying: children.filter((n) => n.accept_status === 4).length,
+    inProgress: children.filter((n) => norm(n) === 1).length,
+    completed: children.filter((n) => norm(n) === 2).length,
+    pending: children.filter((n) => norm(n) === 0).length,
+    rejected: children.filter((n) => norm(n) === 3).length,
   }
 })
 
@@ -172,16 +178,20 @@ function isSystemNode(node) {
 
 const acceptLabel = {
   0: '未开始',
-  1: '验收中',
+  1: '审批中',
   2: '已完成',
-  3: '不通过',
-  4: '整改中',
-  5: '待复验',
+  3: '已驳回',
 }
 
 function acceptStatusTagType(status) {
-  const map = { 0: 'info', 1: 'primary', 2: 'success', 3: 'danger', 4: 'danger', 5: 'warning' }
-  return map[status] || 'info'
+  const st = Number(status) === 4 || Number(status) === 5 ? 3 : Number(status)
+  const map = { 0: 'info', 1: 'warning', 2: 'success', 3: 'danger' }
+  return map[st] || 'info'
+}
+
+function displayAcceptStatus(status) {
+  const st = Number(status) === 4 || Number(status) === 5 ? 3 : Number(status)
+  return acceptLabel[st] || '—'
 }
 
 /** 节点类型标签：已完成绿色，其余灰色 */
@@ -472,7 +482,7 @@ async function onRemove(row) {
             <el-table-column label="验收状态" width="110">
               <template #default="{ row }">
                 <el-tag :type="acceptStatusTagType(row.accept_status)" size="small">
-                  {{ acceptLabel[row.accept_status] }}
+                  {{ displayAcceptStatus(row.accept_status) }}
                 </el-tag>
               </template>
             </el-table-column>

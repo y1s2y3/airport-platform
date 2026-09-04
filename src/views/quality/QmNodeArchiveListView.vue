@@ -1,6 +1,7 @@
 <script setup>
 /**
  * 节点档案清单 — 左侧验评目录树，右侧所选节点档案文档及状态
+ * 树节点着色：仅看当前节点是否存在已填报档案 → 绿，否则灰（不看下级）
  */
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
@@ -10,7 +11,6 @@ import {
   buildWbsTree,
   ensureWbsScaffold,
   listNodeArchiveDocs,
-  wbsNodeTypeTagType,
   wbsNodes,
 } from '../../mock/qm.js'
 
@@ -51,6 +51,17 @@ const docSummary = computed(() => {
   const filled = all.filter((d) => d.filled).length
   return all.length ? `共 ${all.length} 项 · 已填报 ${filled} · 需填报 ${all.length - filled}` : '该节点暂无档案文档'
 })
+
+/** 当前节点：存在任一已填报档案文档即为绿（不看下级） */
+function isArchiveTreeGreen(node) {
+  if (!node?.id) return false
+  return listNodeArchiveDocs(node.id).some((d) => d.filled)
+}
+
+/** 节点类型标签：档案有已填报→绿，否则灰（同验评目录树） */
+function archiveNodeTagType(node) {
+  return isArchiveTreeGreen(node) ? 'success' : 'info'
+}
 
 function filterTreeNode(value, data) {
   if (!value) return true
@@ -101,11 +112,11 @@ function goView(row) {
 <template>
   <div class="qm-page page-card">
     <div class="page-header">
-      <div class="page-breadcrumb">档案管理 / 节点档案清单</div>
+      <div class="page-breadcrumb">质量验评 / 节点档案清单</div>
       <h1 class="page-title">节点档案清单</h1>
       <p class="page-tip">
         当前：{{ isHqSelected ? '请切换到项目' : scopeProjectLabel }}
-        · 左侧选择验收节点，右侧查看档案文档及填报状态；点「查看」新标签打开档案管理页
+        · 左侧类型标签着色（同验评目录树）：当前节点存在已填报档案即为绿，否则灰（不看下级）
       </p>
     </div>
 
@@ -126,7 +137,9 @@ function goView(row) {
           clearable
           size="small"
           placeholder="筛选节点"
-          class="tree-filter" aria-label="筛选节点"/>
+          class="tree-filter"
+          aria-label="筛选节点"
+        />
         <el-tree
           ref="treeRef"
           :data="treeData"
@@ -141,16 +154,16 @@ function goView(row) {
           @node-click="onTreeSelect"
         >
           <template #default="{ data }">
-            <span class="tree-node">
+            <span class="tree-node" :class="{ 'is-filled': isArchiveTreeGreen(data) }">
               <el-tag
                 size="small"
-                :type="wbsNodeTypeTagType(data.node_type)"
+                :type="archiveNodeTagType(data)"
                 effect="plain"
                 class="type-tag"
               >
                 {{ data.type_label }}
               </el-tag>
-              <span class="tree-label">{{ data.label }}</span>
+              <span class="tree-label" :title="data.label">{{ data.label }}</span>
             </span>
           </template>
         </el-tree>
@@ -171,8 +184,16 @@ function goView(row) {
               clearable
               placeholder="文档名称"
               style="width: 180px"
-              :prefix-icon="Search" aria-label="文档名称"/>
-            <el-select v-model="statusFilter" clearable placeholder="填报状态" style="width: 130px" aria-label="填报状态">
+              :prefix-icon="Search"
+              aria-label="文档名称"
+            />
+            <el-select
+              v-model="statusFilter"
+              clearable
+              placeholder="填报状态"
+              style="width: 130px"
+              aria-label="填报状态"
+            >
               <el-option label="需填报" value="todo" />
               <el-option label="已填报" value="filled" />
             </el-select>
@@ -243,9 +264,39 @@ function goView(row) {
   overflow: auto;
   background: transparent;
 }
-.tree-node { display: inline-flex; align-items: center; gap: 6px; }
+.tree-node {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  line-height: 1.4;
+  padding-right: 4px;
+  box-sizing: border-box;
+}
 .type-tag { flex-shrink: 0; }
-.tree-label { overflow: hidden; text-overflow: ellipsis; }
+.tree-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tree-node.is-filled .tree-label {
+  color: #67c23a;
+  font-weight: 500;
+}
+:deep(.el-tree-node__content) {
+  overflow: hidden;
+  padding-right: 8px;
+}
+:deep(.el-tree-node__content > span:last-child),
+:deep(.el-tree-node__content > .tree-node) {
+  flex: 1;
+  min-width: 0;
+  width: 0;
+}
 .list-head {
   display: flex;
   flex-wrap: wrap;

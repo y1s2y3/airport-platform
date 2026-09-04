@@ -4,6 +4,7 @@ import {
   handleSubcontractorTodo,
   personalTodoStore,
   DISPATCH_HAZARD_TODO_BIZ,
+  buildDispatchHazardProcessName,
 } from '../../../mock/personalCenter.js'
 import { pmApprove, supervisorApprove } from '../../../mock/brand.js'
 import { getCurrentUserSnapshot, getEffectiveUserId } from '../../../mock/currentUser.js'
@@ -62,7 +63,10 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
       category: 'COC调度',
       bizType: DISPATCH_HAZARD_TODO_BIZ.ACCEPT,
       hazardId: hazard.id,
-      processName: `调度隐患验收·${String(hazard.description || hazard.id).slice(0, 18)}`,
+      processName: buildDispatchHazardProcessName(
+        hazard.description || hazard.id,
+        hazard.rectifyStatus || '待验收',
+      ),
       applicant: hazard.rectifier || '整改人',
       dept: '总包项目部',
       applyTime: new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-'),
@@ -128,7 +132,10 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
       category: 'COC调度',
       bizType: DISPATCH_HAZARD_TODO_BIZ.RECTIFY,
       hazardId: result.id,
-      processName: `调度隐患整改·${String(result.description || result.id).slice(0, 18)}`,
+      processName: buildDispatchHazardProcessName(
+        result.description || result.id,
+        result.rectifyStatus || '待整改',
+      ),
       applicant: '安质部',
       dept: '指挥部安质部',
       applyTime: new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-'),

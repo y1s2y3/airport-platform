@@ -76,6 +76,55 @@ export const DISPATCH_HAZARD_TODO_BIZ = {
   ACCEPT: '隐患验收',
 }
 
+/** 个人中心流程名称：业务标识过长截断 */
+export function clipProcessBizLabel(text, max = 24) {
+  const s = String(text || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+  if (!s) return '—'
+  return s.length > max ? `${s.slice(0, max)}…` : s
+}
+
+export function buildQmInspectProcessName(typeLabel, taskName) {
+  return `质量验评·${typeLabel}-${clipProcessBizLabel(taskName, 30)}`
+}
+
+export function buildAsbuiltProcessName(title) {
+  return `实模一致验收·${clipProcessBizLabel(title, 30)}`
+}
+
+export function buildInspectionTaskProcessName(taskName) {
+  return `巡检任务·${clipProcessBizLabel(taskName, 30)}`
+}
+
+export function buildHazardRectifyProcessName(hazardDesc, status) {
+  return `隐患整改·${clipProcessBizLabel(hazardDesc)}-${status || '—'}`
+}
+
+export function buildSampleProcessName(bizLabel, title) {
+  return `${bizLabel}·${clipProcessBizLabel(title, 30)}`
+}
+
+export function buildDispatchHazardProcessName(description, status) {
+  return `调度隐患·${clipProcessBizLabel(description)}-${status || '—'}`
+}
+
+export function buildBrandProcessName(materialName) {
+  return `品牌报审·${clipProcessBizLabel(materialName, 30)}`
+}
+
+export function buildSubcontractorProcessName(unitName) {
+  return `分包单位报审·${clipProcessBizLabel(unitName, 30)}`
+}
+
+export function buildMatEntryProcessName(itemName) {
+  return `材料设备进场·${clipProcessBizLabel(itemName, 30)}`
+}
+
+export function buildPenaltyProcessName(content) {
+  return `处罚单·${clipProcessBizLabel(content, 30)}`
+}
+
 export function buildDispatchHazardApprovalFlow(todo) {
   const applyTime = todo?.applyTime || ''
   const hazard = todo?.hazard || {}
@@ -193,7 +242,7 @@ function seedTodos() {
       brandApplicationId: 'PP-2026-002',
       brandNode: 'supervisor',
       assigneeUserId: 'u-jl-01',
-      processName: '品牌报审审批·防水卷材（PP-2026-002）',
+      processName: '品牌报审·防水卷材',
       applicant: '张工',
       dept: '总包项目部',
       applyTime: '2026-07-20 11:00:00',
@@ -240,7 +289,7 @@ function seedTodos() {
       brandApplicationId: 'PP-2026-003',
       brandNode: 'pm',
       assigneeUserId: 'u-pm-01',
-      processName: '品牌报审终审·钢筋（PP-2026-003）',
+      processName: '品牌报审·钢筋',
       applicant: '张工',
       dept: '总包项目部',
       applyTime: '2026-07-18 14:30:00',
@@ -292,7 +341,7 @@ function seedTodos() {
       sampleBizType: 'material',
       sampleApplicationId: 'MS-002',
       sampleNode: 'supervisor',
-      processName: '材料设备定样审批·室内地砖 800×800（MS-002）',
+      processName: '材料设备定样·室内地砖 800×800',
       applicant: '施工-李工',
       dept: '总包项目部',
       applyTime: '2026-07-25 11:05:00',
@@ -315,6 +364,7 @@ function seedTodos() {
         effectImages: [{ name: '地砖样板.jpg', url: '#' }],
         approvalFiles: [{ name: '材料设备送样定板报审签字.pdf', url: '#' }],
         certificateFiles: [{ name: '地砖出厂质量证明.pdf', url: '#' }],
+        remark: '',
       },
       approvalFlow: [
         {
@@ -349,7 +399,7 @@ function seedTodos() {
       sampleBizType: 'process',
       sampleApplicationId: 'PS-002',
       sampleNode: 'supervisor',
-      processName: '工序样板审批·防水卷材铺贴样板（PS-002）',
+      processName: '工序样板·防水卷材铺贴样板',
       applicant: '施工-李工',
       dept: '总包项目部',
       applyTime: '2026-07-26 09:40:00',
@@ -361,6 +411,7 @@ function seedTodos() {
         usePart: '屋面防水层',
         currentNode: '待监理审',
         briefing: '搭接宽度、热熔顺序、节点加强。',
+        remark: '',
       },
       approvalFlow: [
         {
@@ -388,7 +439,7 @@ function seedTodos() {
       sampleBizType: 'material',
       sampleApplicationId: 'MS-003',
       sampleNode: 'pm',
-      processName: '材料设备定样终审·铝单板幕墙（MS-003）',
+      processName: '材料设备定样·铝单板幕墙',
       applicant: '施工-赵工',
       dept: '总包项目部',
       applyTime: '2026-07-20 14:10:00',
@@ -411,6 +462,7 @@ function seedTodos() {
         effectImages: [{ name: '铝单板-1.jpg', url: '#' }],
         approvalFiles: [{ name: '材料设备送样定板报审签字.pdf', url: '#' }],
         certificateFiles: [{ name: '铝单板出厂质量证明.pdf', url: '#' }],
+        remark: '',
       },
       approvalFlow: [
         {
@@ -444,7 +496,7 @@ function seedTodos() {
       bizType: '监理审批',
       asbuiltAcceptanceId: 'AB-002',
       asbuiltNode: 'supervisor',
-      processName: '实模一致验收·防水分项实模一致（同步）（AB-202608-002）',
+      processName: '实模一致验收·防水分项实模一致（同步）',
       applicant: '施工-李工',
       dept: '总包项目部',
       applyTime: '2026-08-09 14:20:00',
@@ -489,7 +541,7 @@ function seedTodos() {
       bizType: '处罚处理',
       bizStatus: PENALTY_TODO_STATUS.PROCESSING,
       penaltyId: 'CF-20260612-001',
-      processName: '处罚单处理·塔吊警戒标识不足',
+      processName: '处罚单·塔吊警戒标识不足',
       applicant: 'COC调度室',
       dept: '指挥部调度中心',
       applyTime: '2026-06-12 10:15:00',
@@ -516,7 +568,7 @@ function seedTodos() {
       bizType: '处罚处理',
       bizStatus: PENALTY_TODO_STATUS.PROCESSING,
       penaltyId: 'CF-PENDING-001',
-      processName: '处罚单处理·临边防护缺失限期整改',
+      processName: '处罚单·临边防护缺失限期整改',
       applicant: '监理部',
       dept: '工程监理部',
       applyTime: '2026-06-14 09:20:00',
@@ -542,7 +594,7 @@ function seedTodos() {
       bizType: '处罚验收',
       bizStatus: PENALTY_TODO_STATUS.PENDING_ACCEPTANCE,
       penaltyId: 'CF-20260612-002',
-      processName: '处罚单验收·混凝土养护措施不到位',
+      processName: '处罚单·混凝土养护措施不到位',
       applicant: '质量部',
       dept: '质量管理部',
       applyTime: '2026-06-12 16:30:00',
@@ -574,7 +626,7 @@ function seedTodos() {
       bizType: '处罚申诉',
       bizStatus: PENALTY_TODO_STATUS.APPEALING,
       penaltyId: 'CF-20260611-003',
-      processName: '处罚单申诉处理·文明施工违规',
+      processName: '处罚单·文明施工违规',
       applicant: '中建二局',
       dept: '总包项目部',
       applyTime: '2026-06-12 09:30:00',
@@ -604,7 +656,7 @@ function seedTodos() {
       category: 'COC调度',
       bizType: DISPATCH_HAZARD_TODO_BIZ.RECTIFY,
       hazardId: 'DHZ-SEED-000-P',
-      processName: '调度隐患整改·塔吊作业区警戒标识不足',
+      processName: '调度隐患·塔吊作业区警戒标识不足，临边防护缺失-待整改',
       applicant: 'COC调度室',
       dept: '指挥部调度中心',
       applyTime: '2026-06-05 09:10:00',
@@ -632,7 +684,7 @@ function seedTodos() {
       category: 'COC调度',
       bizType: DISPATCH_HAZARD_TODO_BIZ.RECTIFY,
       hazardId: 'DHZ-SEED-001-P',
-      processName: '调度隐患整改·混凝土浇筑振捣不充分',
+      processName: '调度隐患·混凝土浇筑振捣不充分，存在蜂窝麻面风险-待整改',
       applicant: 'COC调度室',
       dept: '指挥部调度中心',
       applyTime: '2026-06-06 09:11:00',
@@ -660,7 +712,7 @@ function seedTodos() {
       category: 'COC调度',
       bizType: DISPATCH_HAZARD_TODO_BIZ.ACCEPT,
       hazardId: 'DHZ-SEED-000-R',
-      processName: '调度隐患验收·混凝土浇筑振捣不充分',
+      processName: '调度隐患·混凝土浇筑振捣不充分，存在蜂窝麻面风险-待验收',
       applicant: '王安全',
       dept: '总包项目部',
       applyTime: '2026-06-08 15:10:00',
@@ -690,7 +742,7 @@ function seedTodos() {
       category: 'COC调度',
       bizType: DISPATCH_HAZARD_TODO_BIZ.ACCEPT,
       hazardId: 'DHZ-SEED-001-R',
-      processName: '调度隐患验收·材料堆放占用消防通道',
+      processName: '调度隐患·材料堆放占用消防通道，文明施工不到位-待验收',
       applicant: '赵班长',
       dept: '总包项目部',
       applyTime: '2026-06-09 15:11:00',
@@ -720,7 +772,7 @@ function seedTodos() {
       category: 'COC调度',
       bizType: DISPATCH_HAZARD_TODO_BIZ.RECTIFY,
       hazardId: 'DHZ-SEED-002-P',
-      processName: '调度隐患整改·材料堆放占用消防通道',
+      processName: '调度隐患·材料堆放占用消防通道，文明施工不到位-待整改',
       applicant: 'COC调度室',
       dept: '指挥部调度中心',
       applyTime: '2026-06-07 09:12:00',
@@ -748,7 +800,7 @@ function seedTodos() {
       category: 'COC调度',
       bizType: DISPATCH_HAZARD_TODO_BIZ.RECTIFY,
       hazardId: 'DHZ-SEED-003-P',
-      processName: '调度隐患整改·模板拼缝不严',
+      processName: '调度隐患·模板拼缝不严，局部漏浆-待整改',
       applicant: 'COC调度室',
       dept: '指挥部调度中心',
       applyTime: '2026-06-08 09:13:00',
@@ -776,7 +828,7 @@ function seedTodos() {
       category: 'COC调度',
       bizType: DISPATCH_HAZARD_TODO_BIZ.ACCEPT,
       hazardId: 'DHZ-SEED-002-R',
-      processName: '调度隐患验收·模板拼缝不严',
+      processName: '调度隐患·模板拼缝不严，局部漏浆-待验收',
       applicant: '陈技术',
       dept: '总包项目部',
       applyTime: '2026-06-10 15:12:00',
@@ -804,7 +856,7 @@ function seedTodos() {
 
 const inspectionBaseDetails = {
   巡检: {
-    processName: '巡检任务执行·AQXJ20260804001',
+    processName: '巡检任务·8月第1周安全巡检',
     applicant: '系统',
     detail: {
       project: '飞行区跑道延长工程',
@@ -829,7 +881,7 @@ const inspectionBaseDetails = {
     },
   },
   整改: {
-    processName: '隐患整改·ZG202608001',
+    processName: '隐患整改·配电箱箱门未可靠接地，临时用电标识缺失。-待整改',
     applicant: '陈工（监理工程师）',
     detail: {
       project: 'T3航站楼扩建工程',
@@ -847,7 +899,7 @@ const inspectionBaseDetails = {
     },
   },
   复查: {
-    processName: '隐患整改复查·ZG202608002',
+    processName: '隐患整改·混凝土结构外观存在蜂窝麻面，修补记录不完整。-待复查',
     applicant: '王工（项目安全员）',
     detail: {
       project: '飞行区跑道延长工程',
@@ -868,7 +920,7 @@ const inspectionBaseDetails = {
     },
   },
   审批: {
-    processName: '项目经理审批·ZG202607007',
+    processName: '隐患整改·临边防护栏杆局部缺失。-已复查',
     applicant: '陈工（监理工程师）',
     rectifyId: 'rec-007',
     detail: {
@@ -1412,7 +1464,7 @@ export function seedQmInspectTodos() {
       sourceLabel: '质量验评',
       category: '质量验评',
       bizType: '检验批验收',
-      processName: '检验批验收审批·YS-2026-001 三层梁板钢筋',
+      processName: '质量验评·检验批验收-三层梁板钢筋检验批-轴1~5',
       applicant: '张工',
       dept: '总包项目部',
       applyTime: '2026-07-15 10:30:00',
@@ -1437,7 +1489,7 @@ export function seedQmInspectTodos() {
       sourceLabel: '质量验评',
       category: '质量验评',
       bizType: '单位工程验收',
-      processName: '单位工程验收审批·DW-2026-002',
+      processName: '质量验评·单位工程验收-机电单位工程',
       applicant: '李工',
       dept: '总包项目部',
       applyTime: '2026-07-16 14:20:00',
@@ -1461,7 +1513,7 @@ export function seedQmInspectTodos() {
       sourceLabel: '质量验评',
       category: '质量验评',
       bizType: '分项工程验收',
-      processName: '分项工程验收审批·YS-2026-007 模板分项',
+      processName: '质量验评·分项工程验收-模板分项工程',
       applicant: '王工',
       dept: '总包项目部',
       applyTime: '2026-07-17 09:10:00',
@@ -1479,33 +1531,6 @@ export function seedQmInspectTodos() {
         { title: '一级审批人', time: '', user: '当前用户', remark: '待审批', status: 'current' },
       ],
     },
-    {
-      id: 'todo-qm-rectify-1',
-      type: 'qm_rectify',
-      sourceLabel: '质量验评',
-      category: '质量验评',
-      bizType: '整改复验',
-      processName: '验评整改·ZG-2026-002 柱钢筋机械连接',
-      applicant: '张工',
-      dept: '总包项目部',
-      applyTime: '2026-07-12 17:00:00',
-      qmRectifyId: 'rc-002',
-      qmTaskId: 'tk-003',
-      rectifyPath: '/qm/inspect/rectify/detail',
-      detail: {
-        project: 'T2航站区配套',
-        taskNo: 'YS-2026-003',
-        rectifyNo: 'ZG-2026-002',
-        nodeName: '柱钢筋机械连接抽检',
-        specialty: '结构',
-        summary: '审批驳回后已生成整改单，请填写整改措施、上传整改后影像并提交复验。',
-      },
-      approvalFlow: [
-        { title: '审批驳回', time: '2026-07-12 17:00:00', user: '王监理', remark: '柱钢筋机械连接抽检不合格', status: 'done' },
-        { title: '整改执行', time: '', user: '当前用户', remark: '待提交整改', status: 'current' },
-        { title: '复验判定', time: '', user: '监理工程师', remark: '', status: 'pending' },
-      ],
-    },
   ]
 }
 
@@ -1517,7 +1542,7 @@ export function seedQmInspectDone() {
       sourceLabel: '质量验评',
       category: '质量验评',
       bizType: '检验批验收',
-      processName: '检验批验收审批·YS-2026-008（已办）',
+      processName: '质量验评·检验批验收-YS-2026-008',
       applicant: '张工',
       dept: '总包项目部',
       applyTime: '2026-07-08 10:00:00',
@@ -1546,7 +1571,7 @@ export function seedQmInspectStarted() {
       sourceLabel: '质量验评',
       category: '质量验评',
       bizType: '检验批验收',
-      processName: '检验批验收·YS-2026-001（我发起）',
+      processName: '质量验评·检验批验收-三层梁板钢筋检验批-轴1~5',
       status: '审批中',
       applicant: '当前用户',
       dept: '总包项目部',
@@ -1585,7 +1610,7 @@ export const personalTodoStore = reactive({
       category: '巡检管理',
       bizType: '整改',
       inspectionBizType: '整改',
-      processName: '隐患整改（复查不通过重新整改）·ZG202608003',
+      processName: '隐患整改·临时用电配电箱接地线脱落，箱门标识缺失。-待整改',
       applicant: '王工（项目安全员）',
       dept: '工程管理部',
       applyTime: '2026-08-13 09:20:00',
@@ -1627,7 +1652,7 @@ export const personalTodoStore = reactive({
       sourceLabel: '巡检管理',
       category: '巡检管理',
       bizType: '整改验收',
-      processName: '隐患整改验收·塔吊警戒区',
+      processName: '隐患整改·3号塔吊警戒区隐患整改-已关闭',
       applicant: '王强',
       dept: '总包项目部',
       applyTime: '2026-07-10 11:20:00',
@@ -1651,7 +1676,7 @@ export const personalTodoStore = reactive({
       category: 'COC调度',
       bizType: DISPATCH_HAZARD_TODO_BIZ.ACCEPT,
       hazardId: 'DHZ-SEED-000-C',
-      processName: '调度隐患验收·材料堆放占用消防通道',
+      processName: '调度隐患·材料堆放占用消防通道，文明施工不到位-已关闭',
       applicant: '赵班长',
       dept: '总包项目部',
       applyTime: '2026-06-09 14:10:00',
@@ -1683,7 +1708,7 @@ export const personalTodoStore = reactive({
       category: 'COC调度',
       bizType: DISPATCH_HAZARD_TODO_BIZ.RECTIFY,
       hazardId: 'DHZ-SEED-001-C',
-      processName: '调度隐患整改·防水卷材搭接宽度不足',
+      processName: '调度隐患·防水卷材搭接宽度不足，阴阳角未做附加层-已关闭',
       applicant: '李工',
       dept: '总包项目部',
       applyTime: '2026-06-10 09:11:00',
@@ -1768,7 +1793,7 @@ export const personalStarted = reactive([
     sourceLabel: '巡检管理',
     category: '巡检管理',
     bizType: '整改申请',
-    processName: '安全隐患整改申请·电缆敷设',
+    processName: '隐患整改·电缆敷设区临边防护缺失-已通过',
     status: '已通过',
     applicant: '当前用户',
     dept: '安监部',
@@ -1791,7 +1816,7 @@ export const personalStarted = reactive([
     category: '巡检管理',
     bizType: '整改',
     inspectionBizType: '整改',
-    processName: '隐患整改·复查不通过重新整改（ZG202608003）',
+    processName: '隐患整改·临时用电配电箱接地线脱落，箱门标识缺失。-待整改',
     status: '已驳回',
     applicant: '当前用户',
     dept: '工程管理部',
@@ -1873,12 +1898,15 @@ export function resubmitInspectionStarted(id, payload = {}) {
     rejectTime: '',
     rejectReason: '',
     applyTime: now,
-    processName: payload.processName || row.processName,
+    processName:
+      payload.processName ||
+      buildHazardRectifyProcessName(detail.hazard || detail.rectifyNo || '隐患', '待复查'),
     detail,
     approvalFlow: flow,
   })
 
   const rectifyNo = detail.rectifyNo || row.detail?.rectifyNo || row.rectifyId || 'ZG'
+  const hazardDesc = detail.hazard || rectifyNo
   const todo = {
     id: `todo-inspection-rereview-${Date.now()}`,
     type: 'inspection',
@@ -1886,7 +1914,7 @@ export function resubmitInspectionStarted(id, payload = {}) {
     category: '巡检管理',
     bizType: '复查',
     inspectionBizType: '复查',
-    processName: `隐患整改复查·${rectifyNo}`,
+    processName: buildHazardRectifyProcessName(hazardDesc, '待复查'),
     applicant: '当前用户',
     dept: '工程管理部',
     applyTime: now,
@@ -2070,7 +2098,7 @@ export const personalCc = reactive([
     sourceLabel: '质量验评',
     category: '质量验评',
     bizType: '分部验收',
-    processName: '分部工程验收·主体结构',
+    processName: '质量验评·分部工程验收-主体结构分部验收',
     projectName: 'T2航站区配套',
     applicant: '陈志明',
     dept: '工程管理部',
@@ -2097,7 +2125,7 @@ export const personalCc = reactive([
     sourceLabel: '巡检管理',
     category: '巡检管理',
     bizType: '任务下发抄送',
-    processName: '巡检任务下发抄送',
+    processName: '巡检任务·巡检任务下发',
     projectName: 'T1航站区配套',
     applicant: 'admin',
     dept: '安监部',
@@ -2268,9 +2296,7 @@ function buildBrandTodo(payload) {
       payload.assigneeUserId ||
       (isPm ? payload.pmApproverUserId : payload.supervisorApproverUserId) ||
       '',
-    processName: isPm
-      ? `品牌报审终审·${payload.materialName}（${payload.applicationId}）`
-      : `品牌报审审批·${payload.materialName}（${payload.applicationId}）`,
+    processName: buildBrandProcessName(payload.materialName),
     applicant: payload.applicantName || '当前用户',
     dept: payload.dept || '总包项目部',
     applyTime: payload.applyTime || '',
@@ -2377,7 +2403,7 @@ function buildSampleTodo(payload) {
   const isPm = node === 'pm'
   const isMaterial = payload.bizType === 'material'
   const isProcess = payload.bizType === 'process'
-  const bizLabel = isMaterial ? '材料定样' : '工序样板'
+  const bizLabel = isMaterial ? '材料设备定样' : '工序样板'
   sampleTodoSeq += 1
 
   const supervisorFlow = isProcess
@@ -2430,9 +2456,7 @@ function buildSampleTodo(payload) {
     sampleBizType: payload.bizType,
     sampleApplicationId: payload.applicationId,
     sampleNode: node,
-    processName: isPm
-      ? `${bizLabel}终审·${payload.title}（${payload.applicationId}）`
-      : `${bizLabel}审批·${payload.title}（${payload.applicationId}）`,
+    processName: buildSampleProcessName(bizLabel, payload.title),
     applicant: payload.applicantName || '当前用户',
     dept: payload.dept || '总包项目部',
     applyTime: payload.applyTime || '',
@@ -2448,6 +2472,7 @@ function buildSampleTodo(payload) {
       brandName: payload.brandName || '',
       manufacturer: payload.manufacturer || payload.supplier || '',
       currentNode: isPm ? '待项目经理审' : isProcess ? '待监理审（终审）' : '待监理审',
+      status: 'in_approval',
       briefing: payload.briefing || '',
       indicatorDesc: payload.indicatorDesc || payload.briefing || '',
       supplier: payload.manufacturer || payload.supplier || '',
@@ -2456,6 +2481,7 @@ function buildSampleTodo(payload) {
       effectImages: payload.effectImages || [],
       approvalFiles: payload.approvalFiles || [],
       certificateFiles: payload.certificateFiles || [],
+      remark: payload.remark || '',
     },
     approvalFlow: isPm
       ? [
@@ -2552,7 +2578,7 @@ function buildMatEntryTodo(payload) {
     bizType: '进场审批',
     matEntryId: payload.entryId,
     entryType: payload.entryType || 'material',
-    processName: `${isEq ? '设备' : '材料'}进场审批·${itemName}（${payload.entryId}）`,
+    processName: buildMatEntryProcessName(itemName),
     applicant: payload.applicantName || '当前用户',
     dept: payload.dept || '总包项目部',
     applyTime: payload.applyTime || '',
@@ -2633,7 +2659,7 @@ function buildAsbuiltTodo(payload) {
     bizType: isPm ? '项目经理终审' : '监理审批',
     asbuiltAcceptanceId: payload.acceptanceId,
     asbuiltNode: node,
-    processName: `实模一致验收·${payload.title || ''}（${payload.bizNo || payload.acceptanceId}）`,
+    processName: buildAsbuiltProcessName(payload.title || ''),
     applicant: payload.applicantName || '当前用户',
     dept: payload.dept || '总包项目部',
     applyTime: payload.applyTime || '',
@@ -2741,8 +2767,8 @@ export const personalNotices = [
   {
     id: 'nt-qm-2',
     module: '质量验评',
-    title: '验评整改待办提醒',
-    content: '您有验评整改待办：ZG-2026-002 柱钢筋机械连接，请填写整改措施并提交复验。',
+    title: '验收驳回提醒',
+    content: '验收单 YS-2026-003 柱钢筋机械连接已驳回并存档，可在列表「重新申报」复制建新单。',
     time: '2026-07-12 17:05:00',
     readStatus: '未读',
   },
@@ -2870,7 +2896,7 @@ function buildSubcontractorTodo(row, nodeKey) {
     bizType: node.title,
     subcontractorApplicationId: row.id,
     subcontractorNode: nodeKey,
-    processName: `分包单位报审·${row.name}（${row.id}）`,
+    processName: buildSubcontractorProcessName(row.name),
     applicant: row.submitter || '施工单位',
     dept: '施工单位',
     applyTime: row.submitTime || row.updatedAt || '',
@@ -2898,7 +2924,7 @@ function upsertSubcontractorStarted(row) {
     sourceLabel: '分包报审',
     category: '分包报审',
     bizType: '分包单位报审',
-    processName: `分包单位报审·${row.name}`,
+    processName: buildSubcontractorProcessName(row.name),
     status: row.status,
     applicant: row.submitter || '当前用户',
     dept: '施工单位',
@@ -2928,7 +2954,7 @@ function pushSubcontractorCc(row) {
     sourceLabel: '分包报审',
     category: '分包报审',
     bizType: '抄送知悉',
-    processName: `分包单位报审通过·${row.name}`,
+    processName: buildSubcontractorProcessName(row.name),
     projectName: row.projectName,
     applicant: row.submitter || '施工单位',
     dept: '施工单位',
@@ -3040,4 +3066,107 @@ export function listLaborPersonalStarted() {
 
 export function listLaborPersonalCc() {
   return personalCc
+}
+/** 质量验评：个人中心待办（提交报验 / 一级通过后推进） */
+let qmInspectTodoSeq = 100
+
+function removeOpenQmInspectTodos(taskId, { onlyLevel } = {}) {
+  if (!taskId) return
+  for (let i = personalTodoStore.todos.length - 1; i >= 0; i -= 1) {
+    const t = personalTodoStore.todos[i]
+    if (t.type !== 'qm_inspect' || t.qmTaskId !== taskId) continue
+    if (onlyLevel != null && Number(t.qmFlowLevel) !== Number(onlyLevel)) continue
+    personalTodoStore.todos.splice(i, 1)
+  }
+}
+
+function resolveQmApprovePath(task) {
+  const tt = Number(task?.task_type)
+  if (tt === 6) return '/qm/inspect/special/approve'
+  if (tt === 7) return '/qm/inspect/complete/approve'
+  if (tt === 5) return '/qm/inspect/unit/approve'
+  if (tt === 2) return '/qm/inspect/part/approve'
+  if (tt === 4) return '/qm/inspect/division/approve'
+  return '/qm/inspect/batch/approve'
+}
+
+function buildQmInspectTodo(task, flowNode, { applicantName = '施工方', projectLabel = '' } = {}) {
+  const level = Number(flowNode?.level) || 1
+  const typeLabel = ({
+    1: '检验批验收',
+    2: '分项工程验收',
+    3: '子分部工程验收',
+    4: '分部工程验收',
+    5: '单位工程验收',
+    6: '专项验收',
+    7: '竣工验收',
+    8: '子单位工程验收',
+  })[Number(task.task_type)] || '质量验评'
+  const who = (flowNode?.approver_names && flowNode.approver_names[0]) || '审批人'
+  const submitTime = task.submit_time || ''
+  qmInspectTodoSeq += 1
+  return {
+    id: `todo-qm-dyn-${task.id}-L${level}-${qmInspectTodoSeq}`,
+    type: 'qm_inspect',
+    sourceLabel: '质量验评',
+    category: '质量验评',
+    bizType: typeLabel,
+    processName: buildQmInspectProcessName(
+      typeLabel,
+      task.node_name || task.task_name || task.task_no || task.id,
+    ),
+    applicant: applicantName,
+    dept: '总包项目部',
+    applyTime: submitTime,
+    qmTaskId: task.id,
+    qmFlowLevel: level,
+    qmFlowLabel: flowNode?.label || '审批',
+    approvePath: resolveQmApprovePath(task),
+    detail: {
+      project: projectLabel || task.project_id || '',
+      taskNo: task.task_no || '',
+      nodeName: flowNode?.label || '',
+      specialty: task.specialty || '',
+      summary: `请办理「${flowNode?.label || '审批'}」（${who}）。`,
+    },
+    approvalFlow: [
+      {
+        title: '施工报验',
+        time: submitTime,
+        user: applicantName,
+        remark: '提交报验',
+        status: 'done',
+      },
+      {
+        title: flowNode?.label || '审批',
+        time: '',
+        user: who,
+        remark: '待审批',
+        status: 'current',
+      },
+    ],
+  }
+}
+
+/** 提交报验：生成当前级（通常监理）待办 */
+export function createQmInspectTodo(task, flowNode, opts = {}) {
+  if (!task?.id || !flowNode) return null
+  removeOpenQmInspectTodos(task.id)
+  const row = buildQmInspectTodo(task, flowNode, opts)
+  personalTodoStore.todos.unshift(row)
+  return row
+}
+
+/** 一级通过后：生成下一级待办 */
+export function createQmInspectNextTodo(task, flowNode, opts = {}) {
+  if (!task?.id || !flowNode) return null
+  removeOpenQmInspectTodos(task.id)
+  const row = buildQmInspectTodo(task, flowNode, opts)
+  personalTodoStore.todos.unshift(row)
+  return row
+}
+
+/** 驳回/办结：清掉该任务未办验评待办 */
+export function discardQmInspectTodos(taskId) {
+  removeOpenQmInspectTodos(taskId)
 }

@@ -56,15 +56,19 @@ import {
   realtimeCheckArchiveSign,
   RECTIFY_ARCHIVE_DOC_STATUS,
 } from './qmArchive.js'
-import { QM_APPROVER_CANDIDATES } from './qmApproverConfig.js'
+import { QM_APPROVER_CANDIDATES, candidatesByRole, getApproverRoleMeta } from './qmApproverConfig.js'
 import {
   canSubmitByElecArchive,
   findActiveTaskOnNode,
-  getApprovalPostForNodeType,
-  listApproverCandidatesForNodeType,
   nodeRequiredDocsEmpty,
   refreshTaskElecArchiveStatus,
 } from './qmInspectV2.js'
+import { createSpecialTask } from './qmSpecialAccept.js'
+import {
+  createQmInspectNextTodo,
+  createQmInspectTodo,
+  discardQmInspectTodos,
+} from './personalCenter.js'
 
 export const ARCHIVE_STATUS = {
   0: '未归档',
@@ -238,12 +242,10 @@ export function syncNodeAccept(task) {
   )
   if (!formal.length) return
 
-  // 优先级：通过 > 验评中 > 待复验 > 整改中 > 不通过 > 待验评
+  // 优先级：已通过 > 审批中 > 已驳回/不通过 > 待提交/未开始（无整改中/待复验）
   let next = 0
   if (formal.some((t) => Number(t.status) === 2)) next = 2
   else if (formal.some((t) => Number(t.status) === 1)) next = 1
-  else if (formal.some((t) => Number(t.status) === 5)) next = 5
-  else if (formal.some((t) => Number(t.status) === 4)) next = 4
   else if (formal.some((t) => Number(t.status) === 3)) next = 3
   else next = 0
 
@@ -259,17 +261,15 @@ export function getAttachments(biz_type, biz_id) {
   return attachStore.filter((a) => a.biz_type === biz_type && a.biz_id === biz_id)
 }
 
-export function hasBlockFailItems(task_id) {
-  return getItemsByTaskId(task_id).some(
-    (i) => (i.item_category === 1 || i.item_category === 3) && i.judge_result === 2,
-  )
+/** 产品口径：无检查项，闸门恒为 false */
+export function hasBlockFailItems(_task_id) {
+  void _task_id
+  return false
 }
 
-export function hasOnlyGeneralFail(task_id) {
-  const items = getItemsByTaskId(task_id)
-  if (!items.length) return false
-  const hasGeneralFail = items.some((i) => i.item_category === 2 && i.judge_result === 2)
-  return hasGeneralFail && !hasBlockFailItems(task_id)
+export function hasOnlyGeneralFail(_task_id) {
+  void _task_id
+  return false
 }
 
 export function missingPhotoItems(task_id) {
@@ -467,11 +467,9 @@ function instantiateItems(task) {
   })
 }
 
-/** 任务无明细时按模板补齐（兼容历史 seed） */
+/** 产品口径：验评无检查项，不再实例化 */
 export function ensureTaskItems(task) {
-  if (!task) return
-  if (getItemsByTaskId(task.id).length) return
-  instantiateItems(task)
+  void task
 }
 
 export function createTask({
@@ -501,6 +499,7 @@ export function createTask({
   const unlock = checkUnlock(node)
   if (!unlock.ok) return unlock
 
+  // 一节点仅一张有效单（待提交/审批中/已通过）；已驳回可并存并支持重新申报
   const active = findActiveTaskOnNode(wbs_node_id)
   if (active) {
     return {
@@ -530,15 +529,6 @@ export function createTask({
       batchTypeForms.find((l) => l.batch_type_id === batch_type_id)
     form_template_id = primary?.form_template_id || forms[0]?.id || ''
   }
-
-  const owner_final_required =
-    task_type === 1
-      ? node.is_critical === 1
-        ? 1
-        : 0
-      : [4, 5, 7, 8].includes(task_type)
-        ? 1
-        : 0
 
   const docsEmpty = nodeRequiredDocsEmpty(wbs_node_id)
   let needArchiveFlag = docsEmpty ? 0 : need_archive === undefined ? 1 : Number(need_archive) === 1 ? 1 : 0
@@ -599,7 +589,10 @@ export function createTask({
     approval_post_name: '',
     approver_id: '',
     approver_name: '',
-    owner_final_required,
+    supervisor_approver_user_id: '',
+    supervisor_approver_name: '',
+    pm_approver_user_id: '',
+    pm_approver_name: '',
     remark: remark || '',
     manual_approval_flow: [],
     created_by: 'u-sg-01',
@@ -609,6 +602,10 @@ export function createTask({
   }
   if (node.node_type === 7) {
     task.special_type = node.special_type || ''
+    task.location_name = ''
+    task.location_id = ''
+    task.location_ids = []
+    task.is_hidden_work = 0
   }
   refreshTaskElecArchiveStatus(task)
 
@@ -722,14 +719,8 @@ export function saveTaskDraft(task, patch = {}) {
       if (patch.is_hidden_work === undefined) {
         task.is_hidden_work = Number(node.is_hidden_work) === 1 ? 1 : 0
       }
-      task.owner_final_required =
-        task_type === 1
-          ? node.is_critical === 1
-            ? 1
-            : 0
-          : [4, 5, 7, 8].includes(task_type)
-            ? 1
-            : 0
+      // 业主终审字段已废弃，不再写入
+      delete task.owner_final_required
     }
   }
   if (patch.need_archive !== undefined) {
@@ -739,6 +730,18 @@ export function saveTaskDraft(task, patch = {}) {
   if (patch.form_data) task.form_data = JSON.parse(JSON.stringify(patch.form_data))
   if (patch.manual_approval_flow !== undefined) {
     task.manual_approval_flow = JSON.parse(JSON.stringify(patch.manual_approval_flow || []))
+  }
+  if (patch.supervisor_approver_user_id !== undefined) {
+    task.supervisor_approver_user_id = String(patch.supervisor_approver_user_id || '')
+  }
+  if (patch.supervisor_approver_name !== undefined) {
+    task.supervisor_approver_name = String(patch.supervisor_approver_name || '')
+  }
+  if (patch.pm_approver_user_id !== undefined) {
+    task.pm_approver_user_id = String(patch.pm_approver_user_id || '')
+  }
+  if (patch.pm_approver_name !== undefined) {
+    task.pm_approver_name = String(patch.pm_approver_name || '')
   }
   task.is_draft = 0
   task.updated_at = nowStr()
@@ -802,10 +805,19 @@ export function removeAttachment(id) {
 }
 
 /**
- * 提交报验：待提交(0)→验评中(1)
- * 闸门：工程影像≥1、附件≤30、电子档案状态、已选审批人
+ * 提交报验：待提交(0)→审批中(1)
+ * 闸门：工程影像≥1、附件≤30、电子档案状态、监理+项目经理审批人（对齐品牌报审）
  */
-export function submitInspect(task, { approver_id } = {}) {
+export function submitInspect(
+  task,
+  {
+    approver_id,
+    supervisor_approver_user_id,
+    supervisor_approver_name,
+    pm_approver_user_id,
+    pm_approver_name,
+  } = {},
+) {
   if (Number(task.status) !== 0) return { ok: false, msg: '仅待提交可提交报验' }
   refreshTaskElecArchiveStatus(task)
   if (!canSubmitByElecArchive(task)) {
@@ -822,30 +834,65 @@ export function submitInspect(task, { approver_id } = {}) {
     return { ok: false, msg: '附件最多 30 个' }
   }
 
-  const node = wbsNodes.find((n) => n.id === task.wbs_node_id)
-  const post = getApprovalPostForNodeType(node?.node_type)
-  if (!post) return { ok: false, msg: '当前节点类型未配置审批岗位（流程中心）' }
-  const candidates = listApproverCandidatesForNodeType(node.node_type)
-  const aid = String(approver_id || task.approver_id || '').trim()
-  if (!aid) return { ok: false, msg: '请选择审批人' }
-  const person = candidates.find((u) => u.id === aid) || QM_APPROVER_CANDIDATES.find((u) => u.id === aid)
-  if (!person) return { ok: false, msg: '审批人不在该岗位候选人范围内' }
+  const jlCandidates = candidatesByRole('jl_pro')
+  const pmCandidates = candidatesByRole('js_pm')
+  const jlId = String(
+    supervisor_approver_user_id || task.supervisor_approver_user_id || '',
+  ).trim()
+  const pmId = String(pm_approver_user_id || task.pm_approver_user_id || '').trim()
+  // 兼容旧入口仅传单个 approver_id：视为监理审批人，项目经理取任务已存或首个候选人
+  const legacyId = String(approver_id || task.approver_id || '').trim()
+  const resolvedJlId = jlId || legacyId
+  const resolvedPmId =
+    pmId || (legacyId && legacyId !== resolvedJlId ? legacyId : '') || pmCandidates[0]?.id || ''
 
-  task.approval_post_id = post.approval_post_id
-  task.approval_post_name = post.approval_post_name
-  task.approver_id = person.id
-  task.approver_name = person.name
+  if (!resolvedJlId) return { ok: false, msg: '请选择监理单位审批人' }
+  if (!resolvedPmId) return { ok: false, msg: '请选择项目经理审批人' }
+
+  const jlPerson =
+    jlCandidates.find((u) => u.id === resolvedJlId) ||
+    QM_APPROVER_CANDIDATES.find((u) => u.id === resolvedJlId)
+  const pmPerson =
+    pmCandidates.find((u) => u.id === resolvedPmId) ||
+    QM_APPROVER_CANDIDATES.find((u) => u.id === resolvedPmId)
+  if (!jlPerson) return { ok: false, msg: '监理单位审批人不在候选人范围内' }
+  if (!pmPerson) return { ok: false, msg: '项目经理审批人不在候选人范围内' }
+
+  const jlLabel = getApproverRoleMeta('jl_pro')?.label || '专业监理工程师'
+  const pmLabel = getApproverRoleMeta('js_pm')?.label || '建设单位项目负责人'
+  const jlName = supervisor_approver_name || task.supervisor_approver_name || jlPerson.name
+  const pmName = pm_approver_name || task.pm_approver_name || pmPerson.name
+
+  task.supervisor_approver_user_id = jlPerson.id
+  task.supervisor_approver_name = jlName
+  task.pm_approver_user_id = pmPerson.id
+  task.pm_approver_name = pmName
+  task.approval_post_id = 'jl_pro'
+  task.approval_post_name = jlLabel
+  task.approver_id = jlPerson.id
+  task.approver_name = jlName
   task.manual_approval_flow = [
     {
       level: 1,
-      role: post.approval_post_id,
-      role_label: post.approval_post_name,
-      label: post.approval_post_name,
-      approver_ids: [person.id],
-      approver_names: [person.name],
+      role: 'jl_pro',
+      role_label: jlLabel,
+      label: '监理单位审批',
+      approver_ids: [jlPerson.id],
+      approver_names: [jlName],
       need_seal: 0,
       cc_ids: [],
-      mode: 'or',
+      mode: 'orsign',
+    },
+    {
+      level: 2,
+      role: 'js_pm',
+      role_label: pmLabel,
+      label: '项目经理审批',
+      approver_ids: [pmPerson.id],
+      approver_names: [pmName],
+      need_seal: 0,
+      cc_ids: [],
+      mode: 'orsign',
     },
   ]
 
@@ -866,6 +913,10 @@ export function submitInspect(task, { approver_id } = {}) {
   })
   syncNodeAccept(task)
   if (task.plan_id) refreshPlanStatus(task.plan_id)
+  createQmInspectTodo(task, task.manual_approval_flow[0], {
+    applicantName: '施工方',
+    projectLabel: resolveProjectName(task.project_id),
+  })
   return { ok: true }
 }
 
@@ -876,7 +927,7 @@ export function startInspect(task) {
 
 /** 审批通过（当前链节点）— 档案链走 C6 签章校验；手动链走会签/或签，跳过 C6 */
 export function approveStep(task, { opinion = '', operator_role, operator_id } = {}) {
-  if (task.status !== 1) return { ok: false, msg: '仅验评中可审批' }
+  if (task.status !== 1) return { ok: false, msg: '当前不可审批' }
   if (hasBlockFailItems(task.id)) {
     return { ok: false, msg: '存在主控或观感不合格项，禁止办结通过' }
   }
@@ -929,11 +980,16 @@ export function approveStep(task, { opinion = '', operator_role, operator_id } =
       archiveWriteFinish(task)
       syncNodeAccept(task)
       if (task.plan_id) refreshPlanStatus(task.plan_id)
+      discardQmInspectTodos(task.id)
       return { ok: true, finished: true }
     }
     task.reviewer_id = uid
     task.updated_at = nowStr()
     void who
+    createQmInspectNextTodo(task, stillNode, {
+      applicantName: '施工方',
+      projectLabel: resolveProjectName(task.project_id),
+    })
     return { ok: true, finished: false, next: stillNode.label }
   }
 
@@ -992,7 +1048,7 @@ export function approveStep(task, { opinion = '', operator_role, operator_id } =
 
 /** 兼容旧 passTask：一次性走完审批链（或仅监理一岗） */
 export function passTask(task, { opinion = '', operator_role = '监理' } = {}) {
-  if (task.status !== 1) return { ok: false, msg: '仅验评中可判定通过' }
+  if (task.status !== 1) return { ok: false, msg: '当前不可判定通过' }
   if (hasBlockFailItems(task.id)) {
     return { ok: false, msg: '存在主控或观感不合格项，禁止办结通过' }
   }
@@ -1010,9 +1066,9 @@ export function passTask(task, { opinion = '', operator_role = '监理' } = {}) 
   return { ok: true }
 }
 
-/** 驳回：验评中 → 已驳回（流程结束；意见必填） */
+/** 驳回：审批中 → 已驳回（流程结束；意见必填） */
 export function rejectTask(task, opinion, operator_role = '审批人') {
-  if (Number(task.status) !== 1) return { ok: false, msg: '仅验评中可驳回' }
+  if (Number(task.status) !== 1) return { ok: false, msg: '当前不可驳回' }
   if (!String(opinion || '').trim()) return { ok: false, msg: '驳回意见不能为空' }
   approvalRecords.push({
     id: `ar-${Date.now()}`,
@@ -1030,36 +1086,88 @@ export function rejectTask(task, opinion, operator_role = '审批人') {
   task.updated_at = nowStr()
   syncNodeAccept(task)
   if (task.plan_id) refreshPlanStatus(task.plan_id)
+  discardQmInspectTodos(task.id)
   return { ok: true }
 }
 
-/** 已驳回重新申报：新建验收单并关联旧单 */
+/** 复制旧单附件到新单（重新申报） */
+function copyTaskAttachments(fromTaskId, toTaskId) {
+  getAttachments('TASK', fromTaskId).forEach((a) => {
+    addAttachment({
+      biz_type: 'TASK',
+      biz_id: toTaskId,
+      task_id: toTaskId,
+      file_category: a.file_category,
+      file_name: a.file_name,
+      file_ext: a.file_ext,
+      file_url: a.file_url,
+      file_size: a.file_size,
+      content_hash: a.content_hash,
+      mime_type: a.mime_type,
+      watermark_flag: a.watermark_flag,
+      shoot_time: a.shoot_time,
+      shoot_location: a.shoot_location,
+      upload_by: a.upload_by,
+      archive_file_code: '',
+      is_required_met: a.is_required_met,
+      doc_slot: a.doc_slot || '',
+    })
+  })
+}
+
+/** 已驳回重新申报：复制表单/附件建新单，旧单存档保留 */
 export function reDeclareAcceptance(rejectedTask) {
   if (!rejectedTask || Number(rejectedTask.status) !== 3) {
     return { ok: false, msg: '仅已驳回验收单可重新申报' }
   }
-  return createTask({
-    project_id: rejectedTask.project_id,
-    wbs_node_id: rejectedTask.wbs_node_id,
-    task_name: rejectedTask.task_name,
-    location_name: rejectedTask.location_name || '',
-    location_id: rejectedTask.location_id || '',
-    location_ids: Array.isArray(rejectedTask.location_ids)
-      ? [...rejectedTask.location_ids]
-      : rejectedTask.location_id
-        ? [rejectedTask.location_id]
-        : [],
-    is_hidden_work: rejectedTask.is_hidden_work,
-    need_archive: rejectedTask.need_archive,
-    related_reject_id: rejectedTask.id,
-    contractor_org_id: rejectedTask.contractor_org_id,
-    supervisor_org_id: rejectedTask.supervisor_org_id,
-  })
+  let result
+  if (Number(rejectedTask.task_type) === 6) {
+    result = createSpecialTask({
+      project_id: rejectedTask.project_id,
+      wbs_node_id: rejectedTask.wbs_node_id,
+      special_type: rejectedTask.special_type || '',
+      task_name: rejectedTask.task_name,
+      location_name: '',
+      remark: rejectedTask.remark || '',
+      contractor_org_id: rejectedTask.contractor_org_id,
+      supervisor_org_id: rejectedTask.supervisor_org_id,
+      related_reject_id: rejectedTask.id,
+      need_archive: rejectedTask.need_archive,
+    })
+  } else {
+    result = createTask({
+      project_id: rejectedTask.project_id,
+      wbs_node_id: rejectedTask.wbs_node_id,
+      task_name: rejectedTask.task_name,
+      location_name: rejectedTask.location_name || '',
+      location_id: rejectedTask.location_id || '',
+      location_ids: Array.isArray(rejectedTask.location_ids)
+        ? [...rejectedTask.location_ids]
+        : rejectedTask.location_id
+          ? [rejectedTask.location_id]
+          : [],
+      is_hidden_work: rejectedTask.is_hidden_work,
+      need_archive: rejectedTask.need_archive,
+      related_reject_id: rejectedTask.id,
+      contractor_org_id: rejectedTask.contractor_org_id,
+      supervisor_org_id: rejectedTask.supervisor_org_id,
+    })
+  }
+  if (!result.ok) return result
+  const task = result.task
+  if (rejectedTask.form_data && typeof rejectedTask.form_data === 'object') {
+    task.form_data = JSON.parse(JSON.stringify(rejectedTask.form_data))
+  }
+  if (rejectedTask.form_template_id) {
+    task.form_template_id = rejectedTask.form_template_id
+  }
+  copyTaskAttachments(rejectedTask.id, task.id)
+  return result
 }
 
 /** 退回重报：回待验评，不新开任务 */
 export function rollbackToDraft(task) {
-  if (![1, 3].includes(task.status)) return { ok: false, msg: '仅验评中或不通过可退回重报' }
+  if (![1, 3].includes(task.status)) return { ok: false, msg: '当前不可退回重报' }
   task.status = 0
   task.result = 0
   task.submit_time = ''
@@ -1069,48 +1177,13 @@ export function rollbackToDraft(task) {
 }
 
 /**
- * 生成整改（D4）：整改=审批驳回的结果，不存在单独「下发整改单」动作；
- * 谁提交的验收流程谁来整改（responsible=任务提交人）；issuer_id 语义=驳回人（取最近一条驳回记录）
+ * 验评主路径不支持整改单：实体/专项/竣工仅 通过或驳回；
+ * 已驳回存档，通过「重新申报」复制建新单。
  */
-export function createRectify(task, problem_desc) {
-  if (task.status !== 3) return { ok: false, msg: '仅不通过可生成整改（整改为审批驳回的结果）' }
-  const open = rectificationOrders.find(
-    (o) => o.source_task_id === task.id && o.status !== 3,
-  )
-  if (open) return { ok: false, msg: '已有未关闭整改单' }
-  const desc = String(problem_desc || '').trim()
-  if (!desc) return { ok: false, msg: '问题描述不能为空' }
-  const rejectRec = getLatestRejectRecord(task.id)
-  const now = nowStr()
-  const id = `rc-${Date.now()}`
-  const order = {
-    id,
-    order_no: `ZG-2026-${String(rectificationOrders.length + 1).padStart(3, '0')}`,
-    source_task_id: task.id,
-    project_id: task.project_id,
-    problem_desc: desc,
-    problem_category: 9,
-    responsible_org_id: task.contractor_org_id,
-    responsible_user_id: task.applicant_id || '',
-    measure: '',
-    deadline: '2026-08-15 18:00:00',
-    status: 0,
-    issuer_id: rejectRec?.operator_id || 'u-jl-01',
-    issue_time: rejectRec?.action_time || now,
-    status_changed_at: now,
-    archive_doc_status: RECTIFY_ARCHIVE_DOC_STATUS.REJECTED,
-    round_count: 0,
-    close_time: '',
-    close_result: 0,
-  }
-  rectificationOrders.unshift(order)
-  task.current_rectify_id = id
-  task.status = 4
-  task.first_pass_flag = 0
-  task.updated_at = now
-  syncNodeAccept(task)
-  if (task.plan_id) refreshPlanStatus(task.plan_id)
-  return { ok: true, order }
+export function createRectify(_task, _problem_desc) {
+  void _task
+  void _problem_desc
+  return { ok: false, msg: '验评流程不支持整改单；已驳回请重新申报' }
 }
 
 /** 施工填写整改措施 */
@@ -1681,7 +1754,7 @@ function buildDivisionPlanStats(project_id) {
     const batchPassed = batches.filter((n) => n.accept_status === 2).length
     const batchInProgress = batches.filter((n) => n.accept_status === 1).length
     const batchPending = batches.filter((n) => n.accept_status === 0).length
-    const batchRectifying = batches.filter((n) => [3, 4, 5].includes(n.accept_status)).length
+    const batchRejected = batches.filter((n) => Number(n.accept_status) === 3).length
     return {
       id: div.id,
       name: div.node_name,
@@ -1699,7 +1772,7 @@ function buildDivisionPlanStats(project_id) {
       batchPassed,
       batchInProgress,
       batchPending,
-      batchRectifying,
+      batchRejected,
       itemTotal: items.length,
       passRate: batchTotal ? Math.round((batchPassed / batchTotal) * 100) : completed ? 100 : 0,
     }
@@ -1714,7 +1787,9 @@ export const PHYSICAL_NODE_TYPES = [1, 2, 3, 4, 5, 6]
 export const SPECIAL_NODE_TYPES = [7]
 
 /**
- * 统计看板聚合
+ * 统计看板聚合（对齐 PRD §1.5.1）
+ * 任务四态：待提交 / 审批中 / 已通过 / 已驳回
+ * 通过率 = 已通过 ÷（已通过+已驳回）×100%（分母为 0 时展示 0，界面可再显示「—」）
  * @param {string} project_id
  * @param {{ scope?: 'all' | 'physical' | 'special' }} [opts]
  */
@@ -1735,51 +1810,32 @@ export function buildQmDashboard(project_id, opts = {}) {
 
   let nodes = [...wbsNodes]
   let tasks = [...inspectionTasks]
-  let rectifies = [...rectificationOrders]
-  let plans = [...acceptancePlans]
   if (project_id) {
     nodes = nodes.filter((n) => n.project_id === project_id)
     tasks = tasks.filter((t) => t.project_id === project_id)
-    rectifies = rectifies.filter((r) => r.project_id === project_id)
-    plans = plans.filter((p) => p.project_id === project_id)
   }
   if (nodeTypeSet) nodes = nodes.filter((n) => nodeTypeSet.has(n.node_type))
   if (taskTypeSet) tasks = tasks.filter((t) => taskTypeSet.has(t.task_type))
 
-  const taskIds = new Set(tasks.map((t) => t.id))
-  if (taskTypeSet) {
-    rectifies = rectifies.filter((r) => taskIds.has(r.source_task_id))
+  // 节点验收状态仅认 0/1/2/3；历史 4/5 视同已驳回
+  const normAccept = (s) => {
+    const n = Number(s)
+    return n === 4 || n === 5 ? 3 : n
   }
-  if (scope === 'physical') {
-    plans = plans.filter((p) => [1, 3].includes(p.plan_type))
-  } else if (scope === 'special') {
-    plans = plans.filter((p) => p.plan_type === 2)
-  }
-
   const nodeTotal = nodes.length
-  const nodeCompleted = nodes.filter((n) => n.accept_status === 2).length
+  const nodeCompleted = nodes.filter((n) => normAccept(n.accept_status) === 2).length
   const nodeCompleteRate = nodeTotal ? Math.round((nodeCompleted / nodeTotal) * 100) : 0
 
+  const pendingCount = tasks.filter((t) => Number(t.status) === 0).length
+  const approvingCount = tasks.filter((t) => Number(t.status) === 1).length
+  const approvedCount = tasks.filter((t) => Number(t.status) === 2).length
+  const rejectedCount = tasks.filter((t) => Number(t.status) === 3).length
   const taskTotal = tasks.length
-  const passed = tasks.filter((t) => t.status === 2)
-  const taskPassed = passed.length
-  const firstPass = passed.filter((t) => t.first_pass_flag === 1)
-  const passRate = taskTotal ? Math.round((taskPassed / taskTotal) * 100) : 0
-  const firstPassRate = taskPassed ? Math.round((firstPass.length / taskPassed) * 100) : 0
-
-  const rectifyTotal = rectifies.length
-  const rectifying = rectifies.filter((r) => r.status !== 3).length
-  const rectifyClosed = rectifies.filter((r) => r.status === 3).length
-  const rectifyCompleteRate = rectifyTotal ? Math.round((rectifyClosed / rectifyTotal) * 100) : 0
-
-  const today = nowStr().slice(0, 10)
-  const now = nowStr()
-  const planOverdueCount = plans.filter(
-    (p) => p.status !== 3 && p.plan_date && String(p.plan_date).slice(0, 10) < today,
-  ).length
-  const rectifyOverdueCount = rectifies.filter(
-    (r) => r.status !== 3 && r.deadline && String(r.deadline) < now,
-  ).length
+  const taskPassed = approvedCount
+  const decided = approvedCount + rejectedCount
+  const passRate = decided ? Math.round((approvedCount / decided) * 100) : 0
+  const firstPass = tasks.filter((t) => Number(t.status) === 2 && Number(t.first_pass_flag) === 1)
+  const firstPassRate = approvedCount ? Math.round((firstPass.length / approvedCount) * 100) : 0
 
   const byDivision = scope === 'special' ? [] : buildDivisionPlanStats(project_id)
   return {
@@ -1788,13 +1844,12 @@ export function buildQmDashboard(project_id, opts = {}) {
     nodeCompleteRate,
     taskTotal,
     taskPassed,
+    pendingCount,
+    approvingCount,
+    approvedCount,
+    rejectedCount,
     passRate,
     firstPassRate,
-    rectifyTotal,
-    rectifying,
-    rectifyCompleteRate,
-    planOverdueCount,
-    rectifyOverdueCount,
     byDivision,
     total: taskTotal,
     divisionCompleted: byDivision.filter((d) => d.completed).length,

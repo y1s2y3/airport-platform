@@ -3,6 +3,7 @@
  * 挂接目录树根节点「项目竣工验收」；不做验收计划
  */
 import {
+  approvalRecords,
   ensureWbsScaffold,
   getCompleteRootNode,
   inspectionTasks,
@@ -12,11 +13,11 @@ import {
   TASK_STATUS,
   wbsNodes,
 } from './qmInspect.js'
-import { ensureTaskItems, syncNodeAccept } from './qmInspectOps.js'
+import { addAttachment, ensureTaskItems, getAttachments, syncNodeAccept } from './qmInspectOps.js'
 import { specialTypeLabel } from './qmSpecialTypes.js'
 
 function statusLabelOfNode(accept_status) {
-  const map = { 0: '未验收', 1: '验评中', 2: '已通过', 3: '不通过', 4: '整改中', 5: '待复验' }
+  const map = { 0: '未开始', 1: '审批中', 2: '已通过', 3: '已驳回' }
   return map[accept_status] ?? '—'
 }
 
@@ -122,26 +123,30 @@ export function buildCompleteGate(project_id) {
   }
 }
 
-/** 获取或创建本项目竣工填报草稿（实体+专项均完成时自动建档） */
+/** 获取或创建本项目竣工填报任务（优先进行中 → 已通过 → 已驳回；无单且前置齐则新建） */
 export function getOrCreateCompleteDraft(project_id) {
   if (!project_id) return { ok: false, msg: '请先选择项目', task: null }
-  const active = inspectionTasks.find(
-    (t) =>
-      t.project_id === project_id &&
-      Number(t.task_type) === 7 &&
-      [0, 1].includes(Number(t.status)),
-  )
+
+  const ofProject = (t) => t.project_id === project_id && Number(t.task_type) === 7
+
+  const active = inspectionTasks.find((t) => ofProject(t) && [0, 1].includes(Number(t.status)))
   if (active) return { ok: true, task: active, created: false }
 
-  const latest = inspectionTasks.find(
-    (t) => t.project_id === project_id && Number(t.task_type) === 7,
-  )
+  const passed = inspectionTasks.find((t) => ofProject(t) && Number(t.status) === 2)
+  if (passed) return { ok: true, task: passed, created: false }
+
+  // 已驳回：展示原单（只读），由「重新报审」复制建新单；不自动新建空单
+  const rejected = [...inspectionTasks]
+    .filter((t) => ofProject(t) && Number(t.status) === 3)
+    .sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')))[0]
+  if (rejected) return { ok: true, task: rejected, created: false, rejected: true }
+
   const gate = buildCompleteGate(project_id)
   if (!gate.canStart) {
     return {
       ok: false,
       msg: gate.blockReason || '实体工程与专项验收均须全部完成后方可填报竣工验收',
-      task: latest || null,
+      task: null,
       gate,
     }
   }
@@ -149,6 +154,94 @@ export function getOrCreateCompleteDraft(project_id) {
   const created = createCompleteTask({ project_id, location_name: '项目竣工验收' })
   if (!created.ok) return { ...created, created: false }
   return { ok: true, task: created.task, created: true, gate }
+}
+
+/** 本项目竣工验收驳回记录（已驳回存档单） */
+export function listCompleteRejectRecords(project_id) {
+  if (!project_id) return []
+  return inspectionTasks
+    .filter(
+      (t) =>
+        t.project_id === project_id && Number(t.task_type) === 7 && Number(t.status) === 3,
+    )
+    .slice()
+    .sort((a, b) => String(b.updated_at || b.finish_time || '').localeCompare(String(a.updated_at || a.finish_time || '')))
+}
+
+/** 最近一条驳回意见 */
+export function getCompleteRejectOpinion(task_id) {
+  const rows = approvalRecords
+    .filter((r) => r.task_id === task_id && Number(r.action) === 3)
+    .slice()
+    .sort((a, b) => String(b.action_time || '').localeCompare(String(a.action_time || '')))
+  return rows[0] || null
+}
+
+function copyCompleteAttachments(fromTaskId, toTaskId) {
+  getAttachments('TASK', fromTaskId).forEach((a) => {
+    addAttachment({
+      biz_type: 'TASK',
+      biz_id: toTaskId,
+      task_id: toTaskId,
+      file_category: a.file_category,
+      file_name: a.file_name,
+      file_ext: a.file_ext,
+      file_url: a.file_url,
+      file_size: a.file_size,
+      content_hash: a.content_hash,
+      mime_type: a.mime_type,
+      watermark_flag: a.watermark_flag,
+      shoot_time: a.shoot_time,
+      shoot_location: a.shoot_location,
+      upload_by: a.upload_by,
+      archive_file_code: '',
+      is_required_met: a.is_required_met,
+      doc_slot: a.doc_slot || '',
+    })
+  })
+}
+
+/**
+ * 竣工已驳回 → 重新报审：复制表单/附件建新单；原单保持已驳回作为驳回记录
+ */
+export function reDeclareCompleteAcceptance(rejectedTask) {
+  if (!rejectedTask || Number(rejectedTask.task_type) !== 7) {
+    return { ok: false, msg: '仅竣工验收单可重新报审' }
+  }
+  if (Number(rejectedTask.status) !== 3) {
+    return { ok: false, msg: '仅已驳回验收单可重新报审' }
+  }
+  const active = inspectionTasks.find(
+    (t) =>
+      t.project_id === rejectedTask.project_id &&
+      Number(t.task_type) === 7 &&
+      [0, 1, 2].includes(Number(t.status)),
+  )
+  if (active) {
+    return {
+      ok: false,
+      msg: `已有有效竣工验收单（${active.task_no}），请先完成当前单`,
+      task: active,
+    }
+  }
+
+  const created = createCompleteTask({
+    project_id: rejectedTask.project_id,
+    location_name: rejectedTask.location_name || '项目竣工验收',
+    remark: rejectedTask.remark || '',
+    contractor_org_id: rejectedTask.contractor_org_id,
+    supervisor_org_id: rejectedTask.supervisor_org_id,
+    related_reject_id: rejectedTask.id,
+  })
+  if (!created.ok) return created
+  const task = created.task
+  if (rejectedTask.form_data && typeof rejectedTask.form_data === 'object') {
+    task.form_data = JSON.parse(JSON.stringify(rejectedTask.form_data))
+  }
+  if (rejectedTask.form_template_id) task.form_template_id = rejectedTask.form_template_id
+  if (rejectedTask.task_name) task.task_name = rejectedTask.task_name
+  copyCompleteAttachments(rejectedTask.id, task.id)
+  return { ok: true, task, source: rejectedTask }
 }
 
 /** 更新竣工填报表头字段（验收说明）；工程/部位由系统默认，不再挂计划 */
@@ -174,6 +267,7 @@ export function createCompleteTask({
   remark = '',
   contractor_org_id = 'org-sg-01',
   supervisor_org_id = 'org-jl-01',
+  related_reject_id = '',
 }) {
   if (!project_id) return { ok: false, msg: '请先选择项目' }
   const gate = buildCompleteGate(project_id)
@@ -200,6 +294,7 @@ export function createCompleteTask({
   const task = {
     id,
     task_no: `JG-2026-${String(inspectionTasks.filter((t) => t.task_type === 7).length + 1).padStart(3, '0')}`,
+    task_name: '项目竣工验收',
     project_id,
     wbs_node_id: root?.id || '',
     plan_id: '',
@@ -235,12 +330,11 @@ export function createCompleteTask({
     is_draft: 0,
     need_archive: 1,
     elec_archive_status: 1,
-    related_reject_id: '',
+    related_reject_id: related_reject_id || '',
     approval_post_id: '',
     approval_post_name: '',
     approver_id: '',
     approver_name: '',
-    owner_final_required: 1,
     remark: remark || '',
     manual_approval_flow: [],
     created_by: 'u-sg-01',
@@ -304,6 +398,102 @@ export function ensureCompletePrereqDemoSeeds() {
       )
       if (hasPass) n.accept_status = 2
     })
+
+  seedCompleteRejectDemo(project_id)
+}
+
+/** 演示：竣工已驳回存档单（用于「驳回记录 / 重新报审」） */
+function seedCompleteRejectDemo(project_id) {
+  if (inspectionTasks.some((t) => t.project_id === project_id && Number(t.task_type) === 7)) {
+    return
+  }
+  const gate = buildCompleteGate(project_id)
+  if (!gate.canStart) return
+
+  const root = getCompleteRootNode(project_id)
+  const id = 'tk-jg-reject-001'
+  const task = {
+    id,
+    task_no: 'JG-2026-001',
+    task_name: '项目竣工验收',
+    project_id,
+    wbs_node_id: root?.id || '',
+    plan_id: '',
+    unplanned_flag: 1,
+    parent_task_id: '',
+    task_type: 7,
+    specialty: '竣工',
+    location_name: root?.node_name || '项目竣工验收',
+    form_template_id: 'ft-complete',
+    form_data: {
+      'ft-complete': {
+        工程名称: root?.node_name || '项目竣工验收',
+        竣工验收结论: '资料不齐，待补全后重报',
+      },
+    },
+    batch_type_id: '',
+    status: 3,
+    result: 2,
+    self_check_result: 1,
+    is_hidden_work: 0,
+    first_pass_flag: 0,
+    reinspect_count: 0,
+    current_rectify_id: '',
+    contractor_org_id: 'org-sg-01',
+    supervisor_org_id: 'org-jl-01',
+    applicant_id: 'u-sg-01',
+    submit_time: '2026-08-01 10:00:00',
+    reviewer_id: 'u-jl-01',
+    finish_time: '2026-08-02 15:30:00',
+    archive_status: 0,
+    archive_pkg_no: '',
+    archive_instance_id: '',
+    is_draft: 0,
+    need_archive: 1,
+    elec_archive_status: 3,
+    related_reject_id: '',
+    remark: '竣工验收已驳回存档（演示·可重新报审）',
+    manual_approval_flow: [],
+    created_by: 'u-sg-01',
+    created_at: '2026-08-01 09:00:00',
+    updated_by: 'u-jl-01',
+    updated_at: '2026-08-02 15:30:00',
+  }
+  inspectionTasks.unshift(task)
+  addAttachment({
+    biz_type: 'TASK',
+    biz_id: id,
+    task_id: id,
+    file_category: 1,
+    file_name: '竣工现场全景.jpg',
+    file_ext: 'jpg',
+    file_url: '#mock/jg-site.jpg',
+    file_size: 320000,
+    mime_type: 'image/jpeg',
+  })
+  approvalRecords.push(
+    {
+      id: 'ar-jg-001',
+      task_id: id,
+      node_name: '提交报验',
+      action: 1,
+      operator_id: 'u-sg-01',
+      operator_role: '施工方',
+      opinion: '',
+      action_time: '2026-08-01 10:00:00',
+    },
+    {
+      id: 'ar-jg-002',
+      task_id: id,
+      node_name: '监理单位审批',
+      action: 3,
+      operator_id: 'u-jl-01',
+      operator_role: '监理单位审批',
+      opinion: '竣工资料目录不完整，竣工验收报告签章缺页，请补齐后重新报审。',
+      action_time: '2026-08-02 15:30:00',
+    },
+  )
+  syncNodeAccept(task)
 }
 
 ensureCompletePrereqDemoSeeds()

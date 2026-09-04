@@ -1,6 +1,6 @@
 <script setup>
 /**
- * 实体验收台账列表（指挥部按项目汇总）
+ * 实体验收台账列表（指挥部按项目汇总）— 对齐 PRD 四态统计
  */
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -34,9 +34,13 @@ function reset() {
   keyword.value = ''
 }
 
+function passRateText(row) {
+  if (!(Number(row.approvedCount) + Number(row.rejectedCount))) return '—'
+  return `${row.passRate}%`
+}
+
 function viewProjectDetail(row) {
   if (!row?.project_id) return
-  // 保持指挥部顶栏不变，二级页用 projectId 查看该项目目录树
   router.push({
     path: '/qm/inspect/tree',
     query: { from: 'hq', projectId: row.project_id },
@@ -52,34 +56,27 @@ function viewProjectDetail(row) {
         clearable
         placeholder="项目名称"
         style="width: 260px"
-        :prefix-icon="Search" aria-label="项目名称"/>
+        :prefix-icon="Search"
+        aria-label="项目名称"
+      />
       <el-button type="primary" :icon="Search">查询</el-button>
       <el-button :icon="Refresh" @click="reset">重置</el-button>
     </div>
 
     <el-table :data="filtered" stripe border empty-text="暂无项目验评数据">
-      <el-table-column prop="project_name" label="项目名称" min-width="220" fixed show-overflow-tooltip />
+      <el-table-column prop="project_name" label="项目名称" min-width="200" fixed show-overflow-tooltip />
+      <el-table-column label="待提交" width="88" align="center" prop="pendingCount" />
+      <el-table-column label="审批中" width="88" align="center" prop="approvingCount" />
+      <el-table-column label="已通过" width="88" align="center" prop="approvedCount" />
+      <el-table-column label="已驳回" width="88" align="center" prop="rejectedCount" />
+      <el-table-column label="验收任务数" width="100" align="center" prop="taskTotal" />
+      <el-table-column label="通过率" width="88" align="center">
+        <template #default="{ row }">{{ passRateText(row) }}</template>
+      </el-table-column>
       <el-table-column label="节点总数" width="96" align="center" prop="nodeTotal" />
       <el-table-column label="验收完成节点" width="110" align="center" prop="nodeCompleted" />
       <el-table-column label="节点完成率" width="100" align="center">
         <template #default="{ row }">{{ row.nodeCompleteRate }}%</template>
-      </el-table-column>
-      <el-table-column label="验收任务总数" width="110" align="center" prop="taskTotal" />
-      <el-table-column label="通过率" width="88" align="center">
-        <template #default="{ row }">{{ row.passRate }}%</template>
-      </el-table-column>
-      <el-table-column label="一次性通过率" width="110" align="center">
-        <template #default="{ row }">{{ row.firstPassRate }}%</template>
-      </el-table-column>
-      <el-table-column label="整改总数" width="96" align="center" prop="rectifyTotal" />
-      <el-table-column label="整改中" width="88" align="center" prop="rectifying" />
-      <el-table-column label="整改完成率" width="100" align="center">
-        <template #default="{ row }">{{ row.rectifyCompleteRate }}%</template>
-      </el-table-column>
-      <el-table-column label="整改延期" width="96" align="center">
-        <template #default="{ row }">
-          <span :class="{ 'num-danger': row.rectifyOverdueCount > 0 }">{{ row.rectifyOverdueCount }}</span>
-        </template>
       </el-table-column>
       <el-table-column label="操作" width="130" min-width="130" fixed="right">
         <template #default="{ row }">
@@ -93,8 +90,4 @@ function viewProjectDetail(row) {
 <style scoped>
 .ledger-table { display: flex; flex-direction: column; gap: 12px; }
 .filter-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.num-danger {
-  color: #c62828;
-  font-weight: 600;
-}
 </style>
