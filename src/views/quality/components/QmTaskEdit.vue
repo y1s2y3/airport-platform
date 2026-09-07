@@ -538,21 +538,21 @@ const canEdit = computed(() => {
   return Number(task.value.status) === 0
 })
 
-/** 按验收类型的默认审批流程：施工报验 → 审批链 → 办结 */
+/** 按验收类型的默认审批流程：报验 → 审批链；（竣工仅三节点，不含办结通过） */
 const flowSteps = computed(() => {
   if (!task.value) return []
   let chain = []
   if (canEdit.value) {
     chain = [
       approverForm.supervisor_approver_name
-        ? `监理单位审批（${approverForm.supervisor_approver_name}）`
-        : '监理单位审批',
+        ? `监理（${approverForm.supervisor_approver_name}）`
+        : '监理',
     ]
     if (needPmApproval.value) {
       chain.push(
         approverForm.pm_approver_name
-          ? `项目经理审批（${approverForm.pm_approver_name}）`
-          : '项目经理审批',
+          ? `项目经理（${approverForm.pm_approver_name}）`
+          : '项目经理',
       )
     }
   } else if (Array.isArray(task.value.manual_approval_flow) && task.value.manual_approval_flow.length) {
@@ -560,18 +560,31 @@ const flowSteps = computed(() => {
       .sort((a, b) => Number(a.level) - Number(b.level))
       .map((n) => {
         const who = (n.approver_names && n.approver_names[0]) || ''
-        return who ? `${n.label}（${who}）` : n.label
+        const label = normalizeApprovalNodeLabel(n.label)
+        return who ? `${label}（${who}）` : label
       })
   } else {
-    chain = getApprovalChain(task.value)
+    chain = getApprovalChain(task.value).map((label) => normalizeApprovalNodeLabel(label))
   }
-  const typeLabel = TASK_TYPE_LABEL[task.value.task_type] || '验评'
-  return [
-    { title: '施工报验', desc: '自检提交' },
+  const steps = [
+    { title: '报验', desc: '施工提交' },
     ...chain.map((role) => ({ title: role, desc: '审核签章' })),
-    { title: '办结通过', desc: typeLabel },
   ]
+  // 竣工验收：审批过程仅报验、监理、项目经理
+  if (Number(task.value.task_type) === 7) return steps
+  const typeLabel = TASK_TYPE_LABEL[task.value.task_type] || '验评'
+  steps.push({ title: '办结通过', desc: typeLabel })
+  return steps
 })
+
+function normalizeApprovalNodeLabel(label) {
+  const s = String(label || '').trim()
+  if (!s) return '审批'
+  if (s.includes('监理')) return s.replace(/监理单位审批|监理单位/, '监理')
+  if (s.includes('项目经理')) return s.replace(/项目经理审批/, '项目经理')
+  if (s.includes('施工报验') || s === '施工提交') return '报验'
+  return s
+}
 
 const flowTip = computed(() => {
   if (!task.value) return ''
@@ -613,28 +626,32 @@ const approvalProcessSteps = computed(() => {
       .sort((a, b) => Number(a.level) - Number(b.level))
       .map((n) => {
         const who = (n.approver_names && n.approver_names[0]) || ''
+        const label = normalizeApprovalNodeLabel(n.label)
         return {
-          label: n.label || '审批',
-          title: who ? `${n.label}（${who}）` : n.label || '审批',
+          label,
+          title: who ? `${label}（${who}）` : label,
         }
       })
   } else if (t.supervisor_approver_name || t.pm_approver_name || status === 0) {
     midNodes = [
       {
-        label: '监理单位审批',
+        label: '监理',
         title: t.supervisor_approver_name
-          ? `监理单位审批（${t.supervisor_approver_name}）`
-          : '监理单位审批',
+          ? `监理（${t.supervisor_approver_name}）`
+          : '监理',
       },
     ]
     if (taskRequiresPmApproval(t.task_type)) {
       midNodes.push({
-        label: '项目经理审批',
-        title: t.pm_approver_name ? `项目经理审批（${t.pm_approver_name}）` : '项目经理审批',
+        label: '项目经理',
+        title: t.pm_approver_name ? `项目经理（${t.pm_approver_name}）` : '项目经理',
       })
     }
   } else {
-    midNodes = getApprovalChain(t).map((label) => ({ label, title: label }))
+    midNodes = getApprovalChain(t).map((label) => {
+      const n = normalizeApprovalNodeLabel(label)
+      return { label: n, title: n }
+    })
   }
 
   const currentNode = status === 1 ? getCurrentManualNode(t) : null
@@ -646,7 +663,10 @@ const approvalProcessSteps = computed(() => {
       .find(
         (r) =>
           Number(r.action) === 3 &&
-          (r.node_name === node.label || r.operator_role === node.label),
+          (r.node_name === node.label ||
+            r.operator_role === node.label ||
+            String(r.node_name || '').includes(node.label) ||
+            String(r.operator_role || '').includes(node.label)),
       )
     if (rejectRec) {
       return { status: 'error', desc: rejectRec.action_time || '已驳回' }
@@ -656,7 +676,10 @@ const approvalProcessSteps = computed(() => {
       .find(
         (r) =>
           Number(r.action) === 2 &&
-          (r.node_name === node.label || r.operator_role === node.label),
+          (r.node_name === node.label ||
+            r.operator_role === node.label ||
+            String(r.node_name || '').includes(node.label) ||
+            String(r.operator_role || '').includes(node.label)),
       )
     if (passRec) {
       return { status: 'success', desc: passRec.action_time || '已通过' }
@@ -664,29 +687,32 @@ const approvalProcessSteps = computed(() => {
     if (status === 2) {
       return { status: 'success', desc: '已通过' }
     }
-    if (status === 1 && currentLabel === node.label) {
+    if (status === 1 && (currentLabel === node.label || String(currentLabel).includes(node.label))) {
       return { status: 'process', desc: '审批中' }
     }
     return { status: 'wait', desc: '等待' }
   }
 
-  return [
+  const steps = [
     {
-      title: '施工报验',
+      title: '报验',
       ...(status === 0
         ? { status: 'wait', desc: '待提交' }
         : { status: 'success', desc: t.submit_time || '已提交' }),
     },
     ...midNodes.map((n) => ({ title: n.title, ...midStep(n) })),
-    {
-      title: '办结通过',
-      ...(status === 2
-        ? { status: 'success', desc: t.finish_time || typeLabel }
-        : status === 3
-          ? { status: 'error', desc: '未通过' }
-          : { status: 'wait', desc: '等待' }),
-    },
   ]
+  // 竣工验收：审批过程仅报验、监理、项目经理
+  if (Number(t.task_type) === 7) return steps
+  steps.push({
+    title: '办结通过',
+    ...(status === 2
+      ? { status: 'success', desc: t.finish_time || typeLabel }
+      : status === 3
+        ? { status: 'error', desc: '未通过' }
+        : { status: 'wait', desc: '等待' }),
+  })
+  return steps
 })
 
 /** 详情「审批过程」时间线（卡片样式对齐品牌报审） */
@@ -1122,7 +1148,7 @@ function openAsbuiltCompare(url) {
   window.open(url, '_blank', 'noopener,noreferrer')
 }
 
-/** 保存填报 */
+/** 保存填报（填报页已取消独立「保存」；提交前仍会静默落草稿字段） */
 function onSaveDraft() {
   if (!task.value) return ElMessage.warning('请从列表发起验收后再填报')
   // 任务名称/节点/部位/隐蔽工程以发起时为准，填报页不可改
@@ -1137,7 +1163,15 @@ function onSaveDraft() {
   })
   if (!r.ok) return ElMessage.error(r.msg)
   refreshTaskElecArchiveStatus(task.value)
-  ElMessage.success('已保存')
+  return r
+}
+
+function onCancelEdit() {
+  if (props.embedded) {
+    load()
+    return
+  }
+  router.push(props.listPath)
 }
 
 function onSubmit() {
@@ -1778,9 +1812,9 @@ function saveStepQuietly() {
       </div>
     </template>
 
-    <!-- 向导操作条 -->
+    <!-- 向导操作条：仅取消 + 提交报验，不支持保存 -->
     <div v-if="canEdit" class="filter-bar mb self-check-actions">
-      <el-button native-type="button" @click="onSaveDraft">保存</el-button>
+      <el-button native-type="button" @click="onCancelEdit">取消</el-button>
       <el-button type="primary" native-type="button" @click="onSubmit">提交报验</el-button>
     </div>
 

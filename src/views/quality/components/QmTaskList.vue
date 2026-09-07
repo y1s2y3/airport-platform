@@ -73,8 +73,32 @@ const createForm = reactive({
   need_archive: 0,
 })
 const archiveLocked = ref(false)
+/** 检验批节点：是否电子档案归档固定为「是」且不可改 */
+const archiveForcedByBatch = ref(false)
 /** 编辑回填时跳过「选节点带出隐蔽标记」 */
 const suppressNodePrefill = ref(false)
+
+/** 按节点类型同步「是否电子档案归档」可编辑态：检验批默认是且锁定；无档案清单则否且锁定；其余可改 */
+function syncArchiveByNode(nodeId) {
+  if (!nodeId) {
+    archiveLocked.value = false
+    archiveForcedByBatch.value = false
+    createForm.need_archive = 0
+    return
+  }
+  const node = wbsNodes.find((x) => x.id === nodeId)
+  const isBatch = Number(node?.node_type) === 6
+  if (isBatch) {
+    archiveForcedByBatch.value = true
+    archiveLocked.value = true
+    createForm.need_archive = 1
+    return
+  }
+  archiveForcedByBatch.value = false
+  const empty = nodeRequiredDocsEmpty(nodeId)
+  archiveLocked.value = empty
+  if (empty) createForm.need_archive = 0
+}
 const dialogTitle = computed(() => (editingTaskId.value ? '编辑验收' : '发起验收'))
 /** 项目层级不搜项目名；指挥部层级保留「项目」关键词提示 */
 const keywordPlaceholder = computed(() => {
@@ -222,6 +246,7 @@ function openCreate() {
   createForm.is_hidden_work = 0
   createForm.need_archive = 0
   archiveLocked.value = false
+  archiveForcedByBatch.value = false
   rebuildCreateNodeTree()
   createVisible.value = true
 }
@@ -242,9 +267,7 @@ function openEdit(row) {
   createForm.location_name = row.location_name || ''
   createForm.is_hidden_work = Number(row.is_hidden_work) === 1 ? 1 : 0
   createForm.need_archive = Number(row.need_archive) === 1 ? 1 : 0
-  const empty = row.wbs_node_id ? nodeRequiredDocsEmpty(row.wbs_node_id) : false
-  archiveLocked.value = empty
-  if (empty) createForm.need_archive = 0
+  syncArchiveByNode(row.wbs_node_id)
   rebuildCreateNodeTree()
   createVisible.value = true
   nextTick(() => {
@@ -256,8 +279,7 @@ watch(
   () => createForm.wbs_node_id,
   (id) => {
     if (!id) {
-      archiveLocked.value = false
-      createForm.need_archive = 0
+      syncArchiveByNode('')
       if (!editingTaskId.value && !suppressNodePrefill.value) createForm.is_hidden_work = 0
       // 无验收节点时不可选部位
       if (!suppressNodePrefill.value) {
@@ -267,9 +289,7 @@ watch(
       }
       return
     }
-    const empty = nodeRequiredDocsEmpty(id)
-    archiveLocked.value = empty
-    if (empty) createForm.need_archive = 0
+    syncArchiveByNode(id)
     // 用户改选节点时带出目录树隐蔽标记（专项不展示）；部位一对多跨分项可选，不清空
     if (!props.specialMode && !suppressNodePrefill.value) {
       const n = wbsNodes.find((x) => x.id === id)
@@ -362,7 +382,29 @@ function resolveEditPath(row) {
   return EDIT_PATH_BY_TASK_TYPE[row.task_type] || props.editPath
 }
 
-function goEdit(row) {
+async function goEdit(row) {
+  // 已选电子档案归档：进入填报前提示前往档案系统填报表单
+  if (Number(row.need_archive) === 1) {
+    try {
+      await ElMessageBox.confirm(
+        '电子档案系统表单未填报，请前往电子档案系统操作',
+        '提示',
+        {
+          type: 'warning',
+          confirmButtonText: '跳转电子档案',
+          cancelButtonText: '继续填报',
+          distinguishCancelAndClose: true,
+        },
+      )
+      goFillArchive(row)
+      return
+    } catch (action) {
+      if (action === 'cancel') {
+        router.push(`${resolveEditPath(row)}?id=${row.id}`)
+      }
+      return
+    }
+  }
   router.push(`${resolveEditPath(row)}?id=${row.id}`)
 }
 
@@ -585,7 +627,10 @@ onMounted(() => {
             <el-radio :value="1">是</el-radio>
             <el-radio :value="0">否</el-radio>
           </el-radio-group>
-          <div v-if="archiveLocked" class="form-hint">该节点档案清单为空，默认否且不可改</div>
+          <div v-if="archiveForcedByBatch" class="form-hint">
+            检验批节点默认「是」且不可修改；提交报验前须完成电子档案。
+          </div>
+          <div v-else-if="archiveLocked" class="form-hint">该节点档案清单为空，默认否且不可改</div>
           <div v-else class="form-hint">
             选「是」则提交报验前须完成电子档案（状态为「未完成」时不可提交）；选「否」不强制。
           </div>

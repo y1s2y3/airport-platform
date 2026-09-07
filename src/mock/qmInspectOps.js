@@ -543,6 +543,8 @@ export function createTask({
   const docsEmpty = nodeRequiredDocsEmpty(wbs_node_id)
   let needArchiveFlag = docsEmpty ? 0 : need_archive === undefined ? 1 : Number(need_archive) === 1 ? 1 : 0
   if (docsEmpty) needArchiveFlag = 0
+  // 检验批：是否电子档案归档固定为「是」，不可改为否
+  if (node.node_type === 6) needArchiveFlag = 1
 
   const locIds = Array.isArray(location_ids)
     ? location_ids.map(String).filter(Boolean)
@@ -736,6 +738,10 @@ export function saveTaskDraft(task, patch = {}) {
   if (patch.need_archive !== undefined) {
     const docsEmpty = nodeRequiredDocsEmpty(task.wbs_node_id)
     task.need_archive = docsEmpty ? 0 : Number(patch.need_archive) === 1 ? 1 : 0
+  }
+  // 检验批任务：归档开关锁定为「是」
+  if (Number(task.task_type) === 1) {
+    task.need_archive = 1
   }
   if (patch.form_data) task.form_data = JSON.parse(JSON.stringify(patch.form_data))
   if (patch.manual_approval_flow !== undefined) {

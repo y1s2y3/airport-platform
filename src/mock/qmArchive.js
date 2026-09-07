@@ -1,6 +1,6 @@
 /**
  * 质量验评 · 档案域 Mock — 对齐 data-model-for-验评 V2.3.1
- * 实体：ARCHIVE_FORM_INSTANCE / ARCHIVE_APPROVAL_SYNC / PROJECT_SEAL_USER / 节点级档案文件配置
+ * 实体：ARCHIVE_FORM_INSTANCE / ARCHIVE_APPROVAL_SYNC / 节点级档案文件配置
  * 口径：C1 登记=用户主动行为；C2 节点配置了需填报档案文件才拦截；C6 通过前实时校验档案签章；
  *      C7 状态一律以档案为准（退回先写档案再同步回来）；D2 审批链登记时快照锁定；D6 配置源头在档案侧
  */
@@ -172,34 +172,6 @@ export const archiveApprovalSyncs = reactive([
     sync_source: 'manual',
   },
 ])
-
-/** PROJECT_SEAL_USER — 项目用章人（Q17：保存即下传档案系统） */
-export const projectSealUsers = reactive([
-  {
-    id: 'psu-001',
-    project_id: 'p-000',
-    user_id: 'u-pm-02',
-    user_name: '陈项目经理',
-    post_label: '项目经理',
-    phone: '13800007001',
-    status: 1,
-    pushed_at: '2026-07-05 09:30:00',
-    remark: '施工单位用章人',
-  },
-  {
-    id: 'psu-002',
-    project_id: 'p-000',
-    user_id: 'u-jl-01',
-    user_name: '李总监',
-    post_label: '总监理工程师',
-    phone: '13800001001',
-    status: 1,
-    pushed_at: '2026-07-05 09:35:00',
-    remark: '监理单位用章人（总监执业章）',
-  },
-])
-
-export const SEAL_USER_STATUS = { 0: '已停用', 1: '已下传', 2: '待同步' }
 
 /* ———————————————————— 查询 ———————————————————— */
 
@@ -388,88 +360,6 @@ export function archiveWriteFinish(task, { closed = false } = {}) {
   inst.last_sync_source = 'push'
   task.archive_status = 2
   task.archive_pkg_no = inst.archive_doc_id
-  return { ok: true }
-}
-
-/* ———————————————————— 项目用章人（保存即下传） ———————————————————— */
-
-export function listSealUsers(project_id) {
-  if (!project_id) return [...projectSealUsers]
-  return projectSealUsers.filter((u) => u.project_id === project_id)
-}
-
-/** 保存用章人（新增/编辑）→ 尝试下传档案系统；失败则 status=待同步，可重试 */
-export function saveSealUser(payload, id = '') {
-  if (!payload.project_id) return { ok: false, msg: '请先选择项目' }
-  if (!payload.user_id?.trim() && !payload.user_name?.trim()) {
-    return { ok: false, msg: '请选择用章人' }
-  }
-  if (!payload.user_name?.trim()) return { ok: false, msg: '用章人姓名必填' }
-  const userId = String(payload.user_id || '').trim()
-  if (userId) {
-    const dup = projectSealUsers.find(
-      (u) => u.project_id === payload.project_id && u.user_id === userId && u.id !== id,
-    )
-    if (dup) return { ok: false, msg: '该项目下已存在相同用户的用章人' }
-  }
-  const now = nowStr()
-  const pushOk = !payload.mock_push_fail
-  const next = {
-    user_id: userId,
-    user_name: payload.user_name.trim(),
-    post_label: String(payload.post_label || '').trim(),
-    phone: String(payload.phone || '').trim(),
-    remark: payload.remark || '',
-    status: pushOk ? 1 : 2,
-    pushed_at: pushOk ? now : '',
-  }
-  if (id) {
-    const row = projectSealUsers.find((u) => u.id === id)
-    if (!row) return { ok: false, msg: '用章人不存在' }
-    Object.assign(row, next)
-    return {
-      ok: true,
-      user: row,
-      pushOk,
-      msg: pushOk ? '' : '已保存，下传档案系统失败，请重试',
-    }
-  }
-  const user = {
-    id: `psu-${Date.now()}`,
-    project_id: payload.project_id,
-    ...next,
-  }
-  projectSealUsers.push(user)
-  return {
-    ok: true,
-    user,
-    pushOk,
-    msg: pushOk ? '' : '已保存，下传档案系统失败，请重试',
-  }
-}
-
-/** 待同步用章人重新下传 */
-export function retrySealUserPush(id) {
-  const row = projectSealUsers.find((u) => u.id === id)
-  if (!row) return { ok: false, msg: '用章人不存在' }
-  if (Number(row.status) === 0) return { ok: false, msg: '已停用，无法下传' }
-  row.status = 1
-  row.pushed_at = nowStr()
-  return { ok: true, user: row }
-}
-
-/** 停用/启用：停用后不再作为档案侧可用用章人下传 */
-export function toggleSealUserStatus(row) {
-  if (!row) return { ok: false, msg: '用章人不存在' }
-  row.status = row.status === 1 ? 0 : 1
-  row.pushed_at = nowStr()
-  return { ok: true }
-}
-
-export function removeSealUser(id) {
-  const idx = projectSealUsers.findIndex((u) => u.id === id)
-  if (idx < 0) return { ok: false, msg: '用章人不存在' }
-  projectSealUsers.splice(idx, 1)
   return { ok: true }
 }
 
