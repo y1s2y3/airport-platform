@@ -19,13 +19,25 @@ export const ACCEPTANCE_STATUS_FILTER_OPTIONS = Object.entries(ACCEPTANCE_STATUS
   ([value, label]) => ({ value, label }),
 )
 
-/** 电子档案状态：0无需登记 1未完成 2部分完成 3全部完成 */
+/** 电子档案状态：0无需 1未完成 2部分完成 3全部完成 */
 export const ELEC_ARCHIVE_STATUS = {
-  0: '无需登记',
+  0: '无需',
   1: '未完成',
   2: '部分完成',
   3: '全部完成',
 }
+
+/** 节点档案文档填报状态（对齐 PRD fill_status） */
+export const FILL_STATUS = { 0: '未填报', 1: '已填报' }
+
+export function isArchiveDocFilled(doc) {
+  if (!doc) return false
+  if (doc.fill_status !== undefined && doc.fill_status !== null && doc.fill_status !== '') {
+    return Number(doc.fill_status) === 1
+  }
+  return !!doc.filled
+}
+
 
 export function acceptanceStatusTagType(status) {
   const s = Number(status)
@@ -46,8 +58,54 @@ export function elecArchiveStatusTagType(status) {
 }
 
 /**
- * 流程中心模拟：节点类型 → 审批岗位 roleKey
- * 检验批/分项/子分部 → 专业监理；分部及以上 → 建设单位项目负责人（指挥部项目经理侧）
+ * 验评审批链规则（产品口径）：
+ * - 检验批 / 分项 / 子分部（task_type 1/2/3）：仅监理验收
+ * - 分部及更高、专项、竣工（4/5/6/7/8…）：监理 → 项目经理
+ */
+export function taskRequiresPmApproval(task_type) {
+  return ![1, 2, 3].includes(Number(task_type))
+}
+
+export function buildQmInspectApprovalFlow({
+  task_type,
+  jlPerson,
+  jlName,
+  pmPerson,
+  pmName,
+} = {}) {
+  const jlLabel = getApproverRoleMeta('jl_pro')?.label || '专业监理工程师'
+  const pmLabel = getApproverRoleMeta('js_pm')?.label || '建设单位项目负责人'
+  const flow = [
+    {
+      level: 1,
+      role: 'jl_pro',
+      role_label: jlLabel,
+      label: '监理单位审批',
+      approver_ids: [jlPerson.id],
+      approver_names: [jlName],
+      need_seal: 0,
+      cc_ids: [],
+      mode: 'orsign',
+    },
+  ]
+  if (taskRequiresPmApproval(task_type) && pmPerson) {
+    flow.push({
+      level: 2,
+      role: 'js_pm',
+      role_label: pmLabel,
+      label: '项目经理审批',
+      approver_ids: [pmPerson.id],
+      approver_names: [pmName],
+      need_seal: 0,
+      cc_ids: [],
+      mode: 'orsign',
+    })
+  }
+  return flow
+}
+
+/**
+ * 流程中心模拟：节点类型 → 审批岗位 roleKey（历史兼容；提交链以 taskRequiresPmApproval 为准）
  */
 export const NODE_TYPE_APPROVAL_POST = {
   6: 'jl_pro',
@@ -83,25 +141,25 @@ function ensureNodeDocState(node_id, node_type) {
   if (nodeArchiveDocState[node_id]) return nodeArchiveDocState[node_id]
   const cfg = nodeArchiveDocConfigs.find((c) => Number(c.node_type) === Number(node_type))
   const docs = (cfg?.docs || []).map((name, i) => {
-    const filled = i === 0 && (cfg?.docs || []).length > 1
+    const fill_status = i === 0 && (cfg?.docs || []).length > 1 ? 1 : 0
     return {
       doc_key: `${node_id}-doc-${i}`,
       doc_name: name,
-      filled,
+      fill_status,
       // 档案侧同步演示时间；已填报略新于未填报
-      updated_at: filled
+      updated_at: fill_status === 1
         ? `2026-08-0${Math.min(9, 1 + (i % 9))} ${String(9 + (i % 8)).padStart(2, '0')}:${String(10 + i * 3).padStart(2, '0')}:00`
         : `2026-07-${String(15 + (i % 10)).padStart(2, '0')} ${String(8 + (i % 6)).padStart(2, '0')}:00:00`,
     }
   })
   // 单文档时默认未填，便于演示「未完成」
   if (docs.length === 1) {
-    docs[0].filled = false
+    docs[0].fill_status = 0
     docs[0].updated_at = '2026-07-20 10:00:00'
   }
   if (docs.length > 2) {
-    docs[0].filled = true
-    docs[1].filled = true
+    docs[0].fill_status = 1
+    docs[1].fill_status = 1
     docs[0].updated_at = '2026-08-05 14:20:00'
     docs[1].updated_at = '2026-08-06 09:35:00'
   }
@@ -123,7 +181,7 @@ export function computeElecArchiveStatus(need_archive, node_id) {
   if (!need_archive) return 0
   const docs = listNodeArchiveDocs(node_id)
   if (!docs.length) return 0
-  const filled = docs.filter((d) => d.filled).length
+  const filled = docs.filter((d) => isArchiveDocFilled(d)).length
   if (filled <= 0) return 1
   if (filled < docs.length) return 2
   return 3
@@ -134,10 +192,14 @@ export function refreshTaskElecArchiveStatus(task) {
   task.elec_archive_status = computeElecArchiveStatus(Number(task.need_archive) === 1, task.wbs_node_id)
 }
 
-/** 可提交的电子档案状态：无需登记 / 部分完成 / 全部完成 */
+/**
+ * 提交闸门 · 电子档案：
+ * - 「是否电子档案归档」= 否（或非 1）→ 不强制，可提交
+ * - = 是 → 强制：仅「未完成」拦截；无需登记 / 部分完成 / 全部完成可提交
+ */
 export function canSubmitByElecArchive(task) {
-  const s = Number(task?.elec_archive_status)
-  return s === 0 || s === 2 || s === 3
+  if (Number(task?.need_archive) !== 1) return true
+  return Number(task?.elec_archive_status) !== 1
 }
 
 /** 一节点仅允许一张有效单（待提交/审批中/已通过）；已驳回可多张 */
@@ -154,7 +216,7 @@ export function markNodeDocFilled(node_id, doc_key, filled = true) {
   const docs = listNodeArchiveDocs(node_id)
   const row = docs.find((d) => d.doc_key === doc_key)
   if (row) {
-    row.filled = !!filled
+    row.fill_status = filled ? 1 : 0
     row.updated_at = nowStr()
   }
   inspectionTasks
@@ -199,8 +261,8 @@ export function seedElecArchiveDemoStates() {
     if (!docs.length) return
     const n = fillAll ? docs.length : Math.max(0, Math.min(docs.length, Number(fillCount) || 0))
     docs.forEach((d, i) => {
-      d.filled = i < n
-      d.updated_at = d.filled
+      d.fill_status = i < n ? 1 : 0
+      d.updated_at = d.fill_status === 1
         ? `2026-08-${String(5 + (i % 5)).padStart(2, '0')} ${String(10 + i).padStart(2, '0')}:20:00`
         : `2026-07-${String(18 + (i % 8)).padStart(2, '0')} 09:00:00`
     })
@@ -221,7 +283,7 @@ function enforcePassedTaskElecArchive() {
     const status = computeElecArchiveStatus(true, node_id)
     if (status !== 1) return
     docs.forEach((d, i) => {
-      d.filled = true
+      d.fill_status = 1
       d.updated_at = `2026-08-${String(8 + (i % 2)).padStart(2, '0')} 16:00:00`
     })
   })
@@ -257,42 +319,41 @@ export function migrateTasksToV2() {
     if (t.pm_approver_name === undefined) t.pm_approver_name = ''
     // 业主终审已废弃
     if ('owner_final_required' in t) delete t.owner_final_required
-    // 审批中且无手动链：补齐监理+项目经理双审批人（对齐 submitInspect）
+    // 审批中且无手动链：按 task_type 补齐审批链（检验批/分项/子分部仅监理）
     if (
       Number(t.status) === 1 &&
       (!Array.isArray(t.manual_approval_flow) || !t.manual_approval_flow.length)
     ) {
       const jl = candidatesByRole('jl_pro')[0]
-      const pm = candidatesByRole('js_pm')[0]
-      if (jl && pm) {
+      const needPm = taskRequiresPmApproval(t.task_type)
+      const pm = needPm ? candidatesByRole('js_pm')[0] : null
+      if (jl && (!needPm || pm)) {
         t.supervisor_approver_user_id = t.supervisor_approver_user_id || jl.id
         t.supervisor_approver_name = t.supervisor_approver_name || jl.name
-        t.pm_approver_user_id = t.pm_approver_user_id || pm.id
-        t.pm_approver_name = t.pm_approver_name || pm.name
-        t.manual_approval_flow = [
-          {
-            level: 1,
-            role: 'jl_pro',
-            role_label: '专业监理工程师',
-            label: '监理单位审批',
-            approver_ids: [jl.id],
-            approver_names: [jl.name],
-            need_seal: 0,
-            cc_ids: [],
-            mode: 'orsign',
-          },
-          {
-            level: 2,
-            role: 'js_pm',
-            role_label: '建设单位项目负责人',
-            label: '项目经理审批',
-            approver_ids: [pm.id],
-            approver_names: [pm.name],
-            need_seal: 0,
-            cc_ids: [],
-            mode: 'orsign',
-          },
-        ]
+        if (needPm) {
+          t.pm_approver_user_id = t.pm_approver_user_id || pm.id
+          t.pm_approver_name = t.pm_approver_name || pm.name
+        } else {
+          t.pm_approver_user_id = ''
+          t.pm_approver_name = ''
+        }
+        t.manual_approval_flow = buildQmInspectApprovalFlow({
+          task_type: t.task_type,
+          jlPerson: jl,
+          jlName: t.supervisor_approver_name,
+          pmPerson: pm,
+          pmName: t.pm_approver_name,
+        })
+      }
+    } else if (!taskRequiresPmApproval(t.task_type)) {
+      // 低层级任务历史若残留项目经理字段/二级节点，清掉以免展示误导
+      t.pm_approver_user_id = ''
+      t.pm_approver_name = ''
+      if (Array.isArray(t.manual_approval_flow) && t.manual_approval_flow.length > 1) {
+        t.manual_approval_flow = t.manual_approval_flow.filter((n) => n.role !== 'js_pm')
+        t.manual_approval_flow.forEach((n, i) => {
+          n.level = i + 1
+        })
       }
     }
     refreshTaskElecArchiveStatus(t)

@@ -127,7 +127,7 @@ const approvalTimeline = computed(() => {
       time: submitRec.operate_time || d.submit_time || '—',
       remark:
         submitRec.opinion ||
-        (d.copy_from_application_id ? `从 ${d.copy_from_application_id} 复制新建` : '提交报审'),
+        (d.copy_from_application_id ? `从 ${d.copy_from_application_id} 重新申报` : '提交报审'),
       status: 'done',
     })
   } else {
@@ -139,7 +139,7 @@ const approvalTimeline = computed(() => {
       operator: d.applicant_name || '—',
       time: d.submit_time || '—',
       remark: d.copy_from_application_id
-        ? `从 ${d.copy_from_application_id} 复制新建`
+        ? `从 ${d.copy_from_application_id} 重新申报`
         : '提交报审',
       status: 'done',
     })
@@ -226,7 +226,7 @@ function currentNodeText(app) {
             </el-descriptions-item>
             <el-descriptions-item label="工序名称">{{ detail.process_name }}</el-descriptions-item>
             <el-descriptions-item label="当前节点">{{ currentNodeText(detail) }}</el-descriptions-item>
-            <el-descriptions-item label="施工部位">{{ detail.use_part || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="使用部位">{{ detail.use_part || '—' }}</el-descriptions-item>
             <el-descriptions-item label="项目">{{ detail.project_label }}</el-descriptions-item>
             <el-descriptions-item label="申请人">{{ detail.applicant_name }}</el-descriptions-item>
             <el-descriptions-item label="提交时间">{{ detail.submit_time || '—' }}</el-descriptions-item>

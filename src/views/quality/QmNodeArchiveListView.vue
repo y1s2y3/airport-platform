@@ -11,6 +11,8 @@ import {
   buildWbsTree,
   ensureWbsScaffold,
   listNodeArchiveDocs,
+  isArchiveDocFilled,
+  FILL_STATUS,
   wbsNodes,
 } from '../../mock/qm.js'
 
@@ -38,8 +40,8 @@ const docs = computed(() => {
     ...d,
     node_id: selectedNodeId.value,
   }))
-  if (statusFilter.value === 'todo') list = list.filter((d) => !d.filled)
-  if (statusFilter.value === 'filled') list = list.filter((d) => d.filled)
+  if (statusFilter.value === 'todo') list = list.filter((d) => !isArchiveDocFilled(d))
+  if (statusFilter.value === 'filled') list = list.filter((d) => isArchiveDocFilled(d))
   const kw = keyword.value.trim()
   if (kw) list = list.filter((d) => String(d.doc_name || '').includes(kw))
   return list
@@ -48,14 +50,16 @@ const docs = computed(() => {
 const docSummary = computed(() => {
   if (!selectedNodeId.value) return ''
   const all = listNodeArchiveDocs(selectedNodeId.value)
-  const filled = all.filter((d) => d.filled).length
-  return all.length ? `共 ${all.length} 项 · 已填报 ${filled} · 需填报 ${all.length - filled}` : '该节点暂无档案文档'
+  const filled = all.filter((d) => isArchiveDocFilled(d)).length
+  return all.length
+    ? `共 ${all.length} 项 · 已填报 ${filled} · 未填报 ${all.length - filled}`
+    : '该节点暂无档案文档'
 })
 
-/** 当前节点：存在任一已填报档案文档即为绿（不看下级） */
+/** 当前节点：存在任一已填报档案文档即为绿（不看下级；口径见 PRD） */
 function isArchiveTreeGreen(node) {
   if (!node?.id) return false
-  return listNodeArchiveDocs(node.id).some((d) => d.filled)
+  return listNodeArchiveDocs(node.id).some((d) => isArchiveDocFilled(d))
 }
 
 /** 节点类型标签：档案有已填报→绿，否则灰（同验评目录树） */
@@ -194,7 +198,7 @@ function goView(row) {
               style="width: 130px"
               aria-label="填报状态"
             >
-              <el-option label="需填报" value="todo" />
+              <el-option label="未填报" value="todo" />
               <el-option label="已填报" value="filled" />
             </el-select>
           </div>
@@ -204,8 +208,8 @@ function goView(row) {
           <el-table-column prop="doc_name" label="档案文档" min-width="220" show-overflow-tooltip />
           <el-table-column label="状态" width="110">
             <template #default="{ row }">
-              <el-tag size="small" :type="row.filled ? 'success' : 'warning'" effect="plain">
-                {{ row.filled ? '已填报' : '需填报' }}
+              <el-tag size="small" :type="isArchiveDocFilled(row) ? 'success' : 'warning'" effect="plain">
+                {{ isArchiveDocFilled(row) ? FILL_STATUS[1] : FILL_STATUS[0] }}
               </el-tag>
             </template>
           </el-table-column>

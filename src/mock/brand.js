@@ -368,6 +368,18 @@ const store = reactive({
       use_part: '配电房',
       updated_at: '2026-07-15 11:00:00',
     },
+    {
+      ledger_id: 'BL-EQ-P001',
+      project_id: 'p-001',
+      brand_name: '兴发',
+      manufacturer: '广东兴发铝业有限公司',
+      material_name: '铝单板',
+      material_type: 'equipment',
+      role_tag: 'primary',
+      application_id: 'PP-2026-P001',
+      use_part: '连廊立面',
+      updated_at: '2026-07-18 10:00:00',
+    },
   ],
   applications: [
     {
@@ -1046,29 +1058,46 @@ export function listLedger(projectId, { keyword = '' } = {}) {
   })
 }
 
-/** 定样报审：品牌台账下拉（材料+设备；同品牌厂家去重） */
-export function listSampleBrandOptionsFromLedger(projectId = '') {
+/** 定样报审：品牌台账下拉（按台账行；展示 品牌 · 厂家 · 材料/设备名称） */
+export function listSampleBrandOptionsFromLedger(projectId = '', { materialType = '' } = {}) {
   if (!projectId) return []
-  const rows = store.ledger.filter((r) => {
+  let rows = store.ledger.filter((r) => {
     if (r.project_id !== projectId) return false
     const t = r.material_type || 'material'
     return t === 'material' || t === 'equipment' || !r.material_type
   })
+  if (materialType === 'material' || materialType === 'equipment') {
+    rows = rows.filter((r) => (r.material_type || 'material') === materialType)
+  }
   const map = new Map()
   for (const row of rows) {
+    const ledger_id = String(row.ledger_id || '').trim()
     const brand = String(row.brand_name || '').trim()
     const manufacturer = String(row.manufacturer || '').trim()
-    if (!brand) continue
-    const key = `${brand}\0${manufacturer}`
-    if (map.has(key)) continue
-    map.set(key, {
+    const material_name = String(row.material_name || '').trim()
+    if (!ledger_id || !brand) continue
+    if (map.has(ledger_id)) continue
+    const parts = [brand, manufacturer, material_name].filter(Boolean)
+    map.set(ledger_id, {
+      ledger_id,
       brand_name: brand,
       manufacturer,
+      material_name,
       material_type: row.material_type || 'material',
-      label: manufacturer ? `${brand} · ${manufacturer}` : brand,
+      label: parts.join(' · '),
     })
   }
   return [...map.values()].sort((a, b) => a.label.localeCompare(b.label, 'zh-CN'))
+}
+
+/** 按台账 ID 取品牌台账行（定样报审关联校验） */
+export function getBrandLedgerById(ledgerId = '', projectId = '') {
+  const id = String(ledgerId || '').trim()
+  if (!id) return null
+  const row = store.ledger.find((r) => r.ledger_id === id)
+  if (!row) return null
+  if (projectId && row.project_id !== projectId) return null
+  return row
 }
 
 /** 台账联想：按台账行返回（同品牌不同材料为多条，不合并） */

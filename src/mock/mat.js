@@ -155,31 +155,15 @@ export function isReviewingStatus(status) {
   return status === 'reviewing'
 }
 
-/** Demo：已通过定样（可选关联） */
+/** Demo：已通过定样（可选关联）— 仅引用 sample.js 已通过材料定样 */
 const APPROVED_SAMPLES = [
   {
     sample_application_id: 'MS-001',
     project_id: 'p-000',
     material_name: '外墙真石漆',
     use_part: 'T3 航站楼外立面',
-    brand_name: '亚士漆',
-    manufacturer: '亚士创能科技（上海）股份有限公司',
-  },
-  {
-    sample_application_id: 'MS-101',
-    project_id: 'p-000',
-    material_name: '防水卷材',
-    use_part: '屋面防水层',
     brand_name: '东方雨虹',
     manufacturer: '北京东方雨虹防水技术股份有限公司',
-  },
-  {
-    sample_application_id: 'MS-102',
-    project_id: 'p-001',
-    material_name: '镀锌钢管',
-    use_part: '给排水干管',
-    brand_name: '友发',
-    manufacturer: '天津友发钢管集团股份有限公司',
   },
 ]
 
@@ -194,8 +178,8 @@ const store = reactive({
       ledger_id: 'BL-001',
       material_name: '外墙真石漆',
       use_part: 'T3 航站楼外立面',
-      brand_name: '亚士漆',
-      manufacturer: '亚士创能科技（上海）股份有限公司',
+      brand_name: '东方雨虹',
+      manufacturer: '北京东方雨虹防水技术股份有限公司',
       quantity: 200,
       unit: '桶',
       supplier: '华东建材供应站',
@@ -233,7 +217,7 @@ const store = reactive({
       entry_no: 'ME-002',
       entry_type: 'material',
       project_id: 'p-000',
-      sample_application_id: 'MS-101',
+      sample_application_id: '',
       ledger_id: 'BL-002',
       material_name: '防水卷材',
       use_part: '屋面防水层',
@@ -344,7 +328,7 @@ const store = reactive({
       entry_no: 'ME-004',
       entry_type: 'material',
       project_id: 'p-000',
-      sample_application_id: 'MS-101',
+      sample_application_id: '',
       ledger_id: 'BL-002',
       material_name: '防水卷材',
       use_part: '屋面防水层',

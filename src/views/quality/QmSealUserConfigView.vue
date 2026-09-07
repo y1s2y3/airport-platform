@@ -12,6 +12,7 @@ import {
   listSealUsers,
   removeSealUser,
   saveSealUser,
+  retrySealUserPush,
   SEAL_USER_STATUS,
 } from '../../mock/qm.js'
 import {
@@ -47,6 +48,7 @@ const form = reactive({
   post_label: '',
   phone: '',
   remark: '',
+  mock_push_fail: false,
 })
 
 const displayPhoneMasked = computed(() => maskPhone(form.phone))
@@ -58,6 +60,7 @@ function openCreate() {
   form.post_label = ''
   form.phone = ''
   form.remark = ''
+  form.mock_push_fail = false
   dialogVisible.value = true
 }
 
@@ -84,11 +87,20 @@ function onSave() {
     post_label: form.post_label,
     phone: form.phone,
     remark: form.remark,
+    mock_push_fail: form.mock_push_fail,
   })
   if (!r.ok) return ElMessage.error(r.msg)
   dialogVisible.value = false
   tick.value += 1
-  ElMessage.success(`已保存并下传档案系统（${r.user.pushed_at}）`)
+  if (r.pushOk) ElMessage.success(`已保存并下传档案系统（${r.user.pushed_at}）`)
+  else ElMessage.warning(r.msg || '已保存，下传失败，请重试')
+}
+
+function onRetryPush(row) {
+  const r = retrySealUserPush(row.id)
+  if (!r.ok) return ElMessage.error(r.msg)
+  tick.value += 1
+  ElMessage.success(`已重新下传（${r.user.pushed_at}）`)
 }
 
 async function onRemove(row) {
@@ -145,15 +157,19 @@ function reset() {
       </el-table-column>
       <el-table-column label="状态" width="100">
         <template #default="{ row }">
-          <el-tag size="small" :type="row.status === 1 ? 'success' : 'info'">
+          <el-tag
+            size="small"
+            :type="row.status === 1 ? 'success' : row.status === 2 ? 'warning' : 'info'"
+          >
             {{ SEAL_USER_STATUS[row.status] }}
           </el-tag>
         </template>
       </el-table-column>
       <el-table-column prop="pushed_at" label="最近下传时间" width="170" />
       <el-table-column prop="remark" label="备注" min-width="180" show-overflow-tooltip />
-      <el-table-column label="操作" width="90" fixed="right">
+      <el-table-column label="操作" width="160" fixed="right">
         <template #default="{ row }">
+          <el-button v-if="row.status === 2" link type="primary" @click="onRetryPush(row)">重新下传</el-button>
           <el-button link type="danger" @click="onRemove(row)">删除</el-button>
         </template>
       </el-table-column>
@@ -193,6 +209,9 @@ function reset() {
             placeholder="选填，如：总监执业章"
             aria-label="备注"
           />
+        </el-form-item>
+        <el-form-item label="演示">
+          <el-checkbox v-model="form.mock_push_fail">模拟下传失败（保存为待同步）</el-checkbox>
         </el-form-item>
       </el-form>
       <template #footer>

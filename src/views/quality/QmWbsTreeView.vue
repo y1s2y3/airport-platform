@@ -1,19 +1,22 @@
 <script setup>
-import { computed, reactive, ref, watch, nextTick } from 'vue'
+/**
+ * 验评目录树 — 整页树形表格（布局对齐实体工程分解）
+ * 数据：完整验评 WBS（含检验批/专项），不含施工部位
+ */
+import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { useQmProjectScope } from '../../composables/useCurrentProject'
 import { COC_PROJECT_OPTIONS } from '../../config/projectOptions.js'
 import {
-  batchTypes,
-  buildWbsTree,
+  buildQmInspectTableTree,
+  collectQmInspectDefaultExpandKeys,
   ensureWbsScaffold,
+  filterQmInspectTableTree,
   formTemplates,
   getNodeFormTemplateIds,
   removeWbsNode,
-  resolveBatchTypeName,
-  resolveTemplateName,
   SPECIAL_ACCEPT_TYPES,
   upsertWbsNode,
   WBS_EDITABLE_NODE_TYPES,
@@ -22,7 +25,27 @@ import {
   WBS_TREE_NODE_TYPES,
   wbsNodes,
 } from '../../mock/qm.js'
+import {
+  WBS_SPECIALTY_DEFAULTS,
+  WBS_SPECIALTY_GROUPS,
+  getEffectiveSpecialties,
+  inheritSpecialtiesFromParent,
+  isValidWbsSpecialties,
+  normalizeSpecialties,
+  wbsSpecialtyLabel,
+} from '../../constants/wbsSpecialty.js'
+import {
+  ENTITY_BREAKDOWN_NODE_TYPES,
+  WBS_ENTITY_TYPE_LABEL,
+  allowedEntityChildTypes,
+} from '../../constants/wbsEntityLabels.js'
 import './qm-hq-stats.css'
+
+/** 实体工程分解同口径节点（单位～分项 + 实体分类）；检验批/专项不走此表单 */
+function isEntityFormType(node_type) {
+  const t = Number(node_type)
+  return t === 9 || ENTITY_BREAKDOWN_NODE_TYPES.includes(t)
+}
 
 const route = useRoute()
 const router = useRouter()
@@ -52,10 +75,12 @@ const canMaintain = computed(
 function goBackToHQ() {
   router.push('/qm/inspect/dashboard')
 }
+
 const keyword = ref('')
-const treeRef = ref(null)
-const selectedNodeId = ref('')
+const expandRowKeys = ref([])
 const visible = ref(false)
+/** 弹窗形态：entity=实体工程分解同口径；other=检验批/专项等原表单 */
+const dialogKind = ref('entity')
 const form = reactive({
   id: '',
   project_id: '',
@@ -66,6 +91,7 @@ const form = reactive({
   batch_type_id: '',
   form_template_ids: [],
   specialty: '结构',
+  specialties: [...WBS_SPECIALTY_DEFAULTS],
   special_type: '',
   is_hidden_work: 0,
   is_critical: 0,
@@ -73,130 +99,69 @@ const form = reactive({
   sort_no: 0,
 })
 
-const treeData = computed(() => {
+const isEntityForm = computed(() => dialogKind.value === 'entity')
+
+const rawTree = computed(() => {
   if (!canViewTree.value) return []
   ensureWbsScaffold(viewProjectId.value)
-  return buildWbsTree(viewProjectId.value)
+  return buildQmInspectTableTree(viewProjectId.value)
 })
 
-/** 新增可选类型：按父节点约束 */
+const tableData = computed(() => filterQmInspectTableTree(rawTree.value, keyword.value))
+
+function typeOptionLabel(t) {
+  return WBS_ENTITY_TYPE_LABEL[t] || WBS_TREE_NODE_TYPE_LABEL[t] || String(t)
+}
+
+/** 新增可选类型：按父节点约束（实体子类型与分解页一致；分项下仍可建检验批） */
 const creatableTypeOptions = computed(() => {
   const parent = wbsNodes.find((n) => n.id === form.parent_id)
   if (!parent) {
     return WBS_EDITABLE_NODE_TYPES.filter((t) => t === 1 || t === 7).map((t) => ({
       value: t,
-      label: WBS_TREE_NODE_TYPE_LABEL[t],
+      label: typeOptionLabel(t),
     }))
   }
-  let allow = []
-  if (parent.node_type === 9) allow = [1]
-  else if (parent.node_type === 10) allow = [7]
-  else if (parent.node_type === 1) allow = [2, 3]
-  else if (parent.node_type === 2) allow = [3]
-  else if (parent.node_type === 3) allow = [4, 5]
-  else if (parent.node_type === 4) allow = [5]
-  else if (parent.node_type === 5) allow = [6]
-  else if (parent.node_type === 8) allow = []
-  else allow = WBS_EDITABLE_NODE_TYPES
-  return allow.map((t) => ({ value: t, label: WBS_TREE_NODE_TYPE_LABEL[t] }))
-})
-
-const selectedNode = computed(
-  () => wbsNodes.find((n) => n.id === selectedNodeId.value) || null,
-)
-
-/** 直接下级（不含更深层级） */
-const directChildren = computed(() => {
-  if (!selectedNodeId.value) return []
-  return wbsNodes
-    .filter(
-      (n) =>
-        n.parent_id === selectedNodeId.value &&
-        WBS_TREE_NODE_TYPES.includes(n.node_type),
-    )
-    .slice()
-    .sort((a, b) => (a.sort_no || 0) - (b.sort_no || 0))
-})
-
-/** 右侧列表：当前节点（首行）+ 直接下级 */
-const tableRows = computed(() => {
-  if (!selectedNode.value) return []
-  return [selectedNode.value, ...directChildren.value]
-})
-
-/** 统计筛选：默认总数 */
-const listFilter = ref('total')
-
-const STAT_FILTERS = [
-  { key: 'total', label: '下级节点总数', valueClass: '' },
-  { key: 'inProgress', label: '审批中数量', valueClass: 'primary' },
-  { key: 'completed', label: '已完成数量', valueClass: 'success' },
-  { key: 'pending', label: '未开始数量', valueClass: 'muted' },
-  { key: 'rejected', label: '已驳回数量', valueClass: 'danger' },
-]
-
-function matchChildFilter(node, key) {
-  const st = Number(node.accept_status)
-  const norm = st === 4 || st === 5 ? 3 : st
-  if (key === 'total') return true
-  if (key === 'inProgress') return norm === 1
-  if (key === 'completed') return norm === 2
-  if (key === 'pending') return norm === 0
-  if (key === 'rejected') return norm === 3
-  return true
-}
-
-/** 按统计模块筛选后的列表 */
-const filteredTableRows = computed(() => {
-  if (!selectedNode.value) return []
-  if (listFilter.value === 'total') return tableRows.value
-  return directChildren.value.filter((n) => matchChildFilter(n, listFilter.value))
-})
-
-function setListFilter(key) {
-  listFilter.value = key
-}
-
-const stats = computed(() => {
-  const children = directChildren.value
-  const norm = (n) => {
-    const st = Number(n.accept_status)
-    return st === 4 || st === 5 ? 3 : st
+  if (parent.node_type === 10) return [{ value: 7, label: WBS_TREE_NODE_TYPE_LABEL[7] }]
+  if (parent.node_type === 5) return [{ value: 6, label: WBS_TREE_NODE_TYPE_LABEL[6] }]
+  if (parent.node_type === 8) return []
+  const entityAllow = allowedEntityChildTypes(parent.node_type)
+  if (entityAllow.length) {
+    return entityAllow.map((t) => ({ value: t, label: typeOptionLabel(t) }))
   }
-  return {
-    total: children.length,
-    inProgress: children.filter((n) => norm(n) === 1).length,
-    completed: children.filter((n) => norm(n) === 2).length,
-    pending: children.filter((n) => norm(n) === 0).length,
-    rejected: children.filter((n) => norm(n) === 3).length,
-  }
+  return WBS_EDITABLE_NODE_TYPES.map((t) => ({ value: t, label: typeOptionLabel(t) }))
 })
 
 function isSystemNode(node) {
   return !!node && WBS_SYSTEM_NODE_TYPES.includes(node.node_type)
 }
 
-const acceptLabel = {
-  0: '未开始',
-  1: '审批中',
-  2: '已完成',
-  3: '已驳回',
+/** 可添加子节点：非检验批/专项/竣工根 */
+function canAddChild(row) {
+  return ![6, 7, 8].includes(Number(row.node_type))
+}
+
+/** 节点验收状态展示三态（对应审批单）：未开始 / 进行中 / 已完成 */
+function toDisplayAcceptBucket(status) {
+  const st = Number(status) === 4 || Number(status) === 5 ? 3 : Number(status)
+  if (st === 2) return 'completed'
+  if (st === 1 || st === 3) return 'inProgress'
+  return 'pending'
+}
+
+const DISPLAY_ACCEPT_LABEL = {
+  pending: '未开始',
+  inProgress: '进行中',
+  completed: '已完成',
 }
 
 function acceptStatusTagType(status) {
-  const st = Number(status) === 4 || Number(status) === 5 ? 3 : Number(status)
-  const map = { 0: 'info', 1: 'warning', 2: 'success', 3: 'danger' }
-  return map[st] || 'info'
+  const map = { pending: 'info', inProgress: 'warning', completed: 'success' }
+  return map[toDisplayAcceptBucket(status)] || 'info'
 }
 
 function displayAcceptStatus(status) {
-  const st = Number(status) === 4 || Number(status) === 5 ? 3 : Number(status)
-  return acceptLabel[st] || '—'
-}
-
-/** 节点类型标签：已完成绿色，其余灰色 */
-function nodeTypeTagType(accept_status) {
-  return accept_status === 2 ? 'success' : 'info'
+  return DISPLAY_ACCEPT_LABEL[toDisplayAcceptBucket(status)] || '—'
 }
 
 const parentOptions = computed(() =>
@@ -211,18 +176,6 @@ const parentOptions = computed(() =>
 )
 const formOptions = computed(() => formTemplates.filter((t) => t.status === 1))
 
-function pickDefaultNode() {
-  if (!viewProjectId.value) {
-    selectedNodeId.value = ''
-    return
-  }
-  ensureWbsScaffold(viewProjectId.value)
-  const root = wbsNodes.find(
-    (n) => n.project_id === viewProjectId.value && n.node_type === 8 && !n.parent_id,
-  )
-  selectedNodeId.value = root?.id || ''
-}
-
 function defaultChildType(parent_id) {
   const parent = wbsNodes.find((n) => n.id === parent_id)
   if (!parent) return 1
@@ -236,53 +189,53 @@ function defaultChildType(parent_id) {
   return 6
 }
 
+function collectAllKeys(rows, acc = []) {
+  ;(rows || []).forEach((r) => {
+    if (r.children?.length) {
+      acc.push(r.id)
+      collectAllKeys(r.children, acc)
+    }
+  })
+  return acc
+}
+
 watch(
-  () => [canViewTree.value, viewProjectId.value, treeData.value],
-  async () => {
+  () => [canViewTree.value, viewProjectId.value],
+  () => {
     if (!canViewTree.value) {
-      selectedNodeId.value = ''
-      listFilter.value = 'total'
+      expandRowKeys.value = []
       return
     }
-    const exists = wbsNodes.some(
-      (n) => n.id === selectedNodeId.value && n.project_id === viewProjectId.value,
+    ensureWbsScaffold(viewProjectId.value)
+    expandRowKeys.value = collectQmInspectDefaultExpandKeys(
+      buildQmInspectTableTree(viewProjectId.value),
     )
-    if (!exists) {
-      pickDefaultNode()
-      listFilter.value = 'total'
-    }
-    await nextTick()
-    if (selectedNodeId.value) {
-      treeRef.value?.setCurrentKey(selectedNodeId.value)
-    }
   },
   { immediate: true },
 )
 
 watch(keyword, (val) => {
-  treeRef.value?.filter(val.trim())
+  if (String(val || '').trim()) {
+    expandRowKeys.value = collectAllKeys(tableData.value)
+  } else {
+    expandRowKeys.value = collectQmInspectDefaultExpandKeys(rawTree.value)
+  }
 })
 
-function filterTreeNode(value, data) {
-  if (!value) return true
-  return String(data.label || '').includes(value)
+function applyInheritedSpecialties(parent_id) {
+  const parent = wbsNodes.find((n) => n.id === parent_id)
+  form.specialties = inheritSpecialtiesFromParent(parent)
 }
 
-function handleNodeClick(data) {
-  selectedNodeId.value = data.id
-  listFilter.value = 'total'
-}
-
-function tableRowClassName({ row, rowIndex }) {
-  if (listFilter.value === 'total' && rowIndex === 0 && row.id === selectedNodeId.value) {
-    return 'current-node-row'
-  }
-  return ''
+function onEntityParentChange(pid) {
+  if (form.id) return
+  applyInheritedSpecialties(pid)
+  form.node_type = null
 }
 
 function openCreate(parent_id = '') {
   if (!canMaintain.value) return ElMessage.warning('请切换到具体项目后再维护目录树')
-  const pid = parent_id || selectedNodeId.value || ''
+  const pid = parent_id || ''
   const parent = wbsNodes.find((n) => n.id === pid)
   if (parent && (parent.node_type === 6 || parent.node_type === 7 || parent.node_type === 8)) {
     if (parent.node_type === 8) {
@@ -298,45 +251,166 @@ function openCreate(parent_id = '') {
   form.location_code = ''
   form.batch_type_id = form.node_type === 6 ? 'bt-rebar' : ''
   form.form_template_ids = form.node_type === 7 ? ['ft-special-fire'] : []
-  form.specialty = form.node_type === 7 ? '消防' : '结构'
   form.special_type = form.node_type === 7 ? 'fire' : ''
   form.is_hidden_work = 0
   form.is_critical = 0
   form.batch_scheme_id = ''
   form.sort_no = 0
+  if (isEntityFormType(form.node_type)) {
+    dialogKind.value = 'entity'
+    applyInheritedSpecialties(pid)
+    form.specialty = ''
+  } else {
+    dialogKind.value = 'other'
+    if (form.node_type === 6) {
+      applyInheritedSpecialties(pid)
+      form.specialty = ''
+    } else {
+      form.specialty = form.node_type === 7 ? '消防' : '结构'
+      form.specialties = [...WBS_SPECIALTY_DEFAULTS]
+    }
+  }
   visible.value = true
 }
 
 function openEdit(row) {
   if (!canMaintain.value) return ElMessage.warning('请切换到具体项目后再维护目录树')
+  const node = wbsNodes.find((n) => n.id === row.id) || row.raw
+  if (!node) return ElMessage.error('节点不存在')
+  if (isEntityFormType(node.node_type)) {
+    dialogKind.value = 'entity'
+    Object.assign(form, {
+      id: node.id,
+      project_id: node.project_id,
+      parent_id: node.parent_id || '',
+      node_type: node.node_type,
+      node_name: node.node_type === 9 ? '实体工程' : node.node_name,
+      location_code: node.location_code || '',
+      batch_type_id: '',
+      form_template_ids: [],
+      specialty: '',
+      specialties: [...getEffectiveSpecialties(node)],
+      special_type: '',
+      is_hidden_work: 0,
+      is_critical: 0,
+      batch_scheme_id: '',
+      sort_no: node.sort_no || 0,
+    })
+    visible.value = true
+    return
+  }
+  dialogKind.value = 'other'
   Object.assign(form, {
-    id: row.id,
-    project_id: row.project_id,
-    parent_id: row.parent_id || '',
-    node_type: row.node_type,
-    node_name: row.node_name,
-    location_code: row.location_code || '',
-    batch_type_id: row.batch_type_id || '',
-    form_template_ids: getNodeFormTemplateIds(row),
-    specialty: row.specialty || '',
-    special_type: row.special_type || '',
-    is_hidden_work: row.is_hidden_work,
-    is_critical: row.is_critical,
-    batch_scheme_id: row.batch_scheme_id || '',
-    sort_no: row.sort_no || 0,
+    id: node.id,
+    project_id: node.project_id,
+    parent_id: node.parent_id || '',
+    node_type: node.node_type,
+    node_name: node.node_name,
+    location_code: node.location_code || '',
+    batch_type_id: node.batch_type_id || '',
+    form_template_ids: getNodeFormTemplateIds(node),
+    specialty: Number(node.node_type) === 6 ? '' : node.specialty || '',
+    specialties:
+      Number(node.node_type) === 6
+        ? [...getEffectiveSpecialties(node)]
+        : [...WBS_SPECIALTY_DEFAULTS],
+    special_type: node.special_type || '',
+    is_hidden_work: node.is_hidden_work,
+    is_critical: node.is_critical,
+    batch_scheme_id: node.batch_scheme_id || '',
+    sort_no: node.sort_no || 0,
   })
   visible.value = true
 }
 
 function submit() {
   if (!canMaintain.value) return ElMessage.warning('请切换到具体项目后再维护目录树')
-  const r = upsertWbsNode({ ...form, project_id: viewProjectId.value || scopeProjectId.value }, form.id)
+  const project_id = viewProjectId.value || scopeProjectId.value
+
+  if (isEntityForm.value) {
+    const specialties = normalizeSpecialties(form.specialties)
+    if (specialties.length && !isValidWbsSpecialties(specialties)) {
+      return ElMessage.warning('请选择有效的专业')
+    }
+    if (Number(form.node_type) === 9) {
+      const exist = wbsNodes.find((n) => n.id === form.id)
+      const r = upsertWbsNode(
+        {
+          node_name: exist?.node_name || '实体工程验收',
+          project_id,
+          node_type: 9,
+          location_code: form.location_code,
+          specialties,
+          sort_no: form.sort_no,
+        },
+        form.id,
+      )
+      if (!r.ok) return ElMessage.error(r.msg)
+      ElMessage.success('节点已更新')
+      visible.value = false
+      return
+    }
+    if (form.node_type == null || form.node_type === '') {
+      return ElMessage.warning('请选择节点类型')
+    }
+    if (!String(form.node_name || '').trim()) {
+      return ElMessage.warning('请填写节点名称')
+    }
+    const r = upsertWbsNode(
+      {
+        project_id,
+        parent_id: form.parent_id,
+        node_type: form.node_type,
+        node_name: form.node_name.trim(),
+        location_code: form.location_code,
+        specialties,
+        sort_no: form.sort_no,
+        batch_type_id: '',
+        is_hidden_work: 0,
+        is_critical: 0,
+      },
+      form.id,
+    )
+    if (!r.ok) return ElMessage.error(r.msg)
+    ElMessage.success(form.id ? '节点已更新' : '节点已创建')
+    visible.value = false
+    return
+  }
+
+  // 检验批：专业/编码/排序值与实体工程分解同口径；界面不维护检验批类型/表单模板
+  if (Number(form.node_type) === 6) {
+    const specialties = normalizeSpecialties(form.specialties)
+    if (specialties.length && !isValidWbsSpecialties(specialties)) {
+      return ElMessage.warning('请选择有效的专业')
+    }
+    if (!String(form.node_name || '').trim()) {
+      return ElMessage.warning('请填写节点名称')
+    }
+    const r = upsertWbsNode(
+      {
+        project_id,
+        parent_id: form.parent_id,
+        node_type: 6,
+        node_name: form.node_name.trim(),
+        location_code: form.location_code,
+        batch_type_id: form.batch_type_id || 'bt-rebar',
+        specialties,
+        sort_no: form.sort_no,
+        is_hidden_work: 0,
+        is_critical: 0,
+      },
+      form.id,
+    )
+    if (!r.ok) return ElMessage.error(r.msg)
+    ElMessage.success(form.id ? '节点已更新' : '节点已创建')
+    visible.value = false
+    return
+  }
+
+  const r = upsertWbsNode({ ...form, project_id }, form.id)
   if (!r.ok) return ElMessage.error(r.msg)
   ElMessage.success(form.id ? '节点已更新' : '节点已创建')
   visible.value = false
-  if (!form.id && form.parent_id) {
-    selectedNodeId.value = form.parent_id
-  }
 }
 
 async function onRemove(row) {
@@ -345,7 +419,6 @@ async function onRemove(row) {
     const r = removeWbsNode(row.id)
     if (!r.ok) return ElMessage.error(r.msg)
     ElMessage.success('已删除')
-    if (selectedNodeId.value === row.id) pickDefaultNode()
   } catch {
     /* cancel */
   }
@@ -388,154 +461,168 @@ async function onRemove(row) {
       class="mb"
     />
 
-    <div v-else class="layout">
-      <aside class="tree-panel">
-        <div class="panel-title">节点树</div>
-        <el-input v-model="keyword" clearable placeholder="筛选节点名称" style="margin-bottom: 12px" aria-label="筛选节点名称"/>
-        <el-button
-          v-if="canMaintain"
-          type="primary"
-          size="small"
-          style="margin-bottom: 8px"
-          @click="openCreate()"
-        >
-          新增节点
-        </el-button>
-        <el-tree
-          ref="treeRef"
-          :data="treeData"
-          node-key="id"
-          :current-node-key="selectedNodeId"
-          default-expand-all
-          highlight-current
-          :expand-on-click-node="false"
-          :filter-node-method="filterTreeNode"
-          @node-click="handleNodeClick"
-        >
-          <template #default="{ data }">
-            <span class="tree-node" :class="{ 'is-completed': data.raw?.accept_status === 2 }">
-              <el-tag size="small" :type="nodeTypeTagType(data.raw?.accept_status)" effect="plain" class="type-tag">
-                {{ data.type_label }}
-              </el-tag>
-              <span class="tree-name" :title="data.label">{{ data.label }}</span>
-              <span v-if="data.raw?.accept_status === 2" class="done-dot" aria-hidden="true" />
-            </span>
+    <template v-else>
+      <div class="toolbar">
+        <el-input
+          v-model="keyword"
+          clearable
+          placeholder="筛选节点名称 / 编码 / 路径"
+          style="width: 280px"
+          aria-label="筛选节点"
+        />
+        <span v-if="fromHq" class="toolbar-hint">指挥部层级仅可查看，不可维护</span>
+      </div>
+
+      <el-table
+        :data="tableData"
+        row-key="id"
+        border
+        stripe
+        class="tree-table"
+        :tree-props="{ children: 'children' }"
+        v-model:expand-row-keys="expandRowKeys"
+        empty-text="暂无验评目录节点"
+      >
+        <el-table-column prop="node_name" label="节点名称" min-width="220" show-overflow-tooltip />
+        <el-table-column label="节点类型" width="120">
+          <template #default="{ row }">
+            <el-tag size="small" effect="plain" type="info">
+              {{ row.type_label }}
+            </el-tag>
           </template>
-        </el-tree>
-      </aside>
-      <section class="table-panel">
-        <div v-if="selectedNode" class="node-summary">
-          当前节点：
-          <el-tag size="small" :type="nodeTypeTagType(selectedNode.accept_status)" effect="plain">
-            {{ WBS_TREE_NODE_TYPE_LABEL[selectedNode.node_type] }}
-          </el-tag>
-          <strong>{{ selectedNode.node_name }}</strong>
-        </div>
-        <el-empty v-else description="请在左侧选择节点" :image-size="64" />
-
-        <template v-if="selectedNode">
-          <div class="stats-row">
-            <div
-              v-for="item in STAT_FILTERS"
-              :key="item.key"
-              class="stat-card"
-              :class="{ active: listFilter === item.key }"
-              role="button"
-              tabindex="0"
-              @click="setListFilter(item.key)"
-              @keydown.enter.prevent="setListFilter(item.key)"
-            >
-              <span class="stat-label">{{ item.label }}</span>
-              <span class="stat-value" :class="item.valueClass">{{ stats[item.key] }}</span>
+        </el-table-column>
+        <el-table-column prop="code" label="编码" width="120" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.code || '—' }}</template>
+        </el-table-column>
+        <el-table-column label="专业" min-width="180">
+          <template #default="{ row }">
+            <div v-if="row.specialties?.length" class="specialty-tags">
+              <el-tag
+                v-for="sp in row.specialties"
+                :key="sp"
+                size="small"
+                effect="plain"
+                class="specialty-tag"
+              >
+                {{ wbsSpecialtyLabel(sp) }}
+              </el-tag>
             </div>
-          </div>
-
-          <el-table
-            :data="filteredTableRows"
-            stripe
-            border
-            height="100%"
-            class="node-table"
-            :row-class-name="tableRowClassName"
-          >
-            <el-table-column label="节点名称" min-width="240">
-              <template #default="{ row, $index }">
-                <span class="name-cell">
-                  <el-tag
-                    v-if="listFilter === 'total' && $index === 0 && row.id === selectedNodeId"
-                    size="small"
-                    type="primary"
-                    effect="dark"
-                    class="type-tag"
-                  >
-                    当前
-                  </el-tag>
-                  <el-tag size="small" :type="nodeTypeTagType(row.accept_status)" effect="plain" class="type-tag">
-                    {{ WBS_TREE_NODE_TYPE_LABEL[row.node_type] }}
-                  </el-tag>
-                  <span>{{ row.node_name }}</span>
-                </span>
-              </template>
-            </el-table-column>
-            <el-table-column prop="location_code" label="部位编码" width="110" />
-            <el-table-column prop="specialty" label="专业" width="80" />
-            <el-table-column label="验收状态" width="110">
-              <template #default="{ row }">
-                <el-tag :type="acceptStatusTagType(row.accept_status)" size="small">
-                  {{ displayAcceptStatus(row.accept_status) }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="关键" width="60">
-              <template #default="{ row }">{{ row.is_critical === 1 ? '是' : '否' }}</template>
-            </el-table-column>
-            <el-table-column label="检验批类型" min-width="130">
-              <template #default="{ row }">{{ resolveBatchTypeName(row.batch_type_id) }}</template>
-            </el-table-column>
-            <el-table-column label="表单模板" min-width="160">
-              <template #default="{ row }">
-                {{
-                  getNodeFormTemplateIds(row)
-                    .map((id) => resolveTemplateName(id))
-                    .filter(Boolean)
-                    .join('、') || '—'
-                }}
-              </template>
-            </el-table-column>
-            <el-table-column v-if="canMaintain" label="操作" width="220" fixed="right">
-              <template #default="{ row }">
-                <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
-                <el-button
-                  v-if="![6, 7].includes(row.node_type) && row.node_type !== 8"
-                  link
-                  type="primary"
-                  @click="openCreate(row.id)"
-                >
-                  添加子节点
-                </el-button>
-                <el-button
-                  v-if="!isSystemNode(row)"
-                  link
-                  type="danger"
-                  @click="onRemove(row)"
-                >
-                  删除
-                </el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-          <p class="hint">
-            点击上方统计可筛选直接下级；默认展示总数（含当前节点）。当前筛选：{{
-              STAT_FILTERS.find((i) => i.key === listFilter)?.label
-            }}。
-            <template v-if="fromHq">指挥部层级仅可查看，不可维护。</template>
-          </p>
-        </template>
-      </section>
-    </div>
+            <span v-else>—</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="full_path" label="完整路径" min-width="240" show-overflow-tooltip />
+        <el-table-column prop="sort_no" label="排序值" width="80" align="center" />
+        <el-table-column label="验收状态" width="110">
+          <template #default="{ row }">
+            <el-tag :type="acceptStatusTagType(row.accept_status)" size="small">
+              {{ displayAcceptStatus(row.accept_status) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column v-if="canMaintain" label="操作" width="240" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
+            <el-button
+              v-if="canAddChild(row)"
+              link
+              type="primary"
+              @click="openCreate(row.id)"
+            >
+              添加子节点
+            </el-button>
+            <el-button
+              v-if="!isSystemNode(row)"
+              link
+              type="danger"
+              @click="onRemove(row)"
+            >
+              删除
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </template>
 
     <el-dialog v-model="visible" :title="form.id ? '编辑节点' : '新增节点'" width="560px" destroy-on-close>
-      <el-form label-width="120px">
+      <!-- 实体工程（单位～分项 / 实体分类）：字段对齐实体工程分解 -->
+      <el-form v-if="isEntityForm" label-width="110px">
+        <el-form-item label="所属项目">
+          <el-input :model-value="scopeProjectLabel" disabled />
+        </el-form-item>
+        <el-form-item v-if="!(form.id && form.node_type === 9)" label="父节点">
+          <el-select
+            v-model="form.parent_id"
+            filterable
+            style="width: 100%"
+            placeholder="请选择父节点"
+            @change="onEntityParentChange"
+          >
+            <el-option
+              v-for="n in parentOptions"
+              :key="n.id"
+              :label="`[${typeOptionLabel(n.node_type)}] ${n.node_type === 9 ? '实体工程' : n.node_name}`"
+              :value="n.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="!(form.id && form.node_type === 9)" label="节点类型" required>
+          <el-select
+            v-model="form.node_type"
+            style="width: 100%"
+            placeholder="请选择节点类型"
+            :disabled="!!form.id"
+          >
+            <el-option
+              v-for="opt in form.id
+                ? ENTITY_BREAKDOWN_NODE_TYPES.map((t) => ({ value: t, label: typeOptionLabel(t) }))
+                : creatableTypeOptions"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="节点名称" required>
+          <el-input
+            v-model="form.node_name"
+            maxlength="80"
+            :disabled="form.node_type === 9"
+          />
+        </el-form-item>
+        <el-form-item label="编码">
+          <el-input v-model="form.location_code" maxlength="40" />
+        </el-form-item>
+        <el-form-item label="专业">
+          <el-select
+            v-model="form.specialties"
+            multiple
+            filterable
+            clearable
+            placeholder="请选择专业（可多选）"
+            style="width: 100%"
+          >
+            <el-option-group
+              v-for="grp in WBS_SPECIALTY_GROUPS"
+              :key="grp.label"
+              :label="grp.label"
+            >
+              <el-option
+                v-for="opt in grp.options"
+                :key="opt.value"
+                :label="opt.label"
+                :value="opt.value"
+              />
+            </el-option-group>
+          </el-select>
+          <div v-if="!form.id" class="field-hint">默认继承上级节点专业，可删减或增补</div>
+        </el-form-item>
+        <el-form-item label="排序值">
+          <el-input-number v-model="form.sort_no" :min="0" :max="9999" />
+        </el-form-item>
+      </el-form>
+
+      <!-- 检验批 / 专项等：保持原弹窗字段不动 -->
+      <el-form v-else label-width="120px">
         <el-form-item label="所属项目">
           <el-input :model-value="scopeProjectLabel" disabled />
         </el-form-item>
@@ -571,8 +658,13 @@ async function onRemove(row) {
         <el-form-item label="节点名称" required>
           <el-input v-model="form.node_name" />
         </el-form-item>
-        <el-form-item label="部位编码">
-          <el-input v-model="form.location_code" placeholder="可选" aria-label="可选"/>
+        <el-form-item :label="form.node_type === 6 ? '编码' : '部位编码'">
+          <el-input
+            v-model="form.location_code"
+            :maxlength="form.node_type === 6 ? 40 : undefined"
+            :placeholder="form.node_type === 6 ? '' : '可选'"
+            :aria-label="form.node_type === 6 ? '编码' : '可选'"
+          />
         </el-form-item>
         <el-form-item v-if="form.node_type === 7" label="专项类型" required>
           <el-select v-model="form.special_type" style="width: 100%">
@@ -584,41 +676,36 @@ async function onRemove(row) {
             />
           </el-select>
         </el-form-item>
-        <el-form-item v-if="form.node_type === 6" label="检验批类型" required>
-          <el-select v-model="form.batch_type_id" style="width: 100%">
-            <el-option
-              v-for="t in batchTypes.filter((x) => x.status === 1)"
-              :key="t.id"
-              :label="t.type_name"
-              :value="t.id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item v-if="[1, 2, 3, 4, 5, 7].includes(form.node_type)" label="表单模板">
-          <el-select
-            v-model="form.form_template_ids"
-            multiple
-            clearable
-            filterable
-            collapse-tags
-            collapse-tags-tooltip
-            style="width: 100%"
-          >
-            <el-option
-              v-for="t in formOptions"
-              :key="t.id"
-              :label="t.template_name"
-              :value="t.id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item v-if="form.node_type === 6" label="隐蔽工程">
-          <el-switch v-model="form.is_hidden_work" :active-value="1" :inactive-value="0" />
-        </el-form-item>
-        <el-form-item v-if="form.node_type === 6" label="关键检验批">
-          <el-switch v-model="form.is_critical" :active-value="1" :inactive-value="0" />
-        </el-form-item>
-        <el-form-item label="专业"><el-input v-model="form.specialty" /></el-form-item>
+        <template v-if="form.node_type === 6">
+          <el-form-item label="专业">
+            <el-select
+              v-model="form.specialties"
+              multiple
+              filterable
+              clearable
+              placeholder="请选择专业（可多选）"
+              style="width: 100%"
+            >
+              <el-option-group
+                v-for="grp in WBS_SPECIALTY_GROUPS"
+                :key="grp.label"
+                :label="grp.label"
+              >
+                <el-option
+                  v-for="opt in grp.options"
+                  :key="opt.value"
+                  :label="opt.label"
+                  :value="opt.value"
+                />
+              </el-option-group>
+            </el-select>
+            <div v-if="!form.id" class="field-hint">默认继承上级节点专业，可删减或增补</div>
+          </el-form-item>
+          <el-form-item label="排序值">
+            <el-input-number v-model="form.sort_no" :min="0" :max="9999" />
+          </el-form-item>
+        </template>
+        <el-form-item v-else label="专业"><el-input v-model="form.specialty" /></el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="visible = false">取消</el-button>
@@ -629,120 +716,20 @@ async function onRemove(row) {
 </template>
 
 <style scoped>
-.qm-page { display: flex; flex-direction: column; gap: 16px; min-height: 100%; }
+.qm-page { display: flex; flex-direction: column; gap: 16px; height: 100%; }
 .page-breadcrumb { font-size: 12px; color: #909399; }
 .page-title { margin: 4px 0; font-size: 20px; }
 .page-tip { margin: 0; font-size: 13px; color: #606266; }
-.mb { margin-bottom: 0; }
-.layout { display: grid; grid-template-columns: 340px 1fr; gap: 16px; min-height: 520px; }
-.tree-panel, .table-panel {
-  background: #fff; border: 1px solid #ebeef5; border-radius: 8px; padding: 12px;
+.mb { margin-bottom: 8px; }
+.toolbar { display: flex; align-items: center; gap: 12px; }
+.toolbar-hint { font-size: 12px; color: #909399; }
+.tree-table { flex: 1; }
+.field-hint { margin-top: 4px; font-size: 12px; color: #909399; line-height: 1.4; }
+.specialty-tags {
   display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-.panel-title { font-weight: 600; margin-bottom: 8px; }
-.node-summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
   flex-wrap: wrap;
-  margin-bottom: 12px;
-  font-size: 13px;
-  color: #606266;
-}
-.stats-row {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 10px;
-  margin-bottom: 12px;
-}
-.stat-card {
-  border: 1px solid #ebeef5;
-  border-radius: 8px;
-  padding: 10px 12px;
-  display: flex;
-  flex-direction: column;
   gap: 4px;
-  background: #fafbfd;
-  cursor: pointer;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
-  user-select: none;
-}
-.stat-card:hover {
-  border-color: #d4a0b0;
-  background: #fff;
-}
-.stat-card.active {
-  border-color: #91003d;
-  background: #fbf5f6;
-  box-shadow: 0 0 0 1px rgba(145, 0, 61, 0.12);
-}
-.stat-card:focus-visible {
-  outline: 2px solid #91003d;
-  outline-offset: 2px;
-}
-.stat-label { font-size: 12px; color: #909399; }
-.stat-value { font-size: 20px; font-weight: 700; color: #303133; }
-.stat-value.primary { color: #409eff; }
-.stat-value.success { color: #67c23a; }
-.stat-value.muted { color: #909399; }
-.stat-value.danger { color: #f56c6c; }
-.stat-value.warning { color: #e6a23c; }
-.node-table { flex: 1; min-height: 280px; }
-.hint { margin-top: 8px; font-size: 12px; color: #909399; }
-.tree-node, .name-cell {
-  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  line-height: 1.4;
 }
-.tree-node {
-  display: flex;
-  width: 100%;
-  min-width: 0;
-  overflow: hidden;
-  padding-right: 4px;
-  box-sizing: border-box;
-}
-.type-tag { flex-shrink: 0; }
-.tree-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.tree-node.is-completed .tree-name {
-  color: #67c23a;
-  font-weight: 500;
-}
-.done-dot {
-  flex-shrink: 0;
-  width: 8px;
-  height: 8px;
-  margin-left: 8px;
-  border-radius: 50%;
-  background: #67c23a;
-}
-:deep(.el-tree-node__content) {
-  overflow: hidden;
-  padding-right: 8px;
-}
-:deep(.el-tree-node__content > span:last-child),
-:deep(.el-tree-node__content > .tree-node) {
-  flex: 1;
-  min-width: 0;
-  width: 0;
-}
-:deep(.current-node-row) {
-  --el-table-tr-bg-color: #ecf5ff;
-}
-@media (max-width: 1400px) {
-  .stats-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
-@media (max-width: 960px) {
-  .layout { grid-template-columns: 1fr; }
-  .stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
+.specialty-tag { margin: 0; }
 </style>

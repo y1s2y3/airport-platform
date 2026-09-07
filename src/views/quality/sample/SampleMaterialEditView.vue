@@ -1,7 +1,7 @@
 ﻿<script setup>
 /**
  * 新建材料设备定样报审：对齐省统表 GD-C1-346
- * 品牌选自品牌台账；生产厂家手填；使用部位（实体分解树单选）自动带出单位工程
+ * 品牌台账选自品牌报审台账（品牌·厂家·材料/设备名称）；使用部位自动带出单位工程
  */
 import './sample-page.css'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
@@ -39,8 +39,7 @@ const form = reactive({
   sample_date: '',
   spec: '',
   material_type: 'material',
-  brand_name: '',
-  manufacturer: '',
+  brand_ledger_id: '',
   use_part_wbs_id: '',
   use_part: '',
   unit_wbs_id: '',
@@ -52,6 +51,16 @@ const form = reactive({
   pm_approver_name: '',
 })
 
+function todayYmd() {
+  const d = new Date()
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+form.sample_date = todayYmd()
+
 const samplePhotos = ref([])
 const signFiles = ref([])
 const certificateFiles = ref([])
@@ -61,7 +70,11 @@ const projectUsers = computed(() =>
 )
 
 const brandOptions = computed(() =>
-  scopeProjectId.value ? listSampleBrandOptionsFromLedger(scopeProjectId.value) : [],
+  scopeProjectId.value
+    ? listSampleBrandOptionsFromLedger(scopeProjectId.value, {
+        materialType: form.material_type || '',
+      })
+    : [],
 )
 
 const partTree = computed(() =>
@@ -93,6 +106,17 @@ function onApproverChange(role) {
   }
 }
 
+/** 材料类型变更时，若当前台账不在新类型列表中则清空 */
+watch(
+  () => form.material_type,
+  () => {
+    if (syncingPrefill.value) return
+    if (!form.brand_ledger_id) return
+    const stillOk = brandOptions.value.some((b) => b.ledger_id === form.brand_ledger_id)
+    if (!stillOk) form.brand_ledger_id = ''
+  },
+)
+
 /** 选择使用部位（实体分解节点）→ 自动带出单位工程 */
 function onPartChange(wbsId) {
   if (syncingPrefill.value) return
@@ -109,11 +133,18 @@ function onPartChange(wbsId) {
   form.unit_name = hit.unit_name || ''
 }
 
+const ATTACH_MAX_COUNT = 9
+const ATTACH_MAX_SIZE_MB = 30
+
 function onPickFile(uploadFile, targetRef, label) {
   const file = uploadFile.raw || uploadFile
   if (!file) return false
-  if (file.size > 30 * 1024 * 1024) {
-    ElMessage.warning('单个文件不超过 30MB')
+  if (targetRef.value.length >= ATTACH_MAX_COUNT) {
+    ElMessage.warning(`最多上传 ${ATTACH_MAX_COUNT} 份`)
+    return false
+  }
+  if (file.size > ATTACH_MAX_SIZE_MB * 1024 * 1024) {
+    ElMessage.warning(`单个文件不超过 ${ATTACH_MAX_SIZE_MB}MB`)
     return false
   }
   const name = file.name || `${label}-${targetRef.value.length + 1}`
@@ -136,8 +167,7 @@ function applyCopyPayload(data) {
   form.sample_date = data.sample_date || ''
   form.spec = data.spec || data.indicator_desc || ''
   form.material_type = data.material_type === 'equipment' ? 'equipment' : 'material'
-  form.brand_name = data.brand_name || ''
-  form.manufacturer = data.manufacturer || data.supplier || ''
+  form.brand_ledger_id = data.brand_ledger_id || ''
   form.use_part_wbs_id = data.use_part_wbs_id || data.location_id || ''
   form.use_part =
     data.use_part ||
@@ -185,6 +215,7 @@ onMounted(() => {
 
 watch(scopeProjectId, () => {
   if (!copyFromId.value) applyDefaultApprovers()
+  form.brand_ledger_id = ''
 })
 
 function onSubmit() {
@@ -197,8 +228,7 @@ function onSubmit() {
   if (!form.material_type || !['material', 'equipment'].includes(form.material_type)) {
     return ElMessage.warning('请选择材料类型')
   }
-  if (!form.brand_name.trim()) return ElMessage.warning('请选择品牌')
-  if (!form.manufacturer.trim()) return ElMessage.warning('请填写生产厂家')
+  if (!form.brand_ledger_id) return ElMessage.warning('请选择品牌台账')
   if (!form.use_part_wbs_id) return ElMessage.warning('请选择使用部位')
   if (!form.unit_wbs_id && !form.unit_name.trim()) {
     return ElMessage.warning('未能带出单位工程，请重新选择使用部位')
@@ -207,8 +237,14 @@ function onSubmit() {
   if (!signFiles.value.length) {
     return ElMessage.warning('请至少上传 1 份材料设备送样定板报审签字附件')
   }
+  if (signFiles.value.length > ATTACH_MAX_COUNT) {
+    return ElMessage.warning(`签字附件最多 ${ATTACH_MAX_COUNT} 份`)
+  }
   if (!certificateFiles.value.length) {
     return ElMessage.warning('请至少上传 1 份样品出厂质量证明文件')
+  }
+  if (certificateFiles.value.length > ATTACH_MAX_COUNT) {
+    return ElMessage.warning(`出厂质量证明文件最多 ${ATTACH_MAX_COUNT} 份`)
   }
   if (!form.supervisor_approver_user_id) return ElMessage.warning('请选择监理审批人')
   if (!form.pm_approver_user_id) return ElMessage.warning('请选择项目经理审批人')
@@ -221,9 +257,7 @@ function onSubmit() {
     sample_date: form.sample_date,
     spec: form.spec.trim(),
     indicator_desc: form.spec.trim(),
-    brand_name: form.brand_name,
-    manufacturer: form.manufacturer.trim(),
-    supplier: form.manufacturer.trim(),
+    brand_ledger_id: form.brand_ledger_id,
     use_part_wbs_id: form.use_part_wbs_id,
     use_part: form.use_part || getEntityNodePathLabel(form.use_part_wbs_id),
     unit_wbs_id: form.unit_wbs_id,
@@ -231,9 +265,7 @@ function onSubmit() {
     location_id: form.use_part_wbs_id,
     location_ids: form.use_part_wbs_id ? [form.use_part_wbs_id] : [],
     sample_photos: samplePhotos.value.map((f) => ({ name: f.name || f, url: f.url || '#' })),
-    effect_images: samplePhotos.value.map((f) => ({ name: f.name || f, url: f.url || '#' })),
     sign_files: signFiles.value.map((f) => ({ name: f.name, url: f.url || '#' })),
-    approval_files: signFiles.value.map((f) => ({ name: f.name, url: f.url || '#' })),
     certificate_files: certificateFiles.value.map((f) => ({ name: f.name, url: f.url || '#' })),
     copy_from_application_id: copyFromId.value,
     remark: form.remark,
@@ -266,7 +298,7 @@ function onSubmit() {
         <div class="mod-block-head">
           <h2 class="mod-block-title">材料设备定样</h2>
           <span class="mod-block-tip">
-            品牌选自品牌台账；生产厂家手填；先选使用部位，自动带出单位工程
+            从品牌台账选择（品牌 · 厂家 · 材料/设备名称）；先选使用部位，自动带出单位工程（不带出子单位）
           </span>
         </div>
 
@@ -327,21 +359,21 @@ function onSubmit() {
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="品牌" required>
+            <el-form-item label="品牌台账" required>
               <el-select
-                v-model="form.brand_name"
+                v-model="form.brand_ledger_id"
                 filterable
                 clearable
-                placeholder="从品牌台账选择品牌"
+                placeholder="请选择品牌台账"
                 style="width: 100%"
                 :disabled="!brandOptions.length"
-                aria-label="从品牌台账选择品牌"
+                aria-label="品牌台账"
               >
                 <el-option
                   v-for="b in brandOptions"
-                  :key="b.brand_name"
+                  :key="b.ledger_id"
                   :label="b.label"
-                  :value="b.brand_name"
+                  :value="b.ledger_id"
                 />
               </el-select>
               <p v-if="!brandOptions.length" class="field-hint">
@@ -350,16 +382,6 @@ function onSubmit() {
             </el-form-item>
           </el-col>
         </el-row>
-
-        <el-form-item label="生产厂家" required>
-          <el-input
-            v-model="form.manufacturer"
-            maxlength="200"
-            show-word-limit
-            placeholder="请填写生产厂家"
-            aria-label="生产厂家"
-          />
-        </el-form-item>
 
         <el-row :gutter="16">
           <el-col :span="12">
@@ -418,7 +440,10 @@ function onSubmit() {
                 <el-button link type="danger" @click="removeFile(signFiles, idx)">删除</el-button>
               </li>
             </ul>
-            <p v-else class="field-hint">至少上传 1 份签字附件（对齐省统表 GD-C1-346）</p>
+            <p class="field-hint">
+              至少 1 份，最多 {{ ATTACH_MAX_COUNT }} 份，单个不超过 {{ ATTACH_MAX_SIZE_MB }}MB（对齐省统表
+              GD-C1-346）
+            </p>
           </div>
         </el-form-item>
 
@@ -439,7 +464,9 @@ function onSubmit() {
                 </el-button>
               </li>
             </ul>
-            <p v-else class="field-hint">至少上传 1 份样品出厂质量证明文件</p>
+            <p class="field-hint">
+              至少 1 份，最多 {{ ATTACH_MAX_COUNT }} 份，单个不超过 {{ ATTACH_MAX_SIZE_MB }}MB
+            </p>
           </div>
         </el-form-item>
 

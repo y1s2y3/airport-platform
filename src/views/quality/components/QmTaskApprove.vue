@@ -200,7 +200,9 @@ const archiveSync = computed(() => (task.value ? getArchiveSync(task.value.id) :
 const archiveInstance = computed(() => (task.value ? getArchiveInstance(task.value.id) : null))
 const chainSourceTip = computed(() => {
   if (isManualChain.value) {
-    return '审批链来源：本系统双审批人（监理 → 项目经理）'
+    const flow = task.value?.manual_approval_flow || []
+    if (flow.length <= 1) return '审批链来源：本系统（仅监理）'
+    return '审批链来源：本系统（监理 → 项目经理）'
   }
   if (archiveSync.value) {
     return `审批链来源：档案同步快照（登记时锁定，同步于 ${archiveSync.value.synced_at}）——兼容未配置本系统流程的历史任务`

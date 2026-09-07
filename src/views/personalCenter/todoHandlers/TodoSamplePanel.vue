@@ -8,6 +8,7 @@ import {
   NODE_LABEL,
   BIZ_TYPE_LABEL,
   materialTypeLabel,
+  formatBrandLedgerLabel,
 } from '../../../mock/sample.js'
 import FileAttachmentPreview from '../../../components/basicData/FileAttachmentPreview.vue'
 import '../styles/todoHandleBlocks.css'
@@ -161,17 +162,20 @@ const processDocFiles = computed(() => {
         {{ liveDetail?.sample_date || todo.detail?.sampleDate }}
       </el-descriptions-item>
       <el-descriptions-item
-        v-if="isMaterial && (liveDetail?.brand_name || todo.detail?.brandName)"
-        label="品牌"
+        v-if="isMaterial"
+        label="品牌台账"
+        :span="2"
       >
-        {{ liveDetail?.brand_name || todo.detail?.brandName }}
-      </el-descriptions-item>
-      <el-descriptions-item v-if="isMaterial" label="生产厂家">
         {{
-          liveDetail?.manufacturer ||
-          liveDetail?.supplier ||
-          todo.detail?.manufacturer ||
-          todo.detail?.supplier ||
+          formatBrandLedgerLabel(liveDetail || {}) ||
+          todo.detail?.brandLedgerLabel ||
+          [
+            liveDetail?.brand_name || todo.detail?.brandName,
+            liveDetail?.manufacturer || todo.detail?.manufacturer || todo.detail?.supplier,
+            liveDetail?.ledger_material_name || todo.detail?.ledgerMaterialName,
+          ]
+            .filter(Boolean)
+            .join(' · ') ||
           '—'
         }}
       </el-descriptions-item>

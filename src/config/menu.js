@@ -186,7 +186,8 @@ export const menuTree = [
         key: 'qm-archive-mgmt', label: '档案管理', levels: 'project',
         children: [
           { key: 'qm-archive-fill', label: '档案管理', path: '/qm/inspect/archive-jump', name: 'QmArchiveJump', component: 'QmArchiveJumpView', levels: 'project', openInNewTab: true },
-          { key: 'qm-provincial-form', label: '省统表管理', path: '/qm/inspect/provincial-forms', name: 'QmProvincialForm', component: 'QmProvincialFormView', levels: 'project' },
+          // 省统表：本模块不维护，仅 SSO 跳转电子档案系统（与档案管理同页模拟）
+          { key: 'qm-provincial-form', label: '省统表管理', path: '/qm/inspect/archive-jump', name: 'QmProvincialFormJump', component: 'QmArchiveJumpView', levels: 'project', openInNewTab: true, query: { entry: 'provincial' } },
         ],
       },
       {
@@ -335,7 +336,6 @@ export const hiddenRoutes = [
   { key: 'qm-unit-edit', path: '/qm/inspect/unit/edit', name: 'QmUnitEdit', component: 'QmUnitEditView', label: '单位工程填报', sidebarKey: 'qm-form-fill-deep' },
   { key: 'qm-special-edit', path: '/qm/inspect/special/edit', name: 'QmSpecialEdit', component: 'QmSpecialEditView', label: '专项填报', sidebarKey: 'qm-special-deep' },
   { key: 'qm-complete-edit', path: '/qm/inspect/complete/edit', name: 'QmCompleteEdit', component: 'QmCompleteEditView', label: '竣工填报', sidebarKey: 'qm-complete-deep' },
-  { key: 'qm-rectify-detail', path: '/qm/inspect/rectify/detail', name: 'QmRectifyDetail', component: 'QmRectifyDetailView', label: '整改详情', sidebarKey: 'qm-form-fill-deep' },
   // 品牌报审子页
   { key: 'brand-application-edit', path: '/qm/brand/applications/edit', name: 'BrandApplicationEdit', component: 'BrandApplicationEditView', label: '新建报审', sidebarKey: 'brand-application' },
   { key: 'brand-application-detail', path: '/qm/brand/applications/detail', name: 'BrandApplicationDetail', component: 'BrandApplicationDetailView', label: '报审详情', sidebarKey: 'brand-application' },
@@ -422,11 +422,13 @@ export const redirects = [
   { path: '/qm/inspect/plans/edit', redirect: '/qm/inspect/form-fill-deep' },
   { path: '/qm/inspect/plans/review', redirect: '/qm/inspect/form-fill-deep' },
   { path: '/qm/inspect/ledger', redirect: '/qm/inspect/dashboard' },
-  { path: '/qm/inspect/forms', redirect: '/qm/inspect/provincial-forms' },
+  { path: '/qm/inspect/forms', redirect: '/qm/inspect/archive-jump' },
+  { path: '/qm/inspect/provincial-forms', redirect: '/qm/inspect/archive-jump' },
   { path: '/qm/inspect/batch-types', redirect: '/qm/inspect/form-fill-deep' },
   { path: '/qm/inspect/unit-scheme', redirect: '/qm/inspect/form-fill-deep' },
   { path: '/qm/inspect/approver-config', redirect: '/qm/inspect/seal-user' },
   { path: '/qm/inspect/rectify/list', redirect: '/qm/inspect/form-fill-deep' },
+  { path: '/qm/inspect/rectify/detail', redirect: '/qm/inspect/form-fill-deep' },
   { path: '/qm/inspect/batch/approve', redirect: resolveQmInspectHandleRedirect },
   { path: '/qm/inspect/part/approve', redirect: resolveQmInspectHandleRedirect },
   { path: '/qm/inspect/unit/approve', redirect: resolveQmInspectHandleRedirect },

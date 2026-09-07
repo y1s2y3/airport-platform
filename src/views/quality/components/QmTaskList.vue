@@ -6,6 +6,7 @@ import { Plus, Search, Refresh } from '@element-plus/icons-vue'
 import { useQmProjectScope } from '../../../composables/useCurrentProject'
 import {
   buildWbsTree,
+  checkUnlock,
   createSpecialTask,
   createTask,
   deletePendingTask,
@@ -135,6 +136,18 @@ function isNodeSelectable(nodeType) {
   return props.nodeTypes.includes(t)
 }
 
+/** 下级未全部通过则不可选（检验批/专项叶子可直接发起）；编辑时保留当前已挂接节点可选 */
+function isNodeLockedForCreate(node) {
+  const raw = node?.raw || wbsNodes.find((n) => n.id === node?.id)
+  if (!raw) return true
+  const unlock = checkUnlock(raw)
+  if (unlock.ok) return false
+  if (editingTaskId.value && createForm.wbs_node_id && createForm.wbs_node_id === raw.id) {
+    return false
+  }
+  return true
+}
+
 function collectExpandKeys(nodes, expandTypes, acc = []) {
   for (const n of nodes || []) {
     if (expandTypes.includes(Number(n.node_type))) acc.push(n.id)
@@ -148,6 +161,13 @@ const createNodeTree = shallowRef([])
 const createNodeExpandedKeys = shallowRef([])
 const createNodeTreeKey = ref('create-wbs-empty')
 
+const createUnlockTip = computed(() => {
+  if (props.specialMode) {
+    return '请选择消防、人防等专项节点；「专项验收」仅为分类不可发起。专项节点可直接发起。'
+  }
+  return '请选择单位工程及以下节点；「实体工程验收」仅为分类不可发起。须下级节点全部验收通过后，方可对本级发起（检验批可直接发起）。'
+})
+
 function rebuildCreateNodeTree() {
   const pid = scopeProjectId.value || undefined
   const full = buildWbsTree(pid)
@@ -156,14 +176,18 @@ function rebuildCreateNodeTree() {
   else if (props.entityMode || props.allowAllNodes) source = takeEntityBranch(full)
 
   const mark = (nodes) =>
-    (nodes || []).map((n) => ({
-      id: n.id,
-      label: n.label,
-      node_type: n.node_type,
-      type_label: n.type_label,
-      disabled: !isNodeSelectable(n.node_type),
-      children: n.children?.length ? mark(n.children) : undefined,
-    }))
+    (nodes || []).map((n) => {
+      const typeOk = isNodeSelectable(n.node_type)
+      const locked = typeOk ? isNodeLockedForCreate(n) : true
+      return {
+        id: n.id,
+        label: n.label,
+        node_type: n.node_type,
+        type_label: n.type_label,
+        disabled: !typeOk || locked,
+        children: n.children?.length ? mark(n.children) : undefined,
+      }
+    })
   const tree = mark(source)
   createNodeTree.value = tree
   const expandTypes = props.specialMode ? [8, 10] : [8, 9]
@@ -257,6 +281,17 @@ watch(
 async function confirmCreate() {
   if (!createForm.task_name.trim()) return ElMessage.warning('请填写验收任务名称')
   if (!createForm.wbs_node_id) return ElMessage.warning('请选择验收节点')
+  const node = wbsNodes.find((n) => n.id === createForm.wbs_node_id)
+  if (!node) return ElMessage.error('验评节点不存在')
+  const existing = editingTaskId.value
+    ? inspectionTasks.find((t) => t.id === editingTaskId.value)
+    : null
+  const nodeChanged = !existing || existing.wbs_node_id !== createForm.wbs_node_id
+  // 新建或改挂节点：下级未全部通过不可发起（与 createTask / saveTaskDraft 一致）
+  if (nodeChanged) {
+    const unlock = checkUnlock(node)
+    if (!unlock.ok) return ElMessage.warning(unlock.msg)
+  }
   creating.value = true
   try {
     if (editingTaskId.value) {
@@ -372,7 +407,7 @@ onMounted(() => {
       <h1 class="page-title">{{ title }}</h1>
       <p class="page-tip">
         当前：{{ isHqSelected ? '请切换到项目查看业务单' : scopeProjectLabel }}
-        · 弹窗发起 → 待提交填报 → 提交时选审批人；审批在个人中心办理。一节点仅一张有效单；已驳回可重新申报。
+        · 弹窗发起 → 待提交填报 → 提交时选审批人；审批在个人中心办理。一节点仅一张有效单；已驳回可重新申报。须下级全部验收通过后，方可对本级发起报审（检验批/专项可直接发起）。
       </p>
     </div>
 
@@ -416,6 +451,16 @@ onMounted(() => {
         <template #default="{ row }">{{ nodeName(row.wbs_node_id) }}</template>
       </el-table-column>
       <el-table-column v-if="!specialMode" prop="location_name" label="施工部位" min-width="120" />
+      <el-table-column v-if="!specialMode" label="是否隐蔽工程" width="120" align="center">
+        <template #default="{ row }">
+          {{ Number(row.is_hidden_work) === 1 ? '是' : '否' }}
+        </template>
+      </el-table-column>
+      <el-table-column v-if="!specialMode" label="是否电子档案归档" width="140" align="center">
+        <template #default="{ row }">
+          {{ Number(row.need_archive) === 1 ? '是' : '否' }}
+        </template>
+      </el-table-column>
       <el-table-column label="验收状态" width="100">
         <template #default="{ row }">
           <el-tag :type="getTaskDisplayStatus(row).tagType" size="small">
@@ -514,6 +559,7 @@ onMounted(() => {
               </span>
             </template>
           </el-tree-select>
+          <div class="form-hint">{{ createUnlockTip }}</div>
         </el-form-item>
         <el-form-item v-if="!specialMode" label="施工部位">
           <ConstructionLocationSelect
@@ -540,6 +586,9 @@ onMounted(() => {
             <el-radio :value="0">否</el-radio>
           </el-radio-group>
           <div v-if="archiveLocked" class="form-hint">该节点档案清单为空，默认否且不可改</div>
+          <div v-else class="form-hint">
+            选「是」则提交报验前须完成电子档案（状态为「未完成」时不可提交）；选「否」不强制。
+          </div>
         </el-form-item>
       </el-form>
       <template #footer>

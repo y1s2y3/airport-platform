@@ -14,6 +14,7 @@ import {
   rememberBrandProjectApprovers,
   formatBrandProjectUserLabel,
   MATERIAL_TYPE,
+  getBrandLedgerById,
 } from './brand.js'
 import {
   createSampleSupervisorTodo,
@@ -52,7 +53,6 @@ export const ACTION_LABEL = {
   submit: '提交',
   agree: '同意',
   reject: '退回',
-  withdraw: '撤回',
 }
 
 export function actionTagType(action) {
@@ -76,6 +76,15 @@ export function normalizeMaterialType(type) {
 export function materialTypeLabel(type) {
   const key = normalizeMaterialType(type)
   return MATERIAL_TYPE[key] || MATERIAL_TYPE.material
+}
+
+/** 品牌台账展示：品牌 · 厂家 · 材料/设备名称 */
+export function formatBrandLedgerLabel(row = {}) {
+  const brand = String(row.brand_name || '').trim()
+  const manufacturer = String(row.manufacturer || row.supplier || '').trim()
+  const material = String(row.ledger_material_name || row.material_name || '').trim()
+  const parts = [brand, manufacturer, material].filter(Boolean)
+  return parts.length ? parts.join(' · ') : ''
 }
 
 export function statusTagType(status) {
@@ -108,9 +117,11 @@ const store = reactive({
       material_type: 'material',
       sample_date: '2026-07-08',
       spec: '砂壁状真石漆 A12；涂层厚度≥1.5mm；色差 ΔE≤1.0；耐洗刷≥2000 次。',
-      brand_name: '亚士',
-      manufacturer: '亚士创能科技股份有限公司',
-      supplier: '亚士创能科技股份有限公司',
+      brand_ledger_id: 'BL-009',
+      brand_name: '东方雨虹',
+      manufacturer: '北京东方雨虹防水技术股份有限公司',
+      ledger_material_name: '防水涂料',
+      supplier: '北京东方雨虹防水技术股份有限公司',
       unit_wbs_id: '',
       unit_name: 'T3 航站楼',
       use_part_wbs_id: '',
@@ -143,9 +154,11 @@ const store = reactive({
       material_type: 'material',
       sample_date: '2026-07-24',
       spec: '通体瓷砖 800×800；吸水率≤0.5%；耐磨等级 4 级；表面平整度≤0.5mm。',
-      brand_name: '马可波罗',
-      manufacturer: '某陶瓷集团',
-      supplier: '某陶瓷集团',
+      brand_ledger_id: 'BL-007',
+      brand_name: '海螺',
+      manufacturer: '安徽海螺水泥股份有限公司',
+      ledger_material_name: '砂浆',
+      supplier: '安徽海螺水泥股份有限公司',
       unit_wbs_id: '',
       unit_name: '商业区',
       use_part_wbs_id: '',
@@ -172,9 +185,11 @@ const store = reactive({
       material_type: 'equipment',
       sample_date: '2026-07-18',
       spec: '氟碳喷涂铝单板 2.5mm；色号 RAL9006；板面平整度≤2mm。',
+      brand_ledger_id: 'BL-EQ-P001',
       brand_name: '兴发',
-      manufacturer: '某幕墙材料厂',
-      supplier: '某幕墙材料厂',
+      manufacturer: '广东兴发铝业有限公司',
+      ledger_material_name: '铝单板',
+      supplier: '广东兴发铝业有限公司',
       unit_wbs_id: '',
       unit_name: '连廊',
       use_part_wbs_id: '',
@@ -201,8 +216,10 @@ const store = reactive({
       material_type: 'material',
       sample_date: '2026-07-16',
       spec: 'SBS 改性沥青防水卷材 3mm；低温柔性 -25℃；拉力≥800N/50mm。',
+      brand_ledger_id: 'BL-008',
       brand_name: '东方雨虹',
       manufacturer: '北京东方雨虹防水技术股份有限公司',
+      ledger_material_name: '防水卷材',
       supplier: '北京东方雨虹防水技术股份有限公司',
       unit_wbs_id: '',
       unit_name: '屋面工程',
@@ -228,8 +245,9 @@ const store = reactive({
       application_id: 'PS-001',
       project_id: 'p-000',
       process_name: '清水混凝土柱样板',
-      use_part: '地下一层结构区',
-      location_ids: ['loc-b1-structure'],
+      use_part: 'T2航站楼主体单位工程',
+      location_id: 'wn-unit-1',
+      location_ids: ['wn-unit-1'],
       briefing_content: '模板拼缝、拆模时机、养护要求；样板标准照片见影像资料。',
       photo_files: ['清水柱-正面.jpg', '清水柱-节点.jpg'],
       video_files: ['交底讲解.mp4'],
@@ -250,8 +268,9 @@ const store = reactive({
       application_id: 'PS-002',
       project_id: 'p-000',
       process_name: '防水卷材铺贴样板',
-      use_part: '屋面防水层',
-      location_ids: ['loc-roof'],
+      use_part: 'T2航站楼机电单位工程 / 强电系统子单位工程 / 供配电分部 / 电缆敷设分项',
+      location_id: 'wn-item-2',
+      location_ids: ['wn-item-2'],
       briefing_content: '搭接宽度、热熔顺序、节点加强。',
       photo_files: ['防水样板.jpg'],
       video_files: [],
@@ -268,8 +287,9 @@ const store = reactive({
       application_id: 'PS-003',
       project_id: 'p-001',
       process_name: '砌体样板墙',
-      use_part: '办公区隔墙',
-      location_ids: ['loc-office-wall'],
+      use_part: '三跑道道面单位工程',
+      location_id: 'wn-unit-p001',
+      location_ids: ['wn-unit-p001'],
       briefing_content: '灰缝厚度、拉结筋、洞口加强。',
       photo_files: ['砌体墙.jpg'],
       video_files: ['砌体交底.mp4'],
@@ -283,7 +303,7 @@ const store = reactive({
       applicant_name: '施工-赵工',
       submit_time: '2026-07-22 15:20:00',
       finish_time: '2026-07-23 11:30:00',
-      remark: '演示：已驳回留档，可复制新建',
+      remark: '演示：已驳回留档，可重新申报',
     },
   ],
   approvals: [
@@ -399,6 +419,9 @@ function buildTodoPayload(bizType, app) {
     spec: isMaterial ? app.spec || app.indicator_desc || '' : '',
     brandName: isMaterial ? app.brand_name || '' : '',
     manufacturer: isMaterial ? app.manufacturer || app.supplier || '' : '',
+    brandLedgerId: isMaterial ? app.brand_ledger_id || '' : '',
+    ledgerMaterialName: isMaterial ? app.ledger_material_name || '' : '',
+    brandLedgerLabel: isMaterial ? formatBrandLedgerLabel(app) : '',
     projectId: app.project_id,
     projectLabel: getProjectLabel(app.project_id) || app.project_id,
     applicantName: app.applicant_name,
@@ -475,7 +498,9 @@ export function listMaterialApps(projectId, { keyword = '', status = '' } = {}) 
         (a.use_part || '').toLowerCase().includes(kw) ||
         (a.unit_name || '').toLowerCase().includes(kw) ||
         (a.brand_name || '').toLowerCase().includes(kw) ||
-        (a.manufacturer || a.supplier || '').toLowerCase().includes(kw)
+        (a.manufacturer || a.supplier || '').toLowerCase().includes(kw) ||
+        (a.ledger_material_name || '').toLowerCase().includes(kw) ||
+        formatBrandLedgerLabel(a).toLowerCase().includes(kw)
       )
     })
     .slice()
@@ -548,7 +573,9 @@ export function getRejectedMaterialAppsForCopy(projectId) {
       application_id: a.application_id,
       material_name: a.material_name,
       material_type: normalizeMaterialType(a.material_type),
+      brand_ledger_id: a.brand_ledger_id || '',
       brand_name: a.brand_name || '',
+      ledger_material_name: a.ledger_material_name || '',
       supplier: a.supplier,
       use_part: a.use_part,
       submit_time: a.submit_time,
@@ -573,8 +600,10 @@ export function buildCopyPayloadFromRejectedMaterial(applicationId) {
       material_type: normalizeMaterialType(app.material_type),
       sample_date: app.sample_date || '',
       spec: app.spec || app.indicator_desc || '',
+      brand_ledger_id: app.brand_ledger_id || '',
       brand_name: app.brand_name || '',
       manufacturer: app.manufacturer || app.supplier || '',
+      ledger_material_name: app.ledger_material_name || '',
       supplier: app.manufacturer || app.supplier || '',
       unit_wbs_id: app.unit_wbs_id || '',
       unit_name: app.unit_name || '',
@@ -584,7 +613,6 @@ export function buildCopyPayloadFromRejectedMaterial(applicationId) {
       location_ids: partWbs ? [partWbs] : [],
       indicator_desc: app.spec || app.indicator_desc || '',
       sample_photos: photos,
-      effect_images: photos,
       sign_files: signs,
       approval_files: signs,
       certificate_files: certs,
@@ -597,7 +625,7 @@ export function buildCopyPayloadFromRejectedMaterial(applicationId) {
   }
 }
 
-/** 已撤回材料定样重新编辑预填 */
+/** 已撤回材料定样重新编辑预填（废止路径，仅兼容旧数据） */
 export function buildReEditPayloadFromWithdrawnMaterial(applicationId) {
   const app = store.materials.find((a) => a.application_id === applicationId)
   if (!app) return { ok: false, msg: '单据不存在' }
@@ -608,7 +636,10 @@ export function buildReEditPayloadFromWithdrawnMaterial(applicationId) {
       application_id: app.application_id,
       material_name: app.material_name,
       material_type: normalizeMaterialType(app.material_type),
+      brand_ledger_id: app.brand_ledger_id || '',
       brand_name: app.brand_name || '',
+      manufacturer: app.manufacturer || app.supplier || '',
+      ledger_material_name: app.ledger_material_name || '',
       supplier: app.supplier,
       use_part: app.use_part,
       location_id: app.location_id || (Array.isArray(app.location_ids) ? app.location_ids[0] : '') || '',
@@ -640,7 +671,7 @@ export function getRejectedProcessAppsForCopy(projectId) {
 export function buildCopyPayloadFromRejectedProcess(applicationId) {
   const app = store.processes.find((a) => a.application_id === applicationId)
   if (!app) return { ok: false, msg: '单据不存在' }
-  if (app.status !== 'rejected') return { ok: false, msg: '仅已驳回单可复制新建' }
+  if (app.status !== 'rejected') return { ok: false, msg: '仅已驳回单可重新申报' }
   return {
     ok: true,
     data: {
@@ -755,6 +786,11 @@ export function resubmitWithdrawnSample(bizType, applicationId, payload) {
       ? payload.media_files.map((m) => ({ ...m }))
       : []
     const doc_files = Array.isArray(payload.doc_files) ? payload.doc_files.filter(Boolean) : []
+    const mediaCount =
+      media_files.filter((m) => m && (m.name || m.url)).length || photo_files.length + video_files.length
+    if (!mediaCount) return { ok: false, msg: '请上传现场影像资料' }
+    if (mediaCount > 9) return { ok: false, msg: '现场影像资料最多 9 个' }
+    if (doc_files.length > 9) return { ok: false, msg: '文件资料最多 9 个' }
 
     app.process_name = process_name
     app.use_part = part
@@ -811,27 +847,27 @@ function countByStatus(rows, status) {
   return rows.filter((a) => a.status === status).length
 }
 
-/** 指挥部质量看板：按项目汇总材料定样 + 工序样板 */
+/** 指挥部质量看板：按项目汇总材料定样 + 工序样板（三态：待审批/已通过/已驳回，不含已撤回） */
 export function buildHqSampleStatsByProject() {
   return COC_PROJECT_OPTIONS.map((opt) => {
     const materials = store.materials.filter((a) => a.project_id === opt.id)
     const processes = store.processes.filter((a) => a.project_id === opt.id)
     const materialApproved = countByStatus(materials, 'approved')
     const processApproved = countByStatus(processes, 'approved')
+    // 待审批 = in_approval + 旧码 pending；不统计 withdrawn
+    const pendingApproval =
+      countByStatus(materials, 'in_approval') +
+      countByStatus(processes, 'in_approval') +
+      countByStatus(materials, 'pending') +
+      countByStatus(processes, 'pending')
     return {
       project_id: opt.id,
       project_name: opt.label,
       ledger_count: materialApproved + processApproved,
       material_approved: materialApproved,
       process_approved: processApproved,
-      pending: 0,
-      in_approval:
-        countByStatus(materials, 'in_approval') +
-        countByStatus(processes, 'in_approval') +
-        countByStatus(materials, 'pending') +
-        countByStatus(processes, 'pending'),
+      in_approval: pendingApproval,
       rejected: countByStatus(materials, 'rejected') + countByStatus(processes, 'rejected'),
-      withdrawn: countByStatus(materials, 'withdrawn') + countByStatus(processes, 'withdrawn'),
     }
   }).sort(
     (a, b) =>
@@ -847,10 +883,8 @@ export function buildHqSampleSummary() {
       acc.ledger_count += row.ledger_count
       acc.material_approved += row.material_approved
       acc.process_approved += row.process_approved
-      acc.pending += row.pending
       acc.in_approval += row.in_approval
       acc.rejected += row.rejected
-      acc.withdrawn += row.withdrawn
       return acc
     },
     {
@@ -858,32 +892,35 @@ export function buildHqSampleSummary() {
       ledger_count: 0,
       material_approved: 0,
       process_approved: 0,
-      pending: 0,
       in_approval: 0,
       rejected: 0,
-      withdrawn: 0,
     },
   )
 }
 
-export function listLedger(projectId, { bizType = '', keyword = '', usePart = '' } = {}) {
+export function listLedger(projectId, { bizType = '', keyword = '' } = {}) {
   const kw = keyword.trim().toLowerCase()
-  const part = usePart.trim().toLowerCase()
   const rows = []
   if (!bizType || bizType === 'material') {
     store.materials
       .filter((a) => a.status === 'approved' && (!projectId || a.project_id === projectId))
       .forEach((a) => {
+        const brand_ledger_label = formatBrandLedgerLabel(a)
         rows.push({
           ledger_id: `L-${a.application_id}`,
           biz_type: 'material',
           application_id: a.application_id,
           title: a.sample_name || a.material_name,
           sample_name: a.sample_name || a.material_name,
-          use_part: a.use_part,
-          status: a.status,
+          brand_ledger_id: a.brand_ledger_id || '',
+          brand_ledger_label,
+          brand_name: a.brand_name || '',
+          sample_date: a.sample_date || '',
+          unit_name: a.unit_name || '',
+          use_part: a.use_part || '',
+          briefing_content: '',
           project_id: a.project_id,
-          finish_time: a.finish_time,
+          finish_time: a.finish_time || '',
         })
       })
   }
@@ -896,21 +933,30 @@ export function listLedger(projectId, { bizType = '', keyword = '', usePart = ''
           biz_type: 'process',
           application_id: a.application_id,
           title: a.process_name,
-          use_part: a.use_part,
-          status: a.status,
+          sample_name: a.process_name,
+          brand_ledger_id: '',
+          brand_ledger_label: '',
+          brand_name: '',
+          sample_date: '',
+          unit_name: '',
+          use_part: a.use_part || '',
+          briefing_content: a.briefing_content || '',
           project_id: a.project_id,
-          finish_time: a.finish_time,
+          finish_time: a.finish_time || '',
         })
       })
   }
   return rows
     .filter((r) => {
-      if (part && !(r.use_part || '').toLowerCase().includes(part)) return false
       if (!kw) return true
       return (
         r.application_id.toLowerCase().includes(kw) ||
-        r.title.toLowerCase().includes(kw) ||
-        (r.use_part || '').toLowerCase().includes(kw)
+        (r.title || '').toLowerCase().includes(kw) ||
+        (r.use_part || '').toLowerCase().includes(kw) ||
+        (r.brand_ledger_label || '').toLowerCase().includes(kw) ||
+        (r.brand_name || '').toLowerCase().includes(kw) ||
+        (r.unit_name || '').toLowerCase().includes(kw) ||
+        (r.briefing_content || '').toLowerCase().includes(kw)
       )
     })
     .sort((a, b) => (a.finish_time < b.finish_time ? 1 : -1))
@@ -930,10 +976,10 @@ export function listSelectableForInspect(
         rows.push({
           sample_id: a.application_id,
           sample_name: a.material_name,
-          sample_category: '材料定样',
+          sample_category: '材料设备定样',
           biz_type: 'material',
           use_part: a.use_part || '',
-          location_id: a.location_id || '',
+          location_id: a.location_id || a.use_part_wbs_id || '',
           location_ids: Array.isArray(a.location_ids) ? [...a.location_ids] : [],
           brand_name: a.brand_name || '',
           finish_time: a.finish_time || '',
@@ -978,7 +1024,8 @@ export function listSelectableForInspect(
         r.sample_id.toLowerCase().includes(kw) ||
         (r.sample_name || '').toLowerCase().includes(kw) ||
         (r.sample_category || '').toLowerCase().includes(kw) ||
-        (r.use_part || '').toLowerCase().includes(kw)
+        (r.use_part || '').toLowerCase().includes(kw) ||
+        (r.brand_name || '').toLowerCase().includes(kw)
       )
     })
     .sort((a, b) => (a.finish_time < b.finish_time ? 1 : -1))
@@ -988,8 +1035,7 @@ export function submitMaterialApp(payload) {
   const project_id = payload.project_id
   const sample_name = String(payload.sample_name || payload.material_name || '').trim()
   const materialTypeRaw = payload.material_type
-  const brand_name = String(payload.brand_name || '').trim()
-  const manufacturer = String(payload.manufacturer || payload.supplier || '').trim()
+  const brand_ledger_id = String(payload.brand_ledger_id || '').trim()
   const sample_date = String(payload.sample_date || '').trim()
   const spec = String(payload.spec || payload.indicator_desc || '').trim()
   const unit_wbs_id = String(payload.unit_wbs_id || '').trim()
@@ -1008,23 +1054,31 @@ export function submitMaterialApp(payload) {
     return { ok: false, msg: '请选择材料类型' }
   }
   const material_type = normalizeMaterialType(materialTypeRaw)
-  if (!brand_name) return { ok: false, msg: '请选择品牌' }
-  if (!manufacturer) return { ok: false, msg: '请填写生产厂家' }
+  if (!brand_ledger_id) return { ok: false, msg: '请选择品牌台账' }
+  const ledger = getBrandLedgerById(brand_ledger_id, project_id)
+  if (!ledger) return { ok: false, msg: '所选品牌台账不存在或不属于本项目' }
+  const brand_name = String(ledger.brand_name || '').trim()
+  const manufacturer = String(ledger.manufacturer || '').trim()
+  const ledger_material_name = String(ledger.material_name || '').trim()
+  if (!brand_name) return { ok: false, msg: '品牌台账缺少品牌名称' }
   if (!use_part_wbs_id && !use_part) return { ok: false, msg: '请选择使用部位' }
   if (!unit_name) return { ok: false, msg: '请选择使用部位以带出单位工程' }
 
+  // 写路径以 PRD 字段 sample_photos / sign_files 为准；effect_images / approval_files 仅读兼容
   const photos = normalizeFileList(payload.sample_photos?.length ? payload.sample_photos : payload.effect_images)
   const signs = normalizeFileList(payload.sign_files?.length ? payload.sign_files : payload.approval_files)
   const certs = normalizeFileList(payload.certificate_files)
   if (!photos.length) return { ok: false, msg: '请至少上传 1 张样品照片' }
   if (!signs.length) return { ok: false, msg: '请至少上传 1 份材料设备送样定板报审签字附件' }
+  if (signs.length > 9) return { ok: false, msg: '签字附件最多 9 份' }
   if (!certs.length) return { ok: false, msg: '请至少上传 1 份样品出厂质量证明文件' }
+  if (certs.length > 9) return { ok: false, msg: '出厂质量证明文件最多 9 份' }
 
   if (copy_from_application_id) {
     const origin = store.materials.find((a) => a.application_id === copy_from_application_id)
-    if (!origin) return { ok: false, msg: '复制来源单不存在' }
+    if (!origin) return { ok: false, msg: '申报来源单不存在' }
     if (origin.status !== 'rejected') return { ok: false, msg: '仅可从已驳回单重新申报' }
-    if (origin.project_id !== project_id) return { ok: false, msg: '复制来源单不属于本项目' }
+    if (origin.project_id !== project_id) return { ok: false, msg: '申报来源单不属于本项目' }
   }
 
   const ids = []
@@ -1047,8 +1101,10 @@ export function submitMaterialApp(payload) {
     material_type,
     sample_date,
     spec,
+    brand_ledger_id,
     brand_name,
     manufacturer,
+    ledger_material_name,
     supplier: manufacturer,
     unit_wbs_id,
     unit_name,
@@ -1058,9 +1114,7 @@ export function submitMaterialApp(payload) {
     location_ids: ids,
     indicator_desc: spec,
     sample_photos: photos,
-    effect_images: photos,
     sign_files: signs,
-    approval_files: signs,
     certificate_files: certs,
     copy_from_application_id,
     status: 'in_approval',
@@ -1116,9 +1170,9 @@ export function submitProcessApp(payload) {
   const copyId = String(copy_from_application_id || '').trim()
   if (copyId) {
     const origin = store.processes.find((a) => a.application_id === copyId)
-    if (!origin) return { ok: false, msg: '复制来源单不存在' }
-    if (origin.status !== 'rejected') return { ok: false, msg: '仅可从已驳回单复制新建' }
-    if (origin.project_id !== project_id) return { ok: false, msg: '复制来源单不属于本项目' }
+    if (!origin) return { ok: false, msg: '申报来源单不存在' }
+    if (origin.status !== 'rejected') return { ok: false, msg: '仅可从已驳回单重新申报' }
+    if (origin.project_id !== project_id) return { ok: false, msg: '申报来源单不属于本项目' }
   }
 
   let photos = Array.isArray(photo_files) ? photo_files.map(String).filter(Boolean) : []
@@ -1133,7 +1187,11 @@ export function submitProcessApp(payload) {
     photos = media.filter((m) => m.kind === 'image').map((m) => m.name)
     videos = media.filter((m) => m.kind === 'video').map((m) => m.name)
   }
+  const mediaCount = media.length || photos.length + videos.length
+  if (!mediaCount) return { ok: false, msg: '请上传现场影像资料' }
+  if (mediaCount > 9) return { ok: false, msg: '现场影像资料最多 9 个' }
   const docs = Array.isArray(doc_files) ? doc_files.map(String).filter(Boolean) : []
+  if (docs.length > 9) return { ok: false, msg: '文件资料最多 9 个' }
 
   const approverRes = resolveSampleApprovers(payload, { requirePm: false })
   if (!approverRes.ok) return approverRes
@@ -1176,7 +1234,7 @@ export function submitProcessApp(payload) {
     application_id,
     node_code: 'applicant',
     action: 'submit',
-    opinion: copyId ? `从 ${copyId} 复制新建` : '直接提交',
+    opinion: copyId ? `从 ${copyId} 重新申报` : '直接提交',
     operator_name: applicant_name,
   })
   createSampleSupervisorTodo(buildTodoPayload('process', app))
@@ -1261,29 +1319,12 @@ export function pmApproveSample(bizType, applicationId, { action, opinion }) {
 }
 
 /**
- * 材料定样对齐品牌报审：不支持撤回，已驳回请重新申报。
- * 工序样板：审批中（待监理审）仍可撤回留档。
+ * 样板报审（材料定样 / 工序样板）均不支持撤回；已驳回请重新申报。
+ * 保留函数签名供旧调用方；一律拒绝，不产出 withdrawn。
  */
-export function withdrawSampleApp(bizType, applicationId) {
-  if (bizType === 'material') {
-    return { ok: false, msg: '定样报审不支持撤回，已驳回请重新申报' }
+export function withdrawSampleApp(bizType) {
+  if (bizType === 'process') {
+    return { ok: false, msg: '工序样板报审不支持撤回，已驳回请重新申报' }
   }
-  const app = findApp(bizType, applicationId)
-  if (!app) return { ok: false, msg: '单据不存在' }
-  if (app.status !== 'in_approval' || app.current_node !== 'supervisor') {
-    return { ok: false, msg: '仅审批中（待监理审）时可撤回' }
-  }
-  pushApproval({
-    biz_type: bizType,
-    application_id: applicationId,
-    node_code: 'applicant',
-    action: 'withdraw',
-    opinion: '申请人撤回',
-    operator_name: app.applicant_name || '当前用户',
-  })
-  discardSampleTodos(bizType, applicationId)
-  app.status = 'withdrawn'
-  app.current_node = 'none'
-  app.finish_time = nowStr()
-  return { ok: true }
+  return { ok: false, msg: '定样报审不支持撤回，已驳回请重新申报' }
 }

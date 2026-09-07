@@ -12,8 +12,6 @@ import {
   buildHqSampleStatsByProject,
   buildHqSampleSummary,
   listLedger,
-  statusLabel,
-  statusTagType,
 } from '../../../mock/sample.js'
 
 const router = useRouter()
@@ -146,16 +144,12 @@ function goBackToHQ() {
           <span class="hq-stat-value ok">{{ hqSummary.process_approved }}</span>
         </div>
         <div class="hq-stat-card">
-          <span class="hq-stat-label">审批中</span>
+          <span class="hq-stat-label">待审批</span>
           <span class="hq-stat-value warn">{{ hqSummary.in_approval }}</span>
         </div>
         <div class="hq-stat-card">
           <span class="hq-stat-label">已驳回</span>
           <span class="hq-stat-value danger">{{ hqSummary.rejected }}</span>
-        </div>
-        <div class="hq-stat-card">
-          <span class="hq-stat-label">已撤回</span>
-          <span class="hq-stat-value">{{ hqSummary.withdrawn }}</span>
         </div>
       </div>
 
@@ -178,7 +172,7 @@ function goBackToHQ() {
         <el-table-column prop="ledger_count" label="台账条数" width="100" align="center" />
         <el-table-column prop="material_approved" label="材料定样已通过" width="140" align="center" />
         <el-table-column prop="process_approved" label="工序样板已通过" width="140" align="center" />
-        <el-table-column label="审批中" width="90" align="center">
+        <el-table-column label="待审批" width="90" align="center">
           <template #default="{ row }">
             <span :class="{ 'warn-num': row.in_approval > 0 }">{{ row.in_approval }}</span>
           </template>
@@ -188,7 +182,6 @@ function goBackToHQ() {
             <span :class="{ 'danger-num': row.rejected > 0 }">{{ row.rejected }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="withdrawn" label="已撤回" width="90" align="center" />
         <el-table-column label="操作" width="110" fixed="right" align="center">
           <template #default="{ row }">
             <el-button link type="primary" size="small" :icon="View" @click="viewProjectDetail(row)">
@@ -214,10 +207,10 @@ function goBackToHQ() {
           <el-input
             v-model="keyword"
             clearable
-            placeholder="编号 / 名称 / 部位"
-            style="width: 220px"
+            placeholder="报审编号 / 名称 / 品牌 / 单位工程 / 使用部位"
+            style="width: 320px"
             :prefix-icon="Search"
-            aria-label="编号 / 名称 / 部位"
+            aria-label="报审编号 / 名称 / 品牌 / 单位工程 / 使用部位"
           />
           <el-select v-model="bizType" clearable placeholder="类型" style="width: 140px" aria-label="类型">
             <el-option
@@ -232,18 +225,27 @@ function goBackToHQ() {
         </div>
 
         <el-table :data="list" stripe border empty-text="暂无已通过样板">
-          <el-table-column prop="application_id" label="单据编号" width="120" />
-          <el-table-column label="类型" width="100">
+          <el-table-column prop="application_id" label="报审编号" width="120" />
+          <el-table-column label="类型" width="120">
             <template #default="{ row }">{{ BIZ_TYPE_LABEL[row.biz_type] }}</template>
           </el-table-column>
-          <el-table-column prop="title" label="名称" min-width="160" show-overflow-tooltip />
-          <el-table-column prop="use_part" label="施工部位" min-width="140" show-overflow-tooltip />
-          <el-table-column label="状态" width="90">
-            <template #default="{ row }">
-              <el-tag size="small" :type="statusTagType(row.status)">{{ statusLabel(row.status) }}</el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="finish_time" label="通过时间" width="170" />
+          <el-table-column prop="title" label="名称" min-width="150" show-overflow-tooltip />
+          <el-table-column
+            prop="brand_ledger_label"
+            label="品牌台账"
+            min-width="200"
+            show-overflow-tooltip
+          />
+          <el-table-column prop="sample_date" label="定样日期" width="120" />
+          <el-table-column prop="unit_name" label="单位工程" min-width="120" show-overflow-tooltip />
+          <el-table-column prop="use_part" label="使用部位" min-width="140" show-overflow-tooltip />
+          <el-table-column
+            prop="briefing_content"
+            label="交底内容"
+            min-width="160"
+            show-overflow-tooltip
+          />
+          <el-table-column prop="finish_time" label="办结时间" width="170" />
           <el-table-column label="操作" width="100" fixed="right">
             <template #default="{ row }">
               <el-button link type="primary" @click="openDetail(row)">详情</el-button>

@@ -975,25 +975,22 @@ export function getUnitSubunitLabel(wbsNodeId) {
 }
 
 /**
- * 由所选实体节点向上解析单位工程 / 子单位（优先子单位 node_type=2，其次单位工程=1）
+ * 由所选实体节点向上解析单位工程（仅 node_type=1；不带出子单位工程）
  */
 export function resolveUnitSubunitFromWbsNode(wbsNodeId) {
   if (!wbsNodeId) return { unit_wbs_id: '', unit_name: '' }
   const start = wbsNodes.find((n) => isWbsAlive(n) && n.id === wbsNodeId)
   if (!start) return { unit_wbs_id: '', unit_name: '' }
-  let subunit = null
   let unit = null
   let cur = start
   const guard = new Set()
   while (cur && !guard.has(cur.id)) {
     guard.add(cur.id)
-    if (cur.node_type === 2 && !subunit) subunit = cur
     if (cur.node_type === 1 && !unit) unit = cur
     cur = cur.parent_id ? wbsNodes.find((n) => isWbsAlive(n) && n.id === cur.parent_id) : null
   }
-  const hit = subunit || unit
-  if (!hit) return { unit_wbs_id: '', unit_name: '' }
-  return { unit_wbs_id: hit.id, unit_name: hit.node_name || '' }
+  if (!unit) return { unit_wbs_id: '', unit_name: '' }
+  return { unit_wbs_id: unit.id, unit_name: unit.node_name || '' }
 }
 
 /** 按关键字过滤树（保留命中节点及其祖先） */

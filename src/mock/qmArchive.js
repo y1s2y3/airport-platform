@@ -199,7 +199,7 @@ export const projectSealUsers = reactive([
   },
 ])
 
-export const SEAL_USER_STATUS = { 0: '已停用', 1: '已下传' }
+export const SEAL_USER_STATUS = { 0: '已停用', 1: '已下传', 2: '待同步' }
 
 /* ———————————————————— 查询 ———————————————————— */
 
@@ -398,7 +398,7 @@ export function listSealUsers(project_id) {
   return projectSealUsers.filter((u) => u.project_id === project_id)
 }
 
-/** 保存用章人（新增/编辑）→ 保存即下传档案系统（status=1，pushed_at=保存时间） */
+/** 保存用章人（新增/编辑）→ 尝试下传档案系统；失败则 status=待同步，可重试 */
 export function saveSealUser(payload, id = '') {
   if (!payload.project_id) return { ok: false, msg: '请先选择项目' }
   if (!payload.user_id?.trim() && !payload.user_name?.trim()) {
@@ -413,20 +413,26 @@ export function saveSealUser(payload, id = '') {
     if (dup) return { ok: false, msg: '该项目下已存在相同用户的用章人' }
   }
   const now = nowStr()
+  const pushOk = !payload.mock_push_fail
   const next = {
     user_id: userId,
     user_name: payload.user_name.trim(),
     post_label: String(payload.post_label || '').trim(),
     phone: String(payload.phone || '').trim(),
     remark: payload.remark || '',
-    status: 1,
-    pushed_at: now,
+    status: pushOk ? 1 : 2,
+    pushed_at: pushOk ? now : '',
   }
   if (id) {
     const row = projectSealUsers.find((u) => u.id === id)
     if (!row) return { ok: false, msg: '用章人不存在' }
     Object.assign(row, next)
-    return { ok: true, user: row }
+    return {
+      ok: true,
+      user: row,
+      pushOk,
+      msg: pushOk ? '' : '已保存，下传档案系统失败，请重试',
+    }
   }
   const user = {
     id: `psu-${Date.now()}`,
@@ -434,7 +440,22 @@ export function saveSealUser(payload, id = '') {
     ...next,
   }
   projectSealUsers.push(user)
-  return { ok: true, user }
+  return {
+    ok: true,
+    user,
+    pushOk,
+    msg: pushOk ? '' : '已保存，下传档案系统失败，请重试',
+  }
+}
+
+/** 待同步用章人重新下传 */
+export function retrySealUserPush(id) {
+  const row = projectSealUsers.find((u) => u.id === id)
+  if (!row) return { ok: false, msg: '用章人不存在' }
+  if (Number(row.status) === 0) return { ok: false, msg: '已停用，无法下传' }
+  row.status = 1
+  row.pushed_at = nowStr()
+  return { ok: true, user: row }
 }
 
 /** 停用/启用：停用后不再作为档案侧可用用章人下传 */

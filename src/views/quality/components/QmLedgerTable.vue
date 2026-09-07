@@ -35,8 +35,10 @@ function reset() {
 }
 
 function passRateText(row) {
-  if (!(Number(row.approvedCount) + Number(row.rejectedCount))) return '—'
-  return `${row.passRate}%`
+  const approved = Number(row.approved_count ?? row.approvedCount)
+  const rejected = Number(row.rejected_count ?? row.rejectedCount)
+  if (!(approved + rejected)) return '—'
+  return `${row.pass_rate ?? row.passRate}%`
 }
 
 function viewProjectDetail(row) {
@@ -65,18 +67,32 @@ function viewProjectDetail(row) {
 
     <el-table :data="filtered" stripe border empty-text="暂无项目验评数据">
       <el-table-column prop="project_name" label="项目名称" min-width="200" fixed show-overflow-tooltip />
-      <el-table-column label="待提交" width="88" align="center" prop="pendingCount" />
-      <el-table-column label="审批中" width="88" align="center" prop="approvingCount" />
-      <el-table-column label="已通过" width="88" align="center" prop="approvedCount" />
-      <el-table-column label="已驳回" width="88" align="center" prop="rejectedCount" />
-      <el-table-column label="验收任务数" width="100" align="center" prop="taskTotal" />
-      <el-table-column label="通过率" width="88" align="center">
+      <el-table-column label="待提交" width="88" align="center">
+        <template #default="{ row }">{{ row.pending_count ?? row.pendingCount }}</template>
+      </el-table-column>
+      <el-table-column label="审批中" width="88" align="center">
+        <template #default="{ row }">{{ row.approving_count ?? row.approvingCount }}</template>
+      </el-table-column>
+      <el-table-column label="已通过" width="88" align="center">
+        <template #default="{ row }">{{ row.approved_count ?? row.approvedCount }}</template>
+      </el-table-column>
+      <el-table-column label="已驳回" width="88" align="center">
+        <template #default="{ row }">{{ row.rejected_count ?? row.rejectedCount }}</template>
+      </el-table-column>
+      <el-table-column label="验收任务数" width="100" align="center">
+        <template #default="{ row }">{{ row.task_total ?? row.taskTotal }}</template>
+      </el-table-column>
+      <el-table-column label="一次性通过率" width="110" align="center">
         <template #default="{ row }">{{ passRateText(row) }}</template>
       </el-table-column>
-      <el-table-column label="节点总数" width="96" align="center" prop="nodeTotal" />
-      <el-table-column label="验收完成节点" width="110" align="center" prop="nodeCompleted" />
+      <el-table-column label="节点总数" width="96" align="center">
+        <template #default="{ row }">{{ row.node_total ?? row.nodeTotal }}</template>
+      </el-table-column>
+      <el-table-column label="验收完成节点" width="110" align="center">
+        <template #default="{ row }">{{ row.node_completed ?? row.nodeCompleted }}</template>
+      </el-table-column>
       <el-table-column label="节点完成率" width="100" align="center">
-        <template #default="{ row }">{{ row.nodeCompleteRate }}%</template>
+        <template #default="{ row }">{{ row.node_complete_rate ?? row.nodeCompleteRate }}%</template>
       </el-table-column>
       <el-table-column label="操作" width="130" min-width="130" fixed="right">
         <template #default="{ row }">

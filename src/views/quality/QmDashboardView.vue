@@ -57,118 +57,116 @@ function goBackToHQ() {
       </div>
       <p class="page-tip">
         范围：{{ isHqSelected ? '全部项目（指挥部）' : scopeProjectLabel }}
-        · 口径：待提交 / 审批中 / 已通过 / 已驳回；通过率=已通过÷(已通过+已驳回)
+        · 口径：待提交 / 审批中 / 已通过 / 已驳回；一次性通过率=已通过÷(已通过+已驳回)
       </p>
     </div>
 
     <div v-if="isHqSelected" class="kpi-panels hq-panels">
-      <section class="kpi-panel">
+      <section class="kpi-panel panel-projects">
         <div class="panel-title">项目统计</div>
         <div class="kpi-rows">
           <div class="kpi-row cols-2">
             <div class="kpi tone-task">
-              <div class="num">{{ projects.projectTotal }}</div>
+              <div class="num">{{ projects.project_total ?? projects.projectTotal }}</div>
               <div class="label">项目总数</div>
             </div>
             <div class="kpi tone-rate">
-              <div class="num">{{ projects.projectInProgress }}</div>
+              <div class="num">{{ projects.project_in_progress ?? projects.projectInProgress }}</div>
               <div class="label">验收中</div>
             </div>
           </div>
           <div class="kpi-row cols-2">
             <div class="kpi tone-pass">
-              <div class="num">{{ projects.projectCompleted }}</div>
+              <div class="num">{{ projects.project_completed ?? projects.projectCompleted }}</div>
               <div class="label">已完成</div>
             </div>
             <div class="kpi tone-mute">
-              <div class="num">{{ projects.projectNotStarted }}</div>
+              <div class="num">{{ projects.project_not_started ?? projects.projectNotStarted }}</div>
               <div class="label">未开始</div>
             </div>
           </div>
         </div>
       </section>
 
-      <section class="kpi-panel">
+      <section class="kpi-panel panel-physical">
         <div class="panel-title">实体验收</div>
         <div class="kpi-rows">
-          <div class="kpi-row cols-3">
+          <div class="kpi-row cols-5">
             <div class="kpi tone-task">
-              <div class="num">{{ physical.taskTotal }}</div>
+              <div class="num">{{ physical.task_total ?? physical.taskTotal }}</div>
               <div class="label">验收任务数</div>
             </div>
             <div class="kpi tone-mute">
-              <div class="num">{{ physical.pendingCount }}</div>
+              <div class="num">{{ physical.pending_count ?? physical.pendingCount }}</div>
               <div class="label">待提交</div>
             </div>
             <div class="kpi tone-rate">
-              <div class="num">{{ physical.approvingCount }}</div>
+              <div class="num">{{ physical.approving_count ?? physical.approvingCount }}</div>
               <div class="label">审批中</div>
             </div>
-          </div>
-          <div class="kpi-row cols-3">
             <div class="kpi tone-pass">
-              <div class="num">{{ physical.approvedCount }}</div>
+              <div class="num">{{ physical.approved_count ?? physical.approvedCount }}</div>
               <div class="label">已通过</div>
             </div>
             <div class="kpi tone-warn">
-              <div class="num">{{ physical.rejectedCount }}</div>
+              <div class="num">{{ physical.rejected_count ?? physical.rejectedCount }}</div>
               <div class="label">已驳回</div>
             </div>
+          </div>
+          <div class="kpi-row cols-4">
             <div class="kpi tone-pass">
               <div class="num">{{
-                passRateText(physical.passRate, physical.approvedCount, physical.rejectedCount)
+                passRateText(physical.pass_rate ?? physical.passRate, physical.approved_count ?? physical.approvedCount, physical.rejected_count ?? physical.rejectedCount)
               }}</div>
-              <div class="label">通过率</div>
+              <div class="label">一次性通过率</div>
             </div>
-          </div>
-          <div class="kpi-row cols-3">
             <div class="kpi tone-task">
-              <div class="num">{{ physical.nodeTotal }}</div>
+              <div class="num">{{ physical.node_total ?? physical.nodeTotal }}</div>
               <div class="label">节点总数</div>
             </div>
             <div class="kpi tone-pass">
-              <div class="num">{{ physical.nodeCompleted }}</div>
+              <div class="num">{{ physical.node_completed ?? physical.nodeCompleted }}</div>
               <div class="label">验收完成节点</div>
             </div>
             <div class="kpi tone-pass">
-              <div class="num">{{ physical.nodeCompleteRate }}%</div>
+              <div class="num">{{ physical.node_complete_rate ?? physical.nodeCompleteRate }}%</div>
               <div class="label">节点完成率</div>
             </div>
           </div>
         </div>
       </section>
 
-      <section class="kpi-panel">
+      <section class="kpi-panel panel-special">
         <div class="panel-title">专项验收</div>
         <div class="kpi-rows">
           <div class="kpi-row cols-3">
             <div class="kpi tone-task">
-              <div class="num">{{ special.taskTotal }}</div>
+              <div class="num">{{ special.task_total ?? special.taskTotal }}</div>
               <div class="label">验收任务数</div>
             </div>
             <div class="kpi tone-mute">
-              <div class="num">{{ special.pendingCount }}</div>
+              <div class="num">{{ special.pending_count ?? special.pendingCount }}</div>
               <div class="label">待提交</div>
             </div>
             <div class="kpi tone-rate">
-              <div class="num">{{ special.approvingCount }}</div>
+              <div class="num">{{ special.approving_count ?? special.approvingCount }}</div>
               <div class="label">审批中</div>
             </div>
           </div>
           <div class="kpi-row cols-3">
             <div class="kpi tone-pass">
-              <div class="num">{{ special.approvedCount }}</div>
+              <div class="num">{{ special.approved_count ?? special.approvedCount }}</div>
               <div class="label">已通过</div>
             </div>
             <div class="kpi tone-warn">
-              <div class="num">{{ special.rejectedCount }}</div>
+              <div class="num">{{ special.rejected_count ?? special.rejectedCount }}</div>
               <div class="label">已驳回</div>
             </div>
             <div class="kpi tone-pass">
               <div class="num">{{
-                passRateText(special.passRate, special.approvedCount, special.rejectedCount)
+                passRateText(special.pass_rate ?? special.passRate, special.approved_count ?? special.approvedCount, special.rejected_count ?? special.rejectedCount)
               }}</div>
-              <div class="label">通过率</div>
+              <div class="label">一次性通过率</div>
             </div>
           </div>
         </div>
@@ -181,39 +179,39 @@ function goBackToHQ() {
         <div class="kpi-rows">
           <div class="kpi-row cols-4">
             <div class="kpi tone-mute">
-              <div class="num">{{ physical.pendingCount }}</div>
+              <div class="num">{{ physical.pending_count ?? physical.pendingCount }}</div>
               <div class="label">待提交</div>
             </div>
             <div class="kpi tone-rate">
-              <div class="num">{{ physical.approvingCount }}</div>
+              <div class="num">{{ physical.approving_count ?? physical.approvingCount }}</div>
               <div class="label">审批中</div>
             </div>
             <div class="kpi tone-pass">
-              <div class="num">{{ physical.approvedCount }}</div>
+              <div class="num">{{ physical.approved_count ?? physical.approvedCount }}</div>
               <div class="label">已通过</div>
             </div>
             <div class="kpi tone-warn">
-              <div class="num">{{ physical.rejectedCount }}</div>
+              <div class="num">{{ physical.rejected_count ?? physical.rejectedCount }}</div>
               <div class="label">已驳回</div>
             </div>
           </div>
           <div class="kpi-row cols-4">
             <div class="kpi tone-task">
-              <div class="num">{{ physical.taskTotal }}</div>
+              <div class="num">{{ physical.task_total ?? physical.taskTotal }}</div>
               <div class="label">验收任务数</div>
             </div>
             <div class="kpi tone-pass">
               <div class="num">{{
-                passRateText(physical.passRate, physical.approvedCount, physical.rejectedCount)
+                passRateText(physical.pass_rate ?? physical.passRate, physical.approved_count ?? physical.approvedCount, physical.rejected_count ?? physical.rejectedCount)
               }}</div>
-              <div class="label">通过率</div>
+              <div class="label">一次性通过率</div>
             </div>
             <div class="kpi tone-task">
-              <div class="num">{{ physical.nodeTotal }}</div>
+              <div class="num">{{ physical.node_total ?? physical.nodeTotal }}</div>
               <div class="label">节点总数</div>
             </div>
             <div class="kpi tone-pass">
-              <div class="num">{{ physical.nodeCompleteRate }}%</div>
+              <div class="num">{{ physical.node_complete_rate ?? physical.nodeCompleteRate }}%</div>
               <div class="label">节点完成率</div>
             </div>
           </div>
@@ -225,32 +223,32 @@ function goBackToHQ() {
         <div class="kpi-rows">
           <div class="kpi-row cols-4">
             <div class="kpi tone-mute">
-              <div class="num">{{ special.pendingCount }}</div>
+              <div class="num">{{ special.pending_count ?? special.pendingCount }}</div>
               <div class="label">待提交</div>
             </div>
             <div class="kpi tone-rate">
-              <div class="num">{{ special.approvingCount }}</div>
+              <div class="num">{{ special.approving_count ?? special.approvingCount }}</div>
               <div class="label">审批中</div>
             </div>
             <div class="kpi tone-pass">
-              <div class="num">{{ special.approvedCount }}</div>
+              <div class="num">{{ special.approved_count ?? special.approvedCount }}</div>
               <div class="label">已通过</div>
             </div>
             <div class="kpi tone-warn">
-              <div class="num">{{ special.rejectedCount }}</div>
+              <div class="num">{{ special.rejected_count ?? special.rejectedCount }}</div>
               <div class="label">已驳回</div>
             </div>
           </div>
           <div class="kpi-row cols-2">
             <div class="kpi tone-task">
-              <div class="num">{{ special.taskTotal }}</div>
+              <div class="num">{{ special.task_total ?? special.taskTotal }}</div>
               <div class="label">验收任务数</div>
             </div>
             <div class="kpi tone-pass">
               <div class="num">{{
-                passRateText(special.passRate, special.approvedCount, special.rejectedCount)
+                passRateText(special.pass_rate ?? special.passRate, special.approved_count ?? special.approvedCount, special.rejected_count ?? special.rejectedCount)
               }}</div>
-              <div class="label">通过率</div>
+              <div class="label">一次性通过率</div>
             </div>
           </div>
         </div>
@@ -273,7 +271,8 @@ function goBackToHQ() {
   gap: 12px;
 }
 .hq-panels {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* 项目统计、专项偏窄；实体验收（含节点指标）加宽 */
+  grid-template-columns: minmax(140px, 0.75fr) minmax(320px, 1.8fr) minmax(160px, 0.9fr);
 }
 .project-panels {
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -295,6 +294,7 @@ function goBackToHQ() {
 .cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.cols-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .kpi {
   border-radius: 6px;
   padding: 10px 12px;
@@ -312,6 +312,7 @@ function goBackToHQ() {
 @media (max-width: 1200px) {
   .hq-panels,
   .project-panels { grid-template-columns: 1fr; }
-  .cols-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cols-4,
+  .cols-5 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 </style>

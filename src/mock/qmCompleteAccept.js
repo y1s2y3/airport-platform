@@ -17,8 +17,10 @@ import { addAttachment, ensureTaskItems, getAttachments, syncNodeAccept } from '
 import { specialTypeLabel } from './qmSpecialTypes.js'
 
 function statusLabelOfNode(accept_status) {
-  const map = { 0: '未开始', 1: '审批中', 2: '已通过', 3: '已驳回' }
-  return map[accept_status] ?? '—'
+  const st = Number(accept_status) === 4 || Number(accept_status) === 5 ? 3 : Number(accept_status)
+  if (st === 2) return '已完成'
+  if (st === 1 || st === 3) return '进行中'
+  return '未开始'
 }
 
 /**
@@ -64,7 +66,11 @@ export function buildCompleteGate(project_id) {
   const physicalDone = physicalTotal > 0 && physicalPassed === physicalTotal
 
   const specialNodes = wbsNodes.filter(
-    (n) => isWbsAlive(n) && n.project_id === project_id && n.node_type === 7,
+    (n) =>
+      isWbsAlive(n) &&
+      n.project_id === project_id &&
+      n.node_type === 7 &&
+      Number(n.exclude_from_complete_gate) !== 1,
   )
   const specialRows = specialNodes.map((n) => {
     const task = inspectionTasks.find((t) => t.wbs_node_id === n.id)

@@ -1,13 +1,13 @@
 /**
  * 应用版本与更新说明
- * - 格式：v2.7.1.x（x 从 0 起，每次 GitHub Pages 成功发布后 +1）
+ * - 格式：v2.9.1.x（x 从 0 起，每次 GitHub Pages 成功发布后 +1）
  * - 由 scripts/bump-pages-version.mjs 在发布流水线中递增 patch
  */
 
-export const APP_VERSION_BASE = '2.7.1'
+export const APP_VERSION_BASE = '2.9.1'
 
 /** GitHub Pages 发布序号（从 0 开始；仓库内为「当前即将发布 / 下一版」序号） */
-export const APP_VERSION_PATCH = 14
+export const APP_VERSION_PATCH = 1
 
 export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
 
@@ -16,6 +16,13 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  * highlights 宜短句，便于页头问号弹窗快速阅读
  */
 export const VERSION_CHANGELOG = [
+  {
+    version: 'v2.9.1.1',
+    date: '2026-09-07',
+    highlights: [
+      '完善质量验评、样板定样管理',
+    ],
+  },
   {
     version: 'v2.7.1.8',
     date: '2026-09-03',

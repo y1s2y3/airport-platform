@@ -2,25 +2,22 @@
 import './sample-page.css'
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search, Refresh } from '@element-plus/icons-vue'
 import { useQmProjectScope } from '../../../composables/useCurrentProject'
 import {
   listProcessApps,
   STATUS_LABEL,
+  NODE_LABEL,
   statusLabel,
   statusTagType,
-  withdrawSampleApp,
 } from '../../../mock/sample.js'
 
 const router = useRouter()
 const { isHqSelected, scopeProjectId } = useQmProjectScope()
 const keyword = ref('')
 const statusFilter = ref('')
-const tick = ref(0)
 
 const list = computed(() => {
-  void tick.value
   if (isHqSelected.value || !scopeProjectId.value) return []
   return listProcessApps(scopeProjectId.value, {
     keyword: keyword.value,
@@ -33,26 +30,8 @@ function reset() {
   statusFilter.value = ''
 }
 
-async function onWithdraw(row) {
-  try {
-    await ElMessageBox.confirm(`确认撤回报审单 ${row.application_id}？仅审批中（待监理审）时可撤。`, '撤回', {
-      type: 'warning',
-    })
-  } catch {
-    return
-  }
-  const r = withdrawSampleApp('process', row.application_id)
-  if (!r.ok) return ElMessage.error(r.msg)
-  tick.value += 1
-  ElMessage.success('已撤回')
-}
-
-function onCopyNew(row) {
+function onReDeclare(row) {
   router.push(`/qm/sample/process/applications/edit?copyFrom=${row.application_id}`)
-}
-
-function onReEdit(row) {
-  router.push(`/qm/sample/process/applications/edit?id=${row.application_id}&reEdit=1`)
 }
 </script>
 
@@ -61,7 +40,7 @@ function onReEdit(row) {
     <div class="page-header">
       <div class="page-breadcrumb">样板管理 / 关键工序样板报审</div>
       <h1 class="page-title">关键工序样板报审</h1>
-      <p class="page-tip">已撤回可重新编辑回审批中 · 已驳回请复制新建</p>
+      <p class="page-tip">审批在个人中心待办处理 · 已驳回请重新申报</p>
     </div>
 
     <el-alert
@@ -80,7 +59,9 @@ function onReEdit(row) {
           clearable
           placeholder="编号 / 工序 / 部位"
           style="width: 220px"
-          :prefix-icon="Search" aria-label="编号 / 工序 / 部位"/>
+          :prefix-icon="Search"
+          aria-label="编号 / 工序 / 部位"
+        />
         <el-select v-model="statusFilter" clearable placeholder="状态" style="width: 140px" aria-label="状态">
           <el-option v-for="(label, val) in STATUS_LABEL" :key="val" :label="label" :value="val" />
         </el-select>
@@ -98,7 +79,7 @@ function onReEdit(row) {
       <el-table :data="list" stripe border empty-text="暂无工序样板报审">
         <el-table-column prop="application_id" label="报审编号" width="120" />
         <el-table-column prop="process_name" label="工序名称" min-width="150" />
-        <el-table-column prop="use_part" label="施工部位" min-width="130" show-overflow-tooltip />
+        <el-table-column prop="use_part" label="使用部位" min-width="130" show-overflow-tooltip />
         <el-table-column
           prop="briefing_content"
           label="关键工序样板说明"
@@ -110,8 +91,11 @@ function onReEdit(row) {
             <el-tag size="small" :type="statusTagType(row.status)">{{ statusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="当前节点" width="120">
+          <template #default="{ row }">{{ NODE_LABEL[row.current_node] || '—' }}</template>
+        </el-table-column>
         <el-table-column prop="submit_time" label="提交时间" width="170" />
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="160" fixed="right">
           <template #default="{ row }">
             <el-button
               link
@@ -121,28 +105,12 @@ function onReEdit(row) {
               详情
             </el-button>
             <el-button
-              v-if="row.status === 'in_approval' || row.status === 'pending'"
-              link
-              type="warning"
-              @click="onWithdraw(row)"
-            >
-              撤回
-            </el-button>
-            <el-button
-              v-if="row.status === 'withdrawn'"
-              link
-              type="success"
-              @click="onReEdit(row)"
-            >
-              重新编辑
-            </el-button>
-            <el-button
               v-if="row.status === 'rejected'"
               link
-              type="success"
-              @click="onCopyNew(row)"
+              type="primary"
+              @click="onReDeclare(row)"
             >
-              复制新建
+              重新申报
             </el-button>
           </template>
         </el-table-column>

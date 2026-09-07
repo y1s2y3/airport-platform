@@ -8,6 +8,7 @@ import {
   statusLabel,
   statusTagType,
   materialTypeLabel,
+  formatBrandLedgerLabel,
   NODE_LABEL,
   APPROVAL_NODE_LABEL,
   ACTION_LABEL,
@@ -197,9 +198,8 @@ function timelineType(status) {
             <el-descriptions-item label="材料类型">{{
               materialTypeLabel(detail.material_type)
             }}</el-descriptions-item>
-            <el-descriptions-item label="品牌">{{ detail.brand_name || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="生产厂家" :span="2">{{
-              detail.manufacturer || detail.supplier || '—'
+            <el-descriptions-item label="品牌台账" :span="2">{{
+              formatBrandLedgerLabel(detail) || '—'
             }}</el-descriptions-item>
             <el-descriptions-item label="单位工程">{{ detail.unit_name || '—' }}</el-descriptions-item>
             <el-descriptions-item label="使用部位">{{ detail.use_part || '—' }}</el-descriptions-item>

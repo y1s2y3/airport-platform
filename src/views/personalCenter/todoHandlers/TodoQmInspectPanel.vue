@@ -11,6 +11,8 @@ import {
   getTaskSampleLinks,
   getTaskAsbuiltLinks,
   listNodeArchiveDocs,
+  isArchiveDocFilled,
+  FILL_STATUS,
   resolveApproverName,
   resolveProjectName,
   specialTypeLabel,
@@ -22,6 +24,7 @@ import {
   ELEC_ARCHIVE_STATUS,
   approvalRecords,
   signatureRecords,
+  taskRequiresPmApproval,
 } from '../../../mock/qm.js'
 import '../styles/todoHandleBlocks.css'
 
@@ -148,11 +151,13 @@ const approvalProcessSteps = computed(() => {
           ? `监理单位审批（${t.supervisor_approver_name}）`
           : '监理单位审批',
       },
-      {
+    ]
+    if (taskRequiresPmApproval(t.task_type)) {
+      midNodes.push({
         label: '项目经理审批',
         title: t.pm_approver_name ? `项目经理审批（${t.pm_approver_name}）` : '项目经理审批',
-      },
-    ]
+      })
+    }
   } else {
     midNodes = getApprovalChain(t).map((label) => ({ label, title: label }))
   }
@@ -384,8 +389,8 @@ function handleBack() {
             <el-table-column prop="doc_name" label="文档名称" min-width="140" show-overflow-tooltip />
             <el-table-column label="状态" width="100">
               <template #default="{ row }">
-                <el-tag size="small" :type="row.filled ? 'success' : 'warning'" effect="plain">
-                  {{ row.filled ? '已填报' : '需填报' }}
+                <el-tag size="small" :type="isArchiveDocFilled(row) ? 'success' : 'warning'" effect="plain">
+                  {{ isArchiveDocFilled(row) ? FILL_STATUS[1] : FILL_STATUS[0] }}
                 </el-tag>
               </template>
             </el-table-column>

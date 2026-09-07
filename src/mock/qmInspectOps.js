@@ -37,14 +37,12 @@ import {
 import { allowedEntityParentTypes } from '../constants/wbsEntityLabels.js'
 import { joinLocationLabels, constructionLocations, collectDescendantItemIds } from './constructionLocation.js'
 import {
-  batchTypeForms,
   defaultMaterialBinds,
   formItemDefs,
   formTemplates,
   getEnabledFormsByBatchType,
   getItemDefsByTemplate,
 } from './qmFormTemplates.js'
-
 import { attachments as attachStore, signatureRecords } from './qmAttachments.js'
 import {
   archiveWriteFinish,
@@ -62,6 +60,8 @@ import {
   findActiveTaskOnNode,
   nodeRequiredDocsEmpty,
   refreshTaskElecArchiveStatus,
+  buildQmInspectApprovalFlow,
+  taskRequiresPmApproval,
 } from './qmInspectV2.js'
 import { createSpecialTask } from './qmSpecialAccept.js'
 import {
@@ -69,6 +69,11 @@ import {
   createQmInspectTodo,
   discardQmInspectTodos,
 } from './personalCenter.js'
+
+/**
+ * 验评审批链规则见 qmInspectV2.taskRequiresPmApproval / buildQmInspectApprovalFlow
+ */
+export { taskRequiresPmApproval, buildQmInspectApprovalFlow } from './qmInspectV2.js'
 
 export const ARCHIVE_STATUS = {
   0: '未归档',
@@ -96,7 +101,7 @@ export const FILE_CATEGORY = {
 export const APPROVAL_ACTION = {
   1: '提交',
   2: '通过',
-  3: '不通过',
+  3: '驳回',
   4: '加签',
 }
 
@@ -242,7 +247,7 @@ export function syncNodeAccept(task) {
   )
   if (!formal.length) return
 
-  // 优先级：已通过 > 审批中 > 已驳回/不通过 > 待提交/未开始（无整改中/待复验）
+  // 优先级：已通过 > 审批中 > 已驳回 > 待提交/无单（展示层：未开始 / 进行中 / 已完成）
   let next = 0
   if (formal.some((t) => Number(t.status) === 2)) next = 2
   else if (formal.some((t) => Number(t.status) === 1)) next = 1
@@ -361,7 +366,12 @@ export function checkUnlock(node) {
   if (node.node_type === 8) {
     ensureWbsScaffold(node.project_id)
     const units = wbsNodes.filter((n) => n.project_id === node.project_id && n.node_type === 1)
-    const specials = wbsNodes.filter((n) => n.project_id === node.project_id && n.node_type === 7)
+    const specials = wbsNodes.filter(
+      (n) =>
+        n.project_id === node.project_id &&
+        n.node_type === 7 &&
+        Number(n.exclude_from_complete_gate) !== 1,
+    )
     const missU = units.filter((n) => n.accept_status !== 2)
     const missS = specials.filter((n) => n.accept_status !== 2)
     if (!units.length) {
@@ -806,7 +816,8 @@ export function removeAttachment(id) {
 
 /**
  * 提交报验：待提交(0)→审批中(1)
- * 闸门：工程影像≥1、附件≤30、电子档案状态、监理+项目经理审批人（对齐品牌报审）
+ * 闸门：工程影像≥1、附件≤30、电子档案（若需归档）、审批人
+ * 审批链：检验批/分项/子分部仅监理；其余含专项、竣工为监理→项目经理
  */
 export function submitInspect(
   task,
@@ -818,10 +829,10 @@ export function submitInspect(
     pm_approver_name,
   } = {},
 ) {
-  if (Number(task.status) !== 0) return { ok: false, msg: '仅待提交可提交报验' }
+  if (Number(task.status) !== 0) return { ok: false, msg: '当前不可提交' }
   refreshTaskElecArchiveStatus(task)
   if (!canSubmitByElecArchive(task)) {
-    return { ok: false, msg: '电子档案状态为「未完成」时不可提交验收' }
+    return { ok: false, msg: '已选择电子档案归档时，档案状态为「未完成」不可提交' }
   }
   const siteMedia = getAttachments('TASK', task.id).filter((a) =>
     [1, 2].includes(Number(a.file_category)),
@@ -834,67 +845,53 @@ export function submitInspect(
     return { ok: false, msg: '附件最多 30 个' }
   }
 
+  const needPm = taskRequiresPmApproval(task.task_type)
   const jlCandidates = candidatesByRole('jl_pro')
   const pmCandidates = candidatesByRole('js_pm')
   const jlId = String(
     supervisor_approver_user_id || task.supervisor_approver_user_id || '',
   ).trim()
   const pmId = String(pm_approver_user_id || task.pm_approver_user_id || '').trim()
-  // 兼容旧入口仅传单个 approver_id：视为监理审批人，项目经理取任务已存或首个候选人
   const legacyId = String(approver_id || task.approver_id || '').trim()
   const resolvedJlId = jlId || legacyId
-  const resolvedPmId =
-    pmId || (legacyId && legacyId !== resolvedJlId ? legacyId : '') || pmCandidates[0]?.id || ''
+  const resolvedPmId = needPm
+    ? pmId || (legacyId && legacyId !== resolvedJlId ? legacyId : '') || pmCandidates[0]?.id || ''
+    : ''
 
   if (!resolvedJlId) return { ok: false, msg: '请选择监理单位审批人' }
-  if (!resolvedPmId) return { ok: false, msg: '请选择项目经理审批人' }
+  if (needPm && !resolvedPmId) return { ok: false, msg: '请选择项目经理审批人' }
 
   const jlPerson =
     jlCandidates.find((u) => u.id === resolvedJlId) ||
     QM_APPROVER_CANDIDATES.find((u) => u.id === resolvedJlId)
-  const pmPerson =
-    pmCandidates.find((u) => u.id === resolvedPmId) ||
-    QM_APPROVER_CANDIDATES.find((u) => u.id === resolvedPmId)
+  const pmPerson = needPm
+    ? pmCandidates.find((u) => u.id === resolvedPmId) ||
+      QM_APPROVER_CANDIDATES.find((u) => u.id === resolvedPmId)
+    : null
   if (!jlPerson) return { ok: false, msg: '监理单位审批人不在候选人范围内' }
-  if (!pmPerson) return { ok: false, msg: '项目经理审批人不在候选人范围内' }
+  if (needPm && !pmPerson) return { ok: false, msg: '项目经理审批人不在候选人范围内' }
 
   const jlLabel = getApproverRoleMeta('jl_pro')?.label || '专业监理工程师'
-  const pmLabel = getApproverRoleMeta('js_pm')?.label || '建设单位项目负责人'
   const jlName = supervisor_approver_name || task.supervisor_approver_name || jlPerson.name
-  const pmName = pm_approver_name || task.pm_approver_name || pmPerson.name
+  const pmName = needPm
+    ? pm_approver_name || task.pm_approver_name || pmPerson.name
+    : ''
 
   task.supervisor_approver_user_id = jlPerson.id
   task.supervisor_approver_name = jlName
-  task.pm_approver_user_id = pmPerson.id
-  task.pm_approver_name = pmName
+  task.pm_approver_user_id = needPm ? pmPerson.id : ''
+  task.pm_approver_name = needPm ? pmName : ''
   task.approval_post_id = 'jl_pro'
   task.approval_post_name = jlLabel
   task.approver_id = jlPerson.id
   task.approver_name = jlName
-  task.manual_approval_flow = [
-    {
-      level: 1,
-      role: 'jl_pro',
-      role_label: jlLabel,
-      label: '监理单位审批',
-      approver_ids: [jlPerson.id],
-      approver_names: [jlName],
-      need_seal: 0,
-      cc_ids: [],
-      mode: 'orsign',
-    },
-    {
-      level: 2,
-      role: 'js_pm',
-      role_label: pmLabel,
-      label: '项目经理审批',
-      approver_ids: [pmPerson.id],
-      approver_names: [pmName],
-      need_seal: 0,
-      cc_ids: [],
-      mode: 'orsign',
-    },
-  ]
+  task.manual_approval_flow = buildQmInspectApprovalFlow({
+    task_type: task.task_type,
+    jlPerson,
+    jlName,
+    pmPerson,
+    pmName,
+  })
 
   task.status = 1
   task.is_draft = 0
@@ -1030,6 +1027,10 @@ export function approveStep(task, { opinion = '', operator_role, operator_id } =
 
   const still = getNextApprovalRole(task)
   if (!still) {
+    // 末级办结：需归档时电子档案不得为「未完成」
+    if (Number(task.need_archive) === 1 && Number(task.elec_archive_status) === 1) {
+      return { ok: false, msg: '电子档案尚未完成，不能办结通过' }
+    }
     task.status = 2
     task.result = 1
     // 办结通过且从未置 0 时记一次通过；此前未赋值则视为一次通过
@@ -1449,7 +1450,7 @@ export function upsertWbsNode(payload, id = '') {
     return { ok: false, msg: '专项节点须选择专项类型（消防/人防等）' }
   }
   if (node_type === 6 && !payload.batch_type_id) {
-    return { ok: false, msg: '检验批须选择检验批类型' }
+    payload.batch_type_id = 'bt-rebar'
   }
   // form_template_ids：归属质量验评赋值；基础数据「实体工程分解」不读写、未传不覆盖
   if (node_type === 6) {
@@ -1789,7 +1790,7 @@ export const SPECIAL_NODE_TYPES = [7]
 /**
  * 统计看板聚合（对齐 PRD §1.5.1）
  * 任务四态：待提交 / 审批中 / 已通过 / 已驳回
- * 通过率 = 已通过 ÷（已通过+已驳回）×100%（分母为 0 时展示 0，界面可再显示「—」）
+ * 一次性通过率 = 已通过 ÷（已通过+已驳回）×100%（分母为 0 时展示 0，界面可再显示「—」）
  * @param {string} project_id
  * @param {{ scope?: 'all' | 'physical' | 'special' }} [opts]
  */
@@ -1839,6 +1840,18 @@ export function buildQmDashboard(project_id, opts = {}) {
 
   const byDivision = scope === 'special' ? [] : buildDivisionPlanStats(project_id)
   return {
+    node_total: nodeTotal,
+    node_completed: nodeCompleted,
+    node_complete_rate: nodeCompleteRate,
+    task_total: taskTotal,
+    task_passed: taskPassed,
+    pending_count: pendingCount,
+    approving_count: approvingCount,
+    approved_count: approvedCount,
+    rejected_count: rejectedCount,
+    pass_rate: passRate,
+    first_pass_rate: firstPassRate,
+    // 兼容旧 camel 读取（过渡）；新 UI 以 snake 为准
     nodeTotal,
     nodeCompleted,
     nodeCompleteRate,
@@ -1904,6 +1917,10 @@ export function buildHqProjectStats(projectOptions = []) {
     else projectInProgress += 1
   })
   return {
+    project_total: ids.length,
+    project_in_progress: projectInProgress,
+    project_completed: projectCompleted,
+    project_not_started: projectNotStarted,
     projectTotal: ids.length,
     projectInProgress,
     projectCompleted,

@@ -6,7 +6,15 @@
 import { computed, defineAsyncComponent, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { findTask, inspectionTasks, markNodeDocFilled, listNodeArchiveDocs, wbsNodes } from '../../mock/qm.js'
+  import {
+  findTask,
+  inspectionTasks,
+  markNodeDocFilled,
+  listNodeArchiveDocs,
+  isArchiveDocFilled,
+  FILL_STATUS,
+  wbsNodes,
+} from '../../mock/qm.js'
 
 const QmArchivePanel = defineAsyncComponent(() =>
   import('./components/QmArchivePanel.vue'),
@@ -69,15 +77,15 @@ onMounted(() => {
         <el-table-column prop="doc_name" label="文档名称" min-width="200" />
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
-            <el-tag size="small" :type="row.filled ? 'success' : 'warning'">
-              {{ row.filled ? '已填报' : '需填报' }}
+            <el-tag size="small" :type="isArchiveDocFilled(row) ? 'success' : 'warning'">
+              {{ isArchiveDocFilled(row) ? FILL_STATUS[1] : FILL_STATUS[0] }}
             </el-tag>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="120">
           <template #default="{ row }">
             <el-button
-              v-if="!row.filled"
+              v-if="!isArchiveDocFilled(row)"
               link
               type="primary"
               @click="onMarkFilled(row)"

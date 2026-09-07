@@ -40,8 +40,11 @@ import {
   wbsNodes,
   ELEC_ARCHIVE_STATUS,
   listNodeArchiveDocs,
+  isArchiveDocFilled,
+  FILL_STATUS,
   candidatesByRole,
   refreshTaskElecArchiveStatus,
+  taskRequiresPmApproval,
 } from '../../../mock/qm.js'
 import { listAsbuiltForInspectLink } from '../../../mock/asbuilt.js'
 import { listSelectableForInspect } from '../../../mock/mat.js'
@@ -284,7 +287,7 @@ const createUnlockTip = computed(() => {
   return '请选择单位工程及以下节点发起验收；「实体工程验收」仅为分类，不可发起。下级节点全部通过后，上级节点方可发起（检验批可直接发起）'
 })
 
-/** 填报页审批人配置（对齐品牌报审：监理 + 项目经理）
+/** 填报页审批人：检验批/分项/子分部仅监理；其余含专项、竣工为监理→项目经理
  * 须在 load / immediate watch 之前声明，否则 syncApproverFormFromTask 会触发 TDZ 导致整页白屏 */
 const approverForm = reactive({
   supervisor_approver_user_id: '',
@@ -294,6 +297,9 @@ const approverForm = reactive({
 })
 const supervisorCandidates = computed(() => candidatesByRole('jl_pro') || [])
 const pmCandidates = computed(() => candidatesByRole('js_pm') || [])
+const needPmApproval = computed(() =>
+  task.value ? taskRequiresPmApproval(task.value.task_type) : false,
+)
 
 function formatQmApproverLabel(u) {
   if (!u) return ''
@@ -309,17 +315,18 @@ function syncApproverFormFromTask() {
     approverForm.pm_approver_name = ''
     return
   }
+  const needPm = taskRequiresPmApproval(t.task_type)
   approverForm.supervisor_approver_user_id = t.supervisor_approver_user_id || ''
   approverForm.supervisor_approver_name = t.supervisor_approver_name || ''
-  approverForm.pm_approver_user_id = t.pm_approver_user_id || ''
-  approverForm.pm_approver_name = t.pm_approver_name || ''
+  approverForm.pm_approver_user_id = needPm ? t.pm_approver_user_id || '' : ''
+  approverForm.pm_approver_name = needPm ? t.pm_approver_name || '' : ''
   // 无历史选择时默认带出各岗位首个候选人，便于演示
   if (!approverForm.supervisor_approver_user_id && supervisorCandidates.value[0]) {
     const u = supervisorCandidates.value[0]
     approverForm.supervisor_approver_user_id = u.id
     approverForm.supervisor_approver_name = u.name
   }
-  if (!approverForm.pm_approver_user_id && pmCandidates.value[0]) {
+  if (needPm && !approverForm.pm_approver_user_id && pmCandidates.value[0]) {
     const u = pmCandidates.value[0]
     approverForm.pm_approver_user_id = u.id
     approverForm.pm_approver_name = u.name
@@ -337,11 +344,12 @@ function onApproverChange(role) {
 }
 
 function collectApproverPatch() {
+  const needPm = needPmApproval.value
   return {
     supervisor_approver_user_id: approverForm.supervisor_approver_user_id,
     supervisor_approver_name: approverForm.supervisor_approver_name,
-    pm_approver_user_id: approverForm.pm_approver_user_id,
-    pm_approver_name: approverForm.pm_approver_name,
+    pm_approver_user_id: needPm ? approverForm.pm_approver_user_id : '',
+    pm_approver_name: needPm ? approverForm.pm_approver_name : '',
   }
 }
 
@@ -539,10 +547,14 @@ const flowSteps = computed(() => {
       approverForm.supervisor_approver_name
         ? `监理单位审批（${approverForm.supervisor_approver_name}）`
         : '监理单位审批',
-      approverForm.pm_approver_name
-        ? `项目经理审批（${approverForm.pm_approver_name}）`
-        : '项目经理审批',
     ]
+    if (needPmApproval.value) {
+      chain.push(
+        approverForm.pm_approver_name
+          ? `项目经理审批（${approverForm.pm_approver_name}）`
+          : '项目经理审批',
+      )
+    }
   } else if (Array.isArray(task.value.manual_approval_flow) && task.value.manual_approval_flow.length) {
     chain = [...task.value.manual_approval_flow]
       .sort((a, b) => Number(a.level) - Number(b.level))
@@ -614,11 +626,13 @@ const approvalProcessSteps = computed(() => {
           ? `监理单位审批（${t.supervisor_approver_name}）`
           : '监理单位审批',
       },
-      {
+    ]
+    if (taskRequiresPmApproval(t.task_type)) {
+      midNodes.push({
         label: '项目经理审批',
         title: t.pm_approver_name ? `项目经理审批（${t.pm_approver_name}）` : '项目经理审批',
-      },
-    ]
+      })
+    }
   } else {
     midNodes = getApprovalChain(t).map((label) => ({ label, title: label }))
   }
@@ -722,7 +736,7 @@ const showSystemContent = computed(() => true)
 /** 档案嵌入向导已废止；详情不再嵌档案面板 */
 const showArchiveContent = computed(() => false)
 
-/** 本系统内不配多级审批链（填报页用品牌式双审批人） */
+/** 本系统填报页按 task_type 配置审批人（低层级仅监理；其余监理→项目经理） */
 const showManualFlowConfig = computed(() => false)
 
 const elecArchiveDocs = computed(() => {
@@ -1131,7 +1145,7 @@ function onSubmit() {
   if (!approverForm.supervisor_approver_user_id) {
     return ElMessage.warning('请选择监理单位审批人')
   }
-  if (!approverForm.pm_approver_user_id) {
+  if (needPmApproval.value && !approverForm.pm_approver_user_id) {
     return ElMessage.warning('请选择项目经理审批人')
   }
   const draftSave = saveTaskDraft(task.value, {
@@ -1394,6 +1408,10 @@ function saveStepQuietly() {
             </div>
             <div class="site-block-tip">
               按验收节点自动带入；电子档案状态：{{ ELEC_ARCHIVE_STATUS[task?.elec_archive_status] || '—' }}
+              <template v-if="Number(task?.need_archive) === 1">
+                · 本单已选择归档，状态为「未完成」时不可提交报验
+              </template>
+              <template v-else>· 本单未选择归档，不强制电子档案</template>
             </div>
           </div>
         </div>
@@ -1407,8 +1425,8 @@ function saveStepQuietly() {
           <el-table-column prop="doc_name" label="文档名称" min-width="140" show-overflow-tooltip />
           <el-table-column label="状态" width="100">
             <template #default="{ row }">
-              <el-tag size="small" :type="row.filled ? 'success' : 'warning'" effect="plain">
-                {{ row.filled ? '已填报' : '需填报' }}
+              <el-tag size="small" :type="isArchiveDocFilled(row) ? 'success' : 'warning'" effect="plain">
+                {{ isArchiveDocFilled(row) ? FILL_STATUS[1] : FILL_STATUS[0] }}
               </el-tag>
             </template>
           </el-table-column>
@@ -1535,7 +1553,13 @@ function saveStepQuietly() {
 
     <div v-if="canEdit" class="approver-config mb">
       <div class="section-title">审批人配置</div>
-      <p class="flow-tip">提交前须指定监理单位与项目经理审批人（交互对齐品牌报审）。</p>
+      <p class="flow-tip">
+        {{
+          needPmApproval
+            ? '本单须指定监理单位与项目经理审批人（分部及以上、专项、竣工）。'
+            : '本单仅需监理单位审批（检验批 / 分项 / 子分部）。'
+        }}
+      </p>
       <el-form label-width="120px" class="approver-form">
         <el-row :gutter="24">
           <el-col :span="12">
@@ -1558,7 +1582,7 @@ function saveStepQuietly() {
               </el-select>
             </el-form-item>
           </el-col>
-          <el-col :span="12">
+          <el-col v-if="needPmApproval" :span="12">
             <el-form-item label="项目经理审批" required>
               <el-select
                 v-model="approverForm.pm_approver_user_id"

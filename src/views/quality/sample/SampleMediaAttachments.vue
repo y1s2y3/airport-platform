@@ -10,8 +10,8 @@ const props = defineProps({
   modelValue: { type: Array, default: () => [] },
   readonly: { type: Boolean, default: false },
   namePrefix: { type: String, default: '现场影像' },
-  max: { type: Number, default: 12 },
-  maxSizeMb: { type: Number, default: 50 },
+  max: { type: Number, default: 9 },
+  maxSizeMb: { type: Number, default: 30 },
 })
 
 const emit = defineEmits(['update:modelValue'])
