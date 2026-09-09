@@ -3,15 +3,13 @@ import '../mat/mat-page.css'
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Search, Refresh, Connection } from '@element-plus/icons-vue'
+import { Plus, Search, Refresh } from '@element-plus/icons-vue'
 import { useQmProjectScope } from '../../../composables/useCurrentProject'
 import {
   listAsbuilt,
   deleteAsbuiltDraft,
   submitAsbuilt,
-  simulateAsbuiltSync,
   STATUS_LABEL,
-  DATA_SOURCE_LABEL,
   statusTagType,
 } from '../../../mock/asbuilt.js'
 
@@ -71,16 +69,6 @@ async function onSubmit(row) {
   ElMessage.success('已提交，监理待办已生成（个人中心）')
 }
 
-function onSync() {
-  if (isHqSelected.value || !scopeProjectId.value) {
-    return ElMessage.warning('请先切换到具体项目')
-  }
-  const r = simulateAsbuiltSync(scopeProjectId.value)
-  if (!r.ok) return ElMessage.error(r.msg)
-  tick.value += 1
-  ElMessage.success(`已模拟第三方同步入库：${r.data.biz_no}（待提交，需人工发起审批）`)
-}
-
 function nodeSummary(row) {
   const nodes = row.nodes || []
   if (!nodes.length) return '—'
@@ -95,7 +83,7 @@ function nodeSummary(row) {
       <div class="page-breadcrumb">施工质量管控 / 实模一致验收</div>
       <h1 class="page-title">实模一致验收</h1>
       <p class="page-tip">
-        承接实模一致性报告与对比地址 · 审批仅个人中心待办 · 当前：{{
+        手动上报实模一致性报告 · 审批仅个人中心待办 · 当前：{{
           isHqSelected ? '请切换到具体项目' : scopeProjectLabel
         }}
       </p>
@@ -115,16 +103,17 @@ function nodeSummary(row) {
         <el-input
           v-model="keyword"
           clearable
-          placeholder="单号 / 名称 / 节点 / 地址"
+          placeholder="单号 / 名称 / 节点 / 报告"
           style="width: 260px"
-          :prefix-icon="Search" aria-label="单号 / 名称 / 节点 / 地址"/>
+          :prefix-icon="Search"
+          aria-label="单号 / 名称 / 节点 / 报告"
+        />
         <el-select v-model="statusFilter" clearable placeholder="状态" style="width: 140px" aria-label="状态">
           <el-option v-for="(label, val) in STATUS_LABEL" :key="val" :label="label" :value="val" />
         </el-select>
         <el-button type="primary" :icon="Search">查询</el-button>
         <el-button :icon="Refresh" @click="reset">重置</el-button>
         <el-button type="primary" :icon="Plus" @click="goEdit()">新建验收</el-button>
-        <el-button :icon="Connection" @click="onSync">模拟第三方同步</el-button>
       </div>
 
       <el-table :data="list" stripe border empty-text="暂无实模一致验收单">
@@ -132,9 +121,6 @@ function nodeSummary(row) {
         <el-table-column prop="title" label="任务名称" min-width="180" show-overflow-tooltip />
         <el-table-column label="所选节点" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">{{ nodeSummary(row) }}</template>
-        </el-table-column>
-        <el-table-column label="来源" width="100">
-          <template #default="{ row }">{{ DATA_SOURCE_LABEL[row.data_source] || row.data_source }}</template>
         </el-table-column>
         <el-table-column label="状态" width="100">
           <template #default="{ row }">

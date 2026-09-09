@@ -27,8 +27,6 @@ import {
   resolveApproverName,
   resolveProjectName,
   saveTaskDraft,
-  SPECIAL_ACCEPT_TYPES,
-  specialTypeLabel,
   submitInspect,
   TASK_TYPE_LABEL,
   taskMaterialLinks,
@@ -190,7 +188,7 @@ const isCreateMode = computed(
 const isSpecialCreate = computed(
   () => isCreateMode.value && String(route.query.mode || '') === 'special',
 )
-/** 专项上下文：新建专项，或草稿/任务本身为专项类型 */
+/** 专项上下文：新建专项，或草稿/任务本身为专项验收 */
 const isSpecialContext = computed(() => {
   if (isSpecialCreate.value) return true
   if (task.value && Number(task.value.task_type) === 6) return true
@@ -261,9 +259,7 @@ const wbsTreeSelectKey = computed(
 const selectedNodeLabel = computed(() => {
   const n = wbsNodes.find((x) => x.id === headerMeta.wbs_node_id)
   if (!n) return ''
-  const typeExtra =
-    n.node_type === 7 && n.special_type ? ` · ${specialTypeLabel(n.special_type)}` : ''
-  return `${n.node_name}${n.location_code ? `（${n.location_code}）` : ''}${typeExtra}`
+  return `${n.node_name}${n.location_code ? `（${n.location_code}）` : ''}`
 })
 
 const selectedNodeUnlock = computed(() => {
@@ -273,16 +269,10 @@ const selectedNodeUnlock = computed(() => {
   return checkUnlock(n)
 })
 
-const selectedSpecialMeta = computed(() => {
-  const n = wbsNodes.find((x) => x.id === headerMeta.wbs_node_id)
-  if (!n?.special_type) return null
-  return SPECIAL_ACCEPT_TYPES.find((t) => t.code === n.special_type) || null
-})
-
 /** 新建页解锁规则提示（实体/专项分类节点均不可选） */
 const createUnlockTip = computed(() => {
   if (isSpecialContext.value) {
-    return '请选择消防、人防等专项节点发起验收；「专项验收」仅为分类，不可发起。专项节点可直接发起'
+    return '请选择专项节点发起验收；「专项验收」仅为分类，不可发起。专项节点可直接发起'
   }
   return '请选择单位工程及以下节点发起验收；「实体工程验收」仅为分类，不可发起。下级节点全部通过后，上级节点方可发起（检验批可直接发起）'
 })
@@ -442,7 +432,7 @@ function ensureTaskCreated(opts = {}) {
   try {
     if (isSpecialCreate.value) {
       if (Number(node.node_type) !== 7) {
-        ElMessage.warning('请选择专项节点（消防/人防等）；「专项验收」仅为分类不可选')
+        ElMessage.warning('请选择专项节点；「专项验收」仅为分类不可选')
         return { ok: false }
       }
       r = createSpecialTask({
@@ -517,9 +507,7 @@ const showHiddenWorkOption = computed(
 )
 
 const nodeName = computed(() => {
-  if (!task.value?.wbs_node_id) {
-    return task.value?.special_type ? specialTypeLabel(task.value.special_type) : '—'
-  }
+  if (!task.value?.wbs_node_id) return '—'
   return wbsNodes.find((n) => n.id === task.value?.wbs_node_id)?.node_name || '—'
 })
 
@@ -1151,7 +1139,6 @@ function onPickAsbuilt(row) {
     acceptance_id: row.acceptance_id,
     biz_no: row.biz_no,
     title: row.title,
-    compare_url: row.compare_url,
     report_names: row.report_names,
     node_paths: row.node_paths || '',
     status: row.status,
@@ -1167,11 +1154,6 @@ function onUnlinkAsbuilt(row) {
   if (idx >= 0) taskAsbuiltLinks.splice(idx, 1)
   linkTick.value += 1
   ElMessage.success('已解除关联')
-}
-
-function openAsbuiltCompare(url) {
-  if (!url || url === '#') return ElMessage.info('演示环境无真实对比页')
-  window.open(url, '_blank', 'noopener,noreferrer')
 }
 
 /** 保存填报（填报页已取消独立「保存」；提交前仍会静默落草稿字段） */
@@ -1308,11 +1290,6 @@ function saveStepQuietly() {
               <span class="readonly-text">{{ nodeName }}</span>
             </el-form-item>
           </el-col>
-          <el-col v-if="isSpecialContext" :span="12">
-            <el-form-item label="专项类型">
-              <span class="readonly-text">{{ specialTypeLabel(task.special_type) || '—' }}</span>
-            </el-form-item>
-          </el-col>
           <el-col v-if="!isSpecialContext" :span="12">
             <el-form-item label="施工部位">
               <span class="readonly-text">{{ task.location_name || headerMeta.location_name || '—' }}</span>
@@ -1349,9 +1326,6 @@ function saveStepQuietly() {
         <el-descriptions-item label="项目名称">{{ displayProjectName }}</el-descriptions-item>
         <el-descriptions-item label="验收任务名称">{{ task.task_name || headerMeta.task_name || '—' }}</el-descriptions-item>
         <el-descriptions-item label="验收节点">{{ nodeName }}</el-descriptions-item>
-        <el-descriptions-item v-if="task.task_type === 6" label="专项类型">
-          {{ specialTypeLabel(task.special_type) }}
-        </el-descriptions-item>
         <el-descriptions-item v-if="task.task_type !== 6" label="施工部位">{{ task.location_name || '—' }}</el-descriptions-item>
         <el-descriptions-item v-if="task.task_type !== 6" label="是否隐蔽工程">
           {{ task.is_hidden_work === 1 ? '是' : '否' }}
@@ -1569,7 +1543,7 @@ function saveStepQuietly() {
               <el-tag size="small" type="info" effect="plain" class="req-tag">可选·引用</el-tag>
             </div>
             <div class="site-block-tip">
-              从「实模一致验收」选用已通过单据，引用其 PDF 报告与对比地址（不在本页上传）
+              从「实模一致验收」选用已通过单据，引用其 PDF 报告（不在本页上传）
             </div>
           </div>
           <div v-if="canEdit" class="filter-bar">
@@ -1585,19 +1559,6 @@ function saveStepQuietly() {
             <template #default="{ row }">{{ row.node_paths || '—' }}</template>
           </el-table-column>
           <el-table-column prop="report_names" label="报告附件" min-width="120" show-overflow-tooltip />
-          <el-table-column label="对比地址" min-width="90">
-            <template #default="{ row }">
-              <el-button
-                v-if="row.compare_url"
-                link
-                type="primary"
-                @click="openAsbuiltCompare(row.compare_url)"
-              >
-                打开
-              </el-button>
-              <span v-else>—</span>
-            </template>
-          </el-table-column>
           <el-table-column v-if="canEdit" label="操作" width="72" fixed="right">
             <template #default="{ row }">
               <el-button link type="danger" @click="onUnlinkAsbuilt(row)">解除</el-button>

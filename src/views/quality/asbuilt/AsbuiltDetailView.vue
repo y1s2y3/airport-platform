@@ -4,7 +4,6 @@ import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   Document,
-  Link,
   OfficeBuilding,
   Clock,
   CopyDocument,
@@ -13,7 +12,6 @@ import {
   getAsbuilt,
   listAsbuiltApprovals,
   STATUS_LABEL,
-  DATA_SOURCE_LABEL,
   APPROVAL_NODE_LABEL,
   ACTION_LABEL,
   statusTagType,
@@ -89,16 +87,12 @@ function actionTagType(action) {
     <el-empty v-if="!detail" description="未找到验收单" />
 
     <template v-else>
-      <!-- 概览条 -->
       <div class="summary-bar">
         <div class="summary-main">
           <div class="summary-id-row">
             <span class="summary-biz">{{ detail.biz_no }}</span>
             <el-tag size="small" effect="light" :type="statusTagType(detail.status)">
               {{ STATUS_LABEL[detail.status] }}
-            </el-tag>
-            <el-tag size="small" effect="plain" type="info">
-              {{ DATA_SOURCE_LABEL[detail.data_source] || detail.data_source }}
             </el-tag>
           </div>
           <h2 class="summary-title">{{ detail.title }}</h2>
@@ -112,7 +106,6 @@ function actionTagType(action) {
         </div>
       </div>
 
-      <!-- 基本信息 -->
       <section class="form-section">
         <header class="section-head">
           <el-icon class="section-icon"><OfficeBuilding /></el-icon>
@@ -129,45 +122,16 @@ function actionTagType(action) {
               </el-tag>
             </el-descriptions-item>
             <el-descriptions-item label="任务名称" :span="2">{{ detail.title }}</el-descriptions-item>
-            <el-descriptions-item label="数据来源">
-              {{ DATA_SOURCE_LABEL[detail.data_source] || detail.data_source }}
-            </el-descriptions-item>
+            <el-descriptions-item label="备注" :span="2">{{ detail.remark || '—' }}</el-descriptions-item>
             <el-descriptions-item label="当前审批环节">{{ currentNodeLabel }}</el-descriptions-item>
             <el-descriptions-item label="提交人">{{ detail.submitter_name || '—' }}</el-descriptions-item>
             <el-descriptions-item label="提交时间">{{ detail.submitted_at || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="外部同步单号">{{ detail.external_ref || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="关联被驳回单">{{ detail.related_reject_id || '—' }}</el-descriptions-item>
             <el-descriptions-item label="创建时间">{{ detail.created_at }}</el-descriptions-item>
             <el-descriptions-item label="更新时间">{{ detail.updated_at }}</el-descriptions-item>
           </el-descriptions>
         </div>
       </section>
 
-      <!-- 对比地址 -->
-      <section class="form-section">
-        <header class="section-head">
-          <el-icon class="section-icon"><Link /></el-icon>
-          <div class="section-head-main">
-            <h2 class="section-title">实模一致性对比地址</h2>
-          </div>
-        </header>
-        <div class="section-body">
-          <a
-            v-if="detail.compare_url"
-            class="compare-link"
-            :href="detail.compare_url"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <el-icon><Link /></el-icon>
-            <span class="compare-url">{{ detail.compare_url }}</span>
-            <span class="compare-action">打开</span>
-          </a>
-          <div v-else class="empty-inline">暂无对比地址</div>
-        </div>
-      </section>
-
-      <!-- 工程节点 -->
       <section class="form-section">
         <header class="section-head">
           <el-icon class="section-icon"><CopyDocument /></el-icon>
@@ -194,7 +158,6 @@ function actionTagType(action) {
         </div>
       </section>
 
-      <!-- 报告附件 -->
       <section class="form-section">
         <header class="section-head">
           <el-icon class="section-icon"><Document /></el-icon>
@@ -216,8 +179,6 @@ function actionTagType(action) {
                 <div class="file-meta">
                   <span>{{ fileSizeLabel(f.file_size) }}</span>
                   <span class="dot">·</span>
-                  <span>{{ f.source === 'sync' ? '第三方同步' : '人工上传' }}</span>
-                  <span class="dot">·</span>
                   <span>{{ f.uploaded_at || '—' }}</span>
                 </div>
               </div>
@@ -227,7 +188,6 @@ function actionTagType(action) {
         </div>
       </section>
 
-      <!-- 审批记录 -->
       <section class="form-section">
         <header class="section-head">
           <el-icon class="section-icon"><Clock /></el-icon>
@@ -393,42 +353,6 @@ function actionTagType(action) {
   width: 120px;
   color: #909399;
   background: #fafbfc;
-}
-
-.compare-link {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 16px;
-  border-radius: 8px;
-  border: 1px dashed #d4dae3;
-  background: #f7f9fc;
-  color: var(--el-color-primary, #8f0045);
-  text-decoration: none;
-  transition: border-color 0.15s, background 0.15s;
-}
-
-.compare-link:hover {
-  border-color: var(--el-color-primary-light-5, #c45a8a);
-  background: #fff5f8;
-}
-
-.compare-url {
-  flex: 1;
-  min-width: 0;
-  font-size: 13px;
-  word-break: break-all;
-  line-height: 1.5;
-}
-
-.compare-action {
-  flex-shrink: 0;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: var(--el-color-primary-light-9, #fde8f0);
-  color: var(--el-color-primary, #8f0045);
 }
 
 .node-list,

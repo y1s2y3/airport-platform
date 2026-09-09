@@ -17,6 +17,15 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.9.1.4',
+    date: '2026-09-09',
+    highlights: [
+      '验评目录树·专项节点：专业改为与实体工程一致的多选下拉，增加排序值；去掉专项类型',
+      '专项验收列表/编辑/个人中心不再展示专项类型；竣工门禁按专项全部子节点',
+      '实模一致检验：仅支持手动上报，去掉第三方同步相关字段与入口',
+    ],
+  },
+  {
     version: 'v2.9.1.3',
     date: '2026-09-09',
     highlights: [

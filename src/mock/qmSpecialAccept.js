@@ -1,12 +1,11 @@
 /**
- * 专项验收任务创建 — 挂接目录树专项节点（消防/人防等），不做验收计划
+ * 专项验收任务创建 — 挂接目录树专项节点，不做验收计划
+ * 任务名称手填；不依赖「专项类型」字典
  */
 import { inspectionTasks, isWbsAlive, nowStr, primaryFormTemplateId, wbsNodes } from './qmInspect.js'
 import { ensureTaskItems, syncNodeAccept } from './qmInspectOps.js'
 import { findActiveTaskOnNode } from './qmInspectV2.js'
-import { getSpecialAcceptType } from './qmSpecialTypes.js'
-
-export * from './qmSpecialTypes.js'
+import { getEffectiveSpecialties } from '../constants/wbsSpecialty.js'
 
 /**
  * 创建专项验收任务（须选择目录树专项节点 node_type=7）
@@ -15,7 +14,6 @@ export * from './qmSpecialTypes.js'
 export function createSpecialTask({
   project_id,
   wbs_node_id,
-  special_type = '',
   task_name = '',
   location_name = '',
   remark = '',
@@ -30,13 +28,11 @@ export function createSpecialTask({
   const node = wbsNodes.find((n) => isWbsAlive(n) && n.id === wbs_node_id)
   if (!node) return { ok: false, msg: '专项节点不存在' }
   if (node.project_id !== project_id) return { ok: false, msg: '节点不属于当前项目' }
-  if (Number(node.node_type) !== 7) return { ok: false, msg: '请选择专项节点（消防/人防等）' }
+  if (Number(node.node_type) !== 7) return { ok: false, msg: '请选择专项节点' }
 
-  const typeCode = special_type || node.special_type || ''
-  if (!typeCode) return { ok: false, msg: '专项节点未配置专项类型' }
-
-  const typeMeta = getSpecialAcceptType(typeCode)
-  if (!typeMeta) return { ok: false, msg: '专项验收类型无效' }
+  const name = String(task_name || '').trim() || node.node_name || '专项验收'
+  const specialties = getEffectiveSpecialties(node)
+  const specialty = specialties[0] || node.specialty || ''
 
   const active = findActiveTaskOnNode(wbs_node_id)
   if (active) {
@@ -46,25 +42,24 @@ export function createSpecialTask({
     }
   }
 
-  const tplId = primaryFormTemplateId(node) || typeMeta.form_template_id || 'ft-special-fire'
+  const tplId = primaryFormTemplateId(node) || 'ft-special-fire'
   const id = `tk-${Date.now()}`
   const task = {
     id,
     task_no: `ZX-2026-${String(inspectionTasks.filter((t) => t.task_type === 6).length + 1).padStart(3, '0')}`,
-    task_name: task_name || `${typeMeta.label}专项验收`,
+    task_name: name,
     project_id,
     wbs_node_id,
     plan_id: '',
     unplanned_flag: 1,
     parent_task_id: '',
     task_type: 6,
-    special_type: typeCode,
-    specialty: typeMeta.label,
+    specialty,
     location_name: location_name || node.location_code || node.node_name,
     form_template_id: tplId,
     form_data: {
       [tplId]: {
-        专项名称: `${typeMeta.label}专项验收`,
+        专项名称: name,
       },
     },
     batch_type_id: '',

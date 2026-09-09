@@ -15,7 +15,6 @@ import {
   FILL_STATUS,
   resolveApproverName,
   resolveProjectName,
-  specialTypeLabel,
   wbsNodes,
   TASK_STATUS,
   TASK_TYPE_LABEL,
@@ -286,9 +285,6 @@ function handleBack() {
             {{ task.task_name || '—' }}
           </el-descriptions-item>
           <el-descriptions-item label="验收节点">{{ nodeName }}</el-descriptions-item>
-          <el-descriptions-item v-if="isSpecialTask" label="专项类型">
-            {{ specialTypeLabel(task.special_type) }}
-          </el-descriptions-item>
           <el-descriptions-item v-if="!isSpecialTask" :label="isCompleteTask ? '工程/部位' : '施工部位'">
             {{ task.location_name || '—' }}
           </el-descriptions-item>
@@ -455,22 +451,6 @@ function handleBack() {
               min-width="120"
               show-overflow-tooltip
             />
-            <el-table-column label="对比地址" min-width="90">
-              <template #default="{ row }">
-                <el-button
-                  v-if="row.compare_url"
-                  link
-                  type="primary"
-                  tag="a"
-                  :href="row.compare_url"
-                  target="_blank"
-                  rel="noopener"
-                >
-                  打开
-                </el-button>
-                <span v-else>—</span>
-              </template>
-            </el-table-column>
           </el-table>
         </section>
       </div>

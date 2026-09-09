@@ -1,6 +1,6 @@
 <script setup>
 /**
- * 专项验收 — 挂接目录树专项叶子（消防/人防等），不做验收计划；
+ * 专项验收 — 挂接目录树专项叶子，不做验收计划；
  * 「专项验收」容器仅为分类，不可发起（对齐实体工程验收分类逻辑）
  */
 import QmTaskList from './components/QmTaskList.vue'

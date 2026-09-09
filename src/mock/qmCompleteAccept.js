@@ -14,7 +14,7 @@ import {
   wbsNodes,
 } from './qmInspect.js'
 import { addAttachment, ensureTaskItems, getAttachments, syncNodeAccept } from './qmInspectOps.js'
-import { specialTypeLabel } from './qmSpecialTypes.js'
+import { getEffectiveSpecialties } from '../constants/wbsSpecialty.js'
 
 function statusLabelOfNode(accept_status) {
   const st = Number(accept_status) === 4 || Number(accept_status) === 5 ? 3 : Number(accept_status)
@@ -75,10 +75,11 @@ export function buildCompleteGate(project_id) {
   const specialRows = specialNodes.map((n) => {
     const task = inspectionTasks.find((t) => t.wbs_node_id === n.id)
     const passed = n.accept_status === 2 || Number(task?.status) === 2
+    const specialties = getEffectiveSpecialties(n)
     return {
       id: n.id,
       name: n.node_name,
-      specialty: specialTypeLabel(n.special_type) || n.specialty || '—',
+      specialty: specialties.length ? specialties.join('、') : n.specialty || '—',
       task_no: task?.task_no || '',
       accept_status: passed ? 2 : n.accept_status,
       statusLabel: passed
@@ -103,7 +104,7 @@ export function buildCompleteGate(project_id) {
   } else if (!specialDone) {
     blockReason =
       specialTotal === 0
-        ? '专项验收下尚无专项节点，请先维护消防/人防等'
+        ? '专项验收下尚无专项节点，请先在目录树维护'
         : `专项验收未全部完成（${specialPassed}/${specialTotal}）`
   }
 
@@ -368,7 +369,7 @@ export function ensureCompletePrereqDemoSeeds() {
       n.accept_status = 2
     })
 
-  // 将历史未挂树的专项任务挂到对应专项节点（不改 status）
+  // 将历史未挂树的专项任务挂到对应专项节点（不改 status；按任务名称匹配）
   const fire = wbsNodes.find((n) => n.id === 'wn-special-fire')
   const cd = wbsNodes.find((n) => n.id === 'wn-special-cd')
   const energy = wbsNodes.find((n) => n.id === 'wn-special-energy')
@@ -378,10 +379,11 @@ export function ensureCompletePrereqDemoSeeds() {
     .filter((t) => t.project_id === project_id && Number(t.task_type) === 6)
     .forEach((t) => {
       if (!t.wbs_node_id) {
-        if (t.special_type === 'civil_defense' && cd) t.wbs_node_id = cd.id
-        else if (t.special_type === 'energy' && energy) t.wbs_node_id = energy.id
-        else if (t.special_type === 'planning' && planning) t.wbs_node_id = planning.id
-        else if (t.special_type === 'special_equip' && equip) t.wbs_node_id = equip.id
+        const tn = String(t.task_name || '')
+        if (/人防/.test(tn) && cd) t.wbs_node_id = cd.id
+        else if (/节能/.test(tn) && energy) t.wbs_node_id = energy.id
+        else if (/规划/.test(tn) && planning) t.wbs_node_id = planning.id
+        else if (/特种设备/.test(tn) && equip) t.wbs_node_id = equip.id
         else if (fire) t.wbs_node_id = fire.id
       }
       t.plan_id = ''

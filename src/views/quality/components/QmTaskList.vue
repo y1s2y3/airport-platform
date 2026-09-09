@@ -18,7 +18,6 @@ import {
   reDeclareAcceptance,
   resolveProjectName,
   saveTaskDraft,
-  specialTypeLabel,
   TASK_STATUS_FILTER_OPTIONS,
   TASK_TYPE_LABEL,
   wbsNodeTypeTagType,
@@ -103,7 +102,7 @@ const dialogTitle = computed(() => (editingTaskId.value ? '编辑验收' : '发�
 /** 项目层级不搜项目名；指挥部层级保留「项目」关键词提示 */
 const keywordPlaceholder = computed(() => {
   if (props.specialMode) {
-    return isHqSelected.value ? '验收单号/项目/类型' : '验收单号/类型'
+    return isHqSelected.value ? '验收单号/项目/任务名称' : '验收单号/任务名称'
   }
   return isHqSelected.value ? '验收单号/项目/部位' : '验收单号/部位'
 })
@@ -121,8 +120,8 @@ const list = computed(() => {
   if (kw) {
     rows = rows.filter((t) => {
       const name = resolveProjectName(t.project_id)
-      const typeName = specialTypeLabel(t.special_type)
-      return `${t.task_no}${t.task_name || ''}${name}${t.location_name || ''}${typeName}`.includes(kw)
+      const node = wbsNodes.find((n) => n.id === t.wbs_node_id)?.node_name || ''
+      return `${t.task_no}${t.task_name || ''}${name}${t.location_name || ''}${node}`.includes(kw)
     })
   }
   return rows
@@ -187,7 +186,7 @@ const createNodeTreeKey = ref('create-wbs-empty')
 
 const createUnlockTip = computed(() => {
   if (props.specialMode) {
-    return '请选择消防、人防等专项节点；「专项验收」仅为分类不可发起。专项节点可直接发起。'
+    return '请选择专项节点；「专项验收」仅为分类不可发起。专项节点可直接发起。'
   }
   return '请选择单位工程及以下节点；「实体工程验收」仅为分类不可发起。须下级节点全部验收通过后，方可对本级发起（检验批可直接发起）。'
 })
@@ -483,10 +482,7 @@ onMounted(() => {
       <el-table-column label="验收任务名称" min-width="150">
         <template #default="{ row }">{{ row.task_name || nodeName(row.wbs_node_id) }}</template>
       </el-table-column>
-      <el-table-column v-if="specialMode" label="专项类型" width="120">
-        <template #default="{ row }">{{ specialTypeLabel(row.special_type) }}</template>
-      </el-table-column>
-      <el-table-column v-else label="验收任务类型" width="130">
+      <el-table-column v-if="!specialMode" label="验收任务类型" width="130">
         <template #default="{ row }">{{ TASK_TYPE_LABEL[row.task_type] }}</template>
       </el-table-column>
       <el-table-column label="验收节点" min-width="150">

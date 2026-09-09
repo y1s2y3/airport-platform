@@ -17,7 +17,6 @@ import {
   formTemplates,
   getNodeFormTemplateIds,
   removeWbsNode,
-  SPECIAL_ACCEPT_TYPES,
   upsertWbsNode,
   WBS_EDITABLE_NODE_TYPES,
   WBS_SYSTEM_NODE_TYPES,
@@ -92,7 +91,6 @@ const form = reactive({
   form_template_ids: [],
   specialty: '结构',
   specialties: [...WBS_SPECIALTY_DEFAULTS],
-  special_type: '',
   is_hidden_work: 0,
   is_critical: 0,
   batch_scheme_id: '',
@@ -251,7 +249,6 @@ function openCreate(parent_id = '') {
   form.location_code = ''
   form.batch_type_id = form.node_type === 6 ? 'bt-rebar' : ''
   form.form_template_ids = form.node_type === 7 ? ['ft-special-fire'] : []
-  form.special_type = form.node_type === 7 ? 'fire' : ''
   form.is_hidden_work = 0
   form.is_critical = 0
   form.batch_scheme_id = ''
@@ -262,13 +259,9 @@ function openCreate(parent_id = '') {
     form.specialty = ''
   } else {
     dialogKind.value = 'other'
-    if (form.node_type === 6) {
-      applyInheritedSpecialties(pid)
-      form.specialty = ''
-    } else {
-      form.specialty = form.node_type === 7 ? '消防' : '结构'
-      form.specialties = [...WBS_SPECIALTY_DEFAULTS]
-    }
+    // 检验批 / 专项节点：专业与实体工程同口径（多选下拉 + 继承上级）
+    applyInheritedSpecialties(pid)
+    form.specialty = ''
   }
   visible.value = true
 }
@@ -290,7 +283,6 @@ function openEdit(row) {
       form_template_ids: [],
       specialty: '',
       specialties: [...getEffectiveSpecialties(node)],
-      special_type: '',
       is_hidden_work: 0,
       is_critical: 0,
       batch_scheme_id: '',
@@ -309,12 +301,8 @@ function openEdit(row) {
     location_code: node.location_code || '',
     batch_type_id: node.batch_type_id || '',
     form_template_ids: getNodeFormTemplateIds(node),
-    specialty: Number(node.node_type) === 6 ? '' : node.specialty || '',
-    specialties:
-      Number(node.node_type) === 6
-        ? [...getEffectiveSpecialties(node)]
-        : [...WBS_SPECIALTY_DEFAULTS],
-    special_type: node.special_type || '',
+    specialty: '',
+    specialties: [...getEffectiveSpecialties(node)],
     is_hidden_work: node.is_hidden_work,
     is_critical: node.is_critical,
     batch_scheme_id: node.batch_scheme_id || '',
@@ -377,8 +365,8 @@ function submit() {
     return
   }
 
-  // 检验批：专业/编码/排序值与实体工程分解同口径；界面不维护检验批类型/表单模板
-  if (Number(form.node_type) === 6) {
+  // 检验批 / 专项：专业/排序值与实体工程分解同口径
+  if (Number(form.node_type) === 6 || Number(form.node_type) === 7) {
     const specialties = normalizeSpecialties(form.specialties)
     if (specialties.length && !isValidWbsSpecialties(specialties)) {
       return ElMessage.warning('请选择有效的专业')
@@ -386,14 +374,16 @@ function submit() {
     if (!String(form.node_name || '').trim()) {
       return ElMessage.warning('请填写节点名称')
     }
+    const isBatch = Number(form.node_type) === 6
     const r = upsertWbsNode(
       {
         project_id,
         parent_id: form.parent_id,
-        node_type: 6,
+        node_type: isBatch ? 6 : 7,
         node_name: form.node_name.trim(),
         location_code: form.location_code,
-        batch_type_id: form.batch_type_id || 'bt-rebar',
+        batch_type_id: isBatch ? form.batch_type_id || 'bt-rebar' : '',
+        form_template_ids: isBatch ? undefined : form.form_template_ids,
         specialties,
         sort_no: form.sort_no,
         is_hidden_work: 0,
@@ -666,17 +656,7 @@ async function onRemove(row) {
             :aria-label="form.node_type === 6 ? '编码' : '可选'"
           />
         </el-form-item>
-        <el-form-item v-if="form.node_type === 7" label="专项类型" required>
-          <el-select v-model="form.special_type" style="width: 100%">
-            <el-option
-              v-for="t in SPECIAL_ACCEPT_TYPES"
-              :key="t.code"
-              :label="t.label"
-              :value="t.code"
-            />
-          </el-select>
-        </el-form-item>
-        <template v-if="form.node_type === 6">
+        <template v-if="form.node_type === 6 || form.node_type === 7">
           <el-form-item label="专业">
             <el-select
               v-model="form.specialties"
@@ -705,7 +685,6 @@ async function onRemove(row) {
             <el-input-number v-model="form.sort_no" :min="0" :max="9999" />
           </el-form-item>
         </template>
-        <el-form-item v-else label="专业"><el-input v-model="form.specialty" /></el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="visible = false">取消</el-button>

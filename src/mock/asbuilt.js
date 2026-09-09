@@ -1,5 +1,5 @@
 /**
- * 实模一致验收 Mock — 对齐 QM-ASBUILT 产品架构 V1.7
+ * 实模一致验收 Mock — 仅支持手动上报（无第三方同步）
  */
 import { reactive } from 'vue'
 import { nowStr } from '../utils/datetime.js'
@@ -17,11 +17,6 @@ export const STATUS_LABEL = {
   pending_approval: '待审批',
   approved: '已通过',
   rejected: '已驳回',
-}
-
-export const DATA_SOURCE_LABEL = {
-  manual: '人工上传',
-  sync: '第三方同步',
 }
 
 export const APPROVAL_NODE_LABEL = {
@@ -110,14 +105,11 @@ const store = reactive({
       biz_no: 'AB-202608-001',
       project_id: 'p-000',
       title: 'T2 混凝土分项实模一致验收',
-      compare_url: 'https://example.com/asbuilt-compare/p-000/ab-001',
-      data_source: 'manual',
+      remark: '',
       status: 'draft',
-      external_ref: '',
       submitter_id: 'u-constructor',
       submitter_name: '施工-李工',
       submitted_at: '',
-      related_reject_id: '',
       current_node: 'none',
       created_at: '2026-08-08 10:00:00',
       updated_at: '2026-08-08 10:00:00',
@@ -146,15 +138,12 @@ const store = reactive({
       id: 'AB-002',
       biz_no: 'AB-202608-002',
       project_id: 'p-000',
-      title: '防水分项实模一致（同步）',
-      compare_url: 'https://example.com/asbuilt-compare/p-000/ab-002',
-      data_source: 'sync',
+      title: '防水分项实模一致验收',
+      remark: '地下室防水节点已完成实模对比',
       status: 'pending_approval',
-      external_ref: 'EXT-ASB-7788',
       submitter_id: 'u-constructor',
       submitter_name: '施工-李工',
       submitted_at: '2026-08-09 14:20:00',
-      related_reject_id: '',
       current_node: 'supervisor',
       created_at: '2026-08-09 11:00:00',
       updated_at: '2026-08-09 14:20:00',
@@ -173,8 +162,8 @@ const store = reactive({
           file_url: '#',
           file_size: 1024 * 640,
           mime_type: 'application/pdf',
-          source: 'sync',
-          uploader_id: '',
+          source: 'upload',
+          uploader_id: 'u-constructor',
           uploaded_at: '2026-08-09 11:00:00',
         },
       ],
@@ -184,14 +173,11 @@ const store = reactive({
       biz_no: 'AB-202607-003',
       project_id: 'p-000',
       title: '电缆敷设分项实模一致',
-      compare_url: 'https://example.com/asbuilt-compare/p-000/ab-003',
-      data_source: 'manual',
+      remark: '',
       status: 'approved',
-      external_ref: '',
       submitter_id: 'u-constructor',
       submitter_name: '施工-王工',
       submitted_at: '2026-07-20 09:10:00',
-      related_reject_id: '',
       current_node: 'none',
       created_at: '2026-07-18 16:00:00',
       updated_at: '2026-07-22 11:30:00',
@@ -286,11 +272,8 @@ function pushApproval(row) {
 function validateComplete(payload) {
   const nodes = payload.nodes || []
   const files = payload.files || []
-  const url = String(payload.compare_url || '').trim()
   if (!nodes.length) return '请至少选择一个实体工程分解节点'
   if (!files.length) return '请至少上传一份实模一致性报告（PDF）'
-  if (!url) return '请填写实模一致性对比可访问地址'
-  if (!/^https?:\/\//i.test(url)) return '对比可访问地址须为 http/https 链接'
   const badFile = files.find((f) => f.mime_type && f.mime_type !== 'application/pdf')
   if (badFile) return '报告仅支持 PDF 格式'
   return ''
@@ -302,7 +285,7 @@ export function listAsbuilt(projectId, { keyword = '', status = '' } = {}) {
   if (kw) {
     rows = rows.filter(
       (r) =>
-        `${r.biz_no}${r.title}${r.compare_url}${(r.nodes || []).map((n) => n.wbs_node_path).join('')}`.includes(kw),
+        `${r.biz_no}${r.title}${(r.nodes || []).map((n) => n.wbs_node_path).join('')}${(r.files || []).map((f) => f.file_name).join('')}`.includes(kw),
     )
   }
   if (status) rows = rows.filter((r) => r.status === status)
@@ -323,7 +306,6 @@ export function listAsbuiltForInspectLink(projectId, { wbsNodeId = '', includeSt
     acceptance_id: r.id,
     biz_no: r.biz_no,
     title: r.title,
-    compare_url: r.compare_url,
     report_names: (r.files || []).map((f) => f.file_name).join('；') || '—',
     status: r.status,
     node_paths: (r.nodes || []).map((n) => n.wbs_node_path || n.wbs_node_id).join('；'),
@@ -376,6 +358,7 @@ export function saveAsbuiltDraft(payload = {}) {
     uploaded_at: f.uploaded_at || nowStr(),
   }))
 
+  const remark = String(payload.remark || '').trim()
   const stamp = nowStr()
   if (payload.id) {
     const row = store.list.find((r) => r.id === payload.id)
@@ -383,8 +366,7 @@ export function saveAsbuiltDraft(payload = {}) {
     if (row.status !== 'draft') return { ok: false, msg: '仅待提交可编辑' }
     Object.assign(row, {
       title,
-      compare_url: String(payload.compare_url || '').trim(),
-      related_reject_id: payload.related_reject_id || '',
+      remark,
       nodes,
       files,
       updated_at: stamp,
@@ -399,14 +381,11 @@ export function saveAsbuiltDraft(payload = {}) {
     biz_no: nextBizNo(),
     project_id: projectId,
     title,
-    compare_url: String(payload.compare_url || '').trim(),
-    data_source: payload.data_source || 'manual',
+    remark,
     status: 'draft',
-    external_ref: payload.external_ref || '',
     submitter_id: 'u-constructor',
     submitter_name: '施工-李工',
     submitted_at: '',
-    related_reject_id: payload.related_reject_id || '',
     current_node: 'none',
     created_at: stamp,
     updated_at: stamp,
@@ -450,12 +429,13 @@ export function submitAsbuilt(id) {
     acceptanceId: id,
     bizNo: row.biz_no,
     title: row.title,
+    remark: row.remark || '',
     projectId: row.project_id,
     projectLabel: getProjectLabel(row.project_id),
     applicantName: row.submitter_name,
     applyTime: stamp,
-    compareUrl: row.compare_url,
     nodePaths: (row.nodes || []).map((n) => n.wbs_node_path || buildNodePath(n.wbs_node_id)).join('；'),
+    reportNames: (row.files || []).map((f) => f.file_name).join('；'),
   })
   return { ok: true, data: getAsbuilt(id) }
 }
@@ -492,12 +472,13 @@ export function supervisorApproveAsbuilt(id, { action, comment } = {}) {
     acceptanceId: id,
     bizNo: row.biz_no,
     title: row.title,
+    remark: row.remark || '',
     projectId: row.project_id,
     projectLabel: getProjectLabel(row.project_id),
     applicantName: row.submitter_name,
     applyTime: row.submitted_at,
-    compareUrl: row.compare_url,
     nodePaths: (row.nodes || []).map((n) => n.wbs_node_path || buildNodePath(n.wbs_node_id)).join('；'),
+    reportNames: (row.files || []).map((f) => f.file_name).join('；'),
     supervisorTime: stamp,
     supervisorName: '监理-钱工',
   })
@@ -527,57 +508,6 @@ export function pmApproveAsbuilt(id, { action, comment } = {}) {
   row.status = action === 'approve' ? 'approved' : 'rejected'
   row.current_node = 'none'
   row.updated_at = stamp
-  return { ok: true, data: getAsbuilt(id) }
-}
-
-/** Demo：模拟第三方同步入库（报告+地址齐全才建单） */
-export function simulateAsbuiltSync(projectId) {
-  if (!projectId || projectId === 'hq') return { ok: false, msg: '请先切换到具体项目' }
-  const selectable = wbsNodes.filter((n) => ASBUILT_SELECTABLE_NODE_TYPES.includes(Number(n.node_type)))
-  const pick = selectable[0]
-  if (!pick) return { ok: false, msg: '暂无可选实体工程节点' }
-  const stamp = nowStr()
-  store.seq += 1
-  store.fileSeq += 1
-  const id = `AB-${String(store.seq).padStart(3, '0')}`
-  const row = {
-    id,
-    biz_no: nextBizNo(),
-    project_id: projectId,
-    title: `同步入库·${pick.node_name}`,
-    compare_url: `https://example.com/asbuilt-compare/${projectId}/${id.toLowerCase()}`,
-    data_source: 'sync',
-    status: 'draft',
-    external_ref: `EXT-${Date.now()}`,
-    submitter_id: 'u-constructor',
-    submitter_name: '施工-李工',
-    submitted_at: '',
-    related_reject_id: '',
-    current_node: 'none',
-    created_at: stamp,
-    updated_at: stamp,
-    nodes: [
-      {
-        id: `abn-${Date.now()}`,
-        wbs_node_id: pick.id,
-        wbs_node_path: buildNodePath(pick.id),
-        sort_order: 1,
-      },
-    ],
-    files: [
-      {
-        id: `abf-${store.fileSeq}`,
-        file_name: `实模一致性报告-同步-${pick.node_name}.pdf`,
-        file_url: '#',
-        file_size: 1024 * 512,
-        mime_type: 'application/pdf',
-        source: 'sync',
-        uploader_id: '',
-        uploaded_at: stamp,
-      },
-    ],
-  }
-  store.list.unshift(row)
   return { ok: true, data: getAsbuilt(id) }
 }
 

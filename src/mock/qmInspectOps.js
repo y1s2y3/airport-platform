@@ -358,7 +358,7 @@ export function checkUnlock(node) {
   if (node.node_type === 10) {
     return {
       ok: false,
-      msg: '「专项验收」仅为目录分类，不可发起验收；请选择消防、人防等专项节点',
+      msg: '「专项验收」仅为目录分类，不可发起验收；请选择专项节点',
     }
   }
 
@@ -378,7 +378,7 @@ export function checkUnlock(node) {
       return { ok: false, msg: '实体工程验收下尚无单位工程，不可发起竣工验收' }
     }
     if (!specials.length) {
-      return { ok: false, msg: '专项验收下尚无专项节点，请先维护消防/人防等专项节点' }
+      return { ok: false, msg: '专项验收下尚无专项节点，请先在目录树维护' }
     }
     if (missU.length || missS.length) {
       return {
@@ -503,7 +503,7 @@ export function createTask({
     return { ok: false, msg: '「实体工程验收」仅为目录分类，不可发起验收；请选择单位工程及以下节点' }
   }
   if (Number(node.node_type) === 10) {
-    return { ok: false, msg: '「专项验收」仅为目录分类，不可发起验收；请选择消防、人防等专项节点' }
+    return { ok: false, msg: '「专项验收」仅为目录分类，不可发起验收；请选择专项节点' }
   }
 
   const unlock = checkUnlock(node)
@@ -613,7 +613,6 @@ export function createTask({
     updated_at: nowStr(),
   }
   if (node.node_type === 7) {
-    task.special_type = node.special_type || ''
     task.location_name = ''
     task.location_id = ''
     task.location_ids = []
@@ -694,12 +693,12 @@ export function saveTaskDraft(task, patch = {}) {
         return { ok: false, msg: '「实体工程验收」仅为目录分类，不可发起验收；请选择单位工程及以下节点' }
       }
       if (Number(node.node_type) === 10) {
-        return { ok: false, msg: '「专项验收」仅为目录分类，不可发起验收；请选择消防、人防等专项节点' }
+        return { ok: false, msg: '「专项验收」仅为目录分类，不可发起验收；请选择专项节点' }
       }
       const isSpecialTask = Number(task.task_type) === 6
       if (isSpecialTask) {
         if (Number(node.node_type) !== 7) {
-          return { ok: false, msg: '专项验收任务请选择专项目录下的专项节点（消防/人防等）' }
+          return { ok: false, msg: '专项验收任务请选择专项目录下的专项节点' }
         }
       } else if (![1, 2, 3, 4, 5, 6].includes(Number(node.node_type))) {
         return { ok: false, msg: '实体工程验收请选择单位工程及以下节点' }
@@ -725,9 +724,6 @@ export function saveTaskDraft(task, patch = {}) {
       task.specialty = node.specialty || task.specialty || ''
       task.batch_type_id = node.batch_type_id || ''
       task.form_template_id = primaryFormTemplateId(node) || task.form_template_id || ''
-      if (node.node_type === 7) {
-        task.special_type = node.special_type || task.special_type || ''
-      }
       if (patch.is_hidden_work === undefined) {
         task.is_hidden_work = Number(node.is_hidden_work) === 1 ? 1 : 0
       }
@@ -1132,7 +1128,6 @@ export function reDeclareAcceptance(rejectedTask) {
     result = createSpecialTask({
       project_id: rejectedTask.project_id,
       wbs_node_id: rejectedTask.wbs_node_id,
-      special_type: rejectedTask.special_type || '',
       task_name: rejectedTask.task_name,
       location_name: '',
       remark: rejectedTask.remark || '',
@@ -1452,9 +1447,6 @@ export function upsertWbsNode(payload, id = '') {
   if (id && parent_id && isWbsSelfOrDescendant(parent_id, id)) {
     return { ok: false, msg: '不可将节点挂接到自身或其下级之下' }
   }
-  if (node_type === 7 && !payload.special_type) {
-    return { ok: false, msg: '专项节点须选择专项类型（消防/人防等）' }
-  }
   if (node_type === 6 && !payload.batch_type_id) {
     payload.batch_type_id = 'bt-rebar'
   }
@@ -1475,7 +1467,6 @@ export function upsertWbsNode(payload, id = '') {
         payload.specialties != null || payload.specialty != null
           ? payloadSpecialties
           : getEffectiveSpecialties(node),
-      special_type: node_type === 7 ? payload.special_type || '' : '',
       is_critical: node_type === 6 ? Number(payload.is_critical) || 0 : 0,
       updated_at: nowStr(),
       updated_by: 'u-sg-01',
@@ -1501,7 +1492,6 @@ export function upsertWbsNode(payload, id = '') {
     batch_type_id: payload.batch_type_id || '',
     form_template_ids: normalizedTplIds === undefined ? [] : normalizedTplIds,
     specialties: payloadSpecialties,
-    special_type: node_type === 7 ? payload.special_type || '' : '',
     is_hidden_work: Number(payload.is_hidden_work) || 0,
     is_critical: node_type === 6 ? Number(payload.is_critical) || 0 : 0,
     accept_status: 0,

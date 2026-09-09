@@ -9,7 +9,6 @@ import {
   getAsbuilt,
   saveAsbuiltDraft,
   submitAsbuilt,
-  listAsbuilt,
 } from '../../../mock/asbuilt.js'
 
 const route = useRoute()
@@ -17,21 +16,16 @@ const router = useRouter()
 const { isHqSelected, scopeProjectId, scopeProjectLabel } = useQmProjectScope()
 
 const editId = ref(String(route.query.id || ''))
-const relatedRejectId = ref(String(route.query.relatedRejectId || ''))
+const prefillRejectId = String(route.query.relatedRejectId || '')
 
 const form = reactive({
   title: '',
-  compare_url: '',
+  remark: '',
   selectedNodeIds: [],
   files: [],
 })
 
 const wbsTree = computed(() => buildAsbuiltWbsTree())
-
-const rejectedOptions = computed(() => {
-  if (isHqSelected.value || !scopeProjectId.value) return []
-  return listAsbuilt(scopeProjectId.value, { status: 'rejected' })
-})
 
 const pageTitle = computed(() => (editId.value ? '编辑实模一致验收' : '新建实模一致验收'))
 
@@ -49,16 +43,22 @@ onMounted(() => {
       return
     }
     form.title = row.title
-    form.compare_url = row.compare_url
+    form.remark = row.remark || ''
     form.selectedNodeIds = (row.nodes || []).map((n) => n.wbs_node_id)
     form.files = (row.files || []).map((f) => ({ ...f }))
-    relatedRejectId.value = row.related_reject_id || ''
-  } else if (relatedRejectId.value) {
-    const rejected = getAsbuilt(relatedRejectId.value)
+  } else if (prefillRejectId) {
+    const rejected = getAsbuilt(prefillRejectId)
     if (rejected) {
       form.title = `${rejected.title}（重新申报）`
-      form.compare_url = rejected.compare_url || ''
+      form.remark = rejected.remark || ''
       form.selectedNodeIds = (rejected.nodes || []).map((n) => n.wbs_node_id)
+      form.files = (rejected.files || []).map((f) => ({
+        ...f,
+        id: `abf-local-${Date.now()}-${f.id || Math.random().toString(36).slice(2, 6)}`,
+        source: 'upload',
+        uploader_id: 'u-constructor',
+        uploaded_at: new Date().toLocaleString('zh-CN', { hour12: false }),
+      }))
     }
   }
 })
@@ -87,11 +87,9 @@ function buildPayload() {
     id: editId.value || undefined,
     project_id: scopeProjectId.value,
     title: form.title,
-    compare_url: form.compare_url,
-    related_reject_id: relatedRejectId.value || '',
+    remark: form.remark,
     nodes: (form.selectedNodeIds || []).map((id) => ({ wbs_node_id: id })),
     files: form.files,
-    data_source: 'manual',
   }
 }
 
@@ -119,7 +117,7 @@ function onSubmit() {
       <p class="page-tip">
         当前项目：
         <strong>{{ isHqSelected ? '未选择（请先切换项目）' : scopeProjectLabel }}</strong>
-        · 须同时具备：实体工程节点（≥1）+ PDF 报告 + 对比可访问地址
+        · 须同时具备：实体工程节点（≥1）+ PDF 报告
       </p>
     </div>
 
@@ -133,81 +131,67 @@ function onSubmit() {
     />
 
     <el-form v-else label-width="150px">
-      <section class="form-section">
-        <h2 class="section-title">基本信息</h2>
-        <el-form-item label="验收任务名称" required>
-          <el-input v-model="form.title" maxlength="80" show-word-limit placeholder="如：T2 混凝土分项实模一致验收" aria-label="如：T2 混凝土分项实模一致验收"/>
-        </el-form-item>
-        <el-form-item label="关联被驳回单">
-          <el-select
-            v-model="relatedRejectId"
-            clearable
-            filterable
-            placeholder="重新申报时可关联（选填）"
-            style="width: 100%" aria-label="重新申报时可关联（选填）">
-            <el-option
-              v-for="r in rejectedOptions"
-              :key="r.id"
-              :label="`${r.biz_no} · ${r.title}`"
-              :value="r.id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="对比可访问地址" required>
-          <el-input
-            v-model="form.compare_url"
-            placeholder="https:// 第三方实模对比页面地址" aria-label="https:// 第三方实模对比页面地址"/>
-        </el-form-item>
-      </section>
-
-      <section class="form-section">
-        <h2 class="section-title">所选实体工程节点</h2>
-        <el-form-item label="工程分解树" required>
-          <el-tree-select
-            v-model="form.selectedNodeIds"
-            :data="wbsTree"
-            multiple
-            show-checkbox
-            check-strictly
-            filterable
-            node-key="id"
-            :props="{ label: 'label', children: 'children', disabled: 'disabled' }"
-            placeholder="多选至分项（不含检验批）"
-            style="width: 100%"
-          />
-        </el-form-item>
-      </section>
-
-      <section class="form-section">
-        <h2 class="section-title">实模一致性报告（PDF）</h2>
-        <el-form-item label="报告附件" required>
-          <div>
-            <el-button type="primary" @click="mockUploadPdf">模拟上传 PDF</el-button>
-            <p class="muted" style="margin: 8px 0 0">仅支持 PDF；大小与数量遵循平台通用附件规范。</p>
-            <el-table
-              v-if="form.files.length"
-              :data="form.files"
-              stripe
-              border
-              size="small"
-              class="mb"
-              style="margin-top: 12px; width: 560px"
-            >
-              <el-table-column prop="file_name" label="文件名" min-width="220" />
-              <el-table-column label="大小" width="90">
-                <template #default="{ row }">
-                  {{ Math.max(1, Math.round((row.file_size || 0) / 1024)) }} KB
-                </template>
-              </el-table-column>
-              <el-table-column label="操作" width="80">
-                <template #default="{ $index }">
-                  <el-button link type="danger" @click="removeFile($index)">移除</el-button>
-                </template>
-              </el-table-column>
-            </el-table>
-          </div>
-        </el-form-item>
-      </section>
+      <el-form-item label="验收任务名称" required>
+        <el-input
+          v-model="form.title"
+          maxlength="80"
+          show-word-limit
+          placeholder="如：T2 混凝土分项实模一致验收"
+          aria-label="如：T2 混凝土分项实模一致验收"
+        />
+      </el-form-item>
+      <el-form-item label="工程分解树" required>
+        <el-tree-select
+          v-model="form.selectedNodeIds"
+          :data="wbsTree"
+          multiple
+          show-checkbox
+          check-strictly
+          filterable
+          node-key="id"
+          :props="{ label: 'label', children: 'children', disabled: 'disabled' }"
+          placeholder="多选至分项（不含检验批）"
+          style="width: 100%"
+        />
+      </el-form-item>
+      <el-form-item label="报告附件" required>
+        <div>
+          <el-button type="primary" @click="mockUploadPdf">模拟上传 PDF</el-button>
+          <p class="muted" style="margin: 8px 0 0">仅支持 PDF；大小与数量遵循平台通用附件规范。</p>
+          <el-table
+            v-if="form.files.length"
+            :data="form.files"
+            stripe
+            border
+            size="small"
+            class="mb"
+            style="margin-top: 12px; width: 560px"
+          >
+            <el-table-column prop="file_name" label="文件名" min-width="220" />
+            <el-table-column label="大小" width="90">
+              <template #default="{ row }">
+                {{ Math.max(1, Math.round((row.file_size || 0) / 1024)) }} KB
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="80">
+              <template #default="{ $index }">
+                <el-button link type="danger" @click="removeFile($index)">移除</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+      </el-form-item>
+      <el-form-item label="备注">
+        <el-input
+          v-model="form.remark"
+          type="textarea"
+          :rows="3"
+          maxlength="200"
+          show-word-limit
+          placeholder="选填"
+          aria-label="备注"
+        />
+      </el-form-item>
 
       <div class="form-actions">
         <el-button type="primary" @click="onSubmit">提交</el-button>
@@ -218,6 +202,18 @@ function onSubmit() {
 </template>
 
 <style scoped>
+.title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.title-row .page-title {
+  margin: 0;
+}
+
 .form-actions {
   margin-top: 8px;
   padding-left: 150px;
