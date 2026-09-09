@@ -1,7 +1,8 @@
 <script setup>
 import { computed } from 'vue'
 import '../styles/todoHandleBlocks.css'
-import { getAsbuilt } from '../../../mock/asbuilt.js'
+import { getAsbuilt, asbuiltReportFileTypeLabel } from '../../../mock/asbuilt.js'
+import { formatBrandApproverSnapshot } from '../../../mock/brand.js'
 
 const props = defineProps({
   todo: { type: Object, required: true },
@@ -58,8 +59,29 @@ function fileSizeLabel(size) {
         <el-descriptions-item label="任务名称" :span="2">
           {{ acceptance?.title || todo.detail?.title || '—' }}
         </el-descriptions-item>
+        <el-descriptions-item
+          v-if="acceptance?.copy_from_biz_no || todo.detail?.copyFromBizNo"
+          label="重新申报来源"
+          :span="2"
+        >
+          {{ acceptance?.copy_from_biz_no || todo.detail?.copyFromBizNo }}
+        </el-descriptions-item>
         <el-descriptions-item label="备注" :span="2">
           {{ acceptance?.remark || todo.detail?.remark || '—' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="监理单位审批">
+          {{
+            acceptance
+              ? formatBrandApproverSnapshot(acceptance, 'supervisor')
+              : todo.detail?.supervisorApprover || '—'
+          }}
+        </el-descriptions-item>
+        <el-descriptions-item label="项目经理审批">
+          {{
+            acceptance
+              ? formatBrandApproverSnapshot(acceptance, 'pm')
+              : todo.detail?.pmApprover || '—'
+          }}
         </el-descriptions-item>
         <el-descriptions-item label="申请人">
           {{ todo.applicant || '—' }}
@@ -90,7 +112,12 @@ function fileSizeLabel(size) {
       </div>
       <div v-if="reportFiles.length" class="file-list">
         <div v-for="f in reportFiles" :key="f.id || f.file_name" class="file-row">
-          <span class="file-badge">PDF</span>
+          <span
+            class="file-badge"
+            :class="{ 'is-word': asbuiltReportFileTypeLabel(f) === 'WORD' }"
+          >
+            {{ asbuiltReportFileTypeLabel(f) }}
+          </span>
           <div class="file-main">
             <div class="file-name">{{ f.file_name }}</div>
             <div v-if="f.file_size || f.uploaded_at" class="file-meta">
@@ -161,6 +188,12 @@ function fileSizeLabel(size) {
   color: #c45656;
   background: #fef0f0;
   border: 1px solid #fde2e2;
+}
+
+.file-badge.is-word {
+  color: #2b5bb8;
+  background: #ecf2ff;
+  border-color: #d6e4ff;
 }
 
 .file-main {

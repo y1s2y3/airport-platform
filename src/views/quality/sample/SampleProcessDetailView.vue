@@ -230,6 +230,13 @@ function currentNodeText(app) {
             <el-descriptions-item label="项目">{{ detail.project_label }}</el-descriptions-item>
             <el-descriptions-item label="申请人">{{ detail.applicant_name }}</el-descriptions-item>
             <el-descriptions-item label="提交时间">{{ detail.submit_time || '—' }}</el-descriptions-item>
+            <el-descriptions-item
+              v-if="detail.copy_from_application_id"
+              label="重新申报来源"
+              :span="2"
+            >
+              {{ detail.copy_from_application_id }}
+            </el-descriptions-item>
             <el-descriptions-item label="关键工序样板说明" :span="2">{{
               detail.briefing_content || '—'
             }}</el-descriptions-item>

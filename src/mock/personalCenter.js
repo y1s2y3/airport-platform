@@ -36,12 +36,13 @@ import {
 import { INSPECTION_DEMO_TODAY, inspectionHazards } from './inspectionDemoData.js'
 import { mobileInspectionTasks } from './mobileInspectionTasks.js'
 
-export const PROCESS_STATUS_OPTIONS = ['审批中', '已通过', '已驳回', '已撤回']
+export const PROCESS_STATUS_OPTIONS = ['待提交', '审批中', '已通过', '已驳回', '已撤回']
 export const PROCESS_CATEGORY_OPTIONS = [
   '质量验评',
   '品牌报审',
   '样板管理',
   '材料设备进场',
+  '实模一致验收',
   '巡检管理',
   '人员实名',
   '车辆管理',
@@ -491,6 +492,70 @@ function seedTodos() {
           user: '当前用户',
           remark: '待审批',
           status: 'current',
+        },
+      ],
+    },
+    {
+      id: 'todo-sample-4',
+      type: 'sample',
+      sourceLabel: '样板管理',
+      category: '样板管理',
+      bizType: '材料设备定样',
+      sampleBizType: 'material',
+      sampleApplicationId: 'MS-005',
+      sampleNode: 'supervisor',
+      processName: '材料设备定样·防水卷材',
+      applicant: '施工-李工',
+      dept: '总包项目部',
+      applyTime: '2026-07-22 10:30:00',
+      detail: {
+        project: 'T2航站区配套',
+        applicationId: 'MS-005',
+        bizType: '材料设备定样',
+        title: '防水卷材',
+        usePart: '屋面防水层',
+        unitName: '屋面工程',
+        sampleDate: '2026-07-22',
+        spec: 'SBS 改性沥青防水卷材 3mm；低温柔性 -25℃；拉力≥800N/50mm；不透水性 0.3MPa×30min 不透水；已按驳回意见补全指标说明。',
+        brandName: '东方雨虹',
+        manufacturer: '北京东方雨虹防水技术股份有限公司',
+        brandLedgerId: 'BL-008',
+        ledgerMaterialName: '防水卷材',
+        brandLedgerLabel: '东方雨虹 · 北京东方雨虹防水技术股份有限公司 · 防水卷材',
+        materialType: '材料',
+        currentNode: '待监理审',
+        briefing:
+          'SBS 改性沥青防水卷材 3mm；低温柔性 -25℃；拉力≥800N/50mm；不透水性 0.3MPa×30min 不透水；已按驳回意见补全指标说明。',
+        indicatorDesc:
+          'SBS 改性沥青防水卷材 3mm；低温柔性 -25℃；拉力≥800N/50mm；不透水性 0.3MPa×30min 不透水；已按驳回意见补全指标说明。',
+        supplier: '北京东方雨虹防水技术股份有限公司',
+        effectImages: [{ name: '防水卷材样板-补正.jpg', url: '#' }],
+        approvalFiles: [{ name: '材料设备送样定板报审签字.pdf', url: '#' }],
+        certificateFiles: [{ name: '防水卷材出厂质量证明.pdf', url: '#' }],
+        remark: '演示：从已驳回单 MS-004 重新报审',
+        copyFromApplicationId: 'MS-004',
+      },
+      approvalFlow: [
+        {
+          title: '施工提交',
+          time: '2026-07-22 10:30:00',
+          user: '施工-李工',
+          remark: '从 MS-004 重新申报',
+          status: 'done',
+        },
+        {
+          title: '监理审批',
+          time: '',
+          user: '当前用户',
+          remark: '待审批',
+          status: 'current',
+        },
+        {
+          title: '项目经理终审',
+          time: '',
+          user: '项目经理',
+          remark: '待流转',
+          status: 'pending',
         },
       ],
     },
@@ -2316,6 +2381,7 @@ function buildBrandTodo(payload) {
       brands: payload.brandsText || '—',
       currentNode: isPm ? '待项目经理审' : '待监理审',
       usePart: payload.usePart || '',
+      copyFromApplicationId: payload.copyFromApplicationId || '',
     },
     brandCandidates: payload.candidates || [],
     approvalFlow: isPm
@@ -2390,6 +2456,88 @@ export function createBrandPmTodo(payload) {
 export function discardBrandTodos(applicationId) {
   if (!applicationId) return
   removeOpenBrandTodos(applicationId)
+}
+
+function mapBrandStartedStatus(status) {
+  if (status === 'draft') return '待提交'
+  if (status === 'in_approval' || status === 'pending') return '审批中'
+  if (status === 'approved') return '已通过'
+  if (status === 'rejected' || status === 'withdrawn') return '已驳回'
+  return status || '—'
+}
+
+export function upsertBrandStarted(app) {
+  if (!app?.application_id) return null
+  const exist = personalStarted.find(
+    (item) => item.type === 'brand' && item.brandApplicationId === app.application_id,
+  )
+  const status = mapBrandStartedStatus(app.status)
+  const payload = {
+    id: exist?.id || `start-brand-${app.application_id}`,
+    type: 'brand',
+    sourceLabel: '品牌报审',
+    category: '品牌报审',
+    bizType: '品牌报审',
+    processName: buildBrandProcessName(app.material_name),
+    status,
+    applicant: app.applicant_name || '当前用户',
+    dept: '总包项目部',
+    applyTime: app.submit_time || '',
+    endTime: status === '已通过' || status === '已驳回' ? app.finish_time || '' : '',
+    brandApplicationId: app.application_id,
+    editable: status === '待提交',
+    detail: {
+      project: getProjectLabel(app.project_id) || app.project_id || '—',
+      applicationId: app.application_id,
+      materialName: app.material_name || '—',
+      materialType: app.material_type || '—',
+      usePart: app.use_part || '',
+      copyFromApplicationId: app.copy_from_application_id || '',
+      summary: `${app.material_name || '—'} · ${status}`,
+    },
+    approvalFlow: [],
+  }
+  if (exist) Object.assign(exist, payload)
+  else personalStarted.unshift(payload)
+  return payload
+}
+
+export function seedBrandStartedFromApps(apps = []) {
+  for (const app of apps) upsertBrandStarted(app)
+}
+
+function pushBrandDoneIfNeeded(app) {
+  if (!app?.application_id) return
+  const id = `done-brand-${app.application_id}`
+  if (personalTodoStore.done.some((t) => t.id === id)) return
+  if (app.status !== 'approved' && app.status !== 'rejected') return
+  personalTodoStore.done.unshift({
+    id,
+    type: 'brand',
+    sourceLabel: '品牌报审',
+    category: '品牌报审',
+    bizType: app.status === 'approved' ? '终审通过' : '审批驳回',
+    processName: buildBrandProcessName(app.material_name),
+    applicant: app.applicant_name || '施工方',
+    dept: '总包项目部',
+    applyTime: app.submit_time || '',
+    handleTime: app.finish_time || '',
+    handleLabel: app.status === 'approved' ? '审批通过' : '驳回',
+    brandApplicationId: app.application_id,
+    detail: {
+      project: getProjectLabel(app.project_id) || app.project_id || '—',
+      applicationId: app.application_id,
+      materialName: app.material_name || '—',
+      summary: `${app.material_name || '—'} · ${mapBrandStartedStatus(app.status)}`,
+    },
+    approvalFlow: [],
+  })
+}
+
+export function seedBrandDoneFromApps(apps = []) {
+  const approved = apps.filter((a) => a.status === 'approved').slice(0, 3)
+  const rejected = apps.filter((a) => a.status === 'rejected').slice(0, 3)
+  ;[...approved, ...rejected].forEach((app) => pushBrandDoneIfNeeded(app))
 }
 
 /** —— 样板管理：个人中心待办（模块 approve 路由已 redirect 至个人中心） —— */
@@ -2492,6 +2640,7 @@ function buildSampleTodo(payload) {
       approvalFiles: payload.approvalFiles || [],
       certificateFiles: payload.certificateFiles || [],
       remark: payload.remark || '',
+      copyFromApplicationId: payload.copyFromApplicationId || '',
     },
     approvalFlow: isPm
       ? [
@@ -2542,6 +2691,100 @@ export function createSamplePmTodo(payload) {
 export function discardSampleTodos(bizType, applicationId) {
   if (!bizType || !applicationId) return
   removeOpenSampleTodos(bizType, applicationId)
+}
+
+function mapSampleStartedStatus(status) {
+  if (status === 'in_approval' || status === 'pending') return '审批中'
+  if (status === 'approved') return '已通过'
+  if (status === 'rejected') return '已驳回'
+  return status || '—'
+}
+
+export function upsertSampleStarted(bizType, app) {
+  if (!app?.application_id || !bizType) return null
+  const bizLabel = bizType === 'process' ? '工序样板' : '材料设备定样'
+  const title = bizType === 'process' ? app.process_name : app.sample_name || app.material_name
+  const exist = personalStarted.find(
+    (item) =>
+      item.type === 'sample' &&
+      item.sampleBizType === bizType &&
+      item.sampleApplicationId === app.application_id,
+  )
+  const status = mapSampleStartedStatus(app.status)
+  const payload = {
+    id: exist?.id || `start-sample-${bizType}-${app.application_id}`,
+    type: 'sample',
+    sourceLabel: '样板管理',
+    category: '样板管理',
+    bizType: bizLabel,
+    sampleBizType: bizType,
+    sampleApplicationId: app.application_id,
+    processName: buildSampleProcessName(bizLabel, title),
+    status,
+    applicant: app.applicant_name || '当前用户',
+    dept: '总包项目部',
+    applyTime: app.submit_time || '',
+    endTime: status === '已通过' || status === '已驳回' ? app.finish_time || '' : '',
+    detail: {
+      project: getProjectLabel(app.project_id) || app.project_id || '—',
+      applicationId: app.application_id,
+      bizType: bizLabel,
+      title: title || '—',
+      copyFromApplicationId: app.copy_from_application_id || '',
+      summary: `${title || '—'} · ${status}`,
+    },
+    approvalFlow: [],
+  }
+  if (exist) Object.assign(exist, payload)
+  else personalStarted.unshift(payload)
+  return payload
+}
+
+export function seedSampleStartedFromApps(materials = [], processes = []) {
+  for (const app of materials) upsertSampleStarted('material', app)
+  for (const app of processes) upsertSampleStarted('process', app)
+}
+
+function pushSampleDoneIfNeeded(bizType, app) {
+  if (!app?.application_id) return
+  if (app.status !== 'approved' && app.status !== 'rejected') return
+  const id = `done-sample-${bizType}-${app.application_id}`
+  if (personalTodoStore.done.some((t) => t.id === id)) return
+  const bizLabel = bizType === 'process' ? '工序样板' : '材料设备定样'
+  const title = bizType === 'process' ? app.process_name : app.sample_name || app.material_name
+  personalTodoStore.done.unshift({
+    id,
+    type: 'sample',
+    sourceLabel: '样板管理',
+    category: '样板管理',
+    bizType: bizLabel,
+    sampleBizType: bizType,
+    sampleApplicationId: app.application_id,
+    processName: buildSampleProcessName(bizLabel, title),
+    applicant: app.applicant_name || '施工方',
+    dept: '总包项目部',
+    applyTime: app.submit_time || '',
+    handleTime: app.finish_time || '',
+    handleLabel: app.status === 'approved' ? '审批通过' : '驳回',
+    detail: {
+      project: getProjectLabel(app.project_id) || app.project_id || '—',
+      applicationId: app.application_id,
+      title: title || '—',
+      summary: `${title || '—'} · ${mapSampleStartedStatus(app.status)}`,
+    },
+    approvalFlow: [],
+  })
+}
+
+export function seedSampleDoneFromApps(materials = [], processes = []) {
+  materials
+    .filter((a) => a.status === 'approved' || a.status === 'rejected')
+    .slice(0, 4)
+    .forEach((app) => pushSampleDoneIfNeeded('material', app))
+  processes
+    .filter((a) => a.status === 'approved' || a.status === 'rejected')
+    .slice(0, 4)
+    .forEach((app) => pushSampleDoneIfNeeded('process', app))
 }
 
 /**
@@ -2602,6 +2845,7 @@ function buildMatEntryTodo(payload) {
       sampleId: payload.sampleId || '—',
       quantity: payload.quantity || '—',
       currentNode: '监理审批',
+      copyFromEntryNo: payload.copyFromEntryNo || '',
     },
     approvalFlow: [
       {
@@ -2633,6 +2877,91 @@ export function createMatEntrySupervisorTodo(payload) {
 export function discardMatEntryTodos(entryId) {
   if (!entryId) return
   removeOpenMatEntryTodos(entryId)
+}
+
+function mapMatStartedStatus(status) {
+  if (status === 'reviewing') return '审批中'
+  if (status === 'approved') return '已通过'
+  if (status === 'rejected') return '已驳回'
+  return status || '—'
+}
+
+export function upsertMatEntryStarted(entry) {
+  if (!entry?.entry_no) return null
+  const isEq = entry.entry_type === 'equipment'
+  const itemName = isEq ? entry.equipment_name || entry.material_name : entry.material_name
+  const exist = personalStarted.find(
+    (item) => item.type === 'mat_entry' && item.matEntryId === entry.entry_no,
+  )
+  const status = mapMatStartedStatus(entry.status)
+  const payload = {
+    id: exist?.id || `start-mat-${entry.entry_no}`,
+    type: 'mat_entry',
+    sourceLabel: '材料设备进场',
+    category: '材料设备进场',
+    bizType: '进场报审',
+    matEntryId: entry.entry_no,
+    entryType: entry.entry_type || 'material',
+    processName: buildMatEntryProcessName(itemName),
+    status,
+    applicant: entry.applicant_name || '当前用户',
+    dept: '总包项目部',
+    applyTime: entry.submit_time || '',
+    endTime: status === '已通过' || status === '已驳回' ? entry.finish_time || '' : '',
+    detail: {
+      project: getProjectLabel(entry.project_id) || entry.project_id || '—',
+      entryId: entry.entry_no,
+      materialName: itemName || '—',
+      brandName: entry.brand_name || '—',
+      copyFromEntryNo: entry.copy_from_entry_no || '',
+      summary: `${itemName || '—'} · ${status}`,
+    },
+    approvalFlow: [],
+  }
+  if (exist) Object.assign(exist, payload)
+  else personalStarted.unshift(payload)
+  return payload
+}
+
+export function seedMatEntryStartedFromEntries(entries = []) {
+  for (const entry of entries) upsertMatEntryStarted(entry)
+}
+
+function pushMatDoneIfNeeded(entry) {
+  if (!entry?.entry_no) return
+  if (entry.status !== 'approved' && entry.status !== 'rejected') return
+  const id = `done-mat-${entry.entry_no}`
+  if (personalTodoStore.done.some((t) => t.id === id)) return
+  const isEq = entry.entry_type === 'equipment'
+  const itemName = isEq ? entry.equipment_name || entry.material_name : entry.material_name
+  personalTodoStore.done.unshift({
+    id,
+    type: 'mat_entry',
+    sourceLabel: '材料设备进场',
+    category: '材料设备进场',
+    bizType: '进场审批',
+    matEntryId: entry.entry_no,
+    processName: buildMatEntryProcessName(itemName),
+    applicant: entry.applicant_name || '施工方',
+    dept: '总包项目部',
+    applyTime: entry.submit_time || '',
+    handleTime: entry.finish_time || '',
+    handleLabel: entry.status === 'approved' ? '审批通过' : '驳回',
+    detail: {
+      project: getProjectLabel(entry.project_id) || entry.project_id || '—',
+      entryId: entry.entry_no,
+      materialName: itemName || '—',
+      summary: `${itemName || '—'} · ${mapMatStartedStatus(entry.status)}`,
+    },
+    approvalFlow: [],
+  })
+}
+
+export function seedMatEntryDoneFromEntries(entries = []) {
+  entries
+    .filter((e) => e.status === 'approved' || e.status === 'rejected')
+    .slice(0, 6)
+    .forEach((entry) => pushMatDoneIfNeeded(entry))
 }
 
 /** @deprecated 统一走 mat_entry 待办；保留兼容转调 */
@@ -2684,6 +3013,8 @@ function buildAsbuiltTodo(payload) {
       currentNode: isPm ? '待项目经理终审' : '待监理审',
       supervisorTime: payload.supervisorTime || '',
       supervisorName: payload.supervisorName || '',
+      copyFromId: payload.copyFromId || '',
+      copyFromBizNo: payload.copyFromBizNo || '',
     },
     approvalFlow: isPm
       ? [
@@ -2763,6 +3094,88 @@ export function finishAsbuiltOpenTodos(acceptanceId, handleLabel) {
     .filter((t) => t.type === 'asbuilt' && t.asbuiltAcceptanceId === acceptanceId)
     .map((t) => t.id)
   ids.forEach((id) => finishPersonalTodo(id, handleLabel))
+}
+
+function mapAsbuiltStartedStatus(status) {
+  if (status === 'pending_approval') return '审批中'
+  if (status === 'approved') return '已通过'
+  if (status === 'rejected') return '已驳回'
+  return status || '—'
+}
+
+export function upsertAsbuiltStarted(row) {
+  if (!row?.id) return null
+  const exist = personalStarted.find(
+    (item) => item.type === 'asbuilt' && item.asbuiltAcceptanceId === row.id,
+  )
+  const status = mapAsbuiltStartedStatus(row.status)
+  const payload = {
+    id: exist?.id || `start-asbuilt-${row.id}`,
+    type: 'asbuilt',
+    sourceLabel: '实模一致验收',
+    category: '实模一致验收',
+    bizType: '实模一致验收',
+    processName: buildAsbuiltProcessName(row.title),
+    status,
+    applicant: row.submitter_name || '当前用户',
+    dept: '总包项目部',
+    applyTime: row.submitted_at || '',
+    endTime: status === '已通过' || status === '已驳回' ? row.updated_at || '' : '',
+    asbuiltAcceptanceId: row.id,
+    detail: {
+      project: getProjectLabel(row.project_id) || row.project_id || '—',
+      acceptanceId: row.id,
+      bizNo: row.biz_no || '—',
+      title: row.title || '—',
+      copyFromId: row.copy_from_id || '',
+      copyFromBizNo: row.copy_from_biz_no || '',
+      summary: `${row.title || '—'} · ${status}`,
+    },
+    approvalFlow: [],
+  }
+  if (exist) Object.assign(exist, payload)
+  else personalStarted.unshift(payload)
+  return payload
+}
+
+export function seedAsbuiltStartedFromList(list = []) {
+  for (const row of list) upsertAsbuiltStarted(row)
+}
+
+function pushAsbuiltDoneIfNeeded(row) {
+  if (!row?.id) return
+  if (row.status !== 'approved' && row.status !== 'rejected') return
+  const id = `done-asbuilt-${row.id}`
+  if (personalTodoStore.done.some((t) => t.id === id)) return
+  personalTodoStore.done.unshift({
+    id,
+    type: 'asbuilt',
+    sourceLabel: '实模一致验收',
+    category: '实模一致验收',
+    bizType: row.status === 'approved' ? '终审通过' : '审批驳回',
+    processName: buildAsbuiltProcessName(row.title),
+    applicant: row.submitter_name || '施工方',
+    dept: '总包项目部',
+    applyTime: row.submitted_at || '',
+    handleTime: row.updated_at || '',
+    handleLabel: row.status === 'approved' ? '审批通过' : '驳回',
+    asbuiltAcceptanceId: row.id,
+    detail: {
+      project: getProjectLabel(row.project_id) || row.project_id || '—',
+      acceptanceId: row.id,
+      bizNo: row.biz_no || '—',
+      title: row.title || '—',
+      summary: `${row.title || '—'} · ${mapAsbuiltStartedStatus(row.status)}`,
+    },
+    approvalFlow: [],
+  })
+}
+
+export function seedAsbuiltDoneFromList(list = []) {
+  list
+    .filter((r) => r.status === 'approved' || r.status === 'rejected')
+    .slice(0, 6)
+    .forEach((row) => pushAsbuiltDoneIfNeeded(row))
 }
 
 /** 通知信息（人员预警已迁出至预警中心） */
@@ -2920,6 +3333,7 @@ function buildSubcontractorTodo(row, nodeKey) {
       projectLeaderContact: row.projectLeaderContact,
       safetyManagerContact: row.safetyManagerContact,
       safetyLicenseNo: row.safetyLicense?.licenseNo || '',
+      rejectedFromId: row.rejectedFromId || '',
     },
     approvalFlow: (row.approvalFlow || []).map((step) => ({ ...step })),
   }
@@ -2946,6 +3360,7 @@ function upsertSubcontractorStarted(row) {
       project: row.projectName,
       unitName: row.name,
       unitType: row.unitType,
+      rejectedFromId: row.rejectedFromId || '',
       summary: `${row.unitType} · ${row.name}`,
     },
     approvalFlow: (row.approvalFlow || []).map((step) => ({ ...step })),
@@ -3028,6 +3443,7 @@ export function handleSubcontractorTodo(todoId, { action, opinion } = {}) {
 /** 为审批中单据补待办（列表页挂载时调用） */
 export function seedOpenSubcontractorTodosFromStore(list = []) {
   for (const row of list) {
+    upsertSubcontractorStarted(row)
     if (!isSubcontractorInApproval(row.status) || !row.currentNodeKey) continue
     const exists = personalTodoStore.todos.some(
       (t) => t.type === 'subcontractor' && t.subcontractorApplicationId === row.id,
@@ -3035,12 +3451,47 @@ export function seedOpenSubcontractorTodosFromStore(list = []) {
     if (exists) continue
     const todo = buildSubcontractorTodo(row, row.currentNodeKey)
     if (todo) personalTodoStore.todos.unshift(todo)
-    upsertSubcontractorStarted(row)
   }
+}
+
+function pushSubcontractorDoneIfNeeded(row) {
+  if (!row?.id) return
+  if (row.status !== '已通过' && row.status !== '已驳回') return
+  const id = `done-sc-${row.id}`
+  if (personalTodoStore.done.some((t) => t.id === id)) return
+  personalTodoStore.done.unshift({
+    id,
+    type: 'subcontractor',
+    sourceLabel: '分包报审',
+    category: '分包报审',
+    bizType: row.status === '已通过' ? '审批通过' : '审批驳回',
+    processName: buildSubcontractorProcessName(row.name),
+    applicant: row.submitter || '施工单位',
+    dept: '施工单位',
+    applyTime: row.submitTime || '',
+    handleTime: row.updatedAt || '',
+    handleLabel: row.status === '已通过' ? '审批通过' : '驳回',
+    subcontractorApplicationId: row.id,
+    detail: {
+      project: row.projectName,
+      unitName: row.name,
+      unitType: row.unitType,
+      summary: `${row.unitType} · ${row.name} · ${row.status}`,
+    },
+    approvalFlow: (row.approvalFlow || []).map((step) => ({ ...step })),
+  })
+}
+
+export function seedSubcontractorDoneFromList(list = []) {
+  list
+    .filter((r) => r.status === '已通过' || r.status === '已驳回')
+    .slice(0, 6)
+    .forEach((row) => pushSubcontractorDoneIfNeeded(row))
 }
 
 // 模块加载时补种审批中分包报审待办（避免必须先打开列表页）
 seedOpenSubcontractorTodosFromStore(subcontractorList)
+seedSubcontractorDoneFromList(subcontractorList)
 
 /**
  * 劳务移动端个人中心：流程中心与 Web 个人中心同源（personalTodoStore 等）

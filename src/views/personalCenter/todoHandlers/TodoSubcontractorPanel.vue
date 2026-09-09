@@ -71,6 +71,13 @@ function formatLaborContractAmount(contract) {
           <el-descriptions-item label="提交时间">
             {{ detail.submitTime || todo.applyTime || '—' }}
           </el-descriptions-item>
+          <el-descriptions-item
+            v-if="detail.rejectedFromId || todo.detail?.rejectedFromId"
+            label="重新申报来源"
+            :span="2"
+          >
+            {{ detail.rejectedFromId || todo.detail?.rejectedFromId }}
+          </el-descriptions-item>
           <el-descriptions-item label="项目负责人姓名及电话">
             {{ detail.projectLeaderContact || '—' }}
           </el-descriptions-item>

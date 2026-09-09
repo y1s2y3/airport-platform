@@ -298,7 +298,7 @@ function actionTagType(action) {
             {{ statusLabel(detail.status) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item v-if="detail.copy_from_entry_no" label="复制来源">
+        <el-descriptions-item v-if="detail.copy_from_entry_no" label="重新申报来源">
           {{ detail.copy_from_entry_no }}
         </el-descriptions-item>
         <el-descriptions-item v-else-if="detail.related_reject_id" label="关联驳回原单">

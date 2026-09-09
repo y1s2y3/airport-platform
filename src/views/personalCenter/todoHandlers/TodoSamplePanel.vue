@@ -192,6 +192,13 @@ const processDocFiles = computed(() => {
       <el-descriptions-item v-else label="关键工序样板说明" :span="2">
         {{ liveDetail?.briefing_content || todo.detail?.briefing || '—' }}
       </el-descriptions-item>
+      <el-descriptions-item
+        v-if="liveDetail?.copy_from_application_id || todo.detail?.copyFromApplicationId"
+        label="重新申报来源"
+        :span="2"
+      >
+        {{ liveDetail?.copy_from_application_id || todo.detail?.copyFromApplicationId }}
+      </el-descriptions-item>
       <el-descriptions-item label="备注" :span="2">
         {{ liveDetail?.remark || todo.detail?.remark || '—' }}
       </el-descriptions-item>

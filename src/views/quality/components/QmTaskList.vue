@@ -10,6 +10,7 @@ import {
   createSpecialTask,
   createTask,
   deletePendingTask,
+  displayTaskLocationName,
   ELEC_ARCHIVE_STATUS,
   elecArchiveStatusTagType,
   getTaskDisplayStatus,
@@ -121,7 +122,7 @@ const list = computed(() => {
     rows = rows.filter((t) => {
       const name = resolveProjectName(t.project_id)
       const node = wbsNodes.find((n) => n.id === t.wbs_node_id)?.node_name || ''
-      return `${t.task_no}${t.task_name || ''}${name}${t.location_name || ''}${node}`.includes(kw)
+      return `${t.task_no}${t.task_name || ''}${name}${displayTaskLocationName(t)}${node}`.includes(kw)
     })
   }
   return rows
@@ -263,7 +264,7 @@ function openEdit(row) {
       : []
   createForm.location_ids = ids
   createForm.location_id = ids[0] || ''
-  createForm.location_name = row.location_name || ''
+  createForm.location_name = displayTaskLocationName(row) || ''
   createForm.is_hidden_work = Number(row.is_hidden_work) === 1 ? 1 : 0
   createForm.need_archive = Number(row.need_archive) === 1 ? 1 : 0
   syncArchiveByNode(row.wbs_node_id)
@@ -488,7 +489,9 @@ onMounted(() => {
       <el-table-column label="验收节点" min-width="150">
         <template #default="{ row }">{{ nodeName(row.wbs_node_id) }}</template>
       </el-table-column>
-      <el-table-column v-if="!specialMode" prop="location_name" label="施工部位" min-width="120" />
+      <el-table-column v-if="!specialMode" label="施工部位" min-width="180">
+        <template #default="{ row }">{{ displayTaskLocationName(row) || '—' }}</template>
+      </el-table-column>
       <el-table-column v-if="!specialMode" label="是否隐蔽工程" width="120" align="center">
         <template #default="{ row }">
           {{ Number(row.is_hidden_work) === 1 ? '是' : '否' }}

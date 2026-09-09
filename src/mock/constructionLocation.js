@@ -469,6 +469,28 @@ export function normalizeLocationFields(input = {}) {
   }
 }
 
+/**
+ * 验评任务施工部位展示文案：有部位 id 时优先完整路径（分项 / 父部位 / …），否则回退 location_name
+ */
+export function displayTaskLocationName(task) {
+  if (!task) return ''
+  return normalizeLocationFields(task).location_name || ''
+}
+
+/** 种子/历史任务：有 location_ids 时把 location_name 同步为完整路径，保证列表/详情/检索一致 */
+export function syncTaskLocationNamesFromIds(tasks = inspectionTasks) {
+  ;(tasks || []).forEach((t) => {
+    if (!t) return
+    const hasIds =
+      (Array.isArray(t.location_ids) && t.location_ids.length) || Boolean(t.location_id)
+    if (!hasIds) return
+    const n = normalizeLocationFields(t)
+    t.location_ids = n.location_ids
+    t.location_id = n.location_id
+    t.location_name = n.location_name
+  })
+}
+
 /** 验评定位：作用域内分项对应的 tree-select 展开 key */
 export function resolveScopeExpandKeys(wbsNodeId) {
   const itemIds = resolveLocationScopeItemIds(wbsNodeId)
@@ -1015,3 +1037,6 @@ export function filterEntityBreakdownTableTree(rows, keyword) {
   }
   return walk(rows)
 }
+
+// 模块加载后：种子任务施工部位统一为完整路径
+syncTaskLocationNamesFromIds()

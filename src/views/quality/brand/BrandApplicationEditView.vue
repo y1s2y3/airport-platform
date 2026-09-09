@@ -12,6 +12,8 @@ import {
   submitApplication,
   copyApplicationFromRejected,
   buildCopyPayloadFromRejected,
+  buildEditPayloadFromDraft,
+  submitDraftApplication,
   listBrandProjectUsers,
   resolveDefaultApprovers,
   findBrandProjectUser,
@@ -45,7 +47,18 @@ const form = reactive({
 
 const brandSuggest = ref({})
 const copyFromLabel = ref('')
+const draftApplicationId = ref('')
 const projectUsers = computed(() => listBrandProjectUsers(scopeProjectId.value))
+const pageModeTitle = computed(() => {
+  if (draftApplicationId.value) return '继续编辑品牌报审'
+  if (copyFromLabel.value) return '重新申报品牌报审'
+  return '新增品牌报审'
+})
+const pageModeCrumb = computed(() => {
+  if (draftApplicationId.value) return '继续编辑'
+  if (copyFromLabel.value) return '重新申报'
+  return '新建'
+})
 
 /** 同项目已通过单材料名重复提示（仅提示，不拦截提交） */
 const duplicateMaterialHits = computed(() => {
@@ -95,6 +108,36 @@ function onApproverChange(role) {
 }
 
 onMounted(() => {
+  const draftId = String(route.query.id || '')
+  if (draftId) {
+    const payload = buildEditPayloadFromDraft(draftId)
+    if (!payload) {
+      ElMessage.warning('无法打开该单，请确认其为待提交报审单')
+      applyDefaultApprovers()
+      return
+    }
+    draftApplicationId.value = payload.application_id
+    form.material_name = payload.material_name
+    form.material_type = payload.material_type
+    form.use_part = payload.use_part
+    form.location_id = payload.location_id || ''
+    form.copy_from_application_id = payload.copy_from_application_id || ''
+    applyApproverFields(payload)
+    form.candidates = payload.candidates.length
+      ? payload.candidates
+      : [
+          { ...createEmptyCandidate(), is_primary: true },
+          createEmptyCandidate(),
+          createEmptyCandidate(),
+        ]
+    syncPrimaryByPosition()
+    if (payload.copy_from_application_id) {
+      copyFromLabel.value = payload.copy_from_application_id
+    }
+    ElMessage.success(`已加载待提交单 ${draftId}，核对后提交将进入审批中`)
+    return
+  }
+
   const copyFrom = String(route.query.copyFrom || '')
   if (copyFrom) {
     const payload = buildCopyPayloadFromRejected(copyFrom)
@@ -177,16 +220,21 @@ function onSubmit() {
     pm_approver_name: form.pm_approver_name,
     candidates: form.candidates,
   }
-  const r = form.copy_from_application_id
-    ? copyApplicationFromRejected(form.copy_from_application_id, payload)
-    : submitApplication(payload)
+  let r
+  if (draftApplicationId.value) {
+    r = submitDraftApplication(draftApplicationId.value, payload)
+  } else if (form.copy_from_application_id) {
+    r = copyApplicationFromRejected(form.copy_from_application_id, payload)
+  } else {
+    r = submitApplication(payload)
+  }
   if (!r.ok) return ElMessage.error(r.msg)
   if (duplicateMaterialHits.value.length) {
     ElMessage.warning(duplicateMaterialTip.value)
   }
   ElMessage.success(
-    copyFromLabel.value
-      ? `已重新申报 ${r.data.application_id}（新单），状态为审批中，已进入个人中心待办（待监理审）`
+    draftApplicationId.value || copyFromLabel.value
+      ? `已提交 ${r.data.application_id}，状态为审批中，已进入个人中心待办（待监理审）`
       : `已提交 ${r.data.application_id}，状态为审批中，已进入个人中心待办（待监理审）`,
   )
   router.push('/qm/brand/applications')
@@ -201,10 +249,13 @@ function openSourceApplication(applicationId) {
 <template>
   <div class="qm-page page-card brand-create">
     <div class="page-header">
-      <div class="page-breadcrumb">品牌报审 / 报审申请 / {{ copyFromLabel ? '重新申报' : '新建' }}</div>
+      <div class="page-breadcrumb">品牌报审 / 报审申请 / {{ pageModeCrumb }}</div>
       <div class="title-row">
-        <h1 class="page-title">{{ copyFromLabel ? '重新申报品牌报审' : '新增品牌报审' }}</h1>
-        <el-tag v-if="copyFromLabel" size="small" type="warning" effect="light">
+        <h1 class="page-title">{{ pageModeTitle }}</h1>
+        <el-tag v-if="draftApplicationId" size="small" type="info" effect="light">
+          待提交 {{ draftApplicationId }}
+        </el-tag>
+        <el-tag v-else-if="copyFromLabel" size="small" type="warning" effect="light">
           源单 {{ copyFromLabel }}
         </el-tag>
       </div>
@@ -214,7 +265,7 @@ function openSourceApplication(applicationId) {
         type="info"
         :closable="false"
         show-icon
-        title="重新申报（基于已驳回报审单）"
+        :title="draftApplicationId ? '待提交（基于已驳回报审单重新报审）' : '重新申报（基于已驳回报审单）'"
       >
         <template #default>
           <span>

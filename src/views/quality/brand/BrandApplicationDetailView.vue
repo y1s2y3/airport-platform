@@ -191,7 +191,7 @@ function timelineType(status) {
             <el-descriptions-item label="申请人">{{ detail.app.applicant_name }}</el-descriptions-item>
             <el-descriptions-item label="提交时间">{{ detail.app.submit_time }}</el-descriptions-item>
             <el-descriptions-item label="办结时间">{{ detail.app.finish_time || '—' }}</el-descriptions-item>
-            <el-descriptions-item v-if="detail.app.copy_from_application_id" label="源报审单号">
+            <el-descriptions-item v-if="detail.app.copy_from_application_id" label="重新申报来源">
               <el-button
                 link
                 type="primary"

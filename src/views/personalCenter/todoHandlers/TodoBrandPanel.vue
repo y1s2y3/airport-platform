@@ -69,6 +69,13 @@ const materialTypeText = computed(() => {
         {{ app?.submit_time || todo.applyTime || '—' }}
       </el-descriptions-item>
       <el-descriptions-item label="办结时间" :span="2">{{ app?.finish_time || '—' }}</el-descriptions-item>
+      <el-descriptions-item
+        v-if="app?.copy_from_application_id || todo.detail?.copyFromApplicationId"
+        label="重新申报来源"
+        :span="2"
+      >
+        {{ app?.copy_from_application_id || todo.detail?.copyFromApplicationId }}
+      </el-descriptions-item>
       <el-descriptions-item v-if="app?.remark" label="备注" :span="2">
         {{ app.remark }}
       </el-descriptions-item>

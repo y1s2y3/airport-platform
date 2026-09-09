@@ -2,25 +2,16 @@
 import '../mat/mat-page.css'
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search, Refresh } from '@element-plus/icons-vue'
 import { useQmProjectScope } from '../../../composables/useCurrentProject'
-import {
-  listAsbuilt,
-  deleteAsbuiltDraft,
-  submitAsbuilt,
-  STATUS_LABEL,
-  statusTagType,
-} from '../../../mock/asbuilt.js'
+import { listAsbuilt, STATUS_LABEL, NODE_LABEL, statusTagType } from '../../../mock/asbuilt.js'
 
 const router = useRouter()
 const { isHqSelected, scopeProjectId, scopeProjectLabel } = useQmProjectScope()
 const keyword = ref('')
 const statusFilter = ref('')
-const tick = ref(0)
 
 const list = computed(() => {
-  void tick.value
   if (isHqSelected.value || !scopeProjectId.value) return []
   return listAsbuilt(scopeProjectId.value, {
     keyword: keyword.value,
@@ -33,40 +24,12 @@ function reset() {
   statusFilter.value = ''
 }
 
-function goEdit(id = '', relatedRejectId = '') {
-  const q = new URLSearchParams()
-  if (id) q.set('id', id)
-  if (relatedRejectId) q.set('relatedRejectId', relatedRejectId)
-  const qs = q.toString()
-  router.push(`/qm/asbuilt/edit${qs ? `?${qs}` : ''}`)
+function goCreate() {
+  router.push('/qm/asbuilt/edit')
 }
 
-async function onDelete(row) {
-  try {
-    await ElMessageBox.confirm(`确认删除待提交单 ${row.biz_no}？`, '删除', { type: 'warning' })
-  } catch {
-    return
-  }
-  const r = deleteAsbuiltDraft(row.id)
-  if (!r.ok) return ElMessage.error(r.msg)
-  tick.value += 1
-  ElMessage.success('已删除')
-}
-
-async function onSubmit(row) {
-  try {
-    await ElMessageBox.confirm(
-      `确认提交 ${row.biz_no}？提交后资料只读，进入个人中心待办审批。`,
-      '提交审批',
-      { type: 'warning' },
-    )
-  } catch {
-    return
-  }
-  const r = submitAsbuilt(row.id)
-  if (!r.ok) return ElMessage.error(r.msg)
-  tick.value += 1
-  ElMessage.success('已提交，监理待办已生成（个人中心）')
+function copyFromRejected(row) {
+  router.push(`/qm/asbuilt/edit?copyFrom=${row.id}`)
 }
 
 function nodeSummary(row) {
@@ -83,7 +46,7 @@ function nodeSummary(row) {
       <div class="page-breadcrumb">施工质量管控 / 实模一致验收</div>
       <h1 class="page-title">实模一致验收</h1>
       <p class="page-tip">
-        手动上报实模一致性报告 · 审批仅个人中心待办 · 当前：{{
+        审批在个人中心待办处理 · 当前：{{
           isHqSelected ? '请切换到具体项目' : scopeProjectLabel
         }}
       </p>
@@ -103,23 +66,23 @@ function nodeSummary(row) {
         <el-input
           v-model="keyword"
           clearable
-          placeholder="单号 / 名称 / 节点 / 报告"
-          style="width: 260px"
+          placeholder="单号 / 名称 / 节点 / 报告 / 备注"
+          style="width: 280px"
           :prefix-icon="Search"
-          aria-label="单号 / 名称 / 节点 / 报告"
+          aria-label="单号 / 名称 / 节点 / 报告 / 备注"
         />
         <el-select v-model="statusFilter" clearable placeholder="状态" style="width: 140px" aria-label="状态">
           <el-option v-for="(label, val) in STATUS_LABEL" :key="val" :label="label" :value="val" />
         </el-select>
         <el-button type="primary" :icon="Search">查询</el-button>
         <el-button :icon="Refresh" @click="reset">重置</el-button>
-        <el-button type="primary" :icon="Plus" @click="goEdit()">新建验收</el-button>
+        <el-button type="primary" :icon="Plus" @click="goCreate">新建验收</el-button>
       </div>
 
       <el-table :data="list" stripe border empty-text="暂无实模一致验收单">
         <el-table-column prop="biz_no" label="验收单号" width="140" />
         <el-table-column prop="title" label="任务名称" min-width="180" show-overflow-tooltip />
-        <el-table-column label="所选节点" min-width="200" show-overflow-tooltip>
+        <el-table-column label="所选节点" min-width="180" show-overflow-tooltip>
           <template #default="{ row }">{{ nodeSummary(row) }}</template>
         </el-table-column>
         <el-table-column label="状态" width="100">
@@ -129,9 +92,11 @@ function nodeSummary(row) {
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="submitter_name" label="提交人" width="110" />
-        <el-table-column prop="updated_at" label="更新时间" width="160" />
-        <el-table-column label="操作" width="260" fixed="right">
+        <el-table-column label="当前节点" width="120">
+          <template #default="{ row }">{{ NODE_LABEL[row.current_node] || '—' }}</template>
+        </el-table-column>
+        <el-table-column prop="submitted_at" label="提交时间" width="170" />
+        <el-table-column label="操作" width="160" fixed="right">
           <template #default="{ row }">
             <el-button
               link
@@ -140,20 +105,11 @@ function nodeSummary(row) {
             >
               详情
             </el-button>
-            <el-button v-if="row.status === 'draft'" link type="primary" @click="goEdit(row.id)">
-              编辑
-            </el-button>
-            <el-button v-if="row.status === 'draft'" link type="success" @click="onSubmit(row)">
-              提交
-            </el-button>
-            <el-button v-if="row.status === 'draft'" link type="danger" @click="onDelete(row)">
-              删除
-            </el-button>
             <el-button
               v-if="row.status === 'rejected'"
               link
-              type="warning"
-              @click="goEdit('', row.id)"
+              type="primary"
+              @click="copyFromRejected(row)"
             >
               重新申报
             </el-button>

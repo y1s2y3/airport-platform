@@ -17,6 +17,15 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.9.1.6',
+    date: '2026-09-09',
+    highlights: [
+      '个人中心：品牌/进场/定样/工序样板/分包/实模补充重新报审种子，办理面板展示「重新申报来源」',
+      '质量验评：施工部位统一回显完整路径（分项/部位树）',
+      '品牌报审：已驳回复制新建支持「待提交」草稿继续编辑',
+    ],
+  },
+  {
     version: 'v2.9.1.5',
     date: '2026-09-09',
     highlights: [

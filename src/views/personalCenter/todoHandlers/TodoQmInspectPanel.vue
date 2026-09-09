@@ -14,6 +14,7 @@ import {
   listNodeArchiveDocs,
   isArchiveDocFilled,
   FILL_STATUS,
+  displayTaskLocationName,
   resolveApproverName,
   resolveProjectName,
   wbsNodes,
@@ -290,7 +291,7 @@ function handleBack() {
           </el-descriptions-item>
           <el-descriptions-item label="验收节点">{{ nodeName }}</el-descriptions-item>
           <el-descriptions-item v-if="!isSpecialTask" :label="isCompleteTask ? '工程/部位' : '施工部位'">
-            {{ task.location_name || '—' }}
+            {{ displayTaskLocationName(task) || '—' }}
           </el-descriptions-item>
           <el-descriptions-item v-if="!isCompleteTask && !isSpecialTask" label="是否隐蔽工程">
             {{ Number(task.is_hidden_work) === 1 ? '是' : '否' }}

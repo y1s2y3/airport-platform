@@ -9,6 +9,7 @@ import { useQmProjectScope } from '../../composables/useCurrentProject'
 import {
   approvalRecords,
   buildCompleteGate,
+  displayTaskLocationName,
   findTask,
   getAttachments,
   getCompleteRejectOpinion,
@@ -197,7 +198,7 @@ function formDataEntries(task) {
       <el-table :data="rejectRecords" border size="small" empty-text="暂无驳回记录">
         <el-table-column prop="task_no" label="验收单号" width="130" />
         <el-table-column label="工程/部位" min-width="140" show-overflow-tooltip>
-          <template #default="{ row }">{{ row.location_name || '—' }}</template>
+          <template #default="{ row }">{{ displayTaskLocationName(row) || '—' }}</template>
         </el-table-column>
         <el-table-column label="申请时间" width="160">
           <template #default="{ row }">{{ row.submit_time || '—' }}</template>
@@ -241,7 +242,7 @@ function formDataEntries(task) {
             {{ resolveProjectName(detailTask.project_id) }}
           </el-descriptions-item>
           <el-descriptions-item label="工程/部位">
-            {{ detailTask.location_name || '—' }}
+            {{ displayTaskLocationName(detailTask) || '—' }}
           </el-descriptions-item>
           <el-descriptions-item label="申请人">{{ detailTask.applicant_id || '—' }}</el-descriptions-item>
           <el-descriptions-item label="申请时间">{{ detailTask.submit_time || '—' }}</el-descriptions-item>

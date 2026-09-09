@@ -12,10 +12,13 @@ import {
   getAsbuilt,
   listAsbuiltApprovals,
   STATUS_LABEL,
+  NODE_LABEL,
   APPROVAL_NODE_LABEL,
   ACTION_LABEL,
   statusTagType,
+  asbuiltReportFileTypeLabel,
 } from '../../../mock/asbuilt.js'
+import { formatBrandApproverSnapshot } from '../../../mock/brand.js'
 import PersonalCenterReadonlyHint from '../../../components/PersonalCenterReadonlyHint.vue'
 
 const route = useRoute()
@@ -33,11 +36,14 @@ const approvals = computed(() => {
 
 const currentNodeLabel = computed(() => {
   const row = detail.value
-  if (!row || row.status !== 'pending_approval') return '—'
-  if (row.current_node === 'supervisor') return '待监理审批'
-  if (row.current_node === 'hq_pm') return '待指挥部项目经理终审'
-  return '—'
+  if (!row || row.status !== 'pending_approval') return NODE_LABEL.none
+  return NODE_LABEL[row.current_node] || '—'
 })
+
+function goResubmit() {
+  if (!detail.value) return
+  router.push(`/qm/asbuilt/edit?copyFrom=${detail.value.id}`)
+}
 
 function fileSizeLabel(size) {
   const kb = Math.max(1, Math.round((size || 0) / 1024))
@@ -61,16 +67,9 @@ function actionTagType(action) {
         <h1 class="page-title">实模一致验收详情</h1>
         <div class="title-actions">
           <el-button
-            v-if="detail?.status === 'draft'"
-            type="primary"
-            @click="router.push(`/qm/asbuilt/edit?id=${detail.id}`)"
-          >
-            编辑
-          </el-button>
-          <el-button
             v-if="detail?.status === 'rejected'"
             type="warning"
-            @click="router.push(`/qm/asbuilt/edit?relatedRejectId=${detail.id}`)"
+            @click="goResubmit"
           >
             重新申报
           </el-button>
@@ -101,7 +100,7 @@ function actionTagType(action) {
             <span class="dot">·</span>
             <span>提交人：{{ detail.submitter_name || '—' }}</span>
             <span class="dot">·</span>
-            <span>提交时间：{{ detail.submitted_at || '未提交' }}</span>
+            <span>提交时间：{{ detail.submitted_at || '—' }}</span>
           </div>
         </div>
       </div>
@@ -123,9 +122,24 @@ function actionTagType(action) {
             </el-descriptions-item>
             <el-descriptions-item label="任务名称" :span="2">{{ detail.title }}</el-descriptions-item>
             <el-descriptions-item label="备注" :span="2">{{ detail.remark || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="监理单位审批">
+              {{ formatBrandApproverSnapshot(detail, 'supervisor') }}
+            </el-descriptions-item>
+            <el-descriptions-item label="项目经理审批">
+              {{ formatBrandApproverSnapshot(detail, 'pm') }}
+            </el-descriptions-item>
             <el-descriptions-item label="当前审批环节">{{ currentNodeLabel }}</el-descriptions-item>
             <el-descriptions-item label="提交人">{{ detail.submitter_name || '—' }}</el-descriptions-item>
             <el-descriptions-item label="提交时间">{{ detail.submitted_at || '—' }}</el-descriptions-item>
+            <el-descriptions-item v-if="detail.copy_from_biz_no" label="重新申报来源">
+              <el-button
+                link
+                type="primary"
+                @click="router.push(`/qm/asbuilt/detail?id=${detail.copy_from_id}`)"
+              >
+                {{ detail.copy_from_biz_no }}
+              </el-button>
+            </el-descriptions-item>
             <el-descriptions-item label="创建时间">{{ detail.created_at }}</el-descriptions-item>
             <el-descriptions-item label="更新时间">{{ detail.updated_at }}</el-descriptions-item>
           </el-descriptions>
@@ -173,7 +187,9 @@ function actionTagType(action) {
         <div class="section-body">
           <div v-if="detail.files?.length" class="file-list">
             <div v-for="f in detail.files" :key="f.id" class="file-card">
-              <div class="file-icon">PDF</div>
+              <div class="file-icon" :class="{ 'is-word': asbuiltReportFileTypeLabel(f) === 'WORD' }">
+                {{ asbuiltReportFileTypeLabel(f) }}
+              </div>
               <div class="file-main">
                 <div class="file-name" :title="f.file_name">{{ f.file_name }}</div>
                 <div class="file-meta">
@@ -420,6 +436,12 @@ function actionTagType(action) {
   color: #c45656;
   background: #fef0f0;
   border: 1px solid #fde2e2;
+}
+
+.file-icon.is-word {
+  color: #2b5bb8;
+  background: #ecf2ff;
+  border-color: #d6e4ff;
 }
 
 .file-main {

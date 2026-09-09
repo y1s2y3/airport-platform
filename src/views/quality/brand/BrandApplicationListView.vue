@@ -126,6 +126,14 @@ function copyFromRejected(row) {
               详情
             </el-button>
             <el-button
+              v-if="row.status === 'draft'"
+              link
+              type="primary"
+              @click="router.push(`/qm/brand/applications/edit?id=${row.application_id}`)"
+            >
+              继续编辑
+            </el-button>
+            <el-button
               v-if="row.status === 'rejected'"
               link
               type="primary"

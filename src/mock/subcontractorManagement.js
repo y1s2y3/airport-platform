@@ -920,6 +920,77 @@ const seedList = [
     createdAt: '2026-06-28 10:20:00',
     updatedAt: '2026-07-01 10:00:00',
   },
+  {
+    id: 'sc-app-015',
+    projectId: 'p-000',
+    projectName: '宝安国际机场T2航站区及配套工程',
+    name: '深圳市金螳螂建筑装饰股份有限公司',
+    unitType: '专业分包',
+    projectLeaderContact: '王装修 / 13900139024',
+    safetyManagerContact: '陈安员 / 13800138025',
+    orgStructureDesc:
+      '精装修专业分包，现场设项目负责人、技术负责人及专职安全员；已按驳回意见完善组织架构说明。',
+    qualifications: [
+      { certNo: 'D1440000008899001', fileName: '建筑装修装饰一级.pdf', fileUrl: '' },
+    ],
+    safetyLicense: {
+      licenseNo: '（粤）JZ安许证字〔2022〕007654',
+      expiry: '2026-08-31',
+      fileName: '安全生产许可证.jpg',
+      fileUrl: '',
+    },
+    laborContract: {
+      contractNo: 'HT-T2-FB-2026-025-R',
+      fileName: '装饰分包合同.pdf',
+      fileUrl: '',
+      amount: '1860',
+    },
+    status: '审批中',
+    currentNodeKey: 'pm',
+    rejectedFromId: 'sc-app-005',
+    submitter: '施工单位',
+    submitTime: '2026-08-20 09:30:00',
+    approvalFlow: buildFlowAtNode('施工单位', '2026-08-20 09:30:00', 'pm', {
+      submit: '从已驳回单重新报审',
+    }),
+    createdAt: '2026-08-20 09:00:00',
+    updatedAt: '2026-08-20 09:30:00',
+  },
+  {
+    id: 'sc-app-016',
+    projectId: 'p-000',
+    projectName: '宝安国际机场T2航站区及配套工程',
+    name: '广东水电二局股份有限公司',
+    unitType: '劳务分包',
+    projectLeaderContact: '黄水电 / 13700137026',
+    safetyManagerContact: '林安管 / 13600136027；何安全 / 13500135028',
+    orgStructureDesc: '机电安装劳务队伍，按班组编组，设专职安全员 2 名；已补安全员资格证。',
+    qualifications: [
+      { certNo: 'D3440000005566778', fileName: '机电安装劳务资质.pdf', fileUrl: '' },
+    ],
+    safetyLicense: {
+      licenseNo: '（粤）JZ安许证字〔2023〕005432',
+      expiry: '2026-11-30',
+      fileName: '安全生产许可证.jpg',
+      fileUrl: '',
+    },
+    laborContract: {
+      contractNo: 'HT-T2-LW-2026-008-R',
+      fileName: '劳务合同.pdf',
+      fileUrl: '',
+      amount: '680',
+    },
+    status: '审批中',
+    currentNodeKey: 'pm',
+    rejectedFromId: 'sc-app-006',
+    submitter: '施工单位',
+    submitTime: '2026-08-07 10:00:00',
+    approvalFlow: buildFlowAtNode('施工单位', '2026-08-07 10:00:00', 'pm', {
+      submit: '从已驳回单重新报审',
+    }),
+    createdAt: '2026-08-07 09:30:00',
+    updatedAt: '2026-08-07 10:00:00',
+  },
 ]
 
 export const subcontractorList = reactive(

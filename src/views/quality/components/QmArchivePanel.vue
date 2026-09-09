@@ -10,6 +10,7 @@ import {
   ARCHIVE_FORM_STATUS,
   ARCHIVE_SIGN_STATUS,
   buildWbsTree,
+  displayTaskLocationName,
   getArchiveInstance,
   pullArchiveStatus,
   registerArchiveDoc,
@@ -86,7 +87,7 @@ const selectedNode = computed(() => flatWbsRows.value.find((r) => r.id === selec
 
 const locationRows = computed(() => {
   if (!selectedNode.value) return []
-  const code = selectedNode.value.location_code || props.task.location_name || selectedNode.value.name
+  const code = selectedNode.value.location_code || displayTaskLocationName(props.task) || selectedNode.value.name
   const base = code || '—'
   // 演示：同一节点下挂若干工程部位
   return [
@@ -243,7 +244,7 @@ watch(
     formNo.value =
       instance.value?.archive_doc_id ||
       `CSJCGKJ-GTC-${node?.location_code || props.task.wbs_node_id || '01.01.01.01.TFW02'}`
-    capacity.value = props.task.location_name || selectedLocation.value?.location || ''
+    capacity.value = displayTaskLocationName(props.task) || selectedLocation.value?.location || ''
   },
   { immediate: true },
 )
@@ -268,7 +269,7 @@ function openFill() {
     return ElMessage.warning('请先勾选需填写的表格')
   }
   currentFormId.value = selectedFormIds.value[0] || formRows.value[0]?.id || 'f-soil'
-  capacity.value = selectedLocation.value?.location || props.task.location_name || ''
+  capacity.value = selectedLocation.value?.location || displayTaskLocationName(props.task) || ''
   viewMode.value = 'fill'
 }
 
@@ -476,7 +477,7 @@ function formStatusTagType(s) {
             <el-collapse-item title="项目信息" name="project">
               <el-descriptions :column="1" size="small" border>
                 <el-descriptions-item label="任务">{{ task.task_name || task.task_no }}</el-descriptions-item>
-                <el-descriptions-item label="施工部位">{{ task.location_name || '—' }}</el-descriptions-item>
+                <el-descriptions-item label="施工部位">{{ displayTaskLocationName(task) || '—' }}</el-descriptions-item>
               </el-descriptions>
             </el-collapse-item>
           </el-collapse>
@@ -488,7 +489,7 @@ function formStatusTagType(s) {
                 <el-input
                   type="textarea"
                   :rows="2"
-                  :model-value="selectedLocation?.location || task.location_name || ''"
+                  :model-value="selectedLocation?.location || displayTaskLocationName(task) || ''"
                 />
               </el-form-item>
               <el-form-item label="检验日期">

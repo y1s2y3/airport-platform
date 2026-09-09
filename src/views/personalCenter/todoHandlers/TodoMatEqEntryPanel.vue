@@ -166,6 +166,13 @@ const lineItems = computed(() => {
         <el-descriptions-item label="提交时间">
           {{ entryDetail.submit_time || todo.applyTime || '—' }}
         </el-descriptions-item>
+        <el-descriptions-item
+          v-if="entryDetail.copy_from_entry_no || todo.detail?.copyFromEntryNo"
+          label="重新申报来源"
+          :span="2"
+        >
+          {{ entryDetail.copy_from_entry_no || todo.detail?.copyFromEntryNo }}
+        </el-descriptions-item>
       </el-descriptions>
 
       <!-- 材料进场明细：多组卡片 -->

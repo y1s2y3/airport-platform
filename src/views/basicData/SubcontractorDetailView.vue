@@ -73,7 +73,7 @@ function handleResubmit() {
             <h1 class="page-title">{{ detail.name }}</h1>
             <div v-if="detail.projectName || detail.rejectedFromId" class="sub-meta">
               <span v-if="detail.projectName">{{ detail.projectName }}</span>
-              <span v-if="detail.rejectedFromId">关联驳回单：{{ detail.rejectedFromId }}</span>
+              <span v-if="detail.rejectedFromId">重新申报来源：{{ detail.rejectedFromId }}</span>
             </div>
           </div>
         </div>

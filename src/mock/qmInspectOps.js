@@ -35,7 +35,12 @@ import {
   wbsNodes,
 } from './qmInspect.js'
 import { allowedEntityParentTypes } from '../constants/wbsEntityLabels.js'
-import { joinLocationLabels, constructionLocations, collectDescendantItemIds } from './constructionLocation.js'
+import {
+  joinLocationLabels,
+  normalizeLocationFields,
+  constructionLocations,
+  collectDescendantItemIds,
+} from './constructionLocation.js'
 import {
   defaultMaterialBinds,
   formItemDefs,
@@ -551,8 +556,8 @@ export function createTask({
     : location_id
       ? [String(location_id)]
       : []
-  const locName =
-    String(location_name || '').trim() || joinLocationLabels(locIds) || ''
+  // 有部位 id 时一律存完整路径，避免短别名覆盖树路径
+  const locName = joinLocationLabels(locIds) || String(location_name || '').trim() || ''
 
   const id = `tk-${Date.now()}`
   const task = {
@@ -679,6 +684,16 @@ export function saveTaskDraft(task, patch = {}) {
       ? patch.location_ids.map(String).filter(Boolean)
       : []
     if (!task.location_id && task.location_ids[0]) task.location_id = task.location_ids[0]
+  }
+  if (
+    patch.location_name !== undefined ||
+    patch.location_id !== undefined ||
+    patch.location_ids !== undefined
+  ) {
+    const n = normalizeLocationFields(task)
+    task.location_ids = n.location_ids
+    task.location_id = n.location_id
+    task.location_name = n.location_name
   }
   if (patch.is_hidden_work !== undefined) {
     task.is_hidden_work = Number(patch.is_hidden_work) === 1 ? 1 : 0

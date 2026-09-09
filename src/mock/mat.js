@@ -12,6 +12,9 @@ import {
   createMatEntrySupervisorTodo,
   discardMatEntryTodos,
   discardEqEntryTodos,
+  seedMatEntryStartedFromEntries,
+  seedMatEntryDoneFromEntries,
+  upsertMatEntryStarted,
 } from './personalCenter.js'
 
 /** 合格证 / 现场照片：仅允许图片扩展名 */
@@ -927,7 +930,186 @@ function seedDemoEntriesForAllStatus() {
       operator_name: '监理-周工',
       time: '2026-08-10 16:40:00',
     },
+    {
+      approval_id: 'AR-ME-S11',
+      entry_no: 'ME-011',
+      node: 'submit',
+      action: 'submit',
+      opinion: '提交进场报审',
+      operator_name: '施工-王工',
+      time: '2026-08-17 09:00:00',
+    },
+    {
+      approval_id: 'AR-ME-S12',
+      entry_no: 'ME-012',
+      node: 'submit',
+      action: 'submit',
+      opinion: '从 ME-008 复制新建提交',
+      operator_name: '施工-王工',
+      time: '2026-08-18 10:00:00',
+    },
+    {
+      approval_id: 'AR-ME-S13',
+      entry_no: 'ME-013',
+      node: 'submit',
+      action: 'submit',
+      opinion: '从 ME-009 复制新建提交',
+      operator_name: '施工-李工',
+      time: '2026-08-18 11:20:00',
+    },
   ]
+
+  // 再补审批中（含从驳回复制的新单）
+  extraEntries.push(
+    {
+      entry_no: 'ME-011',
+      entry_type: 'material',
+      project_id,
+      sample_application_id: '',
+      ledger_id: 'BL-007',
+      material_name: '水泥',
+      use_part: '主体结构',
+      brand_name: '海螺',
+      manufacturer: '安徽海螺水泥股份有限公司',
+      quantity: 120,
+      unit: '吨',
+      supplier: '海螺项目供应部',
+      batch_no: 'BATCH-CEMENT-WD',
+      material_spec: 'P·O 42.5',
+      waybill_no: 'YD-CEMENT-WD',
+      line_items: [
+        {
+          material_name: '水泥',
+          material_spec: 'P·O 42.5',
+          quantity: 120,
+          unit: '吨',
+          waybill_no: 'YD-CEMENT-WD',
+          batch_no: 'BATCH-CEMENT-WD',
+          inspect_result_checked: true,
+          inspect_result_file: '送检结果-水泥.pdf',
+        },
+      ],
+      cert_file: '合格证-水泥.jpg',
+      inspect_file: '质检报告-水泥.pdf',
+      photo_file: '进场现场-水泥.jpg',
+      status: 'reviewing',
+      current_node_key: 'supervisor',
+      applicant_name: '施工-王工',
+      supervisor_approver_user_id: 'u-jl-01',
+      supervisor_approver_name: '李总监',
+      supervisor_approver_post: 'jl_chief',
+      supervisor_approver_post_label: '总监理工程师',
+      submit_time: '2026-08-17 09:00:00',
+      finish_time: '',
+      exited: false,
+      remark: '演示：审批中补充样例',
+      copy_from_entry_no: '',
+    },
+    {
+      entry_no: 'ME-012',
+      entry_type: 'material',
+      project_id,
+      sample_application_id: '',
+      ledger_id: 'BL-007',
+      material_name: '砂浆',
+      use_part: '砌体抹灰',
+      brand_name: '海螺',
+      manufacturer: '安徽海螺水泥股份有限公司',
+      quantity: 80,
+      unit: '吨',
+      supplier: '海螺项目供应部',
+      batch_no: 'BATCH-MORTAR-RESUB',
+      material_spec: 'M10 砌筑砂浆',
+      waybill_no: 'YD-MORTAR-RESUB',
+      line_items: [
+        {
+          material_name: '砂浆',
+          material_spec: 'M10 砌筑砂浆',
+          quantity: 80,
+          unit: '吨',
+          waybill_no: 'YD-MORTAR-RESUB',
+          batch_no: 'BATCH-MORTAR-RESUB',
+          inspect_result_checked: true,
+          inspect_result_file: '送检结果-砂浆-补正.pdf',
+        },
+      ],
+      cert_file: '合格证-砂浆-补正.jpg',
+      inspect_file: '质检报告-砂浆-补正.pdf',
+      photo_file: '进场现场-砂浆-补正.jpg',
+      status: 'reviewing',
+      current_node_key: 'supervisor',
+      applicant_name: '施工-王工',
+      supervisor_approver_user_id: 'u-jl-01',
+      supervisor_approver_name: '李总监',
+      supervisor_approver_post: 'jl_chief',
+      supervisor_approver_post_label: '总监理工程师',
+      submit_time: '2026-08-18 10:00:00',
+      finish_time: '',
+      exited: false,
+      remark: '演示：从已驳回单 ME-008 复制新建重新报审',
+      copy_from_entry_no: 'ME-008',
+    },
+    {
+      entry_no: 'ME-013',
+      entry_type: 'equipment',
+      project_id,
+      sample_application_id: '',
+      ledger_id: 'BL-EQ-001',
+      equipment_name: '低压开关柜',
+      material_name: '低压开关柜',
+      model: 'Blokset',
+      use_part: '变配电所',
+      brand_name: '施耐德',
+      manufacturer: '施耐德电气（中国）有限公司',
+      quantity: 2,
+      unit: '台',
+      supplier: '施耐德授权经销商',
+      serial_no: 'SN-BLK-RESUB-0818',
+      line_items: [
+        {
+          equipment_name: '低压开关柜',
+          material_name: '低压开关柜',
+          model: 'Blokset',
+          quantity: 2,
+          unit: '台',
+          serial_no: 'SN-BLK-RESUB-0818',
+          use_part: '变配电所',
+          cert_file: '合格证-开关柜-补正.jpg',
+          inspect_file: '质检报告-开关柜-补正.pdf',
+          photo_file: '到场现场-开关柜-补正.jpg',
+          inspect_result_checked: true,
+          inspect_result_file: '送检结果-开关柜-补正.pdf',
+          unpack_items: [
+            { key: 'nameplate', label: '铭牌', fixed: true, ok: true, remark: '' },
+            { key: 'tools', label: '随机工具', fixed: true, ok: true, remark: '' },
+            { key: 'manual', label: '技术手册', fixed: true, ok: true, remark: '已补齐' },
+            { key: 'parts', label: '配件完备性', fixed: true, ok: true, remark: '' },
+          ],
+        },
+      ],
+      unpack_items: [
+        { key: 'nameplate', label: '铭牌', fixed: true, ok: true, remark: '' },
+        { key: 'tools', label: '随机工具', fixed: true, ok: true, remark: '' },
+        { key: 'manual', label: '技术手册', fixed: true, ok: true, remark: '已补齐' },
+        { key: 'parts', label: '配件完备性', fixed: true, ok: true, remark: '' },
+      ],
+      cert_file: '合格证-开关柜-补正.jpg',
+      inspect_file: '质检报告-开关柜-补正.pdf',
+      photo_file: '到场现场-开关柜-补正.jpg',
+      status: 'reviewing',
+      current_node_key: 'supervisor',
+      applicant_name: '施工-李工',
+      supervisor_approver_user_id: 'u-jl-01',
+      supervisor_approver_name: '李总监',
+      supervisor_approver_post: 'jl_chief',
+      supervisor_approver_post_label: '总监理工程师',
+      submit_time: '2026-08-18 11:20:00',
+      finish_time: '',
+      exited: false,
+      remark: '演示：从已驳回单 ME-009 复制新建重新报审',
+      copy_from_entry_no: 'ME-009',
+    },
+  )
 
   for (const row of extraEntries) {
     if (!store.entries.some((e) => e.entry_no === row.entry_no)) {
@@ -939,8 +1121,8 @@ function seedDemoEntriesForAllStatus() {
       store.approvals.push(ar)
     }
   }
-  store.seq = Math.max(store.seq, 10)
-  store.approvalSeq = Math.max(store.approvalSeq, 18)
+  store.seq = Math.max(store.seq, 13)
+  store.approvalSeq = Math.max(store.approvalSeq, 21)
 }
 
 seedDemoEntriesForAllStatus()
@@ -952,6 +1134,8 @@ function syncPendingTodos() {
 }
 
 syncPendingTodos()
+seedMatEntryStartedFromEntries(store.entries)
+seedMatEntryDoneFromEntries(store.entries)
 
 export function listApprovedSamples(projectId) {
   return APPROVED_SAMPLES.filter((s) => s.project_id === projectId)
@@ -1377,8 +1561,10 @@ function pushTodo(entry) {
     sampleId: entry.sample_application_id || '',
     entryType: entry.entry_type,
     supervisorName: entry.supervisor_approver_name || '',
+    copyFromEntryNo: entry.copy_from_entry_no || '',
   }
   createMatEntrySupervisorTodo(payload)
+  upsertMatEntryStarted(entry)
 }
 
 function resolveBrand(project_id, { ledger_id, brand_name, manufacturer, material_name }) {

@@ -16,6 +16,9 @@ import { getProjectDetail, displayProjectManagerName } from './projectBasicInfo.
 import {
   createBrandPmTodo,
   createBrandSupervisorTodo,
+  seedBrandStartedFromApps,
+  seedBrandDoneFromApps,
+  upsertBrandStarted,
 } from './personalCenter.js'
 import {
   formatApproverCandidateLabel,
@@ -24,15 +27,16 @@ import {
 import { parseOneContact } from '../utils/contactValue.js'
 
 export const MATERIAL_TYPE = { material: '材料', equipment: '设备' }
-/** 业务状态：审批中（含监理审/项目经理审，由 current_node 区分）→ 已通过 / 已驳回 */
+/** 业务状态：待提交（重新报审草稿）→ 审批中（含监理审/项目经理审）→ 已通过 / 已驳回 */
 export const STATUS_LABEL = {
+  draft: '待提交',
   in_approval: '审批中',
   approved: '已通过',
   rejected: '已驳回',
 }
 
 export function statusLabel(status) {
-  // 废止码仅只读兼容展示，筛选项与新数据不得再产出 pending/withdrawn
+  // 废止码仅只读兼容展示；旧 pending 映射为审批中，新草稿用 draft=待提交
   if (status === 'pending') return '审批中'
   if (status === 'withdrawn') return '已驳回'
   return STATUS_LABEL[status] || status || '—'
@@ -939,7 +943,7 @@ const store = reactive({
       file_url: '#mock/baosteel-sample.jpg',
     },
   ],
-  seq: { app: 16, cand: 107, ledger: 9, ar: 18, att: 8 },
+  seq: { app: 18, cand: 113, ledger: 9, ar: 18, att: 10 },
 })
 
 function ledgerUniqueKey(projectId, brandName, manufacturer, materialName) {
@@ -1131,11 +1135,12 @@ export function buildHqBrandApprovalStatsByProject() {
   return COC_PROJECT_OPTIONS.map((opt) => {
     const apps = listApplications(opt.id)
     const count = (status) => apps.filter((a) => a.status === status).length
-    // 仅统计 PRD 状态码；旧码 pending/withdrawn 不并入、不产出
+    // 仅统计 PRD 状态码；draft 单独计入总数，不并入审批中；旧码 pending/withdrawn 不并入
     return {
       project_id: opt.id,
       project_name: opt.label,
       application_total: apps.length,
+      draft_count: count('draft'),
       in_approval_count: count('in_approval'),
       approved_count: count('approved'),
       rejected_count: count('rejected'),
@@ -1154,6 +1159,7 @@ export function buildHqBrandApprovalSummary() {
     (acc, row) => {
       acc.coverage_projects += 1
       acc.application_total += row.application_total
+      acc.draft_count += row.draft_count || 0
       acc.in_approval_count += row.in_approval_count
       acc.approved_count += row.approved_count
       acc.rejected_count += row.rejected_count
@@ -1163,6 +1169,7 @@ export function buildHqBrandApprovalSummary() {
     {
       coverage_projects: 0,
       application_total: 0,
+      draft_count: 0,
       in_approval_count: 0,
       approved_count: 0,
       rejected_count: 0,
@@ -1310,6 +1317,7 @@ export function buildCopyPayloadFromRejected(applicationId) {
     material_name: detail.app.material_name,
     material_type: detail.app.material_type,
     use_part: detail.app.use_part || '',
+    location_id: detail.app.location_id || '',
     copy_from_application_id: applicationId,
     supervisor_approver_user_id: detail.app.supervisor_approver_user_id || '',
     supervisor_approver_name: detail.app.supervisor_approver_name || '',
@@ -1324,6 +1332,37 @@ export function buildCopyPayloadFromRejected(applicationId) {
       attachSlots: buildAttachSlotsFromRecords(c.attachments),
     })),
   }
+}
+
+/** 待提交草稿继续编辑预填 */
+export function buildEditPayloadFromDraft(applicationId) {
+  const detail = getApplicationDetail(applicationId)
+  if (!detail) return null
+  if (detail.app.status !== 'draft') return null
+  return {
+    application_id: detail.app.application_id,
+    material_name: detail.app.material_name,
+    material_type: detail.app.material_type,
+    use_part: detail.app.use_part || '',
+    location_id: detail.app.location_id || '',
+    copy_from_application_id: detail.app.copy_from_application_id || '',
+    supervisor_approver_user_id: detail.app.supervisor_approver_user_id || '',
+    supervisor_approver_name: detail.app.supervisor_approver_name || '',
+    pm_approver_user_id: detail.app.pm_approver_user_id || '',
+    pm_approver_name: detail.app.pm_approver_name || '',
+    candidates: detail.candidates.map((c) => ({
+      ledger_id: c.ledger_id || '',
+      brand_name: c.brand_name,
+      manufacturer: c.manufacturer,
+      remark: c.remark || '',
+      is_primary: !!c.is_primary,
+      attachSlots: buildAttachSlotsFromRecords(c.attachments),
+    })),
+  }
+}
+
+export function getDraftForEdit(applicationId) {
+  return buildEditPayloadFromDraft(applicationId)
 }
 
 /** @deprecated 已取消「已撤回同单重提」；请用已驳回复制新建 */
@@ -1465,6 +1504,7 @@ function finalizeBrandSubmission(app, projectId, validCandidates, checked) {
     checked.pm_approver_name,
   )
   createBrandSupervisorTodo(buildBrandTodoPayload(app))
+  upsertBrandStarted(app)
 }
 
 export function submitApplication(payload) {
@@ -1497,7 +1537,7 @@ export function submitApplication(payload) {
   return { ok: true, data: app }
 }
 
-/** 已驳回报审单复制新建（POST copy-from）→ 新单号 */
+/** 已驳回报审单复制新建（POST copy-from）→ 新单号，直接进入审批中 */
 export function copyApplicationFromRejected(sourceApplicationId, payload) {
   const sourceId = String(sourceApplicationId || '').trim()
   const src = store.applications.find((a) => a.application_id === sourceId)
@@ -1534,6 +1574,40 @@ export function copyApplicationFromRejected(sourceApplicationId, payload) {
   }
   applyApproverSnapshotsToApp(app, checked)
   store.applications.push(app)
+  finalizeBrandSubmission(app, checked.project_id, checked.validCandidates, checked)
+  return { ok: true, data: app }
+}
+
+/** 待提交草稿提交 → 审批中并生成监理待办 */
+export function submitDraftApplication(applicationId, payload = {}) {
+  const app = store.applications.find((a) => a.application_id === applicationId)
+  if (!app) return { ok: false, msg: '单据不存在' }
+  if (app.status !== 'draft') return { ok: false, msg: '仅待提交单据可提交审批' }
+
+  const checked = validateBrandSubmitPayload({
+    ...payload,
+    project_id: payload.project_id || app.project_id,
+  })
+  if (!checked.ok) return checked
+  if (checked.project_id !== app.project_id) {
+    return { ok: false, msg: '项目不一致，无法提交' }
+  }
+
+  app.material_name = checked.material_name
+  app.material_type = checked.material_type
+  app.use_part = payload.use_part || app.use_part || ''
+  app.location_id = payload.location_id || app.location_id || ''
+  app.remark = payload.remark || app.remark || ''
+  if (payload.copy_from_application_id) {
+    app.copy_from_application_id = payload.copy_from_application_id
+    app.copy_from_pk = payload.copy_from_application_id
+  }
+  applyApproverSnapshotsToApp(app, checked)
+  app.status = 'in_approval'
+  app.current_node = 'supervisor'
+  app.submit_time = nowStr()
+  app.finish_time = ''
+  app.applicant_name = app.applicant_name || '当前用户'
   finalizeBrandSubmission(app, checked.project_id, checked.validCandidates, checked)
   return { ok: true, data: app }
 }
@@ -1577,6 +1651,7 @@ export function supervisorApprove(applicationId, { action, opinion, operatorUser
     app.current_node = 'none'
     app.finish_time = nowStr()
   }
+  upsertBrandStarted(app)
   return { ok: true }
 }
 
@@ -1606,6 +1681,7 @@ export function pmApprove(applicationId, { action, opinion, operatorUserId } = {
     app.status = 'rejected'
     app.current_node = 'none'
     app.finish_time = nowStr()
+    upsertBrandStarted(app)
     return { ok: true }
   }
 
@@ -1620,6 +1696,7 @@ export function pmApprove(applicationId, { action, opinion, operatorUserId } = {
   app.status = 'approved'
   app.current_node = 'none'
   app.finish_time = nowStr()
+  upsertBrandStarted(app)
   return { ok: true }
 }
 
@@ -1627,6 +1704,7 @@ export function statusTagType(status) {
   if (status === 'approved') return 'success'
   if (status === 'in_approval' || status === 'pending') return 'warning'
   if (status === 'rejected' || status === 'withdrawn') return 'danger'
+  if (status === 'draft') return 'info'
   return 'info'
 }
 
@@ -1895,6 +1973,40 @@ function seedDemoApplicationsForAllStatus() {
         },
       ],
     },
+    {
+      application_id: 'PP-2026-017',
+      material_name: '室内地砖',
+      material_type: 'material',
+      use_part: '商业区公区',
+      status: 'draft',
+      current_node: 'none',
+      submit_time: '',
+      finish_time: '',
+      remark: '演示：从已驳回单 PP-2026-013 重新报审，待提交',
+      copy_from_application_id: 'PP-2026-013',
+      brands: [
+        { id: 'C-108', brand_name: '东鹏', manufacturer: '东鹏控股股份有限公司', is_primary: true, remark: '已按驳回意见补样品照片' },
+        { id: 'C-109', brand_name: '马可波罗', manufacturer: '广东马可波罗陶瓷有限公司', is_primary: false },
+        { id: 'C-110', brand_name: '诺贝尔', manufacturer: '杭州诺贝尔陶瓷有限公司', is_primary: false },
+      ],
+    },
+    {
+      application_id: 'PP-2026-018',
+      material_name: '干式变压器',
+      material_type: 'equipment',
+      use_part: '变电所',
+      status: 'draft',
+      current_node: 'none',
+      submit_time: '',
+      finish_time: '',
+      remark: '演示：从已驳回单 PP-2026-014 重新报审，待提交',
+      copy_from_application_id: 'PP-2026-014',
+      brands: [
+        { id: 'C-111', brand_name: '特变电工', manufacturer: '特变电工股份有限公司', is_primary: true, remark: '已调整与合同推荐一致' },
+        { id: 'C-112', brand_name: '西门子', manufacturer: '西门子（中国）有限公司', is_primary: false },
+        { id: 'C-113', brand_name: 'ABB', manufacturer: 'ABB（中国）有限公司', is_primary: false },
+      ],
+    },
   ]
 
   for (const row of rows) {
@@ -1913,6 +2025,11 @@ function seedDemoApplicationsForAllStatus() {
       finish_time: row.finish_time || '',
       remark: row.remark || '',
       copy_from_application_id: row.copy_from_application_id || '',
+      copy_from_pk: row.copy_from_application_id || '',
+      supervisor_approver_user_id: 'u-jl-01',
+      supervisor_approver_name: '李总监',
+      pm_approver_user_id: 'u-pm-01',
+      pm_approver_name: '王建国',
     })
     row.brands.forEach((b, i) => {
       store.candidates.push({
@@ -1957,6 +2074,22 @@ function seedDemoApplicationsForAllStatus() {
       file_name: '东鹏地砖样品.jpg',
       file_url: '#mock/dongpeng-sample.jpg',
     },
+    {
+      attachment_id: 'BA-009',
+      candidate_id: 'C-108',
+      attach_type: 'sample_photo',
+      is_checked: true,
+      file_name: '东鹏地砖样品-补正.jpg',
+      file_url: '#mock/dongpeng-sample-fix.jpg',
+    },
+    {
+      attachment_id: 'BA-010',
+      candidate_id: 'C-111',
+      attach_type: 'vendor_profile',
+      is_checked: true,
+      file_name: '特变电工-厂商资料-补正.pdf',
+      file_url: '#mock/tbea-vendor.pdf',
+    },
   ]
   for (const att of extraAtts) {
     if (!store.attachments.some((a) => a.attachment_id === att.attachment_id)) {
@@ -1990,6 +2123,7 @@ backfillApproverSnapshots()
 
 function seedOpenBrandTodos() {
   for (const app of store.applications) {
+    if (app.status === 'draft') continue
     if (app.status === 'in_approval' && app.current_node === 'supervisor') {
       createBrandSupervisorTodo(buildBrandTodoPayload(app))
     } else if (app.status === 'in_approval' && app.current_node === 'pm') {
@@ -1999,3 +2133,5 @@ function seedOpenBrandTodos() {
 }
 
 seedOpenBrandTodos()
+seedBrandStartedFromApps(store.applications)
+seedBrandDoneFromApps(store.applications)

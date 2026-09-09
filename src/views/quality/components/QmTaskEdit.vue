@@ -13,6 +13,7 @@ import {
   checkUnlock,
   createSpecialTask,
   createTask,
+  displayTaskLocationName,
   ensureTaskItems,
   findTask,
   getApprovalChain,
@@ -384,7 +385,7 @@ function load(forcedId) {
   }
   headerMeta.task_name = task.value.task_name || ''
   headerMeta.wbs_node_id = task.value.wbs_node_id || ''
-  headerMeta.location_name = task.value.location_name || ''
+  headerMeta.location_name = displayTaskLocationName(task.value) || ''
   headerMeta.is_hidden_work = Number(task.value.is_hidden_work) === 1 ? 1 : 0
   headerMeta.remark = task.value.remark || ''
 }
@@ -863,7 +864,7 @@ async function onAddSiteMedia() {
       file_size: file.size || 0,
       mime_type: file.type || (isVideo ? 'video/mp4' : 'image/jpeg'),
       shoot_time: new Date().toISOString().slice(0, 19).replace('T', ' '),
-      shoot_location: task.value.location_name || headerMeta.location_name || '',
+      shoot_location: displayTaskLocationName(task.value) || headerMeta.location_name || '',
     })
     if (!r.ok) {
       ElMessage.error(r.msg)
@@ -1163,7 +1164,7 @@ function onSaveDraft() {
   const r = saveTaskDraft(task.value, {
     task_name: task.value.task_name,
     remark: task.value.remark || '',
-    location_name: task.value.location_name,
+    location_name: displayTaskLocationName(task.value),
     is_hidden_work: task.value.is_hidden_work,
     wbs_node_id: task.value.wbs_node_id,
     form_data: formDataLocal.value,
@@ -1193,7 +1194,7 @@ function onSubmit() {
   const draftSave = saveTaskDraft(task.value, {
     task_name: task.value.task_name,
     remark: task.value.remark || '',
-    location_name: task.value.location_name,
+    location_name: displayTaskLocationName(task.value),
     is_hidden_work: task.value.is_hidden_work,
     wbs_node_id: task.value.wbs_node_id,
     form_data: formDataLocal.value,
@@ -1292,7 +1293,7 @@ function saveStepQuietly() {
           </el-col>
           <el-col v-if="!isSpecialContext" :span="12">
             <el-form-item label="施工部位">
-              <span class="readonly-text">{{ task.location_name || headerMeta.location_name || '—' }}</span>
+              <span class="readonly-text">{{ displayTaskLocationName(task) || headerMeta.location_name || '—' }}</span>
             </el-form-item>
           </el-col>
           <el-col v-if="showHiddenWorkOption" :span="12">
@@ -1311,7 +1312,7 @@ function saveStepQuietly() {
       <div class="section-title">基本信息 · 竣工验收</div>
       <el-descriptions :column="2" border size="small" class="mb">
         <el-descriptions-item label="验评单号">{{ task.task_no || '—' }}</el-descriptions-item>
-        <el-descriptions-item label="工程/部位">{{ task.location_name || '—' }}</el-descriptions-item>
+        <el-descriptions-item label="工程/部位">{{ displayTaskLocationName(task) || '—' }}</el-descriptions-item>
       </el-descriptions>
     </template>
 
@@ -1326,7 +1327,7 @@ function saveStepQuietly() {
         <el-descriptions-item label="项目名称">{{ displayProjectName }}</el-descriptions-item>
         <el-descriptions-item label="验收任务名称">{{ task.task_name || headerMeta.task_name || '—' }}</el-descriptions-item>
         <el-descriptions-item label="验收节点">{{ nodeName }}</el-descriptions-item>
-        <el-descriptions-item v-if="task.task_type !== 6" label="施工部位">{{ task.location_name || '—' }}</el-descriptions-item>
+        <el-descriptions-item v-if="task.task_type !== 6" label="施工部位">{{ displayTaskLocationName(task) || '—' }}</el-descriptions-item>
         <el-descriptions-item v-if="task.task_type !== 6" label="是否隐蔽工程">
           {{ task.is_hidden_work === 1 ? '是' : '否' }}
         </el-descriptions-item>
