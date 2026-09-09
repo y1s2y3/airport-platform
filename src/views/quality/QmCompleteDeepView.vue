@@ -9,13 +9,11 @@ import { useQmProjectScope } from '../../composables/useCurrentProject'
 import {
   approvalRecords,
   buildCompleteGate,
-  FILE_CATEGORY,
   findTask,
   getAttachments,
   getCompleteRejectOpinion,
   getOrCreateCompleteDraft,
   listCompleteRejectRecords,
-  ORG_LABEL,
   reDeclareCompleteAcceptance,
   resolveProjectName,
   TASK_STATUS,
@@ -242,9 +240,6 @@ function formDataEntries(task) {
           <el-descriptions-item label="项目名称">
             {{ resolveProjectName(detailTask.project_id) }}
           </el-descriptions-item>
-          <el-descriptions-item label="施工单位">
-            {{ ORG_LABEL[detailTask.contractor_org_id] || detailTask.contractor_org_id || '—' }}
-          </el-descriptions-item>
           <el-descriptions-item label="工程/部位">
             {{ detailTask.location_name || '—' }}
           </el-descriptions-item>
@@ -288,9 +283,6 @@ function formDataEntries(task) {
           class="mb"
         >
           <el-table-column prop="file_name" label="文件名" min-width="160" show-overflow-tooltip />
-          <el-table-column label="类别" width="110">
-            <template #default="{ row }">{{ FILE_CATEGORY[row.file_category] || '—' }}</template>
-          </el-table-column>
           <el-table-column prop="upload_time" label="上传时间" width="160" />
         </el-table>
 

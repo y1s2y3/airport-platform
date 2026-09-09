@@ -17,10 +17,8 @@ import {
   resolveProjectName,
   specialTypeLabel,
   wbsNodes,
-  FILE_CATEGORY,
   TASK_STATUS,
   TASK_TYPE_LABEL,
-  ORG_LABEL,
   ELEC_ARCHIVE_STATUS,
   approvalRecords,
   signatureRecords,
@@ -56,11 +54,6 @@ const projectName = computed(() => {
   return props.todo?.detail?.project || '—'
 })
 
-const contractorName = computed(() => {
-  const orgId = task.value?.contractor_org_id || 'org-sg-01'
-  return ORG_LABEL[orgId] || orgId || '—'
-})
-
 const statusLabel = computed(() => {
   if (!task.value) return props.todo?.detail?.currentNode || '待审批'
   return TASK_STATUS[task.value.status] || '待审批'
@@ -68,11 +61,6 @@ const statusLabel = computed(() => {
 
 const isCompleteTask = computed(() => Number(task.value?.task_type) === 7)
 const isSpecialTask = computed(() => Number(task.value?.task_type) === 6)
-
-function formatFirstPass(flag) {
-  if (flag == null || flag === '') return '—'
-  return Number(flag) === 1 ? '是' : '否'
-}
 
 const siteAttachments = computed(() => {
   if (!task.value) return []
@@ -294,7 +282,6 @@ function handleBack() {
             {{ TASK_TYPE_LABEL[task.task_type] || todo.bizType || '—' }}
           </el-descriptions-item>
           <el-descriptions-item label="项目名称">{{ projectName }}</el-descriptions-item>
-          <el-descriptions-item label="施工单位">{{ contractorName }}</el-descriptions-item>
           <el-descriptions-item label="验收任务名称">
             {{ task.task_name || '—' }}
           </el-descriptions-item>
@@ -307,9 +294,6 @@ function handleBack() {
           </el-descriptions-item>
           <el-descriptions-item v-if="!isCompleteTask && !isSpecialTask" label="是否隐蔽工程">
             {{ Number(task.is_hidden_work) === 1 ? '是' : '否' }}
-          </el-descriptions-item>
-          <el-descriptions-item v-if="isCompleteTask" label="一次通过">
-            {{ formatFirstPass(task.first_pass_flag) }}
           </el-descriptions-item>
           <el-descriptions-item label="申请人">{{ todo.applicant || '—' }}</el-descriptions-item>
           <el-descriptions-item label="申请时间">{{ todo.applyTime || '—' }}</el-descriptions-item>
@@ -335,9 +319,6 @@ function handleBack() {
               </template>
             </el-table-column>
             <el-table-column prop="file_name" label="文件名" min-width="120" show-overflow-tooltip />
-            <el-table-column label="类别" width="100">
-              <template #default="{ row }">{{ FILE_CATEGORY[row.file_category] || '—' }}</template>
-            </el-table-column>
             <el-table-column label="大小" width="80">
               <template #default="{ row }">{{ formatFileSize(row.file_size) }}</template>
             </el-table-column>
@@ -359,9 +340,6 @@ function handleBack() {
               </template>
             </el-table-column>
             <el-table-column prop="file_name" label="文件名" min-width="120" show-overflow-tooltip />
-            <el-table-column label="类别" width="100">
-              <template #default="{ row }">{{ FILE_CATEGORY[row.file_category] || '—' }}</template>
-            </el-table-column>
             <el-table-column label="大小" width="80">
               <template #default="{ row }">{{ formatFileSize(row.file_size) }}</template>
             </el-table-column>
@@ -404,26 +382,32 @@ function handleBack() {
             <el-tag size="small" type="info" effect="plain">共 {{ materialLinks.length }} 条</el-tag>
           </div>
           <el-table :data="materialLinks" border size="small" empty-text="暂无关联材料设备">
+            <el-table-column prop="material_id" label="进场单号" width="110" show-overflow-tooltip />
             <el-table-column prop="source_label" label="类型" width="70">
               <template #default="{ row }">{{ row.source_label || '—' }}</template>
             </el-table-column>
-            <el-table-column prop="material_id" label="进场单号" width="110" show-overflow-tooltip />
             <el-table-column
               prop="material_name"
               label="名称"
               min-width="120"
               show-overflow-tooltip
             />
-            <el-table-column prop="use_part" label="施工部位" min-width="100" show-overflow-tooltip>
-              <template #default="{ row }">{{ row.use_part || '—' }}</template>
+            <el-table-column label="规格型号" min-width="110" show-overflow-tooltip>
+              <template #default="{ row }">{{ row.material_spec || '—' }}</template>
             </el-table-column>
-            <el-table-column prop="brand_name" label="品牌" width="100" show-overflow-tooltip>
+            <el-table-column prop="brand_name" label="品牌" width="90" show-overflow-tooltip>
               <template #default="{ row }">{{ row.brand_name || '—' }}</template>
             </el-table-column>
-            <el-table-column prop="quantity_text" label="规格及数量" width="110" show-overflow-tooltip>
+            <el-table-column label="定样单号" width="100" show-overflow-tooltip>
+              <template #default="{ row }">{{ row.sample_application_id || '—' }}</template>
+            </el-table-column>
+            <el-table-column prop="quantity_text" label="进场数量" width="90" show-overflow-tooltip>
               <template #default="{ row }">{{ row.quantity_text || '—' }}</template>
             </el-table-column>
             <el-table-column prop="supplier" label="供应商" min-width="90" show-overflow-tooltip />
+            <el-table-column label="进场时间" width="150" show-overflow-tooltip>
+              <template #default="{ row }">{{ row.submit_time || '—' }}</template>
+            </el-table-column>
           </el-table>
         </section>
       </div>
@@ -437,10 +421,16 @@ function handleBack() {
           </div>
           <el-table :data="sampleLinks" border size="small" empty-text="暂无关联定版定样">
             <el-table-column prop="sample_id" label="报审编号" width="120" show-overflow-tooltip />
-            <el-table-column prop="sample_name" label="名称" min-width="120" show-overflow-tooltip />
             <el-table-column prop="sample_category" label="类型" width="100" />
+            <el-table-column prop="sample_name" label="名称" min-width="120" show-overflow-tooltip />
             <el-table-column prop="brand_name" label="品牌" width="100" show-overflow-tooltip>
               <template #default="{ row }">{{ row.brand_name || '—' }}</template>
+            </el-table-column>
+            <el-table-column label="定样日期" width="110">
+              <template #default="{ row }">{{ row.sample_date || '—' }}</template>
+            </el-table-column>
+            <el-table-column prop="unit_name" label="单位工程" min-width="100" show-overflow-tooltip>
+              <template #default="{ row }">{{ row.unit_name || '—' }}</template>
             </el-table-column>
             <el-table-column prop="use_part" label="使用部位" min-width="100" show-overflow-tooltip>
               <template #default="{ row }">{{ row.use_part || '—' }}</template>

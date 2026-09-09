@@ -975,10 +975,12 @@ export function listSelectableForInspect(
       .forEach((a) => {
         rows.push({
           sample_id: a.application_id,
-          sample_name: a.material_name,
+          sample_name: a.sample_name || a.material_name,
           sample_category: '材料设备定样',
           biz_type: 'material',
           use_part: a.use_part || '',
+          unit_name: a.unit_name || '',
+          sample_date: a.sample_date || '',
           location_id: a.location_id || a.use_part_wbs_id || '',
           location_ids: Array.isArray(a.location_ids) ? [...a.location_ids] : [],
           brand_name: a.brand_name || '',
@@ -996,6 +998,8 @@ export function listSelectableForInspect(
           sample_category: '工序样板',
           biz_type: 'process',
           use_part: a.use_part || '',
+          unit_name: a.unit_name || '',
+          sample_date: a.sample_date || '',
           location_id: a.location_id || '',
           location_ids: Array.isArray(a.location_ids) ? [...a.location_ids] : [],
           brand_name: '',
@@ -1024,6 +1028,7 @@ export function listSelectableForInspect(
         r.sample_id.toLowerCase().includes(kw) ||
         (r.sample_name || '').toLowerCase().includes(kw) ||
         (r.sample_category || '').toLowerCase().includes(kw) ||
+        (r.unit_name || '').toLowerCase().includes(kw) ||
         (r.use_part || '').toLowerCase().includes(kw) ||
         (r.brand_name || '').toLowerCase().includes(kw)
       )

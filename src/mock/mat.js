@@ -2084,14 +2084,16 @@ export function registerExit(payload) {
 
 export function listSelectableForInspect(
   projectId,
-  { keyword = '', usePart = '', locationId = '' } = {},
+  { keyword = '', entryType = '', usePart = '', locationId = '' } = {},
 ) {
   const kw = String(keyword || '').trim().toLowerCase()
+  const typeFilter = String(entryType || '').trim()
   const part = String(usePart || '').trim().toLowerCase()
   const locId = String(locationId || '').trim()
   return store.entries
     .filter((e) => {
       if (e.project_id !== projectId || e.status !== 'approved') return false
+      if (typeFilter && e.entry_type !== typeFilter) return false
       // 仅完全退完不可选；部分退场仍可选
       return getExitStatusMeta(e).remaining_qty > 0
     })
@@ -2114,21 +2116,28 @@ export function listSelectableForInspect(
         (e.brand_name || '').toLowerCase().includes(kw) ||
         (e.supplier || '').toLowerCase().includes(kw) ||
         (e.batch_no || '').toLowerCase().includes(kw) ||
+        (e.sample_application_id || '').toLowerCase().includes(kw) ||
         (e.use_part || '').toLowerCase().includes(kw)
       )
     })
     .map((e) => ({
       source: e.entry_type === 'equipment' ? 'eq' : 'mat',
       source_label: e.entry_type === 'equipment' ? '设备' : '材料',
+      entry_type: e.entry_type || 'material',
       material_id: e.entry_no,
       material_name: e.entry_type === 'equipment' ? e.equipment_name : e.material_name,
+      material_spec: e.material_spec || e.model || '',
       batch_no: e.batch_no || e.serial_no || e.waybill_no || '',
+      sample_application_id: e.sample_application_id || '',
       supplier: e.supplier || '',
       brand_name: e.brand_name || '',
       use_part: e.use_part || '',
       location_id: e.location_id || '',
       location_ids: Array.isArray(e.location_ids) ? [...e.location_ids] : [],
+      quantity: e.quantity,
+      unit: e.unit || '',
       quantity_text: `${e.quantity ?? ''}${e.unit || ''}`,
+      submit_time: e.submit_time || '',
     }))
 }
 

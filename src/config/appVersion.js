@@ -17,6 +17,16 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.9.1.3',
+    date: '2026-09-09',
+    highlights: [
+      '工程影像与附件：列表不再展示「类别」；上传合并为「上传图片/视频」',
+      '关联选数弹窗：材料/定样/实模支持分页（每页 10 条）；搜索对齐台账，去掉施工部位筛选',
+      '关联材料设备：关键字+进场类型筛选（不含退场原因）；列表对齐台账字段',
+      '关联定版定样：关键字+类型筛选；增加定样日期，顺序为定样日期→单位工程→使用部位',
+    ],
+  },
+  {
     version: 'v2.9.1.2',
     date: '2026-09-07',
     highlights: [

@@ -14,7 +14,6 @@ import {
   createSpecialTask,
   createTask,
   ensureTaskItems,
-  FILE_CATEGORY,
   findTask,
   getApprovalChain,
   getAttachments,
@@ -27,7 +26,6 @@ import {
   removeAttachment,
   resolveApproverName,
   resolveProjectName,
-  ORG_LABEL,
   saveTaskDraft,
   SPECIAL_ACCEPT_TYPES,
   specialTypeLabel,
@@ -47,9 +45,11 @@ import {
   taskRequiresPmApproval,
 } from '../../../mock/qm.js'
 import { listAsbuiltForInspectLink } from '../../../mock/asbuilt.js'
-import { listSelectableForInspect } from '../../../mock/mat.js'
-import { listSelectableForInspect as listSampleForInspect } from '../../../mock/sample.js'
-import ConstructionLocationSelect from '../../../components/ConstructionLocationSelect.vue'
+import { ENTRY_TYPE_LABEL, listSelectableForInspect } from '../../../mock/mat.js'
+import {
+  BIZ_TYPE_LABEL,
+  listSelectableForInspect as listSampleForInspect,
+} from '../../../mock/sample.js'
 
 /** 档案面板较大，异步加载，避免拖慢新建首屏 */
 const QmArchivePanel = defineAsyncComponent(() => import('./QmArchivePanel.vue'))
@@ -397,11 +397,6 @@ function load(forcedId) {
   headerMeta.location_name = task.value.location_name || ''
   headerMeta.is_hidden_work = Number(task.value.is_hidden_work) === 1 ? 1 : 0
   headerMeta.remark = task.value.remark || ''
-}
-
-function formatFirstPass(flag) {
-  if (flag == null || flag === '') return ''
-  return Number(flag) === 1 ? '是' : '否'
 }
 
 watch(
@@ -778,13 +773,6 @@ const displayProjectName = computed(() => {
   return scopeProjectLabel.value || resolveProjectName(scopeProjectId.value) || '—'
 })
 
-/** 任务信息回显：施工单位（任务 contractor_org / 新建默认施工单位） */
-const DEFAULT_CONTRACTOR_ORG_ID = 'org-sg-01'
-const displayContractorName = computed(() => {
-  const orgId = task.value?.contractor_org_id || DEFAULT_CONTRACTOR_ORG_ID
-  return ORG_LABEL[orgId] || orgId || '—'
-})
-
 const displayApplicantName = computed(() => {
   const id = task.value?.applicant_id || task.value?.created_by || ''
   if (!id) return '—'
@@ -852,23 +840,30 @@ function pickLocalFiles({ accept = '', multiple = true } = {}) {
   })
 }
 
-async function onAddSiteMedia(kind) {
+function isVideoFile(file) {
+  const mime = String(file?.type || '').toLowerCase()
+  if (mime.startsWith('video/')) return true
+  return isVideoExt(extFromFileName(file?.name || ''))
+}
+
+async function onAddSiteMedia() {
   if (!task.value) {
     const created = ensureTaskCreated({ quiet: true })
     if (!created.ok) return
   }
   if (!task.value) return
-  const isVideo = kind === 'video'
   const files = await pickLocalFiles({
-    accept: isVideo
-      ? 'video/*,.mp4,.mov,.avi,.wmv,.webm'
-      : 'image/*,.jpg,.jpeg,.png,.gif,.webp,.bmp',
+    accept:
+      'image/*,video/*,.jpg,.jpeg,.png,.gif,.webp,.bmp,.mp4,.mov,.avi,.wmv,.webm',
     multiple: true,
   })
   if (!files.length) return
 
   let okCount = 0
+  let imageCount = 0
+  let videoCount = 0
   for (const file of files) {
+    const isVideo = isVideoFile(file)
     const file_ext = extFromFileName(file.name) || (isVideo ? 'mp4' : 'jpg')
     const r = addAttachment({
       biz_type: 'TASK',
@@ -887,12 +882,18 @@ async function onAddSiteMedia(kind) {
       continue
     }
     okCount += 1
+    if (isVideo) videoCount += 1
+    else imageCount += 1
   }
   if (!okCount) return
   siteAttTick.value += 1
-  ElMessage.success(
-    isVideo ? `已上传 ${okCount} 个现场短视频` : `已上传 ${okCount} 张工程影像`,
-  )
+  if (imageCount && videoCount) {
+    ElMessage.success(`已上传 ${imageCount} 张图片、${videoCount} 个视频`)
+  } else if (videoCount) {
+    ElMessage.success(`已上传 ${videoCount} 个现场短视频`)
+  } else {
+    ElMessage.success(`已上传 ${imageCount} 张工程影像`)
+  }
 }
 
 async function onAddSiteMaterial() {
@@ -952,8 +953,11 @@ const asbuiltLinks = computed(() => {
   return task.value ? getTaskAsbuiltLinks(task.value.id) : []
 })
 
+const PICK_PAGE_SIZE = 10
+
 const asbuiltPickVisible = ref(false)
-const asbuiltPickRows = computed(() => {
+const asbuiltPickPage = ref(1)
+const asbuiltPickAllRows = computed(() => {
   if (!task.value) return []
   const projectId = task.value.project_id || scopeProjectId.value
   const linked = new Set(asbuiltLinks.value.map((l) => l.acceptance_id))
@@ -961,44 +965,62 @@ const asbuiltPickRows = computed(() => {
     wbsNodeId: task.value.wbs_node_id || '',
   }).filter((r) => !linked.has(r.acceptance_id))
 })
+const asbuiltPickTotal = computed(() => asbuiltPickAllRows.value.length)
+const asbuiltPickRows = computed(() => {
+  const start = (asbuiltPickPage.value - 1) * PICK_PAGE_SIZE
+  return asbuiltPickAllRows.value.slice(start, start + PICK_PAGE_SIZE)
+})
 
 /** 关联材料设备弹窗 */
 const matPickVisible = ref(false)
 const matPickKeyword = ref('')
-const matPickLocationId = ref('')
-const matPickLocationIds = ref([])
-const matPickUsePart = ref('')
+const matPickEntryType = ref('')
+const matPickPage = ref(1)
 const matPickSelection = ref([])
 
-const matPickRows = computed(() => {
+const matPickAllRows = computed(() => {
   if (!task.value) return []
   const projectId = task.value.project_id || scopeProjectId.value
   const linked = new Set(materialLinks.value.map((l) => l.material_id))
-  const opts = {
+  return listSelectableForInspect(projectId, {
     keyword: matPickKeyword.value,
-    usePart: matPickUsePart.value,
-    locationId: matPickLocationId.value,
-  }
-  return listSelectableForInspect(projectId, opts).filter((r) => !linked.has(r.material_id))
+    entryType: matPickEntryType.value,
+  }).filter((r) => !linked.has(r.material_id))
+})
+const matPickTotal = computed(() => matPickAllRows.value.length)
+const matPickRows = computed(() => {
+  const start = (matPickPage.value - 1) * PICK_PAGE_SIZE
+  return matPickAllRows.value.slice(start, start + PICK_PAGE_SIZE)
+})
+
+watch([matPickKeyword, matPickEntryType], () => {
+  matPickPage.value = 1
 })
 
 /** 关联定版定样弹窗 */
 const samplePickVisible = ref(false)
 const samplePickKeyword = ref('')
-const samplePickLocationId = ref('')
-const samplePickLocationIds = ref([])
-const samplePickUsePart = ref('')
+const samplePickBizType = ref('')
+const samplePickPage = ref(1)
 const samplePickSelection = ref([])
 
-const samplePickRows = computed(() => {
+const samplePickAllRows = computed(() => {
   if (!task.value) return []
   const projectId = task.value.project_id || scopeProjectId.value
   const linked = new Set(sampleLinks.value.map((l) => l.sample_id))
   return listSampleForInspect(projectId, {
     keyword: samplePickKeyword.value,
-    usePart: samplePickUsePart.value,
-    locationId: samplePickLocationId.value,
+    bizType: samplePickBizType.value,
   }).filter((r) => !linked.has(r.sample_id))
+})
+const samplePickTotal = computed(() => samplePickAllRows.value.length)
+const samplePickRows = computed(() => {
+  const start = (samplePickPage.value - 1) * PICK_PAGE_SIZE
+  return samplePickAllRows.value.slice(start, start + PICK_PAGE_SIZE)
+})
+
+watch([samplePickKeyword, samplePickBizType], () => {
+  samplePickPage.value = 1
 })
 
 function onLinkMaterial() {
@@ -1008,9 +1030,8 @@ function onLinkMaterial() {
   }
   if (!task.value) return
   matPickKeyword.value = ''
-  matPickLocationId.value = ''
-  matPickLocationIds.value = []
-  matPickUsePart.value = ''
+  matPickEntryType.value = ''
+  matPickPage.value = 1
   matPickSelection.value = []
   matPickVisible.value = true
 }
@@ -1029,12 +1050,15 @@ function onConfirmMatPick() {
       task_id: task.value.id,
       material_id: row.material_id,
       material_name: row.material_name,
+      material_spec: row.material_spec || '',
       batch_no: row.batch_no || '',
+      sample_application_id: row.sample_application_id || '',
       supplier: row.supplier || '',
       brand_name: row.brand_name || '',
       quantity_text: row.quantity_text || '',
       use_part: row.use_part || '',
       source_label: row.source_label || '',
+      submit_time: row.submit_time || '',
       link_time: now,
     })
     linked.add(row.material_id)
@@ -1060,9 +1084,8 @@ function onLinkSample() {
   }
   if (!task.value) return
   samplePickKeyword.value = ''
-  samplePickLocationId.value = ''
-  samplePickLocationIds.value = []
-  samplePickUsePart.value = ''
+  samplePickBizType.value = ''
+  samplePickPage.value = 1
   samplePickSelection.value = []
   samplePickVisible.value = true
 }
@@ -1083,6 +1106,8 @@ function onConfirmSamplePick() {
       sample_name: row.sample_name,
       sample_category: row.sample_category || '',
       brand_name: row.brand_name || '',
+      sample_date: row.sample_date || '',
+      unit_name: row.unit_name || '',
       use_part: row.use_part || '',
       link_time: now,
     })
@@ -1108,9 +1133,10 @@ function onOpenAsbuiltPick() {
     if (!created.ok) return
   }
   if (!task.value) return
-  if (!asbuiltPickRows.value.length) {
+  if (!asbuiltPickAllRows.value.length) {
     return ElMessage.warning('暂无可关联的已通过实模一致验收单，请先在「实模一致验收」完成审批')
   }
+  asbuiltPickPage.value = 1
   asbuiltPickVisible.value = true
 }
 
@@ -1273,11 +1299,6 @@ function saveStepQuietly() {
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="施工单位名称">
-              <span class="readonly-text">{{ displayContractorName }}</span>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
             <el-form-item label="验收任务名称">
               <span class="readonly-text">{{ task.task_name || headerMeta.task_name || '—' }}</span>
             </el-form-item>
@@ -1314,7 +1335,6 @@ function saveStepQuietly() {
       <el-descriptions :column="2" border size="small" class="mb">
         <el-descriptions-item label="验评单号">{{ task.task_no || '—' }}</el-descriptions-item>
         <el-descriptions-item label="工程/部位">{{ task.location_name || '—' }}</el-descriptions-item>
-        <el-descriptions-item label="一次通过">{{ formatFirstPass(task.first_pass_flag) || '—' }}</el-descriptions-item>
       </el-descriptions>
     </template>
 
@@ -1327,7 +1347,6 @@ function saveStepQuietly() {
           {{ TASK_TYPE_LABEL[task.task_type] || '—' }}
         </el-descriptions-item>
         <el-descriptions-item label="项目名称">{{ displayProjectName }}</el-descriptions-item>
-        <el-descriptions-item label="施工单位">{{ displayContractorName }}</el-descriptions-item>
         <el-descriptions-item label="验收任务名称">{{ task.task_name || headerMeta.task_name || '—' }}</el-descriptions-item>
         <el-descriptions-item label="验收节点">{{ nodeName }}</el-descriptions-item>
         <el-descriptions-item v-if="task.task_type === 6" label="专项类型">
@@ -1363,11 +1382,8 @@ function saveStepQuietly() {
             <div class="site-block-tip">支持图片、视频（现场照片 / 现场短视频）</div>
           </div>
           <div v-if="canEdit" class="filter-bar">
-            <el-button size="small" native-type="button" @click.stop="onAddSiteMedia('image')">
-              上传图片
-            </el-button>
-            <el-button size="small" native-type="button" @click.stop="onAddSiteMedia('video')">
-              上传视频
+            <el-button size="small" native-type="button" @click.stop="onAddSiteMedia">
+              上传图片/视频
             </el-button>
           </div>
         </div>
@@ -1380,9 +1396,6 @@ function saveStepQuietly() {
             </template>
           </el-table-column>
           <el-table-column prop="file_name" label="文件名" min-width="120" show-overflow-tooltip />
-          <el-table-column label="类别" width="100">
-            <template #default="{ row }">{{ FILE_CATEGORY[row.file_category] || '—' }}</template>
-          </el-table-column>
           <el-table-column label="大小" width="80">
             <template #default="{ row }">{{ formatFileSize(row.file_size) }}</template>
           </el-table-column>
@@ -1415,9 +1428,6 @@ function saveStepQuietly() {
             </template>
           </el-table-column>
           <el-table-column prop="file_name" label="文件名" min-width="120" show-overflow-tooltip />
-          <el-table-column label="类别" width="100">
-            <template #default="{ row }">{{ FILE_CATEGORY[row.file_category] || '—' }}</template>
-          </el-table-column>
           <el-table-column label="大小" width="80">
             <template #default="{ row }">{{ formatFileSize(row.file_size) }}</template>
           </el-table-column>
@@ -1475,28 +1485,34 @@ function saveStepQuietly() {
               材料设备
               <el-tag size="small" type="info" effect="plain" class="req-tag">可选</el-tag>
             </div>
-            <div class="site-block-tip">从材料设备台账选择已通过记录，可按施工部位筛选后勾选</div>
+            <div class="site-block-tip">从材料设备台账选择已通过记录，支持关键字与进场类型筛选</div>
           </div>
           <div v-if="canEdit" class="filter-bar">
             <el-button size="small" native-type="button" @click.stop="onLinkMaterial">关联材料设备</el-button>
           </div>
         </div>
         <el-table :data="materialLinks" border size="small" empty-text="暂无关联材料设备">
+          <el-table-column prop="material_id" label="进场单号" width="110" show-overflow-tooltip />
           <el-table-column prop="source_label" label="类型" width="70">
             <template #default="{ row }">{{ row.source_label || '—' }}</template>
           </el-table-column>
-          <el-table-column prop="material_id" label="进场单号" width="110" show-overflow-tooltip />
           <el-table-column prop="material_name" label="名称" min-width="120" show-overflow-tooltip />
-          <el-table-column prop="use_part" label="施工部位" min-width="100" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.use_part || '—' }}</template>
+          <el-table-column label="规格型号" min-width="110" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.material_spec || '—' }}</template>
           </el-table-column>
-          <el-table-column prop="brand_name" label="品牌" width="100" show-overflow-tooltip>
+          <el-table-column prop="brand_name" label="品牌" width="90" show-overflow-tooltip>
             <template #default="{ row }">{{ row.brand_name || '—' }}</template>
           </el-table-column>
-          <el-table-column prop="quantity_text" label="规格及数量" width="110" show-overflow-tooltip>
+          <el-table-column label="定样单号" width="100" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.sample_application_id || '—' }}</template>
+          </el-table-column>
+          <el-table-column prop="quantity_text" label="进场数量" width="90" show-overflow-tooltip>
             <template #default="{ row }">{{ row.quantity_text || '—' }}</template>
           </el-table-column>
           <el-table-column prop="supplier" label="供应商" min-width="90" show-overflow-tooltip />
+          <el-table-column label="进场时间" width="150" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.submit_time || '—' }}</template>
+          </el-table-column>
           <el-table-column v-if="canEdit" label="操作" width="72" fixed="right">
             <template #default="{ row }">
               <el-button link type="danger" @click="onUnlinkMaterial(row)">解除</el-button>
@@ -1515,7 +1531,7 @@ function saveStepQuietly() {
               定版定样
               <el-tag size="small" type="info" effect="plain" class="req-tag">可选</el-tag>
             </div>
-            <div class="site-block-tip">从样板管理选择已通过定版定样，可按施工部位筛选后勾选</div>
+            <div class="site-block-tip">从样板管理选择已通过定版定样，支持关键字与类型筛选</div>
           </div>
           <div v-if="canEdit" class="filter-bar">
             <el-button size="small" native-type="button" @click.stop="onLinkSample">关联定版定样</el-button>
@@ -1523,10 +1539,16 @@ function saveStepQuietly() {
         </div>
         <el-table :data="sampleLinks" border size="small" empty-text="暂无关联定版定样">
           <el-table-column prop="sample_id" label="报审编号" width="120" show-overflow-tooltip />
-          <el-table-column prop="sample_name" label="名称" min-width="120" show-overflow-tooltip />
           <el-table-column prop="sample_category" label="类型" width="100" />
+          <el-table-column prop="sample_name" label="名称" min-width="120" show-overflow-tooltip />
           <el-table-column prop="brand_name" label="品牌" width="100" show-overflow-tooltip>
             <template #default="{ row }">{{ row.brand_name || '—' }}</template>
+          </el-table-column>
+          <el-table-column label="定样日期" width="110">
+            <template #default="{ row }">{{ row.sample_date || '—' }}</template>
+          </el-table-column>
+          <el-table-column prop="unit_name" label="单位工程" min-width="100" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.unit_name || '—' }}</template>
           </el-table-column>
           <el-table-column prop="use_part" label="使用部位" min-width="100" show-overflow-tooltip>
             <template #default="{ row }">{{ row.use_part || '—' }}</template>
@@ -1838,6 +1860,16 @@ function saveStepQuietly() {
           </template>
         </el-table-column>
       </el-table>
+      <div v-if="asbuiltPickTotal > 0" class="pick-pagination">
+        <el-pagination
+          v-model:current-page="asbuiltPickPage"
+          :page-size="PICK_PAGE_SIZE"
+          :total="asbuiltPickTotal"
+          layout="total, prev, pager, next"
+          background
+          small
+        />
+      </div>
       <template #footer>
         <el-button @click="asbuiltPickVisible = false">关闭</el-button>
       </template>
@@ -1846,27 +1878,32 @@ function saveStepQuietly() {
     <el-dialog
       v-model="matPickVisible"
       title="关联材料设备"
-      width="860px"
+      width="980px"
       destroy-on-close
       :close-on-click-modal="false"
     >
       <div class="filter-bar" style="margin-bottom: 12px">
-        <ConstructionLocationSelect
-          v-model:location-id="matPickLocationId"
-          v-model:location-ids="matPickLocationIds"
-          v-model:location-name="matPickUsePart"
-          :project-id="task?.project_id || scopeProjectId"
-          :scope-wbs-node-id="task?.wbs_node_id || ''"
-          scope-mode="focus"
-          hide-config
-          placeholder="按施工部位筛选"
-          style="width: 280px"
-        />
         <el-input
           v-model="matPickKeyword"
           clearable
-          placeholder="单号 / 名称 / 品牌 / 供应商"
-          style="width: 240px" aria-label="单号 / 名称 / 品牌 / 供应商"/>
+          placeholder="单号 / 材料 / 品牌 / 定样 / 供应商"
+          style="width: 320px"
+          aria-label="单号 / 材料 / 品牌 / 定样 / 供应商"
+        />
+        <el-select
+          v-model="matPickEntryType"
+          clearable
+          placeholder="进场类型"
+          style="width: 120px"
+          aria-label="进场类型"
+        >
+          <el-option
+            v-for="(label, val) in ENTRY_TYPE_LABEL"
+            :key="val"
+            :label="label"
+            :value="val"
+          />
+        </el-select>
       </div>
       <el-table
         :data="matPickRows"
@@ -1877,15 +1914,33 @@ function saveStepQuietly() {
         row-key="material_id"
         @selection-change="(rows) => (matPickSelection = rows)"
       >
-        <el-table-column type="selection" width="48" />
-        <el-table-column prop="source_label" label="类型" width="70" />
+        <el-table-column type="selection" width="48" reserve-selection />
         <el-table-column prop="material_id" label="进场单号" width="110" />
-        <el-table-column prop="material_name" label="名称" min-width="140" show-overflow-tooltip />
-        <el-table-column prop="use_part" label="施工部位" min-width="120" show-overflow-tooltip />
-        <el-table-column prop="brand_name" label="品牌" width="100" show-overflow-tooltip />
-        <el-table-column prop="quantity_text" label="规格及数量" width="110" />
-        <el-table-column prop="supplier" label="供应商" min-width="110" show-overflow-tooltip />
+        <el-table-column prop="source_label" label="类型" width="70" />
+        <el-table-column prop="material_name" label="名称" min-width="120" show-overflow-tooltip />
+        <el-table-column label="规格型号" min-width="110" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.material_spec || '—' }}</template>
+        </el-table-column>
+        <el-table-column prop="brand_name" label="品牌" width="90" show-overflow-tooltip />
+        <el-table-column label="定样单号" width="100" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.sample_application_id || '—' }}</template>
+        </el-table-column>
+        <el-table-column prop="quantity_text" label="进场数量" width="90" />
+        <el-table-column prop="supplier" label="供应商" min-width="100" show-overflow-tooltip />
+        <el-table-column label="进场时间" width="150">
+          <template #default="{ row }">{{ row.submit_time || '—' }}</template>
+        </el-table-column>
       </el-table>
+      <div v-if="matPickTotal > 0" class="pick-pagination">
+        <el-pagination
+          v-model:current-page="matPickPage"
+          :page-size="PICK_PAGE_SIZE"
+          :total="matPickTotal"
+          layout="total, prev, pager, next"
+          background
+          small
+        />
+      </div>
       <template #footer>
         <el-button @click="matPickVisible = false">取消</el-button>
         <el-button type="primary" @click="onConfirmMatPick">确认关联</el-button>
@@ -1895,27 +1950,32 @@ function saveStepQuietly() {
     <el-dialog
       v-model="samplePickVisible"
       title="关联定版定样"
-      width="860px"
+      width="960px"
       destroy-on-close
       :close-on-click-modal="false"
     >
       <div class="filter-bar" style="margin-bottom: 12px">
-        <ConstructionLocationSelect
-          v-model:location-id="samplePickLocationId"
-          v-model:location-ids="samplePickLocationIds"
-          v-model:location-name="samplePickUsePart"
-          :project-id="task?.project_id || scopeProjectId"
-          :scope-wbs-node-id="task?.wbs_node_id || ''"
-          scope-mode="focus"
-          hide-config
-          placeholder="按施工部位筛选"
-          style="width: 280px"
-        />
         <el-input
           v-model="samplePickKeyword"
           clearable
-          placeholder="单号 / 名称 / 类别"
-          style="width: 240px" aria-label="单号 / 名称 / 类别"/>
+          placeholder="报审编号 / 名称 / 品牌 / 单位工程 / 使用部位"
+          style="width: 320px"
+          aria-label="报审编号 / 名称 / 品牌 / 单位工程 / 使用部位"
+        />
+        <el-select
+          v-model="samplePickBizType"
+          clearable
+          placeholder="类型"
+          style="width: 140px"
+          aria-label="类型"
+        >
+          <el-option
+            v-for="(label, val) in BIZ_TYPE_LABEL"
+            :key="val"
+            :label="label"
+            :value="val"
+          />
+        </el-select>
       </div>
       <el-table
         :data="samplePickRows"
@@ -1926,15 +1986,31 @@ function saveStepQuietly() {
         row-key="sample_id"
         @selection-change="(rows) => (samplePickSelection = rows)"
       >
-        <el-table-column type="selection" width="48" />
+        <el-table-column type="selection" width="48" reserve-selection />
         <el-table-column prop="sample_id" label="报审编号" width="120" />
-        <el-table-column prop="sample_name" label="名称" min-width="160" show-overflow-tooltip />
         <el-table-column prop="sample_category" label="类型" width="110" />
-        <el-table-column prop="use_part" label="使用部位" min-width="130" show-overflow-tooltip />
-        <el-table-column prop="brand_name" label="品牌" width="100" show-overflow-tooltip>
+        <el-table-column prop="sample_name" label="名称" min-width="130" show-overflow-tooltip />
+        <el-table-column prop="brand_name" label="品牌" width="90" show-overflow-tooltip>
           <template #default="{ row }">{{ row.brand_name || '—' }}</template>
         </el-table-column>
+        <el-table-column label="定样日期" width="110">
+          <template #default="{ row }">{{ row.sample_date || '—' }}</template>
+        </el-table-column>
+        <el-table-column prop="unit_name" label="单位工程" min-width="110" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.unit_name || '—' }}</template>
+        </el-table-column>
+        <el-table-column prop="use_part" label="使用部位" min-width="120" show-overflow-tooltip />
       </el-table>
+      <div v-if="samplePickTotal > 0" class="pick-pagination">
+        <el-pagination
+          v-model:current-page="samplePickPage"
+          :page-size="PICK_PAGE_SIZE"
+          :total="samplePickTotal"
+          layout="total, prev, pager, next"
+          background
+          small
+        />
+      </div>
       <template #footer>
         <el-button @click="samplePickVisible = false">取消</el-button>
         <el-button type="primary" @click="onConfirmSamplePick">确认关联</el-button>
@@ -2201,5 +2277,10 @@ function saveStepQuietly() {
 }
 .approver-form :deep(.el-form-item) {
   margin-bottom: 14px;
+}
+.pick-pagination {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
 }
 </style>
