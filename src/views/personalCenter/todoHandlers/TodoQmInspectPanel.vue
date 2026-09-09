@@ -1,12 +1,13 @@
 <script setup>
 import { computed } from 'vue'
-import { Clock } from '@element-plus/icons-vue'
 import QmTaskApprove from '../../quality/components/QmTaskApprove.vue'
+import TodoApprovalFlowSection from '../components/TodoApprovalFlowSection.vue'
 import {
   findTask,
   getAttachments,
   getApprovalChain,
   getCurrentManualNode,
+  getNextApprovalRole,
   getTaskMaterialLinks,
   getTaskSampleLinks,
   getTaskAsbuiltLinks,
@@ -20,8 +21,8 @@ import {
   TASK_TYPE_LABEL,
   ELEC_ARCHIVE_STATUS,
   approvalRecords,
-  signatureRecords,
   taskRequiresPmApproval,
+  usesManualApprovalFlow,
 } from '../../../mock/qm.js'
 import '../styles/todoHandleBlocks.css'
 
@@ -91,69 +92,64 @@ const records = computed(() =>
   task.value ? approvalRecords.filter((r) => r.task_id === task.value.id) : [],
 )
 
-const signs = computed(() =>
-  task.value ? signatureRecords.filter((s) => s.task_id === task.value.id) : [],
-)
-
-const QM_APPROVAL_ACTION_LABEL = { 1: '提交', 2: '通过', 3: '不通过' }
-
-function qmApprovalActionTagType(action) {
-  const a = Number(action)
-  if (a === 1 || a === 2) return 'success'
-  if (a === 3) return 'danger'
-  return 'warning'
-}
-
-function qmTimelineType(status) {
-  if (status === 'done') return 'success'
-  if (status === 'rejected') return 'danger'
-  if (status === 'current') return 'warning'
-  return 'info'
-}
-
-/** 审批过程步骤条（对齐填报/详情 · 品牌报审样式） */
-const approvalProcessSteps = computed(() => {
-  if (!task.value) return []
-  const t = task.value
-  const status = Number(t.status)
-  const recs = records.value
-  const typeLabel = TASK_TYPE_LABEL[t.task_type] || '验评'
-
-  let midNodes = []
+/** 审批节点链（标题 + 处理人） */
+function resolveMidNodes(t) {
   if (Array.isArray(t.manual_approval_flow) && t.manual_approval_flow.length) {
-    midNodes = [...t.manual_approval_flow]
+    return [...t.manual_approval_flow]
       .sort((a, b) => Number(a.level) - Number(b.level))
-      .map((n) => {
-        const who = (n.approver_names && n.approver_names[0]) || ''
-        return {
-          label: n.label || '审批',
-          title: who ? `${n.label}（${who}）` : n.label || '审批',
-        }
-      })
-  } else if (t.supervisor_approver_name || t.pm_approver_name) {
-    midNodes = [
+      .map((n) => ({
+        label: n.label || '审批',
+        user: (n.approver_names && n.approver_names[0]) || '审批人',
+      }))
+  }
+  if (t.supervisor_approver_name || t.pm_approver_name) {
+    const nodes = [
       {
         label: '监理单位审批',
-        title: t.supervisor_approver_name
-          ? `监理单位审批（${t.supervisor_approver_name}）`
-          : '监理单位审批',
+        user: t.supervisor_approver_name || '监理',
       },
     ]
     if (taskRequiresPmApproval(t.task_type)) {
-      midNodes.push({
+      nodes.push({
         label: '项目经理审批',
-        title: t.pm_approver_name ? `项目经理审批（${t.pm_approver_name}）` : '项目经理审批',
+        user: t.pm_approver_name || '项目经理',
       })
     }
-  } else {
-    midNodes = getApprovalChain(t).map((label) => ({ label, title: label }))
+    return nodes
   }
+  return getApprovalChain(t).map((label) => ({ label, user: label }))
+}
 
-  const currentNode = status === 1 ? getCurrentManualNode(t) : null
+/**
+ * 审批过程：结构/样式对齐品牌报审个人中心（TodoApprovalFlowSection）
+ * 字段：title / time / user / remark / status(done|current|pending)
+ */
+const panelApprovalFlow = computed(() => {
+  if (!task.value) return props.todo?.approvalFlow || []
+  const t = task.value
+  const status = Number(t.status)
+  const midNodes = resolveMidNodes(t)
+  const steps = []
+
+  steps.push({
+    title: '施工报验',
+    time: t.submit_time || props.todo?.applyTime || '',
+    user: props.todo?.applicant || '施工方',
+    remark: '提交报验',
+    status: status === 0 ? 'pending' : 'done',
+  })
+
+  const currentNode =
+    status === 1
+      ? usesManualApprovalFlow(t)
+        ? getCurrentManualNode(t)
+        : { label: getNextApprovalRole(t) || midNodes[0]?.label }
+      : null
   const currentLabel = currentNode?.label || ''
+  let seenCurrent = false
 
-  function midStep(node) {
-    const rejectRec = [...recs]
+  for (const node of midNodes) {
+    const rejectRec = [...records.value]
       .reverse()
       .find(
         (r) =>
@@ -161,9 +157,16 @@ const approvalProcessSteps = computed(() => {
           (r.node_name === node.label || r.operator_role === node.label),
       )
     if (rejectRec) {
-      return { status: 'error', desc: rejectRec.action_time || '已驳回' }
+      steps.push({
+        title: node.label,
+        time: rejectRec.action_time || '',
+        user: resolveApproverName(rejectRec.operator_id) || rejectRec.operator_role || node.user,
+        remark: rejectRec.opinion || '已驳回',
+        status: 'done',
+      })
+      continue
     }
-    const passRec = [...recs]
+    const passRec = [...records.value]
       .reverse()
       .find(
         (r) =>
@@ -171,70 +174,71 @@ const approvalProcessSteps = computed(() => {
           (r.node_name === node.label || r.operator_role === node.label),
       )
     if (passRec) {
-      return { status: 'success', desc: passRec.action_time || '已通过' }
+      steps.push({
+        title: node.label,
+        time: passRec.action_time || '',
+        user: resolveApproverName(passRec.operator_id) || passRec.operator_role || node.user,
+        remark: passRec.opinion || '已通过',
+        status: 'done',
+      })
+      continue
     }
     if (status === 2) {
-      return { status: 'success', desc: '已通过' }
-    }
-    if (status === 1 && currentLabel === node.label) {
-      return { status: 'process', desc: '审批中' }
-    }
-    return { status: 'wait', desc: '等待' }
-  }
-
-  return [
-    {
-      title: '施工报验',
-      ...(status === 0
-        ? { status: 'wait', desc: '待提交' }
-        : { status: 'success', desc: t.submit_time || '已提交' }),
-    },
-    ...midNodes.map((n) => ({ title: n.title, ...midStep(n) })),
-    {
-      title: '办结通过',
-      ...(status === 2
-        ? { status: 'success', desc: t.finish_time || typeLabel }
-        : status === 3
-          ? { status: 'error', desc: '未通过' }
-          : { status: 'wait', desc: '等待' }),
-    },
-  ]
-})
-
-const approvalTimeline = computed(() => {
-  if (!task.value) return []
-  const t = task.value
-  const steps = []
-  for (const r of records.value) {
-    const action = Number(r.action)
-    const who = resolveApproverName(r.operator_id) || r.operator_role || '—'
-    steps.push({
-      key: r.id,
-      title: r.node_name || r.operator_role || '节点',
-      action,
-      actionLabel: QM_APPROVAL_ACTION_LABEL[action] || '办理',
-      operator: who,
-      time: r.action_time || '—',
-      remark: r.opinion || '',
-      status: action === 3 ? 'rejected' : 'done',
-    })
-  }
-  if (Number(t.status) === 1) {
-    const node = getCurrentManualNode(t)
-    if (node) {
-      const who = (node.approver_names && node.approver_names[0]) || '审批人'
       steps.push({
-        key: `pending-${node.level || node.label}`,
-        title: node.label || '待审批',
-        action: '',
-        actionLabel: '待办理',
-        operator: who,
+        title: node.label,
+        time: t.finish_time || '',
+        user: node.user,
+        remark: '已通过',
+        status: 'done',
+      })
+      continue
+    }
+    if (status === 1 && currentLabel === node.label && !seenCurrent) {
+      seenCurrent = true
+      steps.push({
+        title: node.label,
         time: '',
-        remark: '等待审批（个人中心待办）',
+        user: node.user || '当前用户',
+        remark: '待办理',
         status: 'current',
       })
+      continue
     }
+    steps.push({
+      title: node.label,
+      time: '',
+      user: node.user || '—',
+      remark: status === 3 ? '' : '待流转',
+      status: 'pending',
+    })
   }
+
+  if (status === 2) {
+    steps.push({
+      title: '办结通过',
+      time: t.finish_time || '',
+      user: '系统',
+      remark: TASK_TYPE_LABEL[t.task_type] || '验评办结',
+      status: 'done',
+    })
+  } else if (status === 3) {
+    steps.push({
+      title: '办结',
+      time: t.finish_time || '',
+      user: '系统',
+      remark: '未通过',
+      status: 'done',
+    })
+  } else {
+    steps.push({
+      title: '办结通过',
+      time: '',
+      user: '—',
+      remark: '',
+      status: 'pending',
+    })
+  }
+
   return steps
 })
 
@@ -455,7 +459,7 @@ function handleBack() {
         </section>
       </div>
 
-      <!-- 审批操作：复用 QmTaskApprove 逻辑，仅操作区 -->
+      <!-- 审批操作：对齐品牌报审（通过/驳回 + 说明 + 提交） -->
       <QmTaskApprove
         v-if="!isReadonly"
         actions-only
@@ -470,65 +474,8 @@ function handleBack() {
         @finished="handleFinished"
       />
 
-      <!-- 签章记录 -->
-      <section class="block block--panel">
-        <div class="block-head">
-          <div class="block-title">签章记录</div>
-        </div>
-        <el-table :data="signs" border size="small" empty-text="暂无签章">
-          <el-table-column prop="signer_role" label="签章角色" width="140" />
-          <el-table-column prop="ca_cert_id" label="CA证书标识" min-width="160" />
-          <el-table-column prop="sign_time" label="签章时间" width="180" />
-        </el-table>
-      </section>
-
-      <!-- 审批过程（样式对齐品牌报审 / 验评详情） -->
-      <section class="approve-flow-section">
-        <header class="approve-flow-head">
-          <el-icon class="approve-flow-icon"><Clock /></el-icon>
-          <h3 class="approve-flow-title">审批过程</h3>
-        </header>
-        <div class="approve-flow-body">
-          <el-steps class="process-steps" align-center>
-            <el-step
-              v-for="(s, idx) in approvalProcessSteps"
-              :key="`proc-${s.title}-${idx}`"
-              :title="s.title"
-              :description="s.desc"
-              :status="s.status"
-            />
-          </el-steps>
-
-          <el-timeline v-if="approvalTimeline.length" class="approval-timeline">
-            <el-timeline-item
-              v-for="step in approvalTimeline"
-              :key="step.key"
-              :type="qmTimelineType(step.status)"
-              :hollow="step.status === 'current'"
-              :timestamp="step.time || '进行中'"
-              placement="top"
-            >
-              <div class="flow-card" :class="step.status">
-                <div class="flow-title">
-                  <span>{{ step.title }}</span>
-                  <el-tag v-if="step.status === 'current'" size="small" type="warning">当前</el-tag>
-                  <el-tag
-                    v-else-if="step.actionLabel"
-                    size="small"
-                    :type="qmApprovalActionTagType(step.action)"
-                    effect="light"
-                  >
-                    {{ step.actionLabel }}
-                  </el-tag>
-                </div>
-                <div class="flow-meta">处理人：{{ step.operator }}</div>
-                <div v-if="step.remark" class="flow-remark">意见：{{ step.remark }}</div>
-              </div>
-            </el-timeline-item>
-          </el-timeline>
-          <el-empty v-else description="暂无审批记录" :image-size="60" />
-        </div>
-      </section>
+      <!-- 审批过程：与品牌报审个人中心同一组件 -->
+      <TodoApprovalFlowSection :approval-flow="panelApprovalFlow" />
     </template>
   </div>
 </template>
@@ -551,85 +498,5 @@ function handleBack() {
   flex: 1;
   min-width: 0;
   margin: 0;
-}
-
-.approve-flow-section {
-  background: #fff;
-  border: 1px solid #ebeef5;
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-.approve-flow-head {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px 18px 12px;
-  background: linear-gradient(180deg, #fafbfc 0%, #fff 100%);
-  border-bottom: 1px solid #f0f2f5;
-}
-
-.approve-flow-icon {
-  font-size: 18px;
-  color: var(--el-color-primary);
-}
-
-.approve-flow-title {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: #1f2329;
-  line-height: 1.4;
-}
-
-.approve-flow-body {
-  padding: 16px 18px 18px;
-}
-
-.process-steps {
-  margin: 4px 0 20px;
-}
-
-.approval-timeline {
-  padding: 4px 8px 0;
-}
-
-.flow-card {
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: #fff;
-  border: 1px solid #ebeef5;
-}
-
-.flow-card.done {
-  border-color: #e1f3d8;
-  background: #f0f9eb;
-}
-
-.flow-card.rejected {
-  border-color: #fde2e2;
-  background: #fef0f0;
-}
-
-.flow-card.current {
-  border-color: #f5dab1;
-  background: #fdf6ec;
-}
-
-.flow-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
-  font-size: 14px;
-  color: #303133;
-}
-
-.flow-meta,
-.flow-remark {
-  margin-top: 4px;
-  font-size: 12px;
-  color: #606266;
-  line-height: 1.5;
 }
 </style>

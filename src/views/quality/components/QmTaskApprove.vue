@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { finishPersonalTodo } from '../../../mock/personalCenter.js'
@@ -27,6 +27,7 @@ import {
   getConfiguredApproversForChainRole,
   isChainRoleConfigured,
 } from '../../../mock/qm.js'
+import '../../personalCenter/styles/todoHandleBlocks.css'
 
 const props = defineProps({
   title: { type: String, default: '验评审批' },
@@ -48,6 +49,8 @@ const task = ref(null)
 /** 档案链：演示角色名；手动链：演示审批人 user id */
 const demoRole = ref('')
 const demoApproverId = ref('')
+/** 个人中心审批操作（对齐品牌报审 TodoCommonApprovePanel） */
+const actionForm = reactive({ decision: 'pass', remark: '' })
 
 const isManualChain = computed(() => !!(task.value && usesManualApprovalFlow(task.value)))
 
@@ -62,6 +65,7 @@ const showApproveActions = computed(
 
 function load() {
   task.value = resolvedTaskId.value ? findTask(resolvedTaskId.value) : null
+  Object.assign(actionForm, { decision: 'pass', remark: '' })
   if (!task.value) return
   if (usesManualApprovalFlow(task.value)) {
     const node = getCurrentManualNode(task.value)
@@ -106,9 +110,8 @@ function syncPersonalTodoFinish(label) {
   const todoId =
     props.todoId ||
     (Array.isArray(route.query.todoId) ? route.query.todoId[0] : route.query.todoId)
-  if (!todoId) return
-  finishPersonalTodo(String(todoId), label)
-  if (props.embedded) emit('finished', label)
+  if (todoId) finishPersonalTodo(String(todoId), label)
+  if (props.embedded || props.actionsOnly) emit('finished', label)
 }
 
 const chain = computed(() => (task.value ? getApprovalChain(task.value) : []))
@@ -235,15 +238,14 @@ function chainNodeDesc(node) {
   return `${base}｜档案${signed ? '已签章' : '未签章'}`
 }
 
-async function onApprove() {
+async function onApprove(opinion = '') {
   if (!task.value || task.value.status !== 1) return ElMessage.warning('当前不可审批')
 
   if (isManualChain.value) {
     const node = currentManualNode.value
     if (!node) return ElMessage.warning('审批链已完成')
     const uid = demoApproverId.value
-    if (!uid) return ElMessage.warning('请选择本级审批人')
-    const opinion = ''
+    if (!uid) return ElMessage.warning('当前不可审批')
     const r = approveStep(task.value, {
       opinion,
       operator_role: node.label,
@@ -255,8 +257,9 @@ async function onApprove() {
       syncPersonalTodoFinish('审批通过')
     } else {
       ElMessage.success(`本级通过，下一岗：${r.next}`)
+      if (props.actionsOnly || props.embedded) syncPersonalTodoFinish('本级通过')
     }
-    load()
+    if (!(props.actionsOnly || props.embedded)) load()
     return
   }
 
@@ -265,7 +268,7 @@ async function onApprove() {
     return ElMessage.warning(`「${role}」暂无可用审批人（审批人名单由档案侧同步）`)
   }
   const r = approveStep(task.value, {
-    opinion: '',
+    opinion,
     operator_role: role,
   })
   if (!r.ok) return ElMessage.error(r.msg)
@@ -275,16 +278,23 @@ async function onApprove() {
   } else {
     ElMessage.success(`本级通过，下一岗：${r.next}`)
     demoRole.value = r.next
+    if (props.actionsOnly || props.embedded) syncPersonalTodoFinish('本级通过')
   }
-  load()
+  if (!(props.actionsOnly || props.embedded)) load()
 }
 
-async function onReject() {
+async function onReject(opinionFromForm) {
+  const fromForm = opinionFromForm != null
   try {
-    const { value } = await ElMessageBox.prompt('请填写驳回意见（必填）', '审核不通过', {
-      inputType: 'textarea',
-      inputValidator: (v) => (!!String(v || '').trim() ? true : '意见不能为空'),
-    })
+    const value = fromForm
+      ? String(opinionFromForm || '').trim()
+      : (
+          await ElMessageBox.prompt('请填写驳回意见（必填）', '审核不通过', {
+            inputType: 'textarea',
+            inputValidator: (v) => (!!String(v || '').trim() ? true : '意见不能为空'),
+          })
+        ).value
+    if (fromForm && !value) return ElMessage.warning('请填写驳回意见')
     const role = isManualChain.value
       ? currentManualNode.value?.label || nextRole.value || '审批人'
       : demoRole.value || nextRole.value || '监理'
@@ -295,12 +305,21 @@ async function onReject() {
     if (!r.ok) return ElMessage.error(r.msg)
     ElMessage.warning('已驳回并存档，可在列表「重新申报」复制建新单')
     syncPersonalTodoFinish('审批不通过')
-    if (!props.embedded) {
+    if (!props.embedded && !props.actionsOnly) {
       router.push(`${props.editPath}?id=${task.value.id}`)
     }
   } catch {
     /* cancel */
   }
+}
+
+/** 个人中心：与品牌报审一致的提交入口 */
+function onSubmitAction() {
+  const approved = actionForm.decision === 'pass'
+  const remark = actionForm.remark.trim()
+  if (!approved && !remark) return ElMessage.warning('请填写驳回意见')
+  if (approved) return onApprove(remark)
+  return onReject(remark)
 }
 
 function onRollback() {
@@ -315,66 +334,35 @@ function onRollback() {
 </script>
 
 <template>
-  <!-- 个人中心：仅审批操作区（无可办时不渲染空壳） -->
+  <!-- 个人中心：审批操作对齐品牌报审（通过/驳回 + 说明 + 提交） -->
   <section
     v-if="actionsOnly && (!task || showApproveActions)"
-    class="block block--panel block--action qm-actions-only"
+    class="block block--panel block--action"
   >
     <template v-if="task && showApproveActions">
       <div class="block-head">
         <div class="block-title">审批操作</div>
-        <el-tag v-if="nextRole" size="small" type="warning" effect="light">
-          当前待审：{{ nextRole }}
-          <template v-if="isManualChain && manualProgress">
-            · {{ MANUAL_APPROVAL_MODE[manualProgress.mode] || '会签' }}
-            {{ manualProgress.passed }}/{{ manualProgress.total }}
-          </template>
-        </el-tag>
       </div>
-      <el-alert
-        v-if="archiveInstance && !isManualChain"
-        type="info"
-        :closable="false"
-        show-icon
-        class="mb"
-        title="点「通过」时将实时校验：档案侧该级须已签章，否则不让过"
-      />
-      <el-alert
-        v-else-if="isManualChain"
-        type="info"
-        :closable="false"
-        show-icon
-        class="mb"
-        title="本任务为手动审批链：或签任一人通过即可进入下一级（不校验档案签章）"
-      />
-      <div class="filter-bar op-actions-inline">
-        <template v-if="isManualChain">
-          <span>本级审批人</span>
-          <el-select
-            v-model="demoApproverId"
-            style="width: 220px"
-            placeholder="选择本级审批人"
-            aria-label="选择本级审批人"
-          >
-            <el-option
-              v-for="p in manualApproverOptions"
-              :key="p.id"
-              :label="p.done ? `${p.name}（已签）` : p.name"
-              :value="p.id"
-              :disabled="p.done"
-            />
-          </el-select>
-        </template>
-        <template v-else>
-          <span>审批角色</span>
-          <el-select v-model="demoRole" style="width: 160px" aria-label="选择审批角色">
-            <el-option v-for="role in chain" :key="role" :label="role" :value="role" />
-          </el-select>
-        </template>
-        <el-button type="success" @click="onApprove">本级通过并签章</el-button>
-        <el-button type="danger" @click="onReject">不通过/退回</el-button>
-        <el-button @click="onRollback">退回重报</el-button>
+      <el-form label-width="96px" class="op-form">
+        <el-form-item label="处理意见" required>
+          <el-radio-group v-model="actionForm.decision">
+            <el-radio value="pass">通过</el-radio>
+            <el-radio value="reject">驳回</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="说明" :required="actionForm.decision === 'reject'">
+          <el-input
+            v-model="actionForm.remark"
+            type="textarea"
+            :rows="3"
+            :placeholder="actionForm.decision === 'reject' ? '驳回意见必填' : '审批意见选填'"
+            :aria-label="actionForm.decision === 'reject' ? '驳回意见必填' : '审批意见选填'"
+          />
+        </el-form-item>
+      </el-form>
+      <div class="op-actions">
         <el-button @click="goList">取消</el-button>
+        <el-button type="primary" @click="onSubmitAction">提交</el-button>
       </div>
     </template>
     <el-empty v-else description="未找到任务" :image-size="48" />
@@ -454,8 +442,8 @@ function onRollback() {
           <el-option v-for="role in chain" :key="role" :label="role" :value="role" />
         </el-select>
       </template>
-      <el-button type="success" @click="onApprove">本级通过并签章</el-button>
-      <el-button type="danger" @click="onReject">不通过/退回</el-button>
+      <el-button type="success" @click="onApprove()">本级通过并签章</el-button>
+      <el-button type="danger" @click="onReject()">不通过/退回</el-button>
       <el-button @click="onRollback">退回重报</el-button>
     </div>
     <el-alert
@@ -522,30 +510,4 @@ function onRollback() {
 .warn-text { color: #e6a23c; }
 .embed-tip { margin: 0 0 8px; font-size: 13px; color: #606266; }
 .chain-box { background: #fafafa; padding: 12px; border-radius: 8px; }
-
-.qm-actions-only {
-  background: #fff;
-  border: 1px solid #ebeef5;
-  border-radius: 10px;
-  padding: 14px 16px 16px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
-}
-.qm-actions-only .block-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 14px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #f0f2f5;
-}
-.qm-actions-only .block-title {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  color: #1f2329;
-}
-.op-actions-inline {
-  margin-top: 4px;
-}
 </style>

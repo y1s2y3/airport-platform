@@ -17,6 +17,14 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.9.1.5',
+    date: '2026-09-09',
+    highlights: [
+      '质量验评个人中心：审批操作对齐品牌报审（通过/驳回 + 说明 + 提交）',
+      '质量验评个人中心：去掉签章记录；审批过程改用与品牌报审一致的时间线样式',
+    ],
+  },
+  {
     version: 'v2.9.1.4',
     date: '2026-09-09',
     highlights: [
