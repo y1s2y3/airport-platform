@@ -31,6 +31,7 @@ const copyFromLabel = ref('')
 const form = reactive({
   title: '',
   remark: '',
+  /** 已添加节点（有序；同一 wbs_node_id 允许重复） */
   selectedNodeIds: [],
   files: [],
   supervisor_approver_user_id: '',
@@ -39,12 +40,45 @@ const form = reactive({
   pm_approver_name: '',
 })
 
+/** 当前单选待添加的节点 */
+const pickingNodeId = ref('')
+
 const wbsTree = computed(() => buildAsbuiltWbsTree())
 const projectUsers = computed(() => listBrandProjectUsers(scopeProjectId.value))
 const pageTitle = computed(() =>
   copyFromLabel.value ? '重新申报实模一致验收' : '新建实模一致验收',
 )
 const canUploadMore = computed(() => form.files.length < ASBUILT_REPORT_MAX_COUNT)
+
+function findWbsLabel(nodes, id) {
+  for (const n of nodes || []) {
+    if (n.id === id) return n.label || id
+    const hit = findWbsLabel(n.children, id)
+    if (hit) return hit
+  }
+  return ''
+}
+
+const selectedNodeRows = computed(() =>
+  (form.selectedNodeIds || []).map((id, index) => ({
+    key: `${id}-${index}`,
+    wbs_node_id: id,
+    path: findWbsLabel(wbsTree.value, id) || id,
+  })),
+)
+
+function addPickedNode() {
+  if (!pickingNodeId.value) {
+    ElMessage.warning('请先单选一个实体工程节点')
+    return
+  }
+  form.selectedNodeIds.push(pickingNodeId.value)
+  pickingNodeId.value = ''
+}
+
+function removeNode(index) {
+  form.selectedNodeIds.splice(index, 1)
+}
 
 function applyApproverFields(src = {}) {
   form.supervisor_approver_user_id = src.supervisor_approver_user_id || ''
@@ -237,22 +271,46 @@ function onSubmit() {
           maxlength="80"
           show-word-limit
           placeholder="如：T2 混凝土分项实模一致验收"
-          aria-label="如：T2 混凝土分项实模一致验收"
+          aria-label="验收任务名称"
         />
       </el-form-item>
-      <el-form-item label="工程分解树" required>
-        <el-tree-select
-          v-model="form.selectedNodeIds"
-          :data="wbsTree"
-          multiple
-          show-checkbox
-          check-strictly
-          filterable
-          node-key="id"
-          :props="{ label: 'label', children: 'children', disabled: 'disabled' }"
-          placeholder="多选至分项（不含检验批）"
-          style="width: 100%"
-        />
+      <el-form-item label="所选实体工程节点" required>
+        <div style="width: 100%">
+          <div class="node-pick-row">
+            <el-tree-select
+              v-model="pickingNodeId"
+              :data="wbsTree"
+              check-strictly
+              filterable
+              clearable
+              node-key="id"
+              :props="{ label: 'label', children: 'children', disabled: 'disabled' }"
+              placeholder="单选至分项（不含检验批）"
+              style="flex: 1"
+            />
+            <el-button type="primary" @click="addPickedNode">添加</el-button>
+          </div>
+          <p class="muted" style="margin: 8px 0 0">
+            每次单选一个节点后点击添加；最少 1 个，不限制条数；同一节点可重复添加。
+          </p>
+          <el-table
+            v-if="selectedNodeRows.length"
+            :data="selectedNodeRows"
+            stripe
+            border
+            size="small"
+            style="margin-top: 12px; width: 100%"
+          >
+            <el-table-column type="index" label="#" width="50" />
+            <el-table-column prop="path" label="节点路径" min-width="280" show-overflow-tooltip />
+            <el-table-column prop="wbs_node_id" label="节点 ID" width="140" show-overflow-tooltip />
+            <el-table-column label="操作" width="80">
+              <template #default="{ $index }">
+                <el-button link type="danger" @click="removeNode($index)">移除</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
       </el-form-item>
       <el-form-item label="报告附件" required>
         <div>
@@ -373,5 +431,18 @@ function onSubmit() {
 
 .mb {
   margin-bottom: 12px;
+}
+
+.node-pick-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.muted {
+  color: #909399;
+  font-size: 13px;
+  line-height: 1.5;
 }
 </style>

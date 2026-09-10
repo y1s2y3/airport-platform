@@ -7,18 +7,13 @@ import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useQmProjectScope } from '../../composables/useCurrentProject'
 import {
-  approvalRecords,
   buildCompleteGate,
   displayTaskLocationName,
   findTask,
-  getAttachments,
   getCompleteRejectOpinion,
   getOrCreateCompleteDraft,
   listCompleteRejectRecords,
   reDeclareCompleteAcceptance,
-  resolveProjectName,
-  TASK_STATUS,
-  TASK_TYPE_LABEL,
 } from '../../mock/qm.js'
 import QmCompletePrereqPanel from './components/QmCompletePrereqPanel.vue'
 
@@ -31,7 +26,7 @@ const draftTaskId = ref('')
 
 const rejectListVisible = ref(false)
 const rejectDetailVisible = ref(false)
-const detailTask = ref(null)
+const detailTaskId = ref('')
 
 const gate = computed(() => {
   void tick.value
@@ -51,24 +46,6 @@ const currentTask = computed(() => {
 })
 
 const isRejected = computed(() => Number(currentTask.value?.status) === 3)
-
-const detailRejectRec = computed(() =>
-  detailTask.value ? getCompleteRejectOpinion(detailTask.value.id) : null,
-)
-
-const detailAttachments = computed(() =>
-  detailTask.value ? getAttachments('TASK', detailTask.value.id) : [],
-)
-
-const detailApprovalFlow = computed(() => {
-  if (!detailTask.value) return []
-  return approvalRecords
-    .filter((r) => r.task_id === detailTask.value.id)
-    .slice()
-    .sort((a, b) => String(a.action_time || '').localeCompare(String(b.action_time || '')))
-})
-
-const ACTION_LABEL = { 1: '提交', 2: '通过', 3: '驳回', 4: '退回' }
 
 function refreshDraft() {
   draftTaskId.value = ''
@@ -115,20 +92,8 @@ function openRejectList() {
 }
 
 function openRejectDetail(row) {
-  detailTask.value = findTask(row.id) || row
+  detailTaskId.value = row?.id || ''
   rejectDetailVisible.value = true
-}
-
-function formDataEntries(task) {
-  const data = task?.form_data || {}
-  const rows = []
-  Object.values(data).forEach((bucket) => {
-    if (!bucket || typeof bucket !== 'object') return
-    Object.entries(bucket).forEach(([k, v]) => {
-      rows.push({ key: k, value: v == null || v === '' ? '—' : String(v) })
-    })
-  })
-  return rows
 }
 </script>
 
@@ -221,91 +186,25 @@ function formDataEntries(task) {
       </el-table>
     </el-dialog>
 
-    <!-- 驳回记录详情 -->
+    <!-- 驳回记录详情：与填报/只读详情同组件、同字段与资料区布局 -->
     <el-dialog
       v-model="rejectDetailVisible"
       title="驳回记录详情"
-      width="640px"
+      width="960px"
+      top="4vh"
       destroy-on-close
       append-to-body
+      class="qm-reject-detail-dialog"
     >
-      <template v-if="detailTask">
-        <el-descriptions :column="2" border size="small" class="mb">
-          <el-descriptions-item label="验评单号">{{ detailTask.task_no || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="验收类型">
-            {{ TASK_TYPE_LABEL[detailTask.task_type] || '竣工验收' }}
-          </el-descriptions-item>
-          <el-descriptions-item label="状态">
-            {{ TASK_STATUS[detailTask.status] || '已驳回' }}
-          </el-descriptions-item>
-          <el-descriptions-item label="项目名称">
-            {{ resolveProjectName(detailTask.project_id) }}
-          </el-descriptions-item>
-          <el-descriptions-item label="工程/部位">
-            {{ displayTaskLocationName(detailTask) || '—' }}
-          </el-descriptions-item>
-          <el-descriptions-item label="申请人">{{ detailTask.applicant_id || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="申请时间">{{ detailTask.submit_time || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="驳回时间">
-            {{ detailRejectRec?.action_time || detailTask.finish_time || '—' }}
-          </el-descriptions-item>
-          <el-descriptions-item label="驳回人">
-            {{ detailRejectRec?.operator_role || detailTask.reviewer_id || '—' }}
-          </el-descriptions-item>
-          <el-descriptions-item label="驳回意见" :span="2">
-            {{ detailRejectRec?.opinion || detailTask.remark || '—' }}
-          </el-descriptions-item>
-        </el-descriptions>
-
-        <div class="section-title">表单数据</div>
-        <el-descriptions
-          v-if="formDataEntries(detailTask).length"
-          :column="1"
-          border
-          size="small"
-          class="mb"
-        >
-          <el-descriptions-item
-            v-for="row in formDataEntries(detailTask)"
-            :key="row.key"
-            :label="row.key"
-          >
-            {{ row.value }}
-          </el-descriptions-item>
-        </el-descriptions>
-        <el-empty v-else description="无表单数据" :image-size="48" class="mb" />
-
-        <div class="section-title">附件资料</div>
-        <el-table
-          :data="detailAttachments"
-          border
-          size="small"
-          empty-text="暂无附件"
-          class="mb"
-        >
-          <el-table-column prop="file_name" label="文件名" min-width="160" show-overflow-tooltip />
-          <el-table-column prop="upload_time" label="上传时间" width="160" />
-        </el-table>
-
-        <div class="section-title">审批过程</div>
-        <el-timeline v-if="detailApprovalFlow.length">
-          <el-timeline-item
-            v-for="r in detailApprovalFlow"
-            :key="r.id"
-            :timestamp="r.action_time || '—'"
-            placement="top"
-            :type="Number(r.action) === 3 ? 'danger' : Number(r.action) === 2 ? 'success' : 'primary'"
-          >
-            <div class="flow-line">
-              <strong>{{ r.node_name || '—' }}</strong>
-              · {{ ACTION_LABEL[r.action] || '操作' }}
-              · {{ r.operator_role || r.operator_id || '—' }}
-            </div>
-            <div v-if="r.opinion" class="flow-opinion">意见：{{ r.opinion }}</div>
-          </el-timeline-item>
-        </el-timeline>
-        <el-empty v-else description="暂无审批记录" :image-size="48" />
-      </template>
+      <QmTaskEdit
+        v-if="detailTaskId"
+        :key="`reject-${detailTaskId}`"
+        :task-id="detailTaskId"
+        title="驳回记录详情"
+        list-path="/qm/inspect/complete-deep"
+        embedded
+        hide-prereq
+      />
     </el-dialog>
   </div>
 </template>
@@ -336,6 +235,20 @@ function formDataEntries(task) {
   color: #303133;
 }
 .mb { margin-bottom: 12px; }
-.flow-line { font-size: 13px; color: #303133; }
-.flow-opinion { margin-top: 4px; font-size: 12px; color: #606266; }
+</style>
+
+<style>
+/* append-to-body 弹窗：限制高度，内容区滚动，避免超出视口 */
+.qm-reject-detail-dialog.el-dialog {
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 4vh;
+}
+.qm-reject-detail-dialog .el-dialog__body {
+  flex: 1;
+  overflow: auto;
+  max-height: calc(92vh - 54px);
+  padding-top: 8px;
+}
 </style>

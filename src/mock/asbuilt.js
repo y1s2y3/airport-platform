@@ -112,7 +112,7 @@ function buildNodePath(nodeId) {
   return parts.join(' / ') || String(nodeId)
 }
 
-/** 实体工程分解树（多选用）：仅实体分支下可选至分项 */
+/** 实体工程分解树（单选添加用）：仅实体分支下可选至分项；单据内允许同一节点重复 */
 export function buildAsbuiltWbsTree() {
   const entityRoot = wbsNodes.find((n) => Number(n.node_type) === 9)
   const pool = wbsNodes.filter((n) => {
@@ -697,7 +697,11 @@ export function listAsbuilt(projectId, { keyword = '', status = '' } = {}) {
     })
   }
   if (status) rows = rows.filter((r) => r.status === status)
-  return rows.sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)))
+  return rows.sort((a, b) => {
+    const byUpdated = String(b.updated_at || '').localeCompare(String(a.updated_at || ''))
+    if (byUpdated !== 0) return byUpdated
+    return String(a.biz_no || '').localeCompare(String(b.biz_no || ''))
+  })
 }
 
 /**
@@ -773,8 +777,6 @@ function normalizeSubmitPayload(payload = {}) {
     wbs_node_path: n.wbs_node_path || buildNodePath(n.wbs_node_id),
     sort_order: i + 1,
   }))
-  const uniq = new Set(nodes.map((n) => n.wbs_node_id))
-  if (uniq.size !== nodes.length) return { ok: false, msg: '所选实体工程节点不可重复' }
 
   const files = (payload.files || []).map((f, i) => ({
     id: f.id || `abf-${Date.now()}-${i}`,
@@ -925,7 +927,7 @@ export function supervisorApproveAsbuilt(id, { action, comment } = {}) {
   const row = store.list.find((r) => r.id === id)
   if (!row) return { ok: false, msg: '单据不存在' }
   if (row.status !== 'pending_approval' || row.current_node !== 'supervisor') {
-    return { ok: false, msg: '当前不在监理审批环节' }
+    return { ok: false, msg: '当前不可审批' }
   }
   if (action === 'reject' && !String(comment || '').trim()) {
     return { ok: false, msg: '驳回意见必填' }
@@ -971,7 +973,7 @@ export function pmApproveAsbuilt(id, { action, comment } = {}) {
   const row = store.list.find((r) => r.id === id)
   if (!row) return { ok: false, msg: '单据不存在' }
   if (row.status !== 'pending_approval' || row.current_node !== 'hq_pm') {
-    return { ok: false, msg: '当前不在指挥部项目经理终审环节' }
+    return { ok: false, msg: '当前不可审批' }
   }
   if (action === 'reject' && !String(comment || '').trim()) {
     return { ok: false, msg: '驳回意见必填' }

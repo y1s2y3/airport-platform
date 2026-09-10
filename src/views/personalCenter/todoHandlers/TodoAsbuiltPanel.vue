@@ -56,12 +56,12 @@ function fileSizeLabel(size) {
         <el-descriptions-item label="项目">
           {{ todo.detail?.project || '—' }}
         </el-descriptions-item>
-        <el-descriptions-item label="任务名称" :span="2">
+        <el-descriptions-item label="验收任务名称" :span="2">
           {{ acceptance?.title || todo.detail?.title || '—' }}
         </el-descriptions-item>
         <el-descriptions-item
           v-if="acceptance?.copy_from_biz_no || todo.detail?.copyFromBizNo"
-          label="重新申报来源"
+          label="源验收单号"
           :span="2"
         >
           {{ acceptance?.copy_from_biz_no || todo.detail?.copyFromBizNo }}
@@ -83,11 +83,11 @@ function fileSizeLabel(size) {
               : todo.detail?.pmApprover || '—'
           }}
         </el-descriptions-item>
-        <el-descriptions-item label="申请人">
-          {{ todo.applicant || '—' }}
+        <el-descriptions-item label="提交人">
+          {{ acceptance?.submitter_name || todo.applicant || '—' }}
         </el-descriptions-item>
         <el-descriptions-item label="提交时间">
-          {{ todo.applyTime || '—' }}
+          {{ acceptance?.submitted_at || todo.applyTime || '—' }}
         </el-descriptions-item>
       </el-descriptions>
     </section>

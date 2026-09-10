@@ -17,6 +17,16 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.9.1.7',
+    date: '2026-09-10',
+    highlights: [
+      '工作台：顶部常用功能入口 + 下方个人中心六标签（与个人中心共用面板）',
+      '竣工验收：驳回记录「查看详情」与填报同布局（影像/附件/档案/材料定样/实模/审批过程）',
+      '质量验评：工程影像、附件资料去掉「上传时间」列（填报/详情/个人中心）',
+      '实模一致：所选节点允许单据内重复；审批失败提示改为业务语',
+    ],
+  },
+  {
     version: 'v2.9.1.6',
     date: '2026-09-09',
     highlights: [

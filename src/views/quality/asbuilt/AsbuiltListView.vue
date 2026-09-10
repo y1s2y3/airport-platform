@@ -10,18 +10,27 @@ const router = useRouter()
 const { isHqSelected, scopeProjectId, scopeProjectLabel } = useQmProjectScope()
 const keyword = ref('')
 const statusFilter = ref('')
+const appliedKeyword = ref('')
+const appliedStatus = ref('')
 
 const list = computed(() => {
   if (isHqSelected.value || !scopeProjectId.value) return []
   return listAsbuilt(scopeProjectId.value, {
-    keyword: keyword.value,
-    status: statusFilter.value,
+    keyword: appliedKeyword.value,
+    status: appliedStatus.value,
   })
 })
+
+function onQuery() {
+  appliedKeyword.value = keyword.value
+  appliedStatus.value = statusFilter.value
+}
 
 function reset() {
   keyword.value = ''
   statusFilter.value = ''
+  appliedKeyword.value = ''
+  appliedStatus.value = ''
 }
 
 function goCreate() {
@@ -70,19 +79,20 @@ function nodeSummary(row) {
           style="width: 280px"
           :prefix-icon="Search"
           aria-label="单号 / 名称 / 节点 / 报告 / 备注"
+          @keyup.enter="onQuery"
         />
         <el-select v-model="statusFilter" clearable placeholder="状态" style="width: 140px" aria-label="状态">
           <el-option v-for="(label, val) in STATUS_LABEL" :key="val" :label="label" :value="val" />
         </el-select>
-        <el-button type="primary" :icon="Search">查询</el-button>
+        <el-button type="primary" :icon="Search" @click="onQuery">查询</el-button>
         <el-button :icon="Refresh" @click="reset">重置</el-button>
         <el-button type="primary" :icon="Plus" @click="goCreate">新建验收</el-button>
       </div>
 
       <el-table :data="list" stripe border empty-text="暂无实模一致验收单">
         <el-table-column prop="biz_no" label="验收单号" width="140" />
-        <el-table-column prop="title" label="任务名称" min-width="180" show-overflow-tooltip />
-        <el-table-column label="所选节点" min-width="180" show-overflow-tooltip>
+        <el-table-column prop="title" label="验收任务名称" min-width="180" show-overflow-tooltip />
+        <el-table-column label="所选实体工程节点" min-width="180" show-overflow-tooltip>
           <template #default="{ row }">{{ nodeSummary(row) }}</template>
         </el-table-column>
         <el-table-column label="状态" width="100">
@@ -92,7 +102,7 @@ function nodeSummary(row) {
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="当前节点" width="120">
+        <el-table-column label="当前审批环节" width="120">
           <template #default="{ row }">{{ NODE_LABEL[row.current_node] || '—' }}</template>
         </el-table-column>
         <el-table-column prop="submitted_at" label="提交时间" width="170" />

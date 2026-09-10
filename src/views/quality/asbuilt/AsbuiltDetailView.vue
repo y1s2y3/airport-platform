@@ -120,7 +120,7 @@ function actionTagType(action) {
                 {{ STATUS_LABEL[detail.status] }}
               </el-tag>
             </el-descriptions-item>
-            <el-descriptions-item label="任务名称" :span="2">{{ detail.title }}</el-descriptions-item>
+            <el-descriptions-item label="验收任务名称" :span="2">{{ detail.title }}</el-descriptions-item>
             <el-descriptions-item label="备注" :span="2">{{ detail.remark || '—' }}</el-descriptions-item>
             <el-descriptions-item label="监理单位审批">
               {{ formatBrandApproverSnapshot(detail, 'supervisor') }}
@@ -131,7 +131,7 @@ function actionTagType(action) {
             <el-descriptions-item label="当前审批环节">{{ currentNodeLabel }}</el-descriptions-item>
             <el-descriptions-item label="提交人">{{ detail.submitter_name || '—' }}</el-descriptions-item>
             <el-descriptions-item label="提交时间">{{ detail.submitted_at || '—' }}</el-descriptions-item>
-            <el-descriptions-item v-if="detail.copy_from_biz_no" label="重新申报来源">
+            <el-descriptions-item v-if="detail.copy_from_biz_no" label="源验收单号">
               <el-button
                 link
                 type="primary"

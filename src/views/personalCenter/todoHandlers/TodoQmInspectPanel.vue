@@ -323,7 +323,6 @@ function handleBack() {
             <el-table-column label="大小" width="80">
               <template #default="{ row }">{{ formatFileSize(row.file_size) }}</template>
             </el-table-column>
-            <el-table-column prop="upload_time" label="上传时间" width="150" />
           </el-table>
         </section>
 
@@ -344,7 +343,6 @@ function handleBack() {
             <el-table-column label="大小" width="80">
               <template #default="{ row }">{{ formatFileSize(row.file_size) }}</template>
             </el-table-column>
-            <el-table-column prop="upload_time" label="上传时间" width="150" />
           </el-table>
         </section>
       </div>
@@ -446,8 +444,8 @@ function handleBack() {
           </div>
           <el-table :data="asbuiltLinks" border size="small" empty-text="暂未关联实模一致验收">
             <el-table-column prop="biz_no" label="验收单号" width="120" />
-            <el-table-column prop="title" label="任务名称" min-width="110" show-overflow-tooltip />
-            <el-table-column prop="node_paths" label="所选节点" min-width="120" show-overflow-tooltip>
+            <el-table-column prop="title" label="验收任务名称" min-width="110" show-overflow-tooltip />
+            <el-table-column prop="node_paths" label="所选实体工程节点" min-width="120" show-overflow-tooltip>
               <template #default="{ row }">{{ row.node_paths || '—' }}</template>
             </el-table-column>
             <el-table-column
