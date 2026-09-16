@@ -16,6 +16,7 @@ import {
   normalizeSpecialties,
 } from '../constants/wbsSpecialty.js'
 import { entityBreakdownTreeTypeLabel } from '../constants/wbsEntityLabels.js'
+import { validateWbsNodeCode } from '../utils/wbsNodeCode.js'
 
 /** @type {Array<{
  *  id: string
@@ -669,6 +670,13 @@ export function upsertLocation(payload, id = '') {
   if (!payload?.project_id || !payload?.wbs_node_id || !payload?.name?.trim()) {
     return { ok: false, msg: '项目、归属分项、部位名称必填' }
   }
+  const codeCheck = validateWbsNodeCode(payload.code)
+  if (!codeCheck.ok) {
+    return {
+      ok: false,
+      msg: codeCheck.msg === '请填写编码' ? '编码必填' : codeCheck.msg,
+    }
+  }
   const item = wbsNodes.find(
     (n) =>
       isWbsAlive(n) &&
@@ -693,7 +701,7 @@ export function upsertLocation(payload, id = '') {
   if (!depthCheck.ok) return depthCheck
 
   const name = payload.name.trim()
-  const code = (payload.code || '').trim()
+  const code = codeCheck.code
   const sort_no = Number(payload.sort_no) || 0
   const status = Number(payload.status) === 0 ? 0 : 1
   const specialties = normalizeSpecialties(payload.specialties)

@@ -22,11 +22,28 @@ const images = computed(() =>
 const hazardFields = computed(() => {
   if (props.kind !== 'hazard') return []
   const emptyForMeeting = isSupervisionMeetingHazard.value
+  const channelLabel =
+    props.record.channel === 'dispatch'
+      ? '调度隐患'
+      : props.record.channel === 'supervision'
+        ? '监理例会登记'
+        : props.record.channel === 'inspection'
+          ? '巡检隐患'
+          : ''
   return [
     { label: '单号类型', value: detail.value.ticketType || props.record.ticketType },
+    ...(channelLabel ? [{ label: '来源', value: channelLabel }] : []),
     { label: '隐患类别', value: props.record.hazardCategory || (props.record.type === 'quality' ? '质量' : '安全') },
     { label: '隐患等级', value: props.record.level },
-    { label: '整改状态', value: props.record.status },
+    {
+      label: '整改状态',
+      value: props.record.unifiedStatus || props.record.status,
+    },
+    ...(props.record.status &&
+    props.record.unifiedStatus &&
+    props.record.status !== props.record.unifiedStatus
+      ? [{ label: '原始状态', value: props.record.status }]
+      : []),
     { label: '整改期限', value: detail.value.deadline },
     {
       label: '上报人',
@@ -44,11 +61,19 @@ const hazardFields = computed(() => {
 const dangerFields = computed(() => {
   if (props.kind !== 'danger') return []
   return [
+    { label: '施工日期', value: props.record.date },
     { label: '施工项目', value: props.record.projectName || props.record.projectShortName },
     { label: '施工单位', value: props.record.contractor || detail.value.unit },
     { label: '作业类型', value: props.record.type },
-    { label: '施工内容', value: props.record.subType },
+    { label: '作业状态', value: props.record.status },
+    { label: '作业时段', value: props.record.time },
     { label: '施工区域', value: props.record.location },
+    { label: '施工内容', value: props.record.subType, full: true },
+    {
+      label: '风险管控措施',
+      value: props.record.measures || detail.value.measures,
+      full: true,
+    },
   ]
 })
 
@@ -76,10 +101,15 @@ const fields = computed(() => props.kind === 'hazard' ? hazardFields.value : dan
           v-for="img in images"
           :key="img.id"
           class="image-card"
-          :style="{ background: img.background }"
+          :class="{ 'has-url': !!img.url }"
+          :style="img.url ? undefined : { background: img.background }"
         >
-          <el-icon :size="22" color="rgba(255,255,255,0.55)"><Camera /></el-icon>
-          <span>{{ img.label }}</span>
+          <img v-if="img.url" class="image-card__photo" :src="img.url" :alt="img.label || '隐患图片'" />
+          <template v-else>
+            <el-icon :size="22" color="rgba(255,255,255,0.55)"><Camera /></el-icon>
+            <span>{{ img.label }}</span>
+          </template>
+          <span v-if="img.url && img.label" class="image-card__caption">{{ img.label }}</span>
         </div>
       </div>
     </div>
@@ -100,7 +130,7 @@ const fields = computed(() => props.kind === 'hazard' ? hazardFields.value : dan
 }
 
 .detail-form.single-col {
-  grid-template-columns: 1fr;
+  grid-template-columns: 1fr 1fr;
 }
 
 .form-row {
@@ -154,6 +184,7 @@ const fields = computed(() => props.kind === 'hazard' ? hazardFields.value : dan
 }
 
 .image-card {
+  position: relative;
   height: 120px;
   border-radius: 10px;
   display: flex;
@@ -163,5 +194,29 @@ const fields = computed(() => props.kind === 'hazard' ? hazardFields.value : dan
   gap: 6px;
   color: rgba(255, 255, 255, 0.9);
   font-size: calc(12px + var(--coc-font-boost));
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.image-card.has-url {
+  padding: 0;
+}
+
+.image-card__photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.image-card__caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 4px 8px;
+  background: rgba(0, 0, 0, 0.45);
+  font-size: calc(11px + var(--coc-font-boost));
+  text-align: center;
 }
 </style>

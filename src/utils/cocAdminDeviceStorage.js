@@ -2,6 +2,7 @@ import {
   defaultSupervisionMeetings,
   defaultSupervisionHazards,
 } from '../mock/supervisionMeetingSeed.js'
+import { asAttachList } from '../constants/attachmentUpload.js'
 
 const PATROL_KEY = 'coc-admin-patrol-devices'
 const HELMET_KEY = 'coc-admin-smart-helmets'
@@ -163,6 +164,30 @@ export function emptySmartHelmet(row = {}) {
 }
 
 export function emptySupervisionMeeting(row = {}) {
+  const minutesFiles = asAttachList(
+    Array.isArray(row.minutesFiles) && row.minutesFiles.length
+      ? row.minutesFiles
+      : row.minutesFile || row.minutesWord || row.minutesPdf
+        ? { name: row.minutesFile || row.minutesWord || row.minutesPdf, url: row.minutesFileUrl }
+        : [],
+  )
+  const signInPhotos = asAttachList(
+    Array.isArray(row.signInPhotos) && row.signInPhotos.length
+      ? row.signInPhotos
+      : row.signInPhoto
+        ? { name: row.signInPhoto, url: row.signInPhotoUrl }
+        : [],
+  )
+  const meetingPhotos = asAttachList(
+    Array.isArray(row.meetingPhotos) && row.meetingPhotos.length
+      ? row.meetingPhotos
+      : row.meetingPhoto
+        ? { name: row.meetingPhoto, url: row.meetingPhotoUrl }
+        : [],
+  )
+  const firstMinutes = minutesFiles[0]
+  const firstSign = signInPhotos[0]
+  const firstMeet = meetingPhotos[0]
   return {
     id: row.id || '',
     projectId: row.projectId || '',
@@ -171,19 +196,19 @@ export function emptySupervisionMeeting(row = {}) {
     meetingDate: row.meetingDate || '',
     pmAttendees: row.pmAttendees || '',
     directorAttendees: row.directorAttendees || '',
-    /** 监理例会纪要（Word / PDF 合一字段；兼容旧数据 minutesWord / minutesPdf） */
-    minutesFile: row.minutesFile || row.minutesWord || row.minutesPdf || '',
+    minutesFiles,
+    minutesFile: firstMinutes?.name || '',
     minutesWord: row.minutesWord || '',
     minutesPdf: row.minutesPdf || '',
-    /** 本周隐患清单附件 */
     weeklyHazardList: row.weeklyHazardList || '',
     weeklyHazardListUrl: row.weeklyHazardListUrl || '',
-    signInPhoto: row.signInPhoto || '',
-    signInPhotoUrl: row.signInPhotoUrl || '',
-    meetingPhoto: row.meetingPhoto || '',
-    meetingPhotoUrl: row.meetingPhotoUrl || '',
-    /** 监理例会纪要预览地址（dataURL / blob） */
-    minutesFileUrl: row.minutesFileUrl || '',
+    signInPhotos,
+    signInPhoto: firstSign?.name || '',
+    signInPhotoUrl: firstSign?.url || '',
+    meetingPhotos,
+    meetingPhoto: firstMeet?.name || '',
+    meetingPhotoUrl: firstMeet?.url || '',
+    minutesFileUrl: firstMinutes?.url || row.minutesFileUrl || '',
     remark: row.remark || '',
     parseStatus: row.parseStatus || 'pending',
     parsedAt: row.parsedAt || '',

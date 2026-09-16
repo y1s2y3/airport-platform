@@ -3,6 +3,11 @@
  * 审批入口：个人中心待办（仅监理）；申报须指定监理审批人
  */
 import { reactive } from 'vue'
+import {
+  asAttachList,
+  attachRequiredOk,
+  isAllowedAttachExt,
+} from '../constants/attachmentUpload.js'
 import { nowStr } from '../utils/datetime.js'
 import { formatApproverCandidateLabel } from '../utils/approverDisplay.js'
 import { getProjectLabel } from './laborRealName.js'
@@ -17,19 +22,27 @@ import {
   upsertMatEntryStarted,
 } from './personalCenter.js'
 
-/** 合格证 / 现场照片：仅允许图片扩展名 */
+/** 合格证 / 现场照片：图片档位 */
 export function isImageAttachmentName(name) {
-  return /\.(jpe?g|png)$/i.test(String(name || '').trim())
+  const list = asAttachList(name)
+  if (!list.length) return isAllowedAttachExt({ name: String(name || '') }, 'image')
+  return list.every((item) => isAllowedAttachExt(item, 'image'))
 }
 
-/** 质量证明文件：仅 PDF */
+/** 质量证明 / 其他：文件档位（兼容旧函数名） */
 export function isPdfAttachmentName(name) {
-  return /\.pdf$/i.test(String(name || '').trim())
+  const list = asAttachList(name)
+  if (!list.length) return isAllowedAttachExt({ name: String(name || '') }, 'file')
+  return list.every((item) => isAllowedAttachExt(item, 'file'))
 }
 
-/** 其他附件：jpg / png / pdf / word */
 export function isOtherAttachmentName(name) {
-  return /\.(jpe?g|png|pdf|docx?)$/i.test(String(name || '').trim())
+  return isPdfAttachmentName(name)
+}
+
+function normalizeAttachField(value, fallback) {
+  const list = asAttachList(value)
+  return list.length ? list : asAttachList(fallback)
 }
 
 /**
@@ -1779,28 +1792,26 @@ function prepareEntryFields(payload) {
       if (!String(row.entry_date || '').trim()) {
         return { ok: false, msg: `设备明细第 ${i + 1} 组请填写进场日期` }
       }
-      const cert_file = String(row.cert_file || payload.cert_file || '').trim()
-      const inspect_file = String(row.inspect_file || payload.inspect_file || '').trim()
-      const photo_file = String(row.photo_file || payload.photo_file || '').trim()
-      const other_file = String(row.other_file || '').trim()
+      const cert_file = normalizeAttachField(row.cert_file, payload.cert_file)
+      const inspect_file = normalizeAttachField(row.inspect_file, payload.inspect_file)
+      const photo_file = normalizeAttachField(row.photo_file, payload.photo_file)
+      const other_file = asAttachList(row.other_file)
       const inspect_result_checked = !!row.inspect_result_checked
-      const inspect_result_file = inspect_result_checked
-        ? String(row.inspect_result_file || '').trim()
-        : ''
-      if (!cert_file) return { ok: false, msg: `设备明细第 ${i + 1} 组请上传合格证` }
+      const inspect_result_file = inspect_result_checked ? asAttachList(row.inspect_result_file) : []
+      if (!attachRequiredOk(cert_file)) return { ok: false, msg: `设备明细第 ${i + 1} 组请上传合格证` }
       if (!isImageAttachmentName(cert_file)) {
         return { ok: false, msg: `设备明细第 ${i + 1} 组合格证仅支持图片` }
       }
-      if (!inspect_file) return { ok: false, msg: `设备明细第 ${i + 1} 组请上传质量证明文件` }
+      if (!attachRequiredOk(inspect_file)) return { ok: false, msg: `设备明细第 ${i + 1} 组请上传质量证明文件` }
       if (!isPdfAttachmentName(inspect_file)) {
-        return { ok: false, msg: `设备明细第 ${i + 1} 组质量证明文件仅支持 PDF` }
+        return { ok: false, msg: `设备明细第 ${i + 1} 组质量证明文件格式不符合要求` }
       }
-      if (!photo_file) return { ok: false, msg: `设备明细第 ${i + 1} 组请上传现场照片` }
+      if (!attachRequiredOk(photo_file)) return { ok: false, msg: `设备明细第 ${i + 1} 组请上传现场照片` }
       if (!isImageAttachmentName(photo_file)) {
         return { ok: false, msg: `设备明细第 ${i + 1} 组现场照片仅支持图片` }
       }
-      if (other_file && !isOtherAttachmentName(other_file)) {
-        return { ok: false, msg: `设备明细第 ${i + 1} 组其他附件仅支持 jpg / png / pdf / word` }
+      if (other_file.length && !isOtherAttachmentName(other_file)) {
+        return { ok: false, msg: `设备明细第 ${i + 1} 组其他附件格式不符合要求` }
       }
       const unpack_items = Array.isArray(row.unpack_items) ? row.unpack_items : []
       if (!unpack_items.length) return { ok: false, msg: `设备明细第 ${i + 1} 组请完成开箱清单` }
@@ -1935,28 +1946,26 @@ function prepareEntryFields(payload) {
     if (!material_spec) return { ok: false, msg: `进场明细第 ${i + 1} 组请填写规格型号` }
     if (!quantity || quantity <= 0) return { ok: false, msg: `进场明细第 ${i + 1} 组请填写有效数量` }
     if (!unit) return { ok: false, msg: `进场明细第 ${i + 1} 组请填写单位` }
-    const cert_file = String(row.cert_file || payload.cert_file || '').trim()
-    const inspect_file = String(row.inspect_file || payload.inspect_file || '').trim()
-    const photo_file = String(row.photo_file || payload.photo_file || '').trim()
-    const other_file = String(row.other_file || '').trim()
+    const cert_file = normalizeAttachField(row.cert_file, payload.cert_file)
+    const inspect_file = normalizeAttachField(row.inspect_file, payload.inspect_file)
+    const photo_file = normalizeAttachField(row.photo_file, payload.photo_file)
+    const other_file = asAttachList(row.other_file)
     const inspect_result_checked = !!row.inspect_result_checked
-    const inspect_result_file = inspect_result_checked
-      ? String(row.inspect_result_file || '').trim()
-      : ''
-    if (!cert_file) return { ok: false, msg: `进场明细第 ${i + 1} 组请上传合格证` }
+    const inspect_result_file = inspect_result_checked ? asAttachList(row.inspect_result_file) : []
+    if (!attachRequiredOk(cert_file)) return { ok: false, msg: `进场明细第 ${i + 1} 组请上传合格证` }
     if (!isImageAttachmentName(cert_file)) {
       return { ok: false, msg: `进场明细第 ${i + 1} 组合格证仅支持图片` }
     }
-    if (!inspect_file) return { ok: false, msg: `进场明细第 ${i + 1} 组请上传质量证明文件` }
+    if (!attachRequiredOk(inspect_file)) return { ok: false, msg: `进场明细第 ${i + 1} 组请上传质量证明文件` }
     if (!isPdfAttachmentName(inspect_file)) {
-      return { ok: false, msg: `进场明细第 ${i + 1} 组质量证明文件仅支持 PDF` }
+      return { ok: false, msg: `进场明细第 ${i + 1} 组质量证明文件格式不符合要求` }
     }
-    if (!photo_file) return { ok: false, msg: `进场明细第 ${i + 1} 组请上传现场照片` }
+    if (!attachRequiredOk(photo_file)) return { ok: false, msg: `进场明细第 ${i + 1} 组请上传现场照片` }
     if (!isImageAttachmentName(photo_file)) {
       return { ok: false, msg: `进场明细第 ${i + 1} 组现场照片仅支持图片` }
     }
-    if (other_file && !isOtherAttachmentName(other_file)) {
-      return { ok: false, msg: `进场明细第 ${i + 1} 组其他附件仅支持 jpg / png / pdf / word` }
+    if (other_file.length && !isOtherAttachmentName(other_file)) {
+      return { ok: false, msg: `进场明细第 ${i + 1} 组其他附件格式不符合要求` }
     }
     const rowLocationIds = Array.isArray(row.location_ids)
       ? row.location_ids.map(String).filter(Boolean)

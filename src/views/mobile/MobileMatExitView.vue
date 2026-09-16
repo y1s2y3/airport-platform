@@ -5,6 +5,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import AttachmentUpload from '../../components/common/AttachmentUpload.vue'
 import { useQmProjectScope } from '../../composables/useCurrentProject'
 import {
   getExitDetail,
@@ -23,9 +24,8 @@ const form = reactive({
   entry_no: '',
   exit_qty: '',
   reason: '',
-  photo_file: '',
+  photo_file: [],
 })
-const photoPreview = ref('')
 const detail = ref(null)
 
 const list = computed(() => {
@@ -55,11 +55,7 @@ function resetForm() {
   form.entry_no = ''
   form.exit_qty = ''
   form.reason = ''
-  form.photo_file = ''
-  if (photoPreview.value) {
-    URL.revokeObjectURL(photoPreview.value)
-    photoPreview.value = ''
-  }
+  form.photo_file = []
 }
 
 function openCreate() {
@@ -73,58 +69,6 @@ function openCreate() {
 function openDetail(row) {
   detail.value = getExitDetail(row.exit_no)
   mode.value = 'detail'
-}
-
-function pickPhoto(mode = 'camera') {
-  const input = document.createElement('input')
-  input.type = 'file'
-  input.accept = 'image/*'
-  if (mode === 'camera') input.capture = 'environment'
-  input.onchange = (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const prefix = mode === 'camera' ? '拍照' : mode === 'album' ? '相册' : '文件'
-    form.photo_file = `${prefix}-退场现场-${Date.now()}.jpg`
-    if (photoPreview.value) URL.revokeObjectURL(photoPreview.value)
-    photoPreview.value = URL.createObjectURL(file)
-    ElMessage.success(`已选择现场照片`)
-  }
-  input.click()
-}
-
-function takePhoto() {
-  pickPhoto('camera')
-}
-
-function pickFromAlbum() {
-  pickPhoto('album')
-}
-
-function pickFile() {
-  const input = document.createElement('input')
-  input.type = 'file'
-  input.accept = 'image/*,.pdf'
-  input.onchange = (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    form.photo_file = file.name || `文件-退场现场-${Date.now()}`
-    if (photoPreview.value) URL.revokeObjectURL(photoPreview.value)
-    if (file.type.startsWith('image/')) {
-      photoPreview.value = URL.createObjectURL(file)
-    } else {
-      photoPreview.value = ''
-    }
-    ElMessage.success(`已上传：${form.photo_file}`)
-  }
-  input.click()
-}
-
-function clearPhoto() {
-  form.photo_file = ''
-  if (photoPreview.value) {
-    URL.revokeObjectURL(photoPreview.value)
-    photoPreview.value = ''
-  }
 }
 
 function onSubmit() {
@@ -237,20 +181,9 @@ function goBack() {
               placeholder="请填写退场原因"
             />
           </div>
-          <div class="form-row">
+          <div class="attach-field">
             <span class="form-label">现场照片</span>
-            <div class="photo-group">
-              <div v-if="form.photo_file" class="photo-box">
-                <img v-if="photoPreview" :src="photoPreview" alt="" />
-                <span v-else>📎 已选</span>
-                <button type="button" class="photo-del" @click="clearPhoto">✕</button>
-              </div>
-              <template v-else>
-                <button type="button" class="photo-add" @click="takePhoto">拍照</button>
-                <button type="button" class="photo-add" @click="pickFromAlbum">相册</button>
-                <button type="button" class="photo-add" @click="pickFile">文件</button>
-              </template>
-            </div>
+            <AttachmentUpload v-model="form.photo_file" preset="image" compact :min="0" :max="9" name-prefix="退场现场照片" />
           </div>
         </section>
       </div>
@@ -304,9 +237,16 @@ function goBack() {
             <span class="form-label">退场原因</span>
             <span class="form-value">{{ detail.reason || '—' }}</span>
           </div>
-          <div class="form-row">
+          <div class="attach-field">
             <span class="form-label">现场照片</span>
-            <span class="form-value">{{ detail.photo_file || '未上传' }}</span>
+            <AttachmentUpload
+              v-if="detail.photo_file"
+              :model-value="detail.photo_file"
+              preset="image"
+              compact
+              readonly
+            />
+            <span v-else class="form-value">--</span>
           </div>
           <div class="form-row">
             <span class="form-label">登记时间</span>
@@ -444,6 +384,12 @@ function goBack() {
   gap: 8px;
   margin-bottom: 14px;
   align-items: flex-start;
+}
+.attach-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
 }
 .form-label {
   color: #666;

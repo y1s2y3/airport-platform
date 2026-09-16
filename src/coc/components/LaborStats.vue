@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import * as echarts from 'echarts'
-import { calcLaborBreakdown } from '../mock/data.js'
+import { getCocLaborPanelStats } from '../../mock/laborManagement.js'
 
 const props = defineProps({
   projects: { type: Array, required: true },
@@ -10,138 +10,185 @@ const props = defineProps({
 })
 
 const chartRef = ref(null)
-const timeDim = ref('day')
 let chart = null
 
-const buildingProjects = computed(() =>
-  props.projects.filter((p) => p.status === '在建'),
-)
+const LEGEND_KEYS = ['建筑工人', '管理人员', '出勤率']
+const legendSelected = ref({
+  建筑工人: true,
+  管理人员: true,
+  出勤率: true,
+})
+
+const legendItems = [
+  { name: '建筑工人', icon: 'bar labor' },
+  { name: '管理人员', icon: 'bar manage' },
+  { name: '出勤率', icon: 'line total' },
+]
+
+const laborStats = computed(() => {
+  if (props.isEnterprise) return getCocLaborPanelStats('hq')
+  return getCocLaborPanelStats(props.focusProject?.id || '')
+})
 
 const statsRows = computed(() => {
-  const totalAll = props.isEnterprise
-    ? buildingProjects.value.reduce((s, p) => s + p.onSiteWorkers, 0)
-    : props.focusProject?.onSiteWorkers || 0
-  const breakdown = calcLaborBreakdown(totalAll)
-  const rate = (today, total) => (total ? `${((today / total) * 100).toFixed(1)}%` : '—')
-
+  const s = laborStats.value
   return [
     {
       label: '全部人员',
-      total: totalAll,
-      today: breakdown.allToday,
-      rate: rate(breakdown.allToday, totalAll),
+      total: s.total,
+      today: s.allToday,
+      rate: s.rate,
     },
     {
       label: '管理人员',
-      total: breakdown.manage,
-      today: breakdown.manageToday,
-      rate: rate(breakdown.manageToday, breakdown.manage),
+      total: s.manage,
+      today: s.manageToday,
+      rate: s.manageRate,
     },
     {
-      label: '劳务人员',
-      total: breakdown.labor,
-      today: breakdown.laborToday,
-      rate: rate(breakdown.laborToday, breakdown.labor),
+      label: '建筑工人',
+      total: s.labor,
+      today: s.laborToday,
+      rate: s.laborRate,
+    },
+    {
+      label: '特种作业人员',
+      total: s.special,
+      today: s.specialToday,
+      rate: s.specialRate,
     },
   ]
 })
 
-const trendChartData = computed(() => {
-  const base = props.focusProject?.onSiteWorkers || 400
-  const manageBase = Math.round(base * 0.052)
-  const laborBase = base - manageBase
-  if (timeDim.value === 'day') {
-    const factors = [0.96, 1.01, 0.98, 1.05, 0.99, 1.06, 1.02]
-    const labor = factors.map((f) => Math.round(laborBase * f))
-    const manage = factors.map((f, i) => Math.round(manageBase * (0.94 + (i % 3) * 0.04)))
-    return {
-      labels: ['6/6', '6/7', '6/8', '6/9', '6/10', '6/11', '6/12'],
-      labor,
-      manage,
-      total: labor.map((v, i) => v + manage[i]),
-    }
-  }
-  const factors = [0.92, 0.98, 0.95, 1.02, 0.99, 1.08]
-  const labor = factors.map((f) => Math.round(laborBase * f * 8.5))
-  const manage = factors.map((f, i) => Math.round(manageBase * f * 8.5 * (0.96 + (i % 2) * 0.05)))
-  return {
-    labels: ['1月', '2月', '3月', '4月', '5月', '6月'],
-    labor,
-    manage,
-    total: labor.map((v, i) => v + manage[i]),
-  }
-})
+const trendChartData = computed(() => laborStats.value.trend || { labels: [], labor: [], manage: [], rate: [] })
 
 function buildProjectTrendOption() {
   const data = trendChartData.value
   return {
-    tooltip: { trigger: 'axis', textStyle: { fontSize: 11 } },
-    legend: { show: false },
-    grid: { left: 56, right: 56, top: 12, bottom: 28 },
+    tooltip: {
+      trigger: 'axis',
+      textStyle: { fontSize: 11 },
+      axisPointer: { type: 'shadow' },
+      formatter(params) {
+        if (!Array.isArray(params) || !params.length) return ''
+        const lines = [`${params[0].axisValue}`]
+        params.forEach((item) => {
+          const unit = item.seriesName === '出勤率' ? '%' : '人'
+          lines.push(`${item.marker}${item.seriesName}：${item.value}${unit}`)
+        })
+        return lines.join('<br/>')
+      },
+    },
+    legend: {
+      show: false,
+      data: LEGEND_KEYS,
+      selected: { ...legendSelected.value },
+    },
+    grid: {
+      left: 6,
+      right: 6,
+      top: 28,
+      bottom: 2,
+      containLabel: true,
+    },
     xAxis: {
       type: 'category',
       data: data.labels,
-      axisLabel: { fontSize: 10, color: '#909399' },
+      boundaryGap: true,
+      axisTick: { show: false },
+      axisLabel: {
+        fontSize: 10,
+        color: '#909399',
+        margin: 10,
+        interval: 0,
+      },
       axisLine: { lineStyle: { color: '#e4e7ed' } },
     },
     yAxis: [
       {
         type: 'value',
-        name: '劳务人数',
+        name: '人数',
         position: 'left',
-        nameTextStyle: { fontSize: 10, color: '#c97b63' },
-        axisLabel: { fontSize: 10, color: '#909399' },
+        splitNumber: 4,
+        nameGap: 8,
+        nameTextStyle: { fontSize: 10, color: '#c97b63', padding: [0, 0, 0, 0] },
+        axisLabel: {
+          fontSize: 10,
+          color: '#909399',
+          margin: 6,
+        },
+        axisLine: { show: false },
+        axisTick: { show: false },
         splitLine: { lineStyle: { color: '#f0f2f5', type: 'dashed' } },
       },
       {
         type: 'value',
-        name: '管理人数',
+        name: '百分数',
         position: 'right',
-        nameTextStyle: { fontSize: 10, color: '#409eff' },
-        axisLabel: { fontSize: 10, color: '#909399' },
+        min: 0,
+        max: 100,
+        splitNumber: 5,
+        nameGap: 8,
+        nameTextStyle: { fontSize: 10, color: '#67c23a', padding: [0, 0, 0, 0] },
+        axisLabel: {
+          fontSize: 10,
+          color: '#909399',
+          margin: 6,
+          formatter: '{value}%',
+        },
+        axisLine: { show: false },
+        axisTick: { show: false },
         splitLine: { show: false },
       },
     ],
     series: [
       {
-        name: '劳务人员',
+        name: '建筑工人',
         type: 'bar',
         yAxisIndex: 0,
         data: data.labor,
-        barGap: '20%',
-        barWidth: timeDim.value === 'day' ? '22%' : '26%',
+        barMaxWidth: 18,
+        barGap: '18%',
+        barCategoryGap: '36%',
         itemStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
             { offset: 0, color: '#e8b4a0' },
             { offset: 1, color: '#c97b63' },
           ]),
-          borderRadius: [6, 6, 0, 0],
+          borderRadius: [4, 4, 0, 0],
         },
       },
       {
         name: '管理人员',
         type: 'bar',
-        yAxisIndex: 1,
+        yAxisIndex: 0,
         data: data.manage,
-        barWidth: timeDim.value === 'day' ? '22%' : '26%',
+        barMaxWidth: 18,
         itemStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
             { offset: 0, color: '#79bbff' },
             { offset: 1, color: '#409eff' },
           ]),
-          borderRadius: [6, 6, 0, 0],
+          borderRadius: [4, 4, 0, 0],
         },
       },
       {
-        name: '合计',
+        name: '出勤率',
         type: 'line',
-        yAxisIndex: 0,
-        data: data.total,
-        smooth: false,
+        yAxisIndex: 1,
+        data: data.rate,
+        smooth: true,
         symbol: 'circle',
-        symbolSize: 9,
-        itemStyle: { color: '#67c23a' },
-        lineStyle: { width: 3, color: '#67c23a' },
+        symbolSize: 7,
+        z: 5,
+        itemStyle: { color: '#67c23a', borderWidth: 2, borderColor: '#fff' },
+        lineStyle: { width: 2.5, color: '#67c23a' },
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: 'rgba(103, 194, 58, 0.16)' },
+            { offset: 1, color: 'rgba(103, 194, 58, 0)' },
+          ]),
+        },
       },
     ],
   }
@@ -151,13 +198,27 @@ function renderChart() {
   if (!chartRef.value || props.isEnterprise) return
   if (!chart) chart = echarts.init(chartRef.value)
   chart.setOption(buildProjectTrendOption(), true)
+  requestAnimationFrame(() => chart?.resize())
+}
+
+function toggleLegend(name) {
+  const next = !legendSelected.value[name]
+  legendSelected.value = { ...legendSelected.value, [name]: next }
+  if (!chart) {
+    renderChart()
+    return
+  }
+  chart.dispatchAction({
+    type: next ? 'legendSelect' : 'legendUnSelect',
+    name,
+  })
 }
 
 function handleResize() {
   chart?.resize()
 }
 
-watch([() => props.isEnterprise, () => props.focusProject?.id, timeDim], renderChart)
+watch([() => props.isEnterprise, () => props.focusProject?.id], renderChart)
 
 onMounted(() => {
   renderChart()
@@ -196,33 +257,19 @@ onUnmounted(() => {
       </div>
 
       <div v-if="!isEnterprise" class="trend-section">
-        <div class="trend-title">劳务出勤趋势</div>
-        <div class="trend-toolbar">
+        <div class="trend-header">
+          <div class="trend-title">劳务出勤趋势<span class="trend-range">近七天</span></div>
           <div class="chart-legend">
-            <span class="legend-item">
-              <i class="legend-icon bar labor" />劳务人员
-            </span>
-            <span class="legend-item">
-              <i class="legend-icon bar manage" />管理人员
-            </span>
-            <span class="legend-item">
-              <i class="legend-icon line total" />合计
-            </span>
-          </div>
-          <div class="time-toggle">
             <button
-              class="time-btn"
-              :class="{ active: timeDim === 'day' }"
-              @click="timeDim = 'day'"
+              v-for="item in legendItems"
+              :key="item.name"
+              type="button"
+              class="legend-item"
+              :class="{ 'is-off': !legendSelected[item.name] }"
+              :title="legendSelected[item.name] ? `点击隐藏${item.name}` : `点击显示${item.name}`"
+              @click="toggleLegend(item.name)"
             >
-              按天
-            </button>
-            <button
-              class="time-btn"
-              :class="{ active: timeDim === 'month' }"
-              @click="timeDim = 'month'"
-            >
-              按月
+              <i class="legend-icon" :class="item.icon" />{{ item.name }}
             </button>
           </div>
         </div>
@@ -268,10 +315,11 @@ onUnmounted(() => {
 .compact-body {
   flex: 1;
   min-height: 0;
-  padding: 12px 20px 16px !important;
+  padding: 8px 16px 12px !important;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  gap: 0;
 }
 
 .stat-table {
@@ -295,12 +343,12 @@ onUnmounted(() => {
 .stat-table-head {
   font-size: calc(11px + var(--coc-font-boost));
   color: var(--coc-text-muted);
-  padding: 8px 0 10px;
+  padding: 4px 0 8px;
   border-bottom: 1px solid var(--coc-border);
 }
 
 .stat-table-row {
-  padding: 12px 0;
+  padding: 8px 0;
   border-bottom: 1px solid #f5f5f5;
   font-size: calc(13px + var(--coc-font-boost));
 }
@@ -334,35 +382,48 @@ onUnmounted(() => {
 
 .trend-section {
   border-top: 1px solid var(--coc-border);
-  padding-top: 10px;
-  margin-top: 12px;
-  flex: 1;
+  padding-top: 8px;
+  margin-top: 4px;
+  flex: 1.35;
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+.trend-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 2px;
+  flex-shrink: 0;
+  padding: 0 2px;
 }
 
 .trend-title {
   font-size: calc(13px + var(--coc-font-boost));
   font-weight: 600;
   color: var(--coc-text);
-  margin-bottom: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
-.trend-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 6px;
+.trend-range {
+  font-size: calc(11px + var(--coc-font-boost));
+  font-weight: 500;
+  color: var(--coc-text-muted);
 }
 
 .chart-legend {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   flex-wrap: wrap;
   gap: 20px;
   min-width: 0;
+  margin-left: auto;
 }
 
 .legend-item {
@@ -372,6 +433,25 @@ onUnmounted(() => {
   font-size: calc(11px + var(--coc-font-boost));
   color: var(--coc-text-secondary);
   white-space: nowrap;
+  border: none;
+  background: transparent;
+  padding: 2px 0;
+  cursor: pointer;
+  user-select: none;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.legend-item:hover {
+  color: var(--coc-text);
+}
+
+.legend-item.is-off {
+  opacity: 0.38;
+  color: var(--coc-text-muted);
+}
+
+.legend-item.is-off .legend-icon {
+  filter: grayscale(1);
 }
 
 .legend-icon {
@@ -413,35 +493,10 @@ onUnmounted(() => {
   background: #67c23a;
 }
 
-.time-toggle {
-  display: flex;
-  flex-shrink: 0;
-  border: 1px solid var(--coc-border);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.time-btn {
-  padding: 5px 16px;
-  border: none;
-  background: #fff;
-  font-size: calc(11px + var(--coc-font-boost));
-  color: var(--coc-text-secondary);
-  cursor: pointer;
-}
-
-.time-btn.active {
-  background: var(--coc-accent);
-  color: #fff;
-}
-
-.time-btn:not(:last-child) {
-  border-right: 1px solid var(--coc-border);
-}
-
 .trend-chart {
   flex: 1;
   width: 100%;
-  min-height: 120px;
+  min-height: 0;
+  height: 100%;
 }
 </style>

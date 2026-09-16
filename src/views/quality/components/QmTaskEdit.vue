@@ -3,6 +3,7 @@ import { computed, defineAsyncComponent, nextTick, reactive, ref, shallowRef, wa
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Clock } from '@element-plus/icons-vue'
+import { ATTACH_PRESETS, attachHint, validateAttachFile } from '../../../constants/attachmentUpload.js'
 import QmCompletePrereqPanel from './QmCompletePrereqPanel.vue'
 import { useQmProjectScope } from '../../../composables/useCurrentProject'
 import {
@@ -800,7 +801,11 @@ function formatFileSize(size) {
 }
 
 function isVideoExt(ext) {
-  return ['mp4', 'mov', 'avi', 'wmv', 'webm'].includes(String(ext || '').toLowerCase())
+  return ['mp4', 'mov', 'm4v', 'avi', 'wmv', 'webm'].includes(String(ext || '').toLowerCase().replace(/^\./, ''))
+}
+
+function isSiteMediaVideo(row) {
+  return Number(row?.file_category) === 2 || isVideoExt(row?.file_ext)
 }
 
 function extFromFileName(name = '') {
@@ -842,27 +847,33 @@ async function onAddSiteMedia() {
   }
   if (!task.value) return
   const files = await pickLocalFiles({
-    accept:
-      'image/*,video/*,.jpg,.jpeg,.png,.gif,.webp,.bmp,.mp4,.mov,.avi,.wmv,.webm',
+    accept: ATTACH_PRESETS.media.accept,
     multiple: true,
   })
   if (!files.length) return
 
   let okCount = 0
-  let imageCount = 0
-  let videoCount = 0
   for (const file of files) {
-    const isVideo = isVideoFile(file)
-    const file_ext = extFromFileName(file.name) || (isVideo ? 'mp4' : 'jpg')
+    const err = validateAttachFile(file, 'media', {
+      currentCount: siteMediaList.value.length + okCount,
+      max: 9,
+    })
+    if (err) {
+      ElMessage.warning(err)
+      continue
+    }
+    const video = isVideoFile(file)
+    const file_ext = extFromFileName(file.name) || (video ? 'mp4' : 'jpg')
     const r = addAttachment({
       biz_type: 'TASK',
       biz_id: task.value.id,
       task_id: task.value.id,
-      file_category: isVideo ? 2 : 1,
+      file_category: video ? 2 : 1,
       file_name: file.name,
       file_ext,
+      file_url: URL.createObjectURL(file),
       file_size: file.size || 0,
-      mime_type: file.type || (isVideo ? 'video/mp4' : 'image/jpeg'),
+      mime_type: file.type || (video ? 'video/mp4' : 'image/jpeg'),
       shoot_time: new Date().toISOString().slice(0, 19).replace('T', ' '),
       shoot_location: displayTaskLocationName(task.value) || headerMeta.location_name || '',
     })
@@ -871,18 +882,10 @@ async function onAddSiteMedia() {
       continue
     }
     okCount += 1
-    if (isVideo) videoCount += 1
-    else imageCount += 1
   }
   if (!okCount) return
   siteAttTick.value += 1
-  if (imageCount && videoCount) {
-    ElMessage.success(`已上传 ${imageCount} 张图片、${videoCount} 个视频`)
-  } else if (videoCount) {
-    ElMessage.success(`已上传 ${videoCount} 个现场短视频`)
-  } else {
-    ElMessage.success(`已上传 ${imageCount} 张工程影像`)
-  }
+  ElMessage.success(`已上传 ${okCount} 个工程影像`)
 }
 
 async function onAddSiteMaterial() {
@@ -892,13 +895,21 @@ async function onAddSiteMaterial() {
   }
   if (!task.value) return
   const files = await pickLocalFiles({
-    accept: '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.7z,.txt,.jpg,.jpeg,.png',
+    accept: ATTACH_PRESETS.file.accept,
     multiple: true,
   })
   if (!files.length) return
 
   let okCount = 0
   for (const file of files) {
+    const err = validateAttachFile(file, 'file', {
+      currentCount: siteMaterialList.value.length + okCount,
+      max: 9,
+    })
+    if (err) {
+      ElMessage.warning(err)
+      continue
+    }
     const file_ext = extFromFileName(file.name) || 'bin'
     const r = addAttachment({
       biz_type: 'TASK',
@@ -922,6 +933,8 @@ async function onAddSiteMaterial() {
 }
 
 function onRemoveSiteAtt(row) {
+  const url = String(row?.file_url || '')
+  if (url.startsWith('blob:')) URL.revokeObjectURL(url)
   const r = removeAttachment(row.id)
   if (!r.ok) return ElMessage.error(r.msg)
   siteAttTick.value += 1
@@ -1343,7 +1356,7 @@ function saveStepQuietly() {
       :closable="false"
       show-icon
       class="mb"
-      title="提交报验前须至少上传一份工程影像（图片或视频，默认必填）"
+      title="提交报验前须至少上传 1 个工程影像（图片或视频，默认必填）"
     />
     <!-- 第一行：工程影像 | 附件资料 -->
     <div class="site-materials mb">
@@ -1354,7 +1367,7 @@ function saveStepQuietly() {
               工程影像
               <el-tag size="small" type="danger" effect="plain" class="req-tag">默认必填</el-tag>
             </div>
-            <div class="site-block-tip">支持图片、视频（现场照片 / 现场短视频）</div>
+            <div class="site-block-tip">{{ attachHint('media', { min: 1, max: 9 }) }}</div>
           </div>
           <div v-if="canEdit" class="filter-bar">
             <el-button size="small" native-type="button" @click.stop="onAddSiteMedia">
@@ -1362,24 +1375,25 @@ function saveStepQuietly() {
             </el-button>
           </div>
         </div>
-        <el-table :data="siteMediaList" border size="small" empty-text="暂无工程影像">
-          <el-table-column label="类型" width="72">
-            <template #default="{ row }">
-              <el-tag size="small" :type="isVideoExt(row.file_ext) || row.file_category === 2 ? 'warning' : 'success'">
-                {{ isVideoExt(row.file_ext) || row.file_category === 2 ? '视频' : '图片' }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="file_name" label="文件名" min-width="120" show-overflow-tooltip />
-          <el-table-column label="大小" width="80">
-            <template #default="{ row }">{{ formatFileSize(row.file_size) }}</template>
-          </el-table-column>
-          <el-table-column v-if="canEdit" label="操作" width="72" fixed="right">
-            <template #default="{ row }">
-              <el-button link type="danger" @click="onRemoveSiteAtt(row)">删除</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
+        <div v-if="siteMediaList.length" class="attach-thumb-grid">
+          <div v-for="row in siteMediaList" :key="row.id" class="attach-thumb-card">
+            <el-image
+              v-if="!isSiteMediaVideo(row) && row.file_url && !String(row.file_url).startsWith('#')"
+              :src="row.file_url"
+              :alt="row.file_name"
+              fit="cover"
+              class="attach-thumb-img"
+            />
+            <div v-else class="attach-thumb-ph" :class="{ 'is-video': isSiteMediaVideo(row) }">
+              {{ isSiteMediaVideo(row) ? '视频' : '图片' }}
+            </div>
+            <div class="attach-thumb-mask">
+              <span class="attach-thumb-name" :title="row.file_name">{{ row.file_name }}</span>
+              <el-button v-if="canEdit" link type="danger" size="small" @click="onRemoveSiteAtt(row)">删除</el-button>
+            </div>
+          </div>
+        </div>
+        <div v-else class="attach-chip-empty">暂无工程影像</div>
       </div>
 
       <div class="site-block">
@@ -1389,28 +1403,21 @@ function saveStepQuietly() {
               附件资料
               <el-tag size="small" type="info" effect="plain" class="req-tag">可选</el-tag>
             </div>
-            <div class="site-block-tip">支持 PDF / Word / Excel 等文件</div>
+            <div class="site-block-tip">pdf / 图片 / Word / Excel / PPT，单个 ≤50MB，最多 9 个</div>
           </div>
           <div v-if="canEdit" class="filter-bar">
             <el-button size="small" native-type="button" @click.stop="onAddSiteMaterial">上传附件</el-button>
           </div>
         </div>
-        <el-table :data="siteMaterialList" border size="small" empty-text="暂无附件资料">
-          <el-table-column label="格式" width="72">
-            <template #default="{ row }">
-              <el-tag size="small" type="info">{{ String(row.file_ext || '').toUpperCase() || 'FILE' }}</el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="file_name" label="文件名" min-width="120" show-overflow-tooltip />
-          <el-table-column label="大小" width="80">
-            <template #default="{ row }">{{ formatFileSize(row.file_size) }}</template>
-          </el-table-column>
-          <el-table-column v-if="canEdit" label="操作" width="72" fixed="right">
-            <template #default="{ row }">
-              <el-button link type="danger" @click="onRemoveSiteAtt(row)">删除</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
+        <div v-if="siteMaterialList.length" class="attach-chip-grid">
+          <div v-for="row in siteMaterialList" :key="row.id" class="attach-chip">
+            <span class="attach-chip-tag">{{ String(row.file_ext || '').toUpperCase() || 'FILE' }}</span>
+            <span class="attach-chip-name" :title="row.file_name">{{ row.file_name }}</span>
+            <span class="attach-chip-size">{{ formatFileSize(row.file_size) }}</span>
+            <el-button v-if="canEdit" link type="danger" @click="onRemoveSiteAtt(row)">删除</el-button>
+          </div>
+        </div>
+        <div v-else class="attach-chip-empty">暂无附件资料</div>
       </div>
     </div>
 
@@ -2227,6 +2234,95 @@ function saveStepQuietly() {
   margin-top: 2px;
   font-size: 12px;
   color: #909399;
+}
+.attach-chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.attach-thumb-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.attach-thumb-card {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  flex: 0 0 96px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #ebeef5;
+  background: #f5f7fa;
+}
+.attach-thumb-img {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.attach-thumb-ph {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #909399;
+}
+.attach-thumb-ph.is-video {
+  background: #303133;
+  color: #e6a23c;
+}
+.attach-thumb-mask {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 4px 6px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.65));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  min-height: 28px;
+}
+.attach-thumb-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #fff;
+  font-size: 10px;
+}
+.attach-chip {
+  flex: 1 1 200px;
+  min-width: 180px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  background: #fafbfc;
+}
+.attach-chip-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.attach-chip-size,
+.attach-chip-tag {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: #909399;
+}
+.attach-chip-empty {
+  font-size: 13px;
+  color: #909399;
+  padding: 8px 0;
 }
 .req-tag { margin-left: 8px; }
 .approver-config {

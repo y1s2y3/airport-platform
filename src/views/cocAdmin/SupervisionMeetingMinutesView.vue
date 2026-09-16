@@ -19,6 +19,8 @@ import {
   importWeeklyHazardListFromFile,
 } from '../../utils/supervisionMeetingTemplate.js'
 import SupervisionHazardListPanel from './SupervisionHazardListPanel.vue'
+import AttachmentUpload from '../../components/common/AttachmentUpload.vue'
+import { attachRequiredOk, firstAttachName, validateAttachFile } from '../../constants/attachmentUpload.js'
 
 defineProps({
   title: { type: String, default: '监理会议管理' },
@@ -213,6 +215,11 @@ function isNotHeld(record) {
 function assignUploadFile(field, uploadFile) {
   const file = uploadFile?.raw || uploadFile
   const fileName = file?.name || uploadFile?.name || ''
+  const err = validateAttachFile(file, 'image', { currentCount: 0, max: 1 })
+  if (err) {
+    ElMessage.warning(err)
+    return false
+  }
   if (!fileName) return false
   form.value[field] = fileName
   const urlField = `${field}Url`
@@ -229,9 +236,14 @@ function assignUploadFile(field, uploadFile) {
 
 function handleMinutesUpload(uploadFile) {
   const file = uploadFile?.raw || uploadFile
+  const err = validateAttachFile(file, 'file', { currentCount: 0, max: 9 })
+  if (err) {
+    ElMessage.warning(err)
+    return false
+  }
   const fileName = file?.name || uploadFile?.name || ''
   if (!isSupervisionMinutesFileName(fileName)) {
-    ElMessage.error('监理例会纪要仅支持 .doc / .docx / .pdf，请重新选择文件')
+    ElMessage.error('监理例会纪要格式不符合系统附件 file 档位，请重新选择文件')
     return false
   }
 
@@ -259,6 +271,11 @@ function handleMinutesUpload(uploadFile) {
 async function handleWeeklyHazardUpload(uploadFile) {
   const file = uploadFile?.raw || uploadFile
   const fileName = file?.name || uploadFile?.name || ''
+  const sizeErr = validateAttachFile(file, 'xlsx', { currentCount: 0, max: 1 })
+  if (sizeErr) {
+    ElMessage.warning(sizeErr)
+    return false
+  }
   if (!/\.xlsx$/i.test(fileName)) {
     ElMessage.error('隐患清单仅支持 Excel（.xlsx），请按模板另存后上传')
     return false
@@ -376,12 +393,13 @@ function validateForm() {
     }
     return true
   }
-  if (!form.value.minutesFile?.trim()) {
-    ElMessage.warning('请上传监理例会纪要（支持 .doc / .docx / .pdf）')
+  if (!attachRequiredOk(form.value.minutesFiles)) {
+    ElMessage.warning('请上传监理例会纪要（pdf / 图片 / Word / Excel / PPT，1～9 个）')
     return false
   }
-  if (!isSupervisionMinutesFileName(form.value.minutesFile)) {
-    ElMessage.error('纪要附件格式不正确，仅支持 .doc / .docx / .pdf')
+  const minutesName = firstAttachName(form.value.minutesFiles) || form.value.minutesFile
+  if (!isSupervisionMinutesFileName(minutesName)) {
+    ElMessage.error('纪要附件格式不符合系统附件 file 档位')
     return false
   }
   if (!form.value.weeklyHazardList?.trim()) {
@@ -530,25 +548,13 @@ onMounted(load)
 
         <el-divider content-position="left">监理例会纪要附件</el-divider>
         <el-form-item label="监理例会纪要" required>
-          <div class="upload-row">
-            <el-upload
-              :show-file-list="false"
-              accept=".doc,.docx,.pdf"
-              :before-upload="handleMinutesUpload"
-            >
-              <el-button :icon="Upload">上传纪要</el-button>
-            </el-upload>
-            <span class="file-name">{{ form.minutesFile || '未上传' }}</span>
-            <el-button
-              v-if="form.minutesFile"
-              link
-              type="primary"
-              @click="previewMinutes(form)"
-            >
-              预览
-            </el-button>
-          </div>
-          <p class="form-tip">支持 Word（.doc / .docx）或 PDF，上传后可预览；本页不自动解析纪要正文。</p>
+          <AttachmentUpload
+            v-model="form.minutesFiles"
+            preset="file"
+            :min="1"
+            :max="9"
+            name-prefix="监理例会纪要"
+          />
         </el-form-item>
 
         <el-form-item label="本周隐患清单" required>
@@ -556,7 +562,7 @@ onMounted(load)
             <p class="form-tip form-tip--inline">
               流程：
               <el-button link type="primary" @click="handleDownloadTemplate">下载清单模板</el-button>
-              → 按模板填报 → 上传 .xlsx。系统校验格式并导入隐患；必填列为隐患类型（安全/质量）、隐患描述、隐患等级（一般/较大/重大）。
+              → 按模板填报 → 上传 .xlsx（单个 ≤50MB）。系统校验格式并导入隐患；必填列为隐患类型（安全/质量）、隐患描述、隐患等级（一般/较大/重大）。
             </p>
             <div class="upload-row">
               <el-upload
@@ -586,36 +592,22 @@ onMounted(load)
 
         <el-divider content-position="left">影像资料（可选）</el-divider>
         <el-form-item label="签到表照片">
-          <div class="upload-row">
-            <el-upload :show-file-list="false" accept=".jpg,.jpeg,.png,.webp" :before-upload="(f) => assignUploadFile('signInPhoto', f)">
-              <el-button :icon="Upload">上传照片</el-button>
-            </el-upload>
-            <span class="file-name">{{ form.signInPhoto || '未选择文件' }}</span>
-            <el-button
-              v-if="form.signInPhoto"
-              link
-              type="primary"
-              @click="previewSignInPhoto(form)"
-            >
-              预览
-            </el-button>
-          </div>
+          <AttachmentUpload
+            v-model="form.signInPhotos"
+            preset="image"
+            :min="0"
+            :max="9"
+            name-prefix="签到表照片"
+          />
         </el-form-item>
         <el-form-item label="会议照片">
-          <div class="upload-row">
-            <el-upload :show-file-list="false" accept=".jpg,.jpeg,.png,.webp" :before-upload="(f) => assignUploadFile('meetingPhoto', f)">
-              <el-button :icon="Upload">上传照片</el-button>
-            </el-upload>
-            <span class="file-name">{{ form.meetingPhoto || '未选择文件' }}</span>
-            <el-button
-              v-if="form.meetingPhoto"
-              link
-              type="primary"
-              @click="previewMeetingPhoto(form)"
-            >
-              预览
-            </el-button>
-          </div>
+          <AttachmentUpload
+            v-model="form.meetingPhotos"
+            preset="image"
+            :min="0"
+            :max="9"
+            name-prefix="会议照片"
+          />
         </el-form-item>
 
         <el-form-item label="备注">
@@ -640,14 +632,12 @@ onMounted(load)
           <el-descriptions-item label="项目经理/负责人参会">{{ current.pmAttendees || '—' }}</el-descriptions-item>
           <el-descriptions-item label="项目部长/副部长参会">{{ current.directorAttendees || '—' }}</el-descriptions-item>
           <el-descriptions-item label="监理例会纪要">
-            <button
-              v-if="current.minutesFile || current.minutesWord || current.minutesPdf"
-              type="button"
-              class="attach-link"
-              @click="previewMinutes(current)"
-            >
-              {{ current.minutesFile || current.minutesWord || current.minutesPdf }}
-            </button>
+            <AttachmentUpload
+              v-if="current.minutesFiles?.length || current.minutesFile"
+              :model-value="current.minutesFiles?.length ? current.minutesFiles : current.minutesFile"
+              preset="file"
+              readonly
+            />
             <span v-else>—</span>
           </el-descriptions-item>
           <el-descriptions-item label="本周隐患清单">
@@ -662,25 +652,21 @@ onMounted(load)
             <span v-else>—</span>
           </el-descriptions-item>
           <el-descriptions-item label="签到表照片">
-            <button
-              v-if="current.signInPhoto"
-              type="button"
-              class="attach-link"
-              @click="previewSignInPhoto(current)"
-            >
-              {{ current.signInPhoto }}
-            </button>
+            <AttachmentUpload
+              v-if="current.signInPhotos?.length || current.signInPhoto"
+              :model-value="current.signInPhotos?.length ? current.signInPhotos : current.signInPhoto"
+              preset="image"
+              readonly
+            />
             <span v-else>—</span>
           </el-descriptions-item>
           <el-descriptions-item label="会议照片">
-            <button
-              v-if="current.meetingPhoto"
-              type="button"
-              class="attach-link"
-              @click="previewMeetingPhoto(current)"
-            >
-              {{ current.meetingPhoto }}
-            </button>
+            <AttachmentUpload
+              v-if="current.meetingPhotos?.length || current.meetingPhoto"
+              :model-value="current.meetingPhotos?.length ? current.meetingPhotos : current.meetingPhoto"
+              preset="image"
+              readonly
+            />
             <span v-else>—</span>
           </el-descriptions-item>
           <el-descriptions-item label="备注">{{ current.remark || '—' }}</el-descriptions-item>

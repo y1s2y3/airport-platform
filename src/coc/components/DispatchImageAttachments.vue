@@ -5,6 +5,7 @@
 import { computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus, ZoomIn } from '@element-plus/icons-vue'
+import { ATTACH_PRESETS, validateAttachFile } from '../../constants/attachmentUpload.js'
 
 const props = defineProps({
   modelValue: {
@@ -24,13 +25,17 @@ const props = defineProps({
     type: String,
     default: '图片附件',
   },
+  min: {
+    type: Number,
+    default: 0,
+  },
   max: {
     type: Number,
     default: 9,
   },
   maxSizeMb: {
     type: Number,
-    default: 5,
+    default: ATTACH_PRESETS.image.maxSizeMb,
   },
 })
 
@@ -79,17 +84,10 @@ function nextIndexedName(ext) {
 
 function handleUpload(uploadFile) {
   const file = uploadFile.raw || uploadFile
-  if (!file || !String(file.type || '').startsWith('image/')) {
-    ElMessage.warning('附件仅支持图片格式（jpg/png/gif/webp 等）')
-    return false
-  }
-  if (file.size > props.maxSizeMb * 1024 * 1024) {
-    ElMessage.warning(`图片大小不超过 ${props.maxSizeMb}MB`)
-    return false
-  }
   const current = normalizeList(props.modelValue)
-  if (current.length >= props.max) {
-    ElMessage.warning(`最多上传 ${props.max} 张图片`)
+  const err = validateAttachFile(file, 'image', { currentCount: current.length, max: props.max })
+  if (err) {
+    ElMessage.warning(err)
     return false
   }
   const reader = new FileReader()
@@ -161,7 +159,7 @@ const previewList = computed(() => files.value.map((f) => f.url).filter(Boolean)
         v-if="!readonly && files.length < max"
         class="upload-tile"
         :show-file-list="false"
-        accept="image/*"
+        :accept="ATTACH_PRESETS.image.accept"
         :before-upload="handleUpload"
       >
         <div class="upload-inner">
@@ -172,9 +170,9 @@ const previewList = computed(() => files.value.map((f) => f.url).filter(Boolean)
     </div>
 
     <p v-if="!readonly" class="hint">
-      {{ namePrefix }} · 仅支持图片，单张不超过 {{ maxSizeMb }}MB，最多 {{ max }} 张
+      {{ namePrefix }} · jpg/png/gif/webp/bmp/svg，单张不超过 {{ maxSizeMb }}MB，{{ min > 0 ? `${min}～${max}` : `最多 ${max}` }} 张
     </p>
-    <p v-else-if="!files.length" class="empty">—</p>
+    <p v-else-if="!files.length" class="empty">--</p>
   </div>
 </template>
 

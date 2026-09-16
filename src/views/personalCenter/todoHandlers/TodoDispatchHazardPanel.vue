@@ -140,7 +140,7 @@ watch(() => props.todo, resetForm, { immediate: true })
           />
         </el-form-item>
         <el-form-item label="整改照片" required>
-          <DispatchImageAttachments v-model="dispatchHazardForm.photos" name-prefix="整改照片" />
+          <DispatchImageAttachments v-model="dispatchHazardForm.photos" name-prefix="整改照片" :min="1" :max="9" />
         </el-form-item>
       </el-form>
       <div class="op-actions">

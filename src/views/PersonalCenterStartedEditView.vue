@@ -192,7 +192,7 @@ function handleSubmit() {
             />
           </el-form-item>
           <el-form-item label="整改照片" required>
-            <DispatchImageAttachments v-model="form.attachments" name-prefix="整改照片" />
+            <DispatchImageAttachments v-model="form.attachments" name-prefix="整改照片" :min="1" :max="9" />
           </el-form-item>
           <el-form-item label="整改说明" required>
             <el-input

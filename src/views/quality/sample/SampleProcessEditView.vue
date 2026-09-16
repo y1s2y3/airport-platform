@@ -3,7 +3,6 @@ import './sample-page.css'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { UploadFilled } from '@element-plus/icons-vue'
 import { useQmProjectScope } from '../../../composables/useCurrentProject'
 import {
   buildCopyPayloadFromRejectedProcess,
@@ -18,6 +17,7 @@ import {
   getEntityNodePathLabel,
 } from '../../../mock/constructionLocation.js'
 import SampleMediaAttachments from './SampleMediaAttachments.vue'
+import AttachmentUpload from '../../../components/common/AttachmentUpload.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -98,40 +98,13 @@ function applyProcessPayload(data) {
   })
 }
 
-/** 现场影像资料：{ name, url, kind }[] — 必填，最多 9 个，单个 ≤30MB */
+/** 现场影像资料：{ name, url, kind }[] — 必填，最多 9 个，单个 ≤200MB */
 const MEDIA_MAX_COUNT = 9
-const MEDIA_MAX_SIZE_MB = 30
-/** 文件资料：最多 9 个，单个 ≤30MB */
+/** 文件资料：最多 9 个，单个 ≤50MB */
 const DOC_MAX_COUNT = 9
-const DOC_MAX_SIZE_MB = 30
 
 const mediaList = ref([])
 const docList = ref([])
-
-function onPickDoc(uploadFile) {
-  const file = uploadFile.raw || uploadFile
-  if (!file) return false
-  if (file.size > DOC_MAX_SIZE_MB * 1024 * 1024) {
-    ElMessage.warning(`单个文件不超过 ${DOC_MAX_SIZE_MB}MB`)
-    return false
-  }
-  if (docList.value.length >= DOC_MAX_COUNT) {
-    ElMessage.warning(`文件资料最多 ${DOC_MAX_COUNT} 个`)
-    return false
-  }
-  const name = file.name || `文件资料-${docList.value.length + 1}`
-  if (docList.value.some((d) => d.name === name)) {
-    ElMessage.warning('同名文件已存在')
-    return false
-  }
-  docList.value = [...docList.value, { name, url: '#' }]
-  ElMessage.success(`已添加：${name}`)
-  return false
-}
-
-function removeDoc(index) {
-  docList.value = docList.value.filter((_, i) => i !== index)
-}
 
 onMounted(() => {
   if (!copyFromId.value) {
@@ -247,36 +220,16 @@ function onSubmit() {
           v-model="mediaList"
           name-prefix="现场影像"
           :max="MEDIA_MAX_COUNT"
-          :max-size-mb="MEDIA_MAX_SIZE_MB"
         />
       </el-form-item>
       <el-form-item label="文件资料">
-        <div class="doc-upload">
-          <el-upload
-            :show-file-list="false"
-            :before-upload="onPickDoc"
-            accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.txt,.dwg"
-            :disabled="docList.length >= DOC_MAX_COUNT"
-          >
-            <el-button
-              type="primary"
-              plain
-              :icon="UploadFilled"
-              :disabled="docList.length >= DOC_MAX_COUNT"
-            >
-              上传本地文件
-            </el-button>
-          </el-upload>
-          <p class="doc-hint">
-            支持 PDF / Office / 压缩包等，最多 {{ DOC_MAX_COUNT }} 个，单个不超过 {{ DOC_MAX_SIZE_MB }}MB
-          </p>
-          <ul v-if="docList.length" class="doc-list">
-            <li v-for="(d, idx) in docList" :key="`${d.name}-${idx}`">
-              <span class="doc-name" :title="d.name">{{ d.name }}</span>
-              <el-button link type="danger" @click="removeDoc(idx)">删除</el-button>
-            </li>
-          </ul>
-        </div>
+        <AttachmentUpload
+          v-model="docList"
+          preset="file"
+          :min="0"
+          :max="DOC_MAX_COUNT"
+          name-prefix="文件资料"
+        />
       </el-form-item>
       <el-form-item label="备注">
         <el-input

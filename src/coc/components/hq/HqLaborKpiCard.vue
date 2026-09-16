@@ -10,11 +10,21 @@ defineProps({
     default: '',
     validator: (v) => ['', 'accent', 'ok', 'warn'].includes(v),
   },
+  clickable: { type: Boolean, default: false },
 })
+
+defineEmits(['click'])
 </script>
 
 <template>
-  <div class="hq-labor-kpi">
+  <div
+    class="hq-labor-kpi"
+    :class="{ 'is-clickable': clickable }"
+    :role="clickable ? 'button' : undefined"
+    :tabindex="clickable ? 0 : undefined"
+    @click="clickable && $emit('click')"
+    @keydown.enter="clickable && $emit('click')"
+  >
     <img
       class="hq-labor-kpi__bg"
       :src="laborKpiCardBg"
@@ -40,6 +50,19 @@ defineProps({
   width: 100%;
   aspect-ratio: 225 / 68;
   line-height: normal;
+}
+
+.hq-labor-kpi.is-clickable {
+  cursor: pointer;
+}
+
+.hq-labor-kpi.is-clickable:hover .hq-labor-kpi__bg {
+  filter: brightness(1.08);
+}
+
+.hq-labor-kpi.is-clickable:focus-visible {
+  outline: 2px solid rgba(64, 158, 255, 0.8);
+  outline-offset: 2px;
 }
 
 .hq-labor-kpi__bg {

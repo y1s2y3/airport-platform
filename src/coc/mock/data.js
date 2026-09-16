@@ -8,6 +8,8 @@ import {
   projectNamePair,
 } from '../../config/projectCatalog.js'
 import { getHiddenProjectIdSet, findProjectById, displayProjectStatus } from '../../mock/projectBasicInfo.js'
+import { getProjectPersonnel } from '../../mock/laborRealName.js'
+import { REALNAME_ENTRY_STATUS, ONSITE_STATUS } from '../../constants/laborPersonStatus.js'
 
 export const DESIGN_WIDTH = 1920
 export const DESIGN_HEIGHT = 1080
@@ -249,12 +251,23 @@ export function scalePersonnelCounts(person, counts) {
 
 export function calcLaborBreakdown(totalWorkers) {
   const manage = Math.round(totalWorkers * 0.052)
-  const labor = totalWorkers - manage
+  const special = Math.round(totalWorkers * 0.06)
+  const labor = Math.max(0, totalWorkers - manage - special)
   const todayRate = 0.952 + (totalWorkers % 7) * 0.003
   const allToday = Math.round(totalWorkers * todayRate)
   const manageToday = Math.round(manage * (todayRate + 0.005))
-  const laborToday = Math.max(0, allToday - manageToday)
-  return { manage, labor, allToday, manageToday, laborToday, todayRate }
+  const specialToday = Math.round(special * todayRate)
+  const laborToday = Math.max(0, allToday - manageToday - specialToday)
+  return {
+    manage,
+    special,
+    labor,
+    allToday,
+    manageToday,
+    specialToday,
+    laborToday,
+    todayRate,
+  }
 }
 
 export function shortenProjectName(name) {
@@ -1386,11 +1399,12 @@ function withHazardDetail(item, type) {
 }
 
 export const HAZARD_LEVELS = ['一般', '较大', '重大']
-const HAZARD_STATUSES = ['待整改', '整改中', '已闭合']
+/** 与安全巡检整改单四态对齐 */
+const HAZARD_STATUSES = ['待整改', '待复查', '已复查', '已关闭']
 export const HAZARD_REPORTERS = ['张安全', '李巡检', '王强', '赵军', '陈磊', '刘洋', '周质量', '吴检', '郑伟', '孙涛', '钱鹏', '马检']
 export const HAZARD_RECTIFIERS = ['王强', '赵军', '陈磊', '刘洋', '周质量', '吴检', '郑伟', '孙涛', '钱鹏', '马检', '张安全', '李巡检']
-/** 隐患单号类型 */
-export const HAZARD_TICKET_TYPES = ['调度隐患', '监理会议隐患']
+/** 隐患单号类型（调度隐患走调度隐患清单，不在本池混票） */
+export const HAZARD_TICKET_TYPES = ['巡检隐患', '监理会议隐患']
 
 /** 任务单/提示函 · 执行人候选（姓名 + 岗位） */
 export const TASK_EXECUTOR_OPTIONS = [
@@ -1453,8 +1467,8 @@ function buildIssuesForType(type, projectsCount = 36) {
   const prefix = type === 'safety' ? 'sh' : 'qh'
   const templates = type === 'safety' ? SAFETY_DESC_TEMPLATES : QUALITY_DESC_TEMPLATES
   const parts = CONSTRUCTION_PARTS.filter((p) => p.id !== 'all')
-  const levelWeights = ['一般', '一般', '一般', '较大', '较大', '严重', '重大']
-  const statusWeights = ['待整改', '待整改', '整改中', '整改中', '已闭合', '已闭合', '已闭合']
+  const levelWeights = ['一般', '一般', '一般', '较大', '较大', '重大', '一般']
+  const statusWeights = ['待整改', '待整改', '待复查', '待复查', '已复查', '已关闭', '已关闭']
   const issues = []
   let seq = 1
   for (let pIdx = 0; pIdx < projectsCount; pIdx++) {
@@ -1465,6 +1479,7 @@ function buildIssuesForType(type, projectsCount = 36) {
       issues.push(withHazardDetail({
         id: `${prefix}-${String(seq).padStart(3, '0')}`,
         projectId,
+        ...projectNamePair(pIdx),
         partId: parts[(i + j) % parts.length].id,
         date: hazardDate(i + j),
         level: levelWeights[(i + j + pIdx) % levelWeights.length],
@@ -1531,7 +1546,7 @@ export const QUALITY_HAZARDS = buildQualityHazards()
 
 /**
  * COC 隐患清单 · 确认关闭（仅「监理会议隐患」）
- * 状态与后台对齐：待整改 → 已闭合（后台侧为「已关闭」）
+ * 统一展示态下：待整改 → 已关闭
  */
 export function closeCocSupervisionMeetingHazard(hazardId, payload = {}) {
   const id = String(hazardId || '')
@@ -1550,7 +1565,7 @@ export function closeCocSupervisionMeetingHazard(hazardId, payload = {}) {
     return { ok: false, msg: '仅「待整改」状态可确认关闭' }
   }
 
-  target.status = '已闭合'
+  target.status = '已关闭'
   if (target.detail && typeof target.detail === 'object') {
     target.detail.closedAt =
       payload.closedAt ||
@@ -1566,107 +1581,20 @@ export function getProjectIssuesByType(type, projectId) {
   return list.filter((item) => item.projectId === projectId)
 }
 
-/** 隐患来源分类（待整改顶栏统计用） */
-export const HAZARD_CHANNEL_OPTIONS = [
-  { key: 'safety', label: '安全隐患', color: '#E6A23C' },
-  { key: 'quality', label: '质量隐患', color: '#409EFF' },
-  { key: 'snapshot', label: '随手拍', color: '#67C23A' },
-  { key: 'supervision', label: '监理例会登记', color: '#B37FEB' },
-]
-
-export const HAZARD_STATUS_SEGMENTS = [
-  { name: '待整改', color: '#F56C6C' },
-  { name: '整改中', color: '#409EFF' },
-  { name: '已闭合', color: '#67C23A' },
-]
-
 export function getPendingProjectIssues(type, projectId) {
   return sortIssuesByLevel(
-    getProjectIssuesByType(type, projectId).filter((item) => item.status !== '已闭合'),
+    getProjectIssuesByType(type, projectId).filter((item) => item.status !== '已关闭'),
   )
 }
 
-/** 指挥部 · 隐患分析环图分段（质量+安全巡检） */
+/** 指挥部 · 隐患分析环图分段（重大/较大/一般） */
 export const HQ_HAZARD_LEVEL_SEGMENTS = [
+  { name: '重大', filter: '重大', color: '#F56C6C' },
+  { name: '较大', filter: '较大', color: '#E6A23C' },
   { name: '一般', filter: '一般', color: '#1498F6' },
-  { name: '较大', filter: '较大', color: '#E5E5E5' },
-  { name: '严重', filter: '严重', color: '#47D391' },
-  { name: '重大', filter: '重大', color: '#F6C575' },
 ]
 
-/**
- * 项目级「隐患统计」：待整改总量 + 分类 + 整改状态环 + 等级环
- */
-export function getProjectHazardStats(projectId) {
-  const all = [
-    ...getProjectIssuesByType('safety', projectId).map((item, index) => ({
-      ...item,
-      channel: index % 7 === 0 ? 'snapshot' : 'safety',
-    })),
-    ...getProjectIssuesByType('quality', projectId).map((item, index) => ({
-      ...item,
-      channel: index % 6 === 0 ? 'supervision' : 'quality',
-    })),
-  ]
-
-  const pending = all.filter((item) => item.status === '待整改')
-  const byChannel = Object.fromEntries(HAZARD_CHANNEL_OPTIONS.map((c) => [c.key, 0]))
-  pending.forEach((item) => {
-    if (byChannel[item.channel] != null) byChannel[item.channel] += 1
-  })
-
-  const byStatus = Object.fromEntries(HAZARD_STATUS_SEGMENTS.map((s) => [s.name, 0]))
-  all.forEach((item) => {
-    if (byStatus[item.status] != null) byStatus[item.status] += 1
-  })
-
-  const byLevel = Object.fromEntries(HQ_HAZARD_LEVEL_SEGMENTS.map((s) => [s.filter, 0]))
-  all.forEach((item) => {
-    if (byLevel[item.level] != null) byLevel[item.level] += 1
-  })
-
-  return {
-    pendingTotal: pending.length,
-    total: all.length,
-    channels: HAZARD_CHANNEL_OPTIONS.map((c) => ({
-      ...c,
-      value: byChannel[c.key] || 0,
-    })),
-    statusSegments: HAZARD_STATUS_SEGMENTS.map((s) => ({
-      ...s,
-      value: byStatus[s.name] || 0,
-    })),
-    levelSegments: HQ_HAZARD_LEVEL_SEGMENTS.map((s) => ({
-      name: s.name,
-      color: s.color,
-      value: byLevel[s.filter] || 0,
-    })),
-  }
-}
-
-export function getHqOpenHazards() {
-  return [...SAFETY_HAZARDS, ...QUALITY_HAZARDS].filter((h) => h.status !== '已闭合')
-}
-
-/** 指挥部 · 隐患分析 Top 项目展示名（演示数据） */
-export const HQ_HAZARD_TOP_PROJECT_DISPLAY_NAME = '机场扩建项目指挥部某某某施工工程项目'
-
-export function getHqPendingTopProjects(limit = 3) {
-  return [...PROJECT_HAZARD_SUMMARY]
-    .map((r) => ({
-      projectId: r.projectId,
-      shortName: HQ_HAZARD_TOP_PROJECT_DISPLAY_NAME,
-      fullName: HQ_HAZARD_TOP_PROJECT_DISPLAY_NAME,
-      value: r.safetyPending + r.qualityPending,
-    }))
-    .filter((r) => r.value > 0)
-    .sort((a, b) => b.value - a.value)
-    .slice(0, limit)
-}
-
-export function calcHqCertWarningCount() {
-  return (PERSONNEL_CERT_STATS.certExpire ?? 0) + (PERSONNEL_CERT_STATS.noCert ?? 0)
-}
+/** 隐患统计（统一三态 + 巡检/监理例会/调度）见 ./hazardStats.js */
 
 // ── 高风险作业 / 危大工程 ──
 
@@ -2175,8 +2103,31 @@ function buildQualityEvalRiskList(count = 36) {
 export const MANAGEMENT_PERSONNEL_LIST = buildManagementPersonnelList(36)
 export const QUALITY_EVAL_RISK_LIST = buildQualityEvalRiskList(36)
 
+function mapManagementPersonnel(list, projectId) {
+  return list
+    .filter(
+      (p) =>
+        p.entry_status === REALNAME_ENTRY_STATUS.ENTERED &&
+        p.unit?.personnel_category === '管理人员',
+    )
+    .map((p) => ({
+      id: projectId && p.project_id !== projectId ? `coc-mgr-${projectId}-${p.id}` : p.id,
+      projectId: projectId || p.project_id,
+      name: p.basic?.name || '--',
+      role: p.unit?.work_type || '--',
+      unit: p.unit?.unit_name || '--',
+      phone: p.basic?.phone || '--',
+      onSite: p.on_site_status === ONSITE_STATUS.ON_SITE,
+      onSiteStatus: p.on_site_status || ONSITE_STATUS.OFF_SITE,
+      clockIn: p.clock_in || '--',
+    }))
+}
+
+/** 实名制管理人员；无种子项目时回落 p-000，供 COC 调度演示 */
 export function getProjectManagementPersonnel(projectId) {
-  return filterByProjectId(MANAGEMENT_PERSONNEL_LIST, projectId)
+  const scoped = mapManagementPersonnel(getProjectPersonnel(projectId), projectId)
+  if (scoped.length || !projectId || projectId === 'hq') return scoped
+  return mapManagementPersonnel(getProjectPersonnel('p-000'), projectId)
 }
 
 export function getProjectQualityEvalRisks(projectId) {

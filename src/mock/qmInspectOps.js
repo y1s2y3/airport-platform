@@ -35,6 +35,7 @@ import {
   wbsNodes,
 } from './qmInspect.js'
 import { allowedEntityParentTypes } from '../constants/wbsEntityLabels.js'
+import { validateWbsNodeCode } from '../utils/wbsNodeCode.js'
 import {
   joinLocationLabels,
   normalizeLocationFields,
@@ -794,9 +795,16 @@ export function addAttachment(row) {
     task_id = rectify?.source_task_id || ''
   }
   const file_category = row.file_category || 1
-  if (biz_type === 'TASK' && Number(file_category) === 3 && task_id) {
-    const docs = getAttachments('TASK', task_id).filter((a) => Number(a.file_category) === 3)
-    if (docs.length >= 30) return { ok: false, msg: '附件最多 30 个' }
+  if (biz_type === 'TASK' && task_id) {
+    const existing = getAttachments('TASK', task_id)
+    if ([1, 2].includes(Number(file_category))) {
+      const media = existing.filter((a) => [1, 2].includes(Number(a.file_category)))
+      if (media.length >= 9) return { ok: false, msg: '工程影像最多 9 个' }
+    }
+    if (Number(file_category) === 3) {
+      const docs = existing.filter((a) => Number(a.file_category) === 3)
+      if (docs.length >= 9) return { ok: false, msg: '附件资料最多 9 个' }
+    }
   }
   const att = {
     id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
@@ -833,7 +841,7 @@ export function removeAttachment(id) {
 
 /**
  * 提交报验：待提交(0)→审批中(1)
- * 闸门：工程影像≥1、附件≤30、电子档案（若需归档）、审批人
+ * 闸门：工程影像≥1 且 ≤9、附件资料≤9、电子档案（若需归档）、审批人
  * 审批链：检验批/分项/子分部仅监理；其余含专项、竣工为监理→项目经理
  */
 export function submitInspect(
@@ -855,11 +863,14 @@ export function submitInspect(
     [1, 2].includes(Number(a.file_category)),
   )
   if (!siteMedia.length) {
-    return { ok: false, msg: '工程影像为必填，请至少上传一份现场图片或视频' }
+    return { ok: false, msg: '工程影像为必填，请至少上传 1 个现场图片或视频' }
   }
   const docs = getAttachments('TASK', task.id).filter((a) => Number(a.file_category) === 3)
-  if (docs.length > 30) {
-    return { ok: false, msg: '附件最多 30 个' }
+  if (docs.length > 9) {
+    return { ok: false, msg: '附件资料最多 9 个' }
+  }
+  if (siteMedia.length > 9) {
+    return { ok: false, msg: '工程影像最多 9 个' }
   }
 
   const needPm = taskRequiresPmApproval(task.task_type)
@@ -1410,9 +1421,21 @@ export function upsertWbsNode(payload, id = '') {
   if (id) {
     const exist = wbsNodes.find((n) => isWbsAlive(n) && n.id === id)
     if (exist && WBS_SYSTEM_NODE_TYPES.includes(exist.node_type)) {
+      let location_code = payload.location_code ?? exist.location_code
+      // 实体分类（node_type=9）可维护编码：必填且英文数字最多10位
+      if (exist.node_type === 9 && payload.location_code !== undefined) {
+        const codeCheck = validateWbsNodeCode(payload.location_code)
+        if (!codeCheck.ok) {
+          return {
+            ok: false,
+            msg: codeCheck.msg === '请填写编码' ? '编码必填' : codeCheck.msg,
+          }
+        }
+        location_code = codeCheck.code
+      }
       const nextSys = {
         node_name: payload.node_name || exist.node_name,
-        location_code: payload.location_code ?? exist.location_code,
+        location_code,
         specialties:
           payload.specialties != null || payload.specialty != null
             ? payloadSpecialties
@@ -1437,6 +1460,15 @@ export function upsertWbsNode(payload, id = '') {
       msg: '可维护类型：单位工程/子单位/分部/子分部/分项/检验批/专项节点',
     }
   }
+
+  const codeCheck = validateWbsNodeCode(payload.location_code)
+  if (!codeCheck.ok) {
+    return {
+      ok: false,
+      msg: codeCheck.msg === '请填写编码' ? '编码必填' : codeCheck.msg,
+    }
+  }
+  payload.location_code = codeCheck.code
 
   let parent_id = payload.parent_id || ''
   if (node_type === 1 && !parent_id) parent_id = getEntityRootNode(payload.project_id)?.id || ''
@@ -1791,19 +1823,24 @@ function buildDivisionPlanStats(project_id) {
   })
 }
 
-/** 实体 / 专项任务类型 */
-export const PHYSICAL_TASK_TYPES = [1, 2, 3, 4, 5, 7, 8]
+/** 实体 / 专项任务类型（实体类不含竣工 task_type=7，与实体工程验收列表一致） */
+export const PHYSICAL_TASK_TYPES = [1, 2, 3, 4, 5, 8]
 export const SPECIAL_TASK_TYPES = [6]
+/** 竣工验收任务类型 */
+export const COMPLETE_TASK_TYPES = [7]
 /** 实体 / 专项节点类型（node_type） */
 export const PHYSICAL_NODE_TYPES = [1, 2, 3, 4, 5, 6]
 export const SPECIAL_NODE_TYPES = [7]
+/** 竣工根节点 */
+export const COMPLETE_NODE_TYPES = [8]
 
 /**
- * 统计看板聚合（对齐 PRD §1.5.1）
+ * 统计看板聚合（对齐质量验评 PRD §6.8.10 / COC V2 指标表）
  * 任务四态：待提交 / 审批中 / 已通过 / 已驳回
- * 一次性通过率 = 已通过 ÷（已通过+已驳回）×100%（分母为 0 时展示 0，界面可再显示「—」）
+ * 一次性通过率 = 已通过中「重新申报来源」为空的数量 ÷ 验收单总数 ×100%
+ * （重新申报来源对应 related_reject_id；分母为 0 时界面展示「—」）
  * @param {string} project_id
- * @param {{ scope?: 'all' | 'physical' | 'special' }} [opts]
+ * @param {{ scope?: 'all' | 'physical' | 'special' | 'complete' }} [opts]
  */
 export function buildQmDashboard(project_id, opts = {}) {
   const scope = opts.scope || 'all'
@@ -1812,13 +1849,17 @@ export function buildQmDashboard(project_id, opts = {}) {
       ? new Set(PHYSICAL_TASK_TYPES)
       : scope === 'special'
         ? new Set(SPECIAL_TASK_TYPES)
-        : null
+        : scope === 'complete'
+          ? new Set(COMPLETE_TASK_TYPES)
+          : null
   const nodeTypeSet =
     scope === 'physical'
       ? new Set(PHYSICAL_NODE_TYPES)
       : scope === 'special'
         ? new Set(SPECIAL_NODE_TYPES)
-        : null
+        : scope === 'complete'
+          ? new Set(COMPLETE_NODE_TYPES)
+          : null
 
   let nodes = [...wbsNodes]
   let tasks = [...inspectionTasks]
@@ -1844,8 +1885,13 @@ export function buildQmDashboard(project_id, opts = {}) {
   const rejectedCount = tasks.filter((t) => Number(t.status) === 3).length
   const taskTotal = tasks.length
   const taskPassed = approvedCount
-  const decided = approvedCount + rejectedCount
-  const passRate = decided ? Math.round((approvedCount / decided) * 100) : 0
+  /** 重新申报来源为空：非「从驳回单重新申报」产生的验收单 */
+  const isReapplySourceEmpty = (t) => !String(t.related_reject_id || '').trim()
+  const onePassCount = tasks.filter(
+    (t) => Number(t.status) === 2 && isReapplySourceEmpty(t),
+  ).length
+  const passRate = taskTotal ? Math.round((onePassCount / taskTotal) * 100) : 0
+  /** @deprecated 旧 first_pass_flag 口径，保留字段兼容；展示请用 pass_rate */
   const firstPass = tasks.filter((t) => Number(t.status) === 2 && Number(t.first_pass_flag) === 1)
   const firstPassRate = approvedCount ? Math.round((firstPass.length / approvedCount) * 100) : 0
 
@@ -1860,6 +1906,7 @@ export function buildQmDashboard(project_id, opts = {}) {
     approving_count: approvingCount,
     approved_count: approvedCount,
     rejected_count: rejectedCount,
+    one_pass_count: onePassCount,
     pass_rate: passRate,
     first_pass_rate: firstPassRate,
     // 兼容旧 camel 读取（过渡）；新 UI 以 snake 为准
@@ -1872,6 +1919,7 @@ export function buildQmDashboard(project_id, opts = {}) {
     approvingCount,
     approvedCount,
     rejectedCount,
+    onePassCount,
     passRate,
     firstPassRate,
     byDivision,
@@ -1881,33 +1929,78 @@ export function buildQmDashboard(project_id, opts = {}) {
   }
 }
 
-/** 看板左右双栏：实体 + 专项（项目级） */
+/** 看板左右双栏：实体 + 专项（项目级）；竣工不单独展示，供一次性通过率合计 */
 export function buildQmDashboardPanels(project_id) {
   return {
     physical: buildQmDashboard(project_id, { scope: 'physical' }),
     special: buildQmDashboard(project_id, { scope: 'special' }),
+    complete: buildQmDashboard(project_id, { scope: 'complete' }),
     // 平面图仍用实体分部
     byDivision: buildDivisionPlanStats(project_id),
   }
 }
 
 /**
- * 指挥部项目验收阶段：已完成 / 验收中 / 未开始
- * 以单位工程节点为主，无节点时回退任务状态
+ * 节点是否已通过（与竣工门禁 buildCompleteGate 一致：accept_status=2 或挂接已通过单）
+ * @param {object} node
+ * @param {number[]} [taskTypes] 限定任务类型；专项不传则匹配该节点任意任务
+ */
+function isNodePassedForGate(node, taskTypes) {
+  if (Number(node.accept_status) === 2) return true
+  const hit = inspectionTasks.find((t) => {
+    if (t.wbs_node_id !== node.id || Number(t.status) !== 2) return false
+    if (taskTypes?.length) return taskTypes.includes(Number(t.task_type))
+    return true
+  })
+  return Boolean(hit)
+}
+
+/**
+ * 竣工前置是否齐备（与 buildCompleteGate.canStart / 可发起竣工一致）
+ * 全部单位工程已通过 + 全部纳入门禁的专项节点已通过（且两侧均至少有一个节点）
+ */
+export function isCompleteGateReady(project_id) {
+  if (!project_id) return false
+  ensureWbsScaffold(project_id)
+  const units = wbsNodes.filter(
+    (n) => isWbsAlive(n) && n.project_id === project_id && n.node_type === 1,
+  )
+  const specials = wbsNodes.filter(
+    (n) =>
+      isWbsAlive(n) &&
+      n.project_id === project_id &&
+      n.node_type === 7 &&
+      Number(n.exclude_from_complete_gate) !== 1,
+  )
+  if (!units.length || !specials.length) return false
+  const physicalDone = units.every((n) => isNodePassedForGate(n, [5, 8]))
+  const specialDone = specials.every((n) => isNodePassedForGate(n))
+  return physicalDone && specialDone
+}
+
+/**
+ * 指挥部项目验收阶段：已完成 / 验收中 / 未开始（对齐 PRD §6.8.10）
+ * 三个状态均按节点验收状态 accept_status 判定（0未开始/1进行中/2已完成/3已驳回；历史4/5视同已驳回）：
+ * - 已完成：竣工根节点（node_type=8）accept_status=已完成
+ * - 未开始：本项目业务节点（node_type∈{1～8}，不含分类9/10）全部为未开始
+ * - 验收中：其余（已有节点非未开始，且竣工根尚未完成）
+ * 优先序：已完成 → 未开始 → 验收中
  */
 function resolveProjectAcceptPhase(project_id) {
-  const units = wbsNodes.filter((n) => n.project_id === project_id && n.node_type === 1)
-  const tasks = inspectionTasks.filter((t) => t.project_id === project_id)
-  if (units.length) {
-    if (units.every((u) => u.accept_status === 2)) return 'completed'
-    if (units.every((u) => u.accept_status === 0) && !tasks.some((t) => Number(t.status) > 0)) {
-      return 'not_started'
-    }
-    return 'in_progress'
+  ensureWbsScaffold(project_id)
+  const norm = (s) => {
+    const n = Number(s)
+    return n === 4 || n === 5 ? 3 : n
   }
-  if (!tasks.length) return 'not_started'
-  if (tasks.every((t) => Number(t.status) === 2)) return 'completed'
-  if (tasks.every((t) => Number(t.status) === 0)) return 'not_started'
+  const nodes = wbsNodes.filter(
+    (n) =>
+      isWbsAlive(n) &&
+      n.project_id === project_id &&
+      [1, 2, 3, 4, 5, 6, 7, 8].includes(Number(n.node_type)),
+  )
+  const completeRoot = nodes.find((n) => Number(n.node_type) === 8)
+  if (completeRoot && norm(completeRoot.accept_status) === 2) return 'completed'
+  if (!nodes.length || nodes.every((n) => norm(n.accept_status) === 0)) return 'not_started'
   return 'in_progress'
 }
 
@@ -1949,12 +2042,12 @@ export function buildHqQmDashboardPanels(projectOptions = []) {
   }
 }
 
-/** 指挥部实体验收台账：按项目汇总 */
+/** 指挥部实体验收台账：按项目汇总（默认项目名称升序） */
 export function buildQmLedgerByProject(projectOptions = []) {
   const fromData = new Set(wbsNodes.map((n) => n.project_id).filter(Boolean))
   const fromOpts = (projectOptions || []).map((p) => p.id).filter(Boolean)
   const ids = [...new Set([...fromOpts, ...fromData])]
-  return ids.map((project_id) => {
+  const rows = ids.map((project_id) => {
     const opt = (projectOptions || []).find((p) => p.id === project_id)
     const stats = buildQmDashboard(project_id, { scope: 'physical' })
     return {
@@ -1963,6 +2056,9 @@ export function buildQmLedgerByProject(projectOptions = []) {
       ...stats,
     }
   })
+  return rows.sort((a, b) =>
+    String(a.project_name || '').localeCompare(String(b.project_name || ''), 'zh-CN'),
+  )
 }
 
 export function findTask(id) {

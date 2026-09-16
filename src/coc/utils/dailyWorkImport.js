@@ -208,11 +208,12 @@ function recordToExcelRow(record) {
 
 const TEMPLATE_INSTRUCTIONS = [
   '填报说明：',
-  '1. 不涉及危险作业的其他施工作业内容需单独列一栏；危大工程请在同一行右侧危大工程计划表中同步填报。',
-  '2. 每日 16:30 前完成次日作业计划填报。',
-  '3. 作业时间格式：yyyy-MM-dd HH:mm（如 2026-07-08 08:00）。',
-  '4. 人员信息：姓名/手机号；多人之间用英文逗号分隔。',
-  '5. Sheet 名称请使用施工日期，格式如 2026.7.9；导入时可指定 Sheet 名。',
+  '1. 管理单位默认「深圳机场集团/建设工程指挥部」；施工项目名称须为系统内项目全称，导入时不存在则整批拦截。',
+  '2. 施工单位由项目画像回显（界面）；导入可填全称，不做画像存在性改写。',
+  '3. 施工项目名称≤200字，施工区域≤200字，风险管控措施≤2000字。',
+  '4. 作业类别仅可单选枚举；作业开始/结束时间为 yyyy-MM-dd HH:mm，且须落在施工日当天 00:00–23:59。',
+  '5. 项目负责人仅单人，格式：姓名/11位手机号；安全监管人可多人，英文逗号分隔（例：李XX/135xxxx4567,王XX/138xxxx1234）。',
+  '6. 导出按当前筛选写出，不做项目存在性限制。',
 ].join('\n')
 
 const TEMPLATE_SAMPLE_RECORD = {
@@ -277,4 +278,55 @@ export function downloadDailyWorkTemplate(options = {}) {
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, sheetName)
   XLSX.writeFile(wb, options.fileName || '每日施工作业导入模版.xlsx')
+}
+
+function sheetNameFromReportDate(reportDate) {
+  const m = String(reportDate || '').match(/(\d{4})-(\d{1,2})-(\d{1,2})/)
+  if (!m) return ''
+  return `${m[1]}.${Number(m[2])}.${Number(m[3])}`
+}
+
+function buildExportSheetRows(sheetName, records) {
+  const displayDate = formatDisplayDateLabel(sheetName)
+  const title = `建设工程指挥部危险作业统计表（施工日期：${displayDate}00:00-${displayDate}24:00）`
+  const padding = Array(DAILY_WORK_DATA_START_ROW - 1).fill(null).map(() => Array(24).fill(''))
+  padding[1] = [title]
+  padding[2] = [TEMPLATE_INSTRUCTIONS]
+  padding[3] = [title]
+  padding[4] = buildTemplateHeaderRow()
+  const dataRows = (records || []).map((record) => recordToExcelRow(record))
+  return [...padding, ...dataRows]
+}
+
+/**
+ * 导出每日施工作业（按施工日期分 Sheet，列与导入模版一致；含危大侧扩展列）
+ * @param {Array} records 待导出记录（通常为当前筛选结果）
+ * @returns {{ ok: boolean, count: number, sheetCount: number, error?: string }}
+ */
+export function exportDailyWorkRecords(records, options = {}) {
+  const list = Array.isArray(records) ? records : []
+  if (!list.length) {
+    return { ok: false, count: 0, sheetCount: 0, error: '当前没有可导出的记录' }
+  }
+
+  const groups = new Map()
+  list.forEach((record) => {
+    const sheetName = sheetNameFromReportDate(record.reportDate) || '未标注日期'
+    if (!groups.has(sheetName)) groups.set(sheetName, [])
+    groups.get(sheetName).push(record)
+  })
+
+  const wb = XLSX.utils.book_new()
+  ;[...groups.entries()]
+    .sort(([a], [b]) => String(b).localeCompare(String(a)))
+    .forEach(([sheetName, rows]) => {
+      const safeName = String(sheetName).slice(0, 31) || '导出'
+      const ws = XLSX.utils.aoa_to_sheet(buildExportSheetRows(safeName, rows))
+      ws['!cols'] = Array(24).fill({ wch: 18 })
+      XLSX.utils.book_append_sheet(wb, ws, safeName)
+    })
+
+  const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+  XLSX.writeFile(wb, options.fileName || `每日施工作业导出_${stamp}.xlsx`)
+  return { ok: true, count: list.length, sheetCount: groups.size }
 }

@@ -1,7 +1,7 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
-import { Upload } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import AttachmentUpload from '../../../components/common/AttachmentUpload.vue'
 import {
   disposePersonalWarningCenterItem,
   getPersonalWarningCenterItem,
@@ -35,14 +35,6 @@ const canDispose = computed(
     detail.value?.warnType === '处置任务' &&
     detail.value?.status === '待处理',
 )
-
-function onFileChange(_file, files) {
-  attachmentList.value = files
-}
-
-function onFileRemove(_file, files) {
-  attachmentList.value = files
-}
 
 async function submitDispose() {
   if (!detail.value) return
@@ -129,20 +121,7 @@ function handleBack() {
           />
         </el-form-item>
         <el-form-item label="处置附件">
-          <el-upload
-            :file-list="attachmentList"
-            :auto-upload="false"
-            :on-change="onFileChange"
-            :on-remove="onFileRemove"
-            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.xls,.xlsx"
-            :limit="5"
-            multiple
-          >
-            <el-button size="small" :icon="Upload">上传附件</el-button>
-            <template #tip>
-              <div class="upload-tip">非必填，最多上传 5 个文件，支持图片、PDF 和常用文档。</div>
-            </template>
-          </el-upload>
+          <AttachmentUpload v-model="attachmentList" preset="file" :min="0" :max="9" name-prefix="处置附件" />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" :loading="submitting" @click="submitDispose">处置并关闭</el-button>

@@ -89,8 +89,7 @@ function formatLaborContractAmount(contract) {
           </el-descriptions-item>
           <el-descriptions-item label="组织架构图" :span="2">
             <FileAttachmentPreview
-              :name="detail.orgStructureChart?.fileName"
-              :url="detail.orgStructureChart?.fileUrl"
+              :name="detail.orgStructureChart?.files?.length ? detail.orgStructureChart.files : detail.orgStructureChart"
               empty-text="未上传"
               size="sm"
             />

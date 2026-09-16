@@ -2,11 +2,12 @@
 import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import AttachmentUpload from '../../components/common/AttachmentUpload.vue'
 
 const router = useRouter()
 const form = reactive({
   docNo: 'TC' + Date.now().toString().slice(-8),
-  exitDate: '', remark: ''
+  exitDate: '', remark: '', attachments: [],
 })
 const equipmentList = ref([])
 const selectDialogVisible = ref(false)
@@ -95,10 +96,7 @@ function removeDevice(idx) {
         <el-row :gutter="16">
           <el-col :span="16">
             <el-form-item label="相关附件">
-              <el-upload action="#" :auto-upload="false" list-type="text">
-                <el-button size="small">选择文件</el-button>
-                <template #tip><div style="font-size:12px;color:#999">支持 doc/docx/pdf/jpg/png 格式</div></template>
-              </el-upload>
+              <AttachmentUpload v-model="form.attachments" preset="file" :min="0" :max="9" name-prefix="相关附件" />
             </el-form-item>
           </el-col>
         </el-row>

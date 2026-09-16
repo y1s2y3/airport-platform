@@ -45,6 +45,7 @@ import {
   allowedEntityParentTypes,
   displayEntityBreakdownNodeName,
 } from '../../constants/wbsEntityLabels.js'
+import { normalizeWbsNodeCode, validateWbsNodeCode } from '../../utils/wbsNodeCode.js'
 
 const { isHqSelected, scopeProjectId, scopeProjectLabel } = useQmProjectScope()
 const keyword = ref('')
@@ -358,6 +359,10 @@ function submitWbs() {
   if (specialties.length && !isValidWbsSpecialties(specialties)) {
     return ElMessage.warning('请选择有效的专业')
   }
+  const codeCheck = validateWbsNodeCode(wbsForm.location_code)
+  if (!codeCheck.ok) return ElMessage.warning(codeCheck.msg)
+  wbsForm.location_code = codeCheck.code
+
   if (wbsForm.node_type === 9) {
     const exist = wbsNodes.find((n) => n.id === wbsForm.id)
     const r = upsertWbsNode(
@@ -409,6 +414,9 @@ function submitLocation() {
   if (!String(locForm.name || '').trim()) {
     return ElMessage.warning('请填写部位名称')
   }
+  const codeCheck = validateWbsNodeCode(locForm.code)
+  if (!codeCheck.ok) return ElMessage.warning(codeCheck.msg)
+  locForm.code = codeCheck.code
   if (!locForm.wbs_node_id) {
     return ElMessage.warning('请选择归属分项')
   }
@@ -420,6 +428,16 @@ function submitLocation() {
   if (!r.ok) return ElMessage.error(r.msg)
   ElMessage.success(locForm.id ? '部位已更新' : '部位已创建')
   visible.value = false
+}
+
+function onWbsCodeInput(val) {
+  const next = normalizeWbsNodeCode(val)
+  if (wbsForm.location_code !== next) wbsForm.location_code = next
+}
+
+function onLocCodeInput(val) {
+  const next = normalizeWbsNodeCode(val)
+  if (locForm.code !== next) locForm.code = next
 }
 
 async function onRemove(row) {
@@ -613,8 +631,13 @@ function addChildLabel(row) {
             :disabled="wbsForm.node_type === 9"
           />
         </el-form-item>
-        <el-form-item label="编码">
-          <el-input v-model="wbsForm.location_code" maxlength="40" />
+        <el-form-item label="编码" required>
+          <el-input
+            v-model="wbsForm.location_code"
+            maxlength="10"
+            placeholder="英文或数字，最多10位"
+            @input="onWbsCodeInput"
+          />
         </el-form-item>
         <el-form-item label="专业">
           <el-select
@@ -688,8 +711,13 @@ function addChildLabel(row) {
         <el-form-item label="部位名称" required>
           <el-input v-model="locForm.name" maxlength="80" />
         </el-form-item>
-        <el-form-item label="编码">
-          <el-input v-model="locForm.code" maxlength="40" />
+        <el-form-item label="编码" required>
+          <el-input
+            v-model="locForm.code"
+            maxlength="10"
+            placeholder="英文或数字，最多10位"
+            @input="onLocCodeInput"
+          />
         </el-form-item>
         <el-form-item label="专业">
           <el-select

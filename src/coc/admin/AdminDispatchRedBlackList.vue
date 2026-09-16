@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Edit, Delete } from '@element-plus/icons-vue'
+import { ATTACH_PRESETS, validateAttachFile } from '../../constants/attachmentUpload.js'
 import { buildProjects } from '../mock/data.js'
 import {
   getRedBlackBoardRecords,
@@ -122,12 +123,9 @@ function validateForm() {
 
 function handleImageUpload(uploadFile) {
   const file = uploadFile.raw
-  if (!file || !file.type.startsWith('image/')) {
-    ElMessage.warning('请上传图片文件')
-    return false
-  }
-  if (file.size > 2 * 1024 * 1024) {
-    ElMessage.warning('图片大小不超过 2MB')
+  const err = validateAttachFile(file, 'image', { currentCount: 0, max: 1 })
+  if (err) {
+    ElMessage.warning(err)
     return false
   }
   const reader = new FileReader()
@@ -290,7 +288,7 @@ onMounted(load)
               v-else
               drag
               :show-file-list="false"
-              accept="image/*"
+              :accept="ATTACH_PRESETS.image.accept"
               :before-upload="handleImageUpload"
             >
               <div class="upload-placeholder">点击或拖拽上传现场图片</div>

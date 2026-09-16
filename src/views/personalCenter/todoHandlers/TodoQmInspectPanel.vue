@@ -251,7 +251,7 @@ function formatFileSize(size) {
 }
 
 function isVideoExt(ext) {
-  return ['mp4', 'mov', 'avi', 'wmv', 'webm'].includes(String(ext || '').toLowerCase())
+  return ['mp4', 'mov', 'm4v', 'avi', 'wmv', 'webm'].includes(String(ext || '').toLowerCase().replace(/^\./, ''))
 }
 
 function handleFinished() {

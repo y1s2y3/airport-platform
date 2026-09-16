@@ -10,15 +10,13 @@ import {
   resolveAttachmentPreviewUrl,
   triggerAttachmentDownload,
 } from '../../utils/fileAttachmentPreview.js'
+import { asAttachList } from '../../constants/attachmentUpload.js'
 
 const props = defineProps({
-  name: { type: String, default: '' },
+  name: { type: [String, Array, Object], default: '' },
   url: { type: String, default: '' },
-  /** 空态文案 */
   emptyText: { type: String, default: '未上传' },
-  /** 缩略图尺寸 */
   size: { type: String, default: 'md', validator: (v) => ['sm', 'md', 'lg'].includes(v) },
-  /** 是否展示预览/下载操作 */
   showActions: { type: Boolean, default: true },
 })
 
@@ -27,21 +25,31 @@ const previewTitle = ref('')
 const previewUrl = ref('')
 const previewKind = ref('other')
 
-const hasFile = computed(() => Boolean(String(props.name || '').trim() || String(props.url || '').trim()))
+const items = computed(() => {
+  if (Array.isArray(props.name) || (props.name && typeof props.name === 'object')) {
+    return asAttachList(props.name)
+  }
+  return asAttachList({ name: props.name, url: props.url })
+})
 
-const displayName = computed(() => String(props.name || '').trim() || '附件')
+const hasFile = computed(() => items.value.length > 0)
 
-const resolvedUrl = computed(() => resolveAttachmentPreviewUrl(props.name, props.url))
+function itemKind(item) {
+  const url = resolveAttachmentPreviewUrl(item.name, item.url)
+  return detectAttachmentKind(item.name, url)
+}
 
-const kind = computed(() => detectAttachmentKind(props.name, resolvedUrl.value))
+function itemIsImage(item) {
+  return itemKind(item) === 'image'
+}
 
-const isImage = computed(() => kind.value === 'image')
+function itemPreviewSrc(item) {
+  return itemIsImage(item) ? resolveAttachmentPreviewUrl(item.name, item.url) : ''
+}
 
-const previewSrc = computed(() => (isImage.value ? resolvedUrl.value : ''))
-
-function openPreview() {
-  const name = displayName.value
-  const src = resolvedUrl.value
+function openPreview(item) {
+  const name = item.name || '附件'
+  const src = resolveAttachmentPreviewUrl(name, item.url)
   if (!src) {
     ElMessage.warning('当前附件暂无预览内容（历史数据仅保留文件名），请重新上传后可预览')
     return
@@ -51,7 +59,7 @@ function openPreview() {
   if (detected === 'other') {
     const opened = window.open(src, '_blank', 'noopener,noreferrer')
     if (!opened) {
-      triggerAttachmentDownload(name, props.url)
+      triggerAttachmentDownload(name, item.url)
       ElMessage.success('已触发下载，可在本地查看附件')
     } else {
       ElMessage.success('已在新窗口打开附件')
@@ -65,8 +73,8 @@ function openPreview() {
   previewVisible.value = true
 }
 
-function handleDownload() {
-  const ok = triggerAttachmentDownload(displayName.value, props.url)
+function handleDownload(item) {
+  const ok = triggerAttachmentDownload(item.name || '附件', item.url)
   if (!ok) {
     ElMessage.warning('当前附件暂无内容，请重新上传后可下载')
     return
@@ -77,31 +85,43 @@ function handleDownload() {
 
 <template>
   <div v-if="!hasFile" class="attach-empty">{{ emptyText }}</div>
-  <div v-else class="attach-wrap" :class="`size-${size}`">
-    <div v-if="isImage && previewSrc" class="attach-image">
-      <el-image
-        :src="previewSrc"
-        :preview-src-list="[previewSrc]"
-        fit="cover"
-        preview-teleported
-        class="attach-thumb"
-      >
-        <template #error>
-          <div class="attach-thumb-fallback">
-            <el-icon><Picture /></el-icon>
-          </div>
-        </template>
-      </el-image>
-    </div>
-    <div v-else class="attach-file">
-      <el-icon class="attach-file-icon"><Document /></el-icon>
-    </div>
+  <div v-else class="attach-list" :class="`size-${size}`">
+    <div
+      v-for="(item, index) in items"
+      :key="`${item.name}-${index}`"
+      class="attach-wrap"
+      :class="itemIsImage(item) ? 'is-thumb' : 'is-file'"
+    >
+      <div v-if="itemIsImage(item) && itemPreviewSrc(item)" class="attach-image">
+        <el-image
+          :src="itemPreviewSrc(item)"
+          :preview-src-list="items.filter((f) => itemIsImage(f) && itemPreviewSrc(f)).map((f) => itemPreviewSrc(f))"
+          fit="cover"
+          preview-teleported
+          class="attach-thumb"
+        >
+          <template #error>
+            <div class="attach-thumb-fallback">
+              <el-icon><Picture /></el-icon>
+            </div>
+          </template>
+        </el-image>
+      </div>
+      <div v-else-if="itemIsImage(item)" class="attach-image">
+        <button type="button" class="attach-thumb attach-thumb-fallback" @click="openPreview(item)">
+          <el-icon><Picture /></el-icon>
+        </button>
+      </div>
+      <div v-else class="attach-file">
+        <el-icon class="attach-file-icon"><Document /></el-icon>
+      </div>
 
-    <div class="attach-main">
-      <span class="attach-name" :title="displayName">{{ displayName }}</span>
-      <div v-if="showActions" class="attach-actions">
-        <el-button link type="primary" @click="openPreview">预览</el-button>
-        <el-button link type="primary" @click="handleDownload">下载</el-button>
+      <div class="attach-main">
+        <span class="attach-name" :title="item.name">{{ item.name || '附件' }}</span>
+        <div v-if="showActions" class="attach-actions">
+          <el-button link type="primary" @click="openPreview(item)">预览</el-button>
+          <el-button link type="primary" @click="handleDownload(item)">下载</el-button>
+        </div>
       </div>
     </div>
   </div>
@@ -137,6 +157,29 @@ function handleDownload() {
 .attach-empty {
   font-size: 13px;
   color: var(--ap-text-muted, #8a94a6);
+}
+
+.attach-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+}
+
+.attach-list .attach-wrap {
+  flex: 1 1 220px;
+  max-width: 360px;
+}
+
+.attach-list .attach-wrap.is-thumb {
+  flex: 0 0 auto;
+  width: 220px;
+  max-width: 100%;
+}
+
+.attach-list.size-sm .attach-wrap.is-thumb {
+  width: 160px;
 }
 
 .attach-wrap {
@@ -187,6 +230,9 @@ function handleDownload() {
   justify-content: center;
   color: #909399;
   background: #f0f2f5;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
 }
 
 .attach-file {

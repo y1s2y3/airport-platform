@@ -28,12 +28,12 @@ onMounted(() => {
   detail.value = getSysUser(route.params.id)
   if (!detail.value) {
     ElMessage.warning('未找到用户信息')
-    router.replace({ name: 'Sysuser' })
+    router.replace({ name: 'SysUser' })
   }
 })
 
 function goBack() {
-  router.push({ name: 'Sysuser' })
+  router.push({ name: 'SysUser' })
 }
 
 function goEdit() {

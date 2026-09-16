@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { ATTACH_PRESETS, validateAttachFile } from '../../constants/attachmentUpload.js'
 import { addMobileInspectionTask } from '../../mock/mobileInspectionTasks'
 import { INSPECTION_CATEGORIES, buildInspectionTaskNo } from '../../config/inspectionManagement'
 import {
@@ -58,11 +59,18 @@ function removeHazard(idx) {
   form.value.hazardItems.splice(idx, 1)
 }
 function triggerHazardPhoto(idx) {
+  const current = form.value.hazardItems[idx].photos.length
+  if (current >= 9) return ElMessage.warning('最多上传 9 张')
   const input = document.createElement('input')
-  input.type = 'file'; input.accept = 'image/*'; input.capture = 'environment'
+  input.type = 'file'
+  input.accept = ATTACH_PRESETS.image.accept
+  input.capture = 'environment'
   input.onchange = (e) => {
     const file = e.target.files[0]
-    if (file) form.value.hazardItems[idx].photos.push(URL.createObjectURL(file))
+    if (!file) return
+    const err = validateAttachFile(file, 'image', { currentCount: current, max: 9 })
+    if (err) return ElMessage.warning(err)
+    form.value.hazardItems[idx].photos.push(URL.createObjectURL(file))
   }
   input.click()
 }
@@ -71,11 +79,18 @@ function removeHazardPhoto(itemIdx, photoIdx) {
 }
 
 function triggerPhoto() {
+  const current = form.value.photos.length
+  if (current >= 9) return ElMessage.warning('最多上传 9 张')
   const input = document.createElement('input')
-  input.type = 'file'; input.accept = 'image/*'; input.capture = 'environment'
+  input.type = 'file'
+  input.accept = ATTACH_PRESETS.image.accept
+  input.capture = 'environment'
   input.onchange = (e) => {
     const file = e.target.files[0]
-    if (file) form.value.photos.push(URL.createObjectURL(file))
+    if (!file) return
+    const err = validateAttachFile(file, 'image', { currentCount: current, max: 9 })
+    if (err) return ElMessage.warning(err)
+    form.value.photos.push(URL.createObjectURL(file))
   }
   input.click()
 }
@@ -210,8 +225,12 @@ function goBack() { router.push('/mobile/tasks') }
         <div v-if="form.result === 'normal'" class="form-row">
           <span class="form-label">巡检照片<span class="required-mark">*</span></span>
           <div class="photo-group">
-            <div v-for="(url,i) in form.photos" :key="i" class="photo-box"><span>📷 已拍</span><button class="photo-del" @click="removePhoto(i)">✕</button></div>
-            <button class="photo-add" @click="triggerPhoto">+ 拍照</button>
+            <div v-for="(url,i) in form.photos" :key="i" class="photo-box">
+              <img :src="url" alt="" />
+              <button class="photo-del" @click="removePhoto(i)">✕</button>
+            </div>
+            <button v-if="form.photos.length < 9" class="photo-add" @click="triggerPhoto">+ 拍照</button>
+            <div class="attach-hint">图片 ≤5MB，至少 1 张、最多 9 张</div>
           </div>
         </div>
 
@@ -237,8 +256,12 @@ function goBack() { router.push('/mobile/tasks') }
             <div class="form-row">
               <span class="form-label" style="width:56px">照片<span class="required-mark">*</span></span>
               <div class="photo-group">
-                <div v-for="(url,pi) in item.photos" :key="pi" class="photo-box"><span>📷</span><button class="photo-del" @click="removeHazardPhoto(idx, pi)">✕</button></div>
-                <button class="photo-add" @click="triggerHazardPhoto(idx)">+ 拍照</button>
+                <div v-for="(url,pi) in item.photos" :key="pi" class="photo-box">
+                  <img :src="url" alt="" />
+                  <button class="photo-del" @click="removeHazardPhoto(idx, pi)">✕</button>
+                </div>
+                <button v-if="item.photos.length < 9" class="photo-add" @click="triggerHazardPhoto(idx)">+ 拍照</button>
+                <div class="attach-hint">隐患照片 1～9 张，单张 ≤5MB</div>
               </div>
             </div>
             <div class="rectify-section">
@@ -302,9 +325,11 @@ function goBack() { router.push('/mobile/tasks') }
 .tag-btn { padding:6px 14px; border:1px solid #ddd; border-radius:16px; background:#fff; font-size:13px; color:#666; cursor:pointer; }
 .tag-btn.active { background:#8f0045; color:#fff; border-color:#8f0045; }
 .photo-group { flex:1; display:flex; gap:6px; flex-wrap:wrap; }
-.photo-box { width:68px; height:68px; border:1px solid #ddd; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:11px; position:relative; background:#f0faf0; }
-.photo-del { position:absolute; top:2px; right:2px; width:18px; height:18px; border-radius:50%; border:none; background:rgba(0,0,0,0.4); color:#fff; font-size:10px; cursor:pointer; }
+.photo-box { width:68px; height:68px; border:1px solid #ddd; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:11px; position:relative; background:#f0faf0; overflow:hidden; }
+.photo-box img { width:100%; height:100%; object-fit:cover; display:block; }
+.photo-del { position:absolute; top:2px; right:2px; width:18px; height:18px; border-radius:50%; border:none; background:rgba(0,0,0,0.4); color:#fff; font-size:10px; cursor:pointer; z-index:1; }
 .photo-add { width:68px; height:68px; border:1.5px dashed #ddd; border-radius:8px; background:#fafafa; font-size:12px; color:#999; cursor:pointer; }
+.attach-hint { flex-basis:100%; font-size:11px; color:#999; }
 
 /* 隐患列表 */
 .hazard-list { width:100%; }

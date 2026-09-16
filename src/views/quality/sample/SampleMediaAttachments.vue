@@ -5,19 +5,20 @@
 import { computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus, VideoCamera, ZoomIn } from '@element-plus/icons-vue'
+import { ATTACH_PRESETS, validateAttachFile } from '../../../constants/attachmentUpload.js'
 
 const props = defineProps({
   modelValue: { type: Array, default: () => [] },
   readonly: { type: Boolean, default: false },
   namePrefix: { type: String, default: '现场影像' },
   max: { type: Number, default: 9 },
-  maxSizeMb: { type: Number, default: 30 },
+  maxSizeMb: { type: Number, default: ATTACH_PRESETS.media.maxSizeMb },
 })
 
 const emit = defineEmits(['update:modelValue'])
 
-const IMAGE_EXT_RE = /\.(jpe?g|png|gif|webp|bmp)(\?|$)/i
-const VIDEO_EXT_RE = /\.(mp4|webm|ogg|mov|m4v|avi)(\?|$)/i
+const IMAGE_EXT_RE = /\.(jpe?g|png|gif|webp|bmp|svg)(\?|$)/i
+const VIDEO_EXT_RE = /\.(mp4|mov|m4v|avi)(\?|$)/i
 
 function detectKind(file, name = '', url = '') {
   const type = String(file?.type || '')
@@ -60,18 +61,15 @@ function nextIndexedName(ext) {
 
 function handleUpload(uploadFile) {
   const file = uploadFile.raw || uploadFile
+  const current = normalizeList(props.modelValue)
+  const err = validateAttachFile(file, 'media', { currentCount: current.length, max: props.max })
+  if (err) {
+    ElMessage.warning(err)
+    return false
+  }
   const kind = detectKind(file, file?.name || '')
   if (!kind) {
-    ElMessage.warning('仅支持图片或视频格式')
-    return false
-  }
-  if (file.size > props.maxSizeMb * 1024 * 1024) {
-    ElMessage.warning(`单个文件不超过 ${props.maxSizeMb}MB`)
-    return false
-  }
-  const current = normalizeList(props.modelValue)
-  if (current.length >= props.max) {
-    ElMessage.warning(`最多上传 ${props.max} 个影像资料`)
+    ElMessage.warning('仅支持图片或视频格式（mp4 / mov / m4v / avi）')
     return false
   }
   const reader = new FileReader()
@@ -147,7 +145,7 @@ function imagePreviewIndex(file) {
         v-if="!readonly && files.length < max"
         class="upload-tile"
         :show-file-list="false"
-        accept="image/*,video/*"
+        :accept="ATTACH_PRESETS.media.accept"
         :before-upload="handleUpload"
       >
         <div class="upload-inner">
@@ -157,7 +155,7 @@ function imagePreviewIndex(file) {
       </el-upload>
     </div>
     <p v-if="!readonly" class="hint">
-      支持图片与视频，单个不超过 {{ maxSizeMb }}MB，最多 {{ max }} 个
+      支持图片与视频（mp4 / mov / m4v / avi），单个不超过 {{ maxSizeMb }}MB，最多 {{ max }} 个
     </p>
     <p v-else-if="!files.length" class="empty">—</p>
   </div>

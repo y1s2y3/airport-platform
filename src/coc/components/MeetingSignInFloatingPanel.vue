@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { UserFilled } from '@element-plus/icons-vue'
 import { useSignInFloatingPanel } from '../composables/useMeetingAiSession.js'
+import { useMeetingSignInSession } from '../composables/useMeetingSignInSession.js'
 import { HQ_SELECTION_ID, getProjectShortName } from '../mock/data.js'
 import MeetingRegistration from './MeetingRegistration.vue'
 
@@ -14,9 +15,16 @@ const props = defineProps({
 const emit = defineEmits(['project-change'])
 
 const { panelExpanded, togglePanel } = useSignInFloatingPanel()
+const {
+  touchProject,
+  saveProjectEntries,
+  getProjectEntries,
+  ensureSessionStarted,
+} = useMeetingSignInSession()
 
 const isHqMode = computed(() => props.selectedProjectId === HQ_SELECTION_ID)
 const signInProjectId = ref('')
+const registrationRef = ref(null)
 
 /** 与项目列表一致：按状态筛选，当前选中项目始终保留在下拉中 */
 const selectableProjects = computed(() => {
@@ -51,6 +59,16 @@ const activeSignInProjectId = computed(() =>
   isHqMode.value ? signInProjectId.value : props.selectedProjectId,
 )
 
+const activeProject = computed(() =>
+  props.projects.find((p) => p.id === activeSignInProjectId.value) || null,
+)
+
+const activeProjectName = computed(() => {
+  const p = activeProject.value
+  if (!p) return ''
+  return p.shortName || getProjectShortName(p) || p.name || ''
+})
+
 const projectOptions = computed(() =>
   selectableProjects.value.map((p) => ({
     value: p.id,
@@ -58,13 +76,45 @@ const projectOptions = computed(() =>
   })),
 )
 
-const meetingPersonnel = computed(() => {
-  const project = props.projects.find((p) => p.id === activeSignInProjectId.value)
-  return project?.personnel || []
+const meetingPersonnel = computed(() => activeProject.value?.personnel || [])
+
+const restoredEntries = computed(() => {
+  const id = activeSignInProjectId.value
+  if (!id) return null
+  return getProjectEntries(id)
 })
+
+watch(
+  [activeSignInProjectId, activeProjectName, panelExpanded],
+  ([id, name, expanded]) => {
+    if (!expanded || !id) return
+    ensureSessionStarted()
+    touchProject(id, name)
+  },
+  { immediate: true },
+)
+
+function flushCurrentProject() {
+  const id = activeSignInProjectId.value
+  if (!id) return
+  const snapshot = registrationRef.value?.getSnapshot?.()
+  if (snapshot) {
+    saveProjectEntries(id, activeProjectName.value, snapshot)
+  }
+}
+
+function handleEntriesChange(entries) {
+  const id = activeSignInProjectId.value
+  if (!id) return
+  saveProjectEntries(id, activeProjectName.value, entries)
+}
 
 function handleScopeSelect(id) {
   if (!id || id === activeSignInProjectId.value) return
+  flushCurrentProject()
+  const project = props.projects.find((p) => p.id === id)
+  const name = project ? project.shortName || getProjectShortName(project) || project.name : id
+  touchProject(id, name)
   if (isHqMode.value) {
     signInProjectId.value = id
     return
@@ -109,7 +159,9 @@ defineExpose({ togglePanel, panelExpanded })
           placeholder="请选择项目"
           size="default"
           filterable
-          @update:model-value="handleScopeSelect" aria-label="请选择项目">
+          @update:model-value="handleScopeSelect"
+          aria-label="请选择项目"
+        >
           <el-option
             v-for="opt in projectOptions"
             :key="opt.value"
@@ -118,7 +170,15 @@ defineExpose({ togglePanel, panelExpanded })
           />
         </el-select>
 
-        <MeetingRegistration embedded compact :personnel="meetingPersonnel" />
+        <MeetingRegistration
+          :key="activeSignInProjectId || 'none'"
+          ref="registrationRef"
+          embedded
+          compact
+          :personnel="meetingPersonnel"
+          :restored-entries="restoredEntries"
+          @entries-change="handleEntriesChange"
+        />
       </div>
     </div>
   </div>

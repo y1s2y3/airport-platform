@@ -12,6 +12,7 @@ import { createSubcontractorBlock, mergeSafetyProfile } from './projectSafetyPro
 import { listSysUsers, getSysUser } from './sysUsers'
 import { enrichSysUserApproverCandidate } from '../utils/approverDisplay'
 import { getCurrentUserSnapshot } from './currentUser.js'
+import { asAttachList } from '../constants/attachmentUpload.js'
 import { nowStr } from '../utils/datetime.js'
 import { parseOneContact } from '../utils/contactValue.js'
 
@@ -302,7 +303,23 @@ function emptyLaborContract() {
 }
 
 function emptyOrgStructureChart() {
-  return { fileName: '', fileUrl: '' }
+  return { fileName: '', fileUrl: '', files: [] }
+}
+
+function normalizeOrgStructureChart(chart = {}) {
+  const files = asAttachList(
+    Array.isArray(chart.files) && chart.files.length
+      ? chart.files
+      : chart.fileName
+        ? { name: chart.fileName, url: chart.fileUrl, fileName: chart.fileName, fileUrl: chart.fileUrl }
+        : [],
+  )
+  const first = files[0]
+  return {
+    files,
+    fileName: first?.name || first?.fileName || '',
+    fileUrl: first?.url || first?.fileUrl || '',
+  }
 }
 
 export function createEmptySubcontractorApplication(projectId = '', projectName = '') {
@@ -340,7 +357,7 @@ export function cloneSubcontractorApplication(row) {
     safetyManagerContact,
     qualifications: (row.qualifications || []).map((item) => ({ ...item })),
     safetyLicense: normalizeSafetyLicense(row.safetyLicense || emptySafetyLicense()),
-    orgStructureChart: { ...(row.orgStructureChart || emptyOrgStructureChart()) },
+    orgStructureChart: normalizeOrgStructureChart(row.orgStructureChart),
     laborContract: { ...(row.laborContract || emptyLaborContract()) },
     approvers: { ...(row.approvers || emptyApprovers()) },
     approvalFlow: (row.approvalFlow || []).map((item) => ({ ...item })),

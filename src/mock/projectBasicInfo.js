@@ -45,6 +45,7 @@ export function createProjectFields(overrides = {}) {
   const { safetyProfile, ...rest } = overrides
   const base = {
     projectName: '',
+    engineeringCode: '',
     contractorUnit: '',
     supervisorUnit: '',
     overview: '',
@@ -85,6 +86,7 @@ export const projectList = [
     personInCharge: '姚远东',
     ...createProjectFields({
       projectName: '宝安国际机场T2航站区及配套工程',
+      engineeringCode: 'TX01',
       status: 'preliminary',
       personInCharge: '姚远东',
       contractorUnit: '中建三局第一建设工程有限责任公司',
@@ -124,6 +126,7 @@ export const projectList = [
     personInCharge: '管术枝',
     ...createProjectFields({
       projectName: '深圳宝安国际机场T1航站区及配套设施工程项目',
+      engineeringCode: 'TX02',
       status: 'preliminary',
       personInCharge: '管术枝',
       contractorUnit: '中建三局',
@@ -155,6 +158,7 @@ export const projectList = [
     personInCharge: '林建源',
     ...createProjectFields({
       projectName: '深圳宝安国际机场东航站区、停车楼及配套业务设施项目',
+      engineeringCode: 'DH01',
       status: 'preliminary',
       personInCharge: '林建源',
       contractorUnit: '中建八局南方公司',
@@ -181,6 +185,7 @@ export const projectList = [
     personInCharge: '戴毅峰',
     ...createProjectFields({
       projectName: '综合配套三期(A319-004-04-03-02)及南区下穿通道工程(A319-004-04-01-01)项目',
+      engineeringCode: 'ZH01',
       status: 'preliminary',
       personInCharge: '戴毅峰',
       contractorUnit: '中铁建工集团华南分公司',
@@ -207,6 +212,7 @@ export const projectList = [
     personInCharge: '戴毅峰',
     ...createProjectFields({
       projectName: '空港区截中心配套站坪、竖和站坪及机务区地基处理工程项目',
+      engineeringCode: 'DZ01',
       status: 'preliminary',
       personInCharge: '戴毅峰',
       contractorUnit: '广东建工集团有限公司',
@@ -233,6 +239,7 @@ export const projectList = [
     personInCharge: '裴云龙',
     ...createProjectFields({
       projectName: '深圳宝安国际机场T2航站区及配套设施工程-新建2号雨水提升泵站工程',
+      engineeringCode: 'YS01',
       status: 'in_progress',
       personInCharge: '裴云龙',
       contractorUnit: '中国建筑第五工程局有限公司',
@@ -318,6 +325,7 @@ export const projectList = [
     personInCharge: '赵磊',
     ...createProjectFields({
       projectName: '深圳机场三跑道扩建工程',
+      engineeringCode: 'SP01',
       status: 'in_progress',
       personInCharge: '赵磊',
       contractorUnit: '广东建工集团有限公司',
@@ -386,7 +394,7 @@ export function createEmptyProject() {
     hidden: false,
     projectCode: id,
     personInCharge: '',
-    ...createProjectFields({ status: 'in_progress' }),
+    ...createProjectFields({ status: 'in_progress', engineeringCode: '' }),
   }
 }
 

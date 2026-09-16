@@ -1,8 +1,10 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Search, Refresh, Plus, UploadFilled, Delete } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { Search, Refresh, Plus, UploadFilled, Delete } from '@element-plus/icons-vue'
+import { ATTACH_PRESETS, asAttachList, validateAttachFile } from '../../constants/attachmentUpload.js'
+import AttachmentUpload from '../../components/common/AttachmentUpload.vue'
 import { useCurrentProject } from '../../composables/useCurrentProject'
 import { getProjectSelectOptions } from '../../mock/projectBasicInfo'
 import {
@@ -241,6 +243,11 @@ function removeQualification(index) {
 }
 
 function onFilePick(file, target, nameKey, urlKey) {
+  const err = validateAttachFile(file, 'file', { currentCount: 0, max: 1 })
+  if (err) {
+    ElMessage.warning(err)
+    return false
+  }
   target[nameKey] = file.name
   const reader = new FileReader()
   reader.onload = () => {
@@ -271,6 +278,13 @@ function handleSubmit() {
   const contactErr = validateContacts()
   if (contactErr) return ElMessage.warning(contactErr)
   syncContactsToModel()
+  if (formModel.value?.orgStructureChart) {
+    const files = asAttachList(formModel.value.orgStructureChart.files)
+    const first = files[0]
+    formModel.value.orgStructureChart.files = files
+    formModel.value.orgStructureChart.fileName = first?.name || first?.fileName || ''
+    formModel.value.orgStructureChart.fileUrl = first?.url || first?.fileUrl || ''
+  }
   const r = submitSubcontractorApplication(formModel.value, {
     submitterName: getCurrentUserSnapshot(scopeProjectId.value)?.name,
   })
@@ -490,41 +504,14 @@ function handleSubmit() {
         </el-form-item>
 
         <el-form-item label="组织架构图">
-          <div
-            class="file-drop-card"
-            :class="{ 'has-file': formModel.orgStructureChart.fileName }"
-          >
-            <div class="file-drop-main">
-              <FileAttachmentPreview
-                :name="formModel.orgStructureChart.fileName"
-                :url="formModel.orgStructureChart.fileUrl"
-                empty-text="点击上传组织架构图"
-                size="md"
-              />
-              <div v-if="!formModel.orgStructureChart.fileName" class="file-drop-sub">
-                支持图片 / PDF / Word / Excel
-              </div>
-            </div>
-            <div class="file-drop-actions">
-              <el-upload
-                :show-file-list="false"
-                accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.webp"
-                :before-upload="(f) => onFilePick(f, formModel.orgStructureChart, 'fileName', 'fileUrl')"
-              >
-                <el-button size="small" type="primary" plain :icon="UploadFilled">
-                  {{ formModel.orgStructureChart.fileName ? '更换附件' : '选择文件' }}
-                </el-button>
-              </el-upload>
-              <el-button
-                v-if="formModel.orgStructureChart.fileName"
-                size="small"
-                :icon="Delete"
-                @click="clearFile(formModel.orgStructureChart, 'fileName', 'fileUrl')"
-              >
-                移除
-              </el-button>
-            </div>
-          </div>
+          <AttachmentUpload
+            v-if="formModel.orgStructureChart"
+            v-model="formModel.orgStructureChart.files"
+            preset="file"
+            :min="0"
+            :max="9"
+            name-prefix="组织架构图"
+          />
         </el-form-item>
 
         <el-form-item label="备注">
@@ -566,7 +553,7 @@ function handleSubmit() {
                   <div class="attach-actions">
                     <el-upload
                       :show-file-list="false"
-                      accept=".pdf,.jpg,.jpeg,.png,.gif,.webp"
+                      :accept="ATTACH_PRESETS.file.accept"
                       :before-upload="(f) => onFilePick(f, row, 'fileName', 'fileUrl')"
                     >
                       <el-button size="small" :icon="UploadFilled">
@@ -645,13 +632,13 @@ function handleSubmit() {
                 size="md"
               />
               <div v-if="!formModel.safetyLicense.fileName" class="file-drop-sub">
-                支持图片 / PDF
+                {{ ATTACH_PRESETS.file.hint }}，限 1 个
               </div>
             </div>
             <div class="file-drop-actions">
               <el-upload
                 :show-file-list="false"
-                accept=".pdf,.jpg,.jpeg,.png,.gif,.webp"
+                :accept="ATTACH_PRESETS.file.accept"
                 :before-upload="onSafetyLicenseFilePick"
               >
                 <el-button size="small" type="primary" plain :icon="UploadFilled">
@@ -698,13 +685,13 @@ function handleSubmit() {
                 size="md"
               />
               <div v-if="!formModel.laborContract.fileName" class="file-drop-sub">
-                支持图片 / PDF
+                {{ ATTACH_PRESETS.file.hint }}，限 1 个
               </div>
             </div>
             <div class="file-drop-actions">
               <el-upload
                 :show-file-list="false"
-                accept=".pdf,.jpg,.jpeg,.png,.gif,.webp"
+                :accept="ATTACH_PRESETS.file.accept"
                 :before-upload="(f) => onFilePick(f, formModel.laborContract, 'fileName', 'fileUrl')"
               >
                 <el-button size="small" type="primary" plain>

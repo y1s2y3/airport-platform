@@ -38,6 +38,7 @@ import {
   WBS_ENTITY_TYPE_LABEL,
   allowedEntityChildTypes,
 } from '../../constants/wbsEntityLabels.js'
+import { normalizeWbsNodeCode, validateWbsNodeCode } from '../../utils/wbsNodeCode.js'
 import './qm-hq-stats.css'
 
 /** 实体工程分解同口径节点（单位～分项 + 实体分类）；检验批/专项不走此表单 */
@@ -320,6 +321,10 @@ function submit() {
     if (specialties.length && !isValidWbsSpecialties(specialties)) {
       return ElMessage.warning('请选择有效的专业')
     }
+    const codeCheck = validateWbsNodeCode(form.location_code)
+    if (!codeCheck.ok) return ElMessage.warning(codeCheck.msg)
+    form.location_code = codeCheck.code
+
     if (Number(form.node_type) === 9) {
       const exist = wbsNodes.find((n) => n.id === form.id)
       const r = upsertWbsNode(
@@ -374,6 +379,9 @@ function submit() {
     if (!String(form.node_name || '').trim()) {
       return ElMessage.warning('请填写节点名称')
     }
+    const codeCheck = validateWbsNodeCode(form.location_code)
+    if (!codeCheck.ok) return ElMessage.warning(codeCheck.msg)
+    form.location_code = codeCheck.code
     const isBatch = Number(form.node_type) === 6
     const r = upsertWbsNode(
       {
@@ -401,6 +409,11 @@ function submit() {
   if (!r.ok) return ElMessage.error(r.msg)
   ElMessage.success(form.id ? '节点已更新' : '节点已创建')
   visible.value = false
+}
+
+function onCodeInput(val) {
+  const next = normalizeWbsNodeCode(val)
+  if (form.location_code !== next) form.location_code = next
 }
 
 async function onRemove(row) {
@@ -579,8 +592,13 @@ async function onRemove(row) {
             :disabled="form.node_type === 9"
           />
         </el-form-item>
-        <el-form-item label="编码">
-          <el-input v-model="form.location_code" maxlength="40" />
+        <el-form-item label="编码" required>
+          <el-input
+            v-model="form.location_code"
+            maxlength="10"
+            placeholder="英文或数字，最多10位"
+            @input="onCodeInput"
+          />
         </el-form-item>
         <el-form-item label="专业">
           <el-select
@@ -648,12 +666,13 @@ async function onRemove(row) {
         <el-form-item label="节点名称" required>
           <el-input v-model="form.node_name" />
         </el-form-item>
-        <el-form-item :label="form.node_type === 6 ? '编码' : '部位编码'">
+        <el-form-item :label="form.node_type === 6 ? '编码' : '部位编码'" required>
           <el-input
             v-model="form.location_code"
-            :maxlength="form.node_type === 6 ? 40 : undefined"
-            :placeholder="form.node_type === 6 ? '' : '可选'"
-            :aria-label="form.node_type === 6 ? '编码' : '可选'"
+            maxlength="10"
+            placeholder="英文或数字，最多10位"
+            :aria-label="form.node_type === 6 ? '编码' : '部位编码'"
+            @input="onCodeInput"
           />
         </el-form-item>
         <template v-if="form.node_type === 6 || form.node_type === 7">

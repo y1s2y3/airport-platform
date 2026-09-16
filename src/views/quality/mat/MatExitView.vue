@@ -2,7 +2,9 @@
 import './mat-page.css'
 import { computed, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Plus, Search, Refresh, UploadFilled } from '@element-plus/icons-vue'
+import AttachmentUpload from '../../../components/common/AttachmentUpload.vue'
+import FileAttachmentPreview from '../../../components/basicData/FileAttachmentPreview.vue'
+import { Plus, Search, Refresh } from '@element-plus/icons-vue'
 import { useQmProjectScope } from '../../../composables/useCurrentProject'
 import {
   listExitableEntries,
@@ -23,7 +25,7 @@ const form = reactive({
   entry_no: '',
   exit_qty: '',
   reason: '',
-  photo_file: '',
+  photo_file: [],
 })
 
 const list = computed(() => {
@@ -48,7 +50,7 @@ function resetForm() {
   form.entry_no = ''
   form.exit_qty = ''
   form.reason = ''
-  form.photo_file = ''
+  form.photo_file = []
 }
 
 function openCreate() {
@@ -62,22 +64,6 @@ function openCreate() {
 function openDetail(row) {
   detail.value = getExitDetail(row.exit_no)
   detailVisible.value = true
-}
-
-function onPickPhoto(uploadFile) {
-  const file = uploadFile.raw || uploadFile
-  if (!file) return false
-  if (file.size > 30 * 1024 * 1024) {
-    ElMessage.warning('单个文件不超过 30MB')
-    return false
-  }
-  form.photo_file = file.name || `退场现场-${Date.now()}.jpg`
-  ElMessage.success(`已上传：${form.photo_file}`)
-  return false
-}
-
-function clearPhoto() {
-  form.photo_file = ''
 }
 
 function onEntryChange() {
@@ -225,25 +211,13 @@ function onSubmit() {
           />
         </el-form-item>
         <el-form-item label="现场照片">
-          <el-upload
-            :show-file-list="false"
-            :before-upload="onPickPhoto"
-            accept="image/*"
-          >
-            <el-button :icon="UploadFilled">上传</el-button>
-          </el-upload>
-          <span class="muted" style="margin-left: 8px">
-            {{ form.photo_file || '选填' }}
-          </span>
-          <el-button
-            v-if="form.photo_file"
-            link
-            type="danger"
-            style="margin-left: 4px"
-            @click="clearPhoto"
-          >
-            清除
-          </el-button>
+          <AttachmentUpload
+            v-model="form.photo_file"
+            preset="image"
+            :min="0"
+            :max="9"
+            name-prefix="退场现场照片"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -280,7 +254,7 @@ function onSubmit() {
           <el-descriptions-item label="登记时间">{{ detail.exit_time }}</el-descriptions-item>
           <el-descriptions-item label="退场原因" :span="2">{{ detail.reason }}</el-descriptions-item>
           <el-descriptions-item label="现场照片" :span="2">
-            {{ detail.photo_file || '未上传' }}
+            <FileAttachmentPreview :name="detail.photo_file" empty-text="未上传" />
           </el-descriptions-item>
         </el-descriptions>
       </template>

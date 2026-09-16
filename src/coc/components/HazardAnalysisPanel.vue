@@ -1,12 +1,11 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import * as echarts from 'echarts'
-import hazardPieChart from '../assets/hq/hazard-pie-chart.svg?url'
 import {
   getHqOpenHazards,
   getHqPendingTopProjects,
-  HQ_HAZARD_LEVEL_SEGMENTS,
-} from '../mock/data.js'
+} from '../mock/hazardStats.js'
+import { HQ_HAZARD_LEVEL_SEGMENTS } from '../mock/data.js'
 
 const chartRef = ref(null)
 let chart = null
@@ -48,13 +47,14 @@ function buildOption() {
   const centerTotalColor = props.darkTheme ? '#ffffff' : '#333'
   const centerSubColor = props.darkTheme ? '#a8abb2' : '#909399'
   const sliceBorderColor = props.darkTheme ? 'rgba(16, 29, 55, 0.85)' : '#fff'
+  const emptyColor = props.darkTheme ? 'rgba(255,255,255,0.12)' : '#e8e8e8'
   const data = pieData.value.map((d) => ({
     name: d.name,
     value: Math.max(d.value, 0),
     itemStyle: { color: d.color },
   }))
   if (!data.some((d) => d.value > 0)) {
-    data.push({ name: '暂无', value: 1, itemStyle: { color: '#e8e8e8' } })
+    data.push({ name: '暂无', value: 1, itemStyle: { color: emptyColor } })
   }
   return {
     tooltip: {
@@ -77,7 +77,7 @@ function buildOption() {
         label: {
           show: true,
           position: 'center',
-          formatter: () => `{total|${total.value}}\n{sub|待处理}`,
+          formatter: () => `{total|${total.value}}\n{sub|待整改}`,
           rich: {
             total: {
               fontSize: 18,
@@ -98,7 +98,7 @@ function buildOption() {
           scale: false,
           label: {
             show: true,
-            formatter: () => `{total|${total.value}}\n{sub|待处理}`,
+            formatter: () => `{total|${total.value}}\n{sub|待整改}`,
             rich: {
               total: {
                 fontSize: 18,
@@ -124,11 +124,14 @@ function buildOption() {
 }
 
 function renderChart() {
-  if (props.darkTheme) return
   const el = chartRef.value
-  if (!el || el.clientWidth < 20) return
+  if (!el) return
+  const w = el.clientWidth
+  const h = el.clientHeight
+  if (w < 20 || h < 20) return
   if (!chart) chart = echarts.init(el)
   chart.setOption(buildOption(), true)
+  chart.resize()
 }
 
 function disposeChart() {
@@ -137,60 +140,46 @@ function disposeChart() {
 }
 
 function handleResize() {
-  chart?.resize()
+  renderChart()
 }
 
+let resizeObserver = null
+
 watch([pieData, () => props.darkTheme], () => {
-  if (props.darkTheme) {
-    disposeChart()
-    return
-  }
   nextTick(renderChart)
 })
 
 onMounted(() => {
-  nextTick(renderChart)
+  nextTick(() => {
+    renderChart()
+    if (typeof ResizeObserver !== 'undefined' && chartRef.value) {
+      resizeObserver = new ResizeObserver(() => {
+        renderChart()
+      })
+      resizeObserver.observe(chartRef.value)
+    }
+  })
   window.addEventListener('resize', handleResize)
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
+  resizeObserver?.disconnect()
+  resizeObserver = null
   disposeChart()
 })
 </script>
 
 <template>
   <div class="panel-card hazard-analysis-panel">
-    <div class="panel-title compact title-left title-with-tip">
+    <div class="panel-title compact title-left">
       <span>隐患分析</span>
       <span class="panel-v2-tip">V2版本上线</span>
-      <el-tooltip
-        content="包含安全巡检、质量巡检、随手拍隐患统计"
-        placement="top"
-        :show-after="200"
-      >
-        <span class="title-tip-icon" aria-label="统计说明">?</span>
-      </el-tooltip>
     </div>
     <div class="panel-body hazard-body">
       <div class="chart-row">
         <div class="level-ring" :class="{ 'level-ring--hq': darkTheme }">
-          <template v-if="darkTheme">
-            <img
-              class="level-ring__art"
-              :src="hazardPieChart"
-              width="164"
-              height="138"
-              alt=""
-              aria-hidden="true"
-              draggable="false"
-            />
-            <div class="level-ring__center" aria-hidden="true">
-              <span class="level-ring__total">{{ total }}</span>
-              <span class="level-ring__sub">待处理</span>
-            </div>
-          </template>
-          <div v-else ref="chartRef" class="level-ring__chart" />
+          <div ref="chartRef" class="level-ring__chart" />
         </div>
         <ul class="level-stats" :class="{ 'level-stats--hq': darkTheme }">
           <li v-for="item in levelStats" :key="item.name" class="level-stat-item">
@@ -273,31 +262,13 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
-.title-with-tip {
-  gap: 8px;
-}
-
-.title-tip-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  font-size: calc(12px + var(--coc-font-boost));
-  font-weight: 600;
-  color: var(--coc-text-secondary);
-  background: var(--coc-tip-icon-bg, #f0ebe6);
-  cursor: help;
-  flex-shrink: 0;
-}
-
 .hazard-body {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
   padding: 8px 12px 12px !important;
-  min-height: 0;
   overflow: hidden;
 }
 
@@ -305,7 +276,8 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-shrink: 0;
+  flex: 0 0 auto;
+  min-height: 138px;
 }
 
 .level-ring {
@@ -319,44 +291,14 @@ onUnmounted(() => {
   width: 164px;
   height: 138px;
   position: relative;
+  overflow: hidden;
 }
 
 .level-ring__chart {
   width: 100%;
   height: 100%;
-}
-
-.level-ring__art {
-  display: block;
-  width: 100%;
-  height: 100%;
-  user-select: none;
-  pointer-events: none;
-}
-
-.level-ring__center {
-  position: absolute;
-  left: 50%;
-  top: 52%;
-  transform: translate(-50%, -50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  pointer-events: none;
-}
-
-.level-ring__total {
-  font-size: calc(18px + var(--coc-font-boost));
-  font-weight: 700;
-  color: #fff;
-  line-height: 1.1;
-}
-
-.level-ring__sub {
-  font-size: calc(11px + var(--coc-font-boost));
-  color: #a8abb2;
-  line-height: 1.2;
+  min-width: 0;
+  min-height: 0;
 }
 
 .level-stats {

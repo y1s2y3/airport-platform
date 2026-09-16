@@ -353,10 +353,97 @@ export function buildDashboardKpiSummary(project_id, today = LABOR_HQ_STATS_TODA
 
 export const laborDashboardData = getLaborDashboardData('p-000')
 
+/**
+ * COC 调度大屏 · 劳务分析/统计
+ * 与劳务看板 getLaborDashboardData / summary 口径对齐
+ */
+export function getCocLaborPanelStats(project_id) {
+  const scopeId = !project_id || project_id === 'hq' ? 'hq' : project_id
+  const data = getLaborDashboardData(scopeId)
+  const summary = data.summary || {}
+  const total = Number(summary.total) || 0
+  const manage = Number(summary.manage) || 0
+  const labor = Number(summary.labor) || 0
+  const special = Number(summary.special) || 0
+
+  const rows = buildHqRealNameSupervisionStatsByProject().filter((r) => !r.demo_empty)
+  let manageRate = parseFloat(String(summary.today_manage_attendance_rate)) || 0
+  let laborRate = 0
+  let specialRate = 0
+  let overallRate = parseFloat(String(summary.today_attendance_rate)) || 0
+
+  if (scopeId === 'hq') {
+    laborRate = weightedRate(rows, 'today_labor_attendance_rate', 'labor')
+    specialRate = weightedRate(rows, 'today_special_attendance_rate', 'special')
+  } else {
+    const row = rows.find((item) => item.project_id === scopeId)
+    manageRate = Number(row?.today_manage_attendance_rate) || manageRate
+    laborRate = Number(row?.today_labor_attendance_rate) || overallRate
+    specialRate = Number(row?.today_special_attendance_rate) || overallRate
+    overallRate = Number(row?.today_attendance_rate) || overallRate
+  }
+
+  const manageToday = Math.round((manage * manageRate) / 100)
+  const laborToday = Math.round((labor * laborRate) / 100)
+  const specialToday = Math.round((special * specialRate) / 100)
+  const allToday = manageToday + laborToday + specialToday
+
+  const trendSource = (data.attendanceTrend || []).slice(-7)
+  const trend = {
+    labels: trendSource.map((item) => item.label || String(item.date || '').slice(5)),
+    manage: trendSource.map((item) => item.manage_present_count || 0),
+    labor: trendSource.map((item) => item.labor_present_count || 0),
+    rate: trendSource.map((item) => Number(item.attendance_rate) || 0),
+  }
+
+  return {
+    total,
+    manage,
+    labor,
+    special,
+    allToday,
+    manageToday,
+    laborToday,
+    specialToday,
+    rate: formatDashboardRate(overallRate),
+    manageRate: formatDashboardRate(manageRate),
+    laborRate: formatDashboardRate(laborRate),
+    specialRate: formatDashboardRate(specialRate),
+    pendingWarning: Number(summary.pending_warning_count) || 0,
+    trend,
+  }
+}
+
 /** 未处置预警最多的项目（用于指标卡下钻） */
 export function pickProjectWithMostPendingWarnings(today = LABOR_HQ_STATS_TODAY) {
   const rows = buildHqRealNameSupervisionStatsByProject(today)
     .filter((r) => !r.demo_empty && r.pending_warning_count > 0)
     .sort((a, b) => b.pending_warning_count - a.pending_warning_count)
   return rows[0] || null
+}
+
+/**
+ * 指挥部 · 各项目实名制预警统计（待处置预警下钻）
+ * 已处置 = 状态「已关闭」；待处置 = 「待处理」；处置比例 = 已处置 ÷ 预警总数
+ */
+export function buildHqLaborWarningStatsByProject() {
+  return buildHqRealNameSupervisionStatsByProject()
+    .filter((row) => !row.demo_empty)
+    .map((row) => {
+      const warnings = getProjectWarnings(row.project_id)
+      const total = warnings.length
+      const pending = warnings.filter((w) => w.status === '待处理').length
+      const disposed = warnings.filter((w) => w.status === '已关闭').length
+      const rate = total ? Math.round((disposed / total) * 100) : null
+      return {
+        projectId: row.project_id,
+        projectName: row.project_name,
+        total,
+        disposed,
+        pending,
+        disposalRate: rate == null ? '—' : `${rate}%`,
+        disposalRateValue: rate,
+      }
+    })
+    .sort((a, b) => b.pending - a.pending || b.total - a.total)
 }

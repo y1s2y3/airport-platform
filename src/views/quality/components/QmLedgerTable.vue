@@ -35,10 +35,9 @@ function reset() {
 }
 
 function passRateText(row) {
-  const approved = Number(row.approved_count ?? row.approvedCount)
-  const rejected = Number(row.rejected_count ?? row.rejectedCount)
-  if (!(approved + rejected)) return '—'
-  return `${row.pass_rate ?? row.passRate}%`
+  const taskTotal = Number(row.task_total ?? row.taskTotal)
+  if (!taskTotal) return '—'
+  return `${row.pass_rate ?? row.passRate ?? 0}%`
 }
 
 function viewProjectDetail(row) {

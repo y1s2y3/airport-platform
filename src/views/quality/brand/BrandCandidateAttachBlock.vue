@@ -3,7 +3,7 @@
  * 备选品牌：附件按类型勾选后可上传多个文件 + 备注
  * editable=true 用于新建；false 用于审批/待办只读展示
  */
-import { Document } from '@element-plus/icons-vue'
+import AttachmentUpload from '../../../components/common/AttachmentUpload.vue'
 import { ATTACH_TYPE } from '../../../mock/brand.js'
 
 defineProps({
@@ -27,22 +27,6 @@ function onCheckChange(slot) {
   }
 }
 
-function onFileChange(slot, uploadFile) {
-  const raw = uploadFile?.raw
-  if (!raw) return
-  slot.is_checked = true
-  const files = ensureFiles(slot)
-  files.push({
-    file_name: raw.name,
-    file_url: URL.createObjectURL(raw),
-  })
-}
-
-function removeFile(slot, index) {
-  const files = ensureFiles(slot)
-  files.splice(index, 1)
-}
-
 function slotHasFiles(slot) {
   return ensureFiles(slot).some((f) => (f.file_name || '').trim())
 }
@@ -58,7 +42,7 @@ function visibleSlots(candidate, showEmptySlots) {
   <div class="attach-block" :class="{ 'is-readonly': !editable }">
     <div class="attach-title">
       附件
-      <span v-if="editable" class="attach-sub">自行勾选上传，每类可传多个，非强制</span>
+      <span v-if="editable" class="attach-sub">自行勾选后上传，每类 0～9 个，非强制</span>
     </div>
 
     <template v-if="editable">
@@ -73,25 +57,17 @@ function visibleSlots(candidate, showEmptySlots) {
             <el-checkbox v-model="slot.is_checked" @change="onCheckChange(slot)">
               {{ ATTACH_TYPE[slot.attach_type] || slot.attach_type }}
             </el-checkbox>
-            <el-upload
-              v-if="slot.is_checked"
-              :show-file-list="false"
-              :auto-upload="false"
-              multiple
-              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.zip"
-              @change="(f) => onFileChange(slot, f)"
-            >
-              <el-button size="small" type="primary" plain>上传文件</el-button>
-            </el-upload>
           </div>
-          <ul v-if="slot.is_checked && ensureFiles(slot).length" class="file-list">
-            <li v-for="(f, fi) in ensureFiles(slot)" :key="`${f.file_name}-${fi}`" class="file-li">
-              <span class="file-name" :title="f.file_name">{{ f.file_name }}</span>
-              <el-button size="small" type="danger" plain @click="removeFile(slot, fi)">
-                删除
-              </el-button>
-            </li>
-          </ul>
+          <AttachmentUpload
+            v-if="slot.is_checked"
+            v-model="slot.files"
+            preset="file"
+            :min="0"
+            :max="9"
+            name-key="file_name"
+            url-key="file_url"
+            :name-prefix="ATTACH_TYPE[slot.attach_type] || '附件'"
+          />
         </div>
       </div>
     </template>
@@ -109,16 +85,16 @@ function visibleSlots(candidate, showEmptySlots) {
           <div class="attach-type-name">
             {{ ATTACH_TYPE[slot.attach_type] || slot.attach_type }}
           </div>
-          <ul class="attach-readonly-files">
-            <li
-              v-for="(f, fi) in ensureFiles(slot)"
-              :key="`${f.file_name}-${fi}`"
-              class="attach-readonly-file"
-            >
-              <el-icon class="file-icon"><Document /></el-icon>
-              <span class="file-name" :title="f.file_name">{{ f.file_name || '—' }}</span>
-            </li>
-          </ul>
+          <AttachmentUpload
+            v-model="slot.files"
+            preset="file"
+            :min="0"
+            :max="9"
+            readonly
+            name-key="file_name"
+            url-key="file_url"
+            :name-prefix="ATTACH_TYPE[slot.attach_type] || '附件'"
+          />
         </div>
       </div>
       <p v-else class="empty-hint">未上传附件</p>

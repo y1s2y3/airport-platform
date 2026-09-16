@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { getCocAdminItem } from '../../config/menu.js'
 import { ensureDailyWorkSeed } from '../../coc/utils/dailyWorkStorage.js'
 import { ensureDispatchMeetingSeed } from '../../coc/utils/dispatchMeetingStorage.js'
+import { ensureMeetingSignInSeed } from '../../coc/utils/meetingSignInStorage.js'
 import { ensureMonitorGroupSeed } from '../../coc/utils/monitorAdminStorage.js'
 import { ensureRedBlackBoardSeed } from '../../coc/utils/redBlackBoardStorage.js'
 import '../../coc/admin/admin.css'
@@ -12,6 +13,7 @@ import '../../coc/admin/admin-video.css'
 onMounted(() => {
   ensureDailyWorkSeed()
   ensureDispatchMeetingSeed()
+  ensureMeetingSignInSeed()
   ensureMonitorGroupSeed()
   ensureRedBlackBoardSeed()
 })

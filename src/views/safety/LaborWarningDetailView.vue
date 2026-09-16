@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, Upload } from '@element-plus/icons-vue'
+import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getWarningDetail,
@@ -20,6 +20,8 @@ import {
   markWarningCenterDisposed,
 } from '../../mock/personalCenter.js'
 import PersonalCenterReadonlyHint from '../../components/PersonalCenterReadonlyHint.vue'
+import AttachmentUpload from '../../components/common/AttachmentUpload.vue'
+import FileAttachmentPreview from '../../components/basicData/FileAttachmentPreview.vue'
 
 const props = defineProps({
   embedded: { type: Boolean, default: false },
@@ -205,18 +207,6 @@ function goRealNameListFiltered() {
   })
 }
 
-function handleFileChange(_uploadFile, uploadFiles) {
-  attachmentList.value = uploadFiles
-}
-
-function removeFile(_uploadFile, uploadFiles) {
-  attachmentList.value = uploadFiles
-}
-
-function previewAttachment(name) {
-  ElMessage.info(`预览附件：${name}`)
-}
-
 function syncPersonalTodoOnClose() {
   if (detail.value?.id) {
     markWarningCenterDisposed(detail.value.id, '张明')
@@ -354,19 +344,7 @@ async function submitHandle(close = false) {
           <el-descriptions-item label="处置结果">{{ closeHandleInfo.disposal_result }}</el-descriptions-item>
           <el-descriptions-item label="处置说明">{{ closeHandleInfo.content }}</el-descriptions-item>
           <el-descriptions-item label="处置附件">
-            <template v-if="closeHandleInfo.attachments.length">
-              <el-button
-                v-for="file in closeHandleInfo.attachments"
-                :key="file"
-                link
-                type="primary"
-                size="small"
-                @click="previewAttachment(file)"
-              >
-                {{ file }}
-              </el-button>
-            </template>
-            <span v-else>-</span>
+            <FileAttachmentPreview :name="closeHandleInfo.attachments" empty-text="--" size="sm" />
           </el-descriptions-item>
         </el-descriptions>
       </section>
@@ -408,17 +386,7 @@ async function submitHandle(close = false) {
               <template v-if="!(showHandleInfo && record.type === 'close')">
                 <div class="timeline-content">{{ record.content }}</div>
                 <div v-if="record.attachments?.length" class="timeline-attachments">
-                  <span class="attach-label">附件：</span>
-                  <el-button
-                    v-for="file in record.attachments"
-                    :key="file"
-                    link
-                    type="primary"
-                    size="small"
-                    @click="previewAttachment(file)"
-                  >
-                    {{ file }}
-                  </el-button>
+                  <FileAttachmentPreview :name="record.attachments" empty-text="--" size="sm" />
                 </div>
               </template>
             </div>
@@ -447,19 +415,7 @@ async function submitHandle(close = false) {
                 placeholder="请填写本次处置措施及结果" aria-label="请填写本次处置措施及结果"/>
             </el-form-item>
             <el-form-item label="处置附件">
-              <el-upload
-                :file-list="attachmentList"
-                :auto-upload="false"
-                :on-change="handleFileChange"
-                :on-remove="removeFile"
-                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                multiple
-              >
-                <el-button size="small" :icon="Upload">上传附件</el-button>
-                <template #tip>
-                  <div class="upload-tip">处置并关闭时可上传相关证明材料，支持 PDF、Word、图片</div>
-                </template>
-              </el-upload>
+              <AttachmentUpload v-model="attachmentList" preset="file" :min="0" :max="9" name-prefix="处置附件" />
             </el-form-item>
             <el-form-item>
               <el-button type="primary" class="ap-btn-primary" :loading="submitting" @click="submitHandle(true)">

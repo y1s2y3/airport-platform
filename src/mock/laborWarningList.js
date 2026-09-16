@@ -488,6 +488,35 @@ export function getProjectPendingCount(project_id) {
   return getProjectWarnings(project_id).filter((item) => item.status === '待处理').length
 }
 
+/**
+ * COC 项目调度 · 实名制待处置预警
+ * 劳务 mock 仅覆盖部分项目；其余项目回落克隆演示数据，避免调度页空列表。
+ * @param {string} project_id
+ * @param {{ limit?: number|null }} [options] limit 缺省或 null 表示返回全部；预览可传较小 limit
+ */
+export function getCocDispatchPendingWarnings(project_id, options = {}) {
+  const limit = options && Object.prototype.hasOwnProperty.call(options, 'limit')
+    ? options.limit
+    : null
+
+  const scoped = getProjectWarnings(project_id).filter((item) => item.status === '待处理')
+  if (scoped.length) {
+    return limit == null ? scoped : scoped.slice(0, limit)
+  }
+
+  const samplesAll = getProjectWarnings('hq').filter((item) => item.status === '待处理')
+  const samples = limit == null ? samplesAll : samplesAll.slice(0, Math.max(limit, 6))
+
+  if (!samples.length || !project_id || project_id === 'hq') return samples
+
+  return samples.map((item, index) => ({
+    ...item,
+    id: `coc-warn-${project_id}-${item.id}-${index}`,
+    project_id,
+    warning_no: `YJ-DEMO-${String(index + 1).padStart(3, '0')}`,
+  }))
+}
+
 export function getWarningStats(project_id) {
   const list = getProjectWarnings(project_id)
   return {

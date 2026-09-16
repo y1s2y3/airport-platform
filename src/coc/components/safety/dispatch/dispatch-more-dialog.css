@@ -32,6 +32,21 @@
   margin-left: auto;
 }
 
+.drag-panel .more-search {
+  width: 220px;
+}
+
+.drag-panel .more-status-select {
+  width: 110px;
+}
+
+.drag-panel .more-tip {
+  margin: 0 0 8px;
+  font-size: calc(12px + var(--coc-font-boost));
+  color: var(--coc-text-muted);
+  line-height: 1.4;
+}
+
 .drag-panel .more-table-wrap {
   max-height: min(calc(100vh - 140px), 920px);
   overflow: auto;

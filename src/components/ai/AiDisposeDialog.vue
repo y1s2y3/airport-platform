@@ -1,6 +1,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import AttachmentUpload from '../common/AttachmentUpload.vue'
 import { disposeAiAlert } from '../../mock/aiApp.js'
 
 const props = defineProps({
@@ -13,7 +14,7 @@ const emit = defineEmits(['update:modelValue', 'submitted'])
 const formRef = ref(null)
 const submitting = ref(false)
 const form = reactive({ disposition: '已处理', disposalNote: '' })
-const fileList = ref([])
+const attachments = ref([])
 const targets = computed(() => (props.alerts.length ? props.alerts : props.alert ? [props.alert] : []))
 const isBatch = computed(() => props.alerts.length > 0)
 const dialogTitle = computed(() => (isBatch.value ? `批量处置（${targets.value.length} 条）` : '预警处置'))
@@ -29,7 +30,7 @@ watch(
     if (!visible) return
     form.disposition = '已处理'
     form.disposalNote = ''
-    fileList.value = []
+    attachments.value = []
     formRef.value?.clearValidate?.()
   },
 )
@@ -44,9 +45,9 @@ async function submit() {
   const valid = await formRef.value?.validate?.().catch(() => false)
   if (!valid) return
   submitting.value = true
-  const attachments = fileList.value.map((file) => ({ name: file.name, size: file.size || 0 }))
+  const files = attachments.value.map((file) => ({ name: file.name, size: file.size || 0 }))
   targets.value.forEach((item) => {
-    disposeAiAlert(item.id, form.disposition, form.disposalNote, item.handler, attachments)
+    disposeAiAlert(item.id, form.disposition, form.disposalNote, item.handler, files)
   })
   ElMessage.success(isBatch.value ? `已批量处置 ${targets.value.length} 条预警` : '预警处置成功')
   submitting.value = false
@@ -99,19 +100,7 @@ async function submit() {
           />
         </el-form-item>
         <el-form-item label="处置附件">
-          <el-upload
-            v-model:file-list="fileList"
-            action="#"
-            :auto-upload="false"
-            :limit="5"
-            multiple
-            accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,.xls,.xlsx"
-          >
-            <el-button>上传附件</el-button>
-            <template #tip>
-              <div class="upload-tip">非必填，最多上传 5 个文件，支持图片、PDF 和常用文档。</div>
-            </template>
-          </el-upload>
+          <AttachmentUpload v-model="attachments" preset="file" :min="0" :max="9" name-prefix="处置附件" />
         </el-form-item>
       </el-form>
     </div>

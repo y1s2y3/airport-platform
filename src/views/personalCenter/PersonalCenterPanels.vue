@@ -2,7 +2,7 @@
 import { computed, reactive, ref, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Refresh, ArrowDown, Upload } from '@element-plus/icons-vue'
+import { Search, Refresh, ArrowDown } from '@element-plus/icons-vue'
 import {
   personalTodoStore,
   personalStarted,
@@ -25,6 +25,7 @@ import {
 } from '../../mock/personalCenter.js'
 import '../../mock/mat.js'
 import '../../mock/eq.js'
+import AttachmentUpload from '../../components/common/AttachmentUpload.vue'
 
 const props = defineProps({
   /** 是否显示页标题（个人中心页显示，工作台嵌入时可关） */
@@ -267,10 +268,6 @@ function openBatchDispose() {
   batchDisposeContent.value = ''
   batchDisposeFiles.value = []
   batchDisposeVisible.value = true
-}
-
-function onBatchDisposeFileChange(file, fileList) {
-  batchDisposeFiles.value = fileList
 }
 
 async function confirmBatchDispose() {
@@ -609,14 +606,7 @@ watch([activeTotal, pageSize], () => {
               placeholder="请填写处置说明（与详情处置一致）" aria-label="请填写处置说明（与详情处置一致）"/>
           </el-form-item>
           <el-form-item label="处置附件">
-            <el-upload
-              :auto-upload="false"
-              multiple
-              :on-change="onBatchDisposeFileChange"
-              :file-list="batchDisposeFiles"
-            >
-              <el-button size="small" :icon="Upload">上传附件</el-button>
-            </el-upload>
+            <AttachmentUpload v-model="batchDisposeFiles" preset="file" :min="0" :max="9" name-prefix="处置附件" />
           </el-form-item>
         </el-form>
         <template #footer>

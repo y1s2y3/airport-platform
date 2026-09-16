@@ -75,10 +75,10 @@ function nodeSummary(row) {
         <el-input
           v-model="keyword"
           clearable
-          placeholder="单号 / 名称 / 节点 / 报告 / 备注"
+          placeholder="单号 / 任务名称 / 节点"
           style="width: 280px"
           :prefix-icon="Search"
-          aria-label="单号 / 名称 / 节点 / 报告 / 备注"
+          aria-label="单号 / 任务名称 / 节点"
           @keyup.enter="onQuery"
         />
         <el-select v-model="statusFilter" clearable placeholder="状态" style="width: 140px" aria-label="状态">

@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, inject } from 'vue'
-import { DANGER_WORK_LIST, getProjectManagementPersonnel } from '../../../mock/data.js'
+import { getDispatchDangerWorkToday } from '../../../utils/dailyWorkStorage.js'
+import { getProjectManagementPersonnel } from '../../../mock/data.js'
 import DispatchDraggablePanel from './DispatchDraggablePanel.vue'
 import DispatchRecordDetailBody from './DispatchRecordDetailBody.vue'
 import DispatchHqPanelTitle from './DispatchHqPanelTitle.vue'
@@ -12,15 +13,52 @@ const props = defineProps({
   projectId: { type: String, required: true },
 })
 
-const dangerListPreview = DANGER_WORK_LIST.slice(0, 12)
-const dangerListFull = DANGER_WORK_LIST
-
 const dangerMoreOpen = ref(false)
 const detailView = ref(null)
+const dangerKeyword = ref('')
+const dangerStatusFilter = ref('全部')
+
+const dangerBundle = computed(() => getDispatchDangerWorkToday(props.projectId))
+const dangerListFull = computed(() => dangerBundle.value.list || [])
+const dangerReportDate = computed(() => dangerBundle.value.reportDate || '')
+const dangerUsingFallback = computed(() => Boolean(dangerBundle.value.usingFallbackDate))
+
+const dangerStatusOptions = [
+  { label: '全部', value: '全部' },
+  { label: '未开始', value: '未开始' },
+  { label: '进行中', value: '进行中' },
+  { label: '已结束', value: '已结束' },
+]
+
+const filteredDangerList = computed(() => {
+  const kw = dangerKeyword.value.trim().toLowerCase()
+  return dangerListFull.value.filter((row) => {
+    if (dangerStatusFilter.value !== '全部' && row.status !== dangerStatusFilter.value) return false
+    if (!kw) return true
+    const blob = [
+      row.date,
+      row.projectName,
+      row.projectShortName,
+      row.contractor,
+      row.type,
+      row.subType,
+      row.location,
+      row.time,
+      row.status,
+      row.measures,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+    return blob.includes(kw)
+  })
+})
+
+const dangerListPreview = computed(() => dangerListFull.value.slice(0, 12))
 
 const managementList = computed(() => getProjectManagementPersonnel(props.projectId))
 
-const workStatusMap = { 待开工: 'pending', 作业中: 'doing', 已完成: 'closed' }
+const workStatusMap = { 未开始: 'pending', 进行中: 'doing', 已结束: 'closed' }
 
 const detailTitle = computed(() => {
   if (!detailView.value) return ''
@@ -34,6 +72,12 @@ function openDangerDetail(row) {
 function closeDetail() {
   detailView.value = null
 }
+
+function openDangerMore() {
+  dangerKeyword.value = ''
+  dangerStatusFilter.value = '全部'
+  dangerMoreOpen.value = true
+}
 </script>
 
 <template>
@@ -41,19 +85,32 @@ function closeDetail() {
     <div class="panel-card detail-panel list-panel danger-panel" :class="{ 'dispatch-hq-list-panel': dispatchHqUi }">
       <DispatchHqPanelTitle v-if="dispatchHqUi" title="危险作业清单">
         <template #actions>
-          <button type="button" class="title-more-btn" @click="dangerMoreOpen = true">更多</button>
+          <span v-if="dangerReportDate" class="danger-date-tag" :title="dangerUsingFallback ? '无系统当日数据，按最近填报施工日期展示' : '按系统当日施工日期展示'">
+            {{ dangerUsingFallback ? '最近填报' : '施工日期' }} {{ dangerReportDate }}
+          </span>
+          <button type="button" class="title-more-btn" @click="openDangerMore">更多</button>
         </template>
       </DispatchHqPanelTitle>
       <div v-else class="panel-title compact danger-title-row title-left">
         <span class="danger-title-text">危险作业清单</span>
-        <button type="button" class="title-more-btn" @click="dangerMoreOpen = true">
+        <span v-if="dangerReportDate" class="danger-date-tag" :title="dangerUsingFallback ? '无系统当日数据，按最近填报施工日期展示' : '按系统当日施工日期展示'">
+          {{ dangerUsingFallback ? '最近填报' : '施工日期' }} {{ dangerReportDate }}
+        </span>
+        <button type="button" class="title-more-btn" @click="openDangerMore">
           更多
         </button>
       </div>
       <div class="panel-body list-table-body list-wrap">
         <div class="table-scroll">
           <table class="mini-table">
-            <thead><tr><th>类型</th><th>施工区域</th><th>状态</th></tr></thead>
+            <thead>
+              <tr>
+                <th>类型</th>
+                <th>施工区域</th>
+                <th>时段</th>
+                <th>状态</th>
+              </tr>
+            </thead>
             <tbody>
               <tr
                 v-for="row in dangerListPreview"
@@ -62,8 +119,16 @@ function closeDetail() {
                 @click="openDangerDetail(row)"
               >
                 <td>{{ row.type }}</td>
-                <td class="desc" :title="row.location">{{ row.location }}</td>
-                <td><span class="status-tag" :class="workStatusMap[row.status]">{{ row.status }}</span></td>
+                <td class="desc" :title="row.location">{{ row.location || '--' }}</td>
+                <td class="desc" :title="row.time">{{ row.time || '--' }}</td>
+                <td>
+                  <span class="status-tag" :class="workStatusMap[row.status] || 'pending'">
+                    {{ row.status }}
+                  </span>
+                </td>
+              </tr>
+              <tr v-if="!dangerListPreview.length">
+                <td colspan="4" class="empty-row">当日暂无危险作业</td>
               </tr>
             </tbody>
           </table>
@@ -90,7 +155,7 @@ function closeDetail() {
                 <th>姓名</th>
                 <th>岗位</th>
                 <th>单位</th>
-                <th>在岗</th>
+                <th>在场状态</th>
               </tr>
             </thead>
             <tbody>
@@ -100,7 +165,7 @@ function closeDetail() {
                 <td class="desc" :title="row.unit">{{ row.unit }}</td>
                 <td>
                   <span class="status-tag" :class="row.onSite ? 'closed' : 'pending'">
-                    {{ row.onSite ? '在岗' : '离岗' }}
+                    {{ row.onSiteStatus }}
                   </span>
                 </td>
               </tr>
@@ -124,8 +189,33 @@ function closeDetail() {
       @close="dangerMoreOpen = false"
     >
       <div class="more-dialog-toolbar">
-        <span class="more-count">共 {{ dangerListFull.length }} 条</span>
+        <span class="more-count">
+          共 {{ filteredDangerList.length }} 条
+          <template v-if="dangerReportDate">
+            · {{ dangerUsingFallback ? '最近填报日' : '施工日期' }} {{ dangerReportDate }}
+          </template>
+        </span>
+        <div class="more-filters">
+          <el-input
+            v-model="dangerKeyword"
+            clearable
+            size="small"
+            class="more-search"
+            placeholder="搜索项目/单位/类型/区域/内容"
+          />
+          <el-select v-model="dangerStatusFilter" size="small" class="more-status-select">
+            <el-option
+              v-for="opt in dangerStatusOptions"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+            />
+          </el-select>
+        </div>
       </div>
+      <p v-if="dangerUsingFallback" class="more-tip">
+        系统当日（{{ dangerBundle.calendarToday }}）暂无填报数据，当前按最近施工填报日展示。
+      </p>
       <div class="more-table-wrap">
         <table class="mini-table more-table">
           <thead>
@@ -136,25 +226,34 @@ function closeDetail() {
               <th>作业类型</th>
               <th>当日施工内容</th>
               <th>施工区域</th>
+              <th>时段</th>
               <th>状态</th>
             </tr>
           </thead>
           <tbody>
             <tr
-              v-for="row in dangerListFull"
+              v-for="row in filteredDangerList"
               :key="`more-${row.id}`"
               class="clickable-row"
               @click="openDangerDetail(row)"
             >
-              <td>{{ row.date }}</td>
+              <td>{{ row.date || '--' }}</td>
               <td class="desc col-desc" :title="row.projectName || row.projectShortName">
-                {{ row.projectShortName || row.projectName || '—' }}
+                {{ row.projectShortName || row.projectName || '--' }}
               </td>
-              <td class="desc col-desc" :title="row.contractor">{{ row.contractor || '—' }}</td>
-              <td>{{ row.type }}</td>
-              <td class="desc col-desc" :title="row.subType">{{ row.subType }}</td>
-              <td class="desc col-desc" :title="row.location">{{ row.location }}</td>
-              <td><span class="status-tag" :class="workStatusMap[row.status]">{{ row.status }}</span></td>
+              <td class="desc col-desc" :title="row.contractor">{{ row.contractor || '--' }}</td>
+              <td>{{ row.type || '--' }}</td>
+              <td class="desc col-desc" :title="row.subType">{{ row.subType || '--' }}</td>
+              <td class="desc col-desc" :title="row.location">{{ row.location || '--' }}</td>
+              <td>{{ row.time || '--' }}</td>
+              <td>
+                <span class="status-tag" :class="workStatusMap[row.status] || 'pending'">
+                  {{ row.status }}
+                </span>
+              </td>
+            </tr>
+            <tr v-if="!filteredDangerList.length">
+              <td colspan="8" class="empty-row">暂无符合条件的危险作业</td>
             </tr>
           </tbody>
         </table>
@@ -178,70 +277,64 @@ function closeDetail() {
 <style scoped>
 @import './dispatch-lower.css';
 
+.danger-panel .panel-title {
+  border-left: 4px solid #e6a23c;
+}
+
+.mgmt-panel .panel-title {
+  border-left: 4px solid #409eff;
+}
+
 .danger-title-row,
 .mgmt-title-row {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
   gap: 8px;
 }
 
 .danger-title-text,
 .mgmt-title-text {
   flex-shrink: 0;
-  text-align: left;
 }
 
-.danger-title-row .title-more-btn,
-.mgmt-title-row .mgmt-count {
-  margin-left: auto;
-}
-
+.danger-date-tag,
 .mgmt-count {
+  margin-left: auto;
   font-size: calc(12px + var(--coc-font-boost));
   color: var(--coc-text-muted);
   font-weight: 500;
+  white-space: nowrap;
+}
+
+.danger-date-tag {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .title-more-btn {
-  border: 1px solid var(--coc-border);
-  border-radius: 6px;
-  background: #fff;
-  padding: 4px 12px;
+  margin-left: 0;
+}
+
+.more-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.more-search {
+  width: 220px;
+}
+
+.more-status-select {
+  width: 110px;
+}
+
+.more-tip {
+  margin: 0 0 8px;
   font-size: calc(12px + var(--coc-font-boost));
-  font-weight: 600;
-  color: var(--coc-accent);
-  cursor: pointer;
-  white-space: nowrap;
-  line-height: 1.4;
-}
-
-.title-more-btn:hover {
-  border-color: var(--coc-accent);
-  background: rgba(201, 123, 99, 0.08);
-}
-
-.empty-row {
-  text-align: center;
   color: var(--coc-text-muted);
-  font-size: calc(13px + var(--coc-font-boost));
-  padding: 16px 8px !important;
-}
-
-.danger-panel .panel-title { border-left: 4px solid #f56c6c; }
-.mgmt-panel .panel-title { border-left: 4px solid #67c23a; }
-
-.dispatch-hq-list-panel .panel-title {
-  border-left: none;
-}
-
-.status-tag.cancelled { background: rgba(144, 147, 153, 0.12); color: #909399; }
-
-.project-dispatch-lower :deep(.table-scroll .desc) {
-  max-width: none;
-}
-
-.project-dispatch-lower :deep(.risk-panel) {
-  min-height: 0;
+  line-height: 1.4;
 }
 </style>

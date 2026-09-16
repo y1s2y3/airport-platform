@@ -17,6 +17,16 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.9.1.8',
+    date: '2026-09-16',
+    highlights: [
+      '施工现场：新增风险管理（风险点管控配置库 + 风险点管控）',
+      '附件上传：统一档位组件（图片/文件/影像），多模块填报对齐系统附件清单',
+      'COC：会议签到台账；隐患统计/分析与大屏展示优化',
+      '质量验评 / 材料进场 / 个人中心：表单与办理面板持续对齐',
+    ],
+  },
+  {
     version: 'v2.9.1.7',
     date: '2026-09-10',
     highlights: [

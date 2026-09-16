@@ -1,5 +1,10 @@
 import JSZip from 'jszip'
 import { formatBatchNo } from '../mock/mat.js'
+import { attachDisplayText } from '../constants/attachmentUpload.js'
+
+function attachText(value) {
+  return attachDisplayText(value)
+}
 
 const W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
 const TEMPLATE_URL = `${import.meta.env.BASE_URL}templates/材料设备归档模板.docx`
@@ -134,10 +139,10 @@ export function buildArchiveLineItems(detail) {
       appearance_quality: row.appearance_quality || '',
       acceptance_result: row.acceptance_result || '',
       entry_date: row.entry_date || header.submit_time || '',
-      cert_file: row.cert_file || (idx === 0 ? header.cert_file : '') || '',
-      inspect_file: row.inspect_file || (idx === 0 ? header.inspect_file : '') || '',
-      photo_file: row.photo_file || (idx === 0 ? header.photo_file : '') || '',
-      other_file: row.other_file || (idx === 0 ? header.other_file : '') || '',
+      cert_file: attachText(row.cert_file) || attachText(idx === 0 ? header.cert_file : '') || '',
+      inspect_file: attachText(row.inspect_file) || attachText(idx === 0 ? header.inspect_file : '') || '',
+      photo_file: attachText(row.photo_file) || attachText(idx === 0 ? header.photo_file : '') || '',
+      other_file: attachText(row.other_file) || attachText(idx === 0 ? header.other_file : '') || '',
       unpack_items:
         row.unpack_items?.length
           ? row.unpack_items
@@ -175,10 +180,10 @@ export function buildArchiveLineItems(detail) {
     appearance_quality: row.appearance_quality || '',
     acceptance_result: row.acceptance_result || '',
     entry_date: row.entry_date || header.submit_time || '',
-    cert_file: row.cert_file || (idx === 0 ? header.cert_file : '') || '',
-    inspect_file: row.inspect_file || (idx === 0 ? header.inspect_file : '') || '',
-    photo_file: row.photo_file || (idx === 0 ? header.photo_file : '') || '',
-    other_file: row.other_file || (idx === 0 ? header.other_file : '') || '',
+    cert_file: attachText(row.cert_file) || attachText(idx === 0 ? header.cert_file : '') || '',
+    inspect_file: attachText(row.inspect_file) || attachText(idx === 0 ? header.inspect_file : '') || '',
+    photo_file: attachText(row.photo_file) || attachText(idx === 0 ? header.photo_file : '') || '',
+    other_file: attachText(row.other_file) || attachText(idx === 0 ? header.other_file : '') || '',
     unpack_items: [],
   }))
 }

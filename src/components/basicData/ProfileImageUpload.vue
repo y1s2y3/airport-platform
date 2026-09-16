@@ -1,6 +1,8 @@
 <script setup>
 import { computed } from 'vue'
+import { ElMessage } from 'element-plus'
 import { isUploadedImage } from '../../mock/profileImageDemo'
+import { ATTACH_PRESETS, validateAttachFile } from '../../constants/attachmentUpload.js'
 
 const props = defineProps({
   modelValue: {
@@ -46,7 +48,11 @@ const previewSrc = computed(() => {
 })
 
 function beforeUpload(file) {
-  if (!file.type.startsWith('image/')) return false
+  const err = validateAttachFile(file, 'image', { currentCount: 0, max: 1 })
+  if (err) {
+    ElMessage.warning(err)
+    return false
+  }
   const reader = new FileReader()
   reader.onload = () => {
     emit('update:modelValue', String(reader.result || ''))
@@ -86,7 +92,7 @@ function clearImage() {
     </div>
     <div class="upload-side">
       <div class="upload-actions">
-        <el-upload :show-file-list="false" accept="image/*" :before-upload="beforeUpload">
+        <el-upload :show-file-list="false" :accept="ATTACH_PRESETS.image.accept" :before-upload="beforeUpload">
           <el-button
             v-if="sideActions"
             size="small"

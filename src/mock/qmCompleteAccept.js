@@ -13,7 +13,7 @@ import {
   TASK_STATUS,
   wbsNodes,
 } from './qmInspect.js'
-import { addAttachment, ensureTaskItems, getAttachments, syncNodeAccept } from './qmInspectOps.js'
+import { addAttachment, ensureTaskItems, getAttachments, isCompleteGateReady, syncNodeAccept } from './qmInspectOps.js'
 import { getEffectiveSpecialties } from '../constants/wbsSpecialty.js'
 
 function statusLabelOfNode(accept_status) {
@@ -94,7 +94,7 @@ export function buildCompleteGate(project_id) {
   const specialTotal = specialRows.length
   const specialDone = specialTotal > 0 && specialPassed === specialTotal
 
-  const canStart = physicalDone && specialDone
+  const canStart = isCompleteGateReady(project_id)
   let blockReason = ''
   if (!physicalDone) {
     blockReason =

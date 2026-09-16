@@ -1,7 +1,8 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import * as echarts from 'echarts'
-import { getProjectHazardStats } from '../mock/data.js'
+import { getProjectHazardStats } from '../mock/hazardStats.js'
+import HazardSourceDetailDialog from './HazardSourceDetailDialog.vue'
 
 const props = defineProps({
   projectId: { type: String, required: true },
@@ -12,7 +13,16 @@ const levelChartRef = ref(null)
 let statusChart = null
 let levelChart = null
 
+const sourceDialogOpen = ref(false)
+const sourceChannel = ref('')
+
 const stats = computed(() => getProjectHazardStats(props.projectId))
+
+function openSourceDetail(item) {
+  if (!item || item.key === 'total') return
+  sourceChannel.value = item.key
+  sourceDialogOpen.value = true
+}
 
 function buildRingOption({ data, centerLabel, centerSub }) {
   const seriesData = data.map((d) => ({
@@ -138,20 +148,30 @@ onUnmounted(() => {
 <template>
   <div class="panel-card project-hazard-stats">
     <div class="stats-top">
-      <div class="kpi-card kpi-card--pending">
-        <div class="kpi-label">待整改隐患</div>
-        <div class="kpi-value kpi-value--pending">{{ stats.pendingTotal }}</div>
-      </div>
       <div
-        v-for="item in stats.channels"
+        v-for="item in stats.sourceCards"
         :key="item.key"
         class="kpi-card"
+        :class="{
+          'kpi-card--total': item.key === 'total',
+          'kpi-card--clickable': item.key !== 'total',
+        }"
+        role="button"
+        :tabindex="item.key === 'total' ? -1 : 0"
+        @click="item.key !== 'total' && openSourceDetail(item)"
+        @keydown.enter="item.key !== 'total' && openSourceDetail(item)"
       >
         <div class="kpi-label">
-          <span class="channel-dot" :style="{ background: item.color }" />
+          <span
+            v-if="item.key !== 'total'"
+            class="channel-dot"
+            :style="{ background: item.color }"
+          />
           {{ item.label }}
         </div>
-        <div class="kpi-value">{{ item.value }}</div>
+        <div class="kpi-value" :class="{ 'kpi-value--total': item.key === 'total' }">
+          {{ item.value }}
+        </div>
       </div>
     </div>
 
@@ -179,6 +199,12 @@ onUnmounted(() => {
         </ul>
       </div>
     </div>
+
+    <HazardSourceDetailDialog
+      v-model="sourceDialogOpen"
+      :channel="sourceChannel"
+      :project-id="projectId"
+    />
   </div>
 </template>
 
@@ -195,7 +221,7 @@ onUnmounted(() => {
 
 .stats-top {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   flex-shrink: 0;
 }
@@ -214,9 +240,19 @@ onUnmounted(() => {
   text-align: center;
 }
 
-.kpi-card--pending {
-  background: rgba(245, 108, 108, 0.12);
-  border-color: rgba(245, 108, 108, 0.28);
+.kpi-card--total {
+  background: rgba(20, 152, 246, 0.12);
+  border-color: rgba(20, 152, 246, 0.28);
+}
+
+.kpi-card--clickable {
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.kpi-card--clickable:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .kpi-label {
@@ -228,9 +264,10 @@ onUnmounted(() => {
   font-size: calc(11px + var(--coc-font-boost));
   color: var(--coc-text-secondary, #909399);
   font-weight: 600;
-  white-space: nowrap;
+  white-space: normal;
+  line-height: 1.25;
+  text-align: center;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .kpi-value {
@@ -240,8 +277,8 @@ onUnmounted(() => {
   color: var(--coc-text, #303133);
 }
 
-.kpi-value--pending {
-  color: #f56c6c;
+.kpi-value--total {
+  color: #1498f6;
 }
 
 .channel-dot {

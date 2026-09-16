@@ -140,8 +140,14 @@ export const menuTree = [
         children: [
           { key: 'major-hazard-daily-work', label: '每日施工作业', path: '/major-hazard/daily-work', name: 'MajorHazardDailyWork', component: 'DailyWorkView', levels: 'both' },
           { key: 'major-hazard-list', label: '危大工程清单', path: '/major-hazard/hazard-list', name: 'MajorHazardList', component: 'HazardListView', levels: 'both' },
-          { key: 'risk-manage', label: '风险管理', path: '/site-construction/risk-manage', name: 'RiskManagePlaceholder', component: 'RiskManagePlaceholderView', levels: 'project' },
           { key: 'engineering-work', label: '工程作业管理', path: '/site-construction/engineering-work', name: 'EngineeringWorkPlaceholder', component: 'EngineeringWorkPlaceholderView', levels: 'project' },
+        ],
+      },
+      {
+        key: 'risk-manage-group', label: '风险管理', levels: 'project',
+        children: [
+          { key: 'risk-point-control', label: '风险点管控', path: '/site-construction/risk-point-control', name: 'RiskPointControl', component: 'RiskPointControlView', levels: 'project' },
+          { key: 'risk-point-config', label: '风险点管控配置库', path: '/site-construction/risk-point-config', name: 'RiskPointConfig', component: 'RiskPointConfigView', levels: 'project' },
         ],
       },
       {
@@ -242,6 +248,7 @@ export const menuTree = [
       { key: 'coc-admin-patrol-device', label: '巡检仪管理', path: '/coc-admin/patrol-device', name: 'CocAdminPatrolDevice', component: 'PatrolDeviceManageView', routeComponent: 'CocAdminPageView', levels: 'both', roles: ['COC调度室'], description: '管理巡检仪设备注册、绑定项目及人员。' },
       { key: 'coc-admin-supervision-meeting', label: '监理会议管理', path: '/coc-admin/supervision-meeting', name: 'CocAdminSupervisionMeeting', component: 'SupervisionMeetingMinutesView', routeComponent: 'CocAdminPageView', levels: 'both', roles: ['COC调度室', '监理', '施工'], description: '项目层级按模版上传监理例会纪要并解析隐患。' },
       { key: 'coc-admin-dispatch-hazard', label: '调度隐患清单', path: '/coc-admin/dispatch-hazard', name: 'CocAdminDispatchHazard', component: 'DispatchHazardListView', routeComponent: 'CocAdminPageView', levels: 'both', roles: ['COC调度室', '安质部', '项目经理', '施工'], description: '汇集 COC 调度大屏问题截图登记的安全/质量隐患台账。' },
+      { key: 'coc-admin-meeting-signin', label: '会议记录', path: '/coc-admin/meeting-signin', name: 'CocAdminMeetingSignIn', component: 'AdminMeetingSignInList', routeComponent: 'CocAdminPageView', levels: 'hq', roles: ['COC调度室'], description: '指挥部会议签到台账：会议时间、本次调度项目及各项目参会结束时的已参会人员清单。' },
     ],
   },
 
@@ -311,6 +318,10 @@ export const hiddenRoutes = [
   { key: 'mobile-rectify-approval', path: '/mobile/rectify/:id/approval', name: 'MobileRectifyApproval', component: 'MobileRectifyApprovalView', label: '项目经理审批', sidebarKey: 'mobile-message-center' },
   { key: 'mobile-rectify-detail', path: '/mobile/rectify/:id', name: 'MobileRectifyDetail', component: 'MobileRectifyDetailView', label: '整改详情', sidebarKey: 'mobile-rectify' },
 
+  // 风险管理子页
+  { key: 'risk-point-control-create', path: '/site-construction/risk-point-control/create', name: 'RiskPointControlCreate', component: 'RiskPointControlFormView', label: '新增风险辨识', sidebarKey: 'risk-point-control' },
+  { key: 'risk-point-control-edit', path: '/site-construction/risk-point-control/:id/edit', name: 'RiskPointControlEdit', component: 'RiskPointControlFormView', label: '编辑风险辨识', sidebarKey: 'risk-point-control' },
+
   // 机械设备子页
   { key: 'alert-config-add', path: '/machine-supervise/alert-config/add', name: 'AlertConfigAdd', component: 'AlertConfigFormView', label: '新增预警配置', sidebarKey: 'alert-config' },
   { key: 'ai-unsafe-behavior-detail', path: '/ai-app/unsafe-behavior/:id', name: 'AiUnsafeBehaviorDetail', component: 'AiAlertDetailView', label: '预警查看', sidebarKey: 'ai-unsafe-behavior' },
@@ -363,7 +374,7 @@ export const hiddenRoutes = [
 
   // 调度后台隐藏子页（路由保留，不在侧栏）
   { key: 'coc-admin-screenshot', path: '/coc-admin/screenshot', name: 'CocAdminScreenshot', component: 'AdminScreenshotList', routeComponent: 'CocAdminPageView', label: '问题截图', roles: ['COC调度室'], description: '保存问题截图及相关字段。' },
-  { key: 'coc-admin-meeting', path: '/coc-admin/meeting', name: 'CocAdminMeeting', component: 'AdminDispatchMeetingList', routeComponent: 'CocAdminPageView', label: '会议记录', roles: ['安质部', '项目经理', '施工'], description: '记录调度会议/监理例会纪要。' },
+  { key: 'coc-admin-meeting', path: '/coc-admin/meeting', name: 'CocAdminMeeting', component: 'AdminDispatchMeetingList', routeComponent: 'CocAdminPageView', label: '会议纪要（演示）', roles: ['安质部', '项目经理', '施工'], description: '演示用调度会议纪要/录音资料，与签到台账「会议记录」分离。' },
   { key: 'coc-admin-smart-helmet', path: '/coc-admin/smart-helmet', name: 'CocAdminSmartHelmet', component: 'SmartHelmetManageView', routeComponent: 'CocAdminPageView', label: '智能安全帽管理', roles: ['COC调度室'], description: '管理智能安全帽设备台账。' },
 
   // 组织管理子页
@@ -406,6 +417,7 @@ export const redirects = [
   { path: '/basic-data/sub-item', redirect: '/basic-data/entity-breakdown' },
   { path: '/basic-data/construction-location', redirect: '/basic-data/entity-breakdown' },
   { path: '/site-construction/work-declare', redirect: '/major-hazard/daily-work' },
+  { path: '/site-construction/risk-manage', redirect: '/site-construction/risk-point-control' },
   { path: '/safety-inspection/risk', redirect: '/safety-inspection/task' },
   { path: '/safety-inspection/risk/create', redirect: '/safety-inspection/task' },
   { path: '/safety-inspection/risk/type-config', redirect: '/safety-inspection/task' },
@@ -526,7 +538,9 @@ export const viewLoaders = {
   MachineryLedgerDetailView: () => import('../views/safety/MachineryLedgerDetailView.vue'),
   DailyWorkView: () => import('../views/majorHazard/DailyWorkView.vue'),
   HazardListView: () => import('../views/majorHazard/HazardListView.vue'),
-  RiskManagePlaceholderView: () => import('../views/siteConstruction/RiskManagePlaceholderView.vue'),
+  RiskPointControlView: () => import('../views/siteConstruction/RiskPointControlView.vue'),
+  RiskPointControlFormView: () => import('../views/siteConstruction/RiskPointControlFormView.vue'),
+  RiskPointConfigView: () => import('../views/siteConstruction/RiskPointConfigView.vue'),
   EngineeringWorkPlaceholderView: () => import('../views/siteConstruction/EngineeringWorkPlaceholderView.vue'),
   DeepFoundationPitView: () => import('../views/majorHazard/DeepFoundationPitView.vue'),
   SubwayProtectionView: () => import('../views/majorHazard/SubwayProtectionView.vue'),
@@ -554,6 +568,7 @@ export const viewLoaders = {
   AdminDispatchReminderList: () => import('../coc/admin/AdminDispatchReminderList.vue'),
   AdminDispatchPenaltyList: () => import('../coc/admin/AdminDispatchPenaltyList.vue'),
   AdminDispatchMeetingList: () => import('../coc/admin/AdminDispatchMeetingList.vue'),
+  AdminMeetingSignInList: () => import('../coc/admin/AdminMeetingSignInList.vue'),
   AdminDispatchRedBlackList: () => import('../coc/admin/AdminDispatchRedBlackList.vue'),
   PatrolDeviceManageView: () => import('../views/cocAdmin/PatrolDeviceManageView.vue'),
   SmartHelmetManageView: () => import('../views/cocAdmin/SmartHelmetManageView.vue'),

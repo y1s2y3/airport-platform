@@ -1,11 +1,13 @@
 ﻿<script setup>
 /**
- * APP · 进场申报（合格证/现场照片仅图片：拍照或相册）
+ * APP · 进场申报（附件口径与 Web 一致：图片 1～9 / 文件 1～9）
  * 材料/设备明细：多组，字段与 Web 进场申报对齐
  */
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import AttachmentUpload from '../../components/common/AttachmentUpload.vue'
+import { asAttachList, attachRequiredOk } from '../../constants/attachmentUpload.js'
 import { useQmProjectScope } from '../../composables/useCurrentProject'
 import {
   ENTRY_TYPE_LABEL,
@@ -42,23 +44,15 @@ const form = reactive({
   quantity: '',
   unit: entryType.value === 'equipment' ? '台' : '件',
   serial_no: '',
-  cert_file: '',
-  inspect_file: '',
-  photo_file: '',
-  other_file: '',
+  cert_file: [],
+  inspect_file: [],
+  photo_file: [],
+  other_file: [],
   /** 设备进场（移动端单组）送检；材料进场写在各明细行 */
   inspect_result_checked: false,
-  inspect_result_file: '',
+  inspect_result_file: [],
   supervisor_approver_user_id: '',
   supervisor_approver_name: '',
-})
-
-const photoPreview = reactive({
-  cert_file: '',
-  inspect_file: '',
-  photo_file: '',
-  other_file: '',
-  inspect_result_file: '',
 })
 
 const unpackItems = ref(createDefaultUnpackItems())
@@ -96,17 +90,12 @@ function emptyLine() {
     appearance_quality: '合格',
     acceptance_result: '合格',
     entry_date: nowEntryDate(),
-    cert_file: '',
-    inspect_file: '',
-    photo_file: '',
-    other_file: '',
-    cert_preview: '',
-    inspect_preview: '',
-    photo_preview: '',
-    other_preview: '',
+    cert_file: [],
+    inspect_file: [],
+    photo_file: [],
+    other_file: [],
     inspect_result_checked: false,
-    inspect_result_file: '',
-    inspect_result_preview: '',
+    inspect_result_file: [],
   }
 }
 
@@ -127,17 +116,12 @@ function emptyEquipmentLine() {
     appearance_quality: '合格',
     acceptance_result: '合格',
     entry_date: nowEntryDate(),
-    cert_file: '',
-    inspect_file: '',
-    photo_file: '',
-    other_file: '',
-    cert_preview: '',
-    inspect_preview: '',
-    photo_preview: '',
-    other_preview: '',
+    cert_file: [],
+    inspect_file: [],
+    photo_file: [],
+    other_file: [],
     inspect_result_checked: false,
-    inspect_result_file: '',
-    inspect_result_preview: '',
+    inspect_result_file: [],
     unpack_items: createDefaultUnpackItems(),
   }
 }
@@ -156,12 +140,12 @@ function mapEquipmentLineFromData(l, data) {
   row.appearance_quality = l.appearance_quality || '合格'
   row.acceptance_result = l.acceptance_result || '合格'
   row.entry_date = l.entry_date || nowEntryDate()
-  row.cert_file = l.cert_file || ''
-  row.inspect_file = l.inspect_file || ''
-  row.photo_file = l.photo_file || ''
-  row.other_file = l.other_file || ''
+  row.cert_file = asAttachList(l.cert_file)
+  row.inspect_file = asAttachList(l.inspect_file)
+  row.photo_file = asAttachList(l.photo_file)
+  row.other_file = asAttachList(l.other_file)
   row.inspect_result_checked = !!l.inspect_result_checked
-  row.inspect_result_file = l.inspect_result_file || ''
+  row.inspect_result_file = asAttachList(l.inspect_result_file)
   if (Array.isArray(l.unpack_items) && l.unpack_items.length) {
     row.unpack_items = l.unpack_items.map((i) => ({ ...i }))
   }
@@ -187,12 +171,12 @@ function mapLineFromData(l, data) {
   row.appearance_quality = l.appearance_quality || '合格'
   row.acceptance_result = l.acceptance_result || '合格'
   row.entry_date = l.entry_date || nowEntryDate()
-  row.cert_file = l.cert_file || data.cert_file || ''
-  row.inspect_file = l.inspect_file || data.inspect_file || ''
-  row.photo_file = l.photo_file || data.photo_file || ''
-  row.other_file = l.other_file || data.other_file || ''
+  row.cert_file = asAttachList(l.cert_file || data.cert_file)
+  row.inspect_file = asAttachList(l.inspect_file || data.inspect_file)
+  row.photo_file = asAttachList(l.photo_file || data.photo_file)
+  row.other_file = asAttachList(l.other_file || data.other_file)
   row.inspect_result_checked = !!(l.inspect_result_checked ?? data.inspect_result_checked)
-  row.inspect_result_file = l.inspect_result_file || data.inspect_result_file || ''
+  row.inspect_result_file = asAttachList(l.inspect_result_file || data.inspect_result_file)
   return row
 }
 
@@ -247,12 +231,6 @@ function removeEntryLine(idx) {
     entryLines.value[0] = emptyLine()
     return
   }
-  const removed = entryLines.value[idx]
-  ;['cert_preview', 'inspect_preview', 'photo_preview', 'other_preview', 'inspect_result_preview'].forEach(
-    (k) => {
-      if (removed?.[k]) URL.revokeObjectURL(removed[k])
-    },
-  )
   entryLines.value.splice(idx, 1)
 }
 
@@ -265,12 +243,6 @@ function removeEquipmentLine(idx) {
     equipmentLines.value[0] = emptyEquipmentLine()
     return
   }
-  const removed = equipmentLines.value[idx]
-  ;['cert_preview', 'inspect_preview', 'photo_preview', 'other_preview', 'inspect_result_preview'].forEach(
-    (k) => {
-      if (removed?.[k]) URL.revokeObjectURL(removed[k])
-    },
-  )
   equipmentLines.value.splice(idx, 1)
 }
 
@@ -435,170 +407,6 @@ watch(
   },
 )
 
-function pickImageFile({ capture = false } = {}) {
-  return new Promise((resolve) => {
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = 'image/jpeg,image/png,.jpg,.jpeg,.png'
-    if (capture) input.capture = 'environment'
-    input.onchange = (e) => {
-      const file = e.target.files?.[0]
-      resolve(file || null)
-    }
-    input.click()
-  })
-}
-
-function pickAcceptFile(accept) {
-  return new Promise((resolve) => {
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = accept
-    input.onchange = (e) => {
-      const file = e.target.files?.[0]
-      resolve(file || null)
-    }
-    input.click()
-  })
-}
-
-function isImageUploadFile(file) {
-  const name = String(file?.name || '').toLowerCase()
-  const byExt = /\.(jpe?g|png)$/i.test(name)
-  const type = String(file?.type || '')
-  return byExt || type === 'image/jpeg' || type === 'image/png'
-}
-
-function isPdfUploadFile(file) {
-  const name = String(file?.name || '').toLowerCase()
-  const type = String(file?.type || '')
-  return /\.pdf$/i.test(name) || type === 'application/pdf'
-}
-
-function isOtherUploadFile(file) {
-  const name = String(file?.name || '').toLowerCase()
-  const type = String(file?.type || '')
-  if (/\.(jpe?g|png|pdf|docx?)$/i.test(name)) return true
-  return (
-    type === 'image/jpeg' ||
-    type === 'image/png' ||
-    type === 'application/pdf' ||
-    type === 'application/msword' ||
-    type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-  )
-}
-
-async function takePhoto(field, label) {
-  const file = await pickImageFile({ capture: true })
-  if (!file) return
-  if (!isImageUploadFile(file)) {
-    return ElMessage.warning(`${label}仅支持图片（jpg / png）`)
-  }
-  const name = `拍照-${label}-${Date.now()}.jpg`
-  form[field] = name
-  photoPreview[field] = URL.createObjectURL(file)
-  ElMessage.success(`已拍照：${label}`)
-}
-
-async function pickAlbumPhoto(field, label) {
-  const file = await pickImageFile({ capture: false })
-  if (!file) return
-  if (!isImageUploadFile(file)) {
-    return ElMessage.warning(`${label}仅支持图片（jpg / png）`)
-  }
-  const name = file.name || `相册-${label}-${Date.now()}.jpg`
-  form[field] = name
-  photoPreview[field] = URL.createObjectURL(file)
-  ElMessage.success(`已选择：${label}`)
-}
-
-async function pickFormDoc(field, label, mode) {
-  const accept =
-    mode === 'pdf'
-      ? '.pdf,application/pdf'
-      : '.jpg,.jpeg,.png,.pdf,.doc,.docx,image/jpeg,image/png,application/pdf'
-  const file = await pickAcceptFile(accept)
-  if (!file) return
-  if (mode === 'pdf' && !isPdfUploadFile(file)) {
-    return ElMessage.warning('质量证明文件仅支持 PDF')
-  }
-  if (mode === 'other' && !isOtherUploadFile(file)) {
-    return ElMessage.warning('其他仅支持 jpg / png / pdf / word')
-  }
-  form[field] = file.name || `${label}-${Date.now()}`
-  if (photoPreview[field]) {
-    URL.revokeObjectURL(photoPreview[field])
-    photoPreview[field] = ''
-  }
-  if (isImageUploadFile(file)) {
-    photoPreview[field] = URL.createObjectURL(file)
-  }
-  ElMessage.success(`已选择：${label}`)
-}
-
-function clearPhoto(field) {
-  form[field] = ''
-  if (photoPreview[field]) {
-    URL.revokeObjectURL(photoPreview[field])
-    photoPreview[field] = ''
-  }
-}
-
-async function takeLinePhoto(row, field, label) {
-  const previewKey = `${field.replace('_file', '')}_preview`
-  const file = await pickImageFile({ capture: true })
-  if (!file) return
-  if (!isImageUploadFile(file)) {
-    return ElMessage.warning(`${label}仅支持图片（jpg / png）`)
-  }
-  if (row[previewKey]) URL.revokeObjectURL(row[previewKey])
-  row[field] = `拍照-${label}-${Date.now()}.jpg`
-  row[previewKey] = URL.createObjectURL(file)
-  ElMessage.success(`已拍照：${label}`)
-}
-
-async function pickLineAlbum(row, field, label) {
-  const previewKey = `${field.replace('_file', '')}_preview`
-  const file = await pickImageFile({ capture: false })
-  if (!file) return
-  if (!isImageUploadFile(file)) {
-    return ElMessage.warning(`${label}仅支持图片（jpg / png）`)
-  }
-  if (row[previewKey]) URL.revokeObjectURL(row[previewKey])
-  row[field] = file.name || `相册-${label}-${Date.now()}.jpg`
-  row[previewKey] = URL.createObjectURL(file)
-  ElMessage.success(`已选择：${label}`)
-}
-
-async function pickLineDoc(row, field, label, mode) {
-  const previewKey = `${field.replace('_file', '')}_preview`
-  const accept =
-    mode === 'pdf'
-      ? '.pdf,application/pdf'
-      : '.jpg,.jpeg,.png,.pdf,.doc,.docx,image/jpeg,image/png,application/pdf'
-  const file = await pickAcceptFile(accept)
-  if (!file) return
-  if (mode === 'pdf' && !isPdfUploadFile(file)) {
-    return ElMessage.warning('质量证明文件仅支持 PDF')
-  }
-  if (mode === 'other' && !isOtherUploadFile(file)) {
-    return ElMessage.warning('其他仅支持 jpg / png / pdf / word')
-  }
-  if (row[previewKey]) URL.revokeObjectURL(row[previewKey])
-  row[field] = file.name || `${label}-${Date.now()}`
-  row[previewKey] = isImageUploadFile(file) ? URL.createObjectURL(file) : ''
-  ElMessage.success(`已选择：${label}`)
-}
-
-function clearLinePhoto(row, field) {
-  const previewKey = `${field.replace('_file', '')}_preview`
-  row[field] = ''
-  if (row[previewKey]) {
-    URL.revokeObjectURL(row[previewKey])
-    row[previewKey] = ''
-  }
-}
-
 function onSubmit() {
   if (isHqSelected.value || !scopeProjectId.value) {
     return ElMessage.warning('请先切换到具体项目')
@@ -652,11 +460,11 @@ function onSubmit() {
       if (!row.entry_date) {
         return ElMessage.warning(`设备明细第 ${i + 1} 组请填写进场日期`)
       }
-      if (!row.cert_file) return ElMessage.warning(`设备明细第 ${i + 1} 组请拍照上传合格证`)
-      if (!row.inspect_file) {
-        return ElMessage.warning(`设备明细第 ${i + 1} 组请上传质量证明文件（PDF）`)
+      if (!attachRequiredOk(row.cert_file)) return ElMessage.warning(`设备明细第 ${i + 1} 组请上传合格证`)
+      if (!attachRequiredOk(row.inspect_file)) {
+        return ElMessage.warning(`设备明细第 ${i + 1} 组请上传质量证明文件`)
       }
-      if (!row.photo_file) return ElMessage.warning(`设备明细第 ${i + 1} 组请拍照上传现场照片`)
+      if (!attachRequiredOk(row.photo_file)) return ElMessage.warning(`设备明细第 ${i + 1} 组请上传现场照片`)
       if (!row.unpack_items?.length) {
         return ElMessage.warning(`设备明细第 ${i + 1} 组请填写开箱清单`)
       }
@@ -678,9 +486,9 @@ function onSubmit() {
         cert_file: row.cert_file,
         inspect_file: row.inspect_file,
         photo_file: row.photo_file,
-        other_file: row.other_file || '',
+        other_file: row.other_file || [],
         inspect_result_checked: !!row.inspect_result_checked,
-        inspect_result_file: row.inspect_result_checked ? row.inspect_result_file || '' : '',
+        inspect_result_file: row.inspect_result_checked ? row.inspect_result_file || [] : [],
         unpack_items: row.unpack_items.map((item) => ({ ...item })),
       })
     }
@@ -696,7 +504,7 @@ function onSubmit() {
       cert_file: first.cert_file,
       inspect_file: first.inspect_file,
       photo_file: first.photo_file,
-      other_file: first.other_file || '',
+      other_file: first.other_file || [],
       unpack_items: first.unpack_items,
       line_items,
     }
@@ -730,11 +538,11 @@ function onSubmit() {
       if (!row.entry_date) {
         return ElMessage.warning(`进场明细第 ${i + 1} 组请填写进场日期`)
       }
-      if (!row.cert_file) return ElMessage.warning(`进场明细第 ${i + 1} 组请拍照上传合格证`)
-      if (!row.inspect_file) {
-        return ElMessage.warning(`进场明细第 ${i + 1} 组请上传质量证明文件（PDF）`)
+      if (!attachRequiredOk(row.cert_file)) return ElMessage.warning(`进场明细第 ${i + 1} 组请上传合格证`)
+      if (!attachRequiredOk(row.inspect_file)) {
+        return ElMessage.warning(`进场明细第 ${i + 1} 组请上传质量证明文件`)
       }
-      if (!row.photo_file) return ElMessage.warning(`进场明细第 ${i + 1} 组请拍照上传现场照片`)
+      if (!attachRequiredOk(row.photo_file)) return ElMessage.warning(`进场明细第 ${i + 1} 组请上传现场照片`)
       line_items.push({
         material_name,
         material_spec,
@@ -752,9 +560,9 @@ function onSubmit() {
         cert_file: row.cert_file,
         inspect_file: row.inspect_file,
         photo_file: row.photo_file,
-        other_file: row.other_file || '',
+        other_file: row.other_file || [],
         inspect_result_checked: !!row.inspect_result_checked,
-        inspect_result_file: row.inspect_result_checked ? row.inspect_result_file || '' : '',
+        inspect_result_file: row.inspect_result_checked ? row.inspect_result_file || [] : [],
       })
     }
     const first = line_items[0]
@@ -767,7 +575,7 @@ function onSubmit() {
       cert_file: first.cert_file,
       inspect_file: first.inspect_file,
       photo_file: first.photo_file,
-      other_file: first.other_file || '',
+      other_file: first.other_file || [],
       line_items,
     }
   }
@@ -797,7 +605,7 @@ function goBack() {
     <div class="form-body">
       <div v-if="isHqSelected" class="tip-banner">请先切换到具体项目后再申报</div>
       <div v-else class="tip-banner muted">
-        {{ scopeProjectLabel }} · 合格证、现场照片仅支持图片（jpg / png）
+        {{ scopeProjectLabel }} · 合格证/现场照片为图片（≤5MB），质量证明为文件（≤50MB），均可 1～9 个
       </div>
 
       <section class="form-section">
@@ -942,62 +750,21 @@ function goBack() {
             <input v-model="row.entry_date" class="form-input" placeholder="YYYY-MM-DD HH:mm:ss" />
           </div>
           <div class="attach-title">附件</div>
-          <div
-            v-for="slot in [
-              { field: 'cert_file', label: '合格证', required: true, preview: 'cert_preview', mode: 'image' },
-              {
-                field: 'inspect_file',
-                label: '质量证明文件',
-                required: true,
-                preview: 'inspect_preview',
-                mode: 'pdf',
-              },
-              { field: 'photo_file', label: '现场照片', required: true, preview: 'photo_preview', mode: 'image' },
-              { field: 'other_file', label: '其他', required: false, preview: 'other_preview', mode: 'other' },
-            ]"
-            :key="slot.field"
-            class="form-row"
-          >
-            <span class="form-label">
-              {{ slot.label }}
-              <span v-if="slot.required" class="required-mark">*</span>
-            </span>
-            <div class="photo-group">
-              <div v-if="row[slot.field]" class="photo-box">
-                <img v-if="row[slot.preview]" :src="row[slot.preview]" alt="" />
-                <span v-else>📄 已上传</span>
-                <button type="button" class="photo-del" @click="clearLinePhoto(row, slot.field)">
-                  ✕
-                </button>
-              </div>
-              <template v-else-if="slot.mode === 'image'">
-                <button
-                  type="button"
-                  class="photo-add"
-                  @click="takeLinePhoto(row, slot.field, slot.label)"
-                >
-                  + 拍照
-                </button>
-                <button
-                  type="button"
-                  class="photo-add"
-                  @click="pickLineAlbum(row, slot.field, slot.label)"
-                >
-                  相册
-                </button>
-              </template>
-              <button
-                v-else
-                type="button"
-                class="photo-add"
-                @click="pickLineDoc(row, slot.field, slot.label, slot.mode)"
-              >
-                {{ slot.mode === 'pdf' ? '+ 选择 PDF' : '+ 选择文件' }}
-              </button>
-            </div>
-            <div v-if="slot.mode === 'image'" class="attach-hint">仅支持图片（jpg / png）</div>
-            <div v-else-if="slot.mode === 'pdf'" class="attach-hint">仅支持 PDF</div>
-            <div v-else class="attach-hint">支持 jpg / png / pdf / word</div>
+          <div class="attach-field">
+            <span class="form-label">合格证<span class="required-mark">*</span></span>
+            <AttachmentUpload v-model="row.cert_file" preset="image" compact :min="1" :max="9" name-prefix="合格证" />
+          </div>
+          <div class="attach-field">
+            <span class="form-label">质量证明文件<span class="required-mark">*</span></span>
+            <AttachmentUpload v-model="row.inspect_file" preset="file" compact :min="1" :max="9" name-prefix="质量证明文件" />
+          </div>
+          <div class="attach-field">
+            <span class="form-label">现场照片<span class="required-mark">*</span></span>
+            <AttachmentUpload v-model="row.photo_file" preset="image" compact :min="1" :max="9" name-prefix="现场照片" />
+          </div>
+          <div class="attach-field">
+            <span class="form-label">其他</span>
+            <AttachmentUpload v-model="row.other_file" preset="file" compact :min="0" :max="9" name-prefix="其他" />
           </div>
           <div class="form-row">
             <span class="form-label">送检</span>
@@ -1006,38 +773,9 @@ function goBack() {
               <span>已完成送检</span>
             </label>
           </div>
-          <div v-if="row.inspect_result_checked" class="form-row">
+          <div v-if="row.inspect_result_checked" class="attach-field">
             <span class="form-label">送检附件</span>
-            <div class="photo-group">
-              <div v-if="row.inspect_result_file" class="photo-box">
-                <img v-if="row.inspect_result_preview" :src="row.inspect_result_preview" alt="" />
-                <span v-else>📄 已上传</span>
-                <button
-                  type="button"
-                  class="photo-del"
-                  @click="clearLinePhoto(row, 'inspect_result_file')"
-                >
-                  ✕
-                </button>
-              </div>
-              <template v-else>
-                <button
-                  type="button"
-                  class="photo-add"
-                  @click="takeLinePhoto(row, 'inspect_result_file', '送检结果')"
-                >
-                  + 拍照
-                </button>
-                <button
-                  type="button"
-                  class="photo-add"
-                  @click="pickLineDoc(row, 'inspect_result_file', '送检结果', 'other')"
-                >
-                  + 文件
-                </button>
-              </template>
-            </div>
-            <div class="attach-hint">选填；支持图片 / PDF</div>
+            <AttachmentUpload v-model="row.inspect_result_file" preset="file" compact :min="0" :max="9" name-prefix="送检附件" />
           </div>
         </div>
         <button type="button" class="add-line-btn" @click="addEntryLine">＋ 新增一组材料</button>
@@ -1106,51 +844,29 @@ function goBack() {
             </label>
           </div>
           <div class="attach-title">附件</div>
-          <div
-            v-for="slot in [
-              { field: 'cert_file', label: '合格证', required: true, preview: 'cert_preview', mode: 'image' },
-              { field: 'inspect_file', label: '质量证明文件', required: true, preview: 'inspect_preview', mode: 'pdf' },
-              { field: 'photo_file', label: '现场照片', required: true, preview: 'photo_preview', mode: 'image' },
-              { field: 'other_file', label: '其他', required: false, preview: 'other_preview', mode: 'other' },
-            ]"
-            :key="slot.field"
-            class="form-row"
-          >
-            <span class="form-label">{{ slot.label }}<span v-if="slot.required" class="required-mark">*</span></span>
-            <div class="photo-group">
-              <div v-if="row[slot.field]" class="photo-box">
-                <img v-if="row[slot.preview]" :src="row[slot.preview]" alt="" />
-                <span v-else>📄 已上传</span>
-                <button type="button" class="photo-del" @click="clearLinePhoto(row, slot.field)">✕</button>
-              </div>
-              <template v-else-if="slot.mode === 'image'">
-                <button type="button" class="photo-add" @click="takeLinePhoto(row, slot.field, slot.label)">+ 拍照</button>
-                <button type="button" class="photo-add" @click="pickLineAlbum(row, slot.field, slot.label)">相册</button>
-              </template>
-              <button v-else type="button" class="photo-add" @click="pickLineDoc(row, slot.field, slot.label, slot.mode)">{{ slot.mode === 'pdf' ? '+ 选择 PDF' : '+ 选择文件' }}</button>
-            </div>
-            <div v-if="slot.mode === 'image'" class="attach-hint">仅支持图片（jpg / png）</div>
-            <div v-else-if="slot.mode === 'pdf'" class="attach-hint">仅支持 PDF</div>
-            <div v-else class="attach-hint">支持 jpg / png / pdf / word</div>
+          <div class="attach-field">
+            <span class="form-label">合格证<span class="required-mark">*</span></span>
+            <AttachmentUpload v-model="row.cert_file" preset="image" compact :min="1" :max="9" name-prefix="合格证" />
+          </div>
+          <div class="attach-field">
+            <span class="form-label">质量证明文件<span class="required-mark">*</span></span>
+            <AttachmentUpload v-model="row.inspect_file" preset="file" compact :min="1" :max="9" name-prefix="质量证明文件" />
+          </div>
+          <div class="attach-field">
+            <span class="form-label">现场照片<span class="required-mark">*</span></span>
+            <AttachmentUpload v-model="row.photo_file" preset="image" compact :min="1" :max="9" name-prefix="现场照片" />
+          </div>
+          <div class="attach-field">
+            <span class="form-label">其他</span>
+            <AttachmentUpload v-model="row.other_file" preset="file" compact :min="0" :max="9" name-prefix="其他" />
           </div>
           <div class="form-row">
             <span class="form-label">送检</span>
             <label class="check-row"><input v-model="row.inspect_result_checked" type="checkbox" /><span>已完成送检</span></label>
           </div>
-          <div v-if="row.inspect_result_checked" class="form-row">
+          <div v-if="row.inspect_result_checked" class="attach-field">
             <span class="form-label">送检附件</span>
-            <div class="photo-group">
-              <div v-if="row.inspect_result_file" class="photo-box">
-                <img v-if="row.inspect_result_preview" :src="row.inspect_result_preview" alt="" />
-                <span v-else>📄 已上传</span>
-                <button type="button" class="photo-del" @click="clearLinePhoto(row, 'inspect_result_file')">✕</button>
-              </div>
-              <template v-else>
-                <button type="button" class="photo-add" @click="takeLinePhoto(row, 'inspect_result_file', '送检结果')">+ 拍照</button>
-                <button type="button" class="photo-add" @click="pickLineDoc(row, 'inspect_result_file', '送检结果', 'other')">+ 文件</button>
-              </template>
-            </div>
-            <div class="attach-hint">选填；支持图片 / PDF</div>
+            <AttachmentUpload v-model="row.inspect_result_file" preset="file" compact :min="0" :max="9" name-prefix="送检附件" />
           </div>
         </div>
         <button type="button" class="add-line-btn" @click="addEquipmentLine">＋ 新增一组设备</button>
@@ -1357,6 +1073,12 @@ function goBack() {
   margin: 4px 0 10px;
   padding-top: 8px;
   border-top: 1px dashed #e4e7ed;
+}
+.attach-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
 }
 .add-line-btn {
   width: 100%;

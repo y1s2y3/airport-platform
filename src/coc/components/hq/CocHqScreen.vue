@@ -149,16 +149,30 @@ const emit = defineEmits([
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+}
+
+.hq-analysis-block:not(.hq-analysis-block--rb):not(.hq-analysis-block--hazard) {
+  flex: 0 0 auto;
+}
+
+.hq-analysis-block .hq-labor-panel {
+  flex: 0 0 auto;
+  min-height: 0;
 }
 
 .hq-analysis-block--hazard {
-  flex: 1;
+  flex: 1.2;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .hq-analysis-block--hazard .hq-hazard-panel {
   flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .hq-hazard-panel {

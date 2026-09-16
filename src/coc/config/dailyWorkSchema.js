@@ -2,9 +2,16 @@
  * 字段标准来源：建设工程指挥部施工作业统计表
  * 左表：危险作业统计（A-O）；右表：危大工程统计（Q-X，导入兼容）
  * 示例 Sheet：2026.6.30
+ *
+ * 必填口径（界面 * 与导入硬校验一致，导出不做存在性限制）：
+ * 管理单位、施工项目名称、施工单位、施工区域、作业类别、作业开始/结束时间、
+ * 建设/施工单位项目负责人及手机号、建设/施工单位安全监管人及手机号、风险管控措施。
+ * 监理侧负责人为选填。
  */
 
 export const DAILY_WORK_SHEET_HINT = '2026.6.30'
+
+export const DAILY_WORK_DEFAULT_LEAD_UNIT = '深圳机场集团/建设工程指挥部'
 
 /**
  * 每日施工作业 — 界面填报字段（含手动添加弹窗）
@@ -12,20 +19,70 @@ export const DAILY_WORK_SHEET_HINT = '2026.6.30'
  */
 export const DANGER_WORK_FIELDS = [
   { key: 'leadUnit', label: '管理单位', required: true, col: 'A', span: 24 },
-  { key: 'projectName', label: '施工项目名称', required: false, col: 'B', span: 24 },
+  { key: 'projectName', label: '施工项目名称', required: true, col: 'B', span: 24, maxLength: 200 },
   { key: 'contractor', label: '施工单位', required: true, col: 'C', span: 24 },
-  { key: 'workArea', label: '施工区域', required: true, col: 'D', span: 12 },
+  { key: 'workArea', label: '施工区域', required: true, col: 'D', span: 12, maxLength: 200 },
   { key: 'workContent', label: '当日施工具体内容', required: false, col: 'E', span: 12 },
   { key: 'dangerWorkCategory', label: '作业类别', required: true, col: 'F', span: 12 },
   { key: 'startTime', label: '作业开始时间', required: true, col: 'G', span: 12, type: 'datetime' },
   { key: 'endTime', label: '作业结束时间', required: true, col: 'H', span: 12, type: 'datetime' },
-  { key: 'ownerProjectManager', label: '建设单位项目负责人及手机号', required: true, col: 'I', span: 24 },
-  { key: 'ownerSafetyManager', label: '建设单位现场安全监管人及手机号', required: true, col: 'J', span: 24 },
-  { key: 'contractorProjectManager', label: '施工单位项目负责人及手机号', required: true, col: 'K', span: 24 },
-  { key: 'contractorSafetyManager', label: '施工单位现场安全监管人及手机号', required: true, col: 'L', span: 24 },
-  { key: 'supervisorProjectManager', label: '监理单位项目负责人及手机号', required: false, col: 'M', span: 24 },
-  { key: 'supervisorSafetyManager', label: '监理单位现场安全监管人及手机号', required: false, col: 'N', span: 24 },
-  { key: 'dangerControlMeasures', label: '风险管控措施', required: true, col: 'O', span: 24, type: 'textarea' },
+  {
+    key: 'ownerProjectManager',
+    label: '建设单位项目负责人及手机号',
+    required: true,
+    col: 'I',
+    span: 24,
+    contactMode: 'single',
+  },
+  {
+    key: 'ownerSafetyManager',
+    label: '建设单位现场安全监管人及手机号',
+    required: true,
+    col: 'J',
+    span: 24,
+    contactMode: 'multi',
+  },
+  {
+    key: 'contractorProjectManager',
+    label: '施工单位项目负责人及手机号',
+    required: true,
+    col: 'K',
+    span: 24,
+    contactMode: 'single',
+  },
+  {
+    key: 'contractorSafetyManager',
+    label: '施工单位现场安全监管人及手机号',
+    required: true,
+    col: 'L',
+    span: 24,
+    contactMode: 'multi',
+  },
+  {
+    key: 'supervisorProjectManager',
+    label: '监理单位项目负责人及手机号',
+    required: false,
+    col: 'M',
+    span: 24,
+    contactMode: 'single',
+  },
+  {
+    key: 'supervisorSafetyManager',
+    label: '监理单位现场安全监管人及手机号',
+    required: false,
+    col: 'N',
+    span: 24,
+    contactMode: 'multi',
+  },
+  {
+    key: 'dangerControlMeasures',
+    label: '风险管控措施',
+    required: true,
+    col: 'O',
+    span: 24,
+    type: 'textarea',
+    maxLength: 2000,
+  },
 ]
 
 /** 危大工程侧字段（Excel 导入兼容，界面表单不再展示） */
@@ -96,7 +153,7 @@ export const EXCEL_COL_MAP = {
 export function emptyDailyWorkRecord(reportDate = '') {
   return {
     reportDate,
-    leadUnit: '深圳机场集团/建设工程指挥部',
+    leadUnit: DAILY_WORK_DEFAULT_LEAD_UNIT,
     projectName: '',
     contractor: '',
     workArea: '',

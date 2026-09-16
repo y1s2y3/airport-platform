@@ -2,6 +2,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { ATTACH_PRESETS, validateAttachFile } from '../../constants/attachmentUpload.js'
 import { getMobileInspectionTask, updateMobileInspectionTask } from '../../mock/mobileInspectionTasks'
 import { checkCategoryTree, getItemLabel } from '../../composables/useInspectionPlan'
 import {
@@ -65,11 +66,18 @@ function removeHazard(idx) {
 }
 
 function triggerHazardPhoto(idx) {
+  const current = hazardItems.value[idx].photos.length
+  if (current >= 9) return ElMessage.warning('最多上传 9 张')
   const input = document.createElement('input')
-  input.type = 'file'; input.accept = 'image/*'; input.capture = 'environment'
+  input.type = 'file'
+  input.accept = ATTACH_PRESETS.image.accept
+  input.capture = 'environment'
   input.onchange = (e) => {
     const file = e.target.files[0]
-    if (file) hazardItems.value[idx].photos.push(URL.createObjectURL(file))
+    if (!file) return
+    const err = validateAttachFile(file, 'image', { currentCount: current, max: 9 })
+    if (err) return ElMessage.warning(err)
+    hazardItems.value[idx].photos.push(URL.createObjectURL(file))
   }
   input.click()
 }
@@ -94,11 +102,18 @@ function addCompanion() {
 // 全部正常时的巡检照片
 const normalPhotos = ref([])
 function triggerNormalPhoto() {
+  const current = normalPhotos.value.length
+  if (current >= 9) return ElMessage.warning('最多上传 9 张')
   const input = document.createElement('input')
-  input.type = 'file'; input.accept = 'image/*'; input.capture = 'environment'
+  input.type = 'file'
+  input.accept = ATTACH_PRESETS.image.accept
+  input.capture = 'environment'
   input.onchange = (e) => {
     const file = e.target.files[0]
-    if (file) normalPhotos.value.push(URL.createObjectURL(file))
+    if (!file) return
+    const err = validateAttachFile(file, 'image', { currentCount: current, max: 9 })
+    if (err) return ElMessage.warning(err)
+    normalPhotos.value.push(URL.createObjectURL(file))
   }
   input.click()
 }
@@ -230,9 +245,13 @@ function goBack() { router.push('/mobile/tasks') }
           <div class="form-row">
             <span class="form-label">巡检照片 <i class="req">*</i></span>
             <div class="photo-group">
-              <div v-for="(url,i) in normalPhotos" :key="i" class="photo-box"><span>📷</span><button class="photo-del" @click="removeNormalPhoto(i)">✕</button></div>
-              <button class="photo-add" @click="triggerNormalPhoto">+ 拍照</button>
+              <div v-for="(url,i) in normalPhotos" :key="i" class="photo-box">
+                <img :src="url" alt="" />
+                <button class="photo-del" @click="removeNormalPhoto(i)">✕</button>
+              </div>
+              <button v-if="normalPhotos.length < 9" class="photo-add" @click="triggerNormalPhoto">+ 拍照</button>
             </div>
+            <div class="attach-hint">图片 ≤5MB，全部正常时至少 1 张、最多 9 张</div>
           </div>
         </div>
 
@@ -249,9 +268,13 @@ function goBack() { router.push('/mobile/tasks') }
             <div class="form-row">
               <span class="form-label">照片 <i class="req">*</i></span>
               <div class="photo-group">
-                <div v-for="(url, pi) in item.photos" :key="pi" class="photo-box"><span>📷</span><button class="photo-del" @click="removeHazardPhoto(idx, pi)">✕</button></div>
-                <button class="photo-add" @click="triggerHazardPhoto(idx)">+ 拍照</button>
+                <div v-for="(url, pi) in item.photos" :key="pi" class="photo-box">
+                  <img :src="url" alt="" />
+                  <button class="photo-del" @click="removeHazardPhoto(idx, pi)">✕</button>
+                </div>
+                <button v-if="item.photos.length < 9" class="photo-add" @click="triggerHazardPhoto(idx)">+ 拍照</button>
               </div>
+              <div class="attach-hint">隐患照片 1～9 张，单张 ≤5MB</div>
             </div>
             <div class="rectify-required-tip">
               发现隐患后将自动生成整改单，请完善整改信息
@@ -369,9 +392,11 @@ function goBack() { router.push('/mobile/tasks') }
 .rf-label .req { margin-left:2px; }
 .form-ta { flex:1; padding:8px 10px; border:1px solid #ddd; border-radius:8px; font-size:13px; font-family:inherit; resize:none; background:#fff; }
 .photo-group { flex:1; display:flex; gap:6px; flex-wrap:wrap; }
-.photo-box { width:56px; height:56px; border:1px solid #ddd; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:20px; position:relative; background:#f0faf0; }
-.photo-del { position:absolute; top:-4px; right:-4px; width:18px; height:18px; border-radius:50%; border:none; background:rgba(0,0,0,0.4); color:#fff; font-size:10px; cursor:pointer; }
+.photo-box { width:56px; height:56px; border:1px solid #ddd; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:20px; position:relative; background:#f0faf0; overflow:hidden; }
+.photo-box img { width:100%; height:100%; object-fit:cover; display:block; }
+.photo-del { position:absolute; top:-4px; right:-4px; width:18px; height:18px; border-radius:50%; border:none; background:rgba(0,0,0,0.4); color:#fff; font-size:10px; cursor:pointer; z-index:1; }
 .photo-add { width:56px; height:56px; border:1.5px dashed #ddd; border-radius:8px; background:#fafafa; font-size:12px; color:#999; cursor:pointer; }
+.attach-hint { width:100%; font-size:11px; color:#999; margin-top:4px; }
 
 .rectify-required-tip { margin:8px 0; padding:7px 9px; border-radius:6px; background:#fff3e0; color:#b26a00; font-size:12px; }
 .rectify-fields { display:flex; flex-direction:column; gap:8px; padding-top:6px; border-top:1px solid #f0f0f0; }

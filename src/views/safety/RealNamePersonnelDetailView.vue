@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, Document } from '@element-plus/icons-vue'
+import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import {
   getPersonnelDetail,
@@ -16,6 +16,9 @@ import {
   createEmptySafetyEducation,
 } from '../../mock/laborRealName'
 import { REALNAME_ENTRY_LABEL } from '../../constants/laborPersonStatus'
+import FileAttachmentPreview from '../../components/basicData/FileAttachmentPreview.vue'
+import AttachmentUpload from '../../components/common/AttachmentUpload.vue'
+import { asAttachList, attachRequiredOk, firstAttachName } from '../../constants/attachmentUpload.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -38,11 +41,6 @@ onMounted(() => {
 
 function goBack() {
   router.push({ name: 'RealNamePersonnel' })
-}
-
-function previewAttachment(name) {
-  if (!name) return
-  ElMessage.info(`预览附件：${name}`)
 }
 
 function viewPhone() {
@@ -95,6 +93,10 @@ function saveEducation() {
     ElMessage.warning('请完善教育类型与培训日期')
     return
   }
+  if (educationDraft.value.some((row) => !attachRequiredOk(row.certificate))) {
+    ElMessage.warning('每条教育记录须上传培训证书')
+    return
+  }
   educationSaving.value = true
   try {
     const payload = clonePersonnel(detail.value)
@@ -103,7 +105,7 @@ function saveEducation() {
       train_date: row.train_date,
       duration: row.duration || '',
       qualified: !!row.qualified,
-      certificate: row.certificate || '',
+      certificate: firstAttachName(row.certificate) || (typeof row.certificate === 'string' ? row.certificate : ''),
     }))
     detail.value = savePersonnel(payload, 'edit')
     educationEditVisible.value = false
@@ -176,16 +178,11 @@ function saveEducation() {
           <el-descriptions-item label="证书编号">{{ detail.cert_no || '—' }}</el-descriptions-item>
           <el-descriptions-item label="证书有效期">{{ detail.unit.cert_valid_to || '—' }}</el-descriptions-item>
           <el-descriptions-item label="证书附件">
-            <el-button
-              v-if="detail.unit.special_cert_attachment"
-              link
-              type="primary"
-              :icon="Document"
-              @click="previewAttachment(detail.unit.special_cert_attachment)"
-            >
-              {{ detail.unit.special_cert_attachment }}
-            </el-button>
-            <span v-else>—</span>
+            <FileAttachmentPreview
+              :name="detail.unit.special_cert_attachment"
+              empty-text="--"
+              size="sm"
+            />
           </el-descriptions-item>
         </el-descriptions>
       </section>
@@ -209,16 +206,7 @@ function saveEducation() {
           </el-table-column>
           <el-table-column label="培训证书" min-width="160">
             <template #default="{ row }">
-              <el-button
-                v-if="row.certificate"
-                link
-                type="primary"
-                :icon="Document"
-                @click="previewAttachment(row.certificate)"
-              >
-                {{ row.certificate }}
-              </el-button>
-              <span v-else>—</span>
+              <FileAttachmentPreview :name="row.certificate" empty-text="--" size="sm" />
             </template>
           </el-table-column>
         </el-table>
@@ -262,9 +250,17 @@ function saveEducation() {
             <el-switch v-model="row.qualified" inline-prompt active-text="合格" inactive-text="否" />
           </template>
         </el-table-column>
-        <el-table-column label="培训证书" min-width="160">
+        <el-table-column label="培训证书" min-width="220">
           <template #default="{ row }">
-            <el-input v-model="row.certificate" placeholder="证书文件名" aria-label="证书文件名"/>
+            <AttachmentUpload
+              :model-value="asAttachList(row.certificate)"
+              preset="file"
+              :min="1"
+              :max="1"
+              compact
+              name-prefix="培训证书"
+              @update:model-value="(list) => { row.certificate = firstAttachName(list) }"
+            />
           </template>
         </el-table-column>
         <el-table-column label="操作" width="80" align="center" fixed="right">

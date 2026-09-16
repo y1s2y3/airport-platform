@@ -1,10 +1,8 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import {
-  getProjectIssuesByType,
-  closeCocSupervisionMeetingHazard,
-} from '../mock/data.js'
+import { closeCocSupervisionMeetingHazard } from '../mock/data.js'
+import { getCocHazardListRows, mapHazardUnifiedStatus } from '../mock/hazardStats.js'
 import { isSupervisionMeetingHazardTicket } from '../../utils/cocAdminDeviceStorage.js'
 import DispatchDraggablePanel from './safety/dispatch/DispatchDraggablePanel.vue'
 import DispatchRecordDetailBody from './safety/dispatch/DispatchRecordDetailBody.vue'
@@ -17,28 +15,38 @@ const hazardStatusFilter = ref('待整改')
 const hazardStatusOptions = [
   { label: '全部', value: '全部' },
   { label: '待整改', value: '待整改' },
-  { label: '整改中', value: '整改中' },
-  { label: '已闭合', value: '已闭合' },
+  { label: '待复查/验收', value: '待复查/验收' },
+  { label: '已关闭', value: '已关闭' },
 ]
 
 const HAZARD_LEVEL_ORDER = { 重大: 0, 较大: 1, 一般: 2 }
-const statusMap = { 待整改: 'pending', 整改中: 'doing', 已闭合: 'closed' }
+const statusMap = {
+  待整改: 'pending',
+  '待复查/验收': 'doing',
+  待复查: 'doing',
+  待验收: 'doing',
+  已复查: 'doing',
+  已关闭: 'closed',
+}
 const listVersion = ref(0)
 const closing = ref(false)
 
+const CHANNEL_LABEL = {
+  inspection: '巡检',
+  supervision: '监理例会',
+  dispatch: '调度',
+}
+
 const hazardList = computed(() => {
   listVersion.value
-  return [
-    ...getProjectIssuesByType('safety', props.projectId).map((h) => ({ ...h, hazardCategory: '安全' })),
-    ...getProjectIssuesByType('quality', props.projectId).map((h) => ({ ...h, hazardCategory: '质量' })),
-  ]
+  return getCocHazardListRows(props.projectId)
 })
 
 const filteredHazardList = computed(() => {
   const list =
     hazardStatusFilter.value === '全部'
       ? [...hazardList.value]
-      : hazardList.value.filter((row) => row.status === hazardStatusFilter.value)
+      : hazardList.value.filter((row) => row.unifiedStatus === hazardStatusFilter.value)
   return list.sort(
     (a, b) => (HAZARD_LEVEL_ORDER[a.level] ?? 9) - (HAZARD_LEVEL_ORDER[b.level] ?? 9),
   )
@@ -48,13 +56,16 @@ const detailView = ref(null)
 
 const detailTitle = computed(() => {
   if (!detailView.value) return ''
-  const cat = detailView.value.data.hazardCategory || '安质'
-  return `${cat}隐患详情`
+  const row = detailView.value.data
+  const cat = row.hazardCategory || '安质'
+  const src = CHANNEL_LABEL[row.channel] || ''
+  return src ? `${src}·${cat}隐患详情` : `${cat}隐患详情`
 })
 
 const canConfirmCloseDetail = computed(() => {
   const row = detailView.value?.data
   if (!row || detailView.value?.kind !== 'hazard') return false
+  if (row.channel === 'dispatch' || row.source === 'dispatch') return false
   return isSupervisionMeetingHazardTicket(row) && row.status === '待整改'
 })
 
@@ -77,7 +88,7 @@ async function handleConfirmClose() {
   if (!row) return
   try {
     await ElMessageBox.confirm(
-      '确认关闭该监理会议隐患？关闭后状态将变为「已闭合」，与后台指挥部关闭操作一致。',
+      '确认关闭该监理会议隐患？关闭后状态将变为「已关闭」。',
       '确认关闭',
       {
         type: 'warning',
@@ -99,7 +110,11 @@ async function handleConfirmClose() {
   listVersion.value += 1
   detailView.value = {
     ...detailView.value,
-    data: { ...detailView.value.data, status: '已闭合' },
+    data: {
+      ...detailView.value.data,
+      status: '已关闭',
+      unifiedStatus: mapHazardUnifiedStatus('已关闭'),
+    },
   }
   ElMessage.success('隐患已关闭')
 }
@@ -138,13 +153,17 @@ async function handleConfirmClose() {
           <tbody>
             <tr
               v-for="row in filteredHazardList"
-              :key="`${row.hazardCategory}-${row.id}`"
+              :key="`${row.source || row.channel}-${row.id}`"
               class="clickable-row"
               @click="openDetail(row)"
             >
               <td>
-                <span class="cat-tag" :class="row.hazardCategory === '安全' ? 'safety' : 'quality'">
-                  {{ row.hazardCategory }}
+                <span class="cat-cell">
+                  <span class="cat-tag" :class="row.hazardCategory === '安全' ? 'safety' : 'quality'">
+                    {{ row.hazardCategory }}
+                  </span>
+                  <span v-if="row.channel === 'dispatch'" class="src-tag">调度</span>
+                  <span v-else-if="row.channel === 'supervision'" class="src-tag src-tag--sup">例会</span>
                 </span>
               </td>
               <td class="desc-cell" :title="row.desc">{{ row.desc }}</td>
@@ -152,7 +171,7 @@ async function handleConfirmClose() {
                 <span class="level-tag" :class="levelClass(row.level)">{{ row.level }}</span>
               </td>
               <td>
-                <span class="status-tag" :class="statusMap[row.status]">{{ row.status }}</span>
+                <span class="status-tag" :class="statusMap[row.unifiedStatus] || statusMap[row.status]">{{ row.unifiedStatus || row.status }}</span>
               </td>
             </tr>
             <tr v-if="!filteredHazardList.length">
@@ -224,7 +243,7 @@ async function handleConfirmClose() {
 }
 
 .hazard-status-select {
-  width: 88px;
+  width: 118px;
 }
 
 .hazard-status-select :deep(.el-select__wrapper) {
@@ -293,6 +312,29 @@ async function handleConfirmClose() {
   white-space: nowrap;
 }
 
+.cat-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.src-tag {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: calc(10px + var(--coc-font-boost));
+  font-weight: 600;
+  color: #409eff;
+  background: rgba(64, 158, 255, 0.14);
+  white-space: nowrap;
+}
+
+.src-tag--sup {
+  color: #b37feb;
+  background: rgba(179, 127, 235, 0.16);
+}
+
 .cat-tag.safety {
   background: rgba(230, 162, 60, 0.12);
   color: #e6a23c;
@@ -342,6 +384,11 @@ async function handleConfirmClose() {
 }
 
 .status-tag.doing {
+  background: rgba(230, 162, 60, 0.12);
+  color: #e6a23c;
+}
+
+.status-tag.review {
   background: rgba(64, 158, 255, 0.12);
   color: #409eff;
 }

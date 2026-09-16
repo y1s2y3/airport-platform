@@ -2,6 +2,9 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Upload, Delete, Edit, Setting, Download } from '@element-plus/icons-vue'
+import ProfilePersonContactInput from '../../components/basicData/ProfilePersonContactInput.vue'
+import ProfilePersonContactList from '../../components/basicData/ProfilePersonContactList.vue'
+import { getProjectSelectOptions } from '../../mock/projectBasicInfo.js'
 import {
   DAILY_WORK_RISK_RULES,
   buildDailyWorkRiskAlertDetails,
@@ -16,12 +19,21 @@ import {
   DAILY_WORK_SHEET_HINT,
   emptyDailyWorkRecord,
 } from '../config/dailyWorkSchema.js'
-import { parseDailyWorkFile, downloadDailyWorkTemplate } from '../utils/dailyWorkImport.js'
+import {
+  parseDailyWorkFile,
+  downloadDailyWorkTemplate,
+  exportDailyWorkRecords,
+} from '../utils/dailyWorkImport.js'
 import {
   getDailyWorkRecords,
   saveDailyWorkRecord,
   removeDailyWorkRecord,
 } from '../utils/dailyWorkStorage.js'
+import {
+  validateDailyWorkRecord,
+  validateDailyWorkImportRecords,
+  getContractorByProjectName,
+} from '../utils/dailyWorkValidate.js'
 
 const props = defineProps({
   title: { type: String, default: '每日施工作业' },
@@ -55,6 +67,13 @@ const importRiskAlerts = ref([])
 
 const ruleConfigVisible = ref(false)
 const enabledRuleIds = ref([])
+
+const projectOptions = computed(() => getProjectSelectOptions())
+
+function onProjectChange(projectName) {
+  form.value.projectName = projectName || ''
+  form.value.contractor = getContractorByProjectName(projectName) || ''
+}
 
 function riskSummaryOf(list) {
   const red = list.filter((item) => item.level === 'red').length
@@ -134,12 +153,15 @@ function validateForm() {
     ElMessage.warning('请填写施工日期')
     return false
   }
-  for (const field of DANGER_WORK_FIELDS) {
-    if (field.required && !String(f[field.key] ?? '').trim()) {
-      ElMessage.warning(`请填写${fieldLabel(field.label)}`)
-      return false
-    }
+  const result = validateDailyWorkRecord(f, {
+    requireProjectExists: true,
+    fillContractor: true,
+  })
+  if (!result.ok) {
+    ElMessage.warning(result.errors[0] || '请完善必填项')
+    return false
   }
+  form.value = { ...f, ...result.record }
   return true
 }
 
@@ -207,9 +229,18 @@ function onImportFileChange(uploadFile) {
   if (!uploadFile.raw) return
   parseDailyWorkFile(uploadFile.raw, importSheet.value)
     .then((res) => {
-      importPreview.value = res.records
+      const checked = validateDailyWorkImportRecords(res.records)
+      if (!checked.ok) {
+        importPreview.value = []
+        ElMessage.error({
+          message: `导入校验未通过：${checked.errors.slice(0, 3).join('；')}${checked.errors.length > 3 ? `等共 ${checked.errors.length} 项` : ''}`,
+          duration: 6000,
+        })
+        return
+      }
+      importPreview.value = checked.records
       importSheet.value = res.sheetName
-      ElMessage.success(`已解析 Sheet「${res.sheetName}」，共 ${res.records.length} 条`)
+      ElMessage.success(`已解析 Sheet「${res.sheetName}」，共 ${checked.records.length} 条`)
     })
     .catch((err) => {
       importPreview.value = []
@@ -274,6 +305,15 @@ function handleDownloadTemplate() {
   ElMessage.success('模版已下载，请按 Sheet 填写后导入')
 }
 
+function handleExport() {
+  const result = exportDailyWorkRecords(filtered.value)
+  if (!result.ok) {
+    ElMessage.warning(result.error || '导出失败')
+    return
+  }
+  ElMessage.success(`已导出 ${result.count} 条（${result.sheetCount} 个日期 Sheet）`)
+}
+
 function indexMethod(index) {
   return (currentPage.value - 1) * pageSize + index + 1
 }
@@ -300,6 +340,7 @@ onMounted(() => {
         <el-button type="primary" :icon="Plus" @click="openCreate">手动添加</el-button>
         <el-button :icon="Download" @click="handleDownloadTemplate">下载模版</el-button>
         <el-button :icon="Upload" @click="importVisible = true">导入表格</el-button>
+        <el-button :icon="Download" @click="handleExport">导出</el-button>
       </div>
       <el-button class="config-btn" :icon="Setting" @click="openRuleConfig">配置</el-button>
     </div>
@@ -355,12 +396,39 @@ onMounted(() => {
           :label="fieldLabel(field.label)"
           :required="field.required"
         >
+          <el-input
+            v-if="field.key === 'leadUnit'"
+            v-model="form.leadUnit"
+            placeholder="默认：深圳机场集团/建设工程指挥部"
+          />
           <el-select
-            v-if="field.key === 'dangerWorkCategory'"
+            v-else-if="field.key === 'projectName'"
+            v-model="form.projectName"
+            filterable
+            clearable
+            placeholder="请选择施工项目"
+            style="width: 100%"
+            @change="onProjectChange"
+          >
+            <el-option
+              v-for="opt in projectOptions"
+              :key="opt.id"
+              :label="opt.name"
+              :value="opt.name"
+            />
+          </el-select>
+          <el-input
+            v-else-if="field.key === 'contractor'"
+            v-model="form.contractor"
+            readonly
+            placeholder="根据项目画像自动回显"
+          />
+          <el-select
+            v-else-if="field.key === 'dangerWorkCategory'"
             v-model="form.dangerWorkCategory"
             filterable
-            allow-create
             style="width: 100%"
+            placeholder="请选择作业类别（单选）"
           >
             <el-option v-for="opt in DANGER_WORK_CATEGORY_OPTIONS" :key="opt" :label="opt" :value="opt" />
           </el-select>
@@ -371,12 +439,27 @@ onMounted(() => {
             value-format="YYYY-MM-DD HH:mm"
             format="YYYY-MM-DD HH:mm"
             style="width: 100%"
+            placeholder="yyyy-MM-dd HH:mm"
+          />
+          <ProfilePersonContactInput
+            v-else-if="field.contactMode === 'single'"
+            v-model="form[field.key]"
+            action-layout="inline"
+          />
+          <ProfilePersonContactList
+            v-else-if="field.contactMode === 'multi'"
+            v-model="form[field.key]"
+            :min="field.required ? 1 : 0"
+            :max="5"
           />
           <el-input
             v-else
             v-model="form[field.key]"
             :type="field.type === 'textarea' ? 'textarea' : 'text'"
             :rows="field.type === 'textarea' ? 4 : 1"
+            :maxlength="field.maxLength || undefined"
+            :show-word-limit="!!field.maxLength"
+            :placeholder="field.maxLength ? `最大 ${field.maxLength} 字` : ''"
           />
         </el-form-item>
       </el-form>

@@ -3,8 +3,10 @@ import './mat-page.css'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Plus, Delete, UploadFilled } from '@element-plus/icons-vue'
+import { Plus, Delete } from '@element-plus/icons-vue'
 import ConstructionLocationSelect from '../../../components/ConstructionLocationSelect.vue'
+import AttachmentUpload from '../../../components/common/AttachmentUpload.vue'
+import { asAttachList, attachCount, attachRequiredOk } from '../../../constants/attachmentUpload.js'
 import { useQmProjectScope } from '../../../composables/useCurrentProject'
 import {
   ENTRY_TYPE_LABEL,
@@ -46,10 +48,10 @@ const form = reactive({
   quantity: '',
   unit: entryType.value === 'equipment' ? '台' : '件',
   serial_no: '',
-  cert_file: '',
-  inspect_file: '',
-  photo_file: '',
-  other_file: '',
+  cert_file: [],
+  inspect_file: [],
+  photo_file: [],
+  other_file: [],
   supervisor_approver_user_id: '',
   supervisor_approver_name: '',
 })
@@ -88,12 +90,12 @@ function emptyLine() {
     appearance_quality: '合格',
     acceptance_result: '合格',
     entry_date: nowEntryDate(),
-    cert_file: '',
-    inspect_file: '',
-    photo_file: '',
-    other_file: '',
+    cert_file: [],
+    inspect_file: [],
+    photo_file: [],
+    other_file: [],
     inspect_result_checked: false,
-    inspect_result_file: '',
+    inspect_result_file: [],
   }
 }
 
@@ -114,12 +116,12 @@ function emptyEquipmentLine() {
     appearance_quality: '合格',
     acceptance_result: '合格',
     entry_date: nowEntryDate(),
-    cert_file: '',
-    inspect_file: '',
-    photo_file: '',
-    other_file: '',
+    cert_file: [],
+    inspect_file: [],
+    photo_file: [],
+    other_file: [],
     inspect_result_checked: false,
-    inspect_result_file: '',
+    inspect_result_file: [],
     unpack_items: createDefaultUnpackItems(),
   }
 }
@@ -144,12 +146,12 @@ function mapEquipmentLineFromData(l, data) {
   row.appearance_quality = l.appearance_quality || '合格'
   row.acceptance_result = l.acceptance_result || '合格'
   row.entry_date = l.entry_date || nowEntryDate()
-  row.cert_file = l.cert_file || ''
-  row.inspect_file = l.inspect_file || ''
-  row.photo_file = l.photo_file || ''
-  row.other_file = l.other_file || ''
+  row.cert_file = asAttachList(l.cert_file)
+  row.inspect_file = asAttachList(l.inspect_file)
+  row.photo_file = asAttachList(l.photo_file)
+  row.other_file = asAttachList(l.other_file)
   row.inspect_result_checked = !!l.inspect_result_checked
-  row.inspect_result_file = l.inspect_result_file || ''
+  row.inspect_result_file = asAttachList(l.inspect_result_file)
   if (Array.isArray(l.unpack_items) && l.unpack_items.length) {
     row.unpack_items = l.unpack_items.map((i) => ({ ...i }))
   }
@@ -175,12 +177,12 @@ function mapLineFromData(l, data) {
   row.appearance_quality = l.appearance_quality || '合格'
   row.acceptance_result = l.acceptance_result || '合格'
   row.entry_date = l.entry_date || nowEntryDate()
-  row.cert_file = l.cert_file || ''
-  row.inspect_file = l.inspect_file || ''
-  row.photo_file = l.photo_file || ''
-  row.other_file = l.other_file || ''
+  row.cert_file = asAttachList(l.cert_file)
+  row.inspect_file = asAttachList(l.inspect_file)
+  row.photo_file = asAttachList(l.photo_file)
+  row.other_file = asAttachList(l.other_file)
   row.inspect_result_checked = !!l.inspect_result_checked
-  row.inspect_result_file = l.inspect_result_file || ''
+  row.inspect_result_file = asAttachList(l.inspect_result_file)
   return row
 }
 
@@ -370,10 +372,10 @@ function applyCopyPayload(data) {
   form.quantity = data.quantity != null ? String(data.quantity) : ''
   form.unit = data.unit || (entryType.value === 'equipment' ? '台' : '件')
   form.serial_no = data.serial_no || ''
-  form.cert_file = data.cert_file || ''
-  form.inspect_file = data.inspect_file || ''
-  form.photo_file = data.photo_file || ''
-  form.other_file = data.other_file || ''
+  form.cert_file = asAttachList(data.cert_file)
+  form.inspect_file = asAttachList(data.inspect_file)
+  form.photo_file = asAttachList(data.photo_file)
+  form.other_file = asAttachList(data.other_file)
   form.supervisor_approver_user_id = data.supervisor_approver_user_id || ''
   form.supervisor_approver_name = data.supervisor_approver_name || ''
   if (data.line_items?.length) {
@@ -381,13 +383,13 @@ function applyCopyPayload(data) {
       equipmentLines.value = data.line_items.map((l, idx) => {
         const row = mapEquipmentLineFromData(l, data)
         if (idx === 0) {
-          if (!row.cert_file) row.cert_file = data.cert_file || ''
-          if (!row.inspect_file) row.inspect_file = data.inspect_file || ''
-          if (!row.photo_file) row.photo_file = data.photo_file || ''
-          if (!row.other_file) row.other_file = data.other_file || ''
+          if (!attachCount(row.cert_file)) row.cert_file = asAttachList(data.cert_file)
+          if (!attachCount(row.inspect_file)) row.inspect_file = asAttachList(data.inspect_file)
+          if (!attachCount(row.photo_file)) row.photo_file = asAttachList(data.photo_file)
+          if (!attachCount(row.other_file)) row.other_file = asAttachList(data.other_file)
           if (!row.inspect_result_checked && data.inspect_result_checked) {
             row.inspect_result_checked = true
-            row.inspect_result_file = data.inspect_result_file || ''
+            row.inspect_result_file = asAttachList(data.inspect_result_file)
           }
           if (!row.unpack_items?.length && data.unpack_items?.length) {
             row.unpack_items = data.unpack_items.map((i) => ({ ...i }))
@@ -399,13 +401,13 @@ function applyCopyPayload(data) {
       entryLines.value = data.line_items.map((l, idx) => {
         const row = mapLineFromData(l, data)
         if (idx === 0) {
-          if (!row.cert_file) row.cert_file = data.cert_file || ''
-          if (!row.inspect_file) row.inspect_file = data.inspect_file || ''
-          if (!row.photo_file) row.photo_file = data.photo_file || ''
-          if (!row.other_file) row.other_file = data.other_file || ''
+          if (!attachCount(row.cert_file)) row.cert_file = asAttachList(data.cert_file)
+          if (!attachCount(row.inspect_file)) row.inspect_file = asAttachList(data.inspect_file)
+          if (!attachCount(row.photo_file)) row.photo_file = asAttachList(data.photo_file)
+          if (!attachCount(row.other_file)) row.other_file = asAttachList(data.other_file)
           if (!row.inspect_result_checked && data.inspect_result_checked) {
             row.inspect_result_checked = true
-            row.inspect_result_file = data.inspect_result_file || ''
+            row.inspect_result_file = asAttachList(data.inspect_result_file)
           }
         }
         return row
@@ -427,10 +429,10 @@ function applyCopyPayload(data) {
       },
       data,
     )
-    row.cert_file = data.cert_file || ''
-    row.inspect_file = data.inspect_file || ''
-    row.photo_file = data.photo_file || ''
-    row.other_file = data.other_file || ''
+    row.cert_file = asAttachList(data.cert_file)
+    row.inspect_file = asAttachList(data.inspect_file)
+    row.photo_file = asAttachList(data.photo_file)
+    row.other_file = asAttachList(data.other_file)
     equipmentLines.value = [row]
   } else if (data.entry_type !== 'equipment') {
     const row = mapLineFromData(
@@ -446,10 +448,10 @@ function applyCopyPayload(data) {
       },
       data,
     )
-    row.cert_file = data.cert_file || ''
-    row.inspect_file = data.inspect_file || ''
-    row.photo_file = data.photo_file || ''
-    row.other_file = data.other_file || ''
+    row.cert_file = asAttachList(data.cert_file)
+    row.inspect_file = asAttachList(data.inspect_file)
+    row.photo_file = asAttachList(data.photo_file)
+    row.other_file = asAttachList(data.other_file)
     entryLines.value = [row]
   }
 }
@@ -490,93 +492,6 @@ function removeEntryLine(idx) {
     return
   }
   entryLines.value.splice(idx, 1)
-}
-
-function isImageUploadFile(file) {
-  const name = String(file?.name || '').toLowerCase()
-  const byExt = /\.(jpe?g|png)$/i.test(name)
-  const type = String(file?.type || '')
-  const byMime = type === 'image/jpeg' || type === 'image/png'
-  return byExt || byMime
-}
-
-function isPdfUploadFile(file) {
-  const name = String(file?.name || '').toLowerCase()
-  const type = String(file?.type || '')
-  return /\.pdf$/i.test(name) || type === 'application/pdf'
-}
-
-function isOtherUploadFile(file) {
-  const name = String(file?.name || '').toLowerCase()
-  const type = String(file?.type || '')
-  if (/\.(jpe?g|png|pdf|docx?)$/i.test(name)) return true
-  return (
-    type === 'image/jpeg' ||
-    type === 'image/png' ||
-    type === 'application/pdf' ||
-    type === 'application/msword' ||
-    type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-  )
-}
-
-function validateAttachField(field, file) {
-  if (field === 'cert_file' || field === 'photo_file') {
-    if (!isImageUploadFile(file)) {
-      return field === 'cert_file'
-        ? '合格证仅支持上传图片（jpg / png）'
-        : '现场照片仅支持上传图片（jpg / png）'
-    }
-    return ''
-  }
-  if (field === 'inspect_file') {
-    if (!isPdfUploadFile(file)) return '质量证明文件仅支持 PDF'
-    return ''
-  }
-  if (field === 'other_file') {
-    if (!isOtherUploadFile(file)) return '其他仅支持 jpg / png / pdf / word'
-    return ''
-  }
-  if (field === 'inspect_result_file') {
-    if (!isImageUploadFile(file) && !isPdfUploadFile(file)) {
-      return '送检附件仅支持图片或 PDF'
-    }
-    return ''
-  }
-  return ''
-}
-
-function onPickLineFile(row, field, uploadFile) {
-  const file = uploadFile.raw || uploadFile
-  if (!file) return false
-  const err = validateAttachField(field, file)
-  if (err) {
-    ElMessage.warning(err)
-    return false
-  }
-  if (file.size > 30 * 1024 * 1024) {
-    ElMessage.warning('单个文件不超过 30MB')
-    return false
-  }
-  row[field] = file.name || `${field}-${Date.now()}`
-  ElMessage.success(`已上传：${row[field]}`)
-  return false
-}
-
-function onPickFormFile(field, uploadFile) {
-  const file = uploadFile.raw || uploadFile
-  if (!file) return false
-  const err = validateAttachField(field, file)
-  if (err) {
-    ElMessage.warning(err)
-    return false
-  }
-  if (file.size > 30 * 1024 * 1024) {
-    ElMessage.warning('单个文件不超过 30MB')
-    return false
-  }
-  form[field] = file.name || `${field}-${Date.now()}`
-  ElMessage.success(`已上传：${form[field]}`)
-  return false
 }
 
 function onSubmit() {
@@ -638,9 +553,9 @@ function onSubmit() {
       if (!row.entry_date) {
         return ElMessage.warning(`设备明细第 ${i + 1} 组请填写进场日期`)
       }
-      if (!row.cert_file) return ElMessage.warning(`设备明细第 ${i + 1} 组请上传合格证`)
-      if (!row.inspect_file) return ElMessage.warning(`设备明细第 ${i + 1} 组请上传质量证明文件`)
-      if (!row.photo_file) return ElMessage.warning(`设备明细第 ${i + 1} 组请上传现场照片`)
+      if (!attachRequiredOk(row.cert_file)) return ElMessage.warning(`设备明细第 ${i + 1} 组请上传合格证`)
+      if (!attachRequiredOk(row.inspect_file)) return ElMessage.warning(`设备明细第 ${i + 1} 组请上传质量证明文件`)
+      if (!attachRequiredOk(row.photo_file)) return ElMessage.warning(`设备明细第 ${i + 1} 组请上传现场照片`)
       const missingFixed = !row.unpack_items?.length
       if (missingFixed) {
         return ElMessage.warning(`设备明细第 ${i + 1} 组请填写开箱清单`)
@@ -728,9 +643,9 @@ function onSubmit() {
     if (!row.entry_date) {
       return ElMessage.warning(`进场明细第 ${i + 1} 组请填写进场日期`)
     }
-    if (!row.cert_file) return ElMessage.warning(`进场明细第 ${i + 1} 组请上传合格证`)
-    if (!row.inspect_file) return ElMessage.warning(`进场明细第 ${i + 1} 组请上传质量证明文件`)
-    if (!row.photo_file) return ElMessage.warning(`进场明细第 ${i + 1} 组请上传现场照片`)
+    if (!attachRequiredOk(row.cert_file)) return ElMessage.warning(`进场明细第 ${i + 1} 组请上传合格证`)
+    if (!attachRequiredOk(row.inspect_file)) return ElMessage.warning(`进场明细第 ${i + 1} 组请上传质量证明文件`)
+    if (!attachRequiredOk(row.photo_file)) return ElMessage.warning(`进场明细第 ${i + 1} 组请上传现场照片`)
     line_items.push({
       material_name,
       material_spec,
@@ -990,80 +905,24 @@ function onSubmit() {
           </el-row>
           <div class="entry-attach-title">附件</div>
           <el-row :gutter="16">
-            <el-col :span="12">
+            <el-col :span="24">
               <el-form-item label="合格证" required>
-                <div class="attach-field">
-                  <div class="attach-upload-row">
-                    <el-upload
-                      :show-file-list="false"
-                      :before-upload="(f) => onPickLineFile(row, 'cert_file', f)"
-                      accept=".jpg,.jpeg,.png,image/jpeg,image/png"
-                    >
-                      <el-button :icon="UploadFilled">上传图片</el-button>
-                    </el-upload>
-                    <span class="attach-file-name" :class="{ 'is-empty': !row.cert_file }">
-                      {{ row.cert_file || '未上传' }}
-                    </span>
-                  </div>
-                  <p class="attach-format-tip">仅支持图片（jpg / png）</p>
-                </div>
+                <AttachmentUpload v-model="row.cert_file" preset="image" :min="1" :max="9" name-prefix="合格证" />
               </el-form-item>
             </el-col>
-            <el-col :span="12">
+            <el-col :span="24">
               <el-form-item label="质量证明文件" required>
-                <div class="attach-field">
-                  <div class="attach-upload-row">
-                    <el-upload
-                      :show-file-list="false"
-                      :before-upload="(f) => onPickLineFile(row, 'inspect_file', f)"
-                      accept=".pdf,application/pdf"
-                    >
-                      <el-button :icon="UploadFilled">上传 PDF</el-button>
-                    </el-upload>
-                    <span class="attach-file-name" :class="{ 'is-empty': !row.inspect_file }">
-                      {{ row.inspect_file || '未上传' }}
-                    </span>
-                  </div>
-                  <p class="attach-format-tip">仅支持 PDF</p>
-                </div>
+                <AttachmentUpload v-model="row.inspect_file" preset="file" :min="1" :max="9" name-prefix="质量证明文件" />
               </el-form-item>
             </el-col>
-            <el-col :span="12">
+            <el-col :span="24">
               <el-form-item label="现场照片" required>
-                <div class="attach-field">
-                  <div class="attach-upload-row">
-                    <el-upload
-                      :show-file-list="false"
-                      :before-upload="(f) => onPickLineFile(row, 'photo_file', f)"
-                      accept=".jpg,.jpeg,.png,image/jpeg,image/png"
-                    >
-                      <el-button :icon="UploadFilled">上传图片</el-button>
-                    </el-upload>
-                    <span class="attach-file-name" :class="{ 'is-empty': !row.photo_file }">
-                      {{ row.photo_file || '未上传' }}
-                    </span>
-                  </div>
-                  <p class="attach-format-tip">仅支持图片（jpg / png）</p>
-                </div>
+                <AttachmentUpload v-model="row.photo_file" preset="image" :min="1" :max="9" name-prefix="现场照片" />
               </el-form-item>
             </el-col>
-            <el-col :span="12">
+            <el-col :span="24">
               <el-form-item label="其他">
-                <div class="attach-field">
-                  <div class="attach-upload-row">
-                    <el-upload
-                      :show-file-list="false"
-                      :before-upload="(f) => onPickLineFile(row, 'other_file', f)"
-                      accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,image/jpeg,image/png,application/pdf"
-                    >
-                      <el-button :icon="UploadFilled">上传</el-button>
-                    </el-upload>
-                    <span class="attach-file-name" :class="{ 'is-empty': !row.other_file }">
-                      {{ row.other_file || '未上传' }}
-                    </span>
-                  </div>
-                  <p class="attach-format-tip">支持 jpg / png / pdf / word</p>
-                </div>
+                <AttachmentUpload v-model="row.other_file" preset="file" :min="0" :max="9" name-prefix="其他" />
               </el-form-item>
             </el-col>
             <el-col :span="12">
@@ -1071,23 +930,9 @@ function onSubmit() {
                 <el-checkbox v-model="row.inspect_result_checked">已完成送检</el-checkbox>
               </el-form-item>
             </el-col>
-            <el-col v-if="row.inspect_result_checked" :span="12">
+            <el-col v-if="row.inspect_result_checked" :span="24">
               <el-form-item label="送检附件">
-                <div class="attach-field">
-                  <div class="attach-upload-row">
-                    <el-upload
-                      :show-file-list="false"
-                      :before-upload="(f) => onPickLineFile(row, 'inspect_result_file', f)"
-                      accept="image/*,.pdf"
-                    >
-                      <el-button :icon="UploadFilled">上传</el-button>
-                    </el-upload>
-                    <span class="attach-file-name" :class="{ 'is-empty': !row.inspect_result_file }">
-                      {{ row.inspect_result_file || '选填' }}
-                    </span>
-                  </div>
-                  <p class="attach-format-tip">选填；支持图片 / PDF</p>
-                </div>
+                <AttachmentUpload v-model="row.inspect_result_file" preset="file" :min="0" :max="9" name-prefix="送检附件" />
               </el-form-item>
             </el-col>
           </el-row>
@@ -1227,80 +1072,24 @@ function onSubmit() {
           </el-row>
           <div class="entry-attach-title">附件</div>
           <el-row :gutter="16">
-            <el-col :span="12">
+            <el-col :span="24">
               <el-form-item label="合格证" required>
-                <div class="attach-field">
-                  <div class="attach-upload-row">
-                    <el-upload
-                      :show-file-list="false"
-                      :before-upload="(f) => onPickLineFile(row, 'cert_file', f)"
-                      accept=".jpg,.jpeg,.png,image/jpeg,image/png"
-                    >
-                      <el-button :icon="UploadFilled">上传图片</el-button>
-                    </el-upload>
-                    <span class="attach-file-name" :class="{ 'is-empty': !row.cert_file }">
-                      {{ row.cert_file || '未上传' }}
-                    </span>
-                  </div>
-                  <p class="attach-format-tip">仅支持图片（jpg / png）</p>
-                </div>
+                <AttachmentUpload v-model="row.cert_file" preset="image" :min="1" :max="9" name-prefix="合格证" />
               </el-form-item>
             </el-col>
-            <el-col :span="12">
+            <el-col :span="24">
               <el-form-item label="质量证明文件" required>
-                <div class="attach-field">
-                  <div class="attach-upload-row">
-                    <el-upload
-                      :show-file-list="false"
-                      :before-upload="(f) => onPickLineFile(row, 'inspect_file', f)"
-                      accept=".pdf,application/pdf"
-                    >
-                      <el-button :icon="UploadFilled">上传 PDF</el-button>
-                    </el-upload>
-                    <span class="attach-file-name" :class="{ 'is-empty': !row.inspect_file }">
-                      {{ row.inspect_file || '未上传' }}
-                    </span>
-                  </div>
-                  <p class="attach-format-tip">仅支持 PDF</p>
-                </div>
+                <AttachmentUpload v-model="row.inspect_file" preset="file" :min="1" :max="9" name-prefix="质量证明文件" />
               </el-form-item>
             </el-col>
-            <el-col :span="12">
+            <el-col :span="24">
               <el-form-item label="现场照片" required>
-                <div class="attach-field">
-                  <div class="attach-upload-row">
-                    <el-upload
-                      :show-file-list="false"
-                      :before-upload="(f) => onPickLineFile(row, 'photo_file', f)"
-                      accept=".jpg,.jpeg,.png,image/jpeg,image/png"
-                    >
-                      <el-button :icon="UploadFilled">上传图片</el-button>
-                    </el-upload>
-                    <span class="attach-file-name" :class="{ 'is-empty': !row.photo_file }">
-                      {{ row.photo_file || '未上传' }}
-                    </span>
-                  </div>
-                  <p class="attach-format-tip">仅支持图片（jpg / png）</p>
-                </div>
+                <AttachmentUpload v-model="row.photo_file" preset="image" :min="1" :max="9" name-prefix="现场照片" />
               </el-form-item>
             </el-col>
-            <el-col :span="12">
+            <el-col :span="24">
               <el-form-item label="其他">
-                <div class="attach-field">
-                  <div class="attach-upload-row">
-                    <el-upload
-                      :show-file-list="false"
-                      :before-upload="(f) => onPickLineFile(row, 'other_file', f)"
-                      accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,image/jpeg,image/png,application/pdf"
-                    >
-                      <el-button :icon="UploadFilled">上传</el-button>
-                    </el-upload>
-                    <span class="attach-file-name" :class="{ 'is-empty': !row.other_file }">
-                      {{ row.other_file || '未上传' }}
-                    </span>
-                  </div>
-                  <p class="attach-format-tip">支持 jpg / png / pdf / word</p>
-                </div>
+                <AttachmentUpload v-model="row.other_file" preset="file" :min="0" :max="9" name-prefix="其他" />
               </el-form-item>
             </el-col>
             <el-col :span="12">
@@ -1308,23 +1097,9 @@ function onSubmit() {
                 <el-checkbox v-model="row.inspect_result_checked">已完成送检</el-checkbox>
               </el-form-item>
             </el-col>
-            <el-col v-if="row.inspect_result_checked" :span="12">
+            <el-col v-if="row.inspect_result_checked" :span="24">
               <el-form-item label="送检附件">
-                <div class="attach-field">
-                  <div class="attach-upload-row">
-                    <el-upload
-                      :show-file-list="false"
-                      :before-upload="(f) => onPickLineFile(row, 'inspect_result_file', f)"
-                      accept="image/*,.pdf"
-                    >
-                      <el-button :icon="UploadFilled">上传</el-button>
-                    </el-upload>
-                    <span class="attach-file-name" :class="{ 'is-empty': !row.inspect_result_file }">
-                      {{ row.inspect_result_file || '选填' }}
-                    </span>
-                  </div>
-                  <p class="attach-format-tip">选填；支持图片 / PDF</p>
-                </div>
+                <AttachmentUpload v-model="row.inspect_result_file" preset="file" :min="0" :max="9" name-prefix="送检附件" />
               </el-form-item>
             </el-col>
           </el-row>

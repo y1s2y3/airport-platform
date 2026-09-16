@@ -307,7 +307,12 @@ function onSubmit() {
           </el-radio-group>
         </el-form-item>
         <el-form-item :label="inspectionForm.inspectionResult === 'hazard' ? '隐患照片' : '巡检照片'">
-          <DispatchImageAttachments v-model="inspectionForm.attachments" />
+          <DispatchImageAttachments
+            v-model="inspectionForm.attachments"
+            :min="inspectionForm.inspectionResult ? 1 : 0"
+            :max="9"
+            :name-prefix="inspectionForm.inspectionResult === 'hazard' ? '隐患照片' : '巡检照片'"
+          />
         </el-form-item>
         <template v-if="inspectionForm.inspectionResult === 'hazard'">
           <el-form-item label="隐患说明" required>
@@ -389,7 +394,7 @@ function onSubmit() {
           />
         </el-form-item>
         <el-form-item v-if="todo.inspectionBizType === '整改'" label="整改照片" required>
-          <DispatchImageAttachments v-model="inspectionForm.attachments" />
+          <DispatchImageAttachments v-model="inspectionForm.attachments" :min="1" :max="9" name-prefix="整改照片" />
         </el-form-item>
         <el-form-item v-if="todo.inspectionBizType !== '整改'" :label="`${todo.inspectionBizType}结果`" required>
           <el-radio-group v-model="inspectionForm.decision">

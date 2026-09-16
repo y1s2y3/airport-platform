@@ -3,16 +3,13 @@ import '../mat/mat-page.css'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import AttachmentUpload from '../../../components/common/AttachmentUpload.vue'
 import { useQmProjectScope } from '../../../composables/useCurrentProject'
 import {
   buildAsbuiltWbsTree,
   buildCopyPayloadFromRejected,
   submitAsbuilt,
   copyAsbuiltFromRejected,
-  ASBUILT_REPORT_ACCEPT,
-  ASBUILT_REPORT_MAX_COUNT,
-  ASBUILT_REPORT_MAX_SIZE,
-  asbuiltReportFileTypeLabel,
 } from '../../../mock/asbuilt.js'
 import {
   listBrandProjectUsers,
@@ -31,7 +28,7 @@ const copyFromLabel = ref('')
 const form = reactive({
   title: '',
   remark: '',
-  /** 已添加节点（有序；同一 wbs_node_id 允许重复） */
+  /** 已添加节点清单（有序；同一 wbs_node_id 允许重复） */
   selectedNodeIds: [],
   files: [],
   supervisor_approver_user_id: '',
@@ -40,15 +37,14 @@ const form = reactive({
   pm_approver_name: '',
 })
 
-/** 当前单选待添加的节点 */
-const pickingNodeId = ref('')
+/** 树上待添加的多选节点（点「添加」后写入清单） */
+const pickingNodeIds = ref([])
 
 const wbsTree = computed(() => buildAsbuiltWbsTree())
 const projectUsers = computed(() => listBrandProjectUsers(scopeProjectId.value))
 const pageTitle = computed(() =>
   copyFromLabel.value ? '重新申报实模一致验收' : '新建实模一致验收',
 )
-const canUploadMore = computed(() => form.files.length < ASBUILT_REPORT_MAX_COUNT)
 
 function findWbsLabel(nodes, id) {
   for (const n of nodes || []) {
@@ -67,13 +63,15 @@ const selectedNodeRows = computed(() =>
   })),
 )
 
-function addPickedNode() {
-  if (!pickingNodeId.value) {
-    ElMessage.warning('请先单选一个实体工程节点')
+function addPickedNodes() {
+  const ids = pickingNodeIds.value || []
+  if (!ids.length) {
+    ElMessage.warning('请先在树上勾选至少一个实体工程节点')
     return
   }
-  form.selectedNodeIds.push(pickingNodeId.value)
-  pickingNodeId.value = ''
+  form.selectedNodeIds.push(...ids)
+  pickingNodeIds.value = []
+  ElMessage.success(`已添加 ${ids.length} 个节点到清单`)
 }
 
 function removeNode(index) {
@@ -103,49 +101,6 @@ function onApproverChange(role) {
     const u = findBrandProjectUser(form.pm_approver_user_id)
     form.pm_approver_name = u?.name || ''
   }
-}
-
-function fileSizeLabel(size) {
-  const bytes = Number(size || 0)
-  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  return `${Math.max(1, Math.round(bytes / 1024))} KB`
-}
-
-function isAllowedExt(name = '') {
-  const lower = String(name).toLowerCase()
-  return lower.endsWith('.pdf') || lower.endsWith('.doc') || lower.endsWith('.docx')
-}
-
-function onReportChange(uploadFile) {
-  const raw = uploadFile?.raw
-  if (!raw) return
-  if (form.files.length >= ASBUILT_REPORT_MAX_COUNT) {
-    ElMessage.warning(`报告附件最多上传 ${ASBUILT_REPORT_MAX_COUNT} 个`)
-    return
-  }
-  if (!isAllowedExt(raw.name)) {
-    ElMessage.warning('报告仅支持 Word（.doc/.docx）与 PDF')
-    return
-  }
-  if (raw.size > ASBUILT_REPORT_MAX_SIZE) {
-    ElMessage.warning('单个报告附件不能超过 30MB')
-    return
-  }
-  form.files.push({
-    id: `abf-local-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-    file_name: raw.name,
-    file_url: '#',
-    file_size: raw.size,
-    mime_type: raw.type || '',
-    source: 'upload',
-    uploader_id: 'u-constructor',
-    uploaded_at: new Date().toLocaleString('zh-CN', { hour12: false }),
-  })
-  ElMessage.success(`已添加：${raw.name}`)
-}
-
-function removeFile(idx) {
-  form.files.splice(idx, 1)
 }
 
 function openSource(id) {
@@ -278,20 +233,24 @@ function onSubmit() {
         <div style="width: 100%">
           <div class="node-pick-row">
             <el-tree-select
-              v-model="pickingNodeId"
+              v-model="pickingNodeIds"
               :data="wbsTree"
+              multiple
+              show-checkbox
               check-strictly
               filterable
               clearable
+              collapse-tags
+              collapse-tags-tooltip
               node-key="id"
               :props="{ label: 'label', children: 'children', disabled: 'disabled' }"
-              placeholder="单选至分项（不含检验批）"
+              placeholder="树上多选至分项（不含检验批）"
               style="flex: 1"
             />
-            <el-button type="primary" @click="addPickedNode">添加</el-button>
+            <el-button type="primary" @click="addPickedNodes">添加</el-button>
           </div>
           <p class="muted" style="margin: 8px 0 0">
-            每次单选一个节点后点击添加；最少 1 个，不限制条数；同一节点可重复添加。
+            树上勾选后点「添加」写入清单；最少 1 条，不限条数；同一节点可多次添加。
           </p>
           <el-table
             v-if="selectedNodeRows.length"
@@ -301,56 +260,28 @@ function onSubmit() {
             size="small"
             style="margin-top: 12px; width: 100%"
           >
-            <el-table-column type="index" label="#" width="50" />
+            <el-table-column type="index" label="序号" width="64" />
             <el-table-column prop="path" label="节点路径" min-width="280" show-overflow-tooltip />
-            <el-table-column prop="wbs_node_id" label="节点 ID" width="140" show-overflow-tooltip />
-            <el-table-column label="操作" width="80">
+            <el-table-column label="操作" width="88" align="center">
               <template #default="{ $index }">
                 <el-button link type="danger" @click="removeNode($index)">移除</el-button>
               </template>
             </el-table-column>
           </el-table>
+          <p v-else class="muted" style="margin: 8px 0 0">尚未添加节点</p>
         </div>
       </el-form-item>
       <el-form-item label="报告附件" required>
-        <div>
-          <el-upload
-            :show-file-list="false"
-            :auto-upload="false"
-            :disabled="!canUploadMore"
-            multiple
-            :accept="ASBUILT_REPORT_ACCEPT"
-            @change="onReportChange"
-          >
-            <el-button type="primary" :disabled="!canUploadMore">上传报告</el-button>
-          </el-upload>
-          <p class="muted" style="margin: 8px 0 0">
-            支持 Word（.doc/.docx）与 PDF；最多 {{ ASBUILT_REPORT_MAX_COUNT }} 个，单个不超过 30MB。
-            已上传 {{ form.files.length }}/{{ ASBUILT_REPORT_MAX_COUNT }}
-          </p>
-          <el-table
-            v-if="form.files.length"
-            :data="form.files"
-            stripe
-            border
-            size="small"
-            class="mb"
-            style="margin-top: 12px; width: 640px"
-          >
-            <el-table-column prop="file_name" label="文件名" min-width="220" show-overflow-tooltip />
-            <el-table-column label="类型" width="80">
-              <template #default="{ row }">{{ asbuiltReportFileTypeLabel(row) }}</template>
-            </el-table-column>
-            <el-table-column label="大小" width="100">
-              <template #default="{ row }">{{ fileSizeLabel(row.file_size) }}</template>
-            </el-table-column>
-            <el-table-column label="操作" width="80">
-              <template #default="{ $index }">
-                <el-button link type="danger" @click="removeFile($index)">移除</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-        </div>
+        <AttachmentUpload
+          v-model="form.files"
+          preset="file"
+          :min="1"
+          :max="9"
+          name-key="file_name"
+          url-key="file_url"
+          size-key="file_size"
+          name-prefix="报告附件"
+        />
       </el-form-item>
       <el-form-item label="备注">
         <el-input
@@ -433,16 +364,16 @@ function onSubmit() {
   margin-bottom: 12px;
 }
 
-.node-pick-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-}
-
 .muted {
   color: #909399;
   font-size: 13px;
   line-height: 1.5;
+}
+
+.node-pick-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
 }
 </style>

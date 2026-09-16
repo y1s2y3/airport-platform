@@ -15,7 +15,8 @@ import {
 } from '../../../mock/mat.js'
 import { useMatArchiveExport } from '../../../composables/useMatArchiveExport.js'
 import MatArchiveExportDialog from './components/MatArchiveExportDialog.vue'
-import PersonalCenterReadonlyHint from '../../../components/PersonalCenterReadonlyHint.vue'
+import FileAttachmentPreview from '../../../components/basicData/FileAttachmentPreview.vue'
+import { attachDisplayText } from '../../../constants/attachmentUpload.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -343,19 +344,23 @@ function actionTagType(action) {
             <el-descriptions-item label="外观质量">{{ row.appearance_quality || '—' }}</el-descriptions-item>
             <el-descriptions-item label="验收结论">{{ row.acceptance_result || '—' }}</el-descriptions-item>
             <el-descriptions-item label="进场日期">{{ row.entry_date || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="合格证">{{ row.cert_file || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="质量证明文件">{{ row.inspect_file || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="现场照片">{{ row.photo_file || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="其他">{{ row.other_file || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="合格证" :span="2">
+              <FileAttachmentPreview :name="row.cert_file" empty-text="--" />
+            </el-descriptions-item>
+            <el-descriptions-item label="质量证明文件" :span="2">
+              <FileAttachmentPreview :name="row.inspect_file" empty-text="--" />
+            </el-descriptions-item>
+            <el-descriptions-item label="现场照片" :span="2">
+              <FileAttachmentPreview :name="row.photo_file" empty-text="--" />
+            </el-descriptions-item>
+            <el-descriptions-item label="其他" :span="2">
+              <FileAttachmentPreview :name="row.other_file" empty-text="--" />
+            </el-descriptions-item>
             <el-descriptions-item label="已完成送检">
               {{ row.inspect_result_checked ? '是' : '否' }}
             </el-descriptions-item>
-            <el-descriptions-item label="送检附件">
-              {{
-                row.inspect_result_checked
-                  ? row.inspect_result_file || '未上传'
-                  : '—'
-              }}
+            <el-descriptions-item v-if="row.inspect_result_checked" label="送检附件" :span="2">
+              <FileAttachmentPreview :name="row.inspect_result_file" empty-text="--" />
             </el-descriptions-item>
           </el-descriptions>
         </div>
@@ -388,19 +393,23 @@ function actionTagType(action) {
             <el-descriptions-item label="外观质量">{{ row.appearance_quality || '—' }}</el-descriptions-item>
             <el-descriptions-item label="验收结论">{{ row.acceptance_result || '—' }}</el-descriptions-item>
             <el-descriptions-item label="进场日期">{{ row.entry_date || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="合格证">{{ row.cert_file || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="质量证明文件">{{ row.inspect_file || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="现场照片">{{ row.photo_file || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="其他">{{ row.other_file || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="合格证" :span="2">
+              <FileAttachmentPreview :name="row.cert_file" empty-text="--" />
+            </el-descriptions-item>
+            <el-descriptions-item label="质量证明文件" :span="2">
+              <FileAttachmentPreview :name="row.inspect_file" empty-text="--" />
+            </el-descriptions-item>
+            <el-descriptions-item label="现场照片" :span="2">
+              <FileAttachmentPreview :name="row.photo_file" empty-text="--" />
+            </el-descriptions-item>
+            <el-descriptions-item label="其他" :span="2">
+              <FileAttachmentPreview :name="row.other_file" empty-text="--" />
+            </el-descriptions-item>
             <el-descriptions-item label="已完成送检">
               {{ row.inspect_result_checked ? '是' : '否' }}
             </el-descriptions-item>
-            <el-descriptions-item label="送检附件">
-              {{
-                row.inspect_result_checked
-                  ? row.inspect_result_file || '未上传'
-                  : '—'
-              }}
+            <el-descriptions-item v-if="row.inspect_result_checked" label="送检附件" :span="2">
+              <FileAttachmentPreview :name="row.inspect_result_file" empty-text="--" />
             </el-descriptions-item>
           </el-descriptions>
           <h4 class="sub-title">开箱清单</h4>
@@ -462,7 +471,7 @@ function actionTagType(action) {
             <el-table-column prop="operator_name" label="登记人" width="100" />
             <el-table-column prop="exit_time" label="登记时间" width="170" />
             <el-table-column label="现场照片" min-width="120" show-overflow-tooltip>
-              <template #default="{ row }">{{ row.photo_file || '未上传' }}</template>
+              <template #default="{ row }">{{ attachDisplayText(row.photo_file) || '--' }}</template>
             </el-table-column>
           </el-table>
         </template>

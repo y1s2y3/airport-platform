@@ -1,11 +1,8 @@
 <script setup>
-import { ref, computed, inject } from 'vue'
+import { ref, computed, inject, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import {
-  SAFETY_HAZARDS,
-  QUALITY_HAZARDS,
-  closeCocSupervisionMeetingHazard,
-} from '../../../mock/data.js'
+import { closeCocSupervisionMeetingHazard } from '../../../mock/data.js'
+import { getCocHazardListRows, mapHazardUnifiedStatus } from '../../../mock/hazardStats.js'
 import { isSupervisionMeetingHazardTicket } from '../../../../utils/cocAdminDeviceStorage.js'
 import DispatchDraggablePanel from './DispatchDraggablePanel.vue'
 import DispatchRecordDetailBody from './DispatchRecordDetailBody.vue'
@@ -13,13 +10,28 @@ import DispatchHqPanelTitle from './DispatchHqPanelTitle.vue'
 
 const dispatchHqUi = inject('dispatchHqUi', false)
 
-const hazardList = ref([
-  ...SAFETY_HAZARDS.map((h) => ({ ...h, hazardCategory: '安全' })),
-  ...QUALITY_HAZARDS.map((h) => ({ ...h, hazardCategory: '质量' })),
-])
+const props = defineProps({
+  projectId: { type: String, default: '' },
+})
+
+const hazardList = ref([])
+
+const CHANNEL_LABEL = {
+  inspection: '巡检',
+  supervision: '监理例会',
+  dispatch: '调度',
+}
+
+function reloadHazardList() {
+  hazardList.value = getCocHazardListRows(props.projectId)
+}
+
+reloadHazardList()
+watch(() => props.projectId, reloadHazardList)
 
 const hazardStatusFilter = ref('待整改')
 const hazardDateRange = ref(null)
+const hazardKeyword = ref('')
 const hazardMoreOpen = ref(false)
 const detailView = ref(null)
 const closing = ref(false)
@@ -27,8 +39,8 @@ const closing = ref(false)
 const hazardStatusOptions = [
   { label: '全部', value: '全部' },
   { label: '待整改', value: '待整改' },
-  { label: '整改中', value: '整改中' },
-  { label: '已闭合', value: '已闭合' },
+  { label: '待复查/验收', value: '待复查/验收' },
+  { label: '已关闭', value: '已关闭' },
 ]
 
 const HAZARD_LEVEL_ORDER = { 重大: 0, 较大: 1, 一般: 2 }
@@ -37,7 +49,7 @@ const filteredHazardList = computed(() => {
   const list =
     hazardStatusFilter.value === '全部'
       ? [...hazardList.value]
-      : hazardList.value.filter((row) => row.status === hazardStatusFilter.value)
+      : hazardList.value.filter((row) => row.unifiedStatus === hazardStatusFilter.value)
   return list.sort(
     (a, b) => (HAZARD_LEVEL_ORDER[a.level] ?? 9) - (HAZARD_LEVEL_ORDER[b.level] ?? 9),
   )
@@ -53,23 +65,63 @@ function matchHazardDateRange(row, range) {
 }
 
 const popupFilteredHazardList = computed(() => {
-  if (!hazardDateRange.value?.[0]) return filteredHazardList.value
-  return filteredHazardList.value.filter((row) => matchHazardDateRange(row, hazardDateRange.value))
+  let list = filteredHazardList.value
+  if (hazardDateRange.value?.[0]) {
+    list = list.filter((row) => matchHazardDateRange(row, hazardDateRange.value))
+  }
+  const kw = hazardKeyword.value.trim().toLowerCase()
+  if (!kw) return list
+  return list.filter((row) => {
+    const blob = [
+      row.hazardCategory,
+      row.desc,
+      row.level,
+      row.status,
+      row.unifiedStatus,
+      row.date,
+      row.id,
+      row.detail?.ticketType,
+      row.ticketType,
+      CHANNEL_LABEL[row.channel] || '',
+      row.channel === 'dispatch' ? '调度隐患' : '',
+      row.channel === 'supervision' ? '监理例会' : '',
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+    return blob.includes(kw)
+  })
 })
 
 const previewList = computed(() => filteredHazardList.value.slice(0, 8))
 
-const statusMap = { 待整改: 'pending', 整改中: 'doing', 已闭合: 'closed' }
+function openHazardMore() {
+  hazardKeyword.value = ''
+  hazardDateRange.value = null
+  hazardMoreOpen.value = true
+}
+
+const statusMap = {
+  待整改: 'pending',
+  '待复查/验收': 'doing',
+  待复查: 'doing',
+  待验收: 'doing',
+  已复查: 'doing',
+  已关闭: 'closed',
+}
 
 const detailTitle = computed(() => {
   if (!detailView.value) return ''
-  const cat = detailView.value.data.hazardCategory || '安质'
-  return `${cat}隐患详情`
+  const row = detailView.value.data
+  const cat = row.hazardCategory || '安质'
+  const src = CHANNEL_LABEL[row.channel] || ''
+  return src ? `${src}·${cat}隐患详情` : `${cat}隐患详情`
 })
 
 const canConfirmCloseDetail = computed(() => {
   const row = detailView.value?.data
   if (!row || detailView.value?.kind !== 'hazard') return false
+  if (row.channel === 'dispatch' || row.source === 'dispatch') return false
   return isSupervisionMeetingHazardTicket(row) && row.status === '待整改'
 })
 
@@ -89,11 +141,18 @@ function closeDetail() {
 
 function syncLocalHazardStatus(id, status) {
   const row = hazardList.value.find((item) => item.id === id)
-  if (row) row.status = status
+  if (row) {
+    row.status = status
+    row.unifiedStatus = mapHazardUnifiedStatus(status)
+  }
   if (detailView.value?.data?.id === id) {
     detailView.value = {
       ...detailView.value,
-      data: { ...detailView.value.data, status },
+      data: {
+        ...detailView.value.data,
+        status,
+        unifiedStatus: mapHazardUnifiedStatus(status),
+      },
     }
   }
 }
@@ -103,7 +162,7 @@ async function handleConfirmClose() {
   if (!row) return
   try {
     await ElMessageBox.confirm(
-      '确认关闭该监理会议隐患？关闭后状态将变为「已闭合」，与后台指挥部关闭操作一致。',
+      '确认关闭该监理会议隐患？关闭后状态将变为「已关闭」。',
       '确认关闭',
       {
         type: 'warning',
@@ -125,7 +184,7 @@ async function handleConfirmClose() {
     ElMessage.warning(result.msg || '关闭失败')
     return
   }
-  syncLocalHazardStatus(row.id, '已闭合')
+  syncLocalHazardStatus(row.id, '已关闭')
   ElMessage.success('隐患已关闭')
 }
 </script>
@@ -147,7 +206,7 @@ async function handleConfirmClose() {
               :value="opt.value"
             />
           </el-select>
-          <button type="button" class="title-more-btn" @click="hazardMoreOpen = true">
+          <button type="button" class="title-more-btn" @click="openHazardMore">
             更多
           </button>
         </div>
@@ -169,7 +228,7 @@ async function handleConfirmClose() {
             :value="opt.value"
           />
         </el-select>
-        <button type="button" class="title-more-btn" @click="hazardMoreOpen = true">
+        <button type="button" class="title-more-btn" @click="openHazardMore">
           更多
         </button>
       </div>
@@ -188,13 +247,17 @@ async function handleConfirmClose() {
           <tbody>
             <tr
               v-for="row in previewList"
-              :key="`${row.hazardCategory}-${row.id}`"
+              :key="`${row.source || row.channel}-${row.id}`"
               class="clickable-row"
               @click="openHazardDetail(row)"
             >
               <td>
-                <span class="cat-tag" :class="row.hazardCategory === '安全' ? 'safety' : 'quality'">
-                  {{ row.hazardCategory }}
+                <span class="cat-cell">
+                  <span class="cat-tag" :class="row.hazardCategory === '安全' ? 'safety' : 'quality'">
+                    {{ row.hazardCategory }}
+                  </span>
+                  <span v-if="row.channel === 'dispatch'" class="src-tag">调度</span>
+                  <span v-else-if="row.channel === 'supervision'" class="src-tag src-tag--sup">例会</span>
                 </span>
               </td>
               <td class="desc" :title="row.desc">{{ row.desc }}</td>
@@ -202,7 +265,7 @@ async function handleConfirmClose() {
                 <span class="level-tag" :class="levelClass(row.level)">{{ row.level }}</span>
               </td>
               <td>
-                <span class="status-tag" :class="statusMap[row.status]">{{ row.status }}</span>
+                <span class="status-tag" :class="statusMap[row.unifiedStatus] || statusMap[row.status]">{{ row.unifiedStatus || row.status }}</span>
               </td>
             </tr>
             <tr v-if="!previewList.length">
@@ -223,6 +286,13 @@ async function handleConfirmClose() {
       <div class="more-dialog-toolbar">
         <span class="more-count">共 {{ popupFilteredHazardList.length }} 条</span>
         <div class="more-filters">
+          <el-input
+            v-model="hazardKeyword"
+            clearable
+            size="small"
+            class="more-search"
+            placeholder="搜索描述/类别/等级"
+          />
           <el-date-picker
             v-model="hazardDateRange"
             type="daterange"
@@ -232,7 +302,9 @@ async function handleConfirmClose() {
             value-format="YYYY-MM-DD"
             clearable
             size="small"
-            class="hazard-date-filter" aria-label="开始日期"/>
+            class="hazard-date-filter"
+            aria-label="日期筛选"
+          />
           <el-select v-model="hazardStatusFilter" size="small" class="hazard-status-select more-filter">
             <el-option
               v-for="opt in hazardStatusOptions"
@@ -257,13 +329,17 @@ async function handleConfirmClose() {
           <tbody>
             <tr
               v-for="row in popupFilteredHazardList"
-              :key="`more-${row.hazardCategory}-${row.id}`"
+              :key="`more-${row.source || row.channel}-${row.id}`"
               class="clickable-row"
               @click="openHazardDetail(row)"
             >
               <td>
-                <span class="cat-tag" :class="row.hazardCategory === '安全' ? 'safety' : 'quality'">
-                  {{ row.hazardCategory }}
+                <span class="cat-cell">
+                  <span class="cat-tag" :class="row.hazardCategory === '安全' ? 'safety' : 'quality'">
+                    {{ row.hazardCategory }}
+                  </span>
+                  <span v-if="row.channel === 'dispatch'" class="src-tag">调度</span>
+                  <span v-else-if="row.channel === 'supervision'" class="src-tag src-tag--sup">例会</span>
                 </span>
               </td>
               <td>{{ row.date }}</td>
@@ -271,7 +347,7 @@ async function handleConfirmClose() {
               <td>
                 <span class="level-tag" :class="levelClass(row.level)">{{ row.level }}</span>
               </td>
-              <td><span class="status-tag" :class="statusMap[row.status]">{{ row.status }}</span></td>
+              <td><span class="status-tag" :class="statusMap[row.unifiedStatus] || statusMap[row.status]">{{ row.unifiedStatus || row.status }}</span></td>
             </tr>
             <tr v-if="!popupFilteredHazardList.length">
               <td colspan="5" class="empty-row">暂无符合条件的隐患记录</td>
@@ -425,6 +501,29 @@ async function handleConfirmClose() {
   white-space: nowrap;
 }
 
+.cat-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.src-tag {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: calc(10px + var(--coc-font-boost));
+  font-weight: 600;
+  color: #409eff;
+  background: rgba(64, 158, 255, 0.14);
+  white-space: nowrap;
+}
+
+.src-tag--sup {
+  color: #b37feb;
+  background: rgba(179, 127, 235, 0.16);
+}
+
 .cat-tag.safety {
   background: rgba(230, 162, 60, 0.12);
   color: #e6a23c;
@@ -473,6 +572,11 @@ async function handleConfirmClose() {
 }
 
 .status-tag.doing {
+  background: rgba(230, 162, 60, 0.12);
+  color: #e6a23c;
+}
+
+.status-tag.review {
   background: rgba(64, 158, 255, 0.12);
   color: #409eff;
 }

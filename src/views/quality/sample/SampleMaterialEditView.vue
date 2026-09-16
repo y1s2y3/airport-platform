@@ -7,7 +7,6 @@ import './sample-page.css'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { UploadFilled } from '@element-plus/icons-vue'
 import { useQmProjectScope } from '../../../composables/useCurrentProject'
 import {
   buildCopyPayloadFromRejectedMaterial,
@@ -26,6 +25,7 @@ import {
   getUnitSubunitLabel,
 } from '../../../mock/constructionLocation.js'
 import DispatchImageAttachments from '../../../coc/components/DispatchImageAttachments.vue'
+import AttachmentUpload from '../../../components/common/AttachmentUpload.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -134,32 +134,6 @@ function onPartChange(wbsId) {
 }
 
 const ATTACH_MAX_COUNT = 9
-const ATTACH_MAX_SIZE_MB = 30
-
-function onPickFile(uploadFile, targetRef, label) {
-  const file = uploadFile.raw || uploadFile
-  if (!file) return false
-  if (targetRef.value.length >= ATTACH_MAX_COUNT) {
-    ElMessage.warning(`最多上传 ${ATTACH_MAX_COUNT} 份`)
-    return false
-  }
-  if (file.size > ATTACH_MAX_SIZE_MB * 1024 * 1024) {
-    ElMessage.warning(`单个文件不超过 ${ATTACH_MAX_SIZE_MB}MB`)
-    return false
-  }
-  const name = file.name || `${label}-${targetRef.value.length + 1}`
-  if (targetRef.value.some((f) => f.name === name)) {
-    ElMessage.warning('同名文件已存在')
-    return false
-  }
-  targetRef.value = [...targetRef.value, { name, url: '#' }]
-  ElMessage.success(`已添加：${name}`)
-  return false
-}
-
-function removeFile(targetRef, idx) {
-  targetRef.value = targetRef.value.filter((_, i) => i !== idx)
-}
 
 function applyCopyPayload(data) {
   syncingPrefill.value = true
@@ -426,48 +400,23 @@ function onSubmit() {
         </el-form-item>
 
         <el-form-item label="材料设备送样定板报审签字附件" required>
-          <div class="approval-files">
-            <el-upload
-              :show-file-list="false"
-              :before-upload="(f) => onPickFile(f, signFiles, '定板报审签字附件')"
-              accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-            >
-              <el-button :icon="UploadFilled">上传签字附件</el-button>
-            </el-upload>
-            <ul v-if="signFiles.length" class="file-list">
-              <li v-for="(f, idx) in signFiles" :key="f.name">
-                <span>{{ f.name }}</span>
-                <el-button link type="danger" @click="removeFile(signFiles, idx)">删除</el-button>
-              </li>
-            </ul>
-            <p class="field-hint">
-              至少 1 份，最多 {{ ATTACH_MAX_COUNT }} 份，单个不超过 {{ ATTACH_MAX_SIZE_MB }}MB（对齐省统表
-              GD-C1-346）
-            </p>
-          </div>
+          <AttachmentUpload
+            v-model="signFiles"
+            preset="file"
+            :min="1"
+            :max="ATTACH_MAX_COUNT"
+            name-prefix="定板报审签字附件"
+          />
         </el-form-item>
 
         <el-form-item label="样品出厂质量证明文件" required>
-          <div class="approval-files">
-            <el-upload
-              :show-file-list="false"
-              :before-upload="(f) => onPickFile(f, certificateFiles, '出厂质量证明')"
-              accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-            >
-              <el-button :icon="UploadFilled">上传质量证明文件</el-button>
-            </el-upload>
-            <ul v-if="certificateFiles.length" class="file-list">
-              <li v-for="(f, idx) in certificateFiles" :key="f.name">
-                <span>{{ f.name }}</span>
-                <el-button link type="danger" @click="removeFile(certificateFiles, idx)">
-                  删除
-                </el-button>
-              </li>
-            </ul>
-            <p class="field-hint">
-              至少 1 份，最多 {{ ATTACH_MAX_COUNT }} 份，单个不超过 {{ ATTACH_MAX_SIZE_MB }}MB
-            </p>
-          </div>
+          <AttachmentUpload
+            v-model="certificateFiles"
+            preset="file"
+            :min="1"
+            :max="ATTACH_MAX_COUNT"
+            name-prefix="出厂质量证明"
+          />
         </el-form-item>
 
         <el-form-item label="备注" class="remark-item">

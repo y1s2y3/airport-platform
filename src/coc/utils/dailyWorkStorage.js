@@ -1,4 +1,4 @@
-import { findProjectIdByShortName, PROJECT_NAMES, DANGER_WORK_LIST, MAJOR_PROJECT_LIST, DANGER_WORK_STATUSES } from '../mock/data.js'
+import { findProjectIdByShortName, PROJECT_NAMES, DANGER_WORK_LIST, MAJOR_PROJECT_LIST } from '../mock/data.js'
 import dailyWorkSeed from '../mock/dailyWorkSeed.json'
 import {
   classifyDailyWorkRecord,
@@ -135,12 +135,6 @@ const MOCK_CONTRACTORS = [
   '深圳市政集团有限公司',
 ]
 
-function hashPick(list, key) {
-  let h = 0
-  for (const c of String(key || '')) h = (h + c.charCodeAt(0)) % list.length
-  return list[h]
-}
-
 function enrichDangerListItem(item, index = 0) {
   const idx = Number.parseInt(String(item.projectId || 'p-0').replace('p-', ''), 10)
   return {
@@ -168,26 +162,46 @@ function isNightWork(start, end) {
   return /22:|23:|00:|01:|02:|03:|04:|05:|06:/.test(text)
 }
 
+function parseWorkDateTime(value) {
+  if (!value) return null
+  const text = String(value).trim().replace(/-/g, '/')
+  const date = new Date(text)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+/** 按作业起止时间推导：未开始 / 进行中 / 已结束 */
+export function deriveDangerWorkStatus(startTime, endTime, now = new Date()) {
+  const start = parseWorkDateTime(startTime)
+  const end = parseWorkDateTime(endTime)
+  if (start && now < start) return '未开始'
+  if (end && now > end) return '已结束'
+  if (start || end) return '进行中'
+  return '未开始'
+}
+
 /** 转为前台危险作业清单结构 */
 export function toDangerWorkListItem(record) {
   const cls = classifyDailyWorkRecord(record)
   if (!cls.danger) return null
-  const type = mapDangerCategoryToType(record.dangerWorkCategory)
+  const type = record.dangerWorkCategory || mapDangerCategoryToType(record.dangerWorkCategory) || '危险作业'
   return {
     id: record.id,
     projectId: resolveProjectId(record.projectName),
     projectName: record.projectName,
+    projectShortName: record.projectName,
     contractor: record.contractor,
     type,
     subType: record.workContent || record.dangerWorkCategory,
     date: record.reportDate,
     time: formatTimeRange(record.startTime, record.endTime),
+    startTime: record.startTime,
+    endTime: record.endTime,
     location: record.workArea,
     personnel: '—',
     measures: record.dangerControlMeasures,
-    status: hashPick(DANGER_WORK_STATUSES, record.id),
+    status: deriveDangerWorkStatus(record.startTime, record.endTime),
     isNight: isNightWork(record.startTime, record.endTime),
-    isHighRisk: type === '动火' || type === '深基坑' || type === '有限空间',
+    isHighRisk: /动火|深基坑|有限空间/.test(String(type)),
     permitStatus: '待确认',
     reporter: record.contractorSafetyManager?.split(/[,，]/)[0] || '—',
     cameraId: 'c05',
@@ -238,10 +252,64 @@ export function toMajorProjectListItem(record) {
   }
 }
 
-export function getDerivedDangerWorkList() {
-  const fromDaily = getDailyWorkRecords().map(toDangerWorkListItem).filter(Boolean)
-  const mock = DANGER_WORK_LIST.map((item, i) => enrichDangerListItem(item, i))
-  return mergeUniqueById(fromDaily, mock)
+export function getDerivedDangerWorkList(projectId, reportDate) {
+  ensureDailyWorkSeed()
+  const fromDaily = getDailyWorkRecords()
+    .map(toDangerWorkListItem)
+    .filter(Boolean)
+    .filter((item) => {
+      if (projectId && item.projectId !== projectId) return false
+      if (reportDate && item.date !== reportDate) return false
+      return true
+    })
+  if (fromDaily.length) return fromDaily
+
+  const mock = DANGER_WORK_LIST
+    .map((item, i) => enrichDangerListItem(item, i))
+    .filter((item) => {
+      if (projectId && item.projectId !== projectId) return false
+      return true
+    })
+    .map((item) => ({
+      ...item,
+      type: item.type?.includes('作业') ? item.type : `${item.type || '危险'}作业`,
+      status: deriveDangerWorkStatus(
+        `${item.date} ${String(item.time || '08:00').split('-')[0] || '08:00'}`,
+        `${item.date} ${String(item.time || '18:00').split('-')[1] || '18:00'}`,
+      ),
+    }))
+  return mock
+}
+
+export function getDispatchDangerWorkToday(projectId) {
+  ensureDailyWorkSeed()
+  const calendarToday = formatCalendarDate(new Date())
+  const dates = getDailyWorkRecords()
+    .map((r) => r.reportDate)
+    .filter(Boolean)
+    .sort()
+  const latestReportDate = dates.length ? dates[dates.length - 1] : null
+  const hasCalendarToday = dates.includes(calendarToday)
+  const reportDate = hasCalendarToday ? calendarToday : latestReportDate
+  const list = getDerivedDangerWorkList(projectId, reportDate)
+  return {
+    list,
+    reportDate,
+    calendarToday,
+    usingFallbackDate: Boolean(reportDate && reportDate !== calendarToday),
+  }
+}
+
+function formatCalendarDate(date) {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+/** @deprecated 兼容旧调用：仅返回列表 */
+export function getDispatchDangerWorkTodayList(projectId) {
+  return getDispatchDangerWorkToday(projectId).list
 }
 
 export function getDerivedMajorProjectList() {

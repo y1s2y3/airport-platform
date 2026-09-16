@@ -53,7 +53,7 @@ onMounted(async () => {
     const detail = getRole(route.params.id)
     if (!detail || !isRoleVisibleToCurrentUser(detail.id)) {
       ElMessage.warning('未找到角色信息')
-      router.replace({ name: 'Sysrole' })
+      router.replace({ name: 'SysRole' })
       return
     }
     form.value = cloneRoleRecord(detail)
@@ -108,7 +108,7 @@ function handleCheckAll(val) {
 }
 
 function goBack() {
-  router.push({ name: 'Sysrole' })
+  router.push({ name: 'SysRole' })
 }
 
 async function handleSubmit() {
@@ -120,7 +120,7 @@ async function handleSubmit() {
     }
     saveRole(form.value, isEdit.value ? route.params.id : undefined)
     ElMessage.success(isEdit.value ? '保存成功' : '新增成功')
-    router.push({ name: 'Sysrole' })
+    router.push({ name: 'SysRole' })
   })
 }
 </script>

@@ -88,6 +88,17 @@ const canEditHidden = computed(() => props.allowHiddenEdit && !props.readonly)
 /** 所属组织 / 项目编码：仅新增可填；编辑态锁定 */
 const canEditOrgAndCode = computed(() => !props.readonly && !props.lockBelongOrgAndCode)
 
+/** 工程代号仅允许英文与数字，自动转大写，最多 4 位 */
+function onEngineeringCodeInput(val) {
+  const next = String(val ?? '')
+    .replace(/[^A-Za-z0-9]/g, '')
+    .toUpperCase()
+    .slice(0, 4)
+  if (props.model.engineeringCode !== next) {
+    props.model.engineeringCode = next
+  }
+}
+
 function getSubQual(block, label) {
   if (!block.qualifications) block.qualifications = []
   let item = block.qualifications.find((row) => row.label === label)
@@ -391,11 +402,27 @@ function openEquipmentRow(row) {
 
         <tr>
           <td colspan="2" class="cell-label">国家统一编码</td>
-          <td colspan="2" class="cell-value">
+          <td colspan="4" class="cell-value">
             <el-input v-model="model.projectCode" placeholder="请输入国家统一编码" aria-label="请输入国家统一编码"/>
           </td>
+          <td colspan="2" class="cell-label">
+            工程代号<span v-if="!readonly" class="req-star">*</span>
+          </td>
+          <td colspan="4" class="cell-value">
+            <el-input
+              v-model="model.engineeringCode"
+              :readonly="readonly"
+              maxlength="4"
+              placeholder="4位英文或数字，如 TF01"
+              aria-label="工程代号"
+              @input="onEngineeringCodeInput"
+            />
+          </td>
+        </tr>
+
+        <tr>
           <td colspan="2" class="cell-label">施工单位</td>
-          <td colspan="2" class="cell-value">
+          <td colspan="4" class="cell-value">
             <el-input
               v-model="model.contractorUnit"
               :readonly="readonly"
@@ -404,7 +431,7 @@ function openEquipmentRow(row) {
             />
           </td>
           <td colspan="2" class="cell-label">监理单位</td>
-          <td colspan="2" class="cell-value">
+          <td colspan="4" class="cell-value">
             <el-input
               v-model="model.supervisorUnit"
               :readonly="readonly"

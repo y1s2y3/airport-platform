@@ -23,9 +23,9 @@ const projects = computed(() => panels.value.projects || null)
 const physical = computed(() => panels.value.physical)
 const special = computed(() => panels.value.special)
 
-function passRateText(rate, approved, rejected) {
-  if (!(approved + rejected)) return '—'
-  return `${rate}%`
+function passRateText(rate, taskTotal) {
+  if (!taskTotal) return '—'
+  return `${rate ?? 0}%`
 }
 
 function goBackToHQ() {
@@ -57,7 +57,7 @@ function goBackToHQ() {
       </div>
       <p class="page-tip">
         范围：{{ isHqSelected ? '全部项目（指挥部）' : scopeProjectLabel }}
-        · 口径：待提交 / 审批中 / 已通过 / 已驳回；一次性通过率=已通过÷(已通过+已驳回)
+        · 口径：待提交 / 审批中 / 已通过 / 已驳回；一次性通过率=已通过中「重新申报来源」为空 ÷ 验收单总数
       </p>
     </div>
 
@@ -116,7 +116,7 @@ function goBackToHQ() {
           <div class="kpi-row cols-4">
             <div class="kpi tone-pass">
               <div class="num">{{
-                passRateText(physical.pass_rate ?? physical.passRate, physical.approved_count ?? physical.approvedCount, physical.rejected_count ?? physical.rejectedCount)
+                passRateText(physical.pass_rate ?? physical.passRate, physical.task_total ?? physical.taskTotal)
               }}</div>
               <div class="label">一次性通过率</div>
             </div>
@@ -164,7 +164,7 @@ function goBackToHQ() {
             </div>
             <div class="kpi tone-pass">
               <div class="num">{{
-                passRateText(special.pass_rate ?? special.passRate, special.approved_count ?? special.approvedCount, special.rejected_count ?? special.rejectedCount)
+                passRateText(special.pass_rate ?? special.passRate, special.task_total ?? special.taskTotal)
               }}</div>
               <div class="label">一次性通过率</div>
             </div>
@@ -202,7 +202,7 @@ function goBackToHQ() {
             </div>
             <div class="kpi tone-pass">
               <div class="num">{{
-                passRateText(physical.pass_rate ?? physical.passRate, physical.approved_count ?? physical.approvedCount, physical.rejected_count ?? physical.rejectedCount)
+                passRateText(physical.pass_rate ?? physical.passRate, physical.task_total ?? physical.taskTotal)
               }}</div>
               <div class="label">一次性通过率</div>
             </div>
@@ -246,7 +246,7 @@ function goBackToHQ() {
             </div>
             <div class="kpi tone-pass">
               <div class="num">{{
-                passRateText(special.pass_rate ?? special.passRate, special.approved_count ?? special.approvedCount, special.rejected_count ?? special.rejectedCount)
+                passRateText(special.pass_rate ?? special.passRate, special.task_total ?? special.taskTotal)
               }}</div>
               <div class="label">一次性通过率</div>
             </div>

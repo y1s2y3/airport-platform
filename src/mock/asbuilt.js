@@ -3,6 +3,7 @@
  */
 import { reactive } from 'vue'
 import { nowStr } from '../utils/datetime.js'
+import { isAllowedAttachExt } from '../constants/attachmentUpload.js'
 import { getProjectLabel } from './laborRealName.js'
 import { wbsNodes, WBS_TREE_NODE_TYPE_LABEL } from './qmInspect.js'
 import {
@@ -32,10 +33,11 @@ export const NODE_LABEL = {
   none: '无',
 }
 
-/** 报告附件：Word / PDF，最多 9 个，单文件 ≤30MB */
+/** 报告附件：常用办公文件，最多 9 个，单文件 ≤50MB */
 export const ASBUILT_REPORT_MAX_COUNT = 9
-export const ASBUILT_REPORT_MAX_SIZE = 30 * 1024 * 1024
-export const ASBUILT_REPORT_ACCEPT = '.pdf,.doc,.docx'
+export const ASBUILT_REPORT_MAX_SIZE = 50 * 1024 * 1024
+export const ASBUILT_REPORT_ACCEPT =
+  '.pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.ppt,.pptx'
 const ASBUILT_REPORT_MIME = new Set([
   'application/pdf',
   'application/msword',
@@ -70,10 +72,7 @@ function guessReportMime(fileName = '', mimeType = '') {
 }
 
 function isAllowedReportFile(file = {}) {
-  const mime = guessReportMime(file.file_name, file.mime_type)
-  if (ASBUILT_REPORT_MIME.has(mime)) return true
-  const name = String(file.file_name || '').toLowerCase()
-  return name.endsWith('.pdf') || name.endsWith('.doc') || name.endsWith('.docx')
+  return isAllowedAttachExt({ name: file.file_name, type: file.mime_type }, 'file')
 }
 
 export const APPROVAL_NODE_LABEL = {
@@ -112,7 +111,7 @@ function buildNodePath(nodeId) {
   return parts.join(' / ') || String(nodeId)
 }
 
-/** 实体工程分解树（单选添加用）：仅实体分支下可选至分项；单据内允许同一节点重复 */
+/** 实体工程分解树（填报树上多选后添加）：仅实体分支下可选至分项 */
 export function buildAsbuiltWbsTree() {
   const entityRoot = wbsNodes.find((n) => Number(n.node_type) === 9)
   const pool = wbsNodes.filter((n) => {
@@ -656,15 +655,15 @@ function pushApproval(row) {
 function validateComplete(payload) {
   const nodes = payload.nodes || []
   const files = payload.files || []
-  if (!nodes.length) return '请至少选择一个实体工程分解节点'
+  if (!nodes.length) return '请至少添加一个实体工程分解节点'
   if (!files.length) return '请至少上传一份实模一致性报告'
   if (files.length > ASBUILT_REPORT_MAX_COUNT) {
     return `报告附件最多上传 ${ASBUILT_REPORT_MAX_COUNT} 个`
   }
   const oversize = files.find((f) => Number(f.file_size || 0) > ASBUILT_REPORT_MAX_SIZE)
-  if (oversize) return '单个报告附件不能超过 30MB'
+  if (oversize) return '单个报告附件不能超过 50MB'
   const badFile = files.find((f) => !isAllowedReportFile(f))
-  if (badFile) return '报告仅支持 Word（.doc/.docx）与 PDF'
+  if (badFile) return '报告附件须符合系统文件档（pdf / jpg / png / Word / Excel / PPT）'
   if (!String(payload.supervisor_approver_user_id || '').trim()) {
     return '请选择监理单位审批人'
   }
@@ -686,12 +685,7 @@ export function listAsbuilt(projectId, { keyword = '', status = '' } = {}) {
       const hay = [
         r.biz_no,
         r.title,
-        r.remark,
-        r.copy_from_biz_no,
-        r.supervisor_approver_name,
-        r.pm_approver_name,
-        (r.nodes || []).map((n) => n.wbs_node_path).join(''),
-        (r.files || []).map((f) => f.file_name).join(''),
+        (r.nodes || []).map((n) => n.wbs_node_path || n.wbs_node_id).join(''),
       ].join('')
       return hay.includes(kw)
     })
@@ -777,6 +771,7 @@ function normalizeSubmitPayload(payload = {}) {
     wbs_node_path: n.wbs_node_path || buildNodePath(n.wbs_node_id),
     sort_order: i + 1,
   }))
+  // 同一 wbs_node_id 允许出现多行（业务可重复添加）
 
   const files = (payload.files || []).map((f, i) => ({
     id: f.id || `abf-${Date.now()}-${i}`,

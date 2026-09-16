@@ -5,12 +5,24 @@ import { buildPersonPhotoUrl } from '../mock/data.js'
 
 const props = defineProps({
   personnel: { type: Array, default: () => [] },
+  /** 会话内已编辑过的名单；传入则优先恢复，不再按打卡重算默认态 */
+  restoredEntries: { type: Array, default: null },
   embedded: { type: Boolean, default: false },
   compact: { type: Boolean, default: false },
 })
 
+const emit = defineEmits(['entries-change'])
+
 function isAttendee(person) {
   return person.jobType === '管理'
+}
+
+/** 有打卡上班记录（非空且非占位）→ 默认可视为已参会 */
+function hasClockIn(person) {
+  const v = person?.clockIn
+  if (v == null || v === '') return false
+  if (v === '--' || v === '—') return false
+  return true
 }
 
 function personPhoto(item) {
@@ -28,14 +40,30 @@ function formatTime() {
 
 const entries = ref([])
 
+function notifyChange() {
+  emit(
+    'entries-change',
+    entries.value.map((item) => ({ ...item })),
+  )
+}
+
 function initEntries(list) {
+  if (Array.isArray(props.restoredEntries) && props.restoredEntries.length) {
+    entries.value = props.restoredEntries.map((item) => ({ ...item }))
+    notifyChange()
+    return
+  }
   const attendees = list.filter(isAttendee)
   const now = formatTime()
-  entries.value = attendees.map((person) => ({
-    ...person,
-    joined: true,
-    joinTime: now,
-  }))
+  entries.value = attendees.map((person) => {
+    const joined = hasClockIn(person)
+    return {
+      ...person,
+      joined,
+      joinTime: joined ? person.clockIn || now : null,
+    }
+  })
+  notifyChange()
 }
 
 watch(
@@ -57,6 +85,7 @@ function markAbsent(id) {
   if (!item || !item.joined) return
   item.joined = false
   item.joinTime = null
+  notifyChange()
   ElMessage.info(`${item.name} 已标记为未参会`)
 }
 
@@ -65,8 +94,15 @@ function markJoined(id) {
   if (!item || item.joined) return
   item.joined = true
   item.joinTime = formatTime()
+  notifyChange()
   ElMessage.success(`${item.name} 已登记参会`)
 }
+
+function getSnapshot() {
+  return entries.value.map((item) => ({ ...item }))
+}
+
+defineExpose({ getSnapshot })
 </script>
 
 <template>

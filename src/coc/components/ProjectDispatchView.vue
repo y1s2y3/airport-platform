@@ -63,7 +63,7 @@ const dispatchDevice = computed(() => {
 
       <aside class="dispatch-side">
         <DispatchDocTicketPanel :device="dispatchDevice" :video-project="videoProject" />
-        <DispatchHazardListPanel />
+        <DispatchHazardListPanel :project-id="selectedProjectId" />
         <QualityEvalRiskPanel :selection-id="selectedProjectId" />
       </aside>
     </div>

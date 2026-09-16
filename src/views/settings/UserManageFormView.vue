@@ -48,7 +48,7 @@ onMounted(() => {
     const detail = getSysUser(route.params.id)
     if (!detail) {
       ElMessage.warning('未找到用户信息')
-      router.replace({ name: 'Sysuser' })
+      router.replace({ name: 'SysUser' })
       return
     }
     form.value = cloneSysUser(detail)
@@ -69,7 +69,7 @@ watch(
 )
 
 function goBack() {
-  router.push({ name: 'Sysuser' })
+  router.push({ name: 'SysUser' })
 }
 
 function addPositionRow() {
@@ -93,7 +93,7 @@ async function handleSubmit() {
     }
     saveSysUser(form.value, isEdit.value ? route.params.id : undefined)
     ElMessage.success(isEdit.value ? '保存成功' : '新增成功')
-    router.push({ name: 'Sysuser' })
+    router.push({ name: 'SysUser' })
   })
 }
 </script>
