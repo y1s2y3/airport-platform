@@ -131,6 +131,10 @@ function levelClass(level) {
   return 'normal'
 }
 
+function sourceLabel(row) {
+  return CHANNEL_LABEL[row.channel] || CHANNEL_LABEL[row.source] || '—'
+}
+
 function openHazardDetail(row) {
   detailView.value = { kind: 'hazard', data: { ...row } }
 }
@@ -238,6 +242,7 @@ async function handleConfirmClose() {
         <table class="data-table">
           <thead>
             <tr>
+              <th>数据源</th>
               <th>类别</th>
               <th>描述</th>
               <th>等级</th>
@@ -252,12 +257,13 @@ async function handleConfirmClose() {
               @click="openHazardDetail(row)"
             >
               <td>
-                <span class="cat-cell">
-                  <span class="cat-tag" :class="row.hazardCategory === '安全' ? 'safety' : 'quality'">
-                    {{ row.hazardCategory }}
-                  </span>
-                  <span v-if="row.channel === 'dispatch'" class="src-tag">调度</span>
-                  <span v-else-if="row.channel === 'supervision'" class="src-tag src-tag--sup">例会</span>
+                <span class="src-tag" :class="{ 'src-tag--sup': row.channel === 'supervision', 'src-tag--dispatch': row.channel === 'dispatch' }">
+                  {{ sourceLabel(row) }}
+                </span>
+              </td>
+              <td>
+                <span class="cat-tag" :class="row.hazardCategory === '安全' ? 'safety' : 'quality'">
+                  {{ row.hazardCategory || '—' }}
                 </span>
               </td>
               <td class="desc" :title="row.desc">{{ row.desc }}</td>
@@ -269,7 +275,7 @@ async function handleConfirmClose() {
               </td>
             </tr>
             <tr v-if="!previewList.length">
-              <td colspan="4" class="empty-row">暂无符合条件的隐患记录</td>
+              <td colspan="5" class="empty-row">暂无符合条件的隐患记录</td>
             </tr>
           </tbody>
         </table>
@@ -291,7 +297,7 @@ async function handleConfirmClose() {
             clearable
             size="small"
             class="more-search"
-            placeholder="搜索描述/类别/等级"
+            placeholder="搜索描述/数据源/类别/等级"
           />
           <el-date-picker
             v-model="hazardDateRange"
@@ -319,6 +325,7 @@ async function handleConfirmClose() {
         <table class="mini-table more-table">
           <thead>
             <tr>
+              <th>数据源</th>
               <th>类别</th>
               <th>日期</th>
               <th>描述</th>
@@ -334,12 +341,13 @@ async function handleConfirmClose() {
               @click="openHazardDetail(row)"
             >
               <td>
-                <span class="cat-cell">
-                  <span class="cat-tag" :class="row.hazardCategory === '安全' ? 'safety' : 'quality'">
-                    {{ row.hazardCategory }}
-                  </span>
-                  <span v-if="row.channel === 'dispatch'" class="src-tag">调度</span>
-                  <span v-else-if="row.channel === 'supervision'" class="src-tag src-tag--sup">例会</span>
+                <span class="src-tag" :class="{ 'src-tag--sup': row.channel === 'supervision', 'src-tag--dispatch': row.channel === 'dispatch' }">
+                  {{ sourceLabel(row) }}
+                </span>
+              </td>
+              <td>
+                <span class="cat-tag" :class="row.hazardCategory === '安全' ? 'safety' : 'quality'">
+                  {{ row.hazardCategory || '—' }}
                 </span>
               </td>
               <td>{{ row.date }}</td>
@@ -350,7 +358,7 @@ async function handleConfirmClose() {
               <td><span class="status-tag" :class="statusMap[row.unifiedStatus] || statusMap[row.status]">{{ row.unifiedStatus || row.status }}</span></td>
             </tr>
             <tr v-if="!popupFilteredHazardList.length">
-              <td colspan="5" class="empty-row">暂无符合条件的隐患记录</td>
+              <td colspan="6" class="empty-row">暂无符合条件的隐患记录</td>
             </tr>
           </tbody>
         </table>
@@ -501,22 +509,20 @@ async function handleConfirmClose() {
   white-space: nowrap;
 }
 
-.cat-cell {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex-wrap: wrap;
-}
-
 .src-tag {
   display: inline-block;
-  padding: 1px 5px;
-  border-radius: 3px;
-  font-size: calc(10px + var(--coc-font-boost));
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: calc(11px + var(--coc-font-boost));
   font-weight: 600;
+  color: #67c23a;
+  background: rgba(103, 194, 58, 0.14);
+  white-space: nowrap;
+}
+
+.src-tag--dispatch {
   color: #409eff;
   background: rgba(64, 158, 255, 0.14);
-  white-space: nowrap;
 }
 
 .src-tag--sup {

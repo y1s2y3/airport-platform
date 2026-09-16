@@ -6,8 +6,6 @@ defineProps({
   selectedProjectId: { type: String, default: 'hq' },
   statusFilters: { type: Array, default: () => ['在建'] },
 })
-
-defineEmits(['project-change'])
 </script>
 
 <template>
@@ -16,7 +14,6 @@ defineEmits(['project-change'])
       :projects="projects"
       :selected-project-id="selectedProjectId"
       :status-filters="statusFilters"
-      @project-change="$emit('project-change', $event)"
     />
   </div>
 </template>

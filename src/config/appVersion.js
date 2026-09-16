@@ -17,6 +17,16 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.9.1.9',
+    date: '2026-09-16',
+    highlights: [
+      '工作台：常用功能可配置（勾选末级菜单、拖动排序；指挥部/项目分层本地保存）',
+      '实模一致：个人中心办理面板对齐；施工部位可选至实体工程分解树部位级',
+      'COC：会议签到下拉与结构树单向联动；隐患列表增加「数据源」列',
+      '风险管理 / 施工部位等演示数据与表单小优化',
+    ],
+  },
+  {
     version: 'v2.9.1.8',
     date: '2026-09-16',
     highlights: [

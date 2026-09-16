@@ -5,7 +5,7 @@ import { reactive } from 'vue'
 import { nowStr } from '../utils/datetime.js'
 import { isAllowedAttachExt } from '../constants/attachmentUpload.js'
 import { getProjectLabel } from './laborRealName.js'
-import { wbsNodes, WBS_TREE_NODE_TYPE_LABEL } from './qmInspect.js'
+import { getEntityNodePathLabel, listEntityPartSelectTree } from './constructionLocation.js'
 import {
   createAsbuiltSupervisorTodo,
   createAsbuiltPmTodo,
@@ -87,7 +87,7 @@ export const ACTION_LABEL = {
   reject: '驳回',
 }
 
-/** 表单可选：单位工程～分项（不含检验批及分类骨架） */
+/** 表单可选的实体工程 WBS 类型：单位工程～分项（施工部位为部位库 id，不含检验批及分类骨架） */
 export const ASBUILT_SELECTABLE_NODE_TYPES = [1, 2, 3, 4, 5]
 
 export function statusTagType(status) {
@@ -98,56 +98,13 @@ export function statusTagType(status) {
 }
 
 function buildNodePath(nodeId) {
-  const parts = []
-  let cur = wbsNodes.find((n) => n.id === nodeId)
-  const guard = new Set()
-  while (cur && !guard.has(cur.id)) {
-    guard.add(cur.id)
-    if (![8, 9, 10].includes(Number(cur.node_type))) {
-      parts.unshift(cur.node_name || cur.id)
-    }
-    cur = cur.parent_id ? wbsNodes.find((n) => n.id === cur.parent_id) : null
-  }
-  return parts.join(' / ') || String(nodeId)
+  return getEntityNodePathLabel(nodeId) || String(nodeId)
 }
 
-/** 实体工程分解树（填报树上多选后添加）：仅实体分支下可选至分项 */
-export function buildAsbuiltWbsTree() {
-  const entityRoot = wbsNodes.find((n) => Number(n.node_type) === 9)
-  const pool = wbsNodes.filter((n) => {
-    if ([8, 10].includes(Number(n.node_type))) return false
-    if (Number(n.node_type) === 9) return true
-    if (Number(n.node_type) === 6) return false
-    if (Number(n.node_type) === 7) return false
-    return ASBUILT_SELECTABLE_NODE_TYPES.includes(Number(n.node_type)) || Number(n.node_type) === 9
-  })
-
-  function childrenOf(pid) {
-    return pool
-      .filter((n) => n.parent_id === pid)
-      .map((n) => {
-        const selectable = ASBUILT_SELECTABLE_NODE_TYPES.includes(Number(n.node_type))
-        const kids = childrenOf(n.id)
-        return {
-          id: n.id,
-          label: `${n.node_name}（${WBS_TREE_NODE_TYPE_LABEL[n.node_type] || n.node_type}）`,
-          disabled: !selectable,
-          children: kids.length ? kids : undefined,
-        }
-      })
-  }
-
-  if (!entityRoot) {
-    return childrenOf(null)
-  }
-  return [
-    {
-      id: entityRoot.id,
-      label: entityRoot.node_name,
-      disabled: true,
-      children: childrenOf(entityRoot.id),
-    },
-  ]
+/** 实体工程分解树：单位工程～施工部位均可选（不含检验批） */
+export function buildAsbuiltWbsTree(projectId) {
+  if (!projectId) return []
+  return listEntityPartSelectTree(projectId, { includeLocations: true })
 }
 
 const store = reactive({
@@ -180,6 +137,12 @@ const store = reactive({
           wbs_node_id: 'wn-item-3',
           wbs_node_path: '',
           sort_order: 1,
+        },
+        {
+          id: 'abn-1b',
+          wbs_node_id: 'loc-conc-1a',
+          wbs_node_path: '',
+          sort_order: 2,
         },
       ],
       files: [
@@ -220,6 +183,12 @@ const store = reactive({
           wbs_node_id: 'wn-item-4',
           wbs_node_path: '',
           sort_order: 1,
+        },
+        {
+          id: 'abn-2b',
+          wbs_node_id: 'loc-wp-1',
+          wbs_node_path: '',
+          sort_order: 2,
         },
       ],
       files: [
@@ -655,7 +624,7 @@ function pushApproval(row) {
 function validateComplete(payload) {
   const nodes = payload.nodes || []
   const files = payload.files || []
-  if (!nodes.length) return '请至少添加一个实体工程分解节点'
+  if (!nodes.length) return '请至少选择一个实体工程分解节点'
   if (!files.length) return '请至少上传一份实模一致性报告'
   if (files.length > ASBUILT_REPORT_MAX_COUNT) {
     return `报告附件最多上传 ${ASBUILT_REPORT_MAX_COUNT} 个`
@@ -771,7 +740,7 @@ function normalizeSubmitPayload(payload = {}) {
     wbs_node_path: n.wbs_node_path || buildNodePath(n.wbs_node_id),
     sort_order: i + 1,
   }))
-  // 同一 wbs_node_id 允许出现多行（业务可重复添加）
+  // 同一节点允许出现多行（历史复制单据兼容）
 
   const files = (payload.files || []).map((f, i) => ({
     id: f.id || `abf-${Date.now()}-${i}`,

@@ -154,7 +154,6 @@ onUnmounted(() => {
       :projects="projects"
       :selected-project-id="selectedProjectId"
       :status-filters="statusFilters"
-      @project-change="handleProjectChange"
     />
 
     <div class="screen-badge">

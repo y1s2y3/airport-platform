@@ -11,6 +11,7 @@ import {
   submitAsbuilt,
   copyAsbuiltFromRejected,
 } from '../../../mock/asbuilt.js'
+import { getEntityNodePathLabel } from '../../../mock/constructionLocation.js'
 import {
   listBrandProjectUsers,
   resolveDefaultApprovers,
@@ -28,7 +29,7 @@ const copyFromLabel = ref('')
 const form = reactive({
   title: '',
   remark: '',
-  /** 已添加节点清单（有序；同一 wbs_node_id 允许重复） */
+  /** 已选节点（单位工程～施工部位；树上多选） */
   selectedNodeIds: [],
   files: [],
   supervisor_approver_user_id: '',
@@ -37,10 +38,7 @@ const form = reactive({
   pm_approver_name: '',
 })
 
-/** 树上待添加的多选节点（点「添加」后写入清单） */
-const pickingNodeIds = ref([])
-
-const wbsTree = computed(() => buildAsbuiltWbsTree())
+const wbsTree = computed(() => buildAsbuiltWbsTree(scopeProjectId.value))
 const projectUsers = computed(() => listBrandProjectUsers(scopeProjectId.value))
 const pageTitle = computed(() =>
   copyFromLabel.value ? '重新申报实模一致验收' : '新建实模一致验收',
@@ -59,23 +57,20 @@ const selectedNodeRows = computed(() =>
   (form.selectedNodeIds || []).map((id, index) => ({
     key: `${id}-${index}`,
     wbs_node_id: id,
-    path: findWbsLabel(wbsTree.value, id) || id,
+    path: getEntityNodePathLabel(id) || findWbsLabel(wbsTree.value, id) || id,
   })),
 )
 
-function addPickedNodes() {
-  const ids = pickingNodeIds.value || []
-  if (!ids.length) {
-    ElMessage.warning('请先在树上勾选至少一个实体工程节点')
-    return
-  }
-  form.selectedNodeIds.push(...ids)
-  pickingNodeIds.value = []
-  ElMessage.success(`已添加 ${ids.length} 个节点到清单`)
-}
-
 function removeNode(index) {
   form.selectedNodeIds.splice(index, 1)
+}
+
+function openEntityBreakdown() {
+  const href = router.resolve({
+    path: '/basic-data/entity-breakdown',
+    query: scopeProjectId.value ? { project_id: scopeProjectId.value } : {},
+  }).href
+  window.open(href, '_blank', 'noopener,noreferrer')
 }
 
 function applyApproverFields(src = {}) {
@@ -233,7 +228,7 @@ function onSubmit() {
         <div style="width: 100%">
           <div class="node-pick-row">
             <el-tree-select
-              v-model="pickingNodeIds"
+              v-model="form.selectedNodeIds"
               :data="wbsTree"
               multiple
               show-checkbox
@@ -244,13 +239,17 @@ function onSubmit() {
               collapse-tags-tooltip
               node-key="id"
               :props="{ label: 'label', children: 'children', disabled: 'disabled' }"
-              placeholder="树上多选至分项（不含检验批）"
+              :render-after-expand="false"
+              default-expand-all
+              placeholder="从实体工程分解树多选，可选至施工部位"
               style="flex: 1"
+              :disabled="!wbsTree.length"
+              aria-label="所选实体工程节点"
             />
-            <el-button type="primary" @click="addPickedNodes">添加</el-button>
+            <el-button link type="primary" @click="openEntityBreakdown">去配置</el-button>
           </div>
           <p class="muted" style="margin: 8px 0 0">
-            树上勾选后点「添加」写入清单；最少 1 条，不限条数；同一节点可多次添加。
+            可选择单位工程至施工部位；节点不足时点「去配置」维护。最少 1 条。
           </p>
           <el-table
             v-if="selectedNodeRows.length"
@@ -268,7 +267,7 @@ function onSubmit() {
               </template>
             </el-table-column>
           </el-table>
-          <p v-else class="muted" style="margin: 8px 0 0">尚未添加节点</p>
+          <p v-else class="muted" style="margin: 8px 0 0">尚未选择节点</p>
         </div>
       </el-form-item>
       <el-form-item label="报告附件" required>
@@ -372,7 +371,7 @@ function onSubmit() {
 
 .node-pick-row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
   width: 100%;
 }

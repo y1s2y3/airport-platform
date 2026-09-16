@@ -962,26 +962,55 @@ export function collectEntityBreakdownDefaultExpandKeys(rows) {
 }
 
 /**
- * 定样报审：实体工程分解树（单位～分项均可选；分类根 node_type=9 禁用）
- * 供 el-tree-select 使用
+ * 实体工程分解树（供 el-tree-select）
+ * - 默认：单位～分项均可选；分类根 node_type=9 禁用（定样报审）
+ * - includeLocations：分项下挂接施工部位，单位～施工部位均可选（实模一致 / 风险管理）
  */
-export function listEntityPartSelectTree(projectId) {
+export function listEntityPartSelectTree(projectId, { includeLocations = false } = {}) {
   if (!projectId) return []
   ensureWbsScaffold(projectId)
-  const mapNode = (n) => ({
-    id: n.id,
-    label: n.label,
-    node_type: n.node_type,
-    type_label: n.type_label,
-    disabled: n.node_type === 9,
-    children: (n.children || []).map(mapNode),
-  })
-  return buildEntityBreakdownTree(projectId).map(mapNode)
+  const source = includeLocations
+    ? buildLocationManageEntityTree(projectId)
+    : buildEntityBreakdownTree(projectId)
+
+  const mapNode = (n) => {
+    const isLoc = n.node_type === 'loc' || n.is_loc
+    if (isLoc) {
+      const raw = n.raw?.raw || n.raw
+      if (raw && raw.status === 0) return null
+    }
+    const children = (n.children || []).map(mapNode).filter(Boolean)
+    const typeLabel = isLoc ? '施工部位' : n.type_label
+    const showType = includeLocations && n.node_type !== 9 && typeLabel
+    return {
+      id: n.id,
+      label: showType ? `${n.label}（${typeLabel}）` : n.label,
+      node_type: n.node_type,
+      type_label: typeLabel,
+      disabled: n.node_type === 9,
+      is_loc: isLoc,
+      children: children.length ? children : undefined,
+    }
+  }
+  return source.map(mapNode).filter(Boolean)
 }
 
-/** 实体 WBS 节点路径标签（祖先 → 自身） */
+/** 实体 WBS / 施工部位路径标签（祖先 → 自身；部位含所属分项及以上） */
 export function getEntityNodePathLabel(wbsNodeId) {
   if (!wbsNodeId) return ''
+  const loc = getLocationById(wbsNodeId)
+  if (loc) {
+    const itemPath = getEntityNodePathLabel(loc.wbs_node_id)
+    const locParts = []
+    let cur = loc
+    const guard = new Set()
+    while (cur && !guard.has(cur.id)) {
+      guard.add(cur.id)
+      if (cur.name) locParts.unshift(cur.name)
+      cur = cur.parent_id ? getLocationById(cur.parent_id) : null
+    }
+    return [itemPath, ...locParts].filter(Boolean).join(' / ')
+  }
   const node = wbsNodes.find((n) => isWbsAlive(n) && n.id === wbsNodeId)
   if (!node) return ''
   const parts = []

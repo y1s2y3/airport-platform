@@ -7,7 +7,6 @@ import DispatchVideoPanels from './safety/dispatch/DispatchVideoPanels.vue'
 import DispatchProjectDispatchLower from './safety/dispatch/DispatchProjectDispatchLower.vue'
 import DispatchDocTicketPanel from './safety/dispatch/DispatchDocTicketPanel.vue'
 import DispatchHazardListPanel from './safety/dispatch/DispatchHazardListPanel.vue'
-import QualityEvalRiskPanel from './safety/dispatch/QualityEvalRiskPanel.vue'
 import { getMonitorDispatchDevices, findDispatchDevice, DISPATCH_DEVICES } from '../mock/data.js'
 
 const props = defineProps({
@@ -64,7 +63,6 @@ const dispatchDevice = computed(() => {
       <aside class="dispatch-side">
         <DispatchDocTicketPanel :device="dispatchDevice" :video-project="videoProject" />
         <DispatchHazardListPanel :project-id="selectedProjectId" />
-        <QualityEvalRiskPanel :selection-id="selectedProjectId" />
       </aside>
     </div>
   </main>
@@ -185,9 +183,13 @@ const dispatchDevice = computed(() => {
   gap: 12px;
 }
 
-.dispatch-side :deep(.doc-ticket-panel),
-.dispatch-side :deep(.hazard-side-panel),
-.dispatch-side :deep(.quality-risk-panel) {
+.dispatch-side :deep(.doc-ticket-panel) {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 42%;
+}
+
+.dispatch-side :deep(.hazard-side-panel) {
   flex: 1 1 0;
   min-height: 0;
 }

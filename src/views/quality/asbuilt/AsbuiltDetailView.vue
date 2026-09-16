@@ -40,11 +40,6 @@ const currentNodeLabel = computed(() => {
   return NODE_LABEL[row.current_node] || '—'
 })
 
-function goResubmit() {
-  if (!detail.value) return
-  router.push(`/qm/asbuilt/edit?copyFrom=${detail.value.id}`)
-}
-
 function fileSizeLabel(size) {
   const kb = Math.max(1, Math.round((size || 0) / 1024))
   if (kb >= 1024) return `${(kb / 1024).toFixed(1)} MB`
@@ -66,13 +61,6 @@ function actionTagType(action) {
       <div class="title-row">
         <h1 class="page-title">实模一致验收详情</h1>
         <div class="title-actions">
-          <el-button
-            v-if="detail?.status === 'rejected'"
-            type="warning"
-            @click="goResubmit"
-          >
-            重新申报
-          </el-button>
           <el-button @click="router.push('/qm/asbuilt/list')">返回列表</el-button>
         </div>
       </div>

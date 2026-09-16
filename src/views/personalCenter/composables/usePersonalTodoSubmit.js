@@ -5,6 +5,7 @@ import {
   personalTodoStore,
   DISPATCH_HAZARD_TODO_BIZ,
   buildDispatchHazardProcessName,
+  isAsbuiltPmNode,
 } from '../../../mock/personalCenter.js'
 import { pmApprove, supervisorApprove } from '../../../mock/brand.js'
 import { getCurrentUserSnapshot, getEffectiveUserId } from '../../../mock/currentUser.js'
@@ -261,7 +262,7 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
           approved ? '已通过，指挥部项目经理终审待办已生成' : '已驳回，流程结束',
         )
       }
-      if (row.asbuiltNode === 'pm') {
+      if (isAsbuiltPmNode(row.asbuiltNode)) {
         const r = pmApproveAsbuilt(row.asbuiltAcceptanceId, { action, comment })
         if (!r.ok) return ElMessage.error(r.msg)
         return afterSubmit(

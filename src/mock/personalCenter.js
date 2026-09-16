@@ -577,7 +577,7 @@ function seedTodos() {
         bizNo: 'AB-202608-002',
         title: '防水分项实模一致验收',
         remark: '地下室防水节点已完成实模对比',
-        nodePaths: '飞行区下穿通道单位工程 / 结构主体分部 / 防水分项',
+        nodePaths: '飞行区下穿通道单位工程 / 结构主体分部 / 防水分项；飞行区下穿通道单位工程 / 结构主体分部 / 防水分项 / 隧道顶板防水',
         reportNames: '实模一致性报告-防水分项.pdf',
         currentNode: '待监理审',
       },
@@ -2977,18 +2977,29 @@ export function discardEqEntryTodos(entryId) {
 /** —— 实模一致验收：仅个人中心待办（监理 → 指挥部项目经理） —— */
 let asbuiltTodoSeq = 50
 
+/** 项目经理终审环节：待办/落库统一 `hq_pm`；可读兼容旧种子 `pm` */
+export function isAsbuiltPmNode(node) {
+  return node === 'hq_pm' || node === 'pm'
+}
+
+function matchesAsbuiltOnlyNode(todoNode, onlyNode) {
+  if (!onlyNode) return true
+  if (todoNode === onlyNode) return true
+  return onlyNode === 'hq_pm' && todoNode === 'pm'
+}
+
 function removeOpenAsbuiltTodos(acceptanceId, { onlyNode } = {}) {
   for (let i = personalTodoStore.todos.length - 1; i >= 0; i -= 1) {
     const t = personalTodoStore.todos[i]
     if (t.type !== 'asbuilt' || t.asbuiltAcceptanceId !== acceptanceId) continue
-    if (onlyNode && t.asbuiltNode !== onlyNode) continue
+    if (!matchesAsbuiltOnlyNode(t.asbuiltNode, onlyNode)) continue
     personalTodoStore.todos.splice(i, 1)
   }
 }
 
 function buildAsbuiltTodo(payload) {
-  const node = payload.asbuiltNode === 'pm' ? 'pm' : 'supervisor'
-  const isPm = node === 'pm'
+  const isPm = isAsbuiltPmNode(payload.asbuiltNode)
+  const node = isPm ? 'hq_pm' : 'supervisor'
   asbuiltTodoSeq += 1
   return {
     id: `todo-asbuilt-${asbuiltTodoSeq}`,
@@ -3068,6 +3079,13 @@ function buildAsbuiltTodo(payload) {
 
 export function createAsbuiltSupervisorTodo(payload) {
   if (!payload?.acceptanceId) return null
+  const exist = personalTodoStore.todos.find(
+    (t) =>
+      t.type === 'asbuilt' &&
+      t.asbuiltAcceptanceId === payload.acceptanceId &&
+      t.asbuiltNode === 'supervisor',
+  )
+  if (exist) return exist
   removeOpenAsbuiltTodos(payload.acceptanceId)
   const row = buildAsbuiltTodo({ ...payload, asbuiltNode: 'supervisor' })
   personalTodoStore.todos.unshift(row)
@@ -3076,9 +3094,16 @@ export function createAsbuiltSupervisorTodo(payload) {
 
 export function createAsbuiltPmTodo(payload) {
   if (!payload?.acceptanceId) return null
+  const exist = personalTodoStore.todos.find(
+    (t) =>
+      t.type === 'asbuilt' &&
+      t.asbuiltAcceptanceId === payload.acceptanceId &&
+      isAsbuiltPmNode(t.asbuiltNode),
+  )
+  if (exist) return exist
   removeOpenAsbuiltTodos(payload.acceptanceId, { onlyNode: 'supervisor' })
-  removeOpenAsbuiltTodos(payload.acceptanceId, { onlyNode: 'pm' })
-  const row = buildAsbuiltTodo({ ...payload, asbuiltNode: 'pm' })
+  removeOpenAsbuiltTodos(payload.acceptanceId, { onlyNode: 'hq_pm' })
+  const row = buildAsbuiltTodo({ ...payload, asbuiltNode: 'hq_pm' })
   personalTodoStore.todos.unshift(row)
   return row
 }

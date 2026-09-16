@@ -57,7 +57,9 @@ const segmentOptions = computed(() => {
   if (!form.risk_type || !form.risk_point) return []
   return listConfigRiskSegments(laborProjectId.value, form.risk_type, form.risk_point)
 })
-const partTree = computed(() => listEntityPartSelectTree(laborProjectId.value))
+const partTree = computed(() =>
+  listEntityPartSelectTree(laborProjectId.value, { includeLocations: true }),
+)
 const loaded = ref(false)
 /** 避免编辑回填时联动清空 / 覆盖已有措施 */
 const syncing = ref(false)
@@ -282,7 +284,7 @@ function handleSubmit() {
             :props="{ label: 'label', children: 'children', disabled: 'disabled' }"
             :render-after-expand="false"
             default-expand-all
-            placeholder="从实体工程分解树多选（选填）"
+            placeholder="从实体工程分解树多选，可选至施工部位（选填）"
             style="width: 100%"
             :disabled="!partTree.length"
             aria-label="风险点位置"

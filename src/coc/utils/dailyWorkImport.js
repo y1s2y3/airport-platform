@@ -206,6 +206,26 @@ function recordToExcelRow(record) {
   return row
 }
 
+/** 导出仅危险作业侧 A–O，不含危大兼容列 */
+const DANGER_EXPORT_COL_COUNT = 15
+
+function buildDangerExportHeaderRow() {
+  const row = Array(DANGER_EXPORT_COL_COUNT).fill('')
+  DANGER_WORK_FIELDS.forEach((field) => {
+    row[colLetterToNumber(field.col) - 1] = field.label
+  })
+  return row
+}
+
+function recordToDangerExcelRow(record) {
+  const row = Array(DANGER_EXPORT_COL_COUNT).fill('')
+  DANGER_WORK_FIELDS.forEach((field) => {
+    const val = record[field.key]
+    if (val != null && String(val).trim()) row[colLetterToNumber(field.col) - 1] = val
+  })
+  return row
+}
+
 const TEMPLATE_INSTRUCTIONS = [
   '填报说明：',
   '1. 管理单位默认「深圳机场集团/建设工程指挥部」；施工项目名称须为系统内项目全称，导入时不存在则整批拦截。',
@@ -289,17 +309,19 @@ function sheetNameFromReportDate(reportDate) {
 function buildExportSheetRows(sheetName, records) {
   const displayDate = formatDisplayDateLabel(sheetName)
   const title = `建设工程指挥部危险作业统计表（施工日期：${displayDate}00:00-${displayDate}24:00）`
-  const padding = Array(DAILY_WORK_DATA_START_ROW - 1).fill(null).map(() => Array(24).fill(''))
+  const padding = Array(DAILY_WORK_DATA_START_ROW - 1)
+    .fill(null)
+    .map(() => Array(DANGER_EXPORT_COL_COUNT).fill(''))
   padding[1] = [title]
   padding[2] = [TEMPLATE_INSTRUCTIONS]
   padding[3] = [title]
-  padding[4] = buildTemplateHeaderRow()
-  const dataRows = (records || []).map((record) => recordToExcelRow(record))
+  padding[4] = buildDangerExportHeaderRow()
+  const dataRows = (records || []).map((record) => recordToDangerExcelRow(record))
   return [...padding, ...dataRows]
 }
 
 /**
- * 导出每日施工作业（按施工日期分 Sheet，列与导入模版一致；含危大侧扩展列）
+ * 导出每日施工作业（按施工日期分 Sheet；仅危险作业侧 A–O，不含危大兼容列）
  * @param {Array} records 待导出记录（通常为当前筛选结果）
  * @returns {{ ok: boolean, count: number, sheetCount: number, error?: string }}
  */
@@ -322,7 +344,7 @@ export function exportDailyWorkRecords(records, options = {}) {
     .forEach(([sheetName, rows]) => {
       const safeName = String(sheetName).slice(0, 31) || '导出'
       const ws = XLSX.utils.aoa_to_sheet(buildExportSheetRows(safeName, rows))
-      ws['!cols'] = Array(24).fill({ wch: 18 })
+      ws['!cols'] = Array(DANGER_EXPORT_COL_COUNT).fill({ wch: 18 })
       XLSX.utils.book_append_sheet(wb, ws, safeName)
     })
 

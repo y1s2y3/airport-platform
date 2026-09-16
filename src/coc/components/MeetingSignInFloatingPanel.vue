@@ -12,8 +12,6 @@ const props = defineProps({
   statusFilters: { type: Array, default: () => ['在建'] },
 })
 
-const emit = defineEmits(['project-change'])
-
 const { panelExpanded, togglePanel } = useSignInFloatingPanel()
 const {
   touchProject,
@@ -22,14 +20,14 @@ const {
   ensureSessionStarted,
 } = useMeetingSignInSession()
 
-const isHqMode = computed(() => props.selectedProjectId === HQ_SELECTION_ID)
+/** 签到下拉本地选中：不回写结构树；结构树切换时单向同步到此 */
 const signInProjectId = ref('')
 const registrationRef = ref(null)
 
-/** 与项目列表一致：按状态筛选，当前选中项目始终保留在下拉中 */
+/** 与项目列表一致：按状态筛选，当前签到项目始终保留在下拉中 */
 const selectableProjects = computed(() => {
   let list = props.projects.filter((p) => props.statusFilters.includes(p.status))
-  const activeId = isHqMode.value ? signInProjectId.value : props.selectedProjectId
+  const activeId = signInProjectId.value
   if (activeId) {
     const selected = props.projects.find((p) => p.id === activeId)
     if (selected && !list.some((p) => p.id === selected.id)) {
@@ -39,25 +37,43 @@ const selectableProjects = computed(() => {
   return list
 })
 
+function pickDefaultSignInId() {
+  const list = selectableProjects.value
+  const treeId = props.selectedProjectId
+  if (treeId && treeId !== HQ_SELECTION_ID && list.some((p) => p.id === treeId)) {
+    return treeId
+  }
+  return list[0]?.id || ''
+}
+
 watch(
-  [() => props.projects, () => props.statusFilters, isHqMode],
+  [() => props.projects, () => props.statusFilters],
   () => {
-    if (!isHqMode.value) return
     const list = selectableProjects.value
     if (!list.length) {
       signInProjectId.value = ''
       return
     }
     if (!list.some((p) => p.id === signInProjectId.value)) {
-      signInProjectId.value = list[0].id
+      signInProjectId.value = pickDefaultSignInId()
     }
   },
   { immediate: true },
 )
 
-const activeSignInProjectId = computed(() =>
-  isHqMode.value ? signInProjectId.value : props.selectedProjectId,
+/** 结构树切换 → 联动签到下拉；签到下拉改选不反写结构树 */
+watch(
+  () => props.selectedProjectId,
+  (id) => {
+    if (!id || id === HQ_SELECTION_ID) return
+    if (!props.projects.some((p) => p.id === id)) return
+    if (id === signInProjectId.value) return
+    flushCurrentProject()
+    signInProjectId.value = id
+  },
 )
+
+const activeSignInProjectId = computed(() => signInProjectId.value)
 
 const activeProject = computed(() =>
   props.projects.find((p) => p.id === activeSignInProjectId.value) || null,
@@ -115,11 +131,7 @@ function handleScopeSelect(id) {
   const project = props.projects.find((p) => p.id === id)
   const name = project ? project.shortName || getProjectShortName(project) || project.name : id
   touchProject(id, name)
-  if (isHqMode.value) {
-    signInProjectId.value = id
-    return
-  }
-  emit('project-change', id)
+  signInProjectId.value = id
 }
 
 defineExpose({ togglePanel, panelExpanded })
