@@ -5,6 +5,7 @@ import * as echarts from 'echarts'
 import { COC_PROJECT_OPTIONS } from '../../config/projectOptions'
 import { listMobileInspectionTasks } from '../../mock/mobileInspectionTasks'
 import { INSPECTION_DEMO_TODAY, inspectionHazards } from '../../mock/inspectionDemoData'
+import { hasInspectionCategory } from '../../config/inspectionManagement'
 
 const router = useRouter()
 const TODAY = new Date(INSPECTION_DEMO_TODAY)
@@ -93,7 +94,7 @@ const scopedHazardData = computed(() =>
   inspectionCategory.value ? hazardData.filter(item => getInspectionCategory(item) === inspectionCategory.value) : hazardData
 )
 const scopedTaskData = computed(() =>
-  inspectionCategory.value ? taskData.filter(item => getInspectionCategory(item) === inspectionCategory.value) : taskData
+  inspectionCategory.value ? taskData.filter(item => hasInspectionCategory(item.inspectionCategories || getInspectionCategory(item), inspectionCategory.value)) : taskData
 )
 
 const hazardStats = computed(() => {

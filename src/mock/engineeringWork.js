@@ -81,6 +81,104 @@ export function emptyCell(value) {
   return text ? text : '--'
 }
 
+/** 单条危险作业摘要文案：日期 类别 · 区域 */
+export function formatDangerWorkPickLabel(work) {
+  if (!work) return ''
+  const date = work.reportDate || ''
+  const cat = work.dangerWorkCategory || ''
+  const area = work.workArea || ''
+  const head = [date, cat].filter(Boolean).join(' ')
+  return area ? `${head} · ${area}` : head
+}
+
+/** 统一取出申报单关联的危险作业列表（兼容旧单条 snapshot） */
+export function getEngineeringWorkItems(row) {
+  if (!row) return []
+  if (Array.isArray(row.works) && row.works.length) {
+    return row.works.map((item) => ({ ...item }))
+  }
+  if (row.daily_work_id || (row.snapshot && Object.keys(row.snapshot).length)) {
+    return [
+      {
+        id: row.daily_work_id || '',
+        ...emptySnapshot(),
+        ...(row.snapshot || {}),
+      },
+    ]
+  }
+  return []
+}
+
+export function getEngineeringWorkIds(row) {
+  if (!row) return []
+  if (Array.isArray(row.daily_work_ids) && row.daily_work_ids.length) {
+    return row.daily_work_ids.map(String)
+  }
+  return getEngineeringWorkItems(row)
+    .map((item) => item.id)
+    .filter(Boolean)
+}
+
+/** 待办/列表用：多选时「类别等N项」或「类别·区域」 */
+export function summarizeWorksLabel(works) {
+  const list = Array.isArray(works) ? works : []
+  if (!list.length) return '危险作业'
+  const cats = [...new Set(list.map((w) => w.dangerWorkCategory).filter(Boolean))]
+  if (cats.length <= 1) {
+    const cat = cats[0] || '危险作业'
+    const area = list[0]?.workArea || ''
+    return area ? `${cat}·${area}` : cat
+  }
+  return `${cats[0]}等${list.length}项`
+}
+
+export function formatWorksCategories(works) {
+  const cats = [...new Set((works || []).map((w) => w.dangerWorkCategory).filter(Boolean))]
+  return cats.length ? cats.join('、') : '--'
+}
+
+export function formatWorksDates(works) {
+  const dates = [...new Set((works || []).map((w) => w.reportDate).filter(Boolean))]
+  if (!dates.length) return '--'
+  if (dates.length === 1) return dates[0]
+  return `${dates[dates.length - 1]} ~ ${dates[0]}`
+}
+
+export function formatWorksAreas(works) {
+  const areas = [...new Set((works || []).map((w) => w.workArea).filter(Boolean))]
+  return areas.length ? areas.join('、') : '--'
+}
+
+export function formatWorksContractors(works) {
+  const list = [...new Set((works || []).map((w) => w.contractor).filter(Boolean))]
+  return list.length ? list.join('、') : '--'
+}
+
+function toWorkItem(source) {
+  if (!source) return null
+  const snap = snapshotFromDailyRecord(source)
+  return {
+    id: source.id || '',
+    ...snap,
+  }
+}
+
+function buildWorksFromSources(sources) {
+  return (sources || []).map(toWorkItem).filter(Boolean)
+}
+
+function syncLegacyFields(works) {
+  const list = works || []
+  const first = list[0] ? { ...list[0] } : emptySnapshot()
+  delete first.id
+  return {
+    daily_work_id: list[0]?.id || '',
+    daily_work_ids: list.map((item) => item.id).filter(Boolean),
+    works: list.map((item) => ({ ...item })),
+    snapshot: { ...emptySnapshot(), ...first },
+  }
+}
+
 export function formatSupervisorDisplay(row) {
   if (!row) return '--'
   const user = findMatSupervisorApprover(row.supervisor_approver_user_id)
@@ -126,23 +224,43 @@ function snapshotFromDailyRecord(record) {
 }
 
 function snapshotFromDangerListItem(item) {
-  const date = item.date || ''
+  const date = item.date || item.reportDate || ''
   const parts = String(item.time || '').split('-')
   const startH = (parts[0] || '').trim()
   const endH = (parts[1] || '').trim()
+  const startTime =
+    item.startTime || (date && startH ? `${date} ${startH}` : startH)
+  const endTime = item.endTime || (date && endH ? `${date} ${endH}` : endH)
   return {
     ...emptySnapshot(),
     reportDate: date,
-    leadUnit: '深圳机场集团/建设工程指挥部',
+    leadUnit: item.leadUnit || '深圳机场集团/建设工程指挥部',
     projectName: item.projectName || '',
     contractor: item.contractor || '',
-    workArea: item.location || '',
+    workArea: item.location || item.workArea || '',
     workContent: item.subType || item.workContent || '',
     dangerWorkCategory: item.type || item.dangerWorkCategory || '',
-    startTime: date && startH ? `${date} ${startH}` : startH,
-    endTime: date && endH ? `${date} ${endH}` : endH,
+    startTime,
+    endTime,
+    ownerProjectManager: item.ownerProjectManager || '',
+    ownerSafetyManager: item.ownerSafetyManager || '',
+    contractorProjectManager: item.contractorProjectManager || '',
+    contractorSafetyManager: item.contractorSafetyManager || '',
+    supervisorProjectManager: item.supervisorProjectManager || '',
+    supervisorSafetyManager: item.supervisorSafetyManager || '',
     dangerControlMeasures: item.measures || item.dangerControlMeasures || '',
   }
+}
+
+/** T2 演示用完整多方人员（多人用中文逗号分隔，对齐每日施工作业口径） */
+const T2_CONTACTS = {
+  leadUnit: '深圳机场集团/建设工程指挥部',
+  ownerProjectManager: '陈建华/13800138001',
+  ownerSafetyManager: '刘安/13900139001，赵敏/13900139002，孙伟/13900139003',
+  contractorProjectManager: '王强/13700137001',
+  contractorSafetyManager: '李明/13600136001，周杰/13600136002，吴磊/13600136003，郑浩/13600136004',
+  supervisorProjectManager: '李总监/13500135001',
+  supervisorSafetyManager: '王代总/13400134001，赵专监/13400134002，钱专监/13400134003',
 }
 
 const P000_EXTRA_SOURCES = [
@@ -157,6 +275,7 @@ const P000_EXTRA_SOURCES = [
     contractor: '中建三局第一建设工程有限责任公司',
     projectName: '宝安国际机场T2航站区及配套工程',
     measures: '动火作业票、灭火器与防火毯到位，专人监护，作业后熄灭残火。',
+    ...T2_CONTACTS,
   },
   {
     id: 'ew-src-002',
@@ -169,6 +288,7 @@ const P000_EXTRA_SOURCES = [
     contractor: '中建三局第一建设工程有限责任公司',
     projectName: '宝安国际机场T2航站区及配套工程',
     measures: '安全带高挂低用，临边防护完整，作业前检查脚手架验收记录。',
+    ...T2_CONTACTS,
   },
   {
     id: 'ew-src-003',
@@ -181,6 +301,7 @@ const P000_EXTRA_SOURCES = [
     contractor: '中建三局第一建设工程有限责任公司',
     projectName: '宝安国际机场T2航站区及配套工程',
     measures: '十不吊，专人指挥，警戒区封闭，风力大于六级停止吊装。',
+    ...T2_CONTACTS,
   },
   {
     id: 'ew-src-004',
@@ -193,6 +314,7 @@ const P000_EXTRA_SOURCES = [
     contractor: '中建三局第一建设工程有限责任公司',
     projectName: '宝安国际机场T2航站区及配套工程',
     measures: '先通风再检测，专人监护，应急救援器材放置洞口。',
+    ...T2_CONTACTS,
   },
   {
     id: 'ew-src-005',
@@ -205,6 +327,7 @@ const P000_EXTRA_SOURCES = [
     contractor: '中建三局第一建设工程有限责任公司',
     projectName: '宝安国际机场T2航站区及配套工程',
     measures: '三级配电两级保护，持证电工操作，雨天停止露天接线。',
+    ...T2_CONTACTS,
   },
   {
     id: 'ew-src-006',
@@ -217,6 +340,7 @@ const P000_EXTRA_SOURCES = [
     contractor: '中建三局第一建设工程有限责任公司',
     projectName: '宝安国际机场T2航站区及配套工程',
     measures: '照明无盲区，交通疏导，噪声控制，专人旁站。',
+    ...T2_CONTACTS,
   },
   {
     id: 'ew-src-007',
@@ -229,6 +353,7 @@ const P000_EXTRA_SOURCES = [
     contractor: '中建三局第一建设工程有限责任公司',
     projectName: '宝安国际机场T2航站区及配套工程',
     measures: '探挖确认管线后再机械开挖，设置警戒，完工回填并检查。',
+    ...T2_CONTACTS,
   },
   {
     id: 'ew-src-008',
@@ -241,6 +366,62 @@ const P000_EXTRA_SOURCES = [
     contractor: '中建三局第一建设工程有限责任公司',
     projectName: '宝安国际机场T2航站区及配套工程',
     measures: '架体验收合格后使用，连墙件按方案设置，禁止超载堆载。',
+    ...T2_CONTACTS,
+  },
+  {
+    id: 'ew-src-009',
+    projectId: 'p-000',
+    date: '2026-09-18',
+    time: '08:00-16:00',
+    type: '动火作业',
+    subType: '管道法兰焊接',
+    location: 'T2 西指廊机电竖井',
+    contractor: '中建安装集团有限公司',
+    projectName: '宝安国际机场T2航站区及配套工程',
+    measures: '办理动火票，配备灭火器与看火人，作业面下方清理易燃物。',
+    ...T2_CONTACTS,
+    ownerSafetyManager: '刘安/13900139001，赵敏/13900139002，孙伟/13900139003，黄涛/13900139004',
+    contractorSafetyManager:
+      '李明/13600136001，周杰/13600136002，吴磊/13600136003，郑浩/13600136004，冯凯/13600136005',
+  },
+  {
+    id: 'ew-src-010',
+    projectId: 'p-000',
+    date: '2026-09-18',
+    time: '09:00-17:30',
+    type: '吊装作业',
+    subType: '钢梁分段吊装',
+    location: 'T2 主楼屋盖钢结构区',
+    contractor: '中建钢构广东有限公司',
+    projectName: '宝安国际机场T2航站区及配套工程',
+    measures: '吊装前试吊，设警戒区，信号工专人指挥，大风停吊。',
+    ...T2_CONTACTS,
+  },
+  {
+    id: 'ew-src-011',
+    projectId: 'p-000',
+    date: '2026-09-19',
+    time: '07:30-11:30',
+    type: '动土作业',
+    subType: '雨水管沟开挖',
+    location: 'T2 站坪东侧管廊预留带',
+    contractor: '中建三局第一建设工程有限责任公司',
+    projectName: '宝安国际机场T2航站区及配套工程',
+    measures: '先物探后开挖，边坡按方案放坡，排水与临边防护齐全。',
+    ...T2_CONTACTS,
+  },
+  {
+    id: 'ew-src-012',
+    projectId: 'p-000',
+    date: '2026-09-19',
+    time: '13:00-18:00',
+    type: '有限空间作业',
+    subType: '集水井清淤',
+    location: 'T2 地下室泵房集水井',
+    contractor: '深圳市市政工程总公司',
+    projectName: '宝安国际机场T2航站区及配套工程',
+    measures: '连续通风监测，出入登记，救援绳与三脚架待命。',
+    ...T2_CONTACTS,
   },
 ]
 
@@ -282,7 +463,7 @@ function occupiedDailyWorkIds(exceptBizNo = '') {
   for (const row of store.list) {
     if (exceptBizNo && row.biz_no === exceptBizNo) continue
     if (row.status === 'reviewing' || row.status === 'approved') {
-      if (row.daily_work_id) set.add(row.daily_work_id)
+      for (const id of getEngineeringWorkIds(row)) set.add(id)
     }
   }
   return set
@@ -307,18 +488,28 @@ function listAllDangerWorkSources(projectId) {
   }
 
   if (projectId === 'p-000') {
-    for (const extra of P000_EXTRA_SOURCES) {
-      if (!map.has(extra.id)) map.set(extra.id, sourceFromListItem(extra))
+    const hasProjectDaily = [...map.values()].some(
+      (src) => src.projectId === projectId || nameMatchesProject(src.projectName, projectId),
+    )
+    if (!hasProjectDaily) {
+      for (const extra of P000_EXTRA_SOURCES) {
+        if (!map.has(extra.id)) map.set(extra.id, sourceFromListItem(extra))
+      }
     }
   }
 
   return [...map.values()].sort((a, b) => String(b.reportDate).localeCompare(String(a.reportDate)))
 }
 
-export function listSelectableDangerWorks(projectId, { allowDailyWorkId = '' } = {}) {
+export function listSelectableDangerWorks(projectId, { allowDailyWorkIds = [] } = {}) {
   const occupied = occupiedDailyWorkIds()
+  const allow = new Set(
+    (Array.isArray(allowDailyWorkIds) ? allowDailyWorkIds : [allowDailyWorkIds])
+      .map(String)
+      .filter(Boolean),
+  )
   return listAllDangerWorkSources(projectId).filter((src) => {
-    if (allowDailyWorkId && src.id === allowDailyWorkId) return true
+    if (allow.has(src.id)) return true
     return !occupied.has(src.id)
   })
 }
@@ -354,12 +545,26 @@ const store = reactive({
 })
 
 function makeRow(partial) {
+  const works = Array.isArray(partial.works) && partial.works.length
+    ? partial.works.map((item) => ({ ...emptySnapshot(), ...item }))
+    : partial.daily_work_id || partial.snapshot
+      ? [
+          {
+            id: partial.daily_work_id || '',
+            ...emptySnapshot(),
+            ...(partial.snapshot || {}),
+          },
+        ]
+      : []
+  const legacy = syncLegacyFields(works)
   return {
     id: partial.id,
     biz_no: partial.biz_no,
     project_id: partial.project_id,
-    daily_work_id: partial.daily_work_id,
-    snapshot: { ...emptySnapshot(), ...(partial.snapshot || {}) },
+    daily_work_id: legacy.daily_work_id,
+    daily_work_ids: legacy.daily_work_ids,
+    works: legacy.works,
+    snapshot: legacy.snapshot,
     personnel_qual_desc: partial.personnel_qual_desc || '',
     scheme_files: cloneAttach(partial.scheme_files),
     briefing_files: cloneAttach(partial.briefing_files),
@@ -385,7 +590,7 @@ store.list = [
     id: 'EW-001',
     biz_no: 'EW-202609-001',
     project_id: 'p-000',
-    daily_work_id: 'ew-src-001',
+    daily_work_id: 'seed-demo-003',
     snapshot: snapshotFromDangerListItem(P000_EXTRA_SOURCES[0]),
     personnel_qual_desc: '焊工张强（特种作业证 TS2025-1188，有效期至 2027-03），监护人李明持证上岗。',
     scheme_files: demoFile('动火作业专项施工方案.pdf'),
@@ -418,7 +623,7 @@ store.list = [
     id: 'EW-002',
     biz_no: 'EW-202609-002',
     project_id: 'p-000',
-    daily_work_id: 'ew-src-002',
+    daily_work_id: 'seed-demo-004',
     snapshot: snapshotFromDangerListItem(P000_EXTRA_SOURCES[1]),
     personnel_qual_desc: '高处作业人员赵磊、周宁持高处作业证；监护人孙监理现场旁站。',
     scheme_files: demoFile('幕墙高处作业专项方案.pdf'),
@@ -442,7 +647,7 @@ store.list = [
     id: 'EW-003',
     biz_no: 'EW-202609-003',
     project_id: 'p-000',
-    daily_work_id: 'ew-src-003',
+    daily_work_id: 'seed-demo-005',
     snapshot: snapshotFromDangerListItem(P000_EXTRA_SOURCES[2]),
     personnel_qual_desc: '司索工钱进、指挥陈波持证；吊车司机刘海持建筑起重机械司机证。',
     scheme_files: demoFile('屋面机组吊装专项方案.pdf'),
@@ -476,7 +681,7 @@ store.list = [
     id: 'EW-004',
     biz_no: 'EW-202609-004',
     project_id: 'p-000',
-    daily_work_id: 'ew-src-004',
+    daily_work_id: 'seed-demo-006',
     snapshot: snapshotFromDangerListItem(P000_EXTRA_SOURCES[3]),
     personnel_qual_desc: '有限空间作业人员吴昊持证，气体检测由安全员王芳执行。',
     scheme_files: demoFile('管廊有限空间作业方案.pdf'),
@@ -513,7 +718,7 @@ store.list = [
     id: 'EW-005',
     biz_no: 'EW-202609-005',
     project_id: 'p-000',
-    daily_work_id: 'ew-src-005',
+    daily_work_id: 'seed-demo-007',
     snapshot: snapshotFromDangerListItem(P000_EXTRA_SOURCES[4]),
     personnel_qual_desc: '电工郑凯持低压电工证，监护人现场旁站。',
     scheme_files: demoFile('临时用电专项方案.pdf'),
@@ -537,9 +742,11 @@ store.list = [
     id: 'EW-006',
     biz_no: 'EW-202609-006',
     project_id: 'p-000',
-    daily_work_id: 'ew-src-006',
-    snapshot: snapshotFromDangerListItem(P000_EXTRA_SOURCES[5]),
-    personnel_qual_desc: '夜间浇筑班组 12 人，带班队长黄磊，照明电工持证。',
+    works: [
+      { id: 'seed-demo-008', ...snapshotFromDangerListItem(P000_EXTRA_SOURCES[5]) },
+      { id: 'seed-demo-001', ...snapshotFromDangerListItem(P000_EXTRA_SOURCES[7]) },
+    ],
+    personnel_qual_desc: '夜间浇筑班组 12 人，带班队长黄磊，照明电工持证；外架班组持证齐全。',
     scheme_files: demoFile('夜间混凝土浇筑作业方案.pdf'),
     briefing_files: demoFile('夜间作业交底.pdf'),
     cert_files: demoFile('班组人员资质汇总.pdf'),
@@ -584,14 +791,17 @@ export function listEngineeringWorks(projectId, { keyword = '', status = '' } = 
     .filter((row) => !status || row.status === status)
     .filter((row) => {
       if (!kw) return true
-      const snap = row.snapshot || {}
+      const works = getEngineeringWorkItems(row)
       const blob = [
         row.biz_no,
-        snap.dangerWorkCategory,
-        snap.workArea,
-        snap.contractor,
-        snap.workContent,
-        snap.reportDate,
+        row.personnel_qual_desc,
+        ...works.flatMap((snap) => [
+          snap.dangerWorkCategory,
+          snap.workArea,
+          snap.contractor,
+          snap.workContent,
+          snap.reportDate,
+        ]),
       ]
         .join(' ')
         .toLowerCase()
@@ -608,17 +818,25 @@ export function getEngineeringWork(id) {
 }
 
 function validatePayload(payload) {
-  const daily_work_id = String(payload.daily_work_id || '').trim()
-  if (!daily_work_id) return { ok: false, msg: '请选择每日施工作业中的危险作业' }
-  const source = getDangerWorkSource(daily_work_id, payload.project_id)
-  if (!source) return { ok: false, msg: '所选危险作业不可申报' }
+  const ids = (Array.isArray(payload.daily_work_ids) ? payload.daily_work_ids : [])
+    .map((id) => String(id || '').trim())
+    .filter(Boolean)
+  const fallbackId = String(payload.daily_work_id || '').trim()
+  const daily_work_ids = ids.length ? [...new Set(ids)] : fallbackId ? [fallbackId] : []
+  if (!daily_work_ids.length) return { ok: false, msg: '请选择每日施工作业中的危险作业' }
+  const sources = []
+  for (const id of daily_work_ids) {
+    const source = getDangerWorkSource(id, payload.project_id)
+    if (!source) return { ok: false, msg: '所选危险作业不可申报' }
+    sources.push(source)
+  }
   const desc = String(payload.personnel_qual_desc || '').trim()
   if (!desc) return { ok: false, msg: '请填写作业人员及特种作业资质说明' }
   if (!attachRequiredOk(payload.scheme_files, 1)) return { ok: false, msg: '请上传专项施工方案' }
   if (!attachRequiredOk(payload.cert_files, 1)) return { ok: false, msg: '请上传人员资质证明' }
   const sup = resolveSupervisor(payload)
   if (!sup.ok) return sup
-  return { ok: true, daily_work_id, source, desc, sup }
+  return { ok: true, daily_work_ids, sources, works: buildWorksFromSources(sources), desc, sup }
 }
 
 function isOccupied(dailyWorkId, exceptBizNo = '') {
@@ -626,13 +844,15 @@ function isOccupied(dailyWorkId, exceptBizNo = '') {
 }
 
 function pushTodo(row) {
+  const works = getEngineeringWorkItems(row)
+  const label = summarizeWorksLabel(works)
   createEngineeringWorkSupervisorTodo({
     applicationId: row.id,
     bizNo: row.biz_no,
     projectId: row.project_id,
     projectLabel: getProjectLabel(row.project_id) || row.project_id,
-    category: row.snapshot?.dangerWorkCategory || '',
-    workArea: row.snapshot?.workArea || '',
+    category: label,
+    workArea: '',
     applicantName: row.applicant_name,
     applyTime: row.submit_time,
     supervisorName: row.supervisor_approver_name || '',
@@ -646,17 +866,19 @@ export function submitEngineeringWork(payload) {
   if (!project_id) return { ok: false, msg: '请先切换到具体项目' }
   const checked = validatePayload({ ...payload, project_id })
   if (!checked.ok) return checked
-  if (isOccupied(checked.daily_work_id)) {
-    return { ok: false, msg: '该危险作业已申报，不可重复申报' }
+  for (const id of checked.daily_work_ids) {
+    if (isOccupied(id)) {
+      return { ok: false, msg: '所选危险作业中含已申报项，请重新选择' }
+    }
   }
   const time = nowStr()
   const biz_no = nextBizNo()
+  const legacy = syncLegacyFields(checked.works)
   const row = makeRow({
     id: `EW-${String(store.seq).padStart(3, '0')}`,
     biz_no,
     project_id,
-    daily_work_id: checked.daily_work_id,
-    snapshot: snapshotFromDailyRecord(checked.source),
+    ...legacy,
     personnel_qual_desc: checked.desc,
     scheme_files: payload.scheme_files,
     briefing_files: payload.briefing_files,
@@ -691,9 +913,12 @@ export function submitEngineeringWork(payload) {
 export function buildCopyPayloadFromRejected(id) {
   const row = getEngineeringWork(id)
   if (!row || row.status !== 'rejected') return null
+  const works = getEngineeringWorkItems(row)
   return {
-    daily_work_id: row.daily_work_id,
-    snapshot: { ...row.snapshot },
+    daily_work_id: works[0]?.id || row.daily_work_id,
+    daily_work_ids: works.map((item) => item.id).filter(Boolean),
+    works: works.map((item) => ({ ...item })),
+    snapshot: { ...(row.snapshot || {}) },
     personnel_qual_desc: row.personnel_qual_desc,
     scheme_files: cloneAttach(row.scheme_files),
     briefing_files: cloneAttach(row.briefing_files),
@@ -710,9 +935,13 @@ export function copyEngineeringWorkFromRejected(sourceId, payload) {
   if (!source || source.status !== 'rejected') {
     return { ok: false, msg: '只能从已驳回申报单重新申报' }
   }
+  const works = getEngineeringWorkItems(source)
   return submitEngineeringWork({
     ...payload,
-    daily_work_id: payload.daily_work_id || source.daily_work_id,
+    daily_work_ids: payload.daily_work_ids?.length
+      ? payload.daily_work_ids
+      : works.map((item) => item.id).filter(Boolean),
+    daily_work_id: payload.daily_work_id || works[0]?.id || source.daily_work_id,
     copy_from_biz_no: source.biz_no,
   })
 }

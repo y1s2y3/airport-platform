@@ -22,6 +22,7 @@ export const TODO_HANDLER_REGISTRY = {
   mat_entry: { kind: 'detail', loader: () => import('./TodoMatEqEntryPanel.vue') },
   eq_entry: { kind: 'detail', loader: () => import('./TodoMatEqEntryPanel.vue') },
   inspection: { kind: 'full', loader: () => import('./TodoInspectionPanel.vue') },
+  major_hazard_identification: { kind: 'full', loader: () => import('./TodoMajorHazardIdentificationPanel.vue') },
   penalty: { kind: 'full', loader: () => import('./TodoPenaltyPanel.vue') },
   dispatch_hazard: { kind: 'full', loader: () => import('./TodoDispatchHazardPanel.vue') },
 }

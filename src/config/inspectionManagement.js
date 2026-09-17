@@ -13,9 +13,35 @@ export const DEFAULT_INSPECTOR = {
 
 export const DEFAULT_INSPECTOR_LABEL = `${DEFAULT_INSPECTOR.name}（${DEFAULT_INSPECTOR.role}）`
 
-/** 巡检任务编号：安全 AQXJ、质量 ZLXJ + 年月日 + 三位序号。 */
-export function buildInspectionTaskNo(category = '安全', date = new Date(), sequence = 1) {
-  const prefix = category === '质量' ? 'ZLXJ' : 'AQXJ'
+/**
+ * 将新旧巡检分类统一为数组。旧数据仍保留 inspectionCategory 字段，因此这里同时兼容
+ * “安全、质量”、逗号分隔文本和单个分类。
+ */
+export function normalizeInspectionCategories(value) {
+  const raw = Array.isArray(value)
+    ? value
+    : String(value || '').split(/[、，,\s]+/)
+  const result = [...new Set(raw.map((item) => String(item || '').trim()).filter((item) => INSPECTION_CATEGORIES.includes(item)))]
+  return result.length ? result : ['安全']
+}
+
+export function formatInspectionCategories(value) {
+  return normalizeInspectionCategories(value).join('、')
+}
+
+export function hasInspectionCategory(value, category) {
+  return normalizeInspectionCategories(value).includes(category)
+}
+
+/** 巡检任务编号：安全 AQXJ、质量 ZLXJ、综合 ZHXJ + 年月日 + 三位序号。 */
+export function getInspectionTaskPrefix(categories = '安全') {
+  const normalized = normalizeInspectionCategories(categories)
+  if (normalized.length > 1) return 'ZHXJ'
+  return normalized[0] === '质量' ? 'ZLXJ' : 'AQXJ'
+}
+
+export function buildInspectionTaskNo(categories = '安全', date = new Date(), sequence = 1) {
+  const prefix = getInspectionTaskPrefix(categories)
   const dateText = typeof date === 'string'
     ? date.replace(/-/g, '').slice(0, 8)
     : `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`

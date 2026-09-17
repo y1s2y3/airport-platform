@@ -35,6 +35,13 @@ import {
 } from './warningCenterBizHook.js'
 import { INSPECTION_DEMO_TODAY, inspectionHazards } from './inspectionDemoData.js'
 import { mobileInspectionTasks } from './mobileInspectionTasks.js'
+import {
+  applyMajorHazardWarningDispose,
+  createMajorHazardIdentificationTodo as createMajorHazardIdentificationTodoCore,
+  handleMajorHazardIdentificationTodo as handleMajorHazardIdentificationTodoCore,
+  seedMajorHazardIdentificationPersonalCenter,
+  syncMajorHazardWarningCenter as syncMajorHazardWarningCenterCore,
+} from './majorHazardPersonalCenter.js'
 
 export const PROCESS_STATUS_OPTIONS = ['待提交', '审批中', '已通过', '已驳回', '已撤回']
 export const PROCESS_CATEGORY_OPTIONS = [
@@ -45,6 +52,7 @@ export const PROCESS_CATEGORY_OPTIONS = [
   '实模一致验收',
   '工程作业申报',
   '巡检管理',
+  '危大工程管理',
   '人员实名',
   '车辆管理',
   '分包报审',
@@ -53,7 +61,7 @@ export const PROCESS_CATEGORY_OPTIONS = [
 export const READ_STATUS_OPTIONS = ['未读', '已读']
 export const WARNING_CENTER_TYPE_OPTIONS = ['处置任务', '通知']
 export const WARNING_CENTER_STATUS_OPTIONS = ['待处理', '已关闭', '未读', '已读']
-export const WARNING_CENTER_MODULE_OPTIONS = ['人员实名', 'AI应用', '机械设备监管', '危大工程监测']
+export const WARNING_CENTER_MODULE_OPTIONS = ['人员实名', 'AI应用', '机械设备监管', '危大工程监测', '危大工程管理']
 export const NOTICE_MODULE_OPTIONS = [
   '待办通知',
   '环境监测',
@@ -1671,10 +1679,13 @@ export const personalWarningCenterStore = reactive({
 
 registerWarningCenterBizDisposedHook(markModuleWarningCenterByBizDispose)
 
+const majorHazardIdentificationPersonalCenterSeeds = seedMajorHazardIdentificationPersonalCenter()
+
 /** 共享响应式：待办 / 已办（人员预警已迁出至预警中心） */
 export const personalTodoStore = reactive({
   todos: [
     ...seedQmInspectTodos(),
+    ...majorHazardIdentificationPersonalCenterSeeds.todos,
     ...inspectionTodoExamples,
     {
       id: 'todo-inspection-reread-rectify-1',
@@ -1718,6 +1729,7 @@ export const personalTodoStore = reactive({
   ],
   done: [
     ...seedQmInspectDone(),
+    ...majorHazardIdentificationPersonalCenterSeeds.done,
     ...inspectionDoneExamples,
     {
       id: 'done-1',
@@ -1838,6 +1850,7 @@ export const personalDone = personalTodoStore.done
 /** 我发起的 */
 export const personalStarted = reactive([
   ...seedQmInspectStarted(),
+  ...majorHazardIdentificationPersonalCenterSeeds.started,
   ...inspectionStartedExamples,
   {
     id: 'start-1',
@@ -2056,12 +2069,23 @@ export function ensureLaborWarningCenterSeeds() {
     if (existing.status === '待处置') existing.status = '待处理'
     if (existing.status === '已处置') existing.status = '已关闭'
   }
+  syncMajorHazardWarningCenterCore(personalWarningCenterStore)
 }
 
 /** 预警中心列表（未消除） */
-export function listPersonalWarningCenter() {
+export function listPersonalWarningCenter({ includeAllMajorHazardExamples = false } = {}) {
   ensureLaborWarningCenterSeeds()
-  return personalWarningCenterStore.items.filter((row) => !row.dismissed)
+  const rows = personalWarningCenterStore.items.filter((row) => !row.dismissed)
+  if (includeAllMajorHazardExamples) return rows
+  const selectedExamples = new Set()
+  const types = new Set()
+  for (const row of rows) {
+    if (row.module !== '危大工程管理' || !row.isExample || types.has(row.alertType)) continue
+    if (selectedExamples.size >= 5) break
+    selectedExamples.add(row.id)
+    types.add(row.alertType)
+  }
+  return rows.filter((row) => row.module !== '危大工程管理' || !row.isExample || selectedExamples.has(row.id))
 }
 
 export function getPersonalWarningCenterItem(id) {
@@ -2125,17 +2149,26 @@ export function batchDisposeWarningCenter(ids, { content, attachments = [], oper
   let n = 0
   for (const row of targets) {
     if (!row.laborWarningId) {
-      syncBizAlertFromWarningCenter(row, {
+      const handledMajor = applyMajorHazardWarningDispose(row, {
         content,
         attachments,
         operator,
         disposal_result,
       })
+      if (!handledMajor) {
+        syncBizAlertFromWarningCenter(row, {
+          content,
+          attachments,
+          operator,
+          disposal_result,
+        })
+      }
     }
     row.status = '已关闭'
     row.handler = operator
     row.time = now
-    row.disposalResult = disposal_result || '已处置'
+    row.disposalResult =
+      row.module === '危大工程管理' ? (disposal_result === '误报' ? '误报' : '已处理') : disposal_result || '已处置'
     row.disposalNote = content || ''
     row.disposalAttachments = [...attachments]
     n += 1
@@ -2215,6 +2248,28 @@ export const personalCc = reactive([
 
 export function findPersonalTodo(id) {
   return personalTodoStore.todos.find((item) => item.id === id) || null
+}
+
+/** 同步危大工程管理异常到预警中心 */
+export function syncMajorHazardWarningCenter() {
+  syncMajorHazardWarningCenterCore(personalWarningCenterStore)
+}
+
+/** 危大辨识提交 → 个人中心待办 / 我发起的 */
+export function createMajorHazardIdentificationTodo(args = {}) {
+  return createMajorHazardIdentificationTodoCore(args, {
+    personalTodoStore,
+    personalStarted,
+    findPersonalTodo,
+  })
+}
+
+/** 个人中心审批危大辨识 */
+export function handleMajorHazardIdentificationTodo(id, opts = {}) {
+  return handleMajorHazardIdentificationTodoCore(id, opts, {
+    findPersonalTodo,
+    personalStarted,
+  })
 }
 
 /** 质量验评旧 approve 深链 → 个人中心 handle（按任务 id + approve 路径匹配待办） */
@@ -2978,6 +3033,22 @@ export function discardEqEntryTodos(entryId) {
 /** —— 工程作业申报：仅个人中心监理待办 —— */
 let engineeringWorkTodoSeq = 40
 
+function summarizeEngineeringWorkLabel(row) {
+  const works = Array.isArray(row?.works) && row.works.length
+    ? row.works
+    : row?.snapshot
+      ? [row.snapshot]
+      : []
+  if (!works.length) return '危险作业'
+  const cats = [...new Set(works.map((w) => w.dangerWorkCategory).filter(Boolean))]
+  if (cats.length <= 1) {
+    const cat = cats[0] || '危险作业'
+    const area = works[0]?.workArea || ''
+    return area ? `${cat}·${area}` : cat
+  }
+  return `${cats[0]}等${works.length}项`
+}
+
 export function buildEngineeringWorkProcessName(category, workArea) {
   const label = [category, workArea].filter(Boolean).join('·') || '危险作业'
   return `工程作业申报·${clipProcessBizLabel(label, 30)}`
@@ -3059,6 +3130,7 @@ export function upsertEngineeringWorkStarted(row) {
     (item) => item.type === 'engineering_work' && item.engineeringWorkId === row.id,
   )
   const status = mapEngineeringWorkStartedStatus(row.status)
+  const label = summarizeEngineeringWorkLabel(row)
   const payload = {
     id: exist?.id || `start-ew-${row.id}`,
     type: 'engineering_work',
@@ -3066,10 +3138,7 @@ export function upsertEngineeringWorkStarted(row) {
     category: '工程作业申报',
     bizType: '工程作业申报',
     engineeringWorkId: row.id,
-    processName: buildEngineeringWorkProcessName(
-      row.snapshot?.dangerWorkCategory,
-      row.snapshot?.workArea,
-    ),
+    processName: buildEngineeringWorkProcessName(label, ''),
     status,
     applicant: row.applicant_name || '当前用户',
     dept: '总包项目部',
@@ -3079,10 +3148,10 @@ export function upsertEngineeringWorkStarted(row) {
       project: getProjectLabel(row.project_id) || row.project_id || '--',
       bizNo: row.biz_no,
       applicationId: row.id,
-      category: row.snapshot?.dangerWorkCategory || '--',
-      workArea: row.snapshot?.workArea || '--',
+      category: label,
+      workArea: '--',
       copyFromBizNo: row.copy_from_biz_no || '',
-      summary: `${row.snapshot?.dangerWorkCategory || '--'} · ${status}`,
+      summary: `${label} · ${status}`,
     },
     approvalFlow: [],
   }
@@ -3100,6 +3169,7 @@ function pushEngineeringWorkDoneIfNeeded(row) {
   if (row.status !== 'approved' && row.status !== 'rejected') return
   const id = `done-ew-${row.id}`
   if (personalTodoStore.done.some((t) => t.id === id)) return
+  const label = summarizeEngineeringWorkLabel(row)
   personalTodoStore.done.unshift({
     id,
     type: 'engineering_work',
@@ -3107,10 +3177,7 @@ function pushEngineeringWorkDoneIfNeeded(row) {
     category: '工程作业申报',
     bizType: '监理审批',
     engineeringWorkId: row.id,
-    processName: buildEngineeringWorkProcessName(
-      row.snapshot?.dangerWorkCategory,
-      row.snapshot?.workArea,
-    ),
+    processName: buildEngineeringWorkProcessName(label, ''),
     applicant: row.applicant_name || '施工方',
     dept: '总包项目部',
     applyTime: row.submit_time || '',
@@ -3120,8 +3187,8 @@ function pushEngineeringWorkDoneIfNeeded(row) {
       project: getProjectLabel(row.project_id) || row.project_id || '--',
       bizNo: row.biz_no,
       applicationId: row.id,
-      category: row.snapshot?.dangerWorkCategory || '--',
-      summary: `${row.snapshot?.dangerWorkCategory || '--'} · ${mapEngineeringWorkStartedStatus(row.status)}`,
+      category: label,
+      summary: `${label} · ${mapEngineeringWorkStartedStatus(row.status)}`,
     },
     approvalFlow: [],
   })

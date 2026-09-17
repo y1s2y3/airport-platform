@@ -7,7 +7,7 @@
 export const APP_VERSION_BASE = '2.11.1'
 
 /** GitHub Pages 发布序号（从 0 开始；仓库内为「当前即将发布 / 下一版」序号） */
-export const APP_VERSION_PATCH = 3
+export const APP_VERSION_PATCH = 2
 
 export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
 
@@ -20,9 +20,9 @@ export const VERSION_CHANGELOG = [
     version: 'v2.11.1.2',
     date: '2026-09-17',
     highlights: [
-      '施工现场：工程作业申报（列表/新建/详情；监理审批走个人中心待办）',
-      '质量验评：关联实模一致支持多选确认',
-      '菜单：工程作业占位升级为正式申报入口',
+      '危大工程管理：字典/辨识/清单/日历与异常列表；个人中心辨识待办',
+      '工程作业申报完善；巡检与危大联动；菜单/侧栏与工作台入口优化',
+      'COC：每日作业种子与顶栏交互；验评关联实模等多模块对齐',
     ],
   },
   {

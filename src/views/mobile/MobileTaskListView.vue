@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { listMobileInspectionTasks } from '../../mock/mobileInspectionTasks'
+import { hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
 
 const router = useRouter()
 
@@ -24,7 +25,7 @@ const filteredTasks = computed(() => {
   let list = tasks.value
   if (activeTab.value !== '全部') list = list.filter(t => t.status === activeTab.value)
   if (sourceFilter.value) list = list.filter(t => t.source === sourceFilter.value)
-  if (categoryFilter.value) list = list.filter(t => t.inspectionCategory === categoryFilter.value)
+  if (categoryFilter.value) list = list.filter(t => hasInspectionCategory(t.inspectionCategories || t.inspectionCategory, categoryFilter.value))
   if (searchKeyword.value.trim()) {
     const kw = searchKeyword.value.trim()
     list = list.filter(t => t.taskNo.includes(kw) || (t.taskName || '').includes(kw) || t.project.includes(kw))
@@ -92,7 +93,7 @@ function goBack() { router.push('/') }
           </div>
         </div>
         <div class="m-task-mid">
-          <span class="m-type-tag" :style="{ background: task.inspectionCategory === '质量' ? '#fff3e0' : '#e8f5e9', color: task.inspectionCategory === '质量' ? '#e67e22' : '#34a853' }">{{ task.inspectionCategory }}</span>
+          <span v-for="category in normalizeInspectionCategories(task.inspectionCategories || task.inspectionCategory)" :key="category" class="m-type-tag" :style="{ background: category === '质量' ? '#fff3e0' : '#e8f5e9', color: category === '质量' ? '#e67e22' : '#34a853' }">{{ category }}</span>
           <span class="m-task-status-label" :style="{ color: task.status === '待执行' ? '#f5a623' : '#34a853' }">{{ task.status === '待执行' ? '待执行' : '已完成' }}</span>
         </div>
         <div class="m-task-bottom">

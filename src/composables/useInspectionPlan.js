@@ -1,5 +1,11 @@
 import { reactive, computed } from 'vue'
-import { buildInspectionTaskNo, DEFAULT_INSPECTOR_LABEL } from '../config/inspectionManagement'
+import {
+  buildInspectionTaskNo,
+  DEFAULT_INSPECTOR_LABEL,
+  formatInspectionCategories,
+  getInspectionTaskPrefix,
+  normalizeInspectionCategories,
+} from '../config/inspectionManagement'
 import { addMobileInspectionTask, updateMobileInspectionTaskByNo } from '../mock/mobileInspectionTasks'
 import { COC_PROJECT_OPTIONS } from '../config/projectOptions'
 import { inspectionTaskSeeds } from '../mock/inspectionDemoData'
@@ -163,6 +169,17 @@ function now() {
   return new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-')
 }
 
+export function normalizeInspectionPlan(plan = {}) {
+  const inspectionCategories = normalizeInspectionCategories(plan.inspectionCategories || plan.inspectionCategory)
+  return {
+    ...plan,
+    inspectionCategories,
+    // 旧字段继续输出，避免已有详情、筛选和导出页面出现兼容问题。
+    inspectionCategory: formatInspectionCategories(inspectionCategories),
+    isMajorHazardPatrol: plan.isMajorHazardPatrol || '否',
+  }
+}
+
 export const planData = reactive([
   {
     id: 'plan-003',
@@ -236,7 +253,7 @@ export const planData = reactive([
       createdAt: `2026-08-${String(12 + (index % 12)).padStart(2, '0')} 09:30`,
       updatedAt: `2026-08-${String(12 + (index % 12)).padStart(2, '0')} 10:15`,
     })),
-])
+].map(normalizeInspectionPlan))
 
 export function getPlanById(id) {
   return planData.find(p => p.id === id)
@@ -255,7 +272,12 @@ function createMobileTask(plan, project, taskNo, itemCount, index = 0) {
     taskNo,
     taskName: plan.name,
     source: '任务下发',
+    inspectionCategories: plan.inspectionCategories,
     inspectionCategory: plan.inspectionCategory,
+    isMajorHazardPatrol: plan.isMajorHazardPatrol,
+    majorHazardLedgerId: plan.majorHazardLedgerId || '',
+    majorHazardSourceId: plan.majorHazardSourceId || '',
+    majorHazardName: plan.majorHazardName || '',
     project: project.label,
     projectId: project.id,
     project_id: project.id,
@@ -277,10 +299,11 @@ function createMobileTask(plan, project, taskNo, itemCount, index = 0) {
 }
 
 export function addPlan(plan) {
+  plan = normalizeInspectionPlan(plan)
   const t = now()
   const date = new Date()
   const dateText = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`
-  const prefix = plan.inspectionCategory === '质量' ? 'ZLXJ' : 'AQXJ'
+  const prefix = getInspectionTaskPrefix(plan.inspectionCategories)
   const firstSequence = planData.filter(item => item.planNo?.startsWith(`${prefix}${dateText}`)).length + 1
   const selectedProjects = getSelectedProjects(plan)
   const itemCount = plan.checkConfig.reduce((sum, item) => sum + item.itemIds.length, 0)
@@ -306,6 +329,7 @@ export function addPlan(plan) {
 }
 
 export function updatePlan(id, data) {
+  data = normalizeInspectionPlan(data)
   const item = planData.find(p => p.id === id)
   const selectedProjects = getSelectedProjects(data)
   if (item && selectedProjects.length > 0) {
@@ -318,7 +342,12 @@ export function updatePlan(id, data) {
     })
     updateMobileInspectionTaskByNo(item.planNo, {
       taskName: item.name,
+      inspectionCategories: item.inspectionCategories,
       inspectionCategory: item.inspectionCategory,
+      isMajorHazardPatrol: item.isMajorHazardPatrol,
+      majorHazardLedgerId: item.majorHazardLedgerId || '',
+      majorHazardSourceId: item.majorHazardSourceId || '',
+      majorHazardName: item.majorHazardName || '',
       project: primaryProject.label,
       projectId: primaryProject.id,
       project_id: primaryProject.id,

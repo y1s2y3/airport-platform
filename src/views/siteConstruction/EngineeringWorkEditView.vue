@@ -1,6 +1,6 @@
 <script setup>
 import './engineering-work-page.css'
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useCurrentProject } from '../../composables/useCurrentProject'
@@ -8,12 +8,14 @@ import { getCurrentUserSnapshot } from '../../mock/currentUser.js'
 import {
   attachRequiredOk,
 } from '../../constants/attachmentUpload.js'
+import { DANGER_WORK_CATEGORY_OPTIONS } from '../../coc/config/dailyWorkSchema.js'
 import EngineeringWorkFormBody from './EngineeringWorkFormBody.vue'
 import {
   buildCopyPayloadFromRejected,
   copyEngineeringWorkFromRejected,
   emptyCell,
   findMatSupervisorApprover,
+  getEngineeringWorkItems,
   listSelectableDangerWorks,
   submitEngineeringWork,
 } from '../../mock/engineeringWork.js'
@@ -25,9 +27,24 @@ const { isHqSelected, laborProjectId, projectLabel } = useCurrentProject()
 const copyFromId = ref(String(route.query.copyFrom || ''))
 const copyFromLabel = ref('')
 const pickVisible = ref(false)
+const pickTableRef = ref(null)
+const pickFilterDate = ref('')
+const pickFilterCategory = ref('')
+/** id → 行，跨筛选保留已勾选 */
+const selectedMap = ref(new Map())
+
+const categoryOptions = DANGER_WORK_CATEGORY_OPTIONS.filter((item) => item !== '不涉及危险作业')
+
+function todayDateStr() {
+  const d = new Date()
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
 
 const form = reactive({
   daily_work_id: '',
+  daily_work_ids: [],
+  works: [],
   snapshot: {},
   personnel_qual_desc: '',
   scheme_files: [],
@@ -38,13 +55,25 @@ const form = reactive({
   supervisor_approver_name: '',
 })
 
-const selectableWorks = computed(() =>
+const allSelectableWorks = computed(() =>
   laborProjectId.value
     ? listSelectableDangerWorks(laborProjectId.value, {
-        allowDailyWorkId: form.daily_work_id,
+        allowDailyWorkIds: form.daily_work_ids,
       })
     : [],
 )
+
+const filteredSelectableWorks = computed(() => {
+  const date = String(pickFilterDate.value || '').trim()
+  const category = String(pickFilterCategory.value || '').trim()
+  return allSelectableWorks.value.filter((row) => {
+    if (date && String(row.reportDate || '') !== date) return false
+    if (category && String(row.dangerWorkCategory || '') !== category) return false
+    return true
+  })
+})
+
+const selectedCount = computed(() => selectedMap.value.size)
 
 function applySupervisor(userId) {
   form.supervisor_approver_user_id = userId || ''
@@ -52,24 +81,96 @@ function applySupervisor(userId) {
   form.supervisor_approver_name = user?.name || ''
 }
 
-function applySnapshot(src) {
-  form.daily_work_id = src.id
-  form.snapshot = { ...src }
+function applyWorks(sources) {
+  const list = (sources || []).map((src) => ({
+    id: src.id,
+    reportDate: src.reportDate || '',
+    dangerWorkCategory: src.dangerWorkCategory || '',
+    workArea: src.workArea || '',
+    workContent: src.workContent || '',
+    startTime: src.startTime || '',
+    endTime: src.endTime || '',
+    contractor: src.contractor || '',
+    leadUnit: src.leadUnit || '',
+    projectName: src.projectName || '',
+    ownerProjectManager: src.ownerProjectManager || '',
+    ownerSafetyManager: src.ownerSafetyManager || '',
+    contractorProjectManager: src.contractorProjectManager || '',
+    contractorSafetyManager: src.contractorSafetyManager || '',
+    supervisorProjectManager: src.supervisorProjectManager || '',
+    supervisorSafetyManager: src.supervisorSafetyManager || '',
+    dangerControlMeasures: src.dangerControlMeasures || '',
+  }))
+  form.works = list
+  form.daily_work_ids = list.map((item) => item.id).filter(Boolean)
+  form.daily_work_id = form.daily_work_ids[0] || ''
+  form.snapshot = list[0] ? { ...list[0] } : {}
+}
+
+function syncTableSelection() {
+  nextTick(() => {
+    const table = pickTableRef.value
+    if (!table) return
+    table.clearSelection()
+    for (const row of filteredSelectableWorks.value) {
+      if (selectedMap.value.has(row.id)) table.toggleRowSelection(row, true)
+    }
+  })
 }
 
 function openPick() {
+  pickFilterDate.value = todayDateStr()
+  pickFilterCategory.value = ''
+  const map = new Map()
+  for (const item of form.works) {
+    if (item?.id) map.set(item.id, item)
+  }
+  selectedMap.value = map
   pickVisible.value = true
+  syncTableSelection()
 }
 
-function onPickRow(row) {
-  applySnapshot(row)
+function onPickSelectionChange(rows) {
+  const visibleIds = new Set(filteredSelectableWorks.value.map((row) => row.id))
+  const next = new Map(selectedMap.value)
+  for (const id of visibleIds) {
+    if (![...(rows || [])].some((row) => row.id === id)) next.delete(id)
+  }
+  for (const row of rows || []) {
+    next.set(row.id, row)
+  }
+  selectedMap.value = next
+}
+
+function resetPickFilter() {
+  pickFilterDate.value = todayDateStr()
+  pickFilterCategory.value = ''
+}
+
+function confirmPick() {
+  if (!selectedMap.value.size) {
+    return ElMessage.warning('请至少选择一条危险作业')
+  }
+  const byId = new Map(allSelectableWorks.value.map((row) => [row.id, row]))
+  const sources = [...selectedMap.value.keys()]
+    .map((id) => byId.get(id) || selectedMap.value.get(id))
+    .filter(Boolean)
+  applyWorks(sources)
   pickVisible.value = false
+}
+
+function removeWork(id) {
+  applyWorks(form.works.filter((item) => item.id !== id))
 }
 
 function openSource() {
   if (!copyFromId.value) return
   router.push(`/site-construction/engineering-work/detail?id=${copyFromId.value}`)
 }
+
+watch([pickFilterDate, pickFilterCategory], () => {
+  if (pickVisible.value) syncTableSelection()
+})
 
 onMounted(() => {
   if (copyFromId.value) {
@@ -79,8 +180,7 @@ onMounted(() => {
       copyFromId.value = ''
       return
     }
-    form.daily_work_id = payload.daily_work_id
-    form.snapshot = { ...payload.snapshot }
+    applyWorks(getEngineeringWorkItems(payload))
     form.personnel_qual_desc = payload.personnel_qual_desc
     form.scheme_files = payload.scheme_files
     form.briefing_files = payload.briefing_files
@@ -96,7 +196,7 @@ function onSubmit() {
   if (isHqSelected.value || !laborProjectId.value) {
     return ElMessage.warning('请先切换到具体项目')
   }
-  if (!form.daily_work_id) return ElMessage.warning('请选择每日施工作业中的危险作业')
+  if (!form.daily_work_ids.length) return ElMessage.warning('请选择每日施工作业中的危险作业')
   if (!String(form.personnel_qual_desc || '').trim()) {
     return ElMessage.warning('请填写作业人员及特种作业资质说明')
   }
@@ -106,6 +206,7 @@ function onSubmit() {
 
   const payload = {
     project_id: laborProjectId.value,
+    daily_work_ids: [...form.daily_work_ids],
     daily_work_id: form.daily_work_id,
     personnel_qual_desc: form.personnel_qual_desc,
     scheme_files: form.scheme_files,
@@ -173,6 +274,7 @@ function onSubmit() {
         :form="form"
         :project-id="laborProjectId"
         @pick-work="openPick"
+        @remove-work="removeWork"
         @supervisor-change="applySupervisor"
       />
       <div class="form-actions">
@@ -181,16 +283,40 @@ function onSubmit() {
       </div>
     </el-form>
 
-    <el-dialog v-model="pickVisible" title="选择危险作业" width="920px" destroy-on-close>
-      <p class="muted mb">仅展示本项目每日施工作业中的危险作业；审批中或已通过的不可再选。</p>
+    <el-dialog v-model="pickVisible" title="选择危险作业" width="980px" destroy-on-close>
+      <p class="muted mb">可多选；审批中或已通过的不可再选。确定后覆盖当前已选列表。切换筛选时已勾选项会保留。</p>
+      <div class="pick-filter-bar mb">
+        <el-date-picker
+          v-model="pickFilterDate"
+          type="date"
+          value-format="YYYY-MM-DD"
+          placeholder="施工日期"
+          clearable
+          style="width: 180px"
+          aria-label="施工日期"
+        />
+        <el-select
+          v-model="pickFilterCategory"
+          clearable
+          placeholder="作业类别"
+          style="width: 180px"
+          aria-label="作业类别"
+        >
+          <el-option v-for="item in categoryOptions" :key="item" :label="item" :value="item" />
+        </el-select>
+        <el-button @click="resetPickFilter">重置筛选</el-button>
+      </div>
       <el-table
-        :data="selectableWorks"
+        ref="pickTableRef"
+        :data="filteredSelectableWorks"
         stripe
         border
         max-height="420"
-        empty-text="暂无可申报的危险作业"
-        @row-click="onPickRow"
+        row-key="id"
+        empty-text="当前筛选下暂无可申报的危险作业"
+        @selection-change="onPickSelectionChange"
       >
+        <el-table-column type="selection" width="48" align="center" />
         <el-table-column label="施工日期" width="120">
           <template #default="{ row }">{{ emptyCell(row.reportDate) }}</template>
         </el-table-column>
@@ -213,6 +339,15 @@ function onSubmit() {
           <template #default="{ row }">{{ emptyCell(row.contractor) }}</template>
         </el-table-column>
       </el-table>
+      <template #footer>
+        <div class="pick-footer">
+          <span class="muted">已勾选 {{ selectedCount }} 项</span>
+          <div>
+            <el-button @click="pickVisible = false">取消</el-button>
+            <el-button type="primary" @click="confirmPick">确定</el-button>
+          </div>
+        </div>
+      </template>
     </el-dialog>
   </div>
 </template>

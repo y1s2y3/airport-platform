@@ -1,10 +1,11 @@
 <script setup>
+import { computed } from 'vue'
 import { Document, FolderOpened } from '@element-plus/icons-vue'
 import AttachmentUpload from '../../components/common/AttachmentUpload.vue'
 import {
-  SNAPSHOT_FIELDS,
   emptyCell,
   formatSupervisorDisplay,
+  getEngineeringWorkItems,
   listMatSupervisorApprovers,
   formatMatSupervisorApproverLabel,
 } from '../../mock/engineeringWork.js'
@@ -15,11 +16,9 @@ const props = defineProps({
   projectId: { type: String, default: '' },
 })
 
-const emit = defineEmits(['pick-work', 'supervisor-change'])
+const emit = defineEmits(['pick-work', 'remove-work', 'supervisor-change'])
 
-function snapshotValue(key) {
-  return emptyCell(props.form.snapshot?.[key])
-}
+const workItems = computed(() => getEngineeringWorkItems(props.form))
 </script>
 
 <template>
@@ -27,44 +26,67 @@ function snapshotValue(key) {
     <header class="section-head">
       <el-icon class="section-icon"><FolderOpened /></el-icon>
       <div class="section-head-main">
-        <h2 class="section-title">关联危险作业</h2>
-        <p class="section-desc">选自本项目「每日施工作业」中的危险作业，字段只读带出。</p>
+        <h2 class="section-title">
+          关联危险作业
+          <el-tag v-if="workItems.length" size="small" effect="plain" class="works-count-tag">
+            共 {{ workItems.length }} 项
+          </el-tag>
+        </h2>
+        <p class="section-desc">
+          {{
+            readonly
+              ? '本申报单关联的多条每日危险作业（摘要）。'
+              : '可多选本项目「每日施工作业」中的危险作业；审批中或已通过的不可再选。'
+          }}
+        </p>
       </div>
     </header>
     <div class="section-body">
       <el-form-item v-if="!readonly" label="危险作业" required class="field-span-2">
         <div class="pick-row">
-          <el-input
-            :model-value="
-              form.snapshot?.dangerWorkCategory
-                ? `${form.snapshot.reportDate || ''} ${form.snapshot.dangerWorkCategory} · ${form.snapshot.workArea || ''}`
-                : ''
-            "
-            readonly
-            placeholder="请选择每日施工作业中的危险作业"
-            aria-label="请选择每日施工作业中的危险作业"
-          />
+          <span class="pick-summary">
+            {{ workItems.length ? `已选 ${workItems.length} 项` : '尚未选择危险作业' }}
+          </span>
           <el-button type="primary" @click="emit('pick-work')">选择</el-button>
         </div>
       </el-form-item>
-      <div class="field-grid">
-        <el-form-item
-          v-for="field in SNAPSHOT_FIELDS"
-          :key="field.key"
-          :label="field.label"
-          :class="{ 'field-span-2': field.span === 2 || field.key === 'dangerControlMeasures' }"
-        >
-          <el-input
-            v-if="field.key === 'dangerControlMeasures'"
-            :model-value="snapshotValue(field.key)"
-            type="textarea"
-            :rows="4"
-            readonly
-            aria-label="风险管控措施"
-          />
-          <span v-else>{{ snapshotValue(field.key) }}</span>
-        </el-form-item>
-      </div>
+      <el-table
+        v-if="workItems.length"
+        :data="workItems"
+        border
+        stripe
+        size="small"
+        class="works-table"
+        empty-text="暂未选择"
+      >
+        <el-table-column label="施工日期" width="110">
+          <template #default="{ row }">{{ emptyCell(row.reportDate) }}</template>
+        </el-table-column>
+        <el-table-column label="作业类别" width="120" show-overflow-tooltip>
+          <template #default="{ row }">{{ emptyCell(row.dangerWorkCategory) }}</template>
+        </el-table-column>
+        <el-table-column label="施工区域" min-width="140" show-overflow-tooltip>
+          <template #default="{ row }">{{ emptyCell(row.workArea) }}</template>
+        </el-table-column>
+        <el-table-column label="当日施工具体内容" min-width="150" show-overflow-tooltip>
+          <template #default="{ row }">{{ emptyCell(row.workContent) }}</template>
+        </el-table-column>
+        <el-table-column label="作业开始时间" width="150" show-overflow-tooltip>
+          <template #default="{ row }">{{ emptyCell(row.startTime) }}</template>
+        </el-table-column>
+        <el-table-column label="作业结束时间" width="150" show-overflow-tooltip>
+          <template #default="{ row }">{{ emptyCell(row.endTime) }}</template>
+        </el-table-column>
+        <el-table-column label="施工单位" min-width="140" show-overflow-tooltip>
+          <template #default="{ row }">{{ emptyCell(row.contractor) }}</template>
+        </el-table-column>
+        <el-table-column v-if="!readonly" label="操作" width="72" align="center" fixed="right">
+          <template #default="{ row }">
+            <el-button type="danger" link @click="emit('remove-work', row.id)">移除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <p v-else class="empty-inline">{{ readonly ? '暂无关联危险作业' : '请点击「选择」添加危险作业' }}</p>
     </div>
   </section>
 

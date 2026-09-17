@@ -11,7 +11,7 @@ defineProps({
   statusFilters: { type: Array, default: () => ['在建'] },
 })
 
-defineEmits(['project-change'])
+defineEmits(['project-change', 'status-filter'])
 
 const now = ref(new Date())
 let timer = null
@@ -80,6 +80,7 @@ onUnmounted(() => {
           :selection-id="selectionId"
           :status-filters="statusFilters"
           @project-change="$emit('project-change', $event)"
+          @status-filter="$emit('status-filter', $event)"
         />
       </div>
 

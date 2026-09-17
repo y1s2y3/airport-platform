@@ -1,8 +1,12 @@
 <script setup>
 import { computed } from 'vue'
+import { ElMessage } from 'element-plus'
 import { VideoCamera } from '@element-plus/icons-vue'
 import { FOCUS_PROJECT_ID, HQ_SELECTION_ID } from '../../mock/data.js'
 import { useCommandMeetingControl } from '../../composables/useCommandMeetingControl.js'
+
+const STATUS_OPTIONS = ['在建', '前期', '历史']
+const STATUS_FILTER_NODE_ID = '__project_status_filter__'
 
 const props = defineProps({
   projects: { type: Array, default: () => [] },
@@ -11,7 +15,7 @@ const props = defineProps({
   focusProjectId: { type: String, default: FOCUS_PROJECT_ID },
 })
 
-const emit = defineEmits(['project-change'])
+const emit = defineEmits(['project-change', 'status-filter'])
 
 const { meetingActive, startMeeting, endMeeting } = useCommandMeetingControl()
 
@@ -23,13 +27,21 @@ const treeOptions = computed(() => [
   {
     value: HQ_SELECTION_ID,
     label: '工程指挥部',
-    children: filteredProjects.value.map((p) => ({
-      value: p.id,
-      label: p.shortName || p.name,
-      fullName: p.name,
-      status: p.status,
-      connected: p.id === props.focusProjectId,
-    })),
+    children: [
+      {
+        value: STATUS_FILTER_NODE_ID,
+        label: '项目分类',
+        isStatusFilter: true,
+        disabled: true,
+      },
+      ...filteredProjects.value.map((p) => ({
+        value: p.id,
+        label: p.shortName || p.name,
+        fullName: p.name,
+        status: p.status,
+        connected: p.id === props.focusProjectId,
+      })),
+    ],
   },
 ])
 
@@ -48,7 +60,23 @@ function statusClass(status) {
 }
 
 function handleOrgChange(id) {
+  if (!id || id === STATUS_FILTER_NODE_ID) return
   emit('project-change', id)
+}
+
+function toggleStatusFilter(status) {
+  const current = [...props.statusFilters]
+  const idx = current.indexOf(status)
+  if (idx >= 0) {
+    if (current.length <= 1) {
+      ElMessage.warning('至少保留一个项目状态')
+      return
+    }
+    current.splice(idx, 1)
+  } else {
+    current.push(status)
+  }
+  emit('status-filter', current)
 }
 
 async function handleMeetingAction() {
@@ -78,6 +106,26 @@ async function handleMeetingAction() {
         <span v-if="data.value === HQ_SELECTION_ID" class="org-tree-node is-root">
           {{ data.label }}
         </span>
+        <div
+          v-else-if="data.isStatusFilter"
+          class="org-status-filter"
+          role="group"
+          aria-label="项目分类筛选"
+          @mousedown.prevent
+          @click.stop
+        >
+          <button
+            v-for="status in STATUS_OPTIONS"
+            :key="status"
+            type="button"
+            class="status-tag"
+            :class="[statusClass(status), { active: statusFilters.includes(status) }]"
+            :aria-pressed="statusFilters.includes(status)"
+            @click="toggleStatusFilter(status)"
+          >
+            {{ status }}
+          </button>
+        </div>
         <span
           v-else
           class="org-tree-node is-project"

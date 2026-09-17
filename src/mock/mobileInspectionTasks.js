@@ -2,8 +2,13 @@
  * 移动端巡检任务共享 store（列表 / 新建 / 详情共用）
  */
 import { reactive } from 'vue'
-import { DEFAULT_INSPECTOR_LABEL } from '../config/inspectionManagement'
+import {
+  DEFAULT_INSPECTOR_LABEL,
+  formatInspectionCategories,
+  normalizeInspectionCategories,
+} from '../config/inspectionManagement'
 import { inspectionTaskSeeds } from './inspectionDemoData'
+import { syncInspectionTaskToMajorHazard } from '../utils/inspectionMajorHazardLink'
 
 const seedTasks = [
   {
@@ -151,7 +156,18 @@ const seedTasks = [
   },
 ]
 
-export const mobileInspectionTasks = reactive([...seedTasks, ...inspectionTaskSeeds])
+export function normalizeInspectionTask(task = {}) {
+  const inspectionCategories = normalizeInspectionCategories(task.inspectionCategories || task.inspectionCategory)
+  return {
+    ...task,
+    inspectionCategories,
+    // 保留旧字段，供既有列表、详情与统计组件平滑兼容。
+    inspectionCategory: formatInspectionCategories(inspectionCategories),
+    isMajorHazardPatrol: task.isMajorHazardPatrol || '否',
+  }
+}
+
+export const mobileInspectionTasks = reactive([...seedTasks, ...inspectionTaskSeeds].map(normalizeInspectionTask))
 
 export function listMobileInspectionTasks() {
   return mobileInspectionTasks
@@ -162,15 +178,18 @@ export function getMobileInspectionTask(id) {
 }
 
 export function addMobileInspectionTask(task) {
-  mobileInspectionTasks.unshift(task)
-  return task
+  const item = normalizeInspectionTask(task)
+  mobileInspectionTasks.unshift(item)
+  syncInspectionTaskToMajorHazard(item)
+  return item
 }
 
 /** 更新已有任务（执行巡检提交结果等） */
 export function updateMobileInspectionTask(id, patch) {
   const target = mobileInspectionTasks.find((t) => t.id === id)
   if (!target) return null
-  Object.assign(target, patch)
+  Object.assign(target, normalizeInspectionTask({ ...target, ...patch }))
+  syncInspectionTaskToMajorHazard(target)
   return target
 }
 
@@ -178,6 +197,7 @@ export function updateMobileInspectionTask(id, patch) {
 export function updateMobileInspectionTaskByNo(taskNo, patch) {
   const target = mobileInspectionTasks.find((task) => task.taskNo === taskNo)
   if (!target) return null
-  Object.assign(target, patch)
+  Object.assign(target, normalizeInspectionTask({ ...target, ...patch }))
+  syncInspectionTaskToMajorHazard(target)
   return target
 }

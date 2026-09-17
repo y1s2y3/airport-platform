@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { FolderOpened } from '@element-plus/icons-vue'
 import { getPlanById, userOptions, projectOptions, checkCategoryTree, getItemLabel } from '../../composables/useInspectionPlan'
 import { getProjectInspectorLabel } from '../../composables/useInspectionPersonConfig'
+import { normalizeInspectionCategories } from '../../config/inspectionManagement'
 
 const route = useRoute()
 const router = useRouter()
@@ -78,11 +79,13 @@ function goBack() {
           <el-descriptions-item label="任务名称" :span="2">{{ plan.name }}</el-descriptions-item>
           <el-descriptions-item label="任务单编号">{{ plan.planNo || '—' }}</el-descriptions-item>
           <el-descriptions-item label="巡检分类">
-            <el-tag class="detail-tag" :type="plan.inspectionCategory === '质量' ? 'warning' : 'success'" size="small" effect="plain">
-              {{ plan.inspectionCategory || '安全' }}
+            <el-tag v-for="category in normalizeInspectionCategories(plan.inspectionCategories || plan.inspectionCategory)" :key="category" class="detail-tag" :type="category === '质量' ? 'warning' : 'success'" size="small" effect="plain" style="margin-right:4px">
+              {{ category }}
             </el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="关联项目" :span="2">{{ getProjLabels.join('、') }}</el-descriptions-item>
+          <el-descriptions-item label="危大工程现场巡视">{{ plan.isMajorHazardPatrol || '否' }}</el-descriptions-item>
+          <el-descriptions-item label="危大工程名称">{{ plan.isMajorHazardPatrol === '是' ? (plan.majorHazardName || '—') : '—' }}</el-descriptions-item>
           <el-descriptions-item label="更新人">{{ plan.updatedBy }}</el-descriptions-item>
           <el-descriptions-item label="更新时间">{{ plan.updatedAt || '—' }}</el-descriptions-item>
         </el-descriptions>

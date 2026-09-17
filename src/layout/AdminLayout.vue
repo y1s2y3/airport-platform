@@ -37,12 +37,42 @@ const changelog = computed(() => getChangelogByVersion(APP_VERSION))
 const publishedChangelogs = computed(() => getPublishedChangelogs())
 const collapsed = ref(false)
 
-const projectOptions = computed(() => {
+/** 顶栏项目分类筛选：在建 / 前期 / 历史（默认仅在建） */
+const PROJECT_STATUS_FILTER_OPTIONS = ['在建', '前期', '历史']
+const statusFilters = ref(['在建'])
+
+const allProjectOptions = computed(() => {
   // 依赖 projectList 以响应列表 hidden 开关
   void projectList.length
   void projectList.map((item) => item.hidden)
   return buildCocProjectOptions()
 })
+
+const projectOptions = computed(() =>
+  allProjectOptions.value.filter((item) => statusFilters.value.includes(item.status)),
+)
+
+function projectStatusClass(status) {
+  if (status === '前期') return 'early'
+  if (status === '在建') return 'building'
+  if (status === '历史') return 'history'
+  return 'default'
+}
+
+function toggleStatusFilter(status) {
+  const current = [...statusFilters.value]
+  const idx = current.indexOf(status)
+  if (idx >= 0) {
+    if (current.length <= 1) {
+      ElMessage.warning('至少保留一个项目状态')
+      return
+    }
+    current.splice(idx, 1)
+  } else {
+    current.push(status)
+  }
+  statusFilters.value = current
+}
 
 watch(
   projectOptions,
@@ -254,12 +284,38 @@ function skipToMain(e) {
           popper-class="project-select-dropdown"
           size="default"
           filterable
-          placeholder="选择项目"
-          aria-label="选择项目"
+          placeholder="选择组织/项目"
+          aria-label="选择组织/项目"
         >
           <el-option :label="HQ_PROJECT_OPTION.label" :value="HQ_PROJECT_OPTION.id">
             <div class="project-option">
               <span class="project-option-label">{{ HQ_PROJECT_OPTION.label }}</span>
+            </div>
+          </el-option>
+          <el-option
+            disabled
+            value="__project_status_filter__"
+            class="project-status-filter-option"
+            :label="''"
+          >
+            <div
+              class="status-filter-tags"
+              role="group"
+              aria-label="项目分类筛选"
+              @mousedown.prevent
+              @click.stop
+            >
+              <button
+                v-for="status in PROJECT_STATUS_FILTER_OPTIONS"
+                :key="status"
+                type="button"
+                class="status-tag"
+                :class="[projectStatusClass(status), { active: statusFilters.includes(status) }]"
+                :aria-pressed="statusFilters.includes(status)"
+                @click="toggleStatusFilter(status)"
+              >
+                {{ status }}
+              </button>
             </div>
           </el-option>
           <el-option-group label="项目">
@@ -270,7 +326,14 @@ function skipToMain(e) {
               :value="item.id"
             >
               <div class="project-option">
-                <span class="project-option-label">{{ item.label }}</span>
+                <div class="project-option-main">
+                  <span class="project-option-label">{{ item.label }}</span>
+                  <span
+                    v-if="item.status"
+                    class="project-option-status"
+                    :class="projectStatusClass(item.status)"
+                  >{{ item.status }}</span>
+                </div>
                 <span class="project-option-full">{{ item.fullName }}</span>
               </div>
             </el-option>
@@ -619,9 +682,39 @@ function skipToMain(e) {
   text-align: left;
 }
 
+.project-option-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .project-option-label {
   font-size: 14px;
   color: var(--ap-text);
+}
+
+.project-option-status {
+  flex-shrink: 0;
+  font-size: 11px;
+  padding: 0 6px;
+  border-radius: 4px;
+  line-height: 18px;
+}
+
+.project-option-status.building {
+  color: #409eff;
+  background: rgba(64, 158, 255, 0.1);
+}
+
+.project-option-status.early {
+  color: #e6a23c;
+  background: rgba(230, 162, 60, 0.12);
+}
+
+.project-option-status.history {
+  color: #909399;
+  background: rgba(144, 147, 153, 0.12);
 }
 
 .project-option-full {
@@ -855,6 +948,64 @@ function skipToMain(e) {
   font-size: 13px;
 }
 
+.project-select-dropdown .project-status-filter-option {
+  min-height: auto;
+  height: auto;
+  padding: 8px 20px;
+  cursor: default;
+}
+
+.project-select-dropdown .project-status-filter-option.is-disabled {
+  cursor: default;
+}
+
+.project-select-dropdown .project-status-filter-option .status-filter-tags {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.project-select-dropdown .project-status-filter-option .status-tag {
+  margin: 0;
+  padding: 4px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.2;
+  cursor: pointer;
+  border: 1px solid #d0d3d6;
+  background: #fff;
+  color: #8f959e;
+  user-select: none;
+  transition: all 0.2s;
+  pointer-events: auto;
+}
+
+.project-select-dropdown .project-status-filter-option .status-tag:not(.active) {
+  opacity: 0.55;
+}
+
+.project-select-dropdown .project-status-filter-option .status-tag.active.building {
+  color: #409eff;
+  background: rgba(64, 158, 255, 0.15);
+  border-color: #409eff;
+  font-weight: 600;
+}
+
+.project-select-dropdown .project-status-filter-option .status-tag.active.early {
+  color: #e6a23c;
+  background: rgba(230, 162, 60, 0.15);
+  border-color: #e6a23c;
+  font-weight: 600;
+}
+
+.project-select-dropdown .project-status-filter-option .status-tag.active.history {
+  color: #909399;
+  background: rgba(144, 147, 153, 0.12);
+  border-color: #909399;
+  font-weight: 600;
+}
+
 .project-select-dropdown .project-option {
   display: flex;
   flex-direction: column;
@@ -863,9 +1014,39 @@ function skipToMain(e) {
   text-align: left;
 }
 
+.project-select-dropdown .project-option-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .project-select-dropdown .project-option-label {
   font-size: 14px;
   color: var(--ap-text, #303133);
+}
+
+.project-select-dropdown .project-option-status {
+  flex-shrink: 0;
+  font-size: 11px;
+  padding: 0 6px;
+  border-radius: 4px;
+  line-height: 18px;
+}
+
+.project-select-dropdown .project-option-status.building {
+  color: #409eff;
+  background: rgba(64, 158, 255, 0.1);
+}
+
+.project-select-dropdown .project-option-status.early {
+  color: #e6a23c;
+  background: rgba(230, 162, 60, 0.12);
+}
+
+.project-select-dropdown .project-option-status.history {
+  color: #909399;
+  background: rgba(144, 147, 153, 0.12);
 }
 
 .project-select-dropdown .project-option-full {

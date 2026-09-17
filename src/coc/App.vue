@@ -137,6 +137,17 @@ function handleStatusFilter(filters) {
   statusFilters.value = filters
 }
 
+watch(
+  [filteredProjects, selectedProjectId],
+  () => {
+    if (selectedProjectId.value === HQ_SELECTION_ID) return
+    if (filteredProjects.value.some((p) => p.id === selectedProjectId.value)) return
+    selectedProjectId.value = HQ_SELECTION_ID
+    progressDetailScreen.value = false
+    closeHomeProjectDispatch()
+  },
+)
+
 onMounted(() => {
   updateScale()
   window.addEventListener('resize', updateScale)
@@ -176,6 +187,7 @@ onUnmounted(() => {
         :selection-id="selectedProjectId"
         :status-filters="statusFilters"
         @project-change="handleProjectChange"
+        @status-filter="handleStatusFilter"
       />
       <TopNav
         v-else
@@ -183,6 +195,7 @@ onUnmounted(() => {
         :selection-id="selectedProjectId"
         :status-filters="statusFilters"
         @project-change="handleProjectChange"
+        @status-filter="handleStatusFilter"
       />
 
       <CommandMeetingLiveView

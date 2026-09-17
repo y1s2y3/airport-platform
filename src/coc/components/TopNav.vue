@@ -1,8 +1,12 @@
 <script setup>
 import { computed, onMounted, onUnmounted } from 'vue'
+import { ElMessage } from 'element-plus'
 import { Close } from '@element-plus/icons-vue'
 import logoUrl from '../assets/logo.png'
 import { FOCUS_PROJECT_ID, HQ_SELECTION_ID } from '../mock/data.js'
+
+const STATUS_OPTIONS = ['在建', '前期', '历史']
+const STATUS_FILTER_NODE_ID = '__project_status_filter__'
 
 const props = defineProps({
   projects: { type: Array, default: () => [] },
@@ -11,7 +15,7 @@ const props = defineProps({
   focusProjectId: { type: String, default: FOCUS_PROJECT_ID },
 })
 
-const emit = defineEmits(['project-change'])
+const emit = defineEmits(['project-change', 'status-filter'])
 
 function handleCloseScreen() {
   if (window.opener && !window.opener.closed) {
@@ -41,13 +45,21 @@ const treeOptions = computed(() => [
   {
     value: HQ_SELECTION_ID,
     label: '工程指挥部',
-    children: filteredProjects.value.map((p) => ({
-      value: p.id,
-      label: p.shortName || p.name,
-      fullName: p.name,
-      status: p.status,
-      connected: p.id === props.focusProjectId,
-    })),
+    children: [
+      {
+        value: STATUS_FILTER_NODE_ID,
+        label: '项目分类',
+        isStatusFilter: true,
+        disabled: true,
+      },
+      ...filteredProjects.value.map((p) => ({
+        value: p.id,
+        label: p.shortName || p.name,
+        fullName: p.name,
+        status: p.status,
+        connected: p.id === props.focusProjectId,
+      })),
+    ],
   },
 ])
 
@@ -66,11 +78,27 @@ function statusClass(status) {
 }
 
 function handleOrgChange(id) {
+  if (!id || id === STATUS_FILTER_NODE_ID) return
   if (id === HQ_SELECTION_ID) {
     emit('project-change', HQ_SELECTION_ID)
     return
   }
   emit('project-change', id)
+}
+
+function toggleStatusFilter(status) {
+  const current = [...props.statusFilters]
+  const idx = current.indexOf(status)
+  if (idx >= 0) {
+    if (current.length <= 1) {
+      ElMessage.warning('至少保留一个项目状态')
+      return
+    }
+    current.splice(idx, 1)
+  } else {
+    current.push(status)
+  }
+  emit('status-filter', current)
 }
 </script>
 
@@ -105,6 +133,26 @@ function handleOrgChange(id) {
           >
             {{ data.label }}
           </span>
+          <div
+            v-else-if="data.isStatusFilter"
+            class="org-status-filter"
+            role="group"
+            aria-label="项目分类筛选"
+            @mousedown.prevent
+            @click.stop
+          >
+            <button
+              v-for="status in STATUS_OPTIONS"
+              :key="status"
+              type="button"
+              class="status-tag"
+              :class="[statusClass(status), { active: statusFilters.includes(status) }]"
+              :aria-pressed="statusFilters.includes(status)"
+              @click="toggleStatusFilter(status)"
+            >
+              {{ status }}
+            </button>
+          </div>
           <span
             v-else
             class="org-tree-node is-project"
@@ -306,5 +354,62 @@ function handleOrgChange(id) {
 .coc-org-tree-select-popper .org-tree-node.is-connected .org-tree-label {
   color: var(--coc-accent, #c97b63);
   font-weight: 600;
+}
+
+.coc-org-tree-select-popper .org-status-filter {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 2px 0;
+  pointer-events: auto;
+}
+
+.coc-org-tree-select-popper .org-status-filter .status-tag {
+  margin: 0;
+  padding: 4px 10px;
+  border-radius: 10px;
+  font-size: calc(11px + var(--coc-font-boost));
+  line-height: 1.2;
+  cursor: pointer;
+  border: 1px solid var(--coc-border, #d0d3d6);
+  background: #fff;
+  color: var(--coc-text-secondary, #8f959e);
+  user-select: none;
+  transition: all 0.2s;
+  pointer-events: auto;
+}
+
+.coc-org-tree-select-popper .org-status-filter .status-tag:not(.active) {
+  opacity: 0.55;
+}
+
+.coc-org-tree-select-popper .org-status-filter .status-tag.active.building {
+  color: #409eff;
+  background: rgba(64, 158, 255, 0.15);
+  border-color: #409eff;
+  font-weight: 600;
+}
+
+.coc-org-tree-select-popper .org-status-filter .status-tag.active.early {
+  color: #e6a23c;
+  background: rgba(230, 162, 60, 0.15);
+  border-color: #e6a23c;
+  font-weight: 600;
+}
+
+.coc-org-tree-select-popper .org-status-filter .status-tag.active.history {
+  color: #909399;
+  background: rgba(144, 147, 153, 0.12);
+  border-color: #909399;
+  font-weight: 600;
+}
+
+.coc-org-tree-select-popper .el-tree-node.is-disabled > .el-tree-node__content {
+  cursor: default;
+}
+
+.coc-org-tree-select-popper .el-tree-node.is-disabled > .el-tree-node__content:hover {
+  background: transparent;
 }
 </style>

@@ -99,6 +99,7 @@ const todoSourceLabel = computed(() => {
     labor_warning: '人员预警',
     module_warning: todo.value.sourceLabel || '预警中心',
     inspection: '巡检管理',
+    major_hazard_identification: '危大工程管理',
   }
   if (typeLabels[todo.value.type]) return typeLabels[todo.value.type]
   const pn = todo.value.processName || ''

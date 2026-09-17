@@ -3,7 +3,6 @@ import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getProjectRectifierLabel, getProjectReviewerLabel } from '../../composables/useInspectionPersonConfig'
 import { getInspectionHazardDetail } from '../../mock/inspectionDemoData'
-import PersonalCenterReadonlyHint from '../../components/PersonalCenterReadonlyHint.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -133,13 +132,6 @@ const latestReviews = computed(() => {
   return [info.value.reviews[info.value.reviews.length - 1]]
 })
 
-const showReadonlyHint = computed(() => {
-  const st = info.value?.st
-  if (st === '待整改' || st === '待复查') return true
-  if (info.value?.managerApproval?.status === '审批中') return true
-  return false
-})
-
 function goBack() { router.push('/safety-inspection/hazard') }
 </script>
 
@@ -149,11 +141,6 @@ function goBack() { router.push('/safety-inspection/hazard') }
       <button class="bk" @click="goBack">‹ 返回</button>
       <h3 class="pt">隐患详情</h3>
     </div>
-
-    <PersonalCenterReadonlyHint
-      v-if="showReadonlyHint"
-      title="本页为只读查看；巡检整改、复查与项目经理审批请在「个人中心 → 我的待办」中处理。"
-    />
 
     <!-- ===== 基本信息 ===== -->
     <div class="ig">

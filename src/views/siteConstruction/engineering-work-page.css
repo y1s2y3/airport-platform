@@ -95,6 +95,13 @@
   font-weight: 600;
   color: #1f2329;
   line-height: 1.4;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.works-count-tag {
+  font-weight: 500;
 }
 
 .section-desc {
@@ -137,6 +144,32 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
+}
+
+.pick-summary {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: #606266;
+}
+
+.works-table {
+  width: 100%;
+}
+
+.pick-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.pick-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   width: 100%;
 }
 

@@ -25,13 +25,12 @@ export const MENU_SCOPE_PROJECT = 'project'
  * 1. 侧栏菜单树（唯一展示数据源）
  * ==========================================================================*/
 export const menuTree = [
-  { key: 'workbench', label: '工作台', icon: 'Monitor', path: '/workbench', name: 'Workbench', component: 'WorkbenchView', levels: 'both' },
-  { key: 'personal-center', label: '个人中心', icon: 'Notebook', path: '/personal-center', name: 'PersonalCenter', component: 'PersonalCenterView', levels: 'both' },
+  { key: 'workbench', label: '工作台', icon: 'HomeFilled', path: '/workbench', name: 'Workbench', component: 'WorkbenchView', levels: 'both' },
   /** 建管 APP：顶层全屏壳（router/index.js），不进 AdminLayout；buildRoutes 跳过 /app */
   {
     key: 'jg-app',
     label: '建管APP',
-    icon: 'Iphone',
+    icon: 'Cellphone',
     path: '/app/login',
     name: 'JgAppEntry',
     component: 'AppLoginView',
@@ -41,91 +40,91 @@ export const menuTree = [
 
   /** 指挥部 · 安全看板 */
   {
-    key: 'safety-board', label: '安全看板', icon: 'DataBoard', levels: 'hq',
+    key: 'safety-board', label: '安全看板', icon: 'FirstAidKit', levels: 'hq',
     children: [
-      { key: 'safety-dashboard', label: '巡检看板', path: '/safety-inspection/dashboard', name: 'SafetyDashboard', component: 'SafetyDashboardView', levels: 'hq' },
-      { key: 'video-monitor-stats', label: '视频监控统计', path: '/video-monitor/stats', name: 'VideoMonitorStats', component: 'VideoMonitorStatsView', routeComponent: 'VideoMonitorPageView', levels: 'hq', description: '指挥部级视频监控统计。' },
-      { key: 'machine-entry-manage', label: '机械设备台账', path: '/hq/machine-supervise/ledger', name: 'MachineEntryManageHq', component: 'MachineryLedgerView', levels: 'hq' },
-      { key: 'alert-record', label: '机械设备预警', path: '/hq/machine-supervise/alert-record', name: 'AlertRecordHq', component: 'AlertRecordView', levels: 'hq' },
-      { key: 'alert-record-major', label: '危大监测预警', path: '/hq/major-hazard/alert-record', name: 'AlertRecordMajorHq', component: 'AlertRecordMajorView', levels: 'hq' },
+      { key: 'safety-dashboard', label: '巡检看板', icon: 'PieChart', path: '/safety-inspection/dashboard', name: 'SafetyDashboard', component: 'SafetyDashboardView', levels: 'hq' },
+      { key: 'video-monitor-stats', label: '视频监控统计', icon: 'Histogram', path: '/video-monitor/stats', name: 'VideoMonitorStats', component: 'VideoMonitorStatsView', routeComponent: 'VideoMonitorPageView', levels: 'hq', description: '指挥部级视频监控统计。' },
+      { key: 'machine-entry-manage', label: '机械设备台账', icon: 'Suitcase', path: '/hq/machine-supervise/ledger', name: 'MachineEntryManageHq', component: 'MachineryLedgerView', levels: 'hq' },
+      { key: 'alert-record', label: '机械设备预警', icon: 'BellFilled', path: '/hq/machine-supervise/alert-record', name: 'AlertRecordHq', component: 'AlertRecordView', levels: 'hq' },
+      { key: 'alert-record-major', label: '危大监测预警', icon: 'WarnTriangleFilled', path: '/hq/major-hazard/alert-record', name: 'AlertRecordMajorHq', component: 'AlertRecordMajorView', levels: 'hq' },
     ],
   },
 
   /** 指挥部 · AI 预警统计看板 */
-  { key: 'ai-alert-dashboard', label: 'AI 预警统计看板', icon: 'DataBoard', path: '/ai-alert-dashboard', name: 'AiAlertDashboard', component: 'AiDashboardView', levels: 'hq' },
+  { key: 'ai-alert-dashboard', label: 'AI 预警统计看板', icon: 'TrendCharts', path: '/ai-alert-dashboard', name: 'AiAlertDashboard', component: 'AiDashboardView', levels: 'hq' },
 
   /** 指挥部 · 质量看板 */
   {
     key: 'quality-board', label: '质量看板', icon: 'DataAnalysis', levels: 'hq',
     children: [
-      { key: 'qm-dashboard', label: '质量验评看板', path: '/qm/inspect/dashboard', name: 'QmDashboard', component: 'QmDashboardView', levels: 'hq' },
-      { key: 'brand-approval-stats', label: '品牌报审', path: '/qm/quality-board/brand-stats', name: 'BrandApprovalStats', component: 'BrandApprovalStatsView', levels: 'hq' },
-      { key: 'sample-ledger', label: '样板台账', path: '/hq/qm/sample/ledger', name: 'SampleLedgerHq', component: 'SampleLedgerView', levels: 'hq' },
-      { key: 'mat-dashboard', label: '材料设备进场', path: '/qm/mat/dashboard', name: 'MatDashboard', component: 'MatDashboardView', levels: 'hq' },
+      { key: 'qm-dashboard', label: '质量验评看板', icon: 'DataLine', path: '/qm/inspect/dashboard', name: 'QmDashboard', component: 'QmDashboardView', levels: 'hq' },
+      { key: 'brand-approval-stats', label: '品牌报审', icon: 'PriceTag', path: '/qm/quality-board/brand-stats', name: 'BrandApprovalStats', component: 'BrandApprovalStatsView', levels: 'hq' },
+      { key: 'sample-ledger', label: '样板台账', icon: 'Picture', path: '/hq/qm/sample/ledger', name: 'SampleLedgerHq', component: 'SampleLedgerView', levels: 'hq' },
+      { key: 'mat-dashboard', label: '材料设备进场', icon: 'GoodsFilled', path: '/qm/mat/dashboard', name: 'MatDashboard', component: 'MatDashboardView', levels: 'hq' },
     ],
   },
 
   /** 智慧工地监管（两级共用，子项按 levels 区分） */
   {
-    key: 'smart-site', label: '智慧工地监管', icon: 'Cpu', levels: 'both',
+    key: 'smart-site', label: '智慧工地监管', icon: 'Platform', levels: 'both',
     children: [
       {
-        key: 'labor', label: '人员实名制管理', levels: 'both',
+        key: 'labor', label: '人员实名制管理', icon: 'Avatar', levels: 'both',
         children: [
-          { key: 'labor-realname-stats', label: '实名制统计', path: '/labor/realname-stats', name: 'LaborRealNameStats', component: 'LaborRealNameStatsView', levels: 'hq', sortByLevel: { hq: 0 } },
-          { key: 'labor-track-system', label: '人员轨迹系统', path: '/labor/track-system', name: 'LaborTrackSystem', component: 'TrackSystemListView', levels: 'hq', trackKind: 'labor', sortByLevel: { hq: 1 } },
-          { key: 'labor-warning-config', label: '实名制配置', path: '/labor/warning-config', name: 'LaborWarningConfig', component: 'LaborWarningConfigView', levels: 'hq', sortByLevel: { hq: 2 } },
-          { key: 'labor-blacklist', label: '劳务黑名单', path: '/labor/blacklist', name: 'LaborBlacklist', component: 'LaborBlacklistView', levels: 'hq', sortByLevel: { hq: 3 } },
-          { key: 'labor-dashboard', label: '人员实名制看板', path: '/labor/dashboard', name: 'LaborDashboard', component: 'LaborDashboardView', levels: 'project', sortByLevel: { project: 2 } },
-          { key: 'labor-realname', label: '人员实名制', path: '/labor/realname', name: 'RealNamePersonnel', component: 'RealNamePersonnelView', levels: 'project', sortByLevel: { project: 3 } },
-          { key: 'labor-personnel-track', label: '人员轨迹', path: '/labor/personnel-track', name: 'LaborPersonnelTrack', component: 'LaborPersonnelTrackView', levels: 'project', sortByLevel: { project: 4 } },
-          { key: 'labor-attendance-detail', label: '考勤明细', path: '/labor/attendance-detail', name: 'LaborAttendanceDetail', component: 'LaborAttendanceDetailView', levels: 'project', sortByLevel: { project: 5 } },
-          { key: 'labor-warning-list', label: '预警清单', path: '/labor/warning-list', name: 'LaborWarningList', component: 'LaborWarningListView', levels: 'project', sortByLevel: { project: 6 } },
-          { key: 'labor-mobile-personal-center', label: '个人中心（移动端）', path: '/labor/mobile/personal-center', name: 'LaborMobilePersonalCenter', component: 'LaborMobilePersonalCenterView', levels: 'both', sortByLevel: { hq: 4, project: 7 } },
+          { key: 'labor-realname-stats', label: '实名制统计', icon: 'DataBoard', path: '/labor/realname-stats', name: 'LaborRealNameStats', component: 'LaborRealNameStatsView', levels: 'hq', sortByLevel: { hq: 0 } },
+          { key: 'labor-track-system', label: '人员轨迹系统', icon: 'Guide', path: '/labor/track-system', name: 'LaborTrackSystem', component: 'TrackSystemListView', levels: 'hq', trackKind: 'labor', sortByLevel: { hq: 1 } },
+          { key: 'labor-warning-config', label: '实名制配置', icon: 'Tools', path: '/labor/warning-config', name: 'LaborWarningConfig', component: 'LaborWarningConfigView', levels: 'hq', sortByLevel: { hq: 2 } },
+          { key: 'labor-blacklist', label: '劳务黑名单', icon: 'CircleCloseFilled', path: '/labor/blacklist', name: 'LaborBlacklist', component: 'LaborBlacklistView', levels: 'hq', sortByLevel: { hq: 3 } },
+          { key: 'labor-dashboard', label: '人员实名制看板', icon: 'Odometer', path: '/labor/dashboard', name: 'LaborDashboard', component: 'LaborDashboardView', levels: 'project', sortByLevel: { project: 2 } },
+          { key: 'labor-realname', label: '人员实名制', icon: 'Postcard', path: '/labor/realname', name: 'RealNamePersonnel', component: 'RealNamePersonnelView', levels: 'project', sortByLevel: { project: 3 } },
+          { key: 'labor-personnel-track', label: '人员轨迹', icon: 'Location', path: '/labor/personnel-track', name: 'LaborPersonnelTrack', component: 'LaborPersonnelTrackView', levels: 'project', sortByLevel: { project: 4 } },
+          { key: 'labor-attendance-detail', label: '考勤明细', icon: 'Calendar', path: '/labor/attendance-detail', name: 'LaborAttendanceDetail', component: 'LaborAttendanceDetailView', levels: 'project', sortByLevel: { project: 5 } },
+          { key: 'labor-warning-list', label: '预警清单', icon: 'Notification', path: '/labor/warning-list', name: 'LaborWarningList', component: 'LaborWarningListView', levels: 'project', sortByLevel: { project: 6 } },
+          { key: 'labor-mobile-personal-center', label: '个人中心（移动端）', icon: 'Iphone', path: '/labor/mobile/personal-center', name: 'LaborMobilePersonalCenter', component: 'LaborMobilePersonalCenterView', levels: 'both', sortByLevel: { hq: 4, project: 7 } },
         ],
       },
       {
-        key: 'vehicle', label: '车辆管理', levels: 'both',
+        key: 'vehicle', label: '车辆管理', icon: 'Van', levels: 'both',
         children: [
-          { key: 'vehicle-dashboard', label: '车辆管理看板', path: '/vehicle/dashboard', name: 'VehicleDashboard', component: 'VehicleDashboardView', levels: 'hq' },
-          { key: 'vehicle-track-system', label: '车辆轨迹系统', path: '/vehicle/track-system', name: 'VehicleTrackSystem', component: 'TrackSystemListView', levels: 'hq', trackKind: 'vehicle' },
-          { key: 'vehicle-track-config', label: '车辆轨迹配置', path: '/vehicle/track-config', name: 'VehicleTrackConfig', component: 'VehicleTrackConfigView', levels: 'hq' },
-          { key: 'vehicle-access', label: '进出场记录', path: '/vehicle/access', name: 'VehicleAccess', component: 'VehicleAccessView', levels: 'project' },
-          { key: 'vehicle-track', label: '车辆轨迹监管', path: '/vehicle/track', name: 'VehicleTrack', component: 'VehicleTrackView', levels: 'project' },
+          { key: 'vehicle-dashboard', label: '车辆管理看板', icon: 'PieChart', path: '/vehicle/dashboard', name: 'VehicleDashboard', component: 'VehicleDashboardView', levels: 'hq' },
+          { key: 'vehicle-track-system', label: '车辆轨迹系统', icon: 'Compass', path: '/vehicle/track-system', name: 'VehicleTrackSystem', component: 'TrackSystemListView', levels: 'hq', trackKind: 'vehicle' },
+          { key: 'vehicle-track-config', label: '车辆轨迹配置', icon: 'Operation', path: '/vehicle/track-config', name: 'VehicleTrackConfig', component: 'VehicleTrackConfigView', levels: 'hq' },
+          { key: 'vehicle-access', label: '进出场记录', icon: 'Switch', path: '/vehicle/access', name: 'VehicleAccess', component: 'VehicleAccessView', levels: 'project' },
+          { key: 'vehicle-track', label: '车辆轨迹监管', icon: 'LocationFilled', path: '/vehicle/track', name: 'VehicleTrack', component: 'VehicleTrackView', levels: 'project' },
         ],
       },
       {
-        key: 'machine-supervise', label: '机械设备监管', levels: 'both',
+        key: 'machine-supervise', label: '机械设备监管', icon: 'SetUp', levels: 'both',
         children: [
-          { key: 'device-manage', label: '监测设备管理', path: '/machine-supervise/device', name: 'DeviceManage', component: 'DeviceManageView', levels: 'project' },
-          { key: 'crane-monitor', label: '塔吊运行监管', path: '/machine-supervise/crane', name: 'CraneMonitor', component: 'CraneMonitorView', levels: 'both' },
-          { key: 'lift-monitor', label: '升降机监管', path: '/machine-supervise/lift', name: 'LiftMonitor', component: 'LiftMonitorView', levels: 'both' },
-          { key: 'pile-monitor', label: '桩基机械施工监管', path: '/machine-supervise/pile', name: 'PileMonitor', component: 'PileMonitorView', levels: 'both' },
-          { key: 'composite-monitor', label: '复合地基机械施工监管', path: '/machine-supervise/composite', name: 'CompositeMonitor', component: 'CompositeMonitorView', levels: 'both' },
-          { key: 'alert-record', label: '预警记录', path: '/machine-supervise/alert-record', name: 'AlertRecord', component: 'AlertRecordView', levels: 'project' },
+          { key: 'device-manage', label: '监测设备管理', icon: 'Cpu', path: '/machine-supervise/device', name: 'DeviceManage', component: 'DeviceManageView', levels: 'project' },
+          { key: 'crane-monitor', label: '塔吊运行监管', icon: 'WindPower', path: '/machine-supervise/crane', name: 'CraneMonitor', component: 'CraneMonitorView', levels: 'both' },
+          { key: 'lift-monitor', label: '升降机监管', icon: 'Rank', path: '/machine-supervise/lift', name: 'LiftMonitor', component: 'LiftMonitorView', levels: 'both' },
+          { key: 'pile-monitor', label: '桩基机械施工监管', icon: 'Place', path: '/machine-supervise/pile', name: 'PileMonitor', component: 'PileMonitorView', levels: 'both' },
+          { key: 'composite-monitor', label: '复合地基机械施工监管', icon: 'Grid', path: '/machine-supervise/composite', name: 'CompositeMonitor', component: 'CompositeMonitorView', levels: 'both' },
+          { key: 'alert-record', label: '预警记录', icon: 'AlarmClock', path: '/machine-supervise/alert-record', name: 'AlertRecord', component: 'AlertRecordView', levels: 'project' },
         ],
       },
       {
-        key: 'major-hazard', label: '危大工程监测', levels: 'both',
+        key: 'major-hazard', label: '危大工程监测', icon: 'WarningFilled', levels: 'both',
         children: [
-          { key: 'deep-foundation-pit', label: '深基坑安全监管', path: '/major-hazard/deep-foundation-pit', name: 'DeepFoundationPit', component: 'DeepFoundationPitView', levels: 'both' },
-          { key: 'subway-protection', label: '地铁铁路安全监管', path: '/major-hazard/subway-protection', name: 'SubwayProtection', component: 'SubwayProtectionView', levels: 'both' },
-          { key: 'high-formwork', label: '高支模变形监管', path: '/major-hazard/high-formwork', name: 'HighFormwork', component: 'HighFormworkView', levels: 'both' },
-          { key: 'hazard-manage', label: '监测区域管理', path: '/major-hazard/hazard-manage', name: 'HazardManage', component: 'HazardManageView', levels: 'project' },
-          { key: 'device-binding', label: '监测设备管理', path: '/major-hazard/device-binding', name: 'DeviceBinding', component: 'DeviceBindingView', levels: 'project' },
-          { key: 'monitor-device', label: '监测设备台账', path: '/major-hazard/monitor-device', name: 'MonitoringDevice', component: 'MonitoringDeviceView', levels: 'project' },
-          { key: 'alert-record-major', label: '预警记录', path: '/major-hazard/alert-record', name: 'AlertRecordMajor', component: 'AlertRecordMajorView', levels: 'project' },
-          { key: 'alert-config-major', label: '危大预警配置', path: '/major-hazard/warning-config', name: 'AlertConfigMajor', component: 'AlertConfigMajorView', levels: 'project' },
+          { key: 'deep-foundation-pit', label: '深基坑安全监管', icon: 'Bottom', path: '/major-hazard/deep-foundation-pit', name: 'DeepFoundationPit', component: 'DeepFoundationPitView', levels: 'both' },
+          { key: 'subway-protection', label: '地铁铁路安全监管', icon: 'Ship', path: '/major-hazard/subway-protection', name: 'SubwayProtection', component: 'SubwayProtectionView', levels: 'both' },
+          { key: 'high-formwork', label: '高支模变形监管', icon: 'OfficeBuilding', path: '/major-hazard/high-formwork', name: 'HighFormwork', component: 'HighFormworkView', levels: 'both' },
+          { key: 'hazard-manage', label: '监测区域管理', icon: 'MapLocation', path: '/major-hazard/hazard-manage', name: 'HazardManage', component: 'HazardManageView', levels: 'project' },
+          { key: 'device-binding', label: '监测设备管理', icon: 'Link', path: '/major-hazard/device-binding', name: 'DeviceBinding', component: 'DeviceBindingView', levels: 'project' },
+          { key: 'monitor-device', label: '监测设备台账', icon: 'Memo', path: '/major-hazard/monitor-device', name: 'MonitoringDevice', component: 'MonitoringDeviceView', levels: 'project' },
+          { key: 'alert-record-major', label: '预警记录', icon: 'Bell', path: '/major-hazard/alert-record', name: 'AlertRecordMajor', component: 'AlertRecordMajorView', levels: 'project' },
+          { key: 'alert-config-major', label: '危大预警配置', icon: 'Setting', path: '/major-hazard/warning-config', name: 'AlertConfigMajor', component: 'AlertConfigMajorView', levels: 'project' },
         ],
       },
-      { key: 'alert-config', label: '预警配置', path: '/machine-supervise/alert-config', name: 'AlertConfig', component: 'AlertConfigView', levels: 'project' },
+      { key: 'alert-config', label: '预警配置', icon: 'Tools', path: '/machine-supervise/alert-config', name: 'AlertConfig', component: 'AlertConfigView', levels: 'project' },
       {
         key: 'video-monitor', label: '视频监控', icon: 'VideoCamera', levels: 'project',
         children: [
-          { key: 'video-monitor-preview', label: '视频预览', path: '/video-monitor/preview', name: 'VideoMonitorPreview', component: 'VideoPreviewView', routeComponent: 'VideoMonitorPageView', levels: 'project', description: '项目级视频预览。' },
-          { key: 'video-monitor-ledger', label: '设备台账', path: '/video-monitor/device-ledger', name: 'VideoMonitorLedger', component: 'DeviceLedgerView', routeComponent: 'VideoMonitorPageView', levels: 'project', description: '项目级设备台账。' },
-          { key: 'video-monitor-group', label: '分组管理', path: '/video-monitor/group', name: 'VideoMonitorGroup', component: 'DeviceGroupManageView', routeComponent: 'VideoMonitorPageView', levels: 'project', description: '项目级设备分组。' },
-          { key: 'video-monitor-offline-notify', label: '离线通知配置', path: '/video-monitor/offline-notify', name: 'VideoMonitorOfflineNotify', component: 'OfflineNotifyConfigView', routeComponent: 'VideoMonitorPageView', levels: 'project', description: '项目级视频离线分级通知。' },
+          { key: 'video-monitor-preview', label: '视频预览', icon: 'VideoPlay', path: '/video-monitor/preview', name: 'VideoMonitorPreview', component: 'VideoPreviewView', routeComponent: 'VideoMonitorPageView', levels: 'project', description: '项目级视频预览。' },
+          { key: 'video-monitor-ledger', label: '设备台账', icon: 'Files', path: '/video-monitor/device-ledger', name: 'VideoMonitorLedger', component: 'DeviceLedgerView', routeComponent: 'VideoMonitorPageView', levels: 'project', description: '项目级设备台账。' },
+          { key: 'video-monitor-group', label: '分组管理', icon: 'Folder', path: '/video-monitor/group', name: 'VideoMonitorGroup', component: 'DeviceGroupManageView', routeComponent: 'VideoMonitorPageView', levels: 'project', description: '项目级设备分组。' },
+          { key: 'video-monitor-offline-notify', label: '离线通知配置', icon: 'MuteNotification', path: '/video-monitor/offline-notify', name: 'VideoMonitorOfflineNotify', component: 'OfflineNotifyConfigView', routeComponent: 'VideoMonitorPageView', levels: 'project', description: '项目级视频离线分级通知。' },
         ],
       },
     ],
@@ -133,40 +132,49 @@ export const menuTree = [
 
   /** 施工现场管理（两级共用） */
   {
-    key: 'site-construction', label: '施工现场管理', icon: 'MapLocation', levels: 'both',
+    key: 'site-construction', label: '施工现场管理', icon: 'Flag', levels: 'both',
     children: [
       {
-        key: 'work-manage', label: '施工作业管理', labelByLevel: { hq: '施工作业管理', project: '施工作业申报' }, icon: 'Document', levels: 'both',
+        key: 'work-manage', label: '施工作业管理', labelByLevel: { hq: '施工作业管理', project: '施工作业申报' }, icon: 'Calendar', levels: 'both',
         children: [
-          { key: 'major-hazard-daily-work', label: '每日施工作业', path: '/major-hazard/daily-work', name: 'MajorHazardDailyWork', component: 'DailyWorkView', levels: 'both' },
-          { key: 'engineering-work', label: '工程作业申报', path: '/site-construction/engineering-work', name: 'EngineeringWorkList', component: 'EngineeringWorkListView', levels: 'project' },
+          { key: 'major-hazard-daily-work', label: '每日施工作业', icon: 'Sunny', path: '/major-hazard/daily-work', name: 'MajorHazardDailyWork', component: 'DailyWorkView', levels: 'both' },
+          { key: 'engineering-work', label: '工程作业申报', icon: 'EditPen', path: '/site-construction/engineering-work', name: 'EngineeringWorkList', component: 'EngineeringWorkListView', levels: 'project' },
         ],
       },
       {
-        key: 'risk-manage-group', label: '风险管理', levels: 'project',
+        key: 'risk-manage-group', label: '风险管理', icon: 'Opportunity', levels: 'project',
         children: [
-          { key: 'risk-point-control', label: '风险点管控', path: '/site-construction/risk-point-control', name: 'RiskPointControl', component: 'RiskPointControlView', levels: 'project' },
-          { key: 'risk-point-config', label: '风险点管控配置库', path: '/site-construction/risk-point-config', name: 'RiskPointConfig', component: 'RiskPointConfigView', levels: 'project' },
+          { key: 'risk-point-control', label: '风险点管控', icon: 'Aim', path: '/site-construction/risk-point-control', name: 'RiskPointControl', component: 'RiskPointControlView', levels: 'project' },
+          { key: 'risk-point-config', label: '风险点管控配置库', icon: 'CollectionTag', path: '/site-construction/risk-point-config', name: 'RiskPointConfig', component: 'RiskPointConfigView', levels: 'project' },
         ],
       },
       {
-        key: 'safety-inspection', label: '巡检管理', levels: 'both',
+        key: 'major-hazard-management', label: '危大工程管理', icon: 'WarningFilled', levels: 'project',
         children: [
-          { key: 'safety-plan', label: '任务下发', path: '/safety-inspection/plan', name: 'InspectionPlan', component: 'InspectionPlanView', levels: 'hq' },
-          { key: 'safety-check-items', label: '巡检检查项', path: '/safety-inspection/check-items', name: 'SafetyCheckItems', component: 'SafetyCheckItemsView', levels: 'hq' },
-          { key: 'safety-inspector-config', label: '人员配置', path: '/safety-inspection/inspector-config', name: 'InspectionPersonConfig', component: 'InspectionPersonConfigView', levels: 'project' },
-          { key: 'safety-task-manage', label: '巡检任务', path: '/safety-inspection/task', name: 'InspectionTaskManage', component: 'InspectionTaskManageView', levels: 'both' },
-          { key: 'safety-hazard', label: '隐患清单', path: '/safety-inspection/hazard', name: 'SafetyHazardList', component: 'SafetyHazardListView', levels: 'both' },
-          { key: 'mobile-safety-inspection', label: '巡检管理(移动端)', path: '/mobile/tasks', name: 'MobileTaskList', component: 'MobileTaskListView', levels: 'both' },
-          { key: 'mobile-message-center', label: '消息中心(移动端)', path: '/mobile/messages', name: 'MobileMessageCenter', component: 'MobileMessageCenterView', levels: 'both' },
-          { key: 'mobile-rectify', label: '整改复查(移动端)', path: '/mobile/rectify', name: 'MobileRectifyList', component: 'MobileRectifyListView', levels: 'project' },
+          { key: 'major-hazard-dictionary', label: '危大字典配置', icon: 'Collection', path: '/major-hazard/dictionary', name: 'MajorHazardDictionary', component: 'HazardDictionaryView', levels: 'project' },
+          { key: 'major-hazard-identification', label: '危大辨识', icon: 'DocumentChecked', path: '/major-hazard/identification', name: 'MajorHazardIdentification', component: 'HazardIdentificationView', levels: 'project' },
+          { key: 'major-hazard-list', label: '危大清单', icon: 'Notebook', path: '/major-hazard/hazard-list', name: 'MajorHazardList', component: 'HazardListView', levels: 'project' },
+          { key: 'major-hazard-calendar', label: '危大工程日历', icon: 'Calendar', path: '/major-hazard/calendar', name: 'MajorHazardCalendar', component: 'HazardCalendarView', levels: 'project' },
         ],
       },
       {
-        key: 'machine-ledger', label: '机械设备台账', levels: 'project',
+        key: 'safety-inspection', label: '巡检管理', icon: 'View', levels: 'both',
         children: [
-          { key: 'machine-entry-manage', label: '登记进场设备', path: '/machine-supervise/ledger', name: 'MachineEntryManage', component: 'MachineryLedgerView', levels: 'project' },
-          { key: 'machine-type-maintain', label: '机械类型维护', path: '/machine-supervise/machine-types', name: 'MachineTypeMaintain', component: 'MachineTypeMaintainView', levels: 'project' },
+          { key: 'safety-plan', label: '任务下发', icon: 'Promotion', path: '/safety-inspection/plan', name: 'InspectionPlan', component: 'InspectionPlanView', levels: 'hq' },
+          { key: 'safety-check-items', label: '巡检检查项', icon: 'List', path: '/safety-inspection/check-items', name: 'SafetyCheckItems', component: 'SafetyCheckItemsView', levels: 'hq' },
+          { key: 'safety-inspector-config', label: '人员配置', icon: 'UserFilled', path: '/safety-inspection/inspector-config', name: 'InspectionPersonConfig', component: 'InspectionPersonConfigView', levels: 'project' },
+          { key: 'safety-task-manage', label: '巡检任务', icon: 'Tickets', path: '/safety-inspection/task', name: 'InspectionTaskManage', component: 'InspectionTaskManageView', levels: 'both' },
+          { key: 'safety-hazard', label: '隐患清单', icon: 'Warning', path: '/safety-inspection/hazard', name: 'SafetyHazardList', component: 'SafetyHazardListView', levels: 'both' },
+          { key: 'mobile-safety-inspection', label: '巡检管理(移动端)', icon: 'Cellphone', path: '/mobile/tasks', name: 'MobileTaskList', component: 'MobileTaskListView', levels: 'both' },
+          { key: 'mobile-message-center', label: '消息中心(移动端)', icon: 'ChatDotRound', path: '/mobile/messages', name: 'MobileMessageCenter', component: 'MobileMessageCenterView', levels: 'both' },
+          { key: 'mobile-rectify', label: '整改复查(移动端)', icon: 'RefreshRight', path: '/mobile/rectify', name: 'MobileRectifyList', component: 'MobileRectifyListView', levels: 'project' },
+        ],
+      },
+      {
+        key: 'machine-ledger', label: '机械设备台账', icon: 'Box', levels: 'project',
+        children: [
+          { key: 'machine-entry-manage', label: '登记进场设备', icon: 'Download', path: '/machine-supervise/ledger', name: 'MachineEntryManage', component: 'MachineryLedgerView', levels: 'project' },
+          { key: 'machine-type-maintain', label: '机械类型维护', icon: 'Management', path: '/machine-supervise/machine-types', name: 'MachineTypeMaintain', component: 'MachineTypeMaintainView', levels: 'project' },
         ],
       },
     ],
@@ -177,77 +185,77 @@ export const menuTree = [
     key: 'construction-quality', label: '施工质量管控', icon: 'Medal', levels: 'project',
     children: [
       {
-        key: 'quality-inspect', label: '质量验评', levels: 'project',
+        key: 'quality-inspect', label: '质量验评', icon: 'Stamp', levels: 'project',
         children: [
-          { key: 'qm-wbs-tree', label: '验评目录树', path: '/qm/inspect/tree', name: 'QmWbsTree', component: 'QmWbsTreeView', levels: 'project' },
-          { key: 'qm-form-fill-deep', label: '实体工程验收', path: '/qm/inspect/form-fill-deep', name: 'QmFormFillDeep', component: 'QmFormFillDeepView', levels: 'project' },
-          { key: 'qm-special-deep', label: '专项验收', path: '/qm/inspect/special-deep', name: 'QmSpecialDeep', component: 'QmSpecialDeepView', levels: 'project' },
-          { key: 'qm-complete-deep', label: '竣工验收', path: '/qm/inspect/complete-deep', name: 'QmCompleteDeep', component: 'QmCompleteDeepView', levels: 'project' },
-          { key: 'qm-node-archive-list', label: '节点档案清单', path: '/qm/inspect/node-archive-list', name: 'QmNodeArchiveList', component: 'QmNodeArchiveListView', levels: 'project' },
+          { key: 'qm-wbs-tree', label: '验评目录树', icon: 'Share', path: '/qm/inspect/tree', name: 'QmWbsTree', component: 'QmWbsTreeView', levels: 'project' },
+          { key: 'qm-form-fill-deep', label: '实体工程验收', icon: 'EditPen', path: '/qm/inspect/form-fill-deep', name: 'QmFormFillDeep', component: 'QmFormFillDeepView', levels: 'project' },
+          { key: 'qm-special-deep', label: '专项验收', icon: 'Flag', path: '/qm/inspect/special-deep', name: 'QmSpecialDeep', component: 'QmSpecialDeepView', levels: 'project' },
+          { key: 'qm-complete-deep', label: '竣工验收', icon: 'CircleCheck', path: '/qm/inspect/complete-deep', name: 'QmCompleteDeep', component: 'QmCompleteDeepView', levels: 'project' },
+          { key: 'qm-node-archive-list', label: '节点档案清单', icon: 'Files', path: '/qm/inspect/node-archive-list', name: 'QmNodeArchiveList', component: 'QmNodeArchiveListView', levels: 'project' },
         ],
       },
       {
-        key: 'qm-archive-mgmt', label: '档案管理', levels: 'project',
+        key: 'qm-archive-mgmt', label: '档案管理', icon: 'FolderOpened', levels: 'project',
         children: [
-          { key: 'qm-archive-fill', label: '档案管理', path: '/qm/inspect/archive-jump', name: 'QmArchiveJump', component: 'QmArchiveJumpView', levels: 'project', openInNewTab: true },
+          { key: 'qm-archive-fill', label: '档案管理', icon: 'FolderChecked', path: '/qm/inspect/archive-jump', name: 'QmArchiveJump', component: 'QmArchiveJumpView', levels: 'project', openInNewTab: true },
           // 省统表：本模块不维护，仅 SSO 跳转电子档案系统（与档案管理同页模拟）
-          { key: 'qm-provincial-form', label: '省统表管理', path: '/qm/inspect/archive-jump', name: 'QmProvincialFormJump', component: 'QmArchiveJumpView', levels: 'project', openInNewTab: true, query: { entry: 'provincial' } },
+          { key: 'qm-provincial-form', label: '省统表管理', icon: 'Document', path: '/qm/inspect/archive-jump', name: 'QmProvincialFormJump', component: 'QmArchiveJumpView', levels: 'project', openInNewTab: true, query: { entry: 'provincial' } },
         ],
       },
       {
-        key: 'brand-approval', label: '品牌报审', levels: 'project',
+        key: 'brand-approval', label: '品牌报审', icon: 'PriceTag', levels: 'project',
         children: [
-          { key: 'brand-ledger', label: '品牌报审台账', path: '/qm/brand/ledger', name: 'BrandLedger', component: 'BrandLedgerView', levels: 'project' },
-          { key: 'brand-application', label: '报审申请', path: '/qm/brand/applications', name: 'BrandApplication', component: 'BrandApplicationListView', levels: 'project' },
+          { key: 'brand-ledger', label: '品牌报审台账', icon: 'Notebook', path: '/qm/brand/ledger', name: 'BrandLedger', component: 'BrandLedgerView', levels: 'project' },
+          { key: 'brand-application', label: '报审申请', icon: 'DocumentAdd', path: '/qm/brand/applications', name: 'BrandApplication', component: 'BrandApplicationListView', levels: 'project' },
         ],
       },
       {
-        key: 'sample-mgmt', label: '样板管理', levels: 'project',
+        key: 'sample-mgmt', label: '样板管理', icon: 'PictureFilled', levels: 'project',
         children: [
-          { key: 'sample-ledger', label: '样板台账', path: '/qm/sample/ledger', name: 'SampleLedger', component: 'SampleLedgerView', levels: 'project' },
-          { key: 'sample-material-app', label: '定样审批', path: '/qm/sample/material/applications', name: 'SampleMaterialApp', component: 'SampleMaterialAppListView', levels: 'project' },
-          { key: 'sample-process-app', label: '关键工序样板报审', path: '/qm/sample/process/applications', name: 'SampleProcessApp', component: 'SampleProcessAppListView', levels: 'project' },
+          { key: 'sample-ledger', label: '样板台账', icon: 'PictureRounded', path: '/qm/sample/ledger', name: 'SampleLedger', component: 'SampleLedgerView', levels: 'project' },
+          { key: 'sample-material-app', label: '定样审批', icon: 'Select', path: '/qm/sample/material/applications', name: 'SampleMaterialApp', component: 'SampleMaterialAppListView', levels: 'project' },
+          { key: 'sample-process-app', label: '关键工序样板报审', icon: 'DocumentChecked', path: '/qm/sample/process/applications', name: 'SampleProcessApp', component: 'SampleProcessAppListView', levels: 'project' },
         ],
       },
       {
-        key: 'mat-entry-mgmt', label: '材料设备进场', levels: 'project',
+        key: 'mat-entry-mgmt', label: '材料设备进场', icon: 'Goods', levels: 'project',
         children: [
-          { key: 'mat-ledger', label: '材料设备台账', path: '/qm/mat/ledger', name: 'MatLedger', component: 'MatLedgerView', levels: 'project' },
-          { key: 'mat-application', label: '进场申请', path: '/qm/mat/applications', name: 'MatApplication', component: 'MatApplicationListView', levels: 'project' },
-          { key: 'mat-exit', label: '退场登记', path: '/qm/mat/exit', name: 'MatExit', component: 'MatExitView', levels: 'project' },
-          { key: 'mobile-mat-entry', label: '进场申请（移动端）', path: '/mobile/mat/entry', name: 'MobileMatEntryList', component: 'MobileMatEntryListView', levels: 'project' },
-          { key: 'mobile-mat-exit', label: '退场登记（移动端）', path: '/mobile/mat/exit', name: 'MobileMatExit', component: 'MobileMatExitView', levels: 'project' },
+          { key: 'mat-ledger', label: '材料设备台账', icon: 'Memo', path: '/qm/mat/ledger', name: 'MatLedger', component: 'MatLedgerView', levels: 'project' },
+          { key: 'mat-application', label: '进场申请', icon: 'Upload', path: '/qm/mat/applications', name: 'MatApplication', component: 'MatApplicationListView', levels: 'project' },
+          { key: 'mat-exit', label: '退场登记', icon: 'SoldOut', path: '/qm/mat/exit', name: 'MatExit', component: 'MatExitView', levels: 'project' },
+          { key: 'mobile-mat-entry', label: '进场申请（移动端）', icon: 'Iphone', path: '/mobile/mat/entry', name: 'MobileMatEntryList', component: 'MobileMatEntryListView', levels: 'project' },
+          { key: 'mobile-mat-exit', label: '退场登记（移动端）', icon: 'Phone', path: '/mobile/mat/exit', name: 'MobileMatExit', component: 'MobileMatExitView', levels: 'project' },
         ],
       },
-      { key: 'asbuilt-list', label: '实模一致验收', path: '/qm/asbuilt/list', name: 'AsbuiltList', component: 'AsbuiltListView', levels: 'project' },
+      { key: 'asbuilt-list', label: '实模一致验收', icon: 'ScaleToOriginal', path: '/qm/asbuilt/list', name: 'AsbuiltList', component: 'AsbuiltListView', levels: 'project' },
     ],
   },
 
   /** AI 应用（仅项目层级） */
   {
-    key: 'ai-app', label: 'AI 应用', icon: 'Cpu', levels: 'project',
+    key: 'ai-app', label: 'AI 应用', icon: 'MagicStick', levels: 'project',
     children: [
-      { key: 'ai-alert-config', label: '预警配置', path: '/ai-app/alert-config', name: 'AiAlertConfig', component: 'AiAlertConfigView', levels: 'project' },
-      { key: 'ai-unsafe-behavior', label: '现场不安全行为检测', path: '/ai-app/unsafe-behavior', name: 'AiUnsafeBehavior', component: 'AiUnsafeBehaviorView', levels: 'project' },
-      { key: 'ai-hazard-event', label: '现场隐患事件检测', path: '/ai-app/hazard-event', name: 'AiHazardEvent', component: 'AiHazardEventView', levels: 'project' },
-      { key: 'ai-fence-intrusion', label: '围栏入侵及破坏检测', path: '/ai-app/fence-intrusion', name: 'AiFenceIntrusion', component: 'AiFenceIntrusionView', levels: 'project' },
-      { key: 'ai-trajectory-predict', label: '多机位人员轨迹预测', path: '/ai-app/trajectory-predict', name: 'AiTrajectoryPredict', component: 'AiTrajectoryPredictView', levels: 'project' },
-      { key: 'ai-drone-recognition', label: '无人机 AI 识别', path: '/ai-app/drone-recognition', name: 'AiDroneRecognition', component: 'AiDroneRecognitionView', levels: 'project' },
+      { key: 'ai-alert-config', label: '预警配置', icon: 'Tools', path: '/ai-app/alert-config', name: 'AiAlertConfig', component: 'AiAlertConfigView', levels: 'project' },
+      { key: 'ai-unsafe-behavior', label: '现场不安全行为检测', icon: 'Failed', path: '/ai-app/unsafe-behavior', name: 'AiUnsafeBehavior', component: 'AiUnsafeBehaviorView', levels: 'project' },
+      { key: 'ai-hazard-event', label: '现场隐患事件检测', icon: 'Lightning', path: '/ai-app/hazard-event', name: 'AiHazardEvent', component: 'AiHazardEventView', levels: 'project' },
+      { key: 'ai-fence-intrusion', label: '围栏入侵及破坏检测', icon: 'Lock', path: '/ai-app/fence-intrusion', name: 'AiFenceIntrusion', component: 'AiFenceIntrusionView', levels: 'project' },
+      { key: 'ai-trajectory-predict', label: '多机位人员轨迹预测', icon: 'Position', path: '/ai-app/trajectory-predict', name: 'AiTrajectoryPredict', component: 'AiTrajectoryPredictView', levels: 'project' },
+      { key: 'ai-drone-recognition', label: '无人机 AI 识别', icon: 'Aim', path: '/ai-app/drone-recognition', name: 'AiDroneRecognition', component: 'AiDroneRecognitionView', levels: 'project' },
     ],
   },
 
   /** 调度后台管理（两级共用，子项按 levels 区分） */
   {
-    key: 'coc-admin', label: '调度后台管理', icon: 'Connection', levels: 'both',
+    key: 'coc-admin', label: '调度后台管理', icon: 'Headset', levels: 'both',
     children: [
-      { key: 'coc-admin-notice', label: '任务单', path: '/coc-admin/notice', name: 'CocAdminNotice', component: 'AdminDispatchNoticeList', routeComponent: 'CocAdminPageView', levels: 'hq', roles: ['安质部', '项目经理', '施工'], description: '管理远程调度产生的任务单：创建、下发、签收、整改反馈与闭环台账。' },
-      { key: 'coc-admin-reminder', label: '提示函', path: '/coc-admin/reminder', name: 'CocAdminReminder', component: 'AdminDispatchReminderList', routeComponent: 'CocAdminPageView', levels: 'hq', roles: ['安质部', '项目经理', '施工'], description: '管理远程调度产生的提示函：创建、下发、签收与闭环。' },
-      { key: 'coc-admin-penalty', label: '处罚单', path: '/coc-admin/penalty', name: 'CocAdminPenalty', component: 'AdminDispatchPenaltyList', routeComponent: 'CocAdminPageView', levels: 'hq', roles: ['安质部', '项目经理', '施工'], description: '管理处罚单：新增、下发、编辑、关闭与纳入黑榜。' },
-      { key: 'coc-admin-redblack', label: '黑红榜单', path: '/coc-admin/red-black', name: 'CocAdminRedBlack', component: 'AdminDispatchRedBlackList', routeComponent: 'CocAdminPageView', levels: 'hq', roles: ['安质部', '项目经理', '施工'], description: '维护项目红榜/黑榜展示。' },
-      { key: 'coc-admin-patrol-device', label: '巡检仪管理', path: '/coc-admin/patrol-device', name: 'CocAdminPatrolDevice', component: 'PatrolDeviceManageView', routeComponent: 'CocAdminPageView', levels: 'both', roles: ['COC调度室'], description: '管理巡检仪设备注册、绑定项目及人员。' },
-      { key: 'coc-admin-supervision-meeting', label: '监理会议管理', path: '/coc-admin/supervision-meeting', name: 'CocAdminSupervisionMeeting', component: 'SupervisionMeetingMinutesView', routeComponent: 'CocAdminPageView', levels: 'both', roles: ['COC调度室', '监理', '施工'], description: '项目层级按模版上传监理例会纪要并解析隐患。' },
-      { key: 'coc-admin-dispatch-hazard', label: '调度隐患清单', path: '/coc-admin/dispatch-hazard', name: 'CocAdminDispatchHazard', component: 'DispatchHazardListView', routeComponent: 'CocAdminPageView', levels: 'both', roles: ['COC调度室', '安质部', '项目经理', '施工'], description: '汇集 COC 调度大屏问题截图登记的安全/质量隐患台账。' },
-      { key: 'coc-admin-meeting-signin', label: '会议记录', path: '/coc-admin/meeting-signin', name: 'CocAdminMeetingSignIn', component: 'AdminMeetingSignInList', routeComponent: 'CocAdminPageView', levels: 'hq', roles: ['COC调度室'], description: '指挥部会议签到台账：会议时间、本次调度项目及各项目参会结束时的已参会人员清单。' },
+      { key: 'coc-admin-notice', label: '任务单', icon: 'Tickets', path: '/coc-admin/notice', name: 'CocAdminNotice', component: 'AdminDispatchNoticeList', routeComponent: 'CocAdminPageView', levels: 'hq', roles: ['安质部', '项目经理', '施工'], description: '管理远程调度产生的任务单：创建、下发、签收、整改反馈与闭环台账。' },
+      { key: 'coc-admin-reminder', label: '提示函', icon: 'Message', path: '/coc-admin/reminder', name: 'CocAdminReminder', component: 'AdminDispatchReminderList', routeComponent: 'CocAdminPageView', levels: 'hq', roles: ['安质部', '项目经理', '施工'], description: '管理远程调度产生的提示函：创建、下发、签收与闭环。' },
+      { key: 'coc-admin-penalty', label: '处罚单', icon: 'Stamp', path: '/coc-admin/penalty', name: 'CocAdminPenalty', component: 'AdminDispatchPenaltyList', routeComponent: 'CocAdminPageView', levels: 'hq', roles: ['安质部', '项目经理', '施工'], description: '管理处罚单：新增、下发、编辑、关闭与纳入黑榜。' },
+      { key: 'coc-admin-redblack', label: '黑红榜单', icon: 'Trophy', path: '/coc-admin/red-black', name: 'CocAdminRedBlack', component: 'AdminDispatchRedBlackList', routeComponent: 'CocAdminPageView', levels: 'hq', roles: ['安质部', '项目经理', '施工'], description: '维护项目红榜/黑榜展示。' },
+      { key: 'coc-admin-patrol-device', label: '巡检仪管理', icon: 'Camera', path: '/coc-admin/patrol-device', name: 'CocAdminPatrolDevice', component: 'PatrolDeviceManageView', routeComponent: 'CocAdminPageView', levels: 'both', roles: ['COC调度室'], description: '管理巡检仪设备注册、绑定项目及人员。' },
+      { key: 'coc-admin-supervision-meeting', label: '监理会议管理', icon: 'ChatLineRound', path: '/coc-admin/supervision-meeting', name: 'CocAdminSupervisionMeeting', component: 'SupervisionMeetingMinutesView', routeComponent: 'CocAdminPageView', levels: 'both', roles: ['COC调度室', '监理', '施工'], description: '项目层级按模版上传监理例会纪要并解析隐患。' },
+      { key: 'coc-admin-dispatch-hazard', label: '调度隐患清单', icon: 'List', path: '/coc-admin/dispatch-hazard', name: 'CocAdminDispatchHazard', component: 'DispatchHazardListView', routeComponent: 'CocAdminPageView', levels: 'both', roles: ['COC调度室', '安质部', '项目经理', '施工'], description: '汇集 COC 调度大屏问题截图登记的安全/质量隐患台账。' },
+      { key: 'coc-admin-meeting-signin', label: '会议记录', icon: 'Checked', path: '/coc-admin/meeting-signin', name: 'CocAdminMeetingSignIn', component: 'AdminMeetingSignInList', routeComponent: 'CocAdminPageView', levels: 'hq', roles: ['COC调度室'], description: '指挥部会议签到台账：会议时间、本次调度项目及各项目参会结束时的已参会人员清单。' },
     ],
   },
 
@@ -255,9 +263,9 @@ export const menuTree = [
   {
     key: 'basic-data', label: '基础数据管理', icon: 'Collection', levels: 'both',
     children: [
-      { key: 'bd-project-info', label: '项目信息管理', path: '/basic-data/project/info', name: 'ProjectBasicInfo', component: 'ProjectBasicInfoView', levels: 'both' },
-      { key: 'bd-subcontractor', label: '分包单位管理', labelByLevel: { hq: '分包单位管理', project: '分包单位报审' }, path: '/basic-data/project/subcontractor', name: 'SubcontractorList', component: 'SubcontractorListView', levels: 'both' },
-      { key: 'bd-entity-breakdown', label: '实体工程分解', path: '/basic-data/entity-breakdown', name: 'EntityBreakdown', component: 'EntityBreakdownView', levels: 'project' },
+      { key: 'bd-project-info', label: '项目信息管理', icon: 'House', path: '/basic-data/project/info', name: 'ProjectBasicInfo', component: 'ProjectBasicInfoView', levels: 'both' },
+      { key: 'bd-subcontractor', label: '分包单位管理', labelByLevel: { hq: '分包单位管理', project: '分包单位报审' }, icon: 'Briefcase', path: '/basic-data/project/subcontractor', name: 'SubcontractorList', component: 'SubcontractorListView', levels: 'both' },
+      { key: 'bd-entity-breakdown', label: '实体工程分解', icon: 'Share', path: '/basic-data/entity-breakdown', name: 'EntityBreakdown', component: 'EntityBreakdownView', levels: 'project' },
     ],
   },
 
@@ -265,21 +273,21 @@ export const menuTree = [
   {
     key: 'sys-settings', label: '组织管理', icon: 'OfficeBuilding', levels: 'both',
     children: [
-      { key: 'sys-org', label: '组织架构', path: '/settings/org', name: 'SysOrg', component: 'OrgStructureView', levels: 'both' },
-      { key: 'sys-user', label: '用户管理', path: '/settings/user', name: 'SysUser', component: 'UserManageView', levels: 'both' },
-      { key: 'sys-role', label: '角色管理', path: '/settings/role', name: 'SysRole', component: 'RoleManageView', levels: 'both' },
-      { key: 'sys-position', label: '岗位管理', path: '/settings/position', name: 'SysPosition', component: 'PositionManageView', levels: 'both' },
-      { key: 'sys-menu', label: '菜单管理', path: '/settings/menu', name: 'SysMenu', component: 'MenuManageView', levels: 'hq' },
+      { key: 'sys-org', label: '组织架构', icon: 'Share', path: '/settings/org', name: 'SysOrg', component: 'OrgStructureView', levels: 'both' },
+      { key: 'sys-user', label: '用户管理', icon: 'User', path: '/settings/user', name: 'SysUser', component: 'UserManageView', levels: 'both' },
+      { key: 'sys-role', label: '角色管理', icon: 'Key', path: '/settings/role', name: 'SysRole', component: 'RoleManageView', levels: 'both' },
+      { key: 'sys-position', label: '岗位管理', icon: 'SuitcaseLine', path: '/settings/position', name: 'SysPosition', component: 'PositionManageView', levels: 'both' },
+      { key: 'sys-menu', label: '菜单管理', icon: 'Menu', path: '/settings/menu', name: 'SysMenu', component: 'MenuManageView', levels: 'hq' },
     ],
   },
 
   /** 日志管理（仅指挥部） */
   {
-    key: 'sys-log', label: '日志管理', icon: 'Notebook', levels: 'hq',
+    key: 'sys-log', label: '日志管理', icon: 'DocumentCopy', levels: 'hq',
     children: [
-      { key: 'log-system', label: '系统日志', path: '/logs/system', name: 'LogSystem', component: 'SystemLogView', levels: 'hq' },
-      { key: 'log-login', label: '登录日志', path: '/logs/login', name: 'LogLogin', component: 'LoginLogView', levels: 'hq' },
-      { key: 'log-operation', label: '操作日志', path: '/logs/operation', name: 'LogOperation', component: 'OperationLogView', levels: 'hq' },
+      { key: 'log-system', label: '系统日志', icon: 'Monitor', path: '/logs/system', name: 'LogSystem', component: 'SystemLogView', levels: 'hq' },
+      { key: 'log-login', label: '登录日志', icon: 'Unlock', path: '/logs/login', name: 'LogLogin', component: 'LoginLogView', levels: 'hq' },
+      { key: 'log-operation', label: '操作日志', icon: 'Pointer', path: '/logs/operation', name: 'LogOperation', component: 'OperationLogView', levels: 'hq' },
     ],
   },
 ]
@@ -289,9 +297,10 @@ export const menuTree = [
  *    sidebarKey 指向父菜单 key，用于高亮归属。
  * ==========================================================================*/
 export const hiddenRoutes = [
-  // 个人中心
-  { key: 'personal-center-todo-handle', path: '/personal-center/todo/handle', name: 'PersonalCenterTodoHandle', component: 'PersonalCenterTodoHandleView', label: '流程详情', sidebarKey: 'personal-center' },
-  { key: 'personal-center-started-edit', path: '/personal-center/started/:id/edit', name: 'PersonalCenterStartedEdit', component: 'PersonalCenterStartedEditView', label: '编辑发起记录', sidebarKey: 'personal-center' },
+  // 个人中心（侧栏已下线，入口仅工作台嵌入；路由仍可直达）
+  { key: 'personal-center', path: '/personal-center', name: 'PersonalCenter', component: 'PersonalCenterView', label: '个人中心', sidebarKey: 'workbench' },
+  { key: 'personal-center-todo-handle', path: '/personal-center/todo/handle', name: 'PersonalCenterTodoHandle', component: 'PersonalCenterTodoHandleView', label: '流程详情', sidebarKey: 'workbench' },
+  { key: 'personal-center-started-edit', path: '/personal-center/started/:id/edit', name: 'PersonalCenterStartedEdit', component: 'PersonalCenterStartedEditView', label: '编辑发起记录', sidebarKey: 'workbench' },
 
   // 人员实名制子页
   { key: 'labor-realname-form', path: '/labor/realname/form', name: 'RealNamePersonnelForm', component: 'RealNamePersonnelDetailView', label: '人员详情', sidebarKey: 'labor-realname', redirect: '/labor/realname' },
@@ -324,6 +333,12 @@ export const hiddenRoutes = [
   // 风险管理子页
   { key: 'risk-point-control-create', path: '/site-construction/risk-point-control/create', name: 'RiskPointControlCreate', component: 'RiskPointControlFormView', label: '新增风险辨识', sidebarKey: 'risk-point-control' },
   { key: 'risk-point-control-edit', path: '/site-construction/risk-point-control/:id/edit', name: 'RiskPointControlEdit', component: 'RiskPointControlFormView', label: '编辑风险辨识', sidebarKey: 'risk-point-control' },
+
+  // 危大工程管理子页
+  { key: 'major-hazard-identification-create', path: '/major-hazard/identification/create', name: 'MajorHazardIdentificationCreate', component: 'HazardIdentificationFormView', label: '新增危大辨识', sidebarKey: 'major-hazard-identification' },
+  { key: 'major-hazard-identification-detail', path: '/major-hazard/identification/:id', name: 'MajorHazardIdentificationDetail', component: 'HazardIdentificationFormView', label: '危大辨识详情', sidebarKey: 'major-hazard-identification' },
+  { key: 'major-hazard-list-detail', path: '/major-hazard/hazard-list/:sourceId', name: 'MajorHazardListDetail', component: 'HazardListFormView', label: '危大清单详情', sidebarKey: 'major-hazard-list' },
+  { key: 'major-hazard-alert-list', path: '/major-hazard/calendar/alerts', name: 'MajorHazardAlertList', component: 'HazardAlertListView', label: '危大工程异常跟踪', sidebarKey: 'major-hazard-calendar' },
 
   // 机械设备子页
   { key: 'alert-config-add', path: '/machine-supervise/alert-config/add', name: 'AlertConfigAdd', component: 'AlertConfigFormView', label: '新增预警配置', sidebarKey: 'alert-config' },
@@ -552,6 +567,13 @@ export const viewLoaders = {
   HazardManageView: () => import('../views/majorHazard/HazardManageView.vue'),
   DeviceBindingView: () => import('../views/majorHazard/DeviceBindingView.vue'),
   AlertRecordMajorView: () => import('../views/majorHazard/AlertRecordMajorView.vue'),
+  HazardDictionaryView: () => import('../views/majorHazard/HazardDictionaryView.vue'),
+  HazardIdentificationView: () => import('../views/majorHazard/HazardIdentificationView.vue'),
+  HazardIdentificationFormView: () => import('../views/majorHazard/HazardIdentificationFormView.vue'),
+  HazardListView: () => import('../views/majorHazard/HazardListView.vue'),
+  HazardListFormView: () => import('../views/majorHazard/HazardListFormView.vue'),
+  HazardCalendarView: () => import('../views/majorHazard/HazardCalendarView.vue'),
+  HazardAlertListView: () => import('../views/majorHazard/HazardAlertListView.vue'),
 
   VehicleDashboardView: () => import('../views/vehicle/VehicleDashboardView.vue'),
   VehicleAccessView: () => import('../views/vehicle/VehicleAccessView.vue'),

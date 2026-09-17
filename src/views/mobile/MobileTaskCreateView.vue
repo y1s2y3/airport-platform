@@ -1,22 +1,31 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { ATTACH_PRESETS, validateAttachFile } from '../../constants/attachmentUpload.js'
 import { addMobileInspectionTask } from '../../mock/mobileInspectionTasks'
-import { INSPECTION_CATEGORIES, buildInspectionTaskNo } from '../../config/inspectionManagement'
+import {
+  INSPECTION_CATEGORIES,
+  buildInspectionTaskNo,
+  formatInspectionCategories,
+  resolveInspectionProjectId,
+} from '../../config/inspectionManagement'
 import {
   inspectorCandidates,
   getProjectRectifierLabel,
   getProjectReviewerLabel,
 } from '../../composables/useInspectionPersonConfig'
+import { getMajorHazardLedgerOptions } from '../../utils/inspectionMajorHazardLink'
 
 const router = useRouter()
 
 const form = ref({
-  inspectionCategory: '安全',
+  inspectionCategories: ['安全'],
   inspDate: new Date().toISOString().slice(0, 10),
   project: '',
+  isMajorHazardPatrol: '是',
+  majorHazardLedgerId: '',
+  majorHazardSourceId: '',
+  majorHazardName: '',
   inspector: '当前用户',
   companions: [],
   photos: [],
@@ -25,11 +34,36 @@ const form = ref({
   hazardItems: [],
 })
 
-const projectOptions = ['T3 航站楼扩建工程', '飞行区跑道延长工程', '新货运站建设工程', '机场北片区路网工程', '员工宿舍楼工程']
+const projectOptions = [
+  { id: 'p-001', label: 'T3 航站楼扩建工程' },
+  { id: 'p-000', label: '飞行区跑道延长工程' },
+  { id: 'p-003', label: '新货运站建设工程' },
+  { id: 'p-004', label: '机场北片区路网工程' },
+  { id: 'p-005', label: '员工宿舍楼工程' },
+]
 const personOptions = inspectorCandidates.map(p => `${p.name}（${p.role}）`)
 const companionOptions = ['刘工（安全员）', '陈工（技术员）', '周工（施工员）', '吴工（质检员）']
 
 const selectedCompanion = ref('')
+const selectedProjectId = computed(() => projectOptions.find(item => item.label === form.value.project)?.id || resolveInspectionProjectId(form.value.project))
+const majorHazardOptions = computed(() => form.value.project ? getMajorHazardLedgerOptions(selectedProjectId.value) : [])
+
+function toggleInspectionCategory(category) {
+  const categories = form.value.inspectionCategories
+  const index = categories.indexOf(category)
+  if (index >= 0) {
+    if (categories.length > 1) categories.splice(index, 1)
+    return
+  }
+  categories.push(category)
+}
+
+function chooseMajorHazard(ledgerId) {
+  const option = majorHazardOptions.value.find(item => item.id === ledgerId)
+  form.value.majorHazardLedgerId = ledgerId || ''
+  form.value.majorHazardSourceId = option?.sourceId || ''
+  form.value.majorHazardName = option?.name || ''
+}
 function addCompanion() {
   if (selectedCompanion.value && !form.value.companions.includes(selectedCompanion.value)) {
     form.value.companions.push(selectedCompanion.value)
@@ -54,23 +88,25 @@ watch(() => form.value.project, project => {
     item.rectifyPerson = getProjectRectifierLabel(project)
     item.reviewPerson = getProjectReviewerLabel(project)
   })
+  form.value.majorHazardLedgerId = ''
+  form.value.majorHazardSourceId = ''
+  form.value.majorHazardName = ''
+})
+watch(() => form.value.isMajorHazardPatrol, value => {
+  if (value === '是') return
+  form.value.majorHazardLedgerId = ''
+  form.value.majorHazardSourceId = ''
+  form.value.majorHazardName = ''
 })
 function removeHazard(idx) {
   form.value.hazardItems.splice(idx, 1)
 }
 function triggerHazardPhoto(idx) {
-  const current = form.value.hazardItems[idx].photos.length
-  if (current >= 9) return ElMessage.warning('最多上传 9 张')
   const input = document.createElement('input')
-  input.type = 'file'
-  input.accept = ATTACH_PRESETS.image.accept
-  input.capture = 'environment'
+  input.type = 'file'; input.accept = 'image/*'; input.capture = 'environment'
   input.onchange = (e) => {
     const file = e.target.files[0]
-    if (!file) return
-    const err = validateAttachFile(file, 'image', { currentCount: current, max: 9 })
-    if (err) return ElMessage.warning(err)
-    form.value.hazardItems[idx].photos.push(URL.createObjectURL(file))
+    if (file) form.value.hazardItems[idx].photos.push(URL.createObjectURL(file))
   }
   input.click()
 }
@@ -79,18 +115,11 @@ function removeHazardPhoto(itemIdx, photoIdx) {
 }
 
 function triggerPhoto() {
-  const current = form.value.photos.length
-  if (current >= 9) return ElMessage.warning('最多上传 9 张')
   const input = document.createElement('input')
-  input.type = 'file'
-  input.accept = ATTACH_PRESETS.image.accept
-  input.capture = 'environment'
+  input.type = 'file'; input.accept = 'image/*'; input.capture = 'environment'
   input.onchange = (e) => {
     const file = e.target.files[0]
-    if (!file) return
-    const err = validateAttachFile(file, 'image', { currentCount: current, max: 9 })
-    if (err) return ElMessage.warning(err)
-    form.value.photos.push(URL.createObjectURL(file))
+    if (file) form.value.photos.push(URL.createObjectURL(file))
   }
   input.click()
 }
@@ -98,9 +127,13 @@ function triggerPhoto() {
 function removePhoto(i) { form.value.photos.splice(i, 1) }
 
 function submitInspection() {
-  if (!form.value.inspectionCategory) { ElMessage.warning('请选择巡检分类'); return }
+  if (!form.value.inspectionCategories.length) { ElMessage.warning('请选择至少一个巡检分类'); return }
   if (!form.value.inspDate) { ElMessage.warning('请选择巡检日期'); return }
   if (!form.value.project) { ElMessage.warning('请选择所属项目'); return }
+  if (form.value.isMajorHazardPatrol === '是' && !form.value.majorHazardLedgerId) {
+    ElMessage.warning('请选择危大工程名称')
+    return
+  }
   if (!form.value.result) { ElMessage.warning('请选择巡检结果'); return }
   if (form.value.result === 'normal' && form.value.photos.length === 0) {
     ElMessage.warning('全部正常时请至少上传一张巡检照片')
@@ -128,7 +161,7 @@ function submitInspection() {
 
   const now = Date.now()
   const dateKey = new Date().toISOString().slice(0,10).replace(/-/g,'')
-  const taskNo = buildInspectionTaskNo(form.value.inspectionCategory, form.value.inspDate, Number(String(now).slice(-3)))
+  const taskNo = buildInspectionTaskNo(form.value.inspectionCategories, form.value.inspDate, Number(String(now).slice(-3)))
   const hazardItems = form.value.hazardItems.map((item, index) => {
     const rectifyNo = `ZG${dateKey}${String(now).slice(-4)}${String(index + 1).padStart(2, '0')}`
     return {
@@ -147,9 +180,18 @@ function submitInspection() {
   const newTask = {
     id: `self-${now}`,
     taskNo,
-    source: '系统自建', inspectionCategory: form.value.inspectionCategory,
-    taskName: `${form.value.project}${form.value.inspectionCategory}检查`,
-    project: form.value.project, executor: form.value.inspector,
+    source: '系统自建',
+    inspectionCategories: [...form.value.inspectionCategories],
+    inspectionCategory: formatInspectionCategories(form.value.inspectionCategories),
+    taskName: `${form.value.project}${formatInspectionCategories(form.value.inspectionCategories)}检查`,
+    project: form.value.project,
+    projectId: selectedProjectId.value,
+    project_id: selectedProjectId.value,
+    isMajorHazardPatrol: form.value.isMajorHazardPatrol,
+    majorHazardLedgerId: form.value.majorHazardLedgerId,
+    majorHazardSourceId: form.value.majorHazardSourceId,
+    majorHazardName: form.value.majorHazardName,
+    executor: form.value.inspector,
     inspector: form.value.inspector, companions: [...form.value.companions],
     deadline: form.value.inspDate, status: '已完成',
     inspDate: form.value.inspDate,
@@ -185,7 +227,7 @@ function goBack() { router.push('/mobile/tasks') }
         <div class="form-row">
           <span class="form-label">巡检分类<span class="required-mark">*</span></span>
           <div class="form-tags">
-            <button v-for="category in INSPECTION_CATEGORIES" :key="category" class="tag-btn" :class="{ active: form.inspectionCategory === category }" @click="form.inspectionCategory = category">{{ category }}</button>
+            <button v-for="category in INSPECTION_CATEGORIES" :key="category" class="tag-btn" :class="{ active: form.inspectionCategories.includes(category) }" @click="toggleInspectionCategory(category)">{{ category }}</button>
           </div>
         </div>
 
@@ -198,9 +240,26 @@ function goBack() { router.push('/mobile/tasks') }
           <span class="form-label">所属项目<span class="required-mark">*</span></span>
           <select v-model="form.project" class="form-input">
             <option value="" disabled>请选择项目</option>
-            <option v-for="p in projectOptions" :key="p" :value="p">{{ p }}</option>
+            <option v-for="p in projectOptions" :key="p.id" :value="p.label">{{ p.label }}</option>
           </select>
         </div>
+
+        <div class="form-row">
+          <span class="form-label">危大工程现场巡视<span class="required-mark">*</span></span>
+          <div class="form-tags">
+            <button class="tag-btn" :class="{ active: form.isMajorHazardPatrol === '是' }" @click="form.isMajorHazardPatrol = '是'">是</button>
+            <button class="tag-btn" :class="{ active: form.isMajorHazardPatrol === '否' }" @click="form.isMajorHazardPatrol = '否'">否</button>
+          </div>
+        </div>
+
+        <div v-if="form.isMajorHazardPatrol === '是'" class="form-row">
+          <span class="form-label">危大工程名称<span class="required-mark">*</span></span>
+          <select :value="form.majorHazardLedgerId" class="form-input" :disabled="!form.project" @change="chooseMajorHazard($event.target.value)">
+            <option value="" disabled>{{ form.project ? '请选择危大工程' : '请先选择项目' }}</option>
+            <option v-for="item in majorHazardOptions" :key="item.id" :value="item.id">{{ item.label }}</option>
+          </select>
+        </div>
+        <div v-if="form.isMajorHazardPatrol === '是'" class="link-tip">完成巡检后将自动写入危大工程的现场巡视台账。</div>
 
         <div class="form-row">
           <span class="form-label">执行人</span>
@@ -225,12 +284,8 @@ function goBack() { router.push('/mobile/tasks') }
         <div v-if="form.result === 'normal'" class="form-row">
           <span class="form-label">巡检照片<span class="required-mark">*</span></span>
           <div class="photo-group">
-            <div v-for="(url,i) in form.photos" :key="i" class="photo-box">
-              <img :src="url" alt="" />
-              <button class="photo-del" @click="removePhoto(i)">✕</button>
-            </div>
-            <button v-if="form.photos.length < 9" class="photo-add" @click="triggerPhoto">+ 拍照</button>
-            <div class="attach-hint">图片 ≤5MB，至少 1 张、最多 9 张</div>
+            <div v-for="(url,i) in form.photos" :key="i" class="photo-box"><span>📷 已拍</span><button class="photo-del" @click="removePhoto(i)">✕</button></div>
+            <button class="photo-add" @click="triggerPhoto">+ 拍照</button>
           </div>
         </div>
 
@@ -256,12 +311,8 @@ function goBack() { router.push('/mobile/tasks') }
             <div class="form-row">
               <span class="form-label" style="width:56px">照片<span class="required-mark">*</span></span>
               <div class="photo-group">
-                <div v-for="(url,pi) in item.photos" :key="pi" class="photo-box">
-                  <img :src="url" alt="" />
-                  <button class="photo-del" @click="removeHazardPhoto(idx, pi)">✕</button>
-                </div>
-                <button v-if="item.photos.length < 9" class="photo-add" @click="triggerHazardPhoto(idx)">+ 拍照</button>
-                <div class="attach-hint">隐患照片 1～9 张，单张 ≤5MB</div>
+                <div v-for="(url,pi) in item.photos" :key="pi" class="photo-box"><span>📷</span><button class="photo-del" @click="removeHazardPhoto(idx, pi)">✕</button></div>
+                <button class="photo-add" @click="triggerHazardPhoto(idx)">+ 拍照</button>
               </div>
             </div>
             <div class="rectify-section">
@@ -324,12 +375,11 @@ function goBack() { router.push('/mobile/tasks') }
 .form-tags { flex:1; display:flex; gap:6px; flex-wrap:wrap; }
 .tag-btn { padding:6px 14px; border:1px solid #ddd; border-radius:16px; background:#fff; font-size:13px; color:#666; cursor:pointer; }
 .tag-btn.active { background:#8f0045; color:#fff; border-color:#8f0045; }
+.link-tip { margin:-7px 0 12px 80px; font-size:11px; line-height:1.45; color:#8f0045; }
 .photo-group { flex:1; display:flex; gap:6px; flex-wrap:wrap; }
-.photo-box { width:68px; height:68px; border:1px solid #ddd; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:11px; position:relative; background:#f0faf0; overflow:hidden; }
-.photo-box img { width:100%; height:100%; object-fit:cover; display:block; }
-.photo-del { position:absolute; top:2px; right:2px; width:18px; height:18px; border-radius:50%; border:none; background:rgba(0,0,0,0.4); color:#fff; font-size:10px; cursor:pointer; z-index:1; }
+.photo-box { width:68px; height:68px; border:1px solid #ddd; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:11px; position:relative; background:#f0faf0; }
+.photo-del { position:absolute; top:2px; right:2px; width:18px; height:18px; border-radius:50%; border:none; background:rgba(0,0,0,0.4); color:#fff; font-size:10px; cursor:pointer; }
 .photo-add { width:68px; height:68px; border:1.5px dashed #ddd; border-radius:8px; background:#fafafa; font-size:12px; color:#999; cursor:pointer; }
-.attach-hint { flex-basis:100%; font-size:11px; color:#999; }
 
 /* 隐患列表 */
 .hazard-list { width:100%; }

@@ -2,7 +2,6 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { ATTACH_PRESETS, validateAttachFile } from '../../constants/attachmentUpload.js'
 import { submitRectification } from '../../composables/useMobileRectification'
 
 const route = useRoute()
@@ -46,19 +45,9 @@ const flowRecords = computed(() => isRejected.value ? [
 ])
 
 function triggerPhoto() {
-  const current = rectPhotos.value.length
-  if (current >= 9) return ElMessage.warning('最多上传 9 张')
   const input = document.createElement('input')
-  input.type = 'file'
-  input.accept = ATTACH_PRESETS.image.accept
-  input.capture = 'environment'
-  input.onchange = (e) => {
-    const f = e.target.files[0]
-    if (!f) return
-    const err = validateAttachFile(f, 'image', { currentCount: current, max: 9 })
-    if (err) return ElMessage.warning(err)
-    rectPhotos.value.push(URL.createObjectURL(f))
-  }
+  input.type = 'file'; input.accept = 'image/*'; input.capture = 'environment'
+  input.onchange = (e) => { const f = e.target.files[0]; if (f) rectPhotos.value.push(URL.createObjectURL(f)) }
   input.click()
 }
 function removePhoto(i) { rectPhotos.value.splice(i, 1) }
@@ -126,13 +115,8 @@ function goBack() { const tab = route.query.tab; router.push(tab ? `/mobile/rect
       <div class="fr">
         <span class="fl-label">整改照片 <i class="req">*</i></span>
         <div class="pg">
-          <div v-for="(u,i) in rectPhotos" :key="i" class="pb">
-            <img v-if="String(u).startsWith('blob:') || String(u).startsWith('data:')" :src="u" alt="" />
-            <span v-else>📷 已拍</span>
-            <button class="pd" @click="removePhoto(i)">✕</button>
-          </div>
-          <button v-if="rectPhotos.length < 9" class="pa" @click="triggerPhoto">+ 拍照</button>
-          <div class="attach-hint">整改照片 1～9 张，单张 ≤5MB</div>
+          <div v-for="(u,i) in rectPhotos" :key="i" class="pb"><span>📷 已拍</span><button class="pd" @click="removePhoto(i)">✕</button></div>
+          <button class="pa" @click="triggerPhoto">+ 拍照</button>
         </div>
       </div>
       <div class="fr"><span class="fl-label">整改说明 <i class="req">*</i></span><textarea v-model="rectNote" class="fta" placeholder="请描述整改情况..." rows="3"></textarea></div>
@@ -168,11 +152,9 @@ function goBack() { const tab = route.query.tab; router.push(tab ? `/mobile/rect
 .fi-input { flex:1; padding:8px 10px; border:1px solid #ddd; border-radius:8px; font-size:13px; background:#fff; }
 .fta { flex:1; padding:8px 10px; border:1px solid #ddd; border-radius:8px; font-size:13px; font-family:inherit; resize:none; background:#fff; }
 .pg { flex:1; display:flex; gap:6px; flex-wrap:wrap; }
-.pb { width:68px; height:68px; border:1px solid #ddd; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:11px; position:relative; background:#f0faf0; overflow:hidden; }
-.pb img { width:100%; height:100%; object-fit:cover; display:block; }
-.pd { position:absolute; top:2px; right:2px; width:18px; height:18px; border-radius:50%; border:none; background:rgba(0,0,0,0.4); color:#fff; font-size:10px; cursor:pointer; z-index:1; }
+.pb { width:68px; height:68px; border:1px solid #ddd; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:11px; position:relative; background:#f0faf0; }
+.pd { position:absolute; top:2px; right:2px; width:18px; height:18px; border-radius:50%; border:none; background:rgba(0,0,0,0.4); color:#fff; font-size:10px; cursor:pointer; }
 .pa { width:68px; height:68px; border:1.5px dashed #ddd; border-radius:8px; background:#fafafa; font-size:12px; color:#999; cursor:pointer; }
-.attach-hint { flex-basis:100%; font-size:11px; color:#999; }
 
 .section { background:#fff; border-radius:10px; padding:12px 16px 6px; margin:12px 16px; box-shadow:0 1px 3px rgba(0,0,0,0.04); }
 .section-title { font-size:14px; font-weight:600; color:#1f2329; margin-bottom:8px; padding-left:10px; border-left:3px solid #8f0045; }

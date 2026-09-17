@@ -5,6 +5,7 @@ import { Plus } from '@element-plus/icons-vue'
 import { planData, userOptions } from '../../composables/useInspectionPlan'
 import { listMobileInspectionTasks } from '../../mock/mobileInspectionTasks'
 import { getProjectInspectorLabel } from '../../composables/useInspectionPersonConfig'
+import { hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
 
 const router = useRouter()
 
@@ -12,7 +13,7 @@ const filterForm = reactive({ category: '', keyword: '' })
 
 const filteredPlans = computed(() => {
   return planData.filter(p => {
-    if (filterForm.category && p.inspectionCategory !== filterForm.category) return false
+    if (filterForm.category && !hasInspectionCategory(p.inspectionCategories || p.inspectionCategory, filterForm.category)) return false
     if (filterForm.keyword && !p.name.includes(filterForm.keyword)) return false
     return true
   })
@@ -74,10 +75,10 @@ function goTaskDetail(row) {
             <el-button link type="primary" size="small" @click="goTaskDetail(row)">{{ row.planNo }}</el-button>
           </template>
         </el-table-column>
-        <el-table-column prop="inspectionCategory" label="巡检分类" width="85" align="center">
+        <el-table-column prop="inspectionCategory" label="巡检分类" width="130" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.inspectionCategory === '质量' ? 'warning' : 'success'" size="small" effect="plain" disable-transitions>
-              {{ row.inspectionCategory || '安全' }}
+            <el-tag v-for="category in normalizeInspectionCategories(row.inspectionCategories || row.inspectionCategory)" :key="category" :type="category === '质量' ? 'warning' : 'success'" size="small" effect="plain" disable-transitions style="margin:1px 2px">
+              {{ category }}
             </el-tag>
           </template>
         </el-table-column>

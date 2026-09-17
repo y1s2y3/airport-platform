@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getMobileInspectionTask } from '../../mock/mobileInspectionTasks'
 import { DEFAULT_INSPECTOR_LABEL } from '../../config/inspectionManagement'
+import { formatInspectionCategories, normalizeInspectionCategories } from '../../config/inspectionManagement'
 
 const route = useRoute()
 const router = useRouter()
@@ -129,7 +130,8 @@ function normalizeTaskDetail(raw) {
   return {
     taskNo: raw.taskNo || '—',
     taskName: raw.taskName || '巡检任务',
-    inspectionCategory: raw.inspectionCategory || '安全',
+    inspectionCategories: normalizeInspectionCategories(raw.inspectionCategories || raw.inspectionCategory),
+    inspectionCategory: formatInspectionCategories(raw.inspectionCategories || raw.inspectionCategory),
     project: raw.project || '—',
     executor: raw.executor || '—',
     source: raw.source || '任务下发',
@@ -142,6 +144,8 @@ function normalizeTaskDetail(raw) {
     result: raw.result || '',
     normalPhotos: Array.isArray(raw.normalPhotos) ? raw.normalPhotos : [],
     hazardItems: Array.isArray(raw.hazardItems) ? raw.hazardItems : [],
+    isMajorHazardPatrol: raw.isMajorHazardPatrol || '否',
+    majorHazardName: raw.majorHazardName || '',
   }
 }
 
@@ -172,7 +176,7 @@ function goBack() {
       <span v-else style="color: #f5a623; font-size: 13px; font-weight: 600">待执行</span>
     </header>
 
-    <div class="task-bar">
+    <div v-if="taskInfo.status !== '已完成'" class="task-bar">
       <div class="task-bar-name">{{ taskInfo.taskNo }}</div>
       <div style="font-size: 13px; font-weight: 500; color: #1f2329; margin-bottom: 2px">{{ taskInfo.taskName }}</div>
       <div class="task-bar-info">
@@ -189,6 +193,8 @@ function goBack() {
       <div class="sc-row"><span class="sc-lbl">项目名称</span><span>{{ taskInfo.project }}</span></div>
       <div class="sc-row"><span class="sc-lbl">执行人</span><span>{{ taskInfo.executor || '-' }}</span></div>
       <div class="sc-row"><span class="sc-lbl">巡检分类</span><span>{{ taskInfo.inspectionCategory }}</span></div>
+      <div class="sc-row"><span class="sc-lbl">危大工程现场巡视</span><span>{{ taskInfo.isMajorHazardPatrol }}</span></div>
+      <div v-if="taskInfo.isMajorHazardPatrol === '是'" class="sc-row"><span class="sc-lbl">危大工程名称</span><span>{{ taskInfo.majorHazardName || '—' }}</span></div>
       <div class="sc-row"><span class="sc-lbl">同行人</span><span>{{ taskInfo.companions.length ? taskInfo.companions.join('、') : '' }}</span></div>
       <div class="sc-row"><span class="sc-lbl">截止日期</span><span>{{ taskInfo.deadline }}</span></div>
       <div class="sc-row"><span class="sc-lbl">巡检日期</span><span>{{ taskInfo.inspDate }}</span></div>

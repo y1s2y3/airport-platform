@@ -1,12 +1,14 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getMobileInspectionTask } from '../../mock/mobileInspectionTasks'
 import { checkCategoryTree } from '../../composables/useInspectionPlan'
+import { formatInspectionCategories, normalizeInspectionCategories } from '../../config/inspectionManagement'
 
 const route = useRoute()
 const router = useRouter()
-const taskId = route.params.id
+const props = defineProps({ task: { type: Object, default: null }, embedded: Boolean })
+const taskId = computed(() => props.task?.id || route.params.id)
 
 // ===== 5条任务基本信息 =====
 const taskMap = {
@@ -25,11 +27,14 @@ const taskMap = {
     ] },
 }
 const taskInfo = computed(() => {
-  const stored = getMobileInspectionTask(taskId)
-  const merged = stored ? { ...(taskMap[taskId] || {}), ...stored } : (taskMap[taskId] || taskMap['mt-001'])
+  const stored = getMobileInspectionTask(taskId.value)
+  const merged = { ...(taskMap[taskId.value] || {}), ...(props.task || {}), ...(stored || {}) }
   return {
     ...merged,
+    inspectionCategories: normalizeInspectionCategories(merged.inspectionCategories || merged.inspectionCategory),
+    inspectionCategory: formatInspectionCategories(merged.inspectionCategories || merged.inspectionCategory),
     companions: Array.isArray(merged.companions) ? merged.companions : [],
+    hazardItems: merged.hazardItems || [],
     deadline: merged.deadline || '',
     inspectionDate: merged.inspectionDate || merged.inspDate || '',
   }
@@ -92,11 +97,13 @@ const categoryTree = computed(() => {
         : null
     }).filter(Boolean)
   }
-  if (taskId === 'mt-003') return pushNormalTree
-  return pushHazardTree
+  if (taskId.value === 'mt-003') return pushNormalTree
+  if (taskId.value === 'mt-002') return pushHazardTree
+  return []
 })
 const activeId = ref(categoryTree.value[0]?.id || '')
 const activeCat = computed(() => categoryTree.value.find(c => c.id === activeId.value))
+watch(categoryTree, (rows) => { if (!rows.some(row => row.id === activeId.value)) activeId.value = rows[0]?.id || '' })
 const activeItems = computed(() => activeCat.value?.items || [])
 
 function goBack() {
@@ -107,7 +114,7 @@ function goRectify(id) { if (id) router.push(`/safety-inspection/hazard/${id}`) 
 
 <template>
   <div class="detail-page">
-    <div class="detail-head">
+    <div v-if="!embedded" class="detail-head">
       <button class="back-btn" @click="goBack">‹ 返回</button>
       <h3 class="page-title">巡检任务详情</h3>
     </div>
@@ -120,6 +127,8 @@ function goRectify(id) { if (id) router.push(`/safety-inspection/hazard/${id}`) 
       <div class="info-row"><span class="il">项目名称</span><span class="iv">{{ taskInfo.project }}</span></div>
       <div class="info-row"><span class="il">执行人</span><span class="iv">{{ taskInfo.executor || '-' }}</span></div>
       <div class="info-row"><span class="il">巡检分类</span><span class="iv">{{ taskInfo.inspectionCategory }}</span></div>
+      <div class="info-row"><span class="il">危大工程现场巡视</span><span class="iv">{{ taskInfo.isMajorHazardPatrol || '否' }}</span></div>
+      <div v-if="taskInfo.isMajorHazardPatrol === '是'" class="info-row"><span class="il">危大工程名称</span><span class="iv">{{ taskInfo.majorHazardName || '—' }}</span></div>
       <div class="info-row"><span class="il">同行人</span><span class="iv">{{ taskInfo.companions.length ? taskInfo.companions.join('、') : '' }}</span></div>
       <div class="info-row"><span class="il">截止日期</span><span class="iv">{{ taskInfo.deadline }}</span></div>
       <div class="info-row"><span class="il">巡检日期</span><span class="iv">{{ taskInfo.inspectionDate }}</span></div>

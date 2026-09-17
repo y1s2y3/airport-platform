@@ -11,6 +11,8 @@ import {
   statusTagType,
   emptyCell,
   formatSupervisorDisplay,
+  getEngineeringWorkItems,
+  summarizeWorksLabel,
 } from '../../mock/engineeringWork.js'
 
 const router = useRouter()
@@ -51,6 +53,10 @@ function goDetail(row) {
 function copyFromRejected(row) {
   router.push(`/site-construction/engineering-work/edit?copyFrom=${row.id}`)
 }
+
+function worksSummary(row) {
+  return summarizeWorksLabel(getEngineeringWorkItems(row))
+}
 </script>
 
 <template>
@@ -59,7 +65,7 @@ function copyFromRejected(row) {
       <div class="page-breadcrumb">施工作业申报 / 工程作业申报</div>
       <h1 class="page-title">工程作业申报</h1>
       <p class="page-tip">
-        从每日施工作业选择危险作业并申报，监理在个人中心待办审批 · 当前：{{
+        一张申报单可关联多条危险作业，监理在个人中心待办审批 · 当前：{{
           isHqSelected ? '请切换到具体项目' : projectLabel
         }}
       </p>
@@ -79,10 +85,10 @@ function copyFromRejected(row) {
         <el-input
           v-model="keyword"
           clearable
-          placeholder="单号 / 作业类别 / 区域 / 施工单位"
-          style="width: 280px"
+          placeholder="单号 / 关联作业 / 人员资质说明"
+          style="width: 300px"
           :prefix-icon="Search"
-          aria-label="单号 / 作业类别 / 区域 / 施工单位"
+          aria-label="单号 / 关联作业 / 人员资质说明"
           @keyup.enter="onQuery"
         />
         <el-select v-model="statusFilter" clearable placeholder="状态" style="width: 140px" aria-label="状态">
@@ -95,17 +101,14 @@ function copyFromRejected(row) {
 
       <el-table :data="list" stripe border empty-text="暂无工程作业申报单">
         <el-table-column prop="biz_no" label="申报单号" width="150" />
-        <el-table-column label="作业类别" min-width="120" show-overflow-tooltip>
-          <template #default="{ row }">{{ emptyCell(row.snapshot?.dangerWorkCategory) }}</template>
+        <el-table-column label="关联作业" min-width="200" show-overflow-tooltip>
+          <template #default="{ row }">{{ emptyCell(worksSummary(row)) }}</template>
         </el-table-column>
-        <el-table-column label="施工日期" width="120">
-          <template #default="{ row }">{{ emptyCell(row.snapshot?.reportDate) }}</template>
+        <el-table-column label="作业项数" width="90" align="center">
+          <template #default="{ row }">{{ getEngineeringWorkItems(row).length || 0 }}</template>
         </el-table-column>
-        <el-table-column label="施工区域" min-width="160" show-overflow-tooltip>
-          <template #default="{ row }">{{ emptyCell(row.snapshot?.workArea) }}</template>
-        </el-table-column>
-        <el-table-column label="施工单位" min-width="180" show-overflow-tooltip>
-          <template #default="{ row }">{{ emptyCell(row.snapshot?.contractor) }}</template>
+        <el-table-column label="作业人员及特种作业资质说明" min-width="240" show-overflow-tooltip>
+          <template #default="{ row }">{{ emptyCell(row.personnel_qual_desc) }}</template>
         </el-table-column>
         <el-table-column label="状态" width="100">
           <template #default="{ row }">

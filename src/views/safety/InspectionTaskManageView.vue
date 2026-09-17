@@ -5,7 +5,7 @@ import { Search, View, ArrowLeft } from '@element-plus/icons-vue'
 import { useLaborProjectScope, selectedProjectId } from '../../composables/useCurrentProject'
 import { HQ_PROJECT_OPTION } from '../../config/projectOptions'
 import { getProjectInspectorLabel } from '../../composables/useInspectionPersonConfig'
-import { DEFAULT_INSPECTOR_LABEL } from '../../config/inspectionManagement'
+import { DEFAULT_INSPECTOR_LABEL, hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
 import { listMobileInspectionTasks } from '../../mock/mobileInspectionTasks'
 import { INSPECTION_DEMO_TODAY, inspectionProjectTree } from '../../mock/inspectionDemoData'
 
@@ -90,7 +90,7 @@ const filteredTasks = computed(() => {
   let list = taskData.value
   if (!isHqSelected.value && scopeProjectId.value) list = list.filter(t => t.project_id === scopeProjectId.value)
   return list.filter(t => {
-    if (filterForm.category && t.inspectionCategory !== filterForm.category) return false
+    if (filterForm.category && !hasInspectionCategory(t.inspectionCategories || t.inspectionCategory, filterForm.category)) return false
     if (filterForm.status && t.status !== filterForm.status) return false
     if (filterForm.source && t.source !== filterForm.source) return false
     if (filterForm.result === '正常' && (t.status !== '已完成' || t.hazardCount > 0)) return false
@@ -214,8 +214,8 @@ function goBackToHQ() {
           <el-table-column type="index" label="序号" width="55" align="center" />
           <el-table-column prop="taskNo" label="任务单编号" min- />
           <el-table-column prop="project" label="所属项目" min- show-overflow-tooltip />
-          <el-table-column prop="inspectionCategory" label="巡检分类" min- align="center">
-            <template #default="{ row }"><el-tag size="small" :type="row.inspectionCategory === '质量' ? 'warning' : 'success'">{{ row.inspectionCategory }}</el-tag></template>
+          <el-table-column prop="inspectionCategory" label="巡检分类" min-width="120" align="center">
+            <template #default="{ row }"><el-tag v-for="category in normalizeInspectionCategories(row.inspectionCategories || row.inspectionCategory)" :key="category" size="small" :type="category === '质量' ? 'warning' : 'success'" style="margin:1px 2px">{{ category }}</el-tag></template>
           </el-table-column>
           <el-table-column label="任务名称" min-width="160">
             <template #default="{ row }">
