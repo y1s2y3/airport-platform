@@ -12,6 +12,7 @@ import { getCurrentUserSnapshot, getEffectiveUserId } from '../../../mock/curren
 import { supervisorApproveSample, pmApproveSample } from '../../../mock/sample.js'
 import { supervisorApproveEntry } from '../../../mock/mat.js'
 import { supervisorApproveAsbuilt, pmApproveAsbuilt } from '../../../mock/asbuilt.js'
+import { supervisorApproveEngineeringWork } from '../../../mock/engineeringWork.js'
 import {
   submitPenaltyRecipientReport,
   submitPenaltyAppeal,
@@ -227,10 +228,14 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
         row?.type !== 'subcontractor' &&
         row?.type !== 'mat_entry' &&
         row?.type !== 'eq_entry' &&
-        row?.type !== 'asbuilt')
+        row?.type !== 'asbuilt' &&
+        row?.type !== 'engineering_work')
     if (needRemark && !commonForm.remark.trim()) {
       const rejectHint =
-        row?.type === 'brand' || row?.type === 'mat_entry' || row?.type === 'eq_entry'
+        row?.type === 'brand' ||
+        row?.type === 'mat_entry' ||
+        row?.type === 'eq_entry' ||
+        row?.type === 'engineering_work'
           ? '请填写驳回意见'
           : '请填写退回意见'
       return ElMessage.warning(approved ? '请填写说明' : rejectHint)
@@ -250,6 +255,21 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
         return afterSubmit('已驳回', '已驳回，报审单退回施工单位')
       }
       return afterSubmit('同意', `已同意，下一节点「${r.nextNodeTitle || '待流转'}」待办已生成`)
+    }
+    if (row?.type === 'engineering_work' && row.engineeringWorkId) {
+      const action = approved ? 'agree' : 'reject'
+      const opinion = commonForm.remark.trim()
+      const operatorName = getCurrentUserSnapshot()?.name || '当前用户'
+      const r = supervisorApproveEngineeringWork(row.engineeringWorkId, {
+        action,
+        opinion,
+        operatorName,
+      })
+      if (!r.ok) return ElMessage.error(r.msg)
+      return afterSubmit(
+        approved ? '监理通过' : '监理驳回',
+        approved ? '作业申报已通过' : '已驳回施工单位',
+      )
     }
     if (row?.type === 'asbuilt' && row.asbuiltAcceptanceId) {
       const action = approved ? 'approve' : 'reject'

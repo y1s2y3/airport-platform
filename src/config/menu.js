@@ -139,8 +139,7 @@ export const menuTree = [
         key: 'work-manage', label: '施工作业管理', labelByLevel: { hq: '施工作业管理', project: '施工作业申报' }, icon: 'Document', levels: 'both',
         children: [
           { key: 'major-hazard-daily-work', label: '每日施工作业', path: '/major-hazard/daily-work', name: 'MajorHazardDailyWork', component: 'DailyWorkView', levels: 'both' },
-          { key: 'major-hazard-list', label: '危大工程清单', path: '/major-hazard/hazard-list', name: 'MajorHazardList', component: 'HazardListView', levels: 'both' },
-          { key: 'engineering-work', label: '工程作业管理', path: '/site-construction/engineering-work', name: 'EngineeringWorkPlaceholder', component: 'EngineeringWorkPlaceholderView', levels: 'project' },
+          { key: 'engineering-work', label: '工程作业申报', path: '/site-construction/engineering-work', name: 'EngineeringWorkList', component: 'EngineeringWorkListView', levels: 'project' },
         ],
       },
       {
@@ -317,6 +316,10 @@ export const hiddenRoutes = [
   { key: 'mobile-rectify-review', path: '/mobile/rectify/:id/review', name: 'MobileRectifyReview', component: 'MobileRectifyReviewView', label: '整改复查', sidebarKey: 'mobile-rectify' },
   { key: 'mobile-rectify-approval', path: '/mobile/rectify/:id/approval', name: 'MobileRectifyApproval', component: 'MobileRectifyApprovalView', label: '项目经理审批', sidebarKey: 'mobile-message-center' },
   { key: 'mobile-rectify-detail', path: '/mobile/rectify/:id', name: 'MobileRectifyDetail', component: 'MobileRectifyDetailView', label: '整改详情', sidebarKey: 'mobile-rectify' },
+
+  // 工程作业申报子页
+  { key: 'engineering-work-edit', path: '/site-construction/engineering-work/edit', name: 'EngineeringWorkEdit', component: 'EngineeringWorkEditView', label: '新建申报', sidebarKey: 'engineering-work' },
+  { key: 'engineering-work-detail', path: '/site-construction/engineering-work/detail', name: 'EngineeringWorkDetail', component: 'EngineeringWorkDetailView', label: '申报详情', sidebarKey: 'engineering-work' },
 
   // 风险管理子页
   { key: 'risk-point-control-create', path: '/site-construction/risk-point-control/create', name: 'RiskPointControlCreate', component: 'RiskPointControlFormView', label: '新增风险辨识', sidebarKey: 'risk-point-control' },
@@ -537,11 +540,12 @@ export const viewLoaders = {
   MachineExitFormView: () => import('../views/safety/MachineExitFormView.vue'),
   MachineryLedgerDetailView: () => import('../views/safety/MachineryLedgerDetailView.vue'),
   DailyWorkView: () => import('../views/majorHazard/DailyWorkView.vue'),
-  HazardListView: () => import('../views/majorHazard/HazardListView.vue'),
   RiskPointControlView: () => import('../views/siteConstruction/RiskPointControlView.vue'),
   RiskPointControlFormView: () => import('../views/siteConstruction/RiskPointControlFormView.vue'),
   RiskPointConfigView: () => import('../views/siteConstruction/RiskPointConfigView.vue'),
-  EngineeringWorkPlaceholderView: () => import('../views/siteConstruction/EngineeringWorkPlaceholderView.vue'),
+  EngineeringWorkListView: () => import('../views/siteConstruction/EngineeringWorkListView.vue'),
+  EngineeringWorkEditView: () => import('../views/siteConstruction/EngineeringWorkEditView.vue'),
+  EngineeringWorkDetailView: () => import('../views/siteConstruction/EngineeringWorkDetailView.vue'),
   DeepFoundationPitView: () => import('../views/majorHazard/DeepFoundationPitView.vue'),
   SubwayProtectionView: () => import('../views/majorHazard/SubwayProtectionView.vue'),
   HighFormworkView: () => import('../views/majorHazard/HighFormworkView.vue'),

@@ -43,6 +43,7 @@ export const PROCESS_CATEGORY_OPTIONS = [
   '样板管理',
   '材料设备进场',
   '实模一致验收',
+  '工程作业申报',
   '巡检管理',
   '人员实名',
   '车辆管理',
@@ -2974,6 +2975,165 @@ export function discardEqEntryTodos(entryId) {
   discardMatEntryTodos(entryId)
 }
 
+/** —— 工程作业申报：仅个人中心监理待办 —— */
+let engineeringWorkTodoSeq = 40
+
+export function buildEngineeringWorkProcessName(category, workArea) {
+  const label = [category, workArea].filter(Boolean).join('·') || '危险作业'
+  return `工程作业申报·${clipProcessBizLabel(label, 30)}`
+}
+
+function removeOpenEngineeringWorkTodos(applicationId) {
+  for (let i = personalTodoStore.todos.length - 1; i >= 0; i -= 1) {
+    const t = personalTodoStore.todos[i]
+    if (t.type !== 'engineering_work') continue
+    if (t.engineeringWorkId !== applicationId) continue
+    personalTodoStore.todos.splice(i, 1)
+  }
+}
+
+function mapEngineeringWorkStartedStatus(status) {
+  if (status === 'reviewing') return '审批中'
+  if (status === 'approved') return '已通过'
+  if (status === 'rejected') return '已驳回'
+  return status || '--'
+}
+
+function buildEngineeringWorkTodo(payload) {
+  engineeringWorkTodoSeq += 1
+  return {
+    id: `todo-ew-${engineeringWorkTodoSeq}`,
+    type: 'engineering_work',
+    sourceLabel: '工程作业申报',
+    category: '工程作业申报',
+    bizType: '监理审批',
+    engineeringWorkId: payload.applicationId,
+    processName: buildEngineeringWorkProcessName(payload.category, payload.workArea),
+    applicant: payload.applicantName || '施工',
+    dept: '总包项目部',
+    applyTime: payload.applyTime || '',
+    detail: {
+      project: payload.projectLabel || payload.projectId || '--',
+      bizNo: payload.bizNo,
+      applicationId: payload.applicationId,
+      category: payload.category || '--',
+      workArea: payload.workArea || '--',
+      currentNode: '监理审批',
+      copyFromBizNo: payload.copyFromBizNo || '',
+    },
+    approvalFlow: [
+      {
+        title: '施工提交',
+        time: payload.applyTime || '',
+        user: payload.applicantName || '施工',
+        remark: '提交工程作业申报，进入监理审批',
+        status: 'done',
+      },
+      {
+        title: '监理审批',
+        time: '',
+        user: payload.supervisorName || '当前用户',
+        remark: '待办理',
+        status: 'current',
+      },
+    ],
+  }
+}
+
+export function createEngineeringWorkSupervisorTodo(payload) {
+  if (!payload?.applicationId) return null
+  removeOpenEngineeringWorkTodos(payload.applicationId)
+  const row = buildEngineeringWorkTodo(payload)
+  personalTodoStore.todos.unshift(row)
+  return row
+}
+
+export function discardEngineeringWorkTodos(applicationId) {
+  if (!applicationId) return
+  removeOpenEngineeringWorkTodos(applicationId)
+}
+
+export function upsertEngineeringWorkStarted(row) {
+  if (!row?.id) return null
+  const exist = personalStarted.find(
+    (item) => item.type === 'engineering_work' && item.engineeringWorkId === row.id,
+  )
+  const status = mapEngineeringWorkStartedStatus(row.status)
+  const payload = {
+    id: exist?.id || `start-ew-${row.id}`,
+    type: 'engineering_work',
+    sourceLabel: '工程作业申报',
+    category: '工程作业申报',
+    bizType: '工程作业申报',
+    engineeringWorkId: row.id,
+    processName: buildEngineeringWorkProcessName(
+      row.snapshot?.dangerWorkCategory,
+      row.snapshot?.workArea,
+    ),
+    status,
+    applicant: row.applicant_name || '当前用户',
+    dept: '总包项目部',
+    applyTime: row.submit_time || '',
+    endTime: status === '已通过' || status === '已驳回' ? row.finish_time || '' : '',
+    detail: {
+      project: getProjectLabel(row.project_id) || row.project_id || '--',
+      bizNo: row.biz_no,
+      applicationId: row.id,
+      category: row.snapshot?.dangerWorkCategory || '--',
+      workArea: row.snapshot?.workArea || '--',
+      copyFromBizNo: row.copy_from_biz_no || '',
+      summary: `${row.snapshot?.dangerWorkCategory || '--'} · ${status}`,
+    },
+    approvalFlow: [],
+  }
+  if (exist) Object.assign(exist, payload)
+  else personalStarted.unshift(payload)
+  return payload
+}
+
+export function seedEngineeringWorkStartedFromList(list = []) {
+  for (const row of list) upsertEngineeringWorkStarted(row)
+}
+
+function pushEngineeringWorkDoneIfNeeded(row) {
+  if (!row?.id) return
+  if (row.status !== 'approved' && row.status !== 'rejected') return
+  const id = `done-ew-${row.id}`
+  if (personalTodoStore.done.some((t) => t.id === id)) return
+  personalTodoStore.done.unshift({
+    id,
+    type: 'engineering_work',
+    sourceLabel: '工程作业申报',
+    category: '工程作业申报',
+    bizType: '监理审批',
+    engineeringWorkId: row.id,
+    processName: buildEngineeringWorkProcessName(
+      row.snapshot?.dangerWorkCategory,
+      row.snapshot?.workArea,
+    ),
+    applicant: row.applicant_name || '施工方',
+    dept: '总包项目部',
+    applyTime: row.submit_time || '',
+    handleTime: row.finish_time || '',
+    handleLabel: row.status === 'approved' ? '审批通过' : '驳回',
+    detail: {
+      project: getProjectLabel(row.project_id) || row.project_id || '--',
+      bizNo: row.biz_no,
+      applicationId: row.id,
+      category: row.snapshot?.dangerWorkCategory || '--',
+      summary: `${row.snapshot?.dangerWorkCategory || '--'} · ${mapEngineeringWorkStartedStatus(row.status)}`,
+    },
+    approvalFlow: [],
+  })
+}
+
+export function seedEngineeringWorkDoneFromList(list = []) {
+  list
+    .filter((row) => row.status === 'approved' || row.status === 'rejected')
+    .slice(0, 6)
+    .forEach((row) => pushEngineeringWorkDoneIfNeeded(row))
+}
+
 /** —— 实模一致验收：仅个人中心待办（监理 → 指挥部项目经理） —— */
 let asbuiltTodoSeq = 50
 
@@ -3657,3 +3817,8 @@ export function createQmInspectNextTodo(task, flowNode, opts = {}) {
 export function discardQmInspectTodos(taskId) {
   removeOpenQmInspectTodos(taskId)
 }
+
+/** 工程作业申报种子：延后加载，避免与本文件循环依赖 */
+queueMicrotask(() => {
+  import('./engineeringWork.js')
+})

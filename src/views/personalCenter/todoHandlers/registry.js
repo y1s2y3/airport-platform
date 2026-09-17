@@ -17,6 +17,7 @@ export const TODO_HANDLER_REGISTRY = {
   brand: { kind: 'detail', loader: () => import('./TodoBrandPanel.vue') },
   sample: { kind: 'detail', loader: () => import('./TodoSamplePanel.vue') },
   asbuilt: { kind: 'detail', loader: () => import('./TodoAsbuiltPanel.vue') },
+  engineering_work: { kind: 'detail', loader: () => import('./TodoEngineeringWorkPanel.vue') },
   subcontractor: { kind: 'detail', loader: () => import('./TodoSubcontractorPanel.vue') },
   mat_entry: { kind: 'detail', loader: () => import('./TodoMatEqEntryPanel.vue') },
   eq_entry: { kind: 'detail', loader: () => import('./TodoMatEqEntryPanel.vue') },
@@ -36,6 +37,7 @@ export const COMMON_APPROVE_TYPES = new Set([
   'mat_entry',
   'eq_entry',
   'asbuilt',
+  'engineering_work',
 ])
 
 const asyncComponentCache = new Map()

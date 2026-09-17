@@ -93,6 +93,7 @@ const todoSourceLabel = computed(() => {
     mat_entry: '材料设备进场',
     eq_entry: '材料设备进场',
     asbuilt: '实模一致验收',
+    engineering_work: '工程作业申报',
     qm_inspect: '质量验评',
     qm_rectify: '质量验评',
     labor_warning: '人员预警',

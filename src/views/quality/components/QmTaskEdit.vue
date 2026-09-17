@@ -959,6 +959,7 @@ const PICK_PAGE_SIZE = 10
 
 const asbuiltPickVisible = ref(false)
 const asbuiltPickPage = ref(1)
+const asbuiltPickSelection = ref([])
 const asbuiltPickAllRows = computed(() => {
   if (!task.value) return []
   const projectId = task.value.project_id || scopeProjectId.value
@@ -1139,28 +1140,37 @@ function onOpenAsbuiltPick() {
     return ElMessage.warning('暂无可关联的已通过实模一致验收单，请先在「实模一致验收」完成审批')
   }
   asbuiltPickPage.value = 1
+  asbuiltPickSelection.value = []
   asbuiltPickVisible.value = true
 }
 
-function onPickAsbuilt(row) {
-  if (!task.value || !row) return
-  if (asbuiltLinks.value.some((l) => l.acceptance_id === row.acceptance_id)) {
-    return ElMessage.warning('该验收单已关联')
-  }
-  taskAsbuiltLinks.push({
-    id: `tal-${Date.now()}`,
-    task_id: task.value.id,
-    acceptance_id: row.acceptance_id,
-    biz_no: row.biz_no,
-    title: row.title,
-    report_names: row.report_names,
-    node_paths: row.node_paths || '',
-    status: row.status,
-    link_time: new Date().toISOString().slice(0, 19).replace('T', ' '),
+function onConfirmAsbuiltPick() {
+  if (!task.value) return
+  const rows = asbuiltPickSelection.value || []
+  if (!rows.length) return ElMessage.warning('请勾选至少一条实模一致验收单')
+  const linked = new Set(asbuiltLinks.value.map((l) => l.acceptance_id))
+  let n = 0
+  const now = new Date().toISOString().slice(0, 19).replace('T', ' ')
+  rows.forEach((row) => {
+    if (!row?.acceptance_id || linked.has(row.acceptance_id)) return
+    taskAsbuiltLinks.push({
+      id: `tal-${Date.now()}-${n}`,
+      task_id: task.value.id,
+      acceptance_id: row.acceptance_id,
+      biz_no: row.biz_no,
+      title: row.title,
+      report_names: row.report_names,
+      node_paths: row.node_paths || '',
+      status: row.status,
+      link_time: now,
+    })
+    linked.add(row.acceptance_id)
+    n += 1
   })
+  if (!n) return ElMessage.warning('所选记录均已关联')
   linkTick.value += 1
   asbuiltPickVisible.value = false
-  ElMessage.success(`已关联实模一致验收「${row.biz_no}」`)
+  ElMessage.success(`已关联 ${n} 条实模一致验收`)
 }
 
 function onUnlinkAsbuilt(row) {
@@ -1810,21 +1820,28 @@ function saveStepQuietly() {
     <el-dialog
       v-model="asbuiltPickVisible"
       title="关联实模一致验收"
-      width="720px"
+      width="780px"
       destroy-on-close
+      :close-on-click-modal="false"
     >
       <p class="flow-tip" style="margin-top: 0">
-        仅展示本项目已通过的实模一致验收单；优先匹配与当前验收节点相关的单据。
+        仅展示本项目已通过的实模一致验收单；优先匹配与当前验收节点相关的单据。可勾选多条后确认关联。
       </p>
-      <el-table :data="asbuiltPickRows" border size="small" empty-text="暂无可选单据">
+      <el-table
+        :data="asbuiltPickRows"
+        border
+        size="small"
+        empty-text="暂无可选单据"
+        max-height="420"
+        row-key="acceptance_id"
+        @selection-change="(rows) => (asbuiltPickSelection = rows)"
+      >
+        <el-table-column type="selection" width="48" reserve-selection />
         <el-table-column prop="biz_no" label="验收单号" width="130" />
         <el-table-column prop="title" label="验收任务名称" min-width="140" show-overflow-tooltip />
         <el-table-column prop="report_names" label="报告" min-width="160" show-overflow-tooltip />
-        <el-table-column prop="node_paths" label="所选实体工程节点" min-width="160" show-overflow-tooltip />
-        <el-table-column label="操作" width="90" fixed="right">
-          <template #default="{ row }">
-            <el-button link type="primary" @click="onPickAsbuilt(row)">选用</el-button>
-          </template>
+        <el-table-column prop="node_paths" label="所选实体工程节点" min-width="160" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.node_paths || '--' }}</template>
         </el-table-column>
       </el-table>
       <div v-if="asbuiltPickTotal > 0" class="pick-pagination">
@@ -1838,7 +1855,8 @@ function saveStepQuietly() {
         />
       </div>
       <template #footer>
-        <el-button @click="asbuiltPickVisible = false">关闭</el-button>
+        <el-button @click="asbuiltPickVisible = false">取消</el-button>
+        <el-button type="primary" @click="onConfirmAsbuiltPick">确认关联</el-button>
       </template>
     </el-dialog>
 

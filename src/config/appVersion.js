@@ -17,6 +17,15 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.11.1.2',
+    date: '2026-09-17',
+    highlights: [
+      '施工现场：工程作业申报（列表/新建/详情；监理审批走个人中心待办）',
+      '质量验评：关联实模一致支持多选确认',
+      '菜单：工程作业占位升级为正式申报入口',
+    ],
+  },
+  {
     version: 'v2.11.1.1',
     date: '2026-09-17',
     highlights: [
