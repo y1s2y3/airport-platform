@@ -74,25 +74,6 @@ function actionTagType(action) {
     <el-empty v-if="!detail" description="未找到验收单" />
 
     <template v-else>
-      <div class="summary-bar">
-        <div class="summary-main">
-          <div class="summary-id-row">
-            <span class="summary-biz">{{ detail.biz_no }}</span>
-            <el-tag size="small" effect="light" :type="statusTagType(detail.status)">
-              {{ STATUS_LABEL[detail.status] }}
-            </el-tag>
-          </div>
-          <h2 class="summary-title">{{ detail.title }}</h2>
-          <div class="summary-meta">
-            <span>当前环节：{{ currentNodeLabel }}</span>
-            <span class="dot">·</span>
-            <span>提交人：{{ detail.submitter_name || '—' }}</span>
-            <span class="dot">·</span>
-            <span>提交时间：{{ detail.submitted_at || '—' }}</span>
-          </div>
-        </div>
-      </div>
-
       <section class="form-section">
         <header class="section-head">
           <el-icon class="section-icon"><OfficeBuilding /></el-icon>
@@ -152,7 +133,6 @@ function actionTagType(action) {
               <span class="node-badge">{{ idx + 1 }}</span>
               <div class="node-content">
                 <div class="node-path">{{ n.wbs_node_path || '—' }}</div>
-                <div class="node-id">节点 ID：{{ n.wbs_node_id || '—' }}</div>
               </div>
             </div>
           </div>
@@ -252,61 +232,6 @@ function actionTagType(action) {
   flex-wrap: wrap;
 }
 
-.summary-bar {
-  display: flex;
-  align-items: stretch;
-  gap: 16px;
-  padding: 18px 20px;
-  border-radius: 12px;
-  border: 1px solid #e8ecf1;
-  background: linear-gradient(135deg, #f8fafc 0%, #fff 55%, #f5f8fb 100%);
-  box-shadow: 0 1px 2px rgba(31, 35, 41, 0.04);
-}
-
-.summary-main {
-  flex: 1;
-  min-width: 0;
-}
-
-.summary-id-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 8px;
-}
-
-.summary-biz {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--el-color-primary, #8f0045);
-  letter-spacing: 0.02em;
-}
-
-.summary-title {
-  margin: 0 0 8px;
-  font-size: 18px;
-  font-weight: 600;
-  line-height: 1.4;
-  color: #1f2329;
-}
-
-.summary-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 0;
-  font-size: 13px;
-  color: #606266;
-  line-height: 1.5;
-}
-
-.summary-meta .dot,
-.file-meta .dot {
-  margin: 0 6px;
-  color: #c0c4cc;
-}
-
 .form-section {
   background: #fff;
   border: 1px solid #ebeef5;
@@ -377,6 +302,10 @@ function actionTagType(action) {
   background: #fafbfc;
 }
 
+.node-card {
+  align-items: center;
+}
+
 .node-badge {
   display: inline-flex;
   align-items: center;
@@ -402,12 +331,6 @@ function actionTagType(action) {
   color: #303133;
   line-height: 1.5;
   word-break: break-all;
-}
-
-.node-id {
-  margin-top: 4px;
-  font-size: 12px;
-  color: #909399;
 }
 
 .file-icon {
@@ -450,6 +373,11 @@ function actionTagType(action) {
   font-size: 12px;
   color: #909399;
   line-height: 1.5;
+}
+
+.file-meta .dot {
+  margin: 0 6px;
+  color: #c0c4cc;
 }
 
 .approval-timeline {

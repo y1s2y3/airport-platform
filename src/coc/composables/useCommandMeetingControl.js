@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useMeetingAiSession } from './useMeetingAiSession.js'
+import { useMeetingSignInSession } from './useMeetingSignInSession.js'
 import { saveDispatchMeetingRecord, buildSummaryMinutes } from '../utils/dispatchMeetingStorage.js'
 import { cocFeatureFlags } from '../config/featureFlags.js'
 
@@ -12,13 +13,16 @@ function formatNow() {
 
 export function useCommandMeetingControl() {
   const session = useMeetingAiSession()
+  const signIn = useMeetingSignInSession()
 
   async function startMeeting() {
+    signIn.ensureSessionStarted()
     session.panelExpanded.value = true
     await session.startSession()
   }
 
   async function endMeeting() {
+    signIn.endSessionAndSave()
     const recording = await session.endSession()
     const startedAt = session.meetingStartedAt.value
     const transcript = [...session.transcriptLines.value]

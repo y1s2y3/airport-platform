@@ -23,6 +23,7 @@ import {
   OfficeBuilding,
   PictureFilled,
   Plus,
+  Rank,
   Search,
   SetUp,
   Setting,
@@ -34,6 +35,7 @@ import {
 } from '@element-plus/icons-vue'
 import { useCurrentProject } from '../composables/useCurrentProject'
 import {
+  MAX_SHORTCUT_COUNT,
   buildWorkbenchTreeData,
   listWorkbenchMenuLeaves,
   listWorkbenchShortcuts,
@@ -78,8 +80,10 @@ const shortcutKeys = ref([])
 const pickerVisible = ref(false)
 const pickerFilter = ref('')
 const pickerTreeRef = ref(null)
+const pickerCheckedCount = ref(0)
 
 const levelLabel = computed(() => (isHqSelected.value ? '指挥部' : '项目'))
+const shortcutCount = computed(() => shortcutKeys.value.length)
 
 const shortcuts = computed(() => listWorkbenchShortcuts(isHqSelected.value, shortcutKeys.value))
 
@@ -142,6 +146,11 @@ function onDragStart(event, item) {
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = 'move'
     event.dataTransfer.setData('text/plain', item.key)
+    const card = event.currentTarget.closest('.shortcut-item')
+    if (card) {
+      const rect = card.getBoundingClientRect()
+      event.dataTransfer.setDragImage(card, event.clientX - rect.left, event.clientY - rect.top)
+    }
   }
 }
 
@@ -230,7 +239,9 @@ function filterPickerNode(value, data) {
 }
 
 function syncPickerChecked() {
-  pickerTreeRef.value?.setCheckedKeys(shortcutKeys.value.filter((key) => leafKeySet.value.has(key)))
+  const keys = shortcutKeys.value.filter((key) => leafKeySet.value.has(key))
+  pickerTreeRef.value?.setCheckedKeys(keys)
+  pickerCheckedCount.value = keys.length
   pickerTreeRef.value?.filter(pickerFilter.value)
 }
 
@@ -239,9 +250,17 @@ function collectCheckedLeafKeys() {
   return raw.filter((key) => leafKeySet.value.has(key))
 }
 
-function onPickerCheck() {
-  const keys = collectCheckedLeafKeys()
+function onPickerCheck(data) {
+  let keys = collectCheckedLeafKeys()
+  if (keys.length > MAX_SHORTCUT_COUNT) {
+    keys = keys.filter((key) => key !== data.key)
+    pickerTreeRef.value?.setCheckedKeys(keys)
+    pickerCheckedCount.value = keys.length
+    ElMessage.warning(`常用功能最多选择 ${MAX_SHORTCUT_COUNT} 个，请先取消已选项再勾选`)
+    return
+  }
   pickerTreeRef.value?.setCheckedKeys(keys)
+  pickerCheckedCount.value = keys.length
 }
 
 function confirmPicker() {
@@ -263,25 +282,39 @@ function dragOverClass(item) {
     <section class="shortcut-panel">
       <div class="shortcut-head">
         <h2 class="shortcut-title">常用功能</h2>
-        <span class="shortcut-tip">点击进入；拖动可排序；指挥部与项目入口分别配置</span>
+        <span class="shortcut-tip">最多 {{ MAX_SHORTCUT_COUNT }} 个（已选 {{ shortcutCount }}）· 点击进入；拖动可排序；指挥部与项目入口分别配置</span>
       </div>
       <div class="shortcut-row">
-        <button
+        <div
           v-for="item in shortcuts"
           :key="item.key"
-          type="button"
           class="shortcut-item"
           :class="[
             dragOverClass(item),
             { 'is-dragging': dragKey === item.key },
           ]"
-          draggable="true"
+          role="button"
+          tabindex="0"
           @click="onShortcutClick(item)"
-          @dragstart="onDragStart($event, item)"
+          @keydown.enter.prevent="onShortcutClick(item)"
+          @keydown.space.prevent="onShortcutClick(item)"
           @dragover="onDragOver($event, item)"
           @drop="onDrop($event, item)"
-          @dragend="onDragEnd"
         >
+          <span
+            class="shortcut-drag"
+            draggable="true"
+            role="button"
+            tabindex="0"
+            aria-label="拖动排序"
+            title="拖动排序"
+            @click.stop
+            @keydown.stop
+            @dragstart="onDragStart($event, item)"
+            @dragend="onDragEnd"
+          >
+            <el-icon :size="12"><Rank /></el-icon>
+          </span>
           <span
             class="shortcut-icon"
             :style="{ background: item.iconBg, color: item.iconColor }"
@@ -302,7 +335,7 @@ function dragOverClass(item) {
           >
             <el-icon :size="12"><Close /></el-icon>
           </span>
-        </button>
+        </div>
         <button
           type="button"
           class="shortcut-item shortcut-add"
@@ -333,7 +366,9 @@ function dragOverClass(item) {
       :close-on-click-modal="false"
       @opened="syncPickerChecked"
     >
-      <p class="picker-tip">仅可勾选最末级菜单，当前配置仅作用于{{ levelLabel }}层级。</p>
+      <p class="picker-tip">
+        仅可勾选最末级菜单，最多 {{ MAX_SHORTCUT_COUNT }} 个（已选 {{ pickerCheckedCount }}）。当前配置仅作用于{{ levelLabel }}层级。
+      </p>
       <el-input
         v-model="pickerFilter"
         class="picker-search"
@@ -411,7 +446,7 @@ function dragOverClass(item) {
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
-  cursor: grab;
+  cursor: pointer;
   font-family: inherit;
   transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
   user-select: none;
@@ -424,7 +459,31 @@ function dragOverClass(item) {
 
 .shortcut-item.is-dragging {
   opacity: 0.45;
+}
+
+.shortcut-drag {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  color: #909399;
+  cursor: grab;
+}
+
+.shortcut-item:hover .shortcut-drag,
+.shortcut-drag:focus {
+  display: flex;
+}
+
+.shortcut-item.is-dragging .shortcut-drag {
+  display: flex;
   cursor: grabbing;
+  color: var(--ap-primary, #1677ff);
 }
 
 .shortcut-item.is-drop-before {

@@ -135,8 +135,7 @@ function openSource(id) {
           <div v-for="(n, idx) in nodeRows" :key="n.id || idx" class="node-card">
             <span class="node-badge">{{ idx + 1 }}</span>
             <div class="node-content">
-              <div class="node-path">{{ n.wbs_node_path || n.wbs_node_id || '—' }}</div>
-              <div class="node-id">节点 ID：{{ n.wbs_node_id || '—' }}</div>
+              <div class="node-path">{{ n.wbs_node_path || '—' }}</div>
             </div>
           </div>
         </div>
@@ -255,6 +254,10 @@ function openSource(id) {
   background: #fafbfc;
 }
 
+.node-card {
+  align-items: center;
+}
+
 .node-badge {
   display: inline-flex;
   align-items: center;
@@ -280,12 +283,6 @@ function openSource(id) {
   color: #303133;
   line-height: 1.5;
   word-break: break-all;
-}
-
-.node-id {
-  margin-top: 4px;
-  font-size: 12px;
-  color: #909399;
 }
 
 .file-icon {

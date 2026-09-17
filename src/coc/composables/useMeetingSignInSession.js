@@ -54,7 +54,9 @@ export function useMeetingSignInSession() {
   }
 
   function endSessionAndSave() {
-    ensureSessionStarted()
+    if (!sessionStartedAt.value) {
+      ensureSessionStarted()
+    }
     const order = visitOrder.value.length
       ? visitOrder.value
       : Object.keys(projectStates.value)
@@ -71,14 +73,9 @@ export function useMeetingSignInSession() {
             id: e.id,
             name: e.name,
             role: e.role || e.position || '—',
-            joinTime: e.joinTime || '',
           })),
       }))
       .filter((g) => g.projectName)
-
-    if (!projectGroups.length) {
-      return null
-    }
 
     const record = saveMeetingSignInRecord({
       meetingTime: sessionStartedAt.value,

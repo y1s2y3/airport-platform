@@ -21,7 +21,7 @@ import {
 
 const route = useRoute()
 const router = useRouter()
-const { isHqSelected, scopeProjectId, scopeProjectLabel } = useQmProjectScope()
+const { isHqSelected, scopeProjectId } = useQmProjectScope()
 
 const copyFromId = ref(String(route.query.copyFrom || ''))
 const copyFromLabel = ref('')
@@ -198,11 +198,6 @@ function onSubmit() {
           </span>
         </template>
       </el-alert>
-      <p class="page-tip">
-        当前项目：
-        <strong>{{ isHqSelected ? '未选择（请先切换项目）' : scopeProjectLabel }}</strong>
-        · 提交后进入待审批
-      </p>
     </div>
 
     <el-alert

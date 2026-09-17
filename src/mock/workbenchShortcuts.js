@@ -15,7 +15,10 @@ import { SAMPLE_APPROVE_MENU_KEYS } from '../utils/sampleHiddenMenuKeys.js'
 const STORAGE_KEY = 'workbench-shortcuts-v1'
 const EXCLUDED_KEYS = new Set(['workbench'])
 
-/** 首次进入时的默认入口（之后以本地配置为准） */
+/** 工作台常用功能入口上限（指挥部 / 项目各自独立计数） */
+export const MAX_SHORTCUT_COUNT = 10
+
+/** 首次进入时的默认入口（之后以本地配置为准；条数不得超过 MAX_SHORTCUT_COUNT） */
 export const DEFAULT_SHORTCUT_KEYS = {
   hq: [
     'personal-center',
@@ -145,6 +148,7 @@ function normalizeKeys(raw) {
     if (!key || seen.has(key)) continue
     seen.add(key)
     keys.push(key)
+    if (keys.length >= MAX_SHORTCUT_COUNT) break
   }
   return keys
 }
@@ -193,7 +197,7 @@ export function saveWorkbenchShortcutKeys(isHq, keys, opts = {}) {
     const nextSet = new Set(nextKeys)
     const kept = prev.filter((key) => nextSet.has(key))
     const added = nextKeys.filter((key) => !kept.includes(key))
-    ordered = [...kept, ...added]
+    ordered = [...kept, ...added].slice(0, MAX_SHORTCUT_COUNT)
   }
   writeStore({
     hq: isHq ? ordered : store.hq,

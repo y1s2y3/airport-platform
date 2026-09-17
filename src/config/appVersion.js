@@ -1,13 +1,13 @@
 /**
  * 应用版本与更新说明
- * - 格式：v2.9.1.x（x 从 0 起，每次 GitHub Pages 成功发布后 +1）
+ * - 格式：v{BASE}.x（x 从 0 起，每次 GitHub Pages 成功发布后 +1）
  * - 由 scripts/bump-pages-version.mjs 在发布流水线中递增 patch
  */
 
-export const APP_VERSION_BASE = '2.9.1'
+export const APP_VERSION_BASE = '2.11.1'
 
 /** GitHub Pages 发布序号（从 0 开始；仓库内为「当前即将发布 / 下一版」序号） */
-export const APP_VERSION_PATCH = 10
+export const APP_VERSION_PATCH = 1
 
 export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
 
@@ -16,6 +16,15 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  * highlights 宜短句，便于页头问号弹窗快速阅读
  */
 export const VERSION_CHANGELOG = [
+  {
+    version: 'v2.11.1.1',
+    date: '2026-09-17',
+    highlights: [
+      '工作台：常用功能入口最多 10 个；左上角拖动图标排序',
+      '实模一致：详情/个人中心办理面板精简展示',
+      'COC：会议签到落库对齐「结束会议」；清理未挂载质量验评风险面板',
+    ],
+  },
   {
     version: 'v2.9.1.9',
     date: '2026-09-16',
