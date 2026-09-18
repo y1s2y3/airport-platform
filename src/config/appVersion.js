@@ -17,6 +17,13 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.11.1.4',
+    date: '2026-09-18',
+    highlights: [
+      '档案管理：指挥部挂到施工现场管理后；项目挂到施工质量管控后（一级菜单）',
+    ],
+  },
+  {
     version: 'v2.11.1.3',
     date: '2026-09-18',
     highlights: [

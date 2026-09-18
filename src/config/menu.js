@@ -180,6 +180,16 @@ export const menuTree = [
     ],
   },
 
+  /** 档案管理（指挥部：挂在施工现场管理后） */
+  {
+    key: 'qm-archive-mgmt', label: '档案管理', icon: 'FolderOpened', levels: 'hq',
+    children: [
+      { key: 'qm-archive-fill', label: '档案管理', icon: 'FolderChecked', path: '/qm/inspect/archive-jump', name: 'QmArchiveJump', component: 'QmArchiveJumpView', levels: 'hq', openInNewTab: true },
+      // 省统表：本模块不维护，仅 SSO 跳转电子档案系统（与档案管理同页模拟）
+      { key: 'qm-provincial-form', label: '省统表管理', icon: 'Document', path: '/qm/inspect/archive-jump', name: 'QmProvincialFormJump', component: 'QmArchiveJumpView', levels: 'hq', openInNewTab: true, query: { entry: 'provincial' } },
+    ],
+  },
+
   /** 施工质量管控（仅项目层级） */
   {
     key: 'construction-quality', label: '施工质量管控', icon: 'Medal', levels: 'project',
@@ -192,14 +202,6 @@ export const menuTree = [
           { key: 'qm-special-deep', label: '专项验收', icon: 'Flag', path: '/qm/inspect/special-deep', name: 'QmSpecialDeep', component: 'QmSpecialDeepView', levels: 'project' },
           { key: 'qm-complete-deep', label: '竣工验收', icon: 'CircleCheck', path: '/qm/inspect/complete-deep', name: 'QmCompleteDeep', component: 'QmCompleteDeepView', levels: 'project' },
           { key: 'qm-node-archive-list', label: '节点档案清单', icon: 'Files', path: '/qm/inspect/node-archive-list', name: 'QmNodeArchiveList', component: 'QmNodeArchiveListView', levels: 'project' },
-        ],
-      },
-      {
-        key: 'qm-archive-mgmt', label: '档案管理', icon: 'FolderOpened', levels: 'project',
-        children: [
-          { key: 'qm-archive-fill', label: '档案管理', icon: 'FolderChecked', path: '/qm/inspect/archive-jump', name: 'QmArchiveJump', component: 'QmArchiveJumpView', levels: 'project', openInNewTab: true },
-          // 省统表：本模块不维护，仅 SSO 跳转电子档案系统（与档案管理同页模拟）
-          { key: 'qm-provincial-form', label: '省统表管理', icon: 'Document', path: '/qm/inspect/archive-jump', name: 'QmProvincialFormJump', component: 'QmArchiveJumpView', levels: 'project', openInNewTab: true, query: { entry: 'provincial' } },
         ],
       },
       {
@@ -228,6 +230,16 @@ export const menuTree = [
         ],
       },
       { key: 'asbuilt-list', label: '实模一致验收', icon: 'ScaleToOriginal', path: '/qm/asbuilt/list', name: 'AsbuiltList', component: 'AsbuiltListView', levels: 'project' },
+    ],
+  },
+
+  /** 档案管理（项目：挂在施工质量管控后） */
+  {
+    key: 'qm-archive-mgmt', label: '档案管理', icon: 'FolderOpened', levels: 'project',
+    children: [
+      { key: 'qm-archive-fill', label: '档案管理', icon: 'FolderChecked', path: '/qm/inspect/archive-jump', name: 'QmArchiveJump', component: 'QmArchiveJumpView', levels: 'project', openInNewTab: true },
+      // 省统表：本模块不维护，仅 SSO 跳转电子档案系统（与档案管理同页模拟）
+      { key: 'qm-provincial-form', label: '省统表管理', icon: 'Document', path: '/qm/inspect/archive-jump', name: 'QmProvincialFormJump', component: 'QmArchiveJumpView', levels: 'project', openInNewTab: true, query: { entry: 'provincial' } },
     ],
   },
 
