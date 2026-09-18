@@ -126,12 +126,17 @@ import {
   saveWorkbenchShortcutKeys,
 } from '../mock/workbenchShortcuts.js'
 import { TRACK_EXTERNAL_MENU_KEYS, openTrackExternalByMenuKey } from '../utils/trackExternalJump'
+import { resolveMenuIconName } from '../utils/menuIcon.js'
+import AiScreenIcon from '../components/icons/AiScreenIcon.vue'
+import SafetyScreenIcon from '../components/icons/SafetyScreenIcon.vue'
 import PersonalCenterPanels from './personalCenter/PersonalCenterPanels.vue'
 
 const router = useRouter()
 const { isHqSelected } = useCurrentProject()
 
 const shortcutIconMap = {
+  AI: AiScreenIcon,
+  Safety: SafetyScreenIcon,
   Aim,
   AlarmClock,
   Avatar,
@@ -272,7 +277,8 @@ watch(pickerFilter, (value) => {
 })
 
 function iconComponent(name) {
-  return shortcutIconMap[name] || Document
+  const resolved = resolveMenuIconName(name)
+  return shortcutIconMap[resolved] || shortcutIconMap[name] || Document
 }
 
 const dragKey = ref('')

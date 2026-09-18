@@ -15,24 +15,32 @@ defineProps({
   },
 })
 
-const keyword = ref('')
+const dateFilter = ref('')
+const projectKeyword = ref('')
 const list = ref([])
 const detailVisible = ref(false)
 const current = ref(null)
 let offChange = null
 
 const filtered = computed(() => {
-  const q = keyword.value.trim()
-  if (!q) return list.value
-  return list.value.filter((row) => {
-    const projectText = (row.dispatchProjects || []).join('、')
-    const peopleText = (row.projectGroups || [])
-      .flatMap((g) => (g.attendees || []).map((a) => a.name))
-      .join('、')
-    return [row.id, row.meetingTime, row.endedAt, row.meetingPeriod, projectText, peopleText].some(
-      (f) => String(f || '').includes(q),
+  let rows = list.value
+  const dateQ = dateFilter.value
+  if (dateQ) {
+    rows = rows.filter((row) =>
+      [row.meetingTime, row.endedAt, row.meetingPeriod].some((f) =>
+        String(f || '').includes(dateQ),
+      ),
     )
-  })
+  }
+  const projectQ = projectKeyword.value.trim()
+  if (projectQ) {
+    rows = rows.filter((row) => {
+      const projectText = (row.dispatchProjects || []).join('、')
+      const groupText = (row.projectGroups || []).map((g) => g.projectName || '').join('、')
+      return [projectText, groupText].some((f) => String(f || '').includes(projectQ))
+    })
+  }
+  return rows
 })
 
 function load() {
@@ -68,13 +76,24 @@ onUnmounted(() => {
   <div class="panel-card admin-page">
     <div class="panel-title simple-title">
       <span>{{ title }}</span>
-      <el-input
-        v-model="keyword"
-        placeholder="搜索会议时间、调度项目…"
-        clearable
-        class="search-input"
-        aria-label="搜索会议时间、调度项目…"
-      />
+      <div class="title-actions">
+        <el-date-picker
+          v-model="dateFilter"
+          type="date"
+          placeholder="会议日期"
+          value-format="YYYY-MM-DD"
+          clearable
+          class="date-filter"
+          aria-label="会议日期"
+        />
+        <el-input
+          v-model="projectKeyword"
+          placeholder="搜索调度项目…"
+          clearable
+          class="search-input"
+          aria-label="搜索调度项目…"
+        />
+      </div>
     </div>
     <div class="panel-body page-body">
       <p class="page-desc">{{ description }}</p>
@@ -150,10 +169,22 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex-wrap: wrap;
+}
+
+.title-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.date-filter {
+  width: 150px;
 }
 
 .search-input {
-  width: 280px;
+  width: 220px;
   max-width: 40vw;
 }
 

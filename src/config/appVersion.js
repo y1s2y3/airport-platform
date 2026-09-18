@@ -17,6 +17,15 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.11.1.6',
+    date: '2026-09-18',
+    highlights: [
+      '侧栏/菜单：统一空心线框图标；AI 预警看板支持文字「AI」图标',
+      '工作台/菜单管理：补充 AI、安全态势自定义图标组件',
+      '会议签到台账：筛选改为日期 + 项目关键字分栏',
+    ],
+  },
+  {
     version: 'v2.11.1.5',
     date: '2026-09-18',
     highlights: [

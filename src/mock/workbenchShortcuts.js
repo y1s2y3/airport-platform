@@ -95,6 +95,8 @@ const ICON_THEME = {
   Iphone: { iconBg: '#1565c0' },
   Key: { iconBg: '#f9a825' },
   Lightning: { iconBg: '#f57f17' },
+  AI: { iconBg: '#6a1b9a' },
+  Safety: { iconBg: '#c62828' },
   Link: { iconBg: '#00838f' },
   List: { iconBg: '#546e7a' },
   Location: { iconBg: '#43a047' },

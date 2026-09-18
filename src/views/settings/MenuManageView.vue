@@ -127,6 +127,8 @@ import {
   deleteMenuNode,
 } from '../../mock/menus'
 import { permissionList } from '../../mock/rbac'
+import AiScreenIcon from '../../components/icons/AiScreenIcon.vue'
+import SafetyScreenIcon from '../../components/icons/SafetyScreenIcon.vue'
 
 const activePlatform = ref('web')
 const levelFilter = ref('')
@@ -138,6 +140,8 @@ const formRef = ref(null)
 const form = ref(createEmptyMenuNode())
 
 const iconMap = {
+  AI: AiScreenIcon,
+  Safety: SafetyScreenIcon,
   Aim,
   AlarmClock,
   Avatar,
