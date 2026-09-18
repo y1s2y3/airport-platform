@@ -294,50 +294,53 @@ function skipToMain(e) {
           </el-option>
           <el-option
             disabled
-            value="__project_status_filter__"
-            class="project-status-filter-option"
+            value="__project_group_header__"
+            class="project-group-header-option"
             :label="''"
           >
             <div
-              class="status-filter-tags"
-              role="group"
-              aria-label="项目分类筛选"
+              class="project-group-header"
               @mousedown.prevent
               @click.stop
             >
-              <button
-                v-for="status in PROJECT_STATUS_FILTER_OPTIONS"
-                :key="status"
-                type="button"
-                class="status-tag"
-                :class="[projectStatusClass(status), { active: statusFilters.includes(status) }]"
-                :aria-pressed="statusFilters.includes(status)"
-                @click="toggleStatusFilter(status)"
+              <span class="project-group-title">项目</span>
+              <div
+                class="status-filter-tags"
+                role="group"
+                aria-label="项目分类筛选"
               >
-                {{ status }}
-              </button>
+                <button
+                  v-for="status in PROJECT_STATUS_FILTER_OPTIONS"
+                  :key="status"
+                  type="button"
+                  class="status-tag"
+                  :class="[projectStatusClass(status), { active: statusFilters.includes(status) }]"
+                  :aria-pressed="statusFilters.includes(status)"
+                  @click="toggleStatusFilter(status)"
+                >
+                  {{ status }}
+                </button>
+              </div>
             </div>
           </el-option>
-          <el-option-group label="项目">
-            <el-option
-              v-for="item in projectOptions"
-              :key="item.id"
-              :label="item.label"
-              :value="item.id"
-            >
-              <div class="project-option">
-                <div class="project-option-main">
-                  <span class="project-option-label">{{ item.label }}</span>
-                  <span
-                    v-if="item.status"
-                    class="project-option-status"
-                    :class="projectStatusClass(item.status)"
-                  >{{ item.status }}</span>
-                </div>
-                <span class="project-option-full">{{ item.fullName }}</span>
+          <el-option
+            v-for="item in projectOptions"
+            :key="item.id"
+            :label="item.label"
+            :value="item.id"
+          >
+            <div class="project-option">
+              <div class="project-option-main">
+                <span class="project-option-label">{{ item.label }}</span>
+                <span
+                  v-if="item.status"
+                  class="project-option-status"
+                  :class="projectStatusClass(item.status)"
+                >{{ item.status }}</span>
               </div>
-            </el-option>
-          </el-option-group>
+              <span class="project-option-full">{{ item.fullName }}</span>
+            </div>
+          </el-option>
         </el-select>
       </div>
 
@@ -943,30 +946,41 @@ function skipToMain(e) {
   line-height: 1.5;
 }
 
-.project-select-dropdown .el-select-group__title {
-  padding: 12px 20px 8px;
-  font-size: 13px;
-}
-
-.project-select-dropdown .project-status-filter-option {
+.project-select-dropdown .project-group-header-option {
   min-height: auto;
   height: auto;
-  padding: 8px 20px;
+  padding: 10px 20px 8px;
   cursor: default;
 }
 
-.project-select-dropdown .project-status-filter-option.is-disabled {
+.project-select-dropdown .project-group-header-option.is-disabled {
   cursor: default;
 }
 
-.project-select-dropdown .project-status-filter-option .status-filter-tags {
+.project-select-dropdown .project-group-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.project-select-dropdown .project-group-title {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--el-text-color-secondary, #909399);
+  line-height: 1.2;
+}
+
+.project-select-dropdown .project-group-header .status-filter-tags {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 6px;
+  min-width: 0;
 }
 
-.project-select-dropdown .project-status-filter-option .status-tag {
+.project-select-dropdown .project-group-header .status-tag {
   margin: 0;
   padding: 4px 10px;
   border-radius: 10px;
@@ -981,25 +995,25 @@ function skipToMain(e) {
   pointer-events: auto;
 }
 
-.project-select-dropdown .project-status-filter-option .status-tag:not(.active) {
+.project-select-dropdown .project-group-header .status-tag:not(.active) {
   opacity: 0.55;
 }
 
-.project-select-dropdown .project-status-filter-option .status-tag.active.building {
+.project-select-dropdown .project-group-header .status-tag.active.building {
   color: #409eff;
   background: rgba(64, 158, 255, 0.15);
   border-color: #409eff;
   font-weight: 600;
 }
 
-.project-select-dropdown .project-status-filter-option .status-tag.active.early {
+.project-select-dropdown .project-group-header .status-tag.active.early {
   color: #e6a23c;
   background: rgba(230, 162, 60, 0.15);
   border-color: #e6a23c;
   font-weight: 600;
 }
 
-.project-select-dropdown .project-status-filter-option .status-tag.active.history {
+.project-select-dropdown .project-group-header .status-tag.active.history {
   color: #909399;
   background: rgba(144, 147, 153, 0.12);
   border-color: #909399;

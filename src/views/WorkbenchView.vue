@@ -250,8 +250,6 @@ const pickerTreeRef = ref(null)
 const pickerCheckedCount = ref(0)
 
 const levelLabel = computed(() => (isHqSelected.value ? '指挥部' : '项目'))
-const shortcutCount = computed(() => shortcutKeys.value.length)
-
 const shortcuts = computed(() => listWorkbenchShortcuts(isHqSelected.value, shortcutKeys.value))
 
 const pickerTreeData = computed(() => buildWorkbenchTreeData(isHqSelected.value))
@@ -449,7 +447,6 @@ function dragOverClass(item) {
     <section class="shortcut-panel">
       <div class="shortcut-head">
         <h2 class="shortcut-title">常用功能</h2>
-        <span class="shortcut-tip">最多 {{ MAX_SHORTCUT_COUNT }} 个（已选 {{ shortcutCount }}）· 点击进入；拖动可排序；指挥部与项目入口分别配置</span>
       </div>
       <div class="shortcut-row">
         <div
@@ -589,11 +586,6 @@ function dragOverClass(item) {
   font-size: 15px;
   font-weight: 600;
   color: var(--ap-text, #303133);
-}
-
-.shortcut-tip {
-  font-size: 12px;
-  color: var(--ap-text-muted, #909399);
 }
 
 .shortcut-row {

@@ -48,7 +48,7 @@ const treeOptions = computed(() => [
     children: [
       {
         value: STATUS_FILTER_NODE_ID,
-        label: '项目分类',
+        label: '状态筛选',
         isStatusFilter: true,
         disabled: true,
       },
@@ -363,6 +363,8 @@ function toggleStatusFilter(status) {
   gap: 6px;
   padding: 2px 0;
   pointer-events: auto;
+  width: 100%;
+  min-width: 0;
 }
 
 .coc-org-tree-select-popper .org-status-filter .status-tag {

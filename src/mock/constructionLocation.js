@@ -3,7 +3,12 @@
  * 与验评目录树 / 实体工程分解同源依赖 wbsNodes 分项节点
  */
 import { reactive } from 'vue'
-import { ensureWbsScaffold, inspectionTasks, isWbsAlive, wbsNodes } from './qmInspect.js'
+import {
+  ensureWbsScaffold,
+  inspectionTasks,
+  isWbsAlive,
+  wbsNodes,
+} from './qmInspect.js'
 import { nowStr } from '../utils/datetime.js'
 import { listEntries } from './mat.js'
 import { COC_PROJECT_OPTIONS } from '../config/projectOptions.js'
@@ -995,7 +1000,10 @@ export function listEntityPartSelectTree(projectId, { includeLocations = false }
   return source.map(mapNode).filter(Boolean)
 }
 
-/** 实体 WBS / 施工部位路径标签（祖先 → 自身；部位含所属分项及以上） */
+/**
+ * 实体 WBS / 施工部位路径标签（祖先 → 自身；部位含所属分项及以上）
+ * 含分类层「实体工程」「专项工程」；不含验评根「项目竣工验收」(node_type=8)。
+ */
 export function getEntityNodePathLabel(wbsNodeId) {
   if (!wbsNodeId) return ''
   const loc = getLocationById(wbsNodeId)
@@ -1018,8 +1026,13 @@ export function getEntityNodePathLabel(wbsNodeId) {
   const guard = new Set()
   while (cur && !guard.has(cur.id)) {
     guard.add(cur.id)
-    if (cur.node_type !== 9) {
-      parts.unshift(cur.node_name || '')
+    const type = Number(cur.node_type)
+    // 跳过竣工根；分类层用固定展示名
+    if (type !== 8) {
+      let name = cur.node_name || ''
+      if (type === 9) name = '实体工程'
+      else if (type === 10) name = '专项工程'
+      if (name) parts.unshift(name)
     }
     cur = cur.parent_id ? wbsNodes.find((n) => isWbsAlive(n) && n.id === cur.parent_id) : null
   }

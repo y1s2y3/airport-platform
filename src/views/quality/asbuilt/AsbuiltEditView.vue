@@ -54,12 +54,24 @@ function findWbsLabel(nodes, id) {
 }
 
 const selectedNodeRows = computed(() =>
-  (form.selectedNodeIds || []).map((id, index) => ({
-    key: `${id}-${index}`,
-    wbs_node_id: id,
-    path: getEntityNodePathLabel(id) || findWbsLabel(wbsTree.value, id) || id,
-  })),
+  (form.selectedNodeIds || []).map((id, index) => {
+    const fromTree = findWbsPath(wbsTree.value, id)
+    return {
+      key: `${id}-${index}`,
+      wbs_node_id: id,
+      path: getEntityNodePathLabel(id) || fromTree || findWbsLabel(wbsTree.value, id) || id,
+    }
+  }),
 )
+
+function findWbsPath(nodes, id) {
+  for (const n of nodes || []) {
+    if (n.id === id) return n.path || ''
+    const hit = findWbsPath(n.children, id)
+    if (hit) return hit
+  }
+  return ''
+}
 
 function removeNode(index) {
   form.selectedNodeIds.splice(index, 1)
@@ -240,7 +252,11 @@ function onSubmit() {
               style="flex: 1"
               :disabled="!wbsTree.length"
               aria-label="所选实体工程节点"
-            />
+            >
+              <template #default="{ data }">
+                <span>{{ data.shortLabel || data.label }}</span>
+              </template>
+            </el-tree-select>
             <el-button link type="primary" @click="openEntityBreakdown">去配置</el-button>
           </div>
           <p class="muted" style="margin: 8px 0 0">

@@ -17,6 +17,15 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.11.1.5',
+    date: '2026-09-18',
+    highlights: [
+      '顶栏项目切换：项目标题与状态筛选同一行；COC 树筛选项改为「状态筛选」',
+      '实模一致：实体路径含「实体工程/专项工程」；树选择短名、回显完整路径',
+      '工作台：常用功能区去掉「最多 N 个」提示文案',
+    ],
+  },
+  {
     version: 'v2.11.1.4',
     date: '2026-09-18',
     highlights: [

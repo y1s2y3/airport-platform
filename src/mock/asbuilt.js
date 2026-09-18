@@ -104,7 +104,28 @@ function buildNodePath(nodeId) {
 /** 实体工程分解树：单位工程～施工部位均可选（不含检验批） */
 export function buildAsbuiltWbsTree(projectId) {
   if (!projectId) return []
-  return listEntityPartSelectTree(projectId, { includeLocations: true })
+  const tree = listEntityPartSelectTree(projectId, { includeLocations: true })
+  const stripTypeSuffix = (label) => String(label || '').replace(/（[^）]+）$/, '')
+  const segmentName = (n) => {
+    if (n.node_type === 9) return '实体工程'
+    if (n.node_type === 10) return '专项工程'
+    return stripTypeSuffix(n.label)
+  }
+  const annotate = (nodes, parentParts = []) =>
+    (nodes || []).map((n) => {
+      const name = segmentName(n)
+      const parts = [...parentParts, name]
+      const path = parts.join(' / ')
+      return {
+        ...n,
+        shortLabel: n.label,
+        path,
+        // 选中回显用完整路径（含实体工程 / 专项工程）
+        label: path || n.label,
+        children: annotate(n.children, parts),
+      }
+    })
+  return annotate(tree)
 }
 
 const store = reactive({
@@ -601,7 +622,8 @@ const store = reactive({
 
 function hydrateNodePaths(row) {
   ;(row.nodes || []).forEach((n) => {
-    if (!n.wbs_node_path) n.wbs_node_path = buildNodePath(n.wbs_node_id)
+    // 始终按当前实体路径口径回填，避免种子空串或历史错误路径残留
+    n.wbs_node_path = buildNodePath(n.wbs_node_id)
   })
   return row
 }

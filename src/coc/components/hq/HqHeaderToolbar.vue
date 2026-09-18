@@ -30,7 +30,7 @@ const treeOptions = computed(() => [
     children: [
       {
         value: STATUS_FILTER_NODE_ID,
-        label: '项目分类',
+        label: '状态筛选',
         isStatusFilter: true,
         disabled: true,
       },
