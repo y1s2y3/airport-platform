@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { ArrowRight, Search, Refresh } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useCurrentProject } from '../../composables/useCurrentProject.js'
@@ -15,12 +15,6 @@ import {
 } from '../../utils/majorHazardManualStorage.js'
 
 const router = useRouter()
-const route = useRoute()
-const fromDashboard = computed(() => route.query.from === 'hq-hazard-dashboard')
-async function backToDashboard() {
-  // 指挥部危大工程看板未迁入正式工程：清除下钻参数即可
-  await router.replace({ path: '/major-hazard/hazard-list' })
-}
 const { selectedProjectId, headerProjectLabel, isHqSelected } = useCurrentProject()
 const projectId = computed(() => (isHqSelected.value ? '' : selectedProjectId.value))
 const data = ref({ ledgers: [], identifications: [], controlPoints: [], wbsNodes: [] })
@@ -166,7 +160,6 @@ watch(projectId, load, { immediate: true })
   <div class="ledger-page page-card">
     <template v-if="projectId">
       <div class="page-header">
-        <div v-if="fromDashboard" class="dashboard-return"><el-button @click="backToDashboard">← 返回</el-button><strong>{{ headerProjectLabel }}</strong></div>
         <div class="page-breadcrumb">施工现场管理 / 危大工程管理 / 危大清单</div>
         <div class="header-row">
           <div><h1 class="page-title">危大工程台账</h1><p class="page-scope">集中查看项目危大工程、施工部位、进度及安全管控状态</p></div>
@@ -277,7 +270,6 @@ watch(projectId, load, { immediate: true })
 <style scoped>
 .ledger-page{min-height:100%;padding:20px 22px 34px;border:0;border-radius:0;background:#f5f7fa}
 .page-header{margin-bottom:18px}
-.dashboard-return{display:flex;align-items:center;gap:16px;margin-bottom:16px;font-size:18px;color:#172033}
 .page-breadcrumb{margin:0 0 11px;color:#98a2b3;font-size:13px}
 .header-row{display:flex;align-items:flex-end;justify-content:space-between;gap:20px}
 .page-title{margin:0 0 7px;color:#172033;font-size:23px;font-weight:650;letter-spacing:.2px}

@@ -26,8 +26,8 @@ const initialRoles = [
     sortOrder: 1,
     updatedBy: '系统管理员',
     updatedAt: '2025-11-26 15:00:35',
-    webMenuIds: ['workbench', 'personal-center', 'basic-data', 'coc-admin'],
-    appMenuIds: ['app-workbench', 'app-coc'],
+    webMenuIds: ['workbench', 'personal-center', 'basic-data', 'coc-admin', 'major-hazard-management'],
+    appMenuIds: ['app-workbench', 'app-coc', 'app-major-hazard-management'],
   },
   {
     id: 'role-company',
@@ -91,8 +91,8 @@ const initialRoles = [
     sortOrder: 5,
     updatedBy: '系统管理员',
     updatedAt: '2025-09-15 14:30:00',
-    webMenuIds: ['workbench', 'personal-center', 'labor', 'vehicle', 'basic-data'],
-    appMenuIds: ['app-workbench', 'app-labor', 'app-vehicle'],
+    webMenuIds: ['workbench', 'personal-center', 'labor', 'vehicle', 'basic-data', 'major-hazard-management'],
+    appMenuIds: ['app-workbench', 'app-labor', 'app-vehicle', 'app-major-hazard-management'],
   },
   {
     id: 'role-coc',

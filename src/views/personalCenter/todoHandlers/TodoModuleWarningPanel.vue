@@ -19,8 +19,6 @@ const submitting = ref(false)
 const attachmentList = ref([])
 const form = reactive({ disposalResult: '已处置', disposalNote: '' })
 
-const DISPOSAL_RESULT_OPTIONS = ['已处置', '误报']
-
 const warningCenterId = computed(() => props.todo?.warningCenterId || props.todo?.id || '')
 
 const detail = computed(() => {
@@ -28,6 +26,11 @@ const detail = computed(() => {
   if (!warningCenterId.value) return null
   return getPersonalWarningCenterItem(warningCenterId.value)
 })
+
+const isMajorHazardAlert = computed(() => detail.value?.module === '危大工程管理')
+const disposalResultOptions = computed(() =>
+  isMajorHazardAlert.value ? ['已处置'] : ['已处置', '误报'],
+)
 
 const canDispose = computed(
   () =>
@@ -39,6 +42,9 @@ const canDispose = computed(
 async function submitDispose() {
   if (!detail.value) return
   if (!form.disposalResult) return ElMessage.warning('请选择处置结果')
+  if (isMajorHazardAlert.value && form.disposalResult === '误报') {
+    return ElMessage.warning('危大工程异常不支持按误报处置')
+  }
   const disposalNote = form.disposalNote.trim()
   if (!disposalNote) return ElMessage.warning('请填写处置说明')
   await ElMessageBox.confirm('确认处置完成并关闭该预警？', '预警处置', {
@@ -106,7 +112,7 @@ function handleBack() {
       <el-form :model="form" label-width="86px" class="dispose-form">
         <el-form-item label="处置结果" required>
           <el-radio-group v-model="form.disposalResult">
-            <el-radio v-for="opt in DISPOSAL_RESULT_OPTIONS" :key="opt" :value="opt">{{ opt }}</el-radio>
+            <el-radio v-for="opt in disposalResultOptions" :key="opt" :value="opt">{{ opt }}</el-radio>
           </el-radio-group>
         </el-form-item>
         <el-form-item label="处置说明" required>

@@ -17,6 +17,15 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.11.1.3',
+    date: '2026-09-18',
+    highlights: [
+      '危大工程异常处置：不支持「误报」，单条/批量统一为「已处理」',
+      '角色权限：指挥部/项目角色开放危大工程管理菜单（Web/App）',
+      '危大清单：去掉指挥部看板下钻返回条；辨识驳回文案指向辨识列表',
+    ],
+  },
+  {
     version: 'v2.11.1.2',
     date: '2026-09-17',
     highlights: [

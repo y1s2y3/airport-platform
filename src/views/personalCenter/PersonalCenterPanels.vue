@@ -254,7 +254,12 @@ const batchDisposeContent = ref('')
 const batchDisposeFiles = ref([])
 const batchDisposeSubmitting = ref(false)
 
-const DISPOSAL_RESULT_OPTIONS = ['已处置', '误报']
+const batchIncludesMajorHazard = computed(() =>
+  warningSelection.value.some((row) => row.module === '危大工程管理'),
+)
+const batchDisposalResultOptions = computed(() =>
+  batchIncludesMajorHazard.value ? ['已处置'] : ['已处置', '误报'],
+)
 
 function openBatchDispose() {
   if (!warningSelection.value.length) return ElMessage.warning('请先勾选要处置的预警')
@@ -272,6 +277,9 @@ function openBatchDispose() {
 
 async function confirmBatchDispose() {
   if (!batchDisposeResult.value) return ElMessage.warning('请选择处置结果')
+  if (batchIncludesMajorHazard.value && batchDisposeResult.value === '误报') {
+    return ElMessage.warning('危大工程异常不支持按误报处置')
+  }
   const content = batchDisposeContent.value.trim()
   if (!content) return ElMessage.warning('请填写处置说明')
   await ElMessageBox.confirm('确认将所选「待处理」处置任务批量关闭为「已关闭」？', '批量处置预警', {
@@ -588,7 +596,7 @@ watch([activeTotal, pageSize], () => {
           <el-form-item label="处置结果" required>
             <el-radio-group v-model="batchDisposeResult">
               <el-radio
-                v-for="opt in DISPOSAL_RESULT_OPTIONS"
+                v-for="opt in batchDisposalResultOptions"
                 :key="opt"
                 :value="opt"
               >

@@ -2168,7 +2168,7 @@ export function batchDisposeWarningCenter(ids, { content, attachments = [], oper
     row.handler = operator
     row.time = now
     row.disposalResult =
-      row.module === '危大工程管理' ? (disposal_result === '误报' ? '误报' : '已处理') : disposal_result || '已处置'
+      row.module === '危大工程管理' ? '已处理' : disposal_result || '已处置'
     row.disposalNote = content || ''
     row.disposalAttachments = [...attachments]
     n += 1

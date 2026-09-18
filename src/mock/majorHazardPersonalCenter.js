@@ -71,10 +71,11 @@ export function syncMajorHazardWarningCenter(personalWarningCenterStore) {
 }
 
 /** 预警中心处置回写危大工程管理异常 */
-export function applyMajorHazardWarningDispose(row, { content = '', attachments = [], operator = '张明', disposal_result } = {}) {
+export function applyMajorHazardWarningDispose(row, { content = '', attachments = [], operator = '张明' } = {}) {
   if (row?.module !== '危大工程管理' || !row.majorHazardProjectId || !row.majorHazardAlertId) return false
+  // 危大工程异常不支持「误报」，与备份口径一致，统一按「已处理」回写
   updateAlertStatus(row.majorHazardProjectId, row.majorHazardAlertId, '已处理', {
-    disposalResult: disposal_result === '误报' ? '误报' : '已处理',
+    disposalResult: '已处理',
     disposalNote: content || '',
     disposalAttachments: attachments,
     operator,
@@ -336,7 +337,7 @@ export function handleMajorHazardIdentificationTodo(
   todo.detail = {
     ...todo.detail,
     currentNode: '已办结',
-    summary: approved ? '审批通过，已同步纳入危大工程清单。' : `审批已驳回：${opinion || '请修改后重新提交。'}`,
+    summary: approved ? '审批通过，已同步纳入危大工程清单。' : `审批已驳回：${opinion || '请到「危大辨识」列表修改后重新提交。'}`,
   }
   saveIdentification(todo.majorHazardProjectId, {
     ...identification,
@@ -360,7 +361,7 @@ export function handleMajorHazardIdentificationTodo(
         currentNode: '已办结',
         summary: approved
           ? '审批通过，已同步纳入危大工程清单。'
-          : `审批已驳回：${opinion || '请修改后重新提交。'}`,
+          : `审批已驳回：${opinion || '请到「危大辨识」列表修改后重新提交。'}`,
       },
       approvalFlow: approvalFlow.map((item) => ({ ...item })),
     })
