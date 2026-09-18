@@ -293,6 +293,32 @@ export const menuTree = [
     ],
   },
 
+  /** 流程管理（仅指挥部；页面为正式工程入口说明） */
+  {
+    key: 'flow-manage', label: '流程管理', icon: 'Guide', levels: 'hq',
+    children: [
+      { key: 'flow-category', label: '流程分类', icon: 'CollectionTag', path: '/flow/category', name: 'FlowCategory', component: 'OfficialBizPlaceholderView', levels: 'hq' },
+      { key: 'flow-config', label: '流程配置', icon: 'SetUp', path: '/flow/config', name: 'FlowConfig', component: 'OfficialBizPlaceholderView', levels: 'hq' },
+      { key: 'flow-definition', label: '流程定义', icon: 'Document', path: '/flow/definition', name: 'FlowDefinition', component: 'OfficialBizPlaceholderView', levels: 'hq' },
+    ],
+  },
+
+  /** 系统设置（仅指挥部；页面为正式工程入口说明） */
+  {
+    key: 'sys-config', label: '系统设置', icon: 'Setting', levels: 'hq',
+    children: [
+      { key: 'sys-api-permission', label: 'API权限', icon: 'Lock', path: '/sys-config/api-permission', name: 'SysApiPermission', component: 'OfficialBizPlaceholderView', levels: 'hq' },
+      {
+        key: 'sys-menu-group', label: '菜单管理', icon: 'Menu', levels: 'hq',
+        children: [
+          { key: 'sys-web-menu', label: 'web菜单', icon: 'Monitor', path: '/sys-config/menu/web', name: 'SysWebMenu', component: 'OfficialBizPlaceholderView', levels: 'hq' },
+          { key: 'sys-app-menu', label: 'App菜单', icon: 'Cellphone', path: '/sys-config/menu/app', name: 'SysAppMenu', component: 'OfficialBizPlaceholderView', levels: 'hq' },
+        ],
+      },
+      { key: 'sys-dict', label: '数据字典', icon: 'Notebook', path: '/sys-config/dict', name: 'SysDict', component: 'OfficialBizPlaceholderView', levels: 'hq' },
+    ],
+  },
+
   /** 日志管理（仅指挥部） */
   {
     key: 'sys-log', label: '日志管理', icon: 'DocumentCopy', levels: 'hq',
@@ -682,6 +708,7 @@ export const viewLoaders = {
   RoleManageFormView: () => import('../views/settings/RoleManageFormView.vue'),
   PositionManageView: () => import('../views/settings/PositionManageView.vue'),
   MenuManageView: () => import('../views/settings/MenuManageView.vue'),
+  OfficialBizPlaceholderView: () => import('../views/settings/OfficialBizPlaceholderView.vue'),
   SystemLogView: () => import('../views/logs/SystemLogView.vue'),
   LoginLogView: () => import('../views/logs/LoginLogView.vue'),
   OperationLogView: () => import('../views/logs/OperationLogView.vue'),

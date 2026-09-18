@@ -17,6 +17,15 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.11.1.8',
+    date: '2026-09-18',
+    highlights: [
+      '指挥部新增「流程管理」：流程分类、流程配置、流程定义',
+      '指挥部新增「系统设置」：API权限、web/App 菜单、数据字典',
+      '上述入口页仅展示「具体业务见正式工程」',
+    ],
+  },
+  {
     version: 'v2.11.1.7',
     date: '2026-09-18',
     highlights: [
