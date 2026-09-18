@@ -83,7 +83,9 @@ import {
   Wallet,
   Warning,
 } from '@element-plus/icons-vue'
-import { isTextMenuIcon, resolveMenuIconName, textMenuIconLabel } from '../utils/menuIcon.js'
+import { resolveMenuIconName } from '../utils/menuIcon.js'
+import AiScreenIcon from '../components/icons/AiScreenIcon.vue'
+import SafetyScreenIcon from '../components/icons/SafetyScreenIcon.vue'
 
 const props = defineProps({
   item: { type: Object, required: true },
@@ -174,10 +176,11 @@ const icons = {
   View,
   Wallet,
   Warning,
+  AI: AiScreenIcon,
+  Safety: SafetyScreenIcon,
 }
 
 function iconComponent(name) {
-  if (isTextMenuIcon(name)) return null
   return icons[resolveMenuIconName(name)] || icons[name] || null
 }
 
@@ -189,8 +192,7 @@ function onSelect(path) {
 <template>
   <el-sub-menu v-if="item.children && item.children.length" :index="item.key">
     <template #title>
-      <span v-if="isTextMenuIcon(item.icon)" class="menu-text-icon" aria-hidden="true">{{ textMenuIconLabel(item.icon) }}</span>
-      <el-icon v-else-if="item.icon"><component :is="iconComponent(item.icon)" /></el-icon>
+      <el-icon v-if="item.icon"><component :is="iconComponent(item.icon)" /></el-icon>
       <span>{{ item.label }}</span>
     </template>
     <SidebarMenuNode
@@ -202,26 +204,7 @@ function onSelect(path) {
     />
   </el-sub-menu>
   <el-menu-item v-else :index="item.path">
-    <span v-if="isTextMenuIcon(item.icon)" class="menu-text-icon" aria-hidden="true">{{ textMenuIconLabel(item.icon) }}</span>
-    <el-icon v-else-if="item.icon"><component :is="iconComponent(item.icon)" /></el-icon>
+    <el-icon v-if="item.icon"><component :is="iconComponent(item.icon)" /></el-icon>
     <template #title>{{ item.label }}</template>
   </el-menu-item>
 </template>
-
-<style scoped>
-.menu-text-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1em;
-  min-width: 1em;
-  height: 1em;
-  margin-right: 5px;
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: -0.04em;
-  color: inherit;
-  flex-shrink: 0;
-}
-</style>

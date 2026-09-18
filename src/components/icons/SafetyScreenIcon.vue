@@ -1,20 +1,24 @@
 <template>
-  <!-- 与 Element Plus Monitor / AiScreenIcon 同坐标系：viewBox 1024，线框约 64 -->
+  <!-- 与 Element Plus Monitor 同坐标系/线宽：viewBox 1024，填充线框约 64 -->
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" aria-hidden="true">
+    <!-- 屏幕外框 + 底座（对齐 Monitor） -->
     <path
       fill="currentColor"
       d="M544 768v128h192a32 32 0 1 1 0 64H288a32 32 0 1 1 0-64h192V768H192A128 128 0 0 1 64 640V256a128 128 0 0 1 128-128h640a128 128 0 0 1 128 128v384a128 128 0 0 1-128 128zM192 192a64 64 0 0 0-64 64v384a64 64 0 0 0 64 64h640a64 64 0 0 0 64-64V256a64 64 0 0 0-64-64z"
     />
-    <text
-      x="512"
-      y="470"
-      text-anchor="middle"
-      dominant-baseline="middle"
+    <!-- 护盾（空心，线宽约 56） -->
+    <path
       fill="currentColor"
-      font-size="280"
-      font-weight="700"
-      font-style="normal"
-      font-family="system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif"
-    >安</text>
+      fill-rule="evenodd"
+      d="M512 252c-68 0-128 20-168 40v188c0 108 76 188 168 228 92-40 168-120 168-228V292c-40-20-100-40-168-40zm0 64c44 0 88 12 120 28v156c0 68-48 122-120 152-72-30-120-84-120-152V344c32-16 76-28 120-28z"
+    />
+    <!-- 倾斜轨道（屏幕内） -->
+    <g transform="rotate(-28 512 455)">
+      <path
+        fill="currentColor"
+        fill-rule="evenodd"
+        d="M512 348c152 0 276 50 276 112s-124 112-276 112-276-50-276-112 124-112 276-112zm0 52c-124 0-224 32-224 60s100 60 224 60 224-32 224-60-100-60-224-60z"
+      />
+    </g>
   </svg>
 </template>

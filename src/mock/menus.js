@@ -47,6 +47,7 @@ export const moduleNameOptions = [
 
 export const menuIconOptions = [
   'AI',
+  'Safety',
   'AlarmClock',
   'Bell',
   'Bottom',

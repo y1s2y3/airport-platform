@@ -17,6 +17,14 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.11.1.7',
+    date: '2026-09-18',
+    highlights: [
+      '安全看板：恢复自定义屏内护盾图标（Safety）',
+      'AI 预警统计看板：侧栏挂载屏内 AI 图标组件（非纯文字）',
+    ],
+  },
+  {
     version: 'v2.11.1.6',
     date: '2026-09-18',
     highlights: [

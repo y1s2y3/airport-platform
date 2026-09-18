@@ -40,7 +40,7 @@ export const menuTree = [
 
   /** 指挥部 · 安全看板 */
   {
-    key: 'safety-board', label: '安全看板', icon: 'View', levels: 'hq',
+    key: 'safety-board', label: '安全看板', icon: 'Safety', levels: 'hq',
     children: [
       { key: 'safety-dashboard', label: '巡检看板', icon: 'DataAnalysis', path: '/safety-inspection/dashboard', name: 'SafetyDashboard', component: 'SafetyDashboardView', levels: 'hq' },
       { key: 'video-monitor-stats', label: '视频监控统计', icon: 'DataAnalysis', path: '/video-monitor/stats', name: 'VideoMonitorStats', component: 'VideoMonitorStatsView', routeComponent: 'VideoMonitorPageView', levels: 'hq', description: '指挥部级视频监控统计。' },
@@ -50,7 +50,7 @@ export const menuTree = [
     ],
   },
 
-  /** 指挥部 · AI 预警统计看板（图标为文字 AI） */
+  /** 指挥部 · AI 预警统计看板（自定义屏内 AI 图标） */
   { key: 'ai-alert-dashboard', label: 'AI 预警统计看板', icon: 'AI', path: '/ai-alert-dashboard', name: 'AiAlertDashboard', component: 'AiDashboardView', levels: 'hq' },
 
   /** 指挥部 · 质量看板 */
