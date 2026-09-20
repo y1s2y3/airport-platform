@@ -48,12 +48,27 @@ const receiverSummary = computed(() => {
 const selectDialogVisible = ref(false)
 const selecting = reactive({})         // { categoryId: [itemId, ...] }
 const selTreeActive = ref('')          // 左侧树当前选中分类
+const selectInspectionCategory = ref('安全')
+const displayInspectionCategory = ref('安全')
 const activeSelectingItems = computed(() => {
   if (!selTreeActive.value) return []
   return selecting[selTreeActive.value] || []
 })
 const categoryCheckTree = computed(() =>
-  checkCategoryTree.filter(category => form.inspectionCategories.includes(category.inspectionCategory))
+  checkCategoryTree.filter(category => category.inspectionCategory === selectInspectionCategory.value)
+)
+const selectedCheckTabs = computed(() => form.inspectionCategories.map((category) => {
+  const configs = form.checkConfig.filter((config) =>
+    checkCategoryTree.find((item) => item.id === config.categoryId)?.inspectionCategory === category,
+  )
+  return {
+    category,
+    configs,
+    itemCount: configs.reduce((total, config) => total + config.itemIds.length, 0),
+  }
+}))
+const activeDisplayConfigs = computed(() =>
+  selectedCheckTabs.value.find((tab) => tab.category === displayInspectionCategory.value)?.configs || [],
 )
 
 const majorHazardOptions = computed(() => {
@@ -71,7 +86,22 @@ watch(() => [...form.inspectionCategories], (categories) => {
   Object.keys(selecting).forEach(key => {
     if (!available.has(key)) delete selecting[key]
   })
+  if (!categories.includes(selectInspectionCategory.value)) selectInspectionCategory.value = categories[0] || ''
+  if (!categories.includes(displayInspectionCategory.value)) displayInspectionCategory.value = categories[0] || ''
 }, { flush: 'sync' })
+
+watch(displayInspectionCategory, (category) => {
+  const configs = selectedCheckTabs.value.find((tab) => tab.category === category)?.configs || []
+  if (!configs.some((config) => config.categoryId === displayTreeCat.value)) {
+    displayTreeCat.value = configs[0]?.categoryId || ''
+  }
+})
+
+watch(selectInspectionCategory, (category) => {
+  if (!categoryCheckTree.value.some((item) => item.id === selTreeActive.value)) {
+    selTreeActive.value = categoryCheckTree.value[0]?.id || ''
+  }
+})
 
 watch(() => [...form.projectIds], () => {
   const selected = majorHazardOptions.value.some(item => item.id === form.majorHazardLedgerId)
@@ -101,6 +131,7 @@ function openSelectDialog() {
   for (const c of form.checkConfig) keys[c.categoryId] = [...c.itemIds]
   Object.keys(selecting).forEach(k => delete selecting[k])
   for (const [catId, itemIds] of Object.entries(keys)) selecting[catId] = itemIds
+  selectInspectionCategory.value = form.inspectionCategories[0] || ''
   selTreeActive.value = categoryCheckTree.value[0]?.id || ''
   selectDialogVisible.value = true
 }
@@ -142,7 +173,9 @@ function confirmSelection() {
   selectDialogVisible.value = false
   selTreeActive.value = ''
   if (form.checkConfig.length > 0) {
-    displayTreeCat.value = form.checkConfig[0].categoryId
+    const firstConfiguredTab = selectedCheckTabs.value.find((tab) => tab.configs.length > 0)
+    displayInspectionCategory.value = firstConfiguredTab?.category || form.inspectionCategories[0] || ''
+    displayTreeCat.value = firstConfiguredTab?.configs[0]?.categoryId || ''
     const total = form.checkConfig.reduce((s, c) => s + c.itemIds.length, 0)
     ElMessage.success(`已选择 ${form.checkConfig.length} 个分类，共 ${total} 个检查项`)
   }
@@ -159,7 +192,7 @@ function removeConfig(index) {
 const displayTreeCat = ref('')
 const displayItems = computed(() => {
   if (!displayTreeCat.value) return []
-  const cfg = form.checkConfig.find(c => c.categoryId === displayTreeCat.value)
+  const cfg = activeDisplayConfigs.value.find(c => c.categoryId === displayTreeCat.value)
   if (!cfg) return []
   return cfg.itemIds.map(id => ({ id, label: getItemLabel(cfg.categoryId, id) }))
 })
@@ -208,6 +241,13 @@ function handleSave() {
     return
   }
   if (form.checkConfig.length === 0) { ElMessage.warning('请配置检查内容'); return }
+  const categoryWithoutItems = form.inspectionCategories.find((category) => !form.checkConfig.some((config) =>
+    checkCategoryTree.find((item) => item.id === config.categoryId)?.inspectionCategory === category && config.itemIds.length > 0,
+  ))
+  if (categoryWithoutItems) {
+    ElMessage.warning(`请在“${categoryWithoutItems}”页签至少选择一项检查项`)
+    return
+  }
   if (!form.deadlineDate) { ElMessage.warning('请选择截止日期'); return }
 
   const selectedProjects = projectOptions.filter(p => form.projectIds.includes(p.id))
@@ -318,32 +358,44 @@ function handleCancel() { router.push('/safety-inspection/plan') }
             {{ form.checkConfig.length ? `已选择 ${form.checkConfig.length} 个分类，共 ${totalCheckItems} 个检查项` : '还未选择检查项' }}
           </span>
         </div>
-        <!-- 已选检查项：左树右项回显 -->
+        <!-- 已选检查项：先按安全/质量页签区分，再展示具体检查分类 -->
         <div v-if="form.checkConfig.length > 0" class="result-tree-layout">
-          <div class="result-tree-left">
-            <div
-              v-for="cfg in form.checkConfig"
-              :key="cfg.categoryId"
-              class="result-tree-cat"
-              :class="{ active: displayTreeCat === cfg.categoryId }"
-              @click="displayTreeCat = cfg.categoryId"
+          <el-tabs v-model="displayInspectionCategory" class="inspection-type-tabs result-type-tabs">
+            <el-tab-pane
+              v-for="tab in selectedCheckTabs"
+              :key="tab.category"
+              :name="tab.category"
+              :label="`${tab.category}（${tab.itemCount}项）`"
             >
-              <el-tag size="small" :type="displayTreeCat === cfg.categoryId ? 'primary' : 'info'" effect="plain">
-                {{ getCategoryLabel(cfg.categoryId) }}
-              </el-tag>
-              <span class="result-tree-cat-count">{{ cfg.itemIds.length }} 项</span>
-              <el-button text type="danger" size="small" @click.stop="removeConfig(form.checkConfig.indexOf(cfg))">移除</el-button>
-            </div>
-          </div>
-          <div class="result-tree-right">
-            <div v-if="displayItems.length > 0" class="result-tree-items">
-              <div v-for="(item, i) in displayItems" :key="item.id" class="result-tree-item">
-                <span class="ri-num">{{ i + 1 }}.</span>
-                <span class="ri-text">{{ item.label }}</span>
+              <div v-if="tab.configs.length" class="result-tree-content">
+                <div class="result-tree-left">
+                  <div
+                    v-for="cfg in tab.configs"
+                    :key="cfg.categoryId"
+                    class="result-tree-cat"
+                    :class="{ active: displayTreeCat === cfg.categoryId }"
+                    @click="displayTreeCat = cfg.categoryId"
+                  >
+                    <el-tag size="small" :type="displayTreeCat === cfg.categoryId ? 'primary' : 'info'" effect="plain">
+                      {{ getCategoryLabel(cfg.categoryId) }}
+                    </el-tag>
+                    <span class="result-tree-cat-count">{{ cfg.itemIds.length }} 项</span>
+                    <el-button text type="danger" size="small" @click.stop="removeConfig(form.checkConfig.indexOf(cfg))">移除</el-button>
+                  </div>
+                </div>
+                <div class="result-tree-right">
+                  <div v-if="displayItems.length > 0" class="result-tree-items">
+                    <div v-for="(item, i) in displayItems" :key="item.id" class="result-tree-item">
+                      <span class="ri-num">{{ i + 1 }}.</span>
+                      <span class="ri-text">{{ item.label }}</span>
+                    </div>
+                  </div>
+                  <div v-else class="result-tree-empty">请从左侧选择一个检查分类</div>
+                </div>
               </div>
-            </div>
-            <div v-else class="result-tree-empty">请从左侧选择一个分类</div>
-          </div>
+              <div v-else class="result-tree-empty empty-tab">该分类尚未选择检查项</div>
+            </el-tab-pane>
+          </el-tabs>
         </div>
       </el-form-item>
 
@@ -358,56 +410,65 @@ function handleCancel() { router.push('/safety-inspection/plan') }
       <el-button type="primary" size="large" @click="handleSave">{{ isEdit ? '保存修改' : '创建并下发' }}</el-button>
     </div>
 
-    <!-- ===== 检查项选择对话框（左树右项） ===== -->
+    <!-- ===== 检查项选择对话框：安全 / 质量页签 + 分类树 ===== -->
     <el-dialog v-model="selectDialogVisible" title="选择检查项" width="760px" destroy-on-close top="5vh">
-      <div class="sel-dialog-body">
-        <div class="sel-dialog-left">
-          <div class="sel-left-title">检查分类</div>
-          <div class="sel-left-list">
-            <div
-              v-for="cat in categoryCheckTree"
-              :key="cat.id"
-              class="sel-left-cat"
-              :class="{ active: selTreeActive === cat.id }"
-              @click="onSelTreeClick(cat)"
-            >
-              <el-checkbox
-                :model-value="isCatSelAll(cat.id)"
-                :indeterminate="isCatSelInd(cat.id)"
-                @change="(v) => toggleSelCatAll(cat.id, v)"
-                @click.stop
-              >
-                <span class="sel-cat-label">{{ cat.label }}</span>
-              </el-checkbox>
-              <span class="sel-cat-count">{{ selecting[cat.id]?.length || 0 }}/{{ cat.items.length }}</span>
+      <el-tabs v-model="selectInspectionCategory" class="inspection-type-tabs">
+        <el-tab-pane
+          v-for="category in form.inspectionCategories"
+          :key="category"
+          :name="category"
+          :label="`${category}检查项`"
+        >
+          <div class="sel-dialog-body">
+            <div class="sel-dialog-left">
+              <div class="sel-left-title">{{ selectInspectionCategory }}检查分类</div>
+              <div class="sel-left-list">
+                <div
+                  v-for="cat in categoryCheckTree"
+                  :key="cat.id"
+                  class="sel-left-cat"
+                  :class="{ active: selTreeActive === cat.id }"
+                  @click="onSelTreeClick(cat)"
+                >
+                  <el-checkbox
+                    :model-value="isCatSelAll(cat.id)"
+                    :indeterminate="isCatSelInd(cat.id)"
+                    @change="(v) => toggleSelCatAll(cat.id, v)"
+                    @click.stop
+                  >
+                    <span class="sel-cat-label">{{ cat.label }}</span>
+                  </el-checkbox>
+                  <span class="sel-cat-count">{{ selecting[cat.id]?.length || 0 }}/{{ cat.items.length }}</span>
+                </div>
+              </div>
+            </div>
+            <div class="sel-dialog-right">
+              <div class="sel-right-title">
+                {{ selTreeActive ? (categoryCheckTree.find(c=>c.id===selTreeActive)?.label || '') + ' 检查项' : `请选择${selectInspectionCategory}检查分类` }}
+              </div>
+              <div v-if="selTreeActive" class="sel-right-list">
+                <div
+                  v-for="item in (categoryCheckTree.find(c=>c.id===selTreeActive)?.items || [])"
+                  :key="item.id"
+                  class="sel-right-item"
+                >
+                  <el-checkbox
+                    :model-value="selecting[selTreeActive]?.includes(item.id) || false"
+                    @change="(v) => toggleSelCatItem(item.id, v)"
+                  >
+                    {{ item.label }}
+                  </el-checkbox>
+                </div>
+                <div v-if="!(categoryCheckTree.find(c=>c.id===selTreeActive)?.items?.length)" class="sel-right-empty">该分类下暂无检查项</div>
+              </div>
+              <div v-else class="sel-right-placeholder">
+                <el-icon :size="40" color="#d9d9d9"><FolderOpened /></el-icon>
+                <p>请在左侧选择一个检查分类</p>
+              </div>
             </div>
           </div>
-        </div>
-        <div class="sel-dialog-right">
-          <div class="sel-right-title">
-            {{ selTreeActive ? (categoryCheckTree.find(c=>c.id===selTreeActive)?.label || '') + ' 检查项' : '请选择分类' }}
-          </div>
-          <div v-if="selTreeActive" class="sel-right-list">
-            <div
-              v-for="item in (categoryCheckTree.find(c=>c.id===selTreeActive)?.items || [])"
-              :key="item.id"
-              class="sel-right-item"
-            >
-              <el-checkbox
-                :model-value="selecting[selTreeActive]?.includes(item.id) || false"
-                @change="(v) => toggleSelCatItem(item.id, v)"
-              >
-                {{ item.label }}
-              </el-checkbox>
-            </div>
-            <div v-if="!(categoryCheckTree.find(c=>c.id===selTreeActive)?.items?.length)" class="sel-right-empty">该分类下暂无检查项</div>
-          </div>
-          <div v-else class="sel-right-placeholder">
-            <el-icon :size="40" color="#d9d9d9"><FolderOpened /></el-icon>
-            <p>请在左侧选择一个分类</p>
-          </div>
-        </div>
-      </div>
+        </el-tab-pane>
+      </el-tabs>
       <template #footer>
         <el-button @click="selectDialogVisible = false">取消</el-button>
         <el-button type="primary" @click="confirmSelection">确定选择</el-button>
@@ -432,7 +493,12 @@ function handleCancel() { router.push('/safety-inspection/plan') }
 /* ===== 检查内容回显：左树右项 ===== */
 .check-config-area { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
 .config-hint { font-size: 12px; color: var(--ap-text-muted); }
-.result-tree-layout { display: flex; border: 1px solid var(--ap-border); border-radius: 6px; overflow: hidden; margin-top: 10px; }
+.result-tree-layout { border: 1px solid var(--ap-border); border-radius: 6px; overflow: hidden; margin-top: 10px; }
+.inspection-type-tabs { width: 100%; }
+.result-tree-content { display: flex; }
+.result-type-tabs :deep(.el-tabs__header) { margin: 0; padding: 0 12px; background: #fafafa; border-bottom: 1px solid var(--ap-border); }
+.result-type-tabs :deep(.el-tabs__content) { min-height: 120px; }
+.empty-tab { padding: 18px; }
 .result-tree-left { width: 200px; flex-shrink: 0; border-right: 1px solid var(--ap-border); background: #fafafa; padding: 6px 0; overflow-y: auto; max-height: 300px; }
 .result-tree-cat { display: flex; align-items: center; gap: 6px; padding: 8px 12px; cursor: pointer; font-size: 13px; }
 .result-tree-cat:hover { background: var(--ap-primary-muted); }

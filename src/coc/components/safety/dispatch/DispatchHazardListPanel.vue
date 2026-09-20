@@ -29,6 +29,8 @@ watch(() => props.projectId, reloadHazardList)
 const hazardStatusFilter = ref('待整改')
 const hazardDateRange = ref(null)
 const hazardKeyword = ref('')
+const hazardSourceFilter = ref('')
+const hazardLevelFilter = ref('')
 const hazardMoreOpen = ref(false)
 const detailView = ref(null)
 
@@ -38,6 +40,14 @@ const hazardStatusOptions = [
   { label: '待复查/验收', value: '待复查/验收' },
   { label: '已关闭', value: '已关闭' },
 ]
+
+const hazardSourceOptions = [
+  { label: '巡检', value: 'inspection' },
+  { label: '监理例会', value: 'supervision' },
+  { label: '调度', value: 'dispatch' },
+]
+
+const hazardLevelOptions = ['重大', '较大', '一般']
 
 const HAZARD_LEVEL_ORDER = { 重大: 0, 较大: 1, 一般: 2 }
 
@@ -62,6 +72,12 @@ function matchHazardDateRange(row, range) {
 
 const popupFilteredHazardList = computed(() => {
   let list = filteredHazardList.value
+  if (hazardSourceFilter.value) {
+    list = list.filter((row) => (row.channel || row.source) === hazardSourceFilter.value)
+  }
+  if (hazardLevelFilter.value) {
+    list = list.filter((row) => row.level === hazardLevelFilter.value)
+  }
   if (hazardDateRange.value?.[0]) {
     list = list.filter((row) => matchHazardDateRange(row, hazardDateRange.value))
   }
@@ -71,16 +87,12 @@ const popupFilteredHazardList = computed(() => {
     const blob = [
       row.hazardCategory,
       row.desc,
-      row.level,
       row.status,
       row.unifiedStatus,
       row.date,
       row.id,
       row.detail?.ticketType,
       row.ticketType,
-      CHANNEL_LABEL[row.channel] || '',
-      row.channel === 'dispatch' ? '调度隐患' : '',
-      row.channel === 'supervision' ? '监理例会' : '',
     ]
       .filter(Boolean)
       .join(' ')
@@ -94,6 +106,8 @@ const previewList = computed(() => filteredHazardList.value.slice(0, 8))
 function openHazardMore() {
   hazardKeyword.value = ''
   hazardDateRange.value = null
+  hazardSourceFilter.value = ''
+  hazardLevelFilter.value = ''
   hazardMoreOpen.value = true
 }
 
@@ -237,8 +251,33 @@ function closeDetail() {
             clearable
             size="small"
             class="more-search"
-            placeholder="搜索描述/数据源/类别/等级"
+            placeholder="搜索描述/类别"
           />
+          <el-select
+            v-model="hazardSourceFilter"
+            clearable
+            size="small"
+            class="more-filter hazard-source-select"
+            placeholder="数据源"
+            aria-label="数据源"
+          >
+            <el-option
+              v-for="opt in hazardSourceOptions"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+            />
+          </el-select>
+          <el-select
+            v-model="hazardLevelFilter"
+            clearable
+            size="small"
+            class="more-filter hazard-level-select"
+            placeholder="隐患等级"
+            aria-label="隐患等级"
+          >
+            <el-option v-for="lv in hazardLevelOptions" :key="lv" :label="lv" :value="lv" />
+          </el-select>
           <el-date-picker
             v-model="hazardDateRange"
             type="daterange"
@@ -535,5 +574,13 @@ function closeDetail() {
 
 .more-filter {
   width: 108px;
+}
+
+.hazard-source-select {
+  width: 120px;
+}
+
+.hazard-level-select {
+  width: 128px;
 }
 </style>

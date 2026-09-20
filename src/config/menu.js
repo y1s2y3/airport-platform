@@ -43,6 +43,7 @@ export const menuTree = [
     key: 'safety-board', label: '安全看板', icon: 'Safety', levels: 'hq',
     children: [
       { key: 'safety-dashboard', label: '巡检看板', icon: 'DataAnalysis', path: '/safety-inspection/dashboard', name: 'SafetyDashboard', component: 'SafetyDashboardView', levels: 'hq' },
+      { key: 'major-hazard-dashboard', label: '危大工程看板', icon: 'DataAnalysis', path: '/major-hazard/dashboard', name: 'MajorHazardDashboard', component: 'HazardDashboardView', levels: 'hq', description: '指挥部汇总各项目危大辨识、在施管控、异常跟踪与过程完成情况。' },
       { key: 'video-monitor-stats', label: '视频监控统计', icon: 'DataAnalysis', path: '/video-monitor/stats', name: 'VideoMonitorStats', component: 'VideoMonitorStatsView', routeComponent: 'VideoMonitorPageView', levels: 'hq', description: '指挥部级视频监控统计。' },
       { key: 'machine-entry-manage', label: '机械设备台账', icon: 'SuitcaseLine', path: '/hq/machine-supervise/ledger', name: 'MachineEntryManageHq', component: 'MachineryLedgerView', levels: 'hq' },
       { key: 'alert-record', label: '机械设备预警', icon: 'Bell', path: '/hq/machine-supervise/alert-record', name: 'AlertRecordHq', component: 'AlertRecordView', levels: 'hq' },
@@ -634,6 +635,7 @@ export const viewLoaders = {
   HazardListFormView: () => import('../views/majorHazard/HazardListFormView.vue'),
   HazardCalendarView: () => import('../views/majorHazard/HazardCalendarView.vue'),
   HazardAlertListView: () => import('../views/majorHazard/HazardAlertListView.vue'),
+  HazardDashboardView: () => import('../views/majorHazard/HazardDashboardView.vue'),
 
   VehicleDashboardView: () => import('../views/vehicle/VehicleDashboardView.vue'),
   VehicleAccessView: () => import('../views/vehicle/VehicleAccessView.vue'),

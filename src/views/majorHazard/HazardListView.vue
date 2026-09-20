@@ -214,19 +214,19 @@ watch(projectId, load, { immediate: true })
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="危大工程类别" width="155">
+        <el-table-column label="危大工程类别" min-width="155">
           <template #default="{ row }">
             <div class="category-cell"><div class="hazard-main-text" :title="row.categoryName">{{ row.categoryName || '—' }}</div><el-tag v-if="row.isSuperMajor === '是'" size="small" type="danger" effect="plain">超危</el-tag></div>
             <div class="hazard-sub-text two-line" :title="row.description">{{ row.description || '—' }}</div>
           </template>
         </el-table-column>
-        <el-table-column label="危大工程名称" width="170">
+        <el-table-column label="危大工程名称" min-width="170">
           <template #default="{ row }">
             <div class="hazard-main-text" :title="row.name">{{ row.name || '—' }}</div>
             <div class="hazard-sub-text">{{ row.source?.identifiedBy || row.identifiedBy || '—' }}识别于：{{ row.source?.identifiedAt || row.identifiedAt || '—' }}</div>
           </template>
         </el-table-column>
-        <el-table-column label="施工部位" width="195">
+        <el-table-column label="施工部位" min-width="195">
           <template #default="{ row }">
             <div class="part-cell">
               <button v-if="row.parts?.length" type="button" class="part-expand-toggle" :class="{ expanded: isPartExpanded(row) }" :title="isPartExpanded(row) ? '收起施工部位' : '展开施工部位'" @click.stop="togglePartExpand(row)"><el-icon><ArrowRight /></el-icon></button>
@@ -236,7 +236,7 @@ watch(projectId, load, { immediate: true })
         </el-table-column>
         <el-table-column label="计划时间" width="105"><template #default="{ row }"><div class="time-cell"><span>{{ row.source?.plannedStart || '—' }}</span><small>至</small><span>{{ row.source?.plannedEnd || '—' }}</span></div></template></el-table-column>
         <el-table-column label="施工时间" width="105"><template #default="{ row }"><div class="time-cell"><span>{{ partStart(row) }}</span><small>至</small><span>{{ partEnd(row) }}</span></div></template></el-table-column>
-        <el-table-column prop="subcontractor" label="分包单位" width="135"><template #default="{ row }"><div class="unit-cell"><span>{{ row.subcontractor || '—' }}</span><small>责任人：{{ row.responsible || '—' }}</small></div></template></el-table-column>
+        <el-table-column prop="subcontractor" label="分包单位" min-width="135"><template #default="{ row }"><div class="unit-cell"><span>{{ row.subcontractor || '—' }}</span><small>责任人：{{ row.responsible || '—' }}</small></div></template></el-table-column>
         <el-table-column label="施工进度" width="105"><template #default="{ row }"><div class="progress-cell"><div><span>{{ progressText(row) }}</span><b>{{ progressPercent(row) }}%</b></div><el-progress :percentage="progressPercent(row)" :show-text="false" :stroke-width="6" /></div></template></el-table-column>
         <el-table-column label="安全状态" width="100"><template #default="{ row }"><button class="control-rate" type="button" @click="openControlPoints(row)"><strong>{{ implementedPointCount(row) }}/{{ totalPointCount(row) }}</strong><small>管控要点</small></button></template></el-table-column>
         <el-table-column label="施工情况" width="78"><template #default="{ row }"><el-tag size="small" :type="tagType(state(row))">{{ state(row) }}</el-tag></template></el-table-column>
@@ -283,7 +283,7 @@ watch(projectId, load, { immediate: true })
 .panel-head{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:14px}
 .panel-head h2{margin:0 0 5px;color:#273142;font-size:16px;font-weight:650}.panel-head p{margin:0;color:#98a2b3;font-size:12px}
 .legend{display:flex;align-items:center;gap:16px;color:#667085;font-size:12px}.legend span{display:flex;align-items:center;gap:6px}.dot{width:7px;height:7px;border-radius:50%}.ongoing-dot{background:#2563eb}.pending-dot{background:#94a3b8}.completed-dot{background:#16a34a}
-.ledger-table{overflow:hidden;border-radius:7px}
+.ledger-table{width:100%;overflow:hidden;border-radius:7px}
 .ledger-table :deep(.el-table__header th){height:46px;background:#f1f3f6!important;color:#475467;font-size:13px;font-weight:600}
 .ledger-table :deep(.el-table__row td){padding-top:12px;padding-bottom:12px}.ledger-table :deep(.el-table__row:hover>td){background:#faf7f9!important}
 .category-cell{display:flex;align-items:center;gap:7px;min-width:0}.hazard-main-text{overflow:hidden;color:#273142;font-weight:600;text-overflow:ellipsis;white-space:nowrap}

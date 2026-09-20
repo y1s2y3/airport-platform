@@ -3122,7 +3122,7 @@ export function createEngineeringWorkSupervisorTodo(payload) {
 
 let riskControlTodoSeq = 80
 
-function removeOpenRiskControlTodos(controlId) {
+export function removeOpenRiskControlTodos(controlId) {
   for (let i = personalTodoStore.todos.length - 1; i >= 0; i -= 1) {
     const t = personalTodoStore.todos[i]
     if (t.type !== 'risk_control') continue
@@ -3139,7 +3139,7 @@ export function createRiskControlSupervisorTodo(payload) {
     id: `todo-risk-${riskControlTodoSeq}`,
     type: 'risk_control',
     sourceLabel: '风险管理',
-    category: '风险点管控',
+    category: '风险管控审批',
     bizType: '监理审批',
     riskControlId: payload.controlId,
     processName: `风险辨识·${payload.riskPoint || '风险点'}`,

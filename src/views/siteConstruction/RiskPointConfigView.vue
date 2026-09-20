@@ -1,6 +1,6 @@
 <script setup>
 /**
- * 风险点管控配置库（项目级）
+ * 风险配置库（项目级）
  * 风险类型从「风险类型配置」选择；本页维护风险点、细分和管控措施。
  */
 import { computed, reactive, ref, watch } from 'vue'
@@ -142,8 +142,8 @@ function handleDelete(row) {
   <div class="page page-card">
     <div class="page-head">
       <div>
-        <div class="page-breadcrumb">风险管理 / 风险点管控配置库</div>
-        <h3 class="page-title">风险点管控配置库</h3>
+        <div class="page-breadcrumb">风险管理 / 风险配置库</div>
+        <h3 class="page-title">风险配置库</h3>
         <p class="page-tip">维护本项目风险点、细分与管控措施；风险类型须先在「风险类型配置」中维护，再从此处选择。</p>
       </div>
       <span class="total-count">共 {{ tableData.length }} 条</span>

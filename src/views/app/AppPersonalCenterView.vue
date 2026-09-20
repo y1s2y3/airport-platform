@@ -25,7 +25,7 @@ const activeCenter = ref(CENTER_MSG)
 const activeTab = ref('todo')
 const keyword = ref('')
 const showFilter = ref(false)
-const nodeFilter = ref('')
+const moduleFilter = ref('')
 const warnTypeFilter = ref('')
 const warnStatusFilter = ref('')
 const selectedNoticeIds = ref([])
@@ -99,18 +99,23 @@ function resolveCurrentNode(item) {
   return '待办理'
 }
 
-const nodeOptions = computed(() => [
-  ...new Set(currentFlowSource.value.map((i) => resolveCurrentNode(i))),
+const moduleOptions = computed(() => [
+  ...new Set(
+    currentFlowSource.value
+      .map((i) => i.category || i.sourceLabel || '')
+      .filter(Boolean),
+  ),
 ])
 
 const flowMessages = computed(() => {
   const text = keyword.value.trim()
   return currentFlowSource.value.filter((item) => {
-    const currentNode = resolveCurrentNode(item)
-    if (nodeFilter.value && currentNode !== nodeFilter.value) return false
+    const moduleName = item.category || item.sourceLabel || ''
+    if (moduleFilter.value && moduleName !== moduleFilter.value) return false
     if (!text) return true
-    return [item.processName, currentNode, item.applicant, item.detail?.project].some((v) =>
-      String(v || '').includes(text),
+    const currentNode = resolveCurrentNode(item)
+    return [item.processName, moduleName, currentNode, item.applicant, item.detail?.project].some(
+      (v) => String(v || '').includes(text),
     )
   })
 })
@@ -140,7 +145,7 @@ function switchCenter(name) {
   selectedNoticeIds.value = []
   keyword.value = ''
   showFilter.value = false
-  nodeFilter.value = ''
+  moduleFilter.value = ''
   warnTypeFilter.value = ''
   warnStatusFilter.value = ''
 }
@@ -261,7 +266,7 @@ function handleMessage(item) {
       <section class="search-row">
         <div class="search-box">
           <span>⌕</span>
-          <input v-model="keyword" placeholder="搜索流程名称、申请人、当前节点" />
+          <input v-model="keyword" placeholder="搜索流程名称、申请人、所属模块" />
         </div>
         <button
           type="button"
@@ -273,10 +278,10 @@ function handleMessage(item) {
         </button>
       </section>
       <section v-if="showFilter" class="filter-panel">
-        <span>当前节点</span>
-        <select v-model="nodeFilter">
+        <span>所属模块</span>
+        <select v-model="moduleFilter">
           <option value="">全部</option>
-          <option v-for="node in nodeOptions" :key="node" :value="node">{{ node }}</option>
+          <option v-for="mod in moduleOptions" :key="mod" :value="mod">{{ mod }}</option>
         </select>
       </section>
 
@@ -298,6 +303,7 @@ function handleMessage(item) {
             <strong>{{ item.processName }}</strong>
             <span :class="['status-tag', statusTagClass(item)]">{{ resolveStatus(item) }}</span>
           </div>
+          <div class="message-field"><span>所属模块：</span><b>{{ item.category || item.sourceLabel || '—' }}</b></div>
           <div class="message-field"><span>当前节点：</span><b>{{ resolveCurrentNode(item) }}</b></div>
           <div class="message-field"><span>申请人：</span><b>{{ item.applicant || '—' }}</b></div>
           <div class="message-field"><span>所属项目：</span><b>{{ item.detail?.project || '—' }}</b></div>

@@ -2,6 +2,10 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { Close } from '@element-plus/icons-vue'
 
+/** 弹出层相对面板再抬高，且不低于 COC 全局基线 130000（EP 默认 ~2000） */
+const POPPER_Z_BASE = 130000
+const POPPER_Z_GAP = 100
+
 const props = defineProps({
   title: { type: String, required: true },
   width: { type: Number, default: 680 },
@@ -26,6 +30,7 @@ const x = ref(0)
 const y = ref(0)
 const panelWidth = ref(props.width)
 const panelMaxHeight = ref('min(94vh, 1440px)')
+const popperZIndex = computed(() => Math.max(props.zIndex + POPPER_Z_GAP, POPPER_Z_BASE))
 let dragging = false
 let dragStart = null
 
@@ -147,7 +152,10 @@ function onPointerUp() {
           </button>
         </div>
         <div class="drag-panel-body">
-          <slot />
+          <!-- 面板内 select/date-picker 的弹出层须高于本面板（含嵌套详情 120030） -->
+          <el-config-provider :z-index="popperZIndex">
+            <slot />
+          </el-config-provider>
         </div>
       </div>
     </div>

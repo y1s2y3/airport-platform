@@ -1,10 +1,10 @@
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getMobileInspectionTask, updateMobileInspectionTask } from '../../mock/mobileInspectionTasks'
 import { checkCategoryTree, getItemLabel } from '../../composables/useInspectionPlan'
-import { hasInspectionCategory } from '../../config/inspectionManagement'
+import { hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
 import {
   inspectorCandidates,
   getProjectRectifierLabel,
@@ -41,10 +41,29 @@ const taskCategoryTree = computed(() =>
       }).filter(Boolean)
     : checkCategoryTree.filter(category => hasInspectionCategory(taskInfo.inspectionCategories || taskInfo.inspectionCategory, category.inspectionCategory))
 )
-const catTabs = computed(() => taskCategoryTree.value.map(c => ({ id: c.id, label: c.label })))
-const activeCat = ref(catTabs.value[0]?.id || '')
+const inspectionCategoryTabs = computed(() => normalizeInspectionCategories(taskInfo.inspectionCategories || taskInfo.inspectionCategory)
+  .map((category) => {
+    const categories = taskCategoryTree.value.filter((item) => item.inspectionCategory === category)
+    return { category, categories, itemCount: categories.reduce((total, item) => total + item.items.length, 0) }
+  }))
+const activeInspectionCategory = ref('')
+const activeCategoryTree = computed(() =>
+  inspectionCategoryTabs.value.find((tab) => tab.category === activeInspectionCategory.value)?.categories || [],
+)
+const catTabs = computed(() => activeCategoryTree.value.map(c => ({ id: c.id, label: c.label })))
+const activeCat = ref('')
+watch(inspectionCategoryTabs, (tabs) => {
+  if (!tabs.some((tab) => tab.category === activeInspectionCategory.value)) {
+    activeInspectionCategory.value = tabs[0]?.category || ''
+  }
+}, { immediate: true })
+watch(activeCategoryTree, (categories) => {
+  if (!categories.some((category) => category.id === activeCat.value)) {
+    activeCat.value = categories[0]?.id || ''
+  }
+}, { immediate: true })
 const currentCatItems = computed(() => {
-  const cat = taskCategoryTree.value.find(c => c.id === activeCat.value)
+  const cat = activeCategoryTree.value.find(c => c.id === activeCat.value)
   return cat ? cat.items : []
 })
 
@@ -204,18 +223,34 @@ function goBack() { router.push('/mobile/tasks') }
       </div>
     </div>
 
-    <!-- 检查项（仅查看） -->
+    <!-- 检查项：先按安全 / 质量页签切换，再查看对应检查分类 -->
     <div class="check-body">
-      <div class="left-tabs">
-        <button v-for="cat in catTabs" :key="cat.id" class="left-tab" :class="{ active: activeCat === cat.id }" @click="activeCat = cat.id">
-          {{ cat.label }}
+      <div class="mobile-inspection-type-tabs" role="tablist" aria-label="巡检分类">
+        <button
+          v-for="tab in inspectionCategoryTabs"
+          :key="tab.category"
+          type="button"
+          class="mobile-inspection-type-tab"
+          :class="{ active: activeInspectionCategory === tab.category }"
+          @click="activeInspectionCategory = tab.category"
+        >
+          {{ tab.category }}（{{ tab.itemCount }}项）
         </button>
       </div>
-      <div class="right-items">
-        <div v-for="item in currentCatItems" :key="item.id" class="ci-card">
-          <div class="ci-name">{{ item.label }}</div>
+      <div v-if="activeCategoryTree.length" class="check-category-body">
+        <div class="left-tabs">
+          <button v-for="cat in catTabs" :key="cat.id" class="left-tab" :class="{ active: activeCat === cat.id }" @click="activeCat = cat.id">
+            {{ cat.label }}
+          </button>
+        </div>
+        <div class="right-items">
+          <div v-for="item in currentCatItems" :key="item.id" class="ci-card">
+            <div class="ci-name">{{ item.label }}</div>
+          </div>
+          <div v-if="!currentCatItems.length" class="check-empty">暂无检查项</div>
         </div>
       </div>
+      <div v-else class="check-empty">该巡检分类尚未配置检查项</div>
     </div>
 
     <!-- 巡检结果 -->
@@ -303,8 +338,12 @@ function goBack() { router.push('/mobile/tasks') }
 .task-bar-info { display:grid; grid-template-columns:1fr 1fr; gap:4px 12px; font-size:12px; line-height:1.55; color:#777; }
 .task-bar-info > span { min-width:0; overflow-wrap:anywhere; }
 
-/* 检查项（仅查看） */
-.check-body { flex:1; min-height: 160px; display:flex; overflow:hidden; }
+/* 检查项：安全 / 质量页签 + 检查分类 */
+.check-body { flex:1; min-height: 160px; display:flex; flex-direction:column; overflow:hidden; background:#fff; }
+.mobile-inspection-type-tabs { display:flex; gap:4px; padding:8px 12px 0; border-bottom:1px solid #eee; background:#fafafa; }
+.mobile-inspection-type-tab { border:none; border-bottom:2px solid transparent; background:transparent; padding:0 10px 8px; font-size:13px; color:#666; cursor:pointer; }
+.mobile-inspection-type-tab.active { color:#8f0045; border-bottom-color:#8f0045; font-weight:600; }
+.check-category-body { flex:1; min-height:120px; display:flex; overflow:hidden; }
 .left-tabs { width:100px; flex-shrink:0; background:#fafafa; overflow-y:auto; border-right:1px solid #eee; padding:4px 0; }
 .left-tab {
   display:-webkit-box;
@@ -327,6 +366,7 @@ function goBack() { router.push('/mobile/tasks') }
 .right-items { flex:1; overflow-y:auto; padding:12px 14px; }
 .ci-card { background:#fff; border-radius:10px; padding:12px 14px; margin-bottom:8px; box-shadow:0 1px 4px rgba(0,0,0,0.04); }
 .ci-name { font-size:14px; color:#1f2329; line-height:1.5; }
+.check-empty { flex:1; min-height:100px; display:flex; align-items:center; justify-content:center; padding:18px; font-size:13px; color:#999; }
 
 /* 巡检结果 */
 .result-bar { background:#fff; padding:12px 16px; border-top:1px solid #eee; }

@@ -17,6 +17,15 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.11.1.10',
+    date: '2026-09-20',
+    highlights: [
+      '安全看板：指挥部新增「危大工程看板」',
+      '巡检计划/任务：按巡检分类分栏配置与展示；移动端详情/执行同步分类 Tab',
+      'COC：浮层 z-index 与挂载顺序修复；隐患列表面板优化',
+    ],
+  },
+  {
     version: 'v2.11.1.9',
     date: '2026-09-20',
     highlights: [

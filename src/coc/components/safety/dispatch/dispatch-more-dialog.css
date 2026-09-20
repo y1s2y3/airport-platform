@@ -1,5 +1,8 @@
 /**
  * 项目调度「更多」浮层内容样式（DispatchDraggablePanel Teleport 到 body，需全局生效）
+ *
+ * 下拉被盖住：由 coc/App.vue、DispatchDraggablePanel 的 el-config-provider（z-index≥130000）解决，
+ * 勿在此对全局 .el-select__popper 写死 z-index（会污染主站其它页）。
  */
 .drag-panel .dialog-filter,
 .drag-panel .more-dialog-toolbar {

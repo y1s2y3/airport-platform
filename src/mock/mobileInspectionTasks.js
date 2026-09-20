@@ -13,10 +13,11 @@ import { syncInspectionTaskToMajorHazard } from '../utils/inspectionMajorHazardL
 const seedTasks = [
   {
     id: 'mt-000',
-    taskNo: 'AQXJ20260730001',
+    taskNo: 'ZHXJ20260730001',
     source: '任务下发',
-    taskName: '高处作业安全检查',
-    inspectionCategory: '安全',
+    taskName: '高处作业安全与质量检查',
+    inspectionCategories: ['安全', '质量'],
+    inspectionCategory: '安全、质量',
     project: 'T2航站区配套',
     projectId: 'p-000',
     project_id: 'p-000',
@@ -28,11 +29,15 @@ const seedTasks = [
     status: '待执行',
     overdue: true,
     hasRectify: false,
-    itemCount: 10,
+    itemCount: 7,
     hazardCount: 0,
     result: '',
     normalPhotos: [],
     hazardItems: [],
+    checkConfig: [
+      { categoryId: 'cat-3', itemIds: ['item-3-1', 'item-3-2', 'item-3-5', 'item-3-7'] },
+      { categoryId: 'cat-q2', itemIds: ['item-q2-1', 'item-q2-2', 'item-q2-3'] },
+    ],
   },
   {
     id: 'mt-001',

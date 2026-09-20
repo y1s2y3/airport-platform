@@ -28,22 +28,41 @@ const checkConfigTree = computed(() => {
       id,
       label: getItemLabel(cfg.categoryId, id),
     }))
-    return { categoryId: cfg.categoryId, categoryLabel: cat?.label || cfg.categoryId, items }
+    return {
+      categoryId: cfg.categoryId,
+      categoryLabel: cat?.label || cfg.categoryId,
+      inspectionCategory: cat?.inspectionCategory || '',
+      items,
+    }
   })
 })
 
-// 详情页左树右项
+// 详情页按“安全 / 质量”一级页签分组，页签内保留检查分类树。
+const detailInspectionTabs = computed(() => normalizeInspectionCategories(plan.value?.inspectionCategories || plan.value?.inspectionCategory)
+  .map((category) => {
+    const configs = checkConfigTree.value.filter((config) => config.inspectionCategory === category)
+    return { category, configs, itemCount: configs.reduce((total, config) => total + config.items.length, 0) }
+  }))
+const detailInspectionCategory = ref('')
+const activeCheckConfigTree = computed(() =>
+  detailInspectionTabs.value.find((tab) => tab.category === detailInspectionCategory.value)?.configs || [],
+)
 const detailTreeActive = ref('')
 const detailTreeItems = computed(() => {
   if (!detailTreeActive.value) return []
-  const cfg = checkConfigTree.value.find(c => c.categoryId === detailTreeActive.value)
+  const cfg = activeCheckConfigTree.value.find(c => c.categoryId === detailTreeActive.value)
   return cfg?.items || []
 })
 
-// 自动选中第一个分类
-watch(checkConfigTree, (val) => {
-  if (val.length > 0 && !detailTreeActive.value) {
-    detailTreeActive.value = val[0].categoryId
+watch(detailInspectionTabs, (tabs) => {
+  if (!tabs.some((tab) => tab.category === detailInspectionCategory.value)) {
+    detailInspectionCategory.value = tabs[0]?.category || ''
+  }
+}, { immediate: true })
+watch(detailInspectionCategory, (category) => {
+  const configs = detailInspectionTabs.value.find((tab) => tab.category === category)?.configs || []
+  if (!configs.some((config) => config.categoryId === detailTreeActive.value)) {
+    detailTreeActive.value = configs[0]?.categoryId || ''
   }
 }, { immediate: true })
 
@@ -102,32 +121,44 @@ function goBack() {
         </el-descriptions>
       </div>
 
-      <!-- ===== 检查内容（左树右项） ===== -->
+      <!-- ===== 检查内容：安全 / 质量页签内展示检查分类与检查项 ===== -->
       <div class="detail-card">
         <h4 class="section-title">检查内容</h4>
-        <div v-if="checkConfigTree.length" class="detail-tree-layout">
-          <div class="detail-tree-left">
-            <div
-              v-for="cfg in checkConfigTree"
-              :key="cfg.categoryId"
-              class="detail-tree-cat"
-              :class="{ active: detailTreeActive === cfg.categoryId }"
-              @click="detailTreeActive = cfg.categoryId"
+        <div v-if="checkConfigTree.length" class="detail-tree-wrapper">
+          <el-tabs v-model="detailInspectionCategory" class="detail-inspection-tabs">
+            <el-tab-pane
+              v-for="tab in detailInspectionTabs"
+              :key="tab.category"
+              :name="tab.category"
+              :label="`${tab.category}（${tab.itemCount}项）`"
             >
-              <el-icon :size="16" color="var(--ap-primary)"><FolderOpened /></el-icon>
-              <span class="dt-cat-label">{{ cfg.categoryLabel }}</span>
-              <span class="dt-cat-count">{{ cfg.items.length }} 项</span>
-            </div>
-          </div>
-          <div class="detail-tree-right">
-            <div v-if="detailTreeItems.length" class="dt-items">
-              <div v-for="(item, i) in detailTreeItems" :key="item.id" class="dt-item">
-                <span class="dt-num">{{ i + 1 }}.</span>
-                <span class="dt-text">{{ item.label }}</span>
+              <div v-if="tab.configs.length" class="detail-tree-layout">
+                <div class="detail-tree-left">
+                  <div
+                    v-for="cfg in tab.configs"
+                    :key="cfg.categoryId"
+                    class="detail-tree-cat"
+                    :class="{ active: detailTreeActive === cfg.categoryId }"
+                    @click="detailTreeActive = cfg.categoryId"
+                  >
+                    <el-icon :size="16" color="var(--ap-primary)"><FolderOpened /></el-icon>
+                    <span class="dt-cat-label">{{ cfg.categoryLabel }}</span>
+                    <span class="dt-cat-count">{{ cfg.items.length }} 项</span>
+                  </div>
+                </div>
+                <div class="detail-tree-right">
+                  <div v-if="detailTreeItems.length" class="dt-items">
+                    <div v-for="(item, i) in detailTreeItems" :key="item.id" class="dt-item">
+                      <span class="dt-num">{{ i + 1 }}.</span>
+                      <span class="dt-text">{{ item.label }}</span>
+                    </div>
+                  </div>
+                  <div v-else class="dt-empty">请从左侧选择一个检查分类</div>
+                </div>
               </div>
-            </div>
-            <div v-else class="dt-empty">请从左侧选择一个分类</div>
-          </div>
+              <div v-else class="dt-empty">该巡检分类尚未配置检查项</div>
+            </el-tab-pane>
+          </el-tabs>
         </div>
         <div v-else class="text-muted" style="padding:20px 0;text-align:center">未配置检查内容</div>
       </div>
@@ -151,8 +182,12 @@ function goBack() {
 .text-muted { color: var(--ap-text-muted); font-size: 13px; }
 .empty-state { text-align: center; padding: 60px 0; color: var(--ap-text-muted); }
 
-/* ===== 详情页检查内容：左树右项 ===== */
+/* ===== 详情页检查内容：安全 / 质量页签 + 左树右项 ===== */
+.detail-tree-wrapper { border: 1px solid var(--ap-border); border-radius: 6px; overflow: hidden; }
+.detail-inspection-tabs :deep(.el-tabs__header) { margin: 0; padding: 0 14px; background: #fafafa; border-bottom: 1px solid var(--ap-border); }
+.detail-inspection-tabs :deep(.el-tabs__content) { min-height: 120px; }
 .detail-tree-layout { display: flex; border: 1px solid var(--ap-border); border-radius: 6px; overflow: hidden; }
+.detail-tree-wrapper .detail-tree-layout { border: none; border-radius: 0; }
 .detail-tree-left { width: 200px; flex-shrink: 0; border-right: 1px solid var(--ap-border); background: #fafafa; padding: 6px 0; }
 .detail-tree-cat { display: flex; align-items: center; gap: 6px; padding: 8px 12px; cursor: pointer; font-size: 13px; }
 .detail-tree-cat:hover { background: var(--ap-primary-muted); }

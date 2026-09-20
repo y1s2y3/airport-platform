@@ -93,17 +93,38 @@ const categoryTree = computed(() => {
     return taskInfo.value.checkConfig.map(config => {
       const category = checkCategoryTree.find(item => item.id === config.categoryId)
       return category
-        ? { id: category.id, label: category.label, items: category.items.filter(item => config.itemIds.includes(item.id)) }
+        ? {
+            id: category.id,
+            label: category.label,
+            inspectionCategory: category.inspectionCategory,
+            items: category.items.filter(item => config.itemIds.includes(item.id)),
+          }
         : null
     }).filter(Boolean)
   }
-  if (taskId.value === 'mt-003') return pushNormalTree
-  if (taskId.value === 'mt-002') return pushHazardTree
+  if (taskId.value === 'mt-003') return pushNormalTree.map((category) => ({ ...category, inspectionCategory: '安全' }))
+  if (taskId.value === 'mt-002') return pushHazardTree.map((category) => ({ ...category, inspectionCategory: '安全' }))
   return []
 })
-const activeId = ref(categoryTree.value[0]?.id || '')
-const activeCat = computed(() => categoryTree.value.find(c => c.id === activeId.value))
-watch(categoryTree, (rows) => { if (!rows.some(row => row.id === activeId.value)) activeId.value = rows[0]?.id || '' })
+const inspectionTabs = computed(() => taskInfo.value.inspectionCategories.map((category) => {
+  const categories = categoryTree.value.filter((item) => item.inspectionCategory === category)
+  return { category, categories, itemCount: categories.reduce((total, item) => total + item.items.length, 0) }
+}))
+const activeInspectionCategory = ref('')
+const activeCategoryTree = computed(() =>
+  inspectionTabs.value.find((tab) => tab.category === activeInspectionCategory.value)?.categories || [],
+)
+const activeId = ref('')
+const activeCat = computed(() => activeCategoryTree.value.find(c => c.id === activeId.value))
+watch(inspectionTabs, (tabs) => {
+  if (!tabs.some((tab) => tab.category === activeInspectionCategory.value)) {
+    activeInspectionCategory.value = tabs[0]?.category || ''
+  }
+}, { immediate: true })
+watch(activeInspectionCategory, (category) => {
+  const rows = inspectionTabs.value.find((tab) => tab.category === category)?.categories || []
+  if (!rows.some((row) => row.id === activeId.value)) activeId.value = rows[0]?.id || ''
+}, { immediate: true })
 const activeItems = computed(() => activeCat.value?.items || [])
 
 function goBack() {
@@ -137,24 +158,39 @@ function goRectify(id) { if (id) router.push(`/safety-inspection/hazard/${id}`) 
       </div>
     </div>
 
-    <!-- ===== 下发任务：检查项（仅作查看，无标签/照片/说明） ===== -->
+    <!-- ===== 下发任务：检查项按安全 / 质量页签分别查看 ===== -->
     <template v-if="isPush">
-      <div class="tree-layout">
-        <div class="tree-side">
-          <button v-for="cat in categoryTree" :key="cat.id" class="tree-node" :class="{ active: activeId === cat.id }" @click="activeId = cat.id">
-            <span class="tree-label">{{ cat.label }}</span>
-            <span class="tree-badge">{{ cat.items.length }}</span>
+      <div class="inspection-tree-wrapper">
+        <div class="inspection-type-tabs" role="tablist" aria-label="巡检分类">
+          <button
+            v-for="tab in inspectionTabs"
+            :key="tab.category"
+            type="button"
+            class="inspection-type-tab"
+            :class="{ active: activeInspectionCategory === tab.category }"
+            @click="activeInspectionCategory = tab.category"
+          >
+            {{ tab.category }}（{{ tab.itemCount }}项）
           </button>
         </div>
-        <div class="content-side">
-          <div class="cs-header">{{ activeCat?.label }}（{{ activeItems.length }}项）</div>
-          <div v-for="item in activeItems" :key="item.id" class="cs-item">
-            <div class="ci-top">
-              <span class="ci-label">{{ item.label }}</span>
-            </div>
+        <div v-if="activeCategoryTree.length" class="tree-layout">
+          <div class="tree-side">
+            <button v-for="cat in activeCategoryTree" :key="cat.id" class="tree-node" :class="{ active: activeId === cat.id }" @click="activeId = cat.id">
+              <span class="tree-label">{{ cat.label }}</span>
+              <span class="tree-badge">{{ cat.items.length }}</span>
+            </button>
           </div>
-          <div v-if="!activeItems.length" class="cs-empty">暂无检查项</div>
+          <div class="content-side">
+            <div class="cs-header">{{ activeCat?.label }}（{{ activeItems.length }}项）</div>
+            <div v-for="item in activeItems" :key="item.id" class="cs-item">
+              <div class="ci-top">
+                <span class="ci-label">{{ item.label }}</span>
+              </div>
+            </div>
+            <div v-if="!activeItems.length" class="cs-empty">暂无检查项</div>
+          </div>
         </div>
+        <div v-else class="cs-empty empty-inspection-tab">该巡检分类尚未配置检查项</div>
       </div>
     </template>
 
@@ -200,8 +236,13 @@ function goRectify(id) { if (id) router.push(`/safety-inspection/hazard/${id}`) 
 .il { width:110px; flex-shrink:0; padding:9px 12px; background:#f8f9fa; border-right:1px solid #f0f0f0; color:#868e96; }
 .iv { padding:9px 12px; color:#212529; }
 
-/* 左树右项 */
+/* 检查项：安全 / 质量页签 + 左树右项 */
+.inspection-tree-wrapper { margin-bottom: 16px; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
+.inspection-type-tabs { display: flex; gap: 4px; padding: 10px 14px 0; background: #fafafa; border-bottom: 1px solid #eee; }
+.inspection-type-tab { border: none; border-bottom: 2px solid transparent; background: transparent; padding: 0 14px 9px; color: #666; font-size: 13px; cursor: pointer; }
+.inspection-type-tab.active { color: #8f0045; border-bottom-color: #8f0045; font-weight: 600; }
 .tree-layout { display:flex; gap:0; background:#fff; border-radius:10px; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,0.04); min-height:300px; margin-bottom:16px; }
+.inspection-tree-wrapper .tree-layout { margin-bottom: 0; box-shadow: none; border-radius: 0; }
 .tree-side { width:160px; flex-shrink:0; background:#fafafa; border-right:1px solid #eee; padding:8px 0; }
 .tree-node { display:flex; align-items:center; gap:6px; width:100%; padding:10px 16px; border:none; background:none; font-size:13px; color:#666; cursor:pointer; text-align:left; }
 .tree-node.active { background:#fceef4; color:#8f0045; font-weight:600; }
@@ -214,6 +255,7 @@ function goRectify(id) { if (id) router.push(`/safety-inspection/hazard/${id}`) 
 .ci-top { display:flex; align-items:center; gap:8px; }
 .ci-label { font-size:13px; font-weight:500; color:#1f2329; flex:1; }
 .cs-empty { text-align:center; padding:40px 0; color:#999; font-size:13px; }
+.empty-inspection-tab { min-height: 120px; display: flex; align-items: center; justify-content: center; }
 
 /* 巡检结果 */
 .result-section { background:#fff; border-radius:8px; padding:16px 20px; margin-bottom:16px; }

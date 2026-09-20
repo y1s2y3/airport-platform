@@ -1,9 +1,10 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getMobileInspectionTask } from '../../mock/mobileInspectionTasks'
 import { DEFAULT_INSPECTOR_LABEL } from '../../config/inspectionManagement'
 import { formatInspectionCategories, normalizeInspectionCategories } from '../../config/inspectionManagement'
+import { checkCategoryTree } from '../../composables/useInspectionPlan'
 
 const route = useRoute()
 const router = useRouter()
@@ -144,6 +145,7 @@ function normalizeTaskDetail(raw) {
     result: raw.result || '',
     normalPhotos: Array.isArray(raw.normalPhotos) ? raw.normalPhotos : [],
     hazardItems: Array.isArray(raw.hazardItems) ? raw.hazardItems : [],
+    checkConfig: Array.isArray(raw.checkConfig) ? raw.checkConfig : [],
     isMajorHazardPatrol: raw.isMajorHazardPatrol || '否',
     majorHazardName: raw.majorHazardName || '',
   }
@@ -161,6 +163,40 @@ const taskInfo = computed(() => {
 const isPush = computed(() => taskInfo.value.source === '任务下发')
 const hazardCount = computed(() => taskInfo.value.hazardItems.length)
 const rectifyCount = computed(() => taskInfo.value.hazardItems.filter((h) => h.hasRectify).length)
+
+const configuredCheckTree = computed(() => taskInfo.value.checkConfig.map((config) => {
+  const category = checkCategoryTree.find((item) => item.id === config.categoryId)
+  return category
+    ? {
+        id: category.id,
+        label: category.label,
+        inspectionCategory: category.inspectionCategory,
+        items: category.items.filter((item) => config.itemIds.includes(item.id)),
+      }
+    : null
+}).filter(Boolean))
+const inspectionCheckTabs = computed(() => taskInfo.value.inspectionCategories.map((category) => {
+  const categories = configuredCheckTree.value.filter((item) => item.inspectionCategory === category)
+  return { category, categories, itemCount: categories.reduce((total, item) => total + item.items.length, 0) }
+}))
+const activeInspectionCategory = ref('')
+const activeCheckCategoryId = ref('')
+const activeCheckCategories = computed(() =>
+  inspectionCheckTabs.value.find((tab) => tab.category === activeInspectionCategory.value)?.categories || [],
+)
+const activeCheckCategory = computed(() =>
+  activeCheckCategories.value.find((category) => category.id === activeCheckCategoryId.value),
+)
+watch(inspectionCheckTabs, (tabs) => {
+  if (!tabs.some((tab) => tab.category === activeInspectionCategory.value)) {
+    activeInspectionCategory.value = tabs[0]?.category || ''
+  }
+}, { immediate: true })
+watch(activeCheckCategories, (categories) => {
+  if (!categories.some((category) => category.id === activeCheckCategoryId.value)) {
+    activeCheckCategoryId.value = categories[0]?.id || ''
+  }
+}, { immediate: true })
 
 function goBack() {
   router.push('/mobile/tasks')
@@ -199,6 +235,43 @@ function goBack() {
       <div class="sc-row"><span class="sc-lbl">截止日期</span><span>{{ taskInfo.deadline }}</span></div>
       <div class="sc-row"><span class="sc-lbl">巡检日期</span><span>{{ taskInfo.inspDate }}</span></div>
       <div class="sc-row"><span class="sc-lbl">状态</span><span :style="{ color: taskInfo.status === '已完成' ? '#34a853' : '#f5a623', fontWeight: 600 }">{{ taskInfo.status }}</span></div>
+    </div>
+
+    <div v-if="configuredCheckTree.length" class="sc-card">
+      <div class="sc-title">检查项</div>
+      <div class="mobile-detail-type-tabs" role="tablist" aria-label="巡检分类">
+        <button
+          v-for="tab in inspectionCheckTabs"
+          :key="tab.category"
+          type="button"
+          class="mobile-detail-type-tab"
+          :class="{ active: activeInspectionCategory === tab.category }"
+          @click="activeInspectionCategory = tab.category"
+        >
+          {{ tab.category }}（{{ tab.itemCount }}项）
+        </button>
+      </div>
+      <div v-if="activeCheckCategories.length" class="mobile-detail-check-layout">
+        <div class="mobile-detail-check-side">
+          <button
+            v-for="category in activeCheckCategories"
+            :key="category.id"
+            type="button"
+            class="mobile-detail-check-category"
+            :class="{ active: activeCheckCategoryId === category.id }"
+            @click="activeCheckCategoryId = category.id"
+          >
+            <span>{{ category.label }}</span><b>{{ category.items.length }}</b>
+          </button>
+        </div>
+        <div class="mobile-detail-check-content">
+          <div class="mobile-detail-check-heading">{{ activeCheckCategory?.label || '检查项' }}（{{ activeCheckCategory?.items?.length || 0 }}项）</div>
+          <div v-for="(item, index) in activeCheckCategory?.items || []" :key="item.id" class="mobile-detail-check-item">
+            {{ index + 1 }}. {{ item.label }}
+          </div>
+        </div>
+      </div>
+      <div v-else class="mobile-detail-check-empty">该巡检分类尚未配置检查项</div>
     </div>
 
     <div v-if="taskInfo.status === '已完成'" class="sc-card">
@@ -259,6 +332,21 @@ function goBack() {
 .sc-row { display:flex; gap:6px; font-size:13px; line-height:1.6; margin-bottom:3px; }
 .sc-row:last-child { margin-bottom:0; }
 .sc-lbl { color:#999; flex-shrink:0; width:72px; }
+
+/* 检查项：安全 / 质量页签内展示具体检查分类。 */
+.mobile-detail-type-tabs { display:flex; gap:4px; margin:0 -14px 10px; padding:0 14px 8px; border-bottom:1px solid #eee; }
+.mobile-detail-type-tab { border:none; border-bottom:2px solid transparent; background:transparent; padding:0 8px 6px; color:#666; font-size:12px; cursor:pointer; }
+.mobile-detail-type-tab.active { color:#8f0045; border-bottom-color:#8f0045; font-weight:600; }
+.mobile-detail-check-layout { display:flex; min-height:120px; border:1px solid #eee; border-radius:8px; overflow:hidden; }
+.mobile-detail-check-side { width:92px; flex-shrink:0; background:#fafafa; border-right:1px solid #eee; padding:4px 0; }
+.mobile-detail-check-category { display:flex; align-items:center; gap:4px; width:100%; border:none; border-left:3px solid transparent; background:transparent; padding:9px 6px; color:#666; font-size:11px; line-height:1.35; text-align:left; cursor:pointer; }
+.mobile-detail-check-category span { flex:1; min-width:0; word-break:break-all; }
+.mobile-detail-check-category b { font-size:10px; color:#999; }
+.mobile-detail-check-category.active { border-left-color:#8f0045; color:#8f0045; background:#fceef4; font-weight:600; }
+.mobile-detail-check-content { flex:1; min-width:0; padding:10px; }
+.mobile-detail-check-heading { font-size:12px; font-weight:600; color:#333; margin-bottom:7px; padding-bottom:7px; border-bottom:1px solid #eee; }
+.mobile-detail-check-item { font-size:12px; line-height:1.55; color:#555; padding:5px 0; }
+.mobile-detail-check-empty { min-height:96px; display:flex; align-items:center; justify-content:center; color:#999; font-size:12px; }
 
 .hazard-area { margin:0 16px 12px; }
 .hazard-card { background:#fff; border-radius:10px; padding:14px; margin-bottom:10px; box-shadow:0 1px 3px rgba(0,0,0,0.04); }

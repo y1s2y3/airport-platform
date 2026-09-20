@@ -183,12 +183,13 @@ export function normalizeInspectionPlan(plan = {}) {
 export const planData = reactive([
   {
     id: 'plan-003',
-    inspectionCategory: '安全',
-    assigned: true, executors: ['user-2', 'user-3'], planNo: 'AQXJ20260718001', name: '雨季临时用电检查',
+    inspectionCategories: ['安全', '质量'], inspectionCategory: '安全、质量',
+    assigned: true, executors: ['user-2', 'user-3'], planNo: 'ZHXJ20260718001', name: '雨季临时用电与材料质量检查',
     projects: ['T1航站区配套'],
     projectIds: ['p-001'],
     checkConfig: [
       { categoryId: 'cat-2', itemIds: ['item-2-1','item-2-2','item-2-3','item-2-4','item-2-5','item-2-6','item-2-7','item-2-8'] },
+      { categoryId: 'cat-q1', itemIds: ['item-q1-1','item-q1-2','item-q1-3'] },
     ],
     responsiblePerson: 'user-3', ccPersons: ['user-1', 'user-5'],
     deadlineDate: '2026-07-20',

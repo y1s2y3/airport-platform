@@ -180,8 +180,9 @@
   background: rgba(94, 238, 255, 0.12);
 }
 
-/* 头部 · 组织结构选择下拉 */
+/* 头部 · 组织结构选择下拉（须高于右侧浮层 100000） */
 .hq-org-tree-select-popper.el-popper {
+  z-index: 130000 !important;
   background: #0a1224;
   border: 1px solid rgba(94, 238, 255, 0.38);
   border-radius: 10px;
@@ -2299,8 +2300,9 @@
   color: #5eeeff;
 }
 
-/* 问题截图 · 下拉/日期面板 */
+/* 问题截图 · 下拉/日期面板（须高于 COC 自定义浮层 100000～120030） */
 .screenshot-mark-popper.el-popper {
+  z-index: 130000 !important;
   background: rgba(10, 18, 36, 0.98);
   border: 1px solid rgba(94, 238, 255, 0.38);
   border-radius: 10px;

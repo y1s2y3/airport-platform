@@ -160,99 +160,102 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="screen-viewport" :class="{ 'coc-hq-mode': isHqDarkShell }" :style="viewportStyle">
-    <CocFloatingPanels
-      :projects="projects"
-      :selected-project-id="selectedProjectId"
-      :status-filters="statusFilters"
-    />
-
-    <div class="screen-badge">
-      1920×1080 · 缩放 {{ (scale * 100).toFixed(0) }}%
-    </div>
-
-    <div
-      ref="canvasRef"
-      class="screen-canvas"
-      :class="{ 'coc-hq-mode': isHqDarkShell, 'coc-secondary-screen': isSecondaryScreen }"
-      :style="{ transform: `scale(${scale})` }"
-    >
-      <!-- 浮层挂载点须先于会 Teleport 的子树创建，否则 Vue 在 target 为 null 时会抛错 -->
-      <div id="coc-overlay-root" class="coc-overlay-root" />
-
-      <HqEdgeLights v-if="isHqDarkShell" />
-      <CocHqHeader
-        v-if="isHqDarkShell"
+  <!-- COC 自定义浮层多为 100000～120030，EP 下拉默认 ~2000 会被盖住；统一抬高弹出层初始 z-index -->
+  <el-config-provider :z-index="130000">
+    <div class="screen-viewport" :class="{ 'coc-hq-mode': isHqDarkShell }" :style="viewportStyle">
+      <CocFloatingPanels
         :projects="projects"
-        :selection-id="selectedProjectId"
+        :selected-project-id="selectedProjectId"
         :status-filters="statusFilters"
-        @project-change="handleProjectChange"
-        @status-filter="handleStatusFilter"
-      />
-      <TopNav
-        v-else
-        :projects="projects"
-        :selection-id="selectedProjectId"
-        :status-filters="statusFilters"
-        @project-change="handleProjectChange"
-        @status-filter="handleStatusFilter"
       />
 
-      <CommandMeetingLiveView
-        v-if="commandMeetingScreen === 'live'"
-        @back="closeMeetingScreen"
-      />
+      <div class="screen-badge">
+        1920×1080 · 缩放 {{ (scale * 100).toFixed(0) }}%
+      </div>
 
-      <ProjectDispatchView
-        v-else-if="homeProjectDispatchId"
-        :video-project="homeDispatchVideoProject"
-        :selected-project-id="homeProjectDispatchId"
-        :project-label="homeProjectDispatchLabel"
-        :initial-device-id="homeProjectDispatchDeviceId"
-        show-back
-        @back="closeHomeProjectDispatch"
-      />
+      <div
+        ref="canvasRef"
+        class="screen-canvas"
+        :class="{ 'coc-hq-mode': isHqDarkShell, 'coc-secondary-screen': isSecondaryScreen }"
+        :style="{ transform: `scale(${scale})` }"
+      >
+        <!-- 浮层挂载点须先于会 Teleport 的子树创建，否则 Vue 在 target 为 null 时会抛错 -->
+        <div id="coc-overlay-root" class="coc-overlay-root" />
 
-      <CommandMeetingRecordsView
-        v-else-if="cocFeatureFlags.meetingRecordsEntry && commandMeetingScreen === 'records'"
-        @back="closeMeetingScreen"
-      />
-
-      <ProjectProgressDetailView
-        v-else-if="progressDetailScreen && selectedProject"
-        :project="selectedProject"
-        @back="progressDetailScreen = false"
-      />
-
-      <main v-else-if="isHqView" class="hq-screen-root">
-        <CocHqScreen
+        <HqEdgeLights v-if="isHqDarkShell" />
+        <CocHqHeader
+          v-if="isHqDarkShell"
           :projects="projects"
-          :selected-project-id="selectedProjectId"
+          :selection-id="selectedProjectId"
           :status-filters="statusFilters"
-          :video-project="videoProject"
           @project-change="handleProjectChange"
           @status-filter="handleStatusFilter"
-          @open-dispatch="handleOpenDispatchFromHome"
-          @leader-speech="handleLeaderSpeech"
         />
-      </main>
-
-      <main v-else-if="selectedProject" class="hq-screen-root">
-        <CocProjectScreen
+        <TopNav
+          v-else
           :projects="projects"
-          :selected-project-id="selectedProjectId"
+          :selection-id="selectedProjectId"
           :status-filters="statusFilters"
-          :selected-project="selectedProject"
-          :video-project="projectVideoProject"
           @project-change="handleProjectChange"
           @status-filter="handleStatusFilter"
-          @open-dispatch="handleOpenDispatchFromHome"
-          @expand-progress="progressDetailScreen = true"
-          @project-dispatch="handleProjectLevelDispatch"
         />
-      </main>
+
+        <CommandMeetingLiveView
+          v-if="commandMeetingScreen === 'live'"
+          @back="closeMeetingScreen"
+        />
+
+        <ProjectDispatchView
+          v-else-if="homeProjectDispatchId"
+          :video-project="homeDispatchVideoProject"
+          :selected-project-id="homeProjectDispatchId"
+          :project-label="homeProjectDispatchLabel"
+          :initial-device-id="homeProjectDispatchDeviceId"
+          show-back
+          @back="closeHomeProjectDispatch"
+        />
+
+        <CommandMeetingRecordsView
+          v-else-if="cocFeatureFlags.meetingRecordsEntry && commandMeetingScreen === 'records'"
+          @back="closeMeetingScreen"
+        />
+
+        <ProjectProgressDetailView
+          v-else-if="progressDetailScreen && selectedProject"
+          :project="selectedProject"
+          @back="progressDetailScreen = false"
+        />
+
+        <main v-else-if="isHqView" class="hq-screen-root">
+          <CocHqScreen
+            :projects="projects"
+            :selected-project-id="selectedProjectId"
+            :status-filters="statusFilters"
+            :video-project="videoProject"
+            @project-change="handleProjectChange"
+            @status-filter="handleStatusFilter"
+            @open-dispatch="handleOpenDispatchFromHome"
+            @leader-speech="handleLeaderSpeech"
+          />
+        </main>
+
+        <main v-else-if="selectedProject" class="hq-screen-root">
+          <CocProjectScreen
+            :projects="projects"
+            :selected-project-id="selectedProjectId"
+            :status-filters="statusFilters"
+            :selected-project="selectedProject"
+            :video-project="projectVideoProject"
+            @project-change="handleProjectChange"
+            @status-filter="handleStatusFilter"
+            @open-dispatch="handleOpenDispatchFromHome"
+            @expand-progress="progressDetailScreen = true"
+            @project-dispatch="handleProjectLevelDispatch"
+          />
+        </main>
+      </div>
     </div>
-  </div>
+  </el-config-provider>
 </template>
 
 <style scoped>
