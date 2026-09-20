@@ -13,6 +13,7 @@ import { supervisorApproveSample, pmApproveSample } from '../../../mock/sample.j
 import { supervisorApproveEntry } from '../../../mock/mat.js'
 import { supervisorApproveAsbuilt, pmApproveAsbuilt } from '../../../mock/asbuilt.js'
 import { supervisorApproveEngineeringWork } from '../../../mock/engineeringWork.js'
+import { supervisorApproveRiskControl } from '../../../mock/riskManage.js'
 import {
   submitPenaltyRecipientReport,
   submitPenaltyAppeal,
@@ -229,13 +230,15 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
         row?.type !== 'mat_entry' &&
         row?.type !== 'eq_entry' &&
         row?.type !== 'asbuilt' &&
-        row?.type !== 'engineering_work')
+        row?.type !== 'engineering_work' &&
+        row?.type !== 'risk_control')
     if (needRemark && !commonForm.remark.trim()) {
       const rejectHint =
         row?.type === 'brand' ||
         row?.type === 'mat_entry' ||
         row?.type === 'eq_entry' ||
-        row?.type === 'engineering_work'
+        row?.type === 'engineering_work' ||
+        row?.type === 'risk_control'
           ? '请填写驳回意见'
           : '请填写退回意见'
       return ElMessage.warning(approved ? '请填写说明' : rejectHint)
@@ -269,6 +272,21 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
       return afterSubmit(
         approved ? '监理通过' : '监理驳回',
         approved ? '作业申报已通过' : '已驳回施工单位',
+      )
+    }
+    if (row?.type === 'risk_control' && row.riskControlId) {
+      const action = approved ? 'agree' : 'reject'
+      const opinion = commonForm.remark.trim()
+      const operatorName = getCurrentUserSnapshot()?.name || '当前用户'
+      const r = supervisorApproveRiskControl(row.riskControlId, {
+        action,
+        opinion,
+        operatorName,
+      })
+      if (!r.ok) return ElMessage.warning(r.msg)
+      return afterSubmit(
+        approved ? '监理通过' : '监理驳回',
+        approved ? '风险辨识已通过' : '已驳回，可修改后重新提交',
       )
     }
     if (row?.type === 'asbuilt' && row.asbuiltAcceptanceId) {

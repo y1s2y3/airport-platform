@@ -146,6 +146,7 @@ export const menuTree = [
         children: [
           { key: 'risk-point-control', label: '风险点管控', icon: 'Compass', path: '/site-construction/risk-point-control', name: 'RiskPointControl', component: 'RiskPointControlView', levels: 'project' },
           { key: 'risk-point-config', label: '风险点管控配置库', icon: 'CollectionTag', path: '/site-construction/risk-point-config', name: 'RiskPointConfig', component: 'RiskPointConfigView', levels: 'project' },
+          { key: 'airport-risk-source', label: '风险类型配置', icon: 'Memo', path: '/site-construction/airport-risk-source', name: 'AirportRiskSource', component: 'AirportRiskSourceView', levels: 'project' },
         ],
       },
       {
@@ -281,6 +282,21 @@ export const menuTree = [
     ],
   },
 
+  /** 考核评分（两级共用；配置仅指挥部） */
+  {
+    key: 'assessment',
+    label: '考核评分',
+    icon: 'TrophyBase',
+    levels: 'both',
+    children: [
+      { key: 'assessment-rank', label: '考核排名', icon: 'DataLine', path: '/assessment/rank', name: 'AssessmentRank', component: 'AssessmentRankView', levels: 'both', description: '指挥部看已纳入项目的月排名；项目只看本项目得分、扣分和自己的名次。' },
+      { key: 'assessment-indicators', label: '考核指标', icon: 'DataAnalysis', path: '/assessment/indicators', name: 'AssessmentIndicators', component: 'AssessmentConfigView', levels: 'both', description: '指挥部配置已启用指标的扣分上限和分数分档；项目只读查看。' },
+      { key: 'assessment-indicator-config', label: '指标配置', icon: 'EditPen', path: '/assessment/indicator-config', name: 'AssessmentIndicatorConfig', component: 'AssessmentConfigView', levels: 'hq', description: '指挥部配置指标名称、计算规则和启用开关。默认指标来自考核指标。' },
+      { key: 'assessment-grades', label: '等级配置', icon: 'Star', path: '/assessment/grades', name: 'AssessmentGrades', component: 'AssessmentConfigView', levels: 'hq', description: '指挥部配置优、良、中、差的名称、颜色和分数区间。' },
+      { key: 'assessment-projects', label: '考核项目', icon: 'Tickets', path: '/assessment/projects', name: 'AssessmentProjects', component: 'AssessmentConfigView', levels: 'hq', description: '指挥部勾选纳入月排名的项目。' },
+    ],
+  },
+
   /** 组织管理（两级共用，菜单管理仅指挥部） */
   {
     key: 'sys-settings', label: '组织管理', icon: 'School', levels: 'both',
@@ -371,6 +387,7 @@ export const hiddenRoutes = [
   // 风险管理子页
   { key: 'risk-point-control-create', path: '/site-construction/risk-point-control/create', name: 'RiskPointControlCreate', component: 'RiskPointControlFormView', label: '新增风险辨识', sidebarKey: 'risk-point-control' },
   { key: 'risk-point-control-edit', path: '/site-construction/risk-point-control/:id/edit', name: 'RiskPointControlEdit', component: 'RiskPointControlFormView', label: '编辑风险辨识', sidebarKey: 'risk-point-control' },
+  { key: 'risk-point-control-detail', path: '/site-construction/risk-point-control/:id', name: 'RiskPointControlDetail', component: 'RiskPointControlDetailView', label: '风险点管控详情', sidebarKey: 'risk-point-control' },
 
   // 危大工程管理子页
   { key: 'major-hazard-identification-create', path: '/major-hazard/identification/create', name: 'MajorHazardIdentificationCreate', component: 'HazardIdentificationFormView', label: '新增危大辨识', sidebarKey: 'major-hazard-identification' },
@@ -445,6 +462,7 @@ export const hiddenRoutes = [
  * 3. 旧链接重定向（兼容历史地址）
  * ==========================================================================*/
 export const redirects = [
+  { path: '/assessment/config', redirect: '/assessment/projects' },
   { path: '/safety-board', redirect: '/safety-inspection/dashboard' },
   { path: '/quality-board', redirect: '/safety-inspection/dashboard' },
   { path: '/labor/access', redirect: '/labor/warning-config' },
@@ -533,6 +551,8 @@ export const redirects = [
  * ==========================================================================*/
 export const viewLoaders = {
   WorkbenchView: () => import('../views/WorkbenchView.vue'),
+  AssessmentRankView: () => import('../views/assessment/AssessmentRankView.vue'),
+  AssessmentConfigView: () => import('../views/assessment/AssessmentConfigView.vue'),
   PersonalCenterView: () => import('../views/PersonalCenterView.vue'),
   PersonalCenterTodoHandleView: () => import('../views/PersonalCenterTodoHandleView.vue'),
   PersonalCenterStartedEditView: () => import('../views/PersonalCenterStartedEditView.vue'),
@@ -595,7 +615,9 @@ export const viewLoaders = {
   DailyWorkView: () => import('../views/majorHazard/DailyWorkView.vue'),
   RiskPointControlView: () => import('../views/siteConstruction/RiskPointControlView.vue'),
   RiskPointControlFormView: () => import('../views/siteConstruction/RiskPointControlFormView.vue'),
+  RiskPointControlDetailView: () => import('../views/siteConstruction/RiskPointControlDetailView.vue'),
   RiskPointConfigView: () => import('../views/siteConstruction/RiskPointConfigView.vue'),
+  AirportRiskSourceView: () => import('../views/siteConstruction/AirportRiskSourceView.vue'),
   EngineeringWorkListView: () => import('../views/siteConstruction/EngineeringWorkListView.vue'),
   EngineeringWorkEditView: () => import('../views/siteConstruction/EngineeringWorkEditView.vue'),
   EngineeringWorkDetailView: () => import('../views/siteConstruction/EngineeringWorkDetailView.vue'),

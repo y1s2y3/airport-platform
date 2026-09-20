@@ -1,13 +1,12 @@
 <script setup>
 /**
  * 风险点管控配置库（项目级）
- * 维护风险类型及管控措施模板，供「风险点管控」选用风险类型。
+ * 风险类型从「风险类型配置」选择；本页维护风险点、细分和管控措施。
  */
 import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useCurrentProject } from '../../composables/useCurrentProject'
 import {
-  RISK_TYPE_PRESETS,
   formatRiskCell,
   listConfigRiskTypes,
   listRiskPointConfigs,
@@ -41,11 +40,7 @@ const tableData = computed(() => {
 })
 
 const filterTypeOptions = computed(() => listConfigRiskTypes(laborProjectId.value))
-
-const typeInputOptions = computed(() => {
-  const fromLib = listConfigRiskTypes(laborProjectId.value)
-  return [...new Set([...RISK_TYPE_PRESETS, ...fromLib])]
-})
+const typeInputOptions = computed(() => listConfigRiskTypes(laborProjectId.value))
 
 watch(laborProjectId, () => {
   filters.risk_type = ''
@@ -69,6 +64,10 @@ function resetForm() {
 function openAdd() {
   if (!laborProjectId.value) {
     ElMessage.warning('请先选择项目')
+    return
+  }
+  if (!typeInputOptions.value.length) {
+    ElMessage.warning('请先在「风险类型配置」维护至少一条风险类型')
     return
   }
   resetForm()
@@ -145,7 +144,7 @@ function handleDelete(row) {
       <div>
         <div class="page-breadcrumb">风险管理 / 风险点管控配置库</div>
         <h3 class="page-title">风险点管控配置库</h3>
-        <p class="page-tip">维护本项目风险类型与管控措施；「风险点管控」新增时从本库选择风险类型。</p>
+        <p class="page-tip">维护本项目风险点、细分与管控措施；风险类型须先在「风险类型配置」中维护，再从此处选择。</p>
       </div>
       <span class="total-count">共 {{ tableData.length }} 条</span>
     </div>
@@ -227,9 +226,7 @@ function handleDelete(row) {
           <el-select
             v-model="form.risk_type"
             filterable
-            allow-create
-            default-first-option
-            placeholder="请选择或输入风险类型"
+            placeholder="请从风险类型配置选择"
             style="width: 100%"
           >
             <el-option v-for="t in typeInputOptions" :key="t" :label="t" :value="t" />

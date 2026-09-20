@@ -94,6 +94,7 @@ const todoSourceLabel = computed(() => {
     eq_entry: '材料设备进场',
     asbuilt: '实模一致验收',
     engineering_work: '工程作业申报',
+    risk_control: '风险管理',
     qm_inspect: '质量验评',
     qm_rectify: '质量验评',
     labor_warning: '人员预警',

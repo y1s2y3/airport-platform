@@ -17,6 +17,15 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.11.1.9',
+    date: '2026-09-20',
+    highlights: [
+      '风险管理：风险类型配置、风险点管控完善（频率周期、详情页）',
+      '风险点管控列表：审批状态标签化；操作对齐质量管理（详情/重新申报）',
+      '个人中心：风险辨识待办办理；考核评分（排名/指标配置）入口',
+    ],
+  },
+  {
     version: 'v2.11.1.8',
     date: '2026-09-18',
     highlights: [

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 个人中心 · 待办/已办/发起/抄送/通知 Mock（含共享响应式列表）
  */
 import { reactive } from 'vue'
@@ -69,6 +69,7 @@ export const NOTICE_MODULE_OPTIONS = [
   '品牌报审',
   '巡检管理',
   '人员实名',
+  '风险管理',
   '系统通知',
 ]
 export const INSPECTION_BIZ_TYPE_OPTIONS = ['巡检', '整改', '复查', '审批']
@@ -3119,6 +3120,59 @@ export function createEngineeringWorkSupervisorTodo(payload) {
   return row
 }
 
+let riskControlTodoSeq = 80
+
+function removeOpenRiskControlTodos(controlId) {
+  for (let i = personalTodoStore.todos.length - 1; i >= 0; i -= 1) {
+    const t = personalTodoStore.todos[i]
+    if (t.type !== 'risk_control') continue
+    if (t.riskControlId !== controlId) continue
+    personalTodoStore.todos.splice(i, 1)
+  }
+}
+
+export function createRiskControlSupervisorTodo(payload) {
+  if (!payload?.controlId) return null
+  removeOpenRiskControlTodos(payload.controlId)
+  riskControlTodoSeq += 1
+  const row = {
+    id: `todo-risk-${riskControlTodoSeq}`,
+    type: 'risk_control',
+    sourceLabel: '风险管理',
+    category: '风险点管控',
+    bizType: '监理审批',
+    riskControlId: payload.controlId,
+    processName: `风险辨识·${payload.riskPoint || '风险点'}`,
+    applicant: payload.applicantName || '项目安全员',
+    dept: '项目部',
+    applyTime: payload.applyTime || '',
+    detail: {
+      project: payload.projectLabel || payload.projectId || '--',
+      controlId: payload.controlId,
+      riskPoint: payload.riskPoint || '--',
+      currentNode: '监理审批',
+    },
+    approvalFlow: [
+      {
+        title: '项目提交',
+        time: payload.applyTime || '',
+        user: payload.applicantName || '项目安全员',
+        remark: '提交风险辨识，进入监理审批',
+        status: 'done',
+      },
+      {
+        title: '监理审批',
+        time: '',
+        user: payload.supervisorName || '当前用户',
+        remark: '待办理',
+        status: 'current',
+      },
+    ],
+  }
+  personalTodoStore.todos.unshift(row)
+  return row
+}
+
 export function discardEngineeringWorkTodos(applicationId) {
   if (!applicationId) return
   removeOpenEngineeringWorkTodos(applicationId)
@@ -3431,7 +3485,7 @@ export function seedAsbuiltDoneFromList(list = []) {
 }
 
 /** 通知信息（人员预警已迁出至预警中心） */
-export const personalNotices = [
+export const personalNotices = reactive([
   {
     id: 'nt-qm-1',
     module: '质量验评',
@@ -3496,7 +3550,29 @@ export const personalNotices = [
     time: '2026-07-14 18:00:00',
     readStatus: '已读',
   },
-]
+])
+
+let riskNoticeSeq = 1
+
+/** 审批通过后，把管控措施推送给管控责任人、实施责任人（同一人只推一条） */
+export function pushRiskControlMeasureNotices({ controlId, riskSourceNo, riskPoint, controlMeasure, receivers = [] }) {
+  const seen = new Set()
+  receivers.forEach((item) => {
+    const key = item?.id || item?.name
+    if (!key || seen.has(key)) return
+    seen.add(key)
+    riskNoticeSeq += 1
+    personalNotices.unshift({
+      id: `nt-risk-${controlId}-${key}-${riskNoticeSeq}`,
+      module: '风险管理',
+      title: '管控措施推送',
+      content: `${item.name || '责任人'}：风险源 ${riskSourceNo || riskPoint || '--'} 已审批通过。管控措施：${controlMeasure || '--'}`,
+      time: nowStr(),
+      readStatus: '未读',
+      receiverId: item.id || '',
+    })
+  })
+}
 
 /** 巡检/整改逾期提醒：同一批逾期数据只生成一次，避免重复提醒。 */
 export const inspectionOverdueReminders = reactive([])

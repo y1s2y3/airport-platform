@@ -1,28 +1,36 @@
 <script setup>
 /**
  * 风险点管控列表（项目级）
+ * 审批状态 / 操作对齐质量管理：el-tag；详情 + 已驳回重新申报
  */
 import { computed, reactive, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { useCurrentProject } from '../../composables/useCurrentProject'
 import {
-  RISK_LEVELS,
+  APPROVAL_STATUS_LABEL,
+  RISK_RUN_STATUS_LABEL,
+  approvalStatusLabel,
+  approvalStatusTagType,
+  constructionProgressLabel,
   formatRiskCell,
+  formatRiskFrequency,
   listConfigRiskTypes,
+  listRiskControlMetrics,
   listRiskPointControls,
-  removeRiskPointControl,
   riskLocationLabel,
   riskPersonLabel,
+  riskRunStatusLabel,
 } from '../../mock/riskManage.js'
 
 const router = useRouter()
 const { laborProjectId, isHqSelected } = useCurrentProject()
 
 const filters = reactive({
-  plan_month: '',
+  report_date: '',
   risk_type: '',
-  risk_level: '',
+  approval_status: '',
+  risk_status: '',
 })
 
 const tableData = computed(() => {
@@ -30,18 +38,25 @@ const tableData = computed(() => {
   return listRiskPointControls(laborProjectId.value, { ...filters })
 })
 
+const metrics = computed(() => {
+  if (!laborProjectId.value) return null
+  return listRiskControlMetrics(laborProjectId.value)
+})
+
 const typeOptions = computed(() => listConfigRiskTypes(laborProjectId.value))
 
 watch(laborProjectId, () => {
-  filters.plan_month = ''
+  filters.report_date = ''
   filters.risk_type = ''
-  filters.risk_level = ''
+  filters.approval_status = ''
+  filters.risk_status = ''
 })
 
 function resetFilters() {
-  filters.plan_month = ''
+  filters.report_date = ''
   filters.risk_type = ''
-  filters.risk_level = ''
+  filters.approval_status = ''
+  filters.risk_status = ''
 }
 
 function goCreate() {
@@ -50,27 +65,22 @@ function goCreate() {
     return
   }
   if (!typeOptions.value.length) {
-    ElMessage.warning('请先在「风险点管控配置库」维护至少一条风险类型')
+    ElMessage.warning('请先在「风险类型配置」维护至少一条风险类型')
     return
   }
   router.push('/site-construction/risk-point-control/create')
 }
 
-function goEdit(row) {
-  router.push(`/site-construction/risk-point-control/${row.id}/edit`)
+function goDetail(row) {
+  router.push(`/site-construction/risk-point-control/${row.id}`)
 }
 
-function handleDelete(row) {
-  ElMessageBox.confirm(`确认删除风险点「${row.risk_point}」？`, '提示', { type: 'warning' })
-    .then(() => {
-      const r = removeRiskPointControl(laborProjectId.value, row.id)
-      if (!r.ok) {
-        ElMessage.warning(r.msg)
-        return
-      }
-      ElMessage.success('已删除')
-    })
-    .catch(() => {})
+function goResubmit(row) {
+  if (row.approval_status !== 'rejected') {
+    ElMessage.warning('仅已驳回记录可重新申报')
+    return
+  }
+  router.push(`/site-construction/risk-point-control/${row.id}/edit`)
 }
 </script>
 
@@ -80,7 +90,7 @@ function handleDelete(row) {
       <div>
         <div class="page-breadcrumb">风险管理 / 风险点管控</div>
         <h3 class="page-title">风险点管控</h3>
-        <p class="page-tip">按月登记本项目风险辨识与管控责任；风险类型须从配置库选择。</p>
+        <p class="page-tip">按日登记。审批通过后，管控措施推送给管控责任人和实施责任人。关联的施工进度为「进行中」时风险状态为已激活，关闭后为已关闭，其余为未激活。</p>
       </div>
       <span class="total-count">共 {{ tableData.length }} 条</span>
     </div>
@@ -95,14 +105,28 @@ function handleDelete(row) {
     />
 
     <template v-else>
+      <div v-if="metrics" class="metric-row">
+        <div class="metric-card"><b>{{ metrics.total }}</b><span>风险辨识总数（条）</span></div>
+        <div class="metric-card"><b>{{ metrics.reviewing }}</b><span>审批中（条）</span></div>
+        <div class="metric-card"><b>{{ metrics.inactive }}</b><span>未激活（条）</span></div>
+        <div class="metric-card"><b>{{ metrics.activated }}</b><span>已激活（条）</span></div>
+        <div class="metric-card"><b>{{ metrics.closed }}</b><span>已关闭（条）</span></div>
+      </div>
+      <p v-if="metrics" class="source-dist">
+        已激活，按风险类型：
+        <template v-for="(item, index) in metrics.sourceDist" :key="item.name">
+          <span v-if="index">；</span>{{ item.name }} {{ item.value }} 条
+        </template>
+      </p>
+
       <div class="toolbar">
         <el-date-picker
-          v-model="filters.plan_month"
-          type="month"
-          value-format="YYYY-MM"
-          placeholder="计划月份"
+          v-model="filters.report_date"
+          type="date"
+          value-format="YYYY-MM-DD"
+          placeholder="填报日期"
           style="width: 160px"
-          aria-label="计划月份"
+          aria-label="填报日期"
         />
         <el-select
           v-model="filters.risk_type"
@@ -115,13 +139,22 @@ function handleDelete(row) {
           <el-option v-for="t in typeOptions" :key="t" :label="t" :value="t" />
         </el-select>
         <el-select
-          v-model="filters.risk_level"
+          v-model="filters.approval_status"
           clearable
-          placeholder="风险等级"
+          placeholder="审批状态"
           style="width: 140px"
-          aria-label="风险等级"
+          aria-label="审批状态"
         >
-          <el-option v-for="lv in RISK_LEVELS" :key="lv" :label="lv" :value="lv" />
+          <el-option v-for="(label, key) in APPROVAL_STATUS_LABEL" :key="key" :label="label" :value="key" />
+        </el-select>
+        <el-select
+          v-model="filters.risk_status"
+          clearable
+          placeholder="风险状态"
+          style="width: 140px"
+          aria-label="风险状态"
+        >
+          <el-option v-for="(label, key) in RISK_RUN_STATUS_LABEL" :key="key" :label="label" :value="key" />
         </el-select>
         <el-button type="primary" @click="() => {}">搜索</el-button>
         <el-button @click="resetFilters">重置</el-button>
@@ -130,19 +163,25 @@ function handleDelete(row) {
       </div>
 
       <el-table :data="tableData" border stripe class="ap-table" style="width: 100%" empty-text="暂无数据">
-        <el-table-column prop="plan_month" label="计划月份" width="110" align="center">
-          <template #default="{ row }">{{ formatRiskCell(row.plan_month) }}</template>
+        <el-table-column prop="risk_source_no" label="风险源编号" width="150" align="center">
+          <template #default="{ row }">{{ formatRiskCell(row.risk_source_no) }}</template>
+        </el-table-column>
+        <el-table-column prop="report_date" label="填报日期" width="120" align="center">
+          <template #default="{ row }">{{ formatRiskCell(row.report_date) }}</template>
         </el-table-column>
         <el-table-column prop="risk_type" label="风险类型" min-width="110" show-overflow-tooltip>
           <template #default="{ row }">{{ formatRiskCell(row.risk_type) }}</template>
         </el-table-column>
-        <el-table-column prop="risk_level" label="风险等级" width="100" align="center">
-          <template #default="{ row }">{{ formatRiskCell(row.risk_level) }}</template>
+        <el-table-column label="发生频率" width="120" align="center">
+          <template #default="{ row }">{{ formatRiskFrequency(row) }}</template>
+        </el-table-column>
+        <el-table-column prop="severity" label="严重程度" width="100" align="center">
+          <template #default="{ row }">{{ formatRiskCell(row.severity) }}</template>
         </el-table-column>
         <el-table-column prop="risk_point" label="风险点" min-width="150" show-overflow-tooltip>
           <template #default="{ row }">{{ formatRiskCell(row.risk_point) }}</template>
         </el-table-column>
-        <el-table-column label="风险点位置" min-width="180" show-overflow-tooltip>
+        <el-table-column label="受影响区域" min-width="180" show-overflow-tooltip>
           <template #default="{ row }">{{ riskLocationLabel(row) }}</template>
         </el-table-column>
         <el-table-column label="管控责任人" min-width="130" show-overflow-tooltip>
@@ -157,10 +196,32 @@ function handleDelete(row) {
         <el-table-column prop="plan_end" label="计划结束" width="120" align="center">
           <template #default="{ row }">{{ formatRiskCell(row.plan_end) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="120" align="center" fixed="right">
+        <el-table-column label="施工阶段" width="120" align="center">
+          <template #default="{ row }">{{ formatRiskCell(row.construction_stage) }}</template>
+        </el-table-column>
+        <el-table-column label="施工进度" min-width="140" show-overflow-tooltip>
+          <template #default="{ row }">{{ constructionProgressLabel(row.construction_progress_id) }}</template>
+        </el-table-column>
+        <el-table-column label="审批状态" width="100" align="center">
           <template #default="{ row }">
-            <el-button link type="primary" size="small" @click="goEdit(row)">编辑</el-button>
-            <el-button link type="danger" size="small" @click="handleDelete(row)">删除</el-button>
+            <el-tag size="small" :type="approvalStatusTagType(row.approval_status)">
+              {{ approvalStatusLabel(row.approval_status) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="风险状态" width="100" align="center">
+          <template #default="{ row }">{{ riskRunStatusLabel(row) }}</template>
+        </el-table-column>
+        <el-table-column label="操作" width="160" align="center" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" size="small" @click="goDetail(row)">详情</el-button>
+            <el-button
+              v-if="row.approval_status === 'rejected'"
+              link
+              type="primary"
+              size="small"
+              @click="goResubmit(row)"
+            >重新申报</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -206,6 +267,34 @@ function handleDelete(row) {
 }
 .toolbar-spacer {
   flex: 1;
+}
+.metric-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.metric-card {
+  min-width: 140px;
+  padding: 8px 12px;
+  border: 1px solid #ebeef5;
+  border-radius: 6px;
+  background: #fafafa;
+}
+.metric-card b {
+  display: block;
+  font-size: 18px;
+  color: #1f2329;
+}
+.metric-card span {
+  font-size: 12px;
+  color: #606266;
+}
+.source-dist {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: #606266;
+  line-height: 1.6;
 }
 .mb-16 {
   margin-bottom: 16px;

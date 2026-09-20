@@ -80,6 +80,15 @@ const doneList = computed(() => personalTodoStore.done)
 const startedList = computed(() => personalStarted)
 const ccList = computed(() => personalCc)
 const notices = ref([...personalNotices])
+watch(
+  () => personalNotices.length,
+  () => {
+    const known = new Set(notices.value.map((item) => item.id))
+    personalNotices
+      .filter((item) => !known.has(item.id))
+      .forEach((item) => notices.value.unshift(item))
+  },
+)
 const warningCenterTick = ref(0)
 const warningCenterList = computed(() => {
   warningCenterTick.value

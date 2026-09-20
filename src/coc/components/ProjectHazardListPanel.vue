@@ -1,9 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { closeCocSupervisionMeetingHazard } from '../mock/data.js'
-import { getCocHazardListRows, mapHazardUnifiedStatus } from '../mock/hazardStats.js'
-import { isSupervisionMeetingHazardTicket } from '../../utils/cocAdminDeviceStorage.js'
+import { getCocHazardListRows } from '../mock/hazardStats.js'
 import DispatchDraggablePanel from './safety/dispatch/DispatchDraggablePanel.vue'
 import DispatchRecordDetailBody from './safety/dispatch/DispatchRecordDetailBody.vue'
 
@@ -28,19 +25,13 @@ const statusMap = {
   已复查: 'doing',
   已关闭: 'closed',
 }
-const listVersion = ref(0)
-const closing = ref(false)
-
 const CHANNEL_LABEL = {
   inspection: '巡检',
   supervision: '监理例会',
   dispatch: '调度',
 }
 
-const hazardList = computed(() => {
-  listVersion.value
-  return getCocHazardListRows(props.projectId)
-})
+const hazardList = computed(() => getCocHazardListRows(props.projectId))
 
 const filteredHazardList = computed(() => {
   const list =
@@ -62,13 +53,6 @@ const detailTitle = computed(() => {
   return src ? `${src}·${cat}隐患详情` : `${cat}隐患详情`
 })
 
-const canConfirmCloseDetail = computed(() => {
-  const row = detailView.value?.data
-  if (!row || detailView.value?.kind !== 'hazard') return false
-  if (row.channel === 'dispatch' || row.source === 'dispatch') return false
-  return isSupervisionMeetingHazardTicket(row) && row.status === '待整改'
-})
-
 function levelClass(level) {
   if (level === '重大') return 'major'
   if (level === '较大') return 'medium'
@@ -85,42 +69,6 @@ function openDetail(row) {
 
 function closeDetail() {
   detailView.value = null
-}
-
-async function handleConfirmClose() {
-  const row = detailView.value?.data
-  if (!row) return
-  try {
-    await ElMessageBox.confirm(
-      '确认关闭该监理会议隐患？关闭后状态将变为「已关闭」。',
-      '确认关闭',
-      {
-        type: 'warning',
-        confirmButtonText: '确认关闭',
-        cancelButtonText: '取消',
-      },
-    )
-  } catch {
-    return
-  }
-
-  closing.value = true
-  const result = closeCocSupervisionMeetingHazard(row.id, { operator: '指挥部用户' })
-  closing.value = false
-  if (!result.ok) {
-    ElMessage.warning(result.msg || '关闭失败')
-    return
-  }
-  listVersion.value += 1
-  detailView.value = {
-    ...detailView.value,
-    data: {
-      ...detailView.value.data,
-      status: '已关闭',
-      unifiedStatus: mapHazardUnifiedStatus('已关闭'),
-    },
-  }
-  ElMessage.success('隐患已关闭')
 }
 </script>
 
@@ -198,11 +146,6 @@ async function handleConfirmClose() {
       @close="closeDetail"
     >
       <DispatchRecordDetailBody :kind="detailView.kind" :record="detailView.data" />
-      <div v-if="canConfirmCloseDetail" class="hazard-detail-actions">
-        <el-button type="success" :loading="closing" @click="handleConfirmClose">
-          确认关闭
-        </el-button>
-      </div>
     </DispatchDraggablePanel>
   </div>
 </template>
@@ -213,15 +156,6 @@ async function handleConfirmClose() {
   min-height: 0;
   display: flex;
   flex-direction: column;
-}
-
-.hazard-detail-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid var(--coc-border, #e4e7ed);
 }
 
 .panel-title.compact.title-left {
