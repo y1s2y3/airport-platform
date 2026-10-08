@@ -1,44 +1,61 @@
 import { ref } from 'vue'
-import { positionRecords } from './positions'
+import { getPosition } from './positions'
+import { formatApproverOptionLabel } from '../utils/approverDisplay'
 
-/** 岗位管理「公司」对应指挥部层级，「项目」对应项目层级 */
-export const NOTIFY_POSITION_SCOPE = {
-  公司: '指挥部',
-  项目: '项目',
+/** 人员配置类型 */
+export const STAFF_CONFIG_TYPE = {
+  project: 'project',
+  hq: 'hq',
 }
 
-export function mapPositionLevelToScope(level) {
-  return NOTIFY_POSITION_SCOPE[level] || level || '项目'
+export const STAFF_CONFIG_TYPE_OPTIONS = [
+  { value: STAFF_CONFIG_TYPE.project, label: '项目人员' },
+  { value: STAFF_CONFIG_TYPE.hq, label: '指挥部人员' },
+]
+
+export const STAFF_CONFIG_TYPE_LABEL = {
+  [STAFF_CONFIG_TYPE.project]: '项目人员',
+  [STAFF_CONFIG_TYPE.hq]: '指挥部人员',
 }
 
-/** 通知岗位假数据：来源于岗位管理，区分指挥部 / 项目 */
-export function listNotifyPositionOptions() {
-  return positionRecords.value.map((item) => ({
-    value: item.id,
-    label: item.name,
-    code: item.code,
-    level: item.level,
-    scope: mapPositionLevelToScope(item.level),
-  }))
+/** 离线时长单位 */
+export const OFFLINE_DURATION_UNIT = {
+  minute: 'minute',
+  hour: 'hour',
+  day: 'day',
 }
 
-/** 按指挥部 / 项目分组，供下拉分组展示 */
-export function listNotifyPositionGroups() {
-  const groups = [
-    { scope: '指挥部', label: '指挥部', options: [] },
-    { scope: '项目', label: '项目', options: [] },
-  ]
-  listNotifyPositionOptions().forEach((opt) => {
-    const group = groups.find((item) => item.scope === opt.scope)
-    if (group) group.options.push(opt)
-    else groups[1].options.push(opt)
-  })
-  return groups.filter((item) => item.options.length > 0)
+export const OFFLINE_DURATION_UNIT_OPTIONS = [
+  { value: OFFLINE_DURATION_UNIT.minute, label: '分钟' },
+  { value: OFFLINE_DURATION_UNIT.hour, label: '小时' },
+  { value: OFFLINE_DURATION_UNIT.day, label: '天' },
+]
+
+export const OFFLINE_DURATION_UNIT_LABEL = {
+  [OFFLINE_DURATION_UNIT.minute]: '分钟',
+  [OFFLINE_DURATION_UNIT.hour]: '小时',
+  [OFFLINE_DURATION_UNIT.day]: '天',
+}
+
+/** 换算为分钟，用于排序与唯一性比较 */
+export function offlineDurationToMinutes(value, unit) {
+  const n = Number(value)
+  if (!Number.isFinite(n) || n < 1) return 0
+  if (unit === OFFLINE_DURATION_UNIT.hour) return n * 60
+  if (unit === OFFLINE_DURATION_UNIT.day) return n * 24 * 60
+  return n
+}
+
+export function formatOfflineDuration(value, unit) {
+  const label = OFFLINE_DURATION_UNIT_LABEL[unit] || '分钟'
+  const n = Number(value)
+  if (!Number.isFinite(n) || n < 1) return `--`
+  return `${n} ${label}`
 }
 
 /**
- * 通知人员假数据（挂靠岗位管理中的岗位 id）
- * 展示名：姓名 · 所属单位
+ * 通知人员假数据
+ * 展示名：姓名（组织-岗位）
  */
 export const notifyPersonnelCatalog = [
   { id: 'np-safe-01', name: '陈安全', org: 'T2空侧捷运线项目部', positionIds: ['pos-007'] },
@@ -51,184 +68,245 @@ export const notifyPersonnelCatalog = [
   { id: 'np-office-01', name: '赵主任', org: '指挥部办公室', positionIds: ['pos-004'] },
   { id: 'np-sz-01', name: '孙协调', org: '深圳分公司', positionIds: ['pos-002'] },
   { id: 'np-test-01', name: '测试员甲', org: '系统测试组', positionIds: ['pos-001'] },
+  { id: 'np-hq-01', name: '钱安监', org: '工程指挥部安监室', positionIds: ['pos-013'] },
+  { id: 'np-hq-02', name: '冯值守', org: '指挥部值班室', positionIds: ['pos-004'] },
 ]
 
-export function listNotifyPersonOptions(positionIds = []) {
-  const all = notifyPersonnelCatalog.map((item) => ({
-    value: item.id,
-    label: `${item.name} · ${item.org}`,
-    name: item.name,
-    org: item.org,
-    positionIds: [...item.positionIds],
-  }))
-  if (!positionIds?.length) return all
-  const set = new Set(positionIds)
-  const matched = all.filter((item) => item.positionIds.some((pid) => set.has(pid)))
-  const others = all.filter((item) => !item.positionIds.some((pid) => set.has(pid)))
-  return [...matched, ...others]
+function resolvePersonPostLabel(positionIds = []) {
+  return positionIds
+    .map((id) => getPosition(id)?.name)
+    .filter(Boolean)
+    .join('、')
 }
 
-export function listNotifyPersonGroups(positionIds = []) {
-  if (!positionIds?.length) {
-    return [{ label: '全部人员', options: listNotifyPersonOptions() }]
-  }
-  const set = new Set(positionIds)
-  const matched = []
-  const others = []
-  listNotifyPersonOptions().forEach((opt) => {
-    if (opt.positionIds.some((pid) => set.has(pid))) matched.push(opt)
-    else others.push(opt)
-  })
-  const groups = []
-  if (matched.length) groups.push({ label: '所选岗位下人员', options: matched })
-  if (others.length) groups.push({ label: '其他人员', options: others })
-  return groups
+export function formatNotifyPersonLabel(item) {
+  if (!item) return '--'
+  return formatApproverOptionLabel(item.name, item.org, resolvePersonPostLabel(item.positionIds))
 }
 
-function pickIdsByScope(scope, count = 2) {
-  return listNotifyPositionOptions()
-    .filter((item) => item.scope === scope)
-    .slice(0, count)
-    .map((item) => item.value)
+export function listNotifyPersonOptions(scope = 'all') {
+  return notifyPersonnelCatalog
+    .filter((item) => {
+      if (scope === 'hq') {
+        return item.positionIds.some((pid) => getPosition(pid)?.level === '公司')
+      }
+      if (scope === 'project') {
+        return item.positionIds.some((pid) => getPosition(pid)?.level === '项目')
+      }
+      return true
+    })
+    .map((item) => ({
+      value: item.id,
+      label: formatNotifyPersonLabel(item),
+      name: item.name,
+      org: item.org,
+      positionIds: [...item.positionIds],
+    }))
 }
 
-function pickPersonIdsByPositions(positionIds = [], count = 2) {
-  return listNotifyPersonOptions(positionIds)
-    .filter((item) => item.positionIds.some((pid) => positionIds.includes(pid)))
-    .slice(0, count)
-    .map((item) => item.value)
+function pickPersonIds(scope, count = 2) {
+  return listNotifyPersonOptions(scope).slice(0, count).map((item) => item.value)
 }
 
 /**
- * 分级默认规则：一天 / 一周 / 一月（项目级配置；可仍通知指挥部岗位）
- * 备注留空，由用户按需填写
+ * 指挥部默认分级：10 分钟（项目人员）/ 6 小时（指挥部人员）/ 2 天（指挥部人员）
  */
-function buildDefaultRules() {
-  const projectIds = pickIdsByScope('项目', 3)
-  const hqIds = pickIdsByScope('指挥部', 2)
-  const day1Positions = projectIds.slice(0, 2)
-  const day7Positions = [...projectIds.slice(0, 1), ...hqIds.slice(0, 1)].filter(Boolean)
-  const day30Positions = [...projectIds.slice(0, 1), ...hqIds.slice(0, 1)].filter(Boolean)
+function buildDefaultHqRules() {
   return [
     {
-      id: 'rule-1d',
-      offline_days: 1,
-      position_ids: day1Positions,
-      person_ids: pickPersonIdsByPositions(day1Positions, 2),
+      id: 'rule-10m',
+      offline_value: 10,
+      offline_unit: OFFLINE_DURATION_UNIT.minute,
+      staff_config_type: STAFF_CONFIG_TYPE.project,
+      person_ids: [],
       enabled: true,
-      remark: '',
     },
     {
-      id: 'rule-7d',
-      offline_days: 7,
-      position_ids: day7Positions,
-      person_ids: pickPersonIdsByPositions(day7Positions, 2),
+      id: 'rule-6h',
+      offline_value: 6,
+      offline_unit: OFFLINE_DURATION_UNIT.hour,
+      staff_config_type: STAFF_CONFIG_TYPE.hq,
+      person_ids: pickPersonIds('hq', 2),
       enabled: true,
-      remark: '',
     },
     {
-      id: 'rule-30d',
-      offline_days: 30,
-      position_ids: day30Positions,
-      person_ids: pickPersonIdsByPositions(day30Positions, 1),
+      id: 'rule-2d',
+      offline_value: 2,
+      offline_unit: OFFLINE_DURATION_UNIT.day,
+      staff_config_type: STAFF_CONFIG_TYPE.hq,
+      person_ids: pickPersonIds('hq', 1),
       enabled: true,
-      remark: '',
     },
   ]
 }
 
-function cloneRules(list) {
-  return list.map((item) => ({
-    ...item,
-    position_ids: [...(item.position_ids || [])],
+function cloneRule(item) {
+  return {
+    id: item.id,
+    offline_value: Number(item.offline_value) || 1,
+    offline_unit: item.offline_unit || OFFLINE_DURATION_UNIT.minute,
+    staff_config_type: item.staff_config_type || STAFF_CONFIG_TYPE.project,
     person_ids: [...(item.person_ids || [])],
-    remark: item.remark || '',
-  }))
-}
-
-/** 按项目隔离的离线通知规则 */
-const rulesByProject = ref({})
-
-function ensureProjectRules(projectId) {
-  if (!projectId || projectId === 'hq') return []
-  if (!rulesByProject.value[projectId]) {
-    rulesByProject.value[projectId] = cloneRules(buildDefaultRules())
+    enabled: item.enabled !== false,
   }
-  return rulesByProject.value[projectId]
 }
+
+function cloneRules(list) {
+  return (list || []).map(cloneRule)
+}
+
+function sortRules(list) {
+  return [...list].sort(
+    (a, b) =>
+      offlineDurationToMinutes(a.offline_value, a.offline_unit) -
+      offlineDurationToMinutes(b.offline_value, b.offline_unit),
+  )
+}
+
+/** 指挥部全局规则 */
+const hqRules = ref(cloneRules(buildDefaultHqRules()))
+
+/** 项目级：仅覆盖「项目人员」类型规则的通知人员 { [projectId]: { [ruleId]: person_ids[] } } */
+const projectPersonOverrides = ref({})
 
 let ruleIdSeq = 100
 
-export function listVideoOfflineNotifyRules(projectId) {
-  return ensureProjectRules(projectId)
-}
-
 export function createEmptyOfflineNotifyRule() {
   return {
-    offline_days: 1,
-    position_ids: [],
+    offline_value: 1,
+    offline_unit: OFFLINE_DURATION_UNIT.minute,
+    staff_config_type: STAFF_CONFIG_TYPE.project,
     person_ids: [],
     enabled: true,
-    remark: '',
   }
 }
 
-export function addVideoOfflineNotifyRule(projectId, payload = {}) {
-  const list = ensureProjectRules(projectId)
-  if (!list.length && (!projectId || projectId === 'hq')) return null
-  const row = {
-    id: `rule-${++ruleIdSeq}`,
-    offline_days: Number(payload.offline_days) || 1,
-    position_ids: [...(payload.position_ids || [])],
-    person_ids: [...(payload.person_ids || [])],
-    enabled: payload.enabled !== false,
-    remark: payload.remark?.trim() || '',
-  }
-  list.push(row)
-  return row
+/** 指挥部：读取全局规则 */
+export function listHqVideoOfflineNotifyRules() {
+  return cloneRules(hqRules.value)
 }
 
-export function updateVideoOfflineNotifyRule(projectId, id, payload) {
-  const list = ensureProjectRules(projectId)
-  const idx = list.findIndex((item) => item.id === id)
-  if (idx < 0) return null
-  list[idx] = {
-    ...list[idx],
-    offline_days: Number(payload.offline_days) || 1,
-    position_ids: [...(payload.position_ids || [])],
-    person_ids: [...(payload.person_ids || [])],
-    enabled: payload.enabled !== false,
-    remark: payload.remark?.trim() || '',
-  }
-  return list[idx]
+/** 项目：回显指挥部规则，并合并本项目对「项目人员」的通知人覆盖 */
+export function listProjectVideoOfflineNotifyRules(projectId) {
+  if (!projectId || projectId === 'hq') return []
+  const overrides = projectPersonOverrides.value[projectId] || {}
+  return cloneRules(hqRules.value).map((rule) => {
+    if (rule.staff_config_type === STAFF_CONFIG_TYPE.project) {
+      const overrideIds = overrides[rule.id]
+      return {
+        ...rule,
+        person_ids: overrideIds ? [...overrideIds] : [],
+      }
+    }
+    return rule
+  })
 }
 
-export function deleteVideoOfflineNotifyRule(projectId, id) {
-  const list = ensureProjectRules(projectId)
-  const idx = list.findIndex((item) => item.id === id)
-  if (idx < 0) return false
-  list.splice(idx, 1)
+/**
+ * 兼容旧调用：按项目读（含合并）；无 projectId 时读指挥部
+ * @deprecated 优先用 listHq… / listProject…
+ */
+export function listVideoOfflineNotifyRules(projectId) {
+  if (!projectId || projectId === 'hq') return listHqVideoOfflineNotifyRules()
+  return listProjectVideoOfflineNotifyRules(projectId)
+}
+
+export function saveHqVideoOfflineNotifyRules(list) {
+  hqRules.value = sortRules(cloneRules(list)).map((row, index) => ({
+    ...row,
+    id: row.id || `rule-${index + 1}`,
+  }))
   return true
 }
 
-export function saveVideoOfflineNotifyRules(projectId, list) {
+/**
+ * 项目级仅保存「项目人员」类型规则的通知人员
+ * @param {string} projectId
+ * @param {Array<{ id: string, staff_config_type: string, person_ids: string[] }>} list
+ */
+export function saveProjectVideoOfflineNotifyPersons(projectId, list) {
   if (!projectId || projectId === 'hq') return false
-  rulesByProject.value[projectId] = cloneRules(list)
+  const next = { ...(projectPersonOverrides.value[projectId] || {}) }
+  ;(list || []).forEach((row) => {
+    if (row.staff_config_type !== STAFF_CONFIG_TYPE.project || !row.id) return
+    next[row.id] = [...(row.person_ids || [])]
+  })
+  projectPersonOverrides.value[projectId] = next
   return true
+}
+
+export function resetHqVideoOfflineNotifyRules() {
+  hqRules.value = cloneRules(buildDefaultHqRules())
+  return cloneRules(hqRules.value)
 }
 
 export function resetVideoOfflineNotifyRules(projectId) {
-  if (!projectId || projectId === 'hq') return []
-  rulesByProject.value[projectId] = cloneRules(buildDefaultRules())
-  return rulesByProject.value[projectId]
+  if (!projectId || projectId === 'hq') {
+    return resetHqVideoOfflineNotifyRules()
+  }
+  // 项目级重置：清空本项目通知人覆盖
+  projectPersonOverrides.value[projectId] = {}
+  return listProjectVideoOfflineNotifyRules(projectId)
 }
 
-export function getPositionNames(positionIds = []) {
-  const map = Object.fromEntries(listNotifyPositionOptions().map((item) => [item.value, item.label]))
-  return positionIds.map((id) => map[id] || id).filter(Boolean)
+export function saveVideoOfflineNotifyRules(projectId, list) {
+  if (!projectId || projectId === 'hq') {
+    return saveHqVideoOfflineNotifyRules(list)
+  }
+  return saveProjectVideoOfflineNotifyPersons(projectId, list)
+}
+
+export function addVideoOfflineNotifyRule(_projectId, payload = {}) {
+  const row = {
+    id: `rule-${++ruleIdSeq}`,
+    ...createEmptyOfflineNotifyRule(),
+    offline_value: Number(payload.offline_value) || 1,
+    offline_unit: payload.offline_unit || OFFLINE_DURATION_UNIT.minute,
+    staff_config_type: payload.staff_config_type || STAFF_CONFIG_TYPE.project,
+    person_ids: [...(payload.person_ids || [])],
+    enabled: payload.enabled !== false,
+  }
+  hqRules.value = sortRules([...hqRules.value, row])
+  return cloneRule(row)
+}
+
+export function updateVideoOfflineNotifyRule(_projectId, id, payload) {
+  const idx = hqRules.value.findIndex((item) => item.id === id)
+  if (idx < 0) return null
+  hqRules.value[idx] = cloneRule({
+    ...hqRules.value[idx],
+    ...payload,
+    id,
+  })
+  hqRules.value = sortRules(hqRules.value)
+  return cloneRule(hqRules.value.find((item) => item.id === id))
+}
+
+export function deleteVideoOfflineNotifyRule(_projectId, id) {
+  const idx = hqRules.value.findIndex((item) => item.id === id)
+  if (idx < 0) return false
+  hqRules.value.splice(idx, 1)
+  return true
 }
 
 export function getPersonNames(personIds = []) {
-  const map = Object.fromEntries(notifyPersonnelCatalog.map((item) => [item.id, item.name]))
+  const map = Object.fromEntries(
+    notifyPersonnelCatalog.map((item) => [item.id, formatNotifyPersonLabel(item)]),
+  )
   return personIds.map((id) => map[id] || id).filter(Boolean)
+}
+
+/** 兼容旧导出：岗位相关已废弃，保留空实现避免误引用报错 */
+export const NOTIFY_POSITION_SCOPE = { 公司: '指挥部', 项目: '项目' }
+export function mapPositionLevelToScope(level) {
+  return NOTIFY_POSITION_SCOPE[level] || level || '项目'
+}
+export function listNotifyPositionOptions() {
+  return []
+}
+export function listNotifyPositionGroups() {
+  return []
+}
+export function getPositionNames() {
+  return []
 }

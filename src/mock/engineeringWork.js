@@ -469,7 +469,8 @@ function occupiedDailyWorkIds(exceptBizNo = '') {
   return set
 }
 
-function listAllDangerWorkSources(projectId) {
+/** 本项目每日施工作业中的全部危险作业（含已被工程作业申报占用的） */
+export function listAllDangerWorkSources(projectId) {
   if (!projectId) return []
   ensureDailyWorkSeed()
   const map = new Map()

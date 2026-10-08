@@ -5,6 +5,6 @@ import MobileRectifyListView from '../mobile/MobileRectifyListView.vue'
 
 <template>
   <AppBizSubPage title="整改复查">
-    <MobileRectifyListView />
+    <MobileRectifyListView embedded />
   </AppBizSubPage>
 </template>

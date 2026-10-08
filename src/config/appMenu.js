@@ -59,6 +59,7 @@ export const appMenu = [
       { key: 'app-major-hazard-identification', label: '危大辨识', icon: 'DocumentChecked', levels: 'project' },
       { key: 'app-major-hazard-list', label: '危大清单', icon: 'Notebook', levels: 'project' },
       { key: 'app-major-hazard-calendar', label: '危大工程日历', icon: 'Calendar', levels: 'project' },
+      { key: 'app-mobile-major-hazard-list', label: '危大清单（移动端）', icon: 'Iphone', levels: 'project' },
     ],
   },
   {

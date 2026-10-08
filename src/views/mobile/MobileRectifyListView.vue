@@ -3,6 +3,11 @@ import { ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { mobileRectificationRecords } from '../../composables/useMobileRectification'
 
+defineProps({
+  /** 嵌在建管 APP 二级页时隐藏自带顶栏，避免双顶栏 */
+  embedded: { type: Boolean, default: false },
+})
+
 const router = useRouter()
 const route = useRoute()
 
@@ -15,8 +20,7 @@ const searchKeyword = ref('')
 const tabs = computed(() => {
   const counts = { '全部': rectifyList.value.length }
   for (const t of rectifyList.value) {
-    const label = t.isRejected ? '待整改' : t.status
-    counts[label] = (counts[label] || 0) + 1
+    counts[t.status] = (counts[t.status] || 0) + 1
   }
   return ['全部','待整改','待复查','已复查','已关闭'].filter(t => (counts[t]||0) > 0 || t === '全部').map(t => ({ label: t, count: counts[t]||0 }))
 })
@@ -24,8 +28,7 @@ const tabs = computed(() => {
 const filteredList = computed(() => {
   let list = rectifyList.value
   if (activeTab.value !== '全部') {
-    if (activeTab.value === '待整改') list = list.filter(t => t.status === '待整改')
-    else list = list.filter(t => t.status === activeTab.value)
+    list = list.filter(t => t.status === activeTab.value)
   }
   if (searchKeyword.value.trim()) {
     const kw = searchKeyword.value.trim()
@@ -43,20 +46,28 @@ const statusStyles = {
 
 function goExecute(id) { router.push(`/mobile/rectify/${id}/execute?tab=${activeTab.value}`) }
 function goReview(id) { router.push(`/mobile/rectify/${id}/review?tab=${activeTab.value}`) }
+function goApproval(id) { router.push(`/mobile/rectify/${id}/approval?tab=${activeTab.value}`) }
 function goDetail(id) { router.push(`/mobile/rectify/${id}?tab=${activeTab.value}`) }
 function goBack() { router.push('/mobile/tasks') }
+
+function onCardClick(item) {
+  if (item.status === '待整改') return goExecute(item.id)
+  if (item.status === '待复查') return goReview(item.id)
+  if (item.status === '已复查') return goApproval(item.id)
+  return goDetail(item.id)
+}
 </script>
 
 <template>
-  <div class="mp">
-    <header class="mh">
+  <div class="mp" :class="{ embedded }">
+    <header v-if="!embedded" class="mh">
       <button class="mb" @click="goBack">‹</button>
       <h1 class="mt">整改复查</h1>
       <span style="font-size:12px;opacity:0.7">{{ rectifyList.length }} 单</span>
     </header>
     <div class="m-tabs">
       <button v-for="tab in tabs" :key="tab.label" class="m-tab" :class="{ active: activeTab === tab.label }" @click="activeTab = tab.label">
-        {{ tab.label === '待整改' ? '待整改' : tab.label }}<span class="m-tab-count">{{ tab.count }}</span>
+        {{ tab.label }}<span class="m-tab-count">{{ tab.count }}</span>
       </button>
     </div>
     <div class="m-filter">
@@ -64,7 +75,7 @@ function goBack() { router.push('/mobile/tasks') }
     </div>
     <div class="m-list">
       <div v-for="item in filteredList" :key="item.id" class="rec-card"
-        @click="item.status==='待整改'?goExecute(item.id):item.status==='待复查'?goReview(item.id):goDetail(item.id)">
+        @click="onCardClick(item)">
         <div class="rec-top">
           <span class="rec-icon" :class="{ overdue: item.overdue }">⚠</span>
           <div class="rec-info">
@@ -98,6 +109,7 @@ function goBack() { router.push('/mobile/tasks') }
 
 <style scoped>
 .mp { width:100%; max-width:402px; margin:0 auto; min-height:100vh; background:#f5f5f5; font-family:'PingFang SC',-apple-system,sans-serif; padding-bottom:env(safe-area-inset-bottom,0); }
+.mp.embedded { min-height:0; }
 .mh { display:flex; align-items:center; padding:12px 16px; background:#8f0045; color:#fff; position:sticky; top:0; z-index:10; }
 .mb { background:none; border:none; color:#fff; font-size:28px; padding:0 4px 0 0; line-height:1; cursor:pointer; }
 .mt { flex:1; font-size:18px; font-weight:600; margin:0; }

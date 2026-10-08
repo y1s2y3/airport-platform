@@ -17,6 +17,15 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.11.1.11',
+    date: '2026-10-08',
+    highlights: [
+      '国庆后版本备份',
+      '隐患：App/移动端列表、详情与办理流程',
+      '整改与安全隐患相关页面同步完善',
+    ],
+  },
+  {
     version: 'v2.11.1.10',
     date: '2026-09-20',
     highlights: [

@@ -35,6 +35,7 @@ const entries = [
   { key: 'rectify', title: '整改复查', path: '/app/rectify', icon: '🔧' },
   { key: 'mat-entry', title: '材料设备进场', path: '/app/mat/entry', icon: '📦' },
   { key: 'mat-exit', title: '材料设备退场', path: '/app/mat/exit', icon: '🚚' },
+  { key: 'hazard', title: '危大工程清单', path: '/app/hazard', icon: '⚠️' },
 ]
 
 function openEntry(item) {

@@ -6,9 +6,9 @@ import { useLaborProjectScope, selectedProjectId } from '../../composables/useCu
 import { HQ_PROJECT_OPTION } from '../../config/projectOptions'
 import {
   INSPECTION_DEMO_TODAY,
-  inspectionHazards,
   inspectionProjectTree,
 } from '../../mock/inspectionDemoData'
+import { listInspectionHazards } from '../../mock/inspectionHazardQuery'
 
 const router = useRouter()
 const route = useRoute()
@@ -29,11 +29,16 @@ function handleTreeNodeClick(data) {
   }
 }
 
+// 整改单状态：待整改 → 待复查 → 已复查（项目经理审批中）→ 已关闭
+// 含移动端整改记录（同一真相源），状态变更后列表即时可见
+const rectifyData = computed(() => listInspectionHazards())
+
 const treeDataWithCount = computed(() => {
   const root = inspectionProjectTree[0]
+  const rows = rectifyData.value
   const children = root.children
     .map(node => {
-      const count = rectifyData.filter(d => d.project_id === node.id).length
+      const count = rows.filter(d => d.project_id === node.id).length
       const label = treeSearch.value
         ? (node.label.includes(treeSearch.value) ? `${node.label}（${count}）` : '')
         : `${node.label}（${count}）`
@@ -43,14 +48,11 @@ const treeDataWithCount = computed(() => {
   return [{ ...root, label: treeSearch.value ? '搜索结果' : root.label, children }]
 })
 
-// 整改单状态：待整改 → 待复查 → 已复查（项目经理审批中）→ 已关闭
-const rectifyData = inspectionHazards
-
 const filterForm = reactive({ keyword: '', category: '', status: '', overdue: '' })
 
 const hqProjectKeyword = ref('')
 const hqProjectStats = computed(() => inspectionProjectTree[0].children.map(project => {
-  const rows = rectifyData.filter(item => item.project_id === project.id)
+  const rows = rectifyData.value.filter(item => item.project_id === project.id)
   return {
     project_id: project.id,
     project_name: project.label,
@@ -77,7 +79,7 @@ const hqTotalStats = computed(() => ({
 const treeData = computed(() => inspectionProjectTree)
 
 const filteredData = computed(() => {
-  let list = rectifyData
+  let list = rectifyData.value
   if (!isHqSelected.value && scopeProjectId.value) list = list.filter(d => d.project_id === scopeProjectId.value)
   return list.filter(d => {
     if (filterForm.category && d.inspectionCategory !== filterForm.category) return false

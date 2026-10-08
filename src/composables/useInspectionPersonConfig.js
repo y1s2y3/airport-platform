@@ -6,7 +6,7 @@ import {
 import {
   getDemoInspectionPeople,
   inspectionPeoplePool,
-} from '../mock/inspectionDemoData'
+} from '../mock/inspectionPeople'
 import { COC_PROJECT_OPTIONS } from '../config/projectOptions'
 
 export const inspectorCandidates = inspectionPeoplePool

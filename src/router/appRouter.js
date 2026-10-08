@@ -83,6 +83,24 @@ const routes = [
         component: () => import('../views/app/AppBizMatExitView.vue'),
         meta: { title: '材料设备退场', hideTabBar: true, appBiz: true },
       },
+      {
+        path: 'hazard',
+        name: 'AppHazardList',
+        component: () => import('../views/app/AppBizHazardListView.vue'),
+        meta: { title: '危大工程清单', hideTabBar: true, appBiz: true },
+      },
+      {
+        path: 'hazard/detail',
+        name: 'AppHazardDetail',
+        component: () => import('../views/app/AppBizHazardDetailView.vue'),
+        meta: { title: '危大工程详情', hideTabBar: true, appBiz: true },
+      },
+      {
+        path: 'hazard/process',
+        name: 'AppHazardProcess',
+        component: () => import('../views/app/AppBizHazardProcessView.vue'),
+        meta: { title: '过程管理', hideTabBar: true, appBiz: true },
+      },
     ],
   },
   {

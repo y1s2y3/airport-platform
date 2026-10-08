@@ -24,7 +24,11 @@ import {
   getDispatchPenaltyRecords,
   PENALTY_STATUSES,
 } from '../../../coc/utils/dispatchMeetingStorage.js'
-import { submitManagerApproval } from '../../../composables/useMobileRectification.js'
+import {
+  submitManagerApproval,
+  submitRectification,
+  submitRectificationReview,
+} from '../../../composables/useMobileRectification.js'
 import {
   submitDispatchHazardRectify,
   acceptDispatchHazard,
@@ -467,6 +471,21 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
       approvalComment: bizType === '审批' ? remark : row.detail?.approvalComment,
     }
 
+    if (bizType === '整改' && row.rectifyId) {
+      const ok = submitRectification(row.rectifyId, {
+        rectificationDate: inspectionForm.processDate,
+        rectificationNote: remark,
+        rectificationPhotos: inspectionForm.attachments.map((item) => item.name),
+      })
+      if (!ok) return ElMessage.error('未找到关联整改单，无法提交整改')
+    }
+    if (bizType === '复查' && row.rectifyId) {
+      const ok = submitRectificationReview(row.rectifyId, approved, {
+        reviewDate: inspectionForm.processDate,
+        reviewComment: remark,
+      })
+      if (!ok) return ElMessage.error('未找到关联整改单，无法提交复查')
+    }
     if (bizType === '审批' && row.rectifyId) {
       const ok = submitManagerApproval(row.rectifyId, approved, {
         approvalDate: inspectionForm.processDate,

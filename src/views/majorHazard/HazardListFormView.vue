@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Plus, UploadFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -8,6 +8,8 @@ import { getProjectPersonnel, maskIdCard, maskPhone } from '../../mock/laborReal
 import { buildEntityBreakdownTree } from '../../mock/constructionLocation.js'
 import { listApprovedSubcontractors } from '../../mock/subcontractorManagement.js'
 import { listMobileInspectionTasks } from '../../mock/mobileInspectionTasks.js'
+import { DANGER_WORK_CATEGORY_OPTIONS } from '../../coc/config/dailyWorkSchema.js'
+import { listAllDangerWorkSources } from '../../mock/engineeringWork.js'
 import FileAttachmentPreview from '../../components/basicData/FileAttachmentPreview.vue'
 import InspectionTaskDetailView from '../safety/InspectionTaskDetailView.vue'
 import {
@@ -22,170 +24,13 @@ import {
   normalizeLedger,
   saveLedger,
 } from '../../utils/majorHazardManualStorage.js'
-
-const PROCESS_CONFIGS = {
-  scheme: {
-    label: '专项施工方案', dateField: 'preparedAt', responsibleField: 'preparedBy', summaryField: 'schemeName',
-    fields: [
-      { key: 'schemeName', label: '方案名称', required: true }, { key: 'schemeCode', label: '方案编号', required: true, readonly: true, placeholder: '系统自动生成' },
-      { key: 'preparedBy', label: '方案编制人', type: 'person', required: true }, { key: 'preparedAt', label: '编制日期', type: 'date', required: true },
-    ],
-    columns: [
-      { key: 'schemeCode', label: '方案编号', width: 130 }, { key: 'schemeName', label: '方案名称', minWidth: 200 },
-      { key: 'preparedBy', label: '编制人', width: 100 }, { key: 'preparedAt', label: '编制日期', width: 120 },
-    ],
-  },
-  schemeDisclosure: {
-    label: '方案交底', dateField: 'disclosureDate', responsibleField: 'discloser', summaryField: 'schemeName',
-    fields: [
-      { key: 'schemeName', label: '方案名称', required: true },
-      { key: 'discloser', label: '交底人员', type: 'person', required: true },
-      { key: 'receiver', label: '接受人', type: 'people', required: true },
-      { key: 'disclosureDate', label: '交底时间', type: 'datetime', required: true },
-      { key: 'disclosureRemark', label: '交底备注', type: 'textarea', span: 24 },
-    ],
-    columns: [
-      { key: 'schemeName', label: '方案名称', minWidth: 200 },
-      { key: 'receiver', label: '接受人', minWidth: 180 },
-      { key: 'discloser', label: '交底人员', width: 160 }, { key: 'disclosureDate', label: '交底时间', width: 170 },
-      { key: 'disclosureRemark', label: '交底备注', minWidth: 200 },
-    ],
-  },
-  safetyDisclosure: {
-    label: '安全技术交底', dateField: 'disclosureDate', responsibleField: 'siteManager', summaryField: 'title',
-    fields: [
-      { key: 'title', label: '标题', required: true },
-      { key: 'disclosureDate', label: '交底时间', type: 'datetime', required: true },
-      { key: 'siteManager', label: '交底人员', type: 'person', required: true },
-      { key: 'disclosureLocation', label: '交底地点', required: true },
-      { key: 'receivingSubcontractor', label: '接受分包单位', type: 'subcontractor', required: true },
-      { key: 'workTeam', label: '接受班组', required: true },
-      { key: 'receiver', label: '接受人', type: 'people', required: true },
-      { key: 'disclosureContent', label: '交底内容', type: 'textarea', span: 24, required: true },
-    ],
-    columns: [
-      { key: 'title', label: '标题', minWidth: 200 }, { key: 'disclosureDate', label: '交底时间', width: 170 },
-      { key: 'siteManager', label: '交底人员', width: 160 }, { key: 'disclosureLocation', label: '交底地点', minWidth: 150 },
-      { key: 'receivingSubcontractor', label: '接受分包单位', minWidth: 180 }, { key: 'workTeam', label: '接受班组', width: 140 },
-      { key: 'receiver', label: '接受人', minWidth: 180 },
-      { key: 'disclosureContent', label: '交底内容', minWidth: 220 },
-    ],
-  },
-  workerRegistration: {
-    label: '作业人员登记', dateField: 'entryDate', responsibleField: 'workerName', summaryField: 'jobType',
-    fields: [
-      { key: 'personIds', label: '实名制人员', type: 'realNamePeople', span: 24, required: true },
-    ],
-    columns: [
-      { key: 'workerName', label: '姓名', width: 100 },
-      { key: 'phone', label: '手机号', width: 155, mask: true, fullKey: 'phoneFull' },
-      { key: 'employer', label: '参建单位', minWidth: 170 },
-      { key: 'jobType', label: '工种/职务', width: 120 },
-      { key: 'workerType', label: '工人类型', width: 110 },
-      { key: 'certificateNo', label: '资格证号', width: 150 }, { key: 'certificateExpiry', label: '证书有效期', width: 120 },
-    ],
-  },
-  conditionAcceptance: {
-    label: '施工条件验收', dateField: 'acceptanceDate', responsibleField: '', summaryField: 'acceptanceDescription',
-    fields: [
-      { key: 'acceptanceResult', label: '验收结果', type: 'select', options: ['合格', '不合格'], required: true, default: '合格' },
-      { key: 'acceptanceDate', label: '验收时间', type: 'datetime', required: true },
-      { key: 'acceptanceDescription', label: '验收描述', type: 'textarea', span: 24 },
-    ],
-    columns: [
-      { key: 'acceptanceResult', label: '验收结果', width: 110 }, { key: 'acceptanceDate', label: '验收时间', width: 165 },
-      { key: 'acceptanceDescription', label: '验收描述', minWidth: 240 },
-    ],
-  },
-  progress: {
-    label: '施工进度', dateField: 'recordDate', responsibleField: '', summaryField: 'progressDescription',
-    fields: [
-      { key: 'recordDate', label: '记录日期', type: 'date', required: true },
-      { key: 'executionRate', label: '执行率（%）', type: 'number', required: true, default: 0 },
-      { key: 'progressDescription', label: '进度描述', type: 'textarea', span: 24 },
-    ],
-    columns: [
-      { key: 'recordDate', label: '记录日期', width: 120 }, { key: 'executionRate', label: '执行率', width: 100, suffix: '%' },
-      { key: 'progressDescription', label: '进度描述', minWidth: 320 },
-    ],
-  },
-  patrol: {
-    label: '现场巡视', dateField: 'inspectionDate', responsibleField: 'inspectors', summaryField: 'inspectionTaskName',
-    fields: [
-      { key: 'inspectionTaskIds', label: '关联巡检单', type: 'inspectionTasks', span: 24, required: true },
-    ],
-    columns: [
-      { key: 'inspectionTaskCount', label: '巡检单数量', width: 110 }, { key: 'inspectionTaskNo', label: '巡检单编号', minWidth: 190 },
-      { key: 'inspectionTaskName', label: '巡检单名称', minWidth: 220 }, { key: 'inspectors', label: '巡检人员', width: 150 },
-      { key: 'hazardCount', label: '隐患数', width: 90 },
-    ],
-  },
-  acceptance: {
-    label: '危大工程验收', dateField: 'acceptanceDate', responsibleField: '', summaryField: 'acceptanceDescription',
-    fields: [
-      { key: 'acceptanceResult', label: '验收结果', type: 'select', options: ['合格', '不合格'], required: true, default: '合格' },
-      { key: 'acceptanceDate', label: '验收时间', type: 'datetime', required: true },
-      { key: 'acceptanceDescription', label: '验收描述', type: 'textarea', span: 24 },
-    ],
-    columns: [
-      { key: 'acceptanceResult', label: '验收结果', width: 110 }, { key: 'acceptanceDate', label: '验收时间', width: 165 },
-      { key: 'acceptanceDescription', label: '验收描述', minWidth: 240 },
-    ],
-  },
-  controlPoints: {
-    label: '管控要点', dateField: 'date', responsibleField: 'responsible', summaryField: 'content', fields: [],
-    columns: [
-      { key: 'controlPointContent', label: '管控要点', minWidth: 300 }, { key: 'date', label: '记录日期', width: 120 },
-    ],
-  },
-}
-const PROCESS_TABS = Object.entries(PROCESS_CONFIGS).map(([key, value]) => ({ key, label: value.label }))
-const RECORD_DETAIL_EXAMPLES = {
-  scheme: {
-    schemeName: 'A区深基坑支护及土方开挖专项施工方案', schemeCode: 'ZX20260818001', preparedBy: '张工（项目技术负责人）', preparedAt: '2026-08-18',
-    attachmentInfo: 'A区深基坑专项施工方案.pdf',
-  },
-  schemeDisclosure: {
-    schemeName: 'A区深基坑支护及土方开挖专项施工方案', disclosureDate: '2026-08-20 09:00', discloser: '张工（项目技术负责人）', disclosureRemark: '明确分层开挖顺序、支撑安装要求和应急处置措施。',
-    receiver: ['赵志强（班组长）', '李建国（施工员）'],
-    attachmentInfo: '专项施工方案交底记录.pdf\n方案交底签到表.pdf\n交底现场照片.jpg',
-  },
-  safetyDisclosure: {
-    title: '深基坑土方开挖安全技术交底', disclosureDate: '2026-08-21 09:00', siteManager: '李建国（施工员）', disclosureLocation: '项目部安全教育室', receivingSubcontractor: '深圳市政集团有限公司', workTeam: '基坑支护班组', receiver: ['赵志强（班组长）', '王强（施工员）'], disclosureContent: '作业前检查临边防护，按方案分层开挖；发现支护变形或异常涌水立即停止作业并报告。',
-    attachmentInfo: '安全技术交底记录.pdf\n作业人员签字表.pdf\n班前教育照片.jpg',
-  },
-  workerRegistration: {
-    personId: 'person-demo-001', workerName: '赵志强', idNumber: '440300********1137', idNumberFull: '440300199001010137',
-    phone: '138****0137', phoneFull: '13810000137', employer: '中建土方工程有限公司',
-    jobType: '挖掘机司机', workerType: '建筑工人', entryDate: '2026-08-21', isSpecialWorker: '是', certificateNo: '粤A01202608001', certificateExpiry: '2027-08-20',
-    safetyEducationDone: 2, safetyEducationTotal: 3,
-  },
-  conditionAcceptance: {
-    acceptanceDate: '2026-08-22 09:30', acceptanceResult: '合格', acceptanceDescription: '施工方案、人员、机械设备及现场安全防护条件均满足开工要求。',
-    attachmentInfo: '施工条件验收现场照片01.jpg\n施工条件验收现场照片02.jpg',
-  },
-  progress: {
-    recordDate: '2026-08-28', executionRate: 42, progressDescription: '完成第二层土方开挖3600m³及东侧钢支撑安装，现场施工进度符合计划。',
-    attachmentInfo: '现场进度照片01.jpg\n现场进度照片02.jpg',
-  },
-  patrol: {
-    inspectionTaskIds: ['mt-demo-patrol-1', 'mt-demo-patrol-2'], inspectionTaskCount: 2,
-    inspectionTaskNo: 'AQXJ20260824001、ZLXJ20260824002', inspectionTaskName: '深基坑临边防护专项巡检、钢支撑安装质量巡检',
-    inspectionDate: '2026-08-24', inspectors: '王安全、陈监理', hazardCount: 1,
-    inspectionTasks: [
-      { id: 'mt-demo-patrol-1', taskNo: 'AQXJ20260824001', taskName: '深基坑临边防护专项巡检', inspectionCategory: '安全', source: '任务下发', project: '深圳机场扩建工程', inspectionDate: '2026-08-24', deadline: '2026-08-24', status: '已完成', inspector: '王安全', executor: '王安全', itemCount: 8, hazardCount: 1, result: 'hazard', hazardItems: [{ desc: '西侧临边一处警示标识松动', rectifier: '赵班长', rectifyDeadline: '2026-08-28', photos: ['隐患照片01.jpg'] }] },
-      { id: 'mt-demo-patrol-2', taskNo: 'ZLXJ20260824002', taskName: '钢支撑安装质量巡检', inspectionCategory: '质量', source: '系统自建', project: '深圳机场扩建工程', inspectionDate: '2026-08-24', deadline: '2026-08-24', status: '已完成', inspector: '陈监理', executor: '陈监理', itemCount: 6, hazardCount: 0, result: 'normal', normalPhotos: ['巡检照片01.jpg'] },
-    ],
-    attachmentInfo: '监理专项巡视记录.pdf\n巡视现场照片.jpg',
-  },
-  acceptance: {
-    acceptanceDate: '2026-09-05 15:00', acceptanceResult: '合格', acceptanceDescription: '危大工程实体质量、安全设施和现场施工状态验收合格。',
-    attachmentInfo: '危大工程验收现场照片01.jpg\n危大工程验收现场照片02.jpg',
-  },
-  controlPoints: {
-    attachmentInfo: '管控要点检查记录.pdf\n现场检查照片.jpg',
-  },
-}
+import {
+  PROCESS_CONFIGS,
+  PROCESS_TABS,
+  RECORD_DETAIL_EXAMPLES,
+  dangerWorkCount,
+  emptyCell,
+} from '../../utils/majorHazardProcessConfig.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -204,10 +49,32 @@ const recordForm = ref(createBlankRecord())
 const inspectionTaskDetailTab = ref('')
 const attachmentPreviewVisible = ref(false)
 const selectedAttachment = ref(null)
+const dangerPickVisible = ref(false)
+const dangerPickTableRef = ref(null)
+const dangerPickFilterDate = ref('')
+const dangerPickFilterCategory = ref('')
+const dangerSelectedMap = ref(new Map())
 // 脱敏字段（手机号/身份证号）的明文展开状态
 const revealed = ref({})
 function isRevealed(key) { return Boolean(revealed.value[key]) }
 function toggleReveal(key) { revealed.value = { ...revealed.value, [key]: !revealed.value[key] } }
+const dangerCategoryOptions = DANGER_WORK_CATEGORY_OPTIONS.filter((item) => item !== '不涉及危险作业')
+const allDangerWorks = computed(() => (projectId.value ? listAllDangerWorkSources(projectId.value) : []))
+const filteredDangerWorks = computed(() => {
+  const date = String(dangerPickFilterDate.value || '').trim()
+  const category = String(dangerPickFilterCategory.value || '').trim()
+  return allDangerWorks.value.filter((row) => {
+    if (date && String(row.reportDate || '') !== date) return false
+    if (category && String(row.dangerWorkCategory || '') !== category) return false
+    return true
+  })
+})
+const linkedDangerWorks = computed(() => {
+  const list = recordForm.value.dangerWorks || []
+  if (list.length) return list
+  const ids = recordForm.value.dangerWorkIds || []
+  return ids.map((id) => allDangerWorks.value.find((item) => item.id === id)).filter(Boolean)
+})
 
 const basicReadonly = computed(() => routeMode.value === 'view' || isControlMode.value || (form.value && getLedgerStatus(form.value) === '完工'))
 const canEditBasic = computed(() => !basicReadonly.value)
@@ -380,6 +247,7 @@ function createBlankRecord() {
   const record = {
     id: '', partId: '', controlPointId: '', status: '已完成', date: new Date().toISOString().slice(0, 10),
     responsible: '', result: '', content: '', attachmentInfo: '', createdBy: '当前用户', createdAt: '',
+    dangerWorkIds: [], dangerWorks: [],
   }
   const config = PROCESS_CONFIGS[activeProcessTab?.value || 'scheme']
   config.fields.forEach((field) => {
@@ -390,6 +258,71 @@ function createBlankRecord() {
   if (config.dateField && !record[config.dateField]) record[config.dateField] = record.date
   return record
 }
+function snapshotDangerWork(src) {
+  return {
+    id: src.id,
+    reportDate: src.reportDate || '',
+    dangerWorkCategory: src.dangerWorkCategory || '',
+    workArea: src.workArea || '',
+    workContent: src.workContent || '',
+    startTime: src.startTime || '',
+    endTime: src.endTime || '',
+    contractor: src.contractor || '',
+  }
+}
+function applyDangerWorks(sources) {
+  const list = (sources || []).map(snapshotDangerWork)
+  recordForm.value.dangerWorks = list
+  recordForm.value.dangerWorkIds = list.map((item) => item.id).filter(Boolean)
+}
+function removeLinkedDangerWork(id) {
+  applyDangerWorks((recordForm.value.dangerWorks || []).filter((item) => item.id !== id))
+}
+function syncDangerPickSelection() {
+  nextTick(() => {
+    const table = dangerPickTableRef.value
+    if (!table) return
+    table.clearSelection()
+    for (const row of filteredDangerWorks.value) {
+      if (dangerSelectedMap.value.has(row.id)) table.toggleRowSelection(row, true)
+    }
+  })
+}
+function openDangerPick() {
+  const map = new Map()
+  for (const item of linkedDangerWorks.value) {
+    if (item?.id) map.set(item.id, item)
+  }
+  dangerSelectedMap.value = map
+  dangerPickFilterDate.value = String(recordForm.value.recordDate || '').slice(0, 10)
+  dangerPickFilterCategory.value = ''
+  dangerPickVisible.value = true
+  syncDangerPickSelection()
+}
+function onDangerPickSelectionChange(rows) {
+  const visibleIds = new Set(filteredDangerWorks.value.map((item) => item.id))
+  const next = new Map(dangerSelectedMap.value)
+  for (const id of visibleIds) next.delete(id)
+  for (const row of rows || []) {
+    if (row?.id) next.set(row.id, row)
+  }
+  dangerSelectedMap.value = next
+}
+function resetDangerPickFilter() {
+  dangerPickFilterDate.value = String(recordForm.value.recordDate || '').slice(0, 10)
+  dangerPickFilterCategory.value = ''
+  syncDangerPickSelection()
+}
+function confirmDangerPick() {
+  applyDangerWorks([...dangerSelectedMap.value.values()])
+  dangerPickVisible.value = false
+}
+watch([filteredDangerWorks, dangerPickVisible], () => {
+  if (dangerPickVisible.value) syncDangerPickSelection()
+})
+watch(() => recordForm.value.recordDate, (date) => {
+  if (dangerPickVisible.value) dangerPickFilterDate.value = String(date || '').slice(0, 10)
+})
 function load() {
   if (!projectId.value || !sourceId.value) {
     form.value = null
@@ -554,6 +487,15 @@ function buildRecordDisplayData(row) {
   }
   if (!['workerRegistration', 'patrol'].includes(tabKey) && !detail.attachmentInfo) {
     detail.attachmentInfo = RECORD_DETAIL_EXAMPLES[tabKey]?.attachmentInfo || ''
+  }
+  if (tabKey === 'progress') {
+    const isDemoLedger = String(form.value?.id || '').startsWith('mh-demo-')
+    if (isDemoLedger && (!Array.isArray(detail.dangerWorks) || !detail.dangerWorks.length)) {
+      detail.dangerWorks = RECORD_DETAIL_EXAMPLES.progress?.dangerWorks || []
+      detail.dangerWorkIds = detail.dangerWorks.map((item) => item.id).filter(Boolean)
+    }
+    if (!Array.isArray(detail.dangerWorks)) detail.dangerWorks = []
+    if (!Array.isArray(detail.dangerWorkIds)) detail.dangerWorkIds = detail.dangerWorks.map((item) => item.id).filter(Boolean)
   }
   if (tabKey === 'workerRegistration') detail.personIds = detail.personId ? [detail.personId] : []
   if (row.date && !row[currentConfig.value.dateField]) detail[currentConfig.value.dateField] = row.date
@@ -802,7 +744,15 @@ watch([projectId, sourceId, routeMode], load, { immediate: true })
             <el-button v-if="canAddProcessRecord" type="primary" size="small" :icon="Plus" @click="openAddRecord">新增{{ currentTab.label }}记录</el-button>
           </div>
         </div>
-        <el-tabs v-model="activeProcessTab" class="process-tabs"><el-tab-pane v-for="tab in PROCESS_TABS" :key="tab.key" :label="tab.label" :name="tab.key" /></el-tabs>
+        <el-tabs v-model="activeProcessTab" class="process-tabs">
+          <el-tab-pane v-for="tab in PROCESS_TABS" :key="tab.key" :name="tab.key">
+            <template #label>
+              <span class="process-tab-label">
+                <span v-if="tab.requiredStar" class="tab-required-star" aria-hidden="true">*</span>{{ tab.label }}
+              </span>
+            </template>
+          </el-tab-pane>
+        </el-tabs>
         <div class="table-meta"><span>{{ currentTab.label }}台账</span><small>共 {{ processRows.length }} 条记录</small></div>
         <el-table :data="processRows" border stripe empty-text="暂无记录" class="business-table process-ledger-table">
           <el-table-column type="index" label="序号" width="56" />
@@ -813,7 +763,10 @@ watch([projectId, sourceId, routeMode], load, { immediate: true })
             <el-table-column label="显示状态" width="140"><template #default="{ row }"><el-tag size="small" :type="row.displayStatus === 'red' ? 'danger' : 'success'">{{ row.displayStatusText || '—' }}</el-tag></template></el-table-column>
           </template>
           <template v-else><el-table-column v-for="column in currentConfig.columns" :key="column.key" :label="column.label" :width="column.width" :min-width="column.minWidth" show-overflow-tooltip><template #default="{ row }"><template v-if="column.mask"><span>{{ isRevealed(`${row.id}-${column.key}`) ? (row[column.fullKey] || row[column.key] || '—') : (row[column.key] || '—') }}</span><el-button link type="primary" @click.stop="toggleReveal(`${row.id}-${column.key}`)">{{ isRevealed(`${row.id}-${column.key}`) ? '隐藏' : '查看' }}</el-button></template><span v-else>{{ tableValue(row, column) }}</span></template></el-table-column></template>
-          <el-table-column v-if="!['workerRegistration', 'patrol'].includes(activeProcessTab)" label="附件" width="80"><template #default="{ row }">{{ String(row.attachmentInfo || '').split('\n').filter(Boolean).length }}</template></el-table-column>
+          <el-table-column v-if="activeProcessTab === 'progress'" label="危险作业数量" width="120">
+            <template #default="{ row }">{{ dangerWorkCount(row) }}</template>
+          </el-table-column>
+          <el-table-column v-else-if="!['workerRegistration', 'patrol'].includes(activeProcessTab)" label="附件" width="80"><template #default="{ row }">{{ String(row.attachmentInfo || '').split('\n').filter(Boolean).length }}</template></el-table-column>
           <el-table-column prop="createdBy" label="创建人" width="100" />
           <el-table-column prop="createdAt" label="创建时间" width="170" />
           <el-table-column label="操作" width="80" fixed="right"><template #default="{ row }"><el-button link type="primary" @click="openViewRecord(row)">查看</el-button></template></el-table-column>
@@ -884,6 +837,18 @@ watch([projectId, sourceId, routeMode], load, { immediate: true })
             </div>
             <el-empty v-else :image-size="54" description="暂无附件资料" />
           </section>
+
+          <section v-if="activeProcessTab === 'progress'" class="record-detail-section">
+            <div class="record-detail-title">关联危险作业（{{ linkedDangerWorks.length }}）</div>
+            <el-table v-if="linkedDangerWorks.length" :data="linkedDangerWorks" border stripe size="small" empty-text="暂无关联危险作业">
+              <el-table-column label="施工日期" width="120"><template #default="{ row }">{{ emptyCell(row.reportDate) }}</template></el-table-column>
+              <el-table-column label="作业类别" width="120"><template #default="{ row }">{{ emptyCell(row.dangerWorkCategory) }}</template></el-table-column>
+              <el-table-column label="施工区域" min-width="140" show-overflow-tooltip><template #default="{ row }">{{ emptyCell(row.workArea) }}</template></el-table-column>
+              <el-table-column label="当日施工具体内容" min-width="160" show-overflow-tooltip><template #default="{ row }">{{ emptyCell(row.workContent) }}</template></el-table-column>
+              <el-table-column label="施工单位" min-width="150" show-overflow-tooltip><template #default="{ row }">{{ emptyCell(row.contractor) }}</template></el-table-column>
+            </el-table>
+            <el-empty v-else :image-size="54" description="暂无关联危险作业" />
+          </section>
         </template>
 
         <el-form v-else label-width="150px">
@@ -920,6 +885,24 @@ watch([projectId, sourceId, routeMode], load, { immediate: true })
             <el-table-column label="工种/职务" width="130"><template #default="{ row }">{{ row.unit?.work_type || '—' }}</template></el-table-column>
             <el-table-column label="资格证号" width="160"><template #default="{ row }">{{ row.cert_no || '—' }}</template></el-table-column>
           </el-table>
+          <el-form-item v-if="activeProcessTab === 'progress'" label="关联危险作业">
+            <div class="danger-link-block">
+              <div class="danger-link-actions">
+                <el-button type="primary" plain @click="openDangerPick">选择关联</el-button>
+                <span class="muted">可多选每日施工作业中的危险作业；默认按记录日期筛选</span>
+              </div>
+              <el-table v-if="linkedDangerWorks.length" :data="linkedDangerWorks" border stripe size="small" class="danger-link-table">
+                <el-table-column label="施工日期" width="120"><template #default="{ row }">{{ emptyCell(row.reportDate) }}</template></el-table-column>
+                <el-table-column label="作业类别" width="110"><template #default="{ row }">{{ emptyCell(row.dangerWorkCategory) }}</template></el-table-column>
+                <el-table-column label="施工区域" min-width="120" show-overflow-tooltip><template #default="{ row }">{{ emptyCell(row.workArea) }}</template></el-table-column>
+                <el-table-column label="当日施工具体内容" min-width="140" show-overflow-tooltip><template #default="{ row }">{{ emptyCell(row.workContent) }}</template></el-table-column>
+                <el-table-column label="操作" width="80" fixed="right">
+                  <template #default="{ row }"><el-button link type="danger" @click="removeLinkedDangerWork(row.id)">移除</el-button></template>
+                </el-table-column>
+              </el-table>
+              <p v-else class="muted danger-link-empty">请点击「选择关联」添加危险作业</p>
+            </div>
+          </el-form-item>
           <el-form-item v-if="!['workerRegistration', 'patrol'].includes(activeProcessTab)" :label="recordAttachmentLabel" required><div class="record-attachments"><div v-for="name in recordAttachmentNames" :key="name" class="attachment-item"><span>{{ name }}</span><el-button v-if="recordDialogMode !== 'view'" link type="danger" @click="removeRecordAttachment(name)">删除</el-button></div><el-upload v-if="recordDialogMode !== 'view'" :auto-upload="false" :show-file-list="false" :accept="recordAttachmentLabel === '现场照片' ? '.jpg,.jpeg,.png,.webp' : undefined" @change="addRecordAttachment"><el-button :icon="UploadFilled">{{ recordAttachmentLabel === '现场照片' ? '添加图片' : '上传附件' }}</el-button></el-upload><span v-if="recordDialogMode === 'view' && !recordAttachmentNames.length" class="muted">无附件</span></div></el-form-item>
         </el-form>
         <section v-if="activeProcessTab === 'patrol' && selectedInspectionTasks.length" class="record-detail-section patrol-task-section">
@@ -944,6 +927,44 @@ watch([projectId, sourceId, routeMode], load, { immediate: true })
           <div v-if="!selectedAttachment.fileUrl" class="file-preview-tip">当前为演示附件，正式接入文件服务后将在此处加载文件原文。</div>
         </div>
         <template #footer><el-button type="primary" @click="attachmentPreviewVisible = false">关闭</el-button></template>
+      </el-dialog>
+      <el-dialog v-model="dangerPickVisible" title="选择危险作业" width="980px" destroy-on-close>
+        <p class="muted mb-danger-tip">可多选本项目「每日施工作业」中的危险作业；默认按记录日期筛选，切换筛选时已勾选项会保留。</p>
+        <div class="pick-filter-bar">
+          <el-date-picker v-model="dangerPickFilterDate" type="date" value-format="YYYY-MM-DD" placeholder="施工日期" clearable style="width:180px" />
+          <el-select v-model="dangerPickFilterCategory" clearable placeholder="作业类别" style="width:180px">
+            <el-option v-for="item in dangerCategoryOptions" :key="item" :label="item" :value="item" />
+          </el-select>
+          <el-button @click="resetDangerPickFilter">重置筛选</el-button>
+        </div>
+        <el-table
+          ref="dangerPickTableRef"
+          :data="filteredDangerWorks"
+          stripe
+          border
+          max-height="420"
+          row-key="id"
+          empty-text="当前筛选下暂无危险作业"
+          @selection-change="onDangerPickSelectionChange"
+        >
+          <el-table-column type="selection" width="48" align="center" />
+          <el-table-column label="施工日期" width="120"><template #default="{ row }">{{ emptyCell(row.reportDate) }}</template></el-table-column>
+          <el-table-column label="作业类别" width="120"><template #default="{ row }">{{ emptyCell(row.dangerWorkCategory) }}</template></el-table-column>
+          <el-table-column label="施工区域" min-width="140" show-overflow-tooltip><template #default="{ row }">{{ emptyCell(row.workArea) }}</template></el-table-column>
+          <el-table-column label="当日施工具体内容" min-width="160" show-overflow-tooltip><template #default="{ row }">{{ emptyCell(row.workContent) }}</template></el-table-column>
+          <el-table-column label="作业开始时间" width="160"><template #default="{ row }">{{ emptyCell(row.startTime) }}</template></el-table-column>
+          <el-table-column label="作业结束时间" width="160"><template #default="{ row }">{{ emptyCell(row.endTime) }}</template></el-table-column>
+          <el-table-column label="施工单位" min-width="160" show-overflow-tooltip><template #default="{ row }">{{ emptyCell(row.contractor) }}</template></el-table-column>
+        </el-table>
+        <template #footer>
+          <div class="pick-footer">
+            <span class="muted">已勾选 {{ dangerSelectedMap.size }} 项</span>
+            <div>
+              <el-button @click="dangerPickVisible = false">取消</el-button>
+              <el-button type="primary" @click="confirmDangerPick">确定</el-button>
+            </div>
+          </div>
+        </template>
       </el-dialog>
     </template>
     <el-empty v-else description="危大清单仅支持项目级使用或记录不存在。" />
@@ -992,6 +1013,15 @@ watch([projectId, sourceId, routeMode], load, { immediate: true })
 .process-tabs :deep(.el-tabs__nav-wrap::after){display:none}
 .process-tabs :deep(.el-tabs__item){height:46px;color:#667085;font-size:13px}
 .process-tabs :deep(.el-tabs__item.is-active){color:var(--ap-primary,#8f0045);font-weight:600}
+.process-tab-label{display:inline-flex;align-items:center;gap:2px}
+.tab-required-star{color:#f56c6c;font-size:14px;line-height:1;font-weight:700}
+.danger-link-block{width:100%}
+.danger-link-actions{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.danger-link-table{width:100%}
+.danger-link-empty{margin:0}
+.pick-filter-bar{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.pick-footer{display:flex;align-items:center;justify-content:space-between;width:100%}
+.mb-danger-tip{margin:0 0 12px}
 .table-meta{display:flex;align-items:center;justify-content:space-between;margin:0 0 10px;color:#344054}
 .table-meta span{font-size:14px;font-weight:600}
 .table-meta small{color:#98a2b3;font-size:12px;font-weight:400}

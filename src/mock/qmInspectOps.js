@@ -1211,127 +1211,33 @@ export function rollbackToDraft(task) {
 export function createRectify(_task, _problem_desc) {
   void _task
   void _problem_desc
-  return { ok: false, msg: '验评流程不支持整改单；已驳回请重新申报' }
+  return { ok: false, msg: '质量验评整改单已下线；已驳回请重新申报' }
 }
 
-/** 施工填写整改措施 */
-export function saveRectifyMeasure(order, measure) {
-  if (![0, 1, 4].includes(order.status)) return { ok: false, msg: '当前整改单不可编辑措施' }
-  if (!String(measure || '').trim()) return { ok: false, msg: '整改措施不能为空' }
-  order.measure = String(measure).trim()
-  if (order.status === 0) {
-    order.status = 1
-    order.status_changed_at = nowStr()
-  }
-  return { ok: true }
+/** 施工填写整改措施（已下线） */
+export function saveRectifyMeasure(_order, _measure) {
+  void _order
+  void _measure
+  return { ok: false, msg: '质量验评整改单已下线，当前不可办理' }
 }
 
-/** 提交复验：整改中 → 待复验 */
-export function submitReinspectRequest(task) {
-  if (task.status !== 4) return { ok: false, msg: '仅整改中可提交复验' }
-  const rectify = rectificationOrders.find((o) => o.id === task.current_rectify_id)
-  if (!rectify) return { ok: false, msg: '未找到整改单' }
-  if (!String(rectify.measure || '').trim()) return { ok: false, msg: '请先填写整改措施' }
-  const afterPhotos = getAttachments('RECTIFY', rectify.id).filter((a) => a.file_category === 8)
-  if (!afterPhotos.length) {
-    return { ok: false, msg: '缺整改后影像（file_category=8），禁止提交复验' }
-  }
-  rectify.status = 2
-  rectify.status_changed_at = nowStr()
-  rectify.archive_doc_status = RECTIFY_ARCHIVE_DOC_STATUS.REINSPECT
-  archiveWriteReinspect(task) // §4.7：档案文档置「可复验」
-  task.status = 5
-  task.updated_at = nowStr()
-  syncNodeAccept(task)
-  reinspectRounds.push({
-    id: `rr-${Date.now()}`,
-    rectify_id: rectify.id,
-    source_task_id: task.id,
-    round_no: (task.reinspect_count || 0) + 1,
-    submit_time: nowStr(),
-    reinspect_user_id: '',
-    reinspect_time: '',
-    result: 0,
-    opinion: '',
-  })
-  if (task.plan_id) refreshPlanStatus(task.plan_id)
-  return { ok: true }
+/** 提交复验（已下线） */
+export function submitReinspectRequest(_task) {
+  void _task
+  return { ok: false, msg: '质量验评整改复验已下线，当前不可提交' }
 }
 
-/** 复验结论 */
-export function decideReinspect(task, { pass = true, opinion = '' } = {}) {
-  if (task.status !== 5) return { ok: false, msg: '仅待复验可判定' }
-  const rectify = rectificationOrders.find((o) => o.id === task.current_rectify_id)
-  const round = [...reinspectRounds]
-    .reverse()
-    .find((r) => r.source_task_id === task.id && r.result === 0)
-  task.reinspect_count = (task.reinspect_count || 0) + 1
-  if (round) {
-    round.reinspect_user_id = 'u-jl-01'
-    round.reinspect_time = nowStr()
-    round.result = pass ? 1 : 2
-    round.opinion = opinion || (pass ? '复验通过' : '复验不通过')
-    round.round_no = task.reinspect_count
-  }
-  if (pass) {
-    if (rectify) {
-      rectify.status = 3
-      rectify.close_time = nowStr()
-      rectify.close_result = 1
-      rectify.round_count = task.reinspect_count
-      rectify.status_changed_at = nowStr()
-      rectify.archive_doc_status = RECTIFY_ARCHIVE_DOC_STATUS.CLOSED
-    }
-    archiveWriteFinish(task, { closed: true }) // §4.7：复验通过，档案文档「已关闭」
-    task.status = 2
-    task.result = 1
-    task.first_pass_flag = 0
-    task.finish_time = nowStr()
-    task.current_rectify_id = ''
-  } else {
-    if (rectify) {
-      rectify.status = 1
-      rectify.status_changed_at = nowStr()
-      rectify.archive_doc_status = RECTIFY_ARCHIVE_DOC_STATUS.REJECTED
-    }
-    archiveWriteReject(task, {}) // C7：复验不通过同样先写档案「退回待补资料」
-    task.status = 4
-    task.result = 2
-    task.first_pass_flag = 0
-  }
-  task.updated_at = nowStr()
-  syncNodeAccept(task)
-  if (task.plan_id) refreshPlanStatus(task.plan_id)
-  return { ok: true }
+/** 复验结论（已下线） */
+export function decideReinspect(_task, _payload = {}) {
+  void _task
+  void _payload
+  return { ok: false, msg: '质量验评整改复验已下线，当前不可判定' }
 }
 
-/** 兼容旧一键复验：自动补齐后通过 */
-export function submitReinspect(task) {
-  if (task.status === 3) {
-    const r = createRectify(task, '复验前自动下发整改')
-    if (!r.ok) return r
-  }
-  if (task.status === 4) {
-    const rectify = rectificationOrders.find((o) => o.id === task.current_rectify_id)
-    if (rectify) {
-      saveRectifyMeasure(rectify, rectify.measure || '已按要求整改完成')
-      const has = getAttachments('RECTIFY', rectify.id).some((a) => a.file_category === 8)
-      if (!has) {
-        addAttachment({
-          biz_type: 'RECTIFY',
-          biz_id: rectify.id,
-          task_id: task.id,
-          file_name: '整改后对照.jpg',
-          file_category: 8,
-          file_ext: 'jpg',
-        })
-      }
-    }
-    const sub = submitReinspectRequest(task)
-    if (!sub.ok) return sub
-  }
-  if (task.status === 5) return decideReinspect(task, { pass: true, opinion: '复验通过' })
-  return { ok: false, msg: '当前状态不可复验' }
+/** 兼容旧一键复验（已下线） */
+export function submitReinspect(_task) {
+  void _task
+  return { ok: false, msg: '质量验评整改复验已下线，当前不可提交' }
 }
 
 /* —— 计划 —— */

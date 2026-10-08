@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getMobileRectification, submitRectificationReview } from '../../composables/useMobileRectification'
@@ -7,54 +7,82 @@ import { getMobileRectification, submitRectificationReview } from '../../composa
 const route = useRoute()
 const router = useRouter()
 const rid = route.params.id
-const workflowRecord = getMobileRectification(rid)
 
-const isSecondRound = rid === 'rec-003'
-
-const infoMap = {
-  'rec-002': { rn:'ZG202607002', tn:'AQXJ20260728001', cat:'安全', pj:'飞行区跑道延长工程', rf:'王工（项目安全员）', rv:'陈工（监理工程师）', is2:false,
-    items:[{ desc:'五芯电缆破损，线路未按规范敷设', p:['📷 隐患照片1'], rd:'2026-07-25', rp:['📷 整改照片1'], rn:'已更换合规电缆' }] },
-  'rec-003': { rn:'ZG202607003', tn:'ZLXJ20260721003', cat:'质量', pj:'T3航站楼扩建工程', rf:'刘工（专职安全员）', rv:'陈工（监理工程师）', is2:true,
-    items:[{ desc:'脚手架施工方案未报审即施工', p:['📷 隐患照片1'], rd:'2026-07-27', rp:['📷 整改照片1'], rn:'已重新补报方案并通过审核' }],
-    preItems:[{ desc:'脚手架施工方案未报审即施工', p:['📷 隐患照片1'], rd:'2026-07-23', rp:['📷 整改照片1'], rn:'已补报方案' }],
-    prv:{ d:'2026-07-25', c:'整改不彻底', r:'不通过' } },
-  'rec-008': { rn:'ZG202607008', tn:'ZLXJ20260730002', cat:'质量', pj:'T3航站楼扩建工程', rf:'刘工（专职安全员）', rv:'陈工（监理工程师）', is2:false,
-    items:[{ desc:'混凝土外观存在蜂窝麻面', p:['📷 隐患照片1'], rd:'2026-07-30', rp:['📷 整改照片1'], rn:'已完成缺陷修补并养护' }] },
-}
-
-const info = infoMap[rid] || infoMap['rec-002']
-
-const flowRecords = info.is2 ? [
-  { a:'下发整改单', d:'2026-07-20 14:00' },
-  { a:'整改人提交整改结果', d:'2026-07-23 10:30' },
-  { a:'复查不通过，退回继续整改', d:'2026-07-25 09:00', dt:'整改不彻底' },
-  { a:'整改人重新提交整改结果', d:'2026-07-27 16:30' },
-  { a:'待复查人审核', d:'', cur:true },
-] : workflowRecord?.approvalRejected ? [
-  { a:'下发整改单', d:'2026-07-20 14:00' },
-  { a:'整改人提交整改结果', d:'2026-07-30 10:30' },
-  { a:'复查人复查通过，提交项目经理审批', d:'2026-07-30 17:20' },
-  { a:'项目经理审批不通过，退回复查', d:'2026-07-30 18:10', dt:workflowRecord.approvalReason },
-  { a:'复查人重新复查', d:'', cur:true },
-] : [
-  { a:'下发整改单', d:'2026-07-20 14:00' },
-  { a:'整改人提交整改结果', d:'2026-07-25 10:30' },
-  { a:'待复查人审核', d:'', cur:true },
-]
+const record = computed(() => getMobileRectification(rid))
+const missing = computed(() => !record.value)
 
 const flowCollapsed = ref(false)
 const reviewComment = ref('')
 const reviewDate = ref('')
-onMounted(() => document.querySelector('.page-viewport')?.scrollTo({ top:0 }))
+onMounted(() => document.querySelector('.page-viewport')?.scrollTo({ top: 0 }))
+
+const flowRecords = computed(() => {
+  const row = record.value
+  if (!row) return []
+  if (row.isSecondRound) {
+    return [
+      { a: '下发整改单', d: row.applyDate || '--' },
+      { a: '整改人提交整改结果', d: '--' },
+      { a: '复查不通过，退回继续整改', d: '--', dt: row.rejectReason || '整改不彻底' },
+      { a: '整改人重新提交整改结果', d: row.rectificationDate || row.submitDate || '--' },
+      { a: '待复查人审核', d: '', cur: true },
+    ]
+  }
+  if (row.approvalRejected) {
+    return [
+      { a: '下发整改单', d: '--' },
+      { a: '整改人提交整改结果', d: row.rectificationDate || row.submitDate || '--' },
+      { a: '复查人复查通过，提交项目经理审批', d: row.reviewDate || '--' },
+      { a: '项目经理审批不通过，退回复查', d: row.approvalDate || '--', dt: row.approvalReason },
+      { a: '复查人重新复查', d: '', cur: true },
+    ]
+  }
+  return [
+    { a: '下发整改单', d: row.applyDate || '--' },
+    { a: '整改人提交整改结果', d: row.rectificationDate || row.submitDate || '--' },
+    { a: '待复查人审核', d: '', cur: true },
+  ]
+})
+
+function displayPhotos(list) {
+  if (!list?.length) return '--'
+  return list.join('、')
+}
 
 function handleReview(pass) {
-  if (!reviewComment.value.trim()) { ElMessage.warning('请输入复查意见'); return }
-  if (!reviewDate.value) { ElMessage.warning('请选择复查日期'); return }
-  submitRectificationReview(rid, pass, { reviewDate: reviewDate.value, reviewComment: reviewComment.value.trim() })
-  ElMessage.success(pass ? '复查通过，状态已更新为“已复查”，已流转至项目经理审批' : '复查不通过，已退回整改人重新整改')
-  const tab = route.query.tab; router.push(tab ? `/mobile/rectify?tab=${tab}` : '/mobile/rectify')
+  if (missing.value) {
+    ElMessage.error('未找到整改单，无法复查')
+    return
+  }
+  if (!reviewComment.value.trim()) {
+    ElMessage.warning('请输入复查意见')
+    return
+  }
+  if (!reviewDate.value) {
+    ElMessage.warning('请选择复查日期')
+    return
+  }
+  const ok = submitRectificationReview(rid, pass, {
+    reviewDate: reviewDate.value,
+    reviewComment: reviewComment.value.trim(),
+  })
+  if (!ok) {
+    ElMessage.error('复查提交失败，未找到整改单')
+    return
+  }
+  ElMessage.success(
+    pass
+      ? '复查通过，状态已更新为“已复查”，已流转至项目经理审批'
+      : '复查不通过，已退回整改人重新整改',
+  )
+  const tab = route.query.tab
+  router.push(tab ? `/mobile/rectify?tab=${tab}` : '/mobile/rectify')
 }
-function goBack() { const tab = route.query.tab; router.push(tab ? `/mobile/rectify?tab=${tab}` : '/mobile/rectify') }
+
+function goBack() {
+  const tab = route.query.tab
+  router.push(tab ? `/mobile/rectify?tab=${tab}` : '/mobile/rectify')
+}
 </script>
 
 <template>
@@ -64,64 +92,68 @@ function goBack() { const tab = route.query.tab; router.push(tab ? `/mobile/rect
       <h1 class="mt">整改复查</h1>
     </header>
 
-    <div class="ib">
-      <div class="ibn"><span class="ibn-label">整改单编号：</span>{{ info.rn }}</div>
-      <div class="ibm"><span class="ibm-label">巡检任务单编号：</span><span class="ibm-value">{{ info.tn }}</span></div>
-      <div class="ibm"><span class="ibm-label">巡检分类：</span><span class="ibm-value">{{ info.cat }}</span></div>
-      <div class="ibm"><span class="ibm-label">项目名称：</span><span class="ibm-value">{{ info.pj }}</span></div>
-      <div class="ibm"><span class="ibm-label">整改人：</span><span class="ibm-value">{{ info.rf }}</span></div>
-      <div class="ibm"><span class="ibm-label">复查人：</span><span class="ibm-value">{{ info.rv }}</span></div>
-    </div>
+    <div v-if="missing" class="empty-tip">未找到该整改单，请返回列表重试。</div>
 
-    <div v-if="workflowRecord?.approvalRejected" class="approval-reject-tip">
-      <strong>项目经理审批不通过</strong>
-      <span>{{ workflowRecord.approvalReason }}</span>
-      <small>请复查人重新核验并提交审批</small>
-    </div>
+    <template v-else>
+      <div class="ib">
+        <div class="ibn"><span class="ibn-label">整改单编号：</span>{{ record.rectifyNo }}</div>
+        <div class="ibm"><span class="ibm-label">巡检任务单编号：</span><span class="ibm-value">{{ record.taskNo || '--' }}</span></div>
+        <div class="ibm"><span class="ibm-label">巡检分类：</span><span class="ibm-value">{{ record.inspectionCategory || '--' }}</span></div>
+        <div class="ibm"><span class="ibm-label">项目名称：</span><span class="ibm-value">{{ record.project || '--' }}</span></div>
+        <div class="ibm"><span class="ibm-label">整改人：</span><span class="ibm-value">{{ record.rectifier || '--' }}</span></div>
+        <div class="ibm"><span class="ibm-label">复查人：</span><span class="ibm-value">{{ record.reviewer || '--' }}</span></div>
+      </div>
 
-    <!-- 流程记录 -->
-    <div class="sc">
-      <div class="sct colps" @click="flowCollapsed=!flowCollapsed"><span>流程记录</span><span class="ca">{{ flowCollapsed?'展开 ▸':'收起 ▾' }}</span></div>
-      <div v-show="!flowCollapsed" class="fl">
-        <div v-for="(f,i) in flowRecords" :key="i" class="fi" :class="{cur:f.cur}">
-          <div class="fd" :class="{cur:f.cur}"></div>
-          <div class="fc">
-            <div class="fc-row">
-              <span class="fa">{{ f.a }}</span>
-              <span class="fd2">{{ f.d||'待处理' }}</span>
+      <div v-if="record.approvalRejected" class="approval-reject-tip">
+        <strong>项目经理审批不通过</strong>
+        <span>{{ record.approvalReason || '--' }}</span>
+        <small>请复查人重新核验并提交审批</small>
+      </div>
+
+      <div class="sc">
+        <div class="sct colps" @click="flowCollapsed = !flowCollapsed">
+          <span>流程记录</span>
+          <span class="ca">{{ flowCollapsed ? '展开 ▸' : '收起 ▾' }}</span>
+        </div>
+        <div v-show="!flowCollapsed" class="fl">
+          <div v-for="(f, i) in flowRecords" :key="i" class="fi" :class="{ cur: f.cur }">
+            <div class="fd" :class="{ cur: f.cur }"></div>
+            <div class="fc">
+              <div class="fc-row">
+                <span class="fa">{{ f.a }}</span>
+                <span class="fd2">{{ f.d || '待处理' }}</span>
+              </div>
+              <span v-if="f.dt" class="fdl">{{ f.dt }}</span>
             </div>
-            <span v-if="f.dt" class="fdl">{{ f.dt }}</span>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- 整改结果 -->
-    <div class="sc">
-      <div class="sct">整改结果</div>
-      <div v-for="(item,i) in info.items" :key="i" class="ic">
-          <div class="ir"><span class="il">隐患说明</span><span>{{ item.desc }}</span></div>
-        <div class="ir" v-if="item.p"><span class="il">隐患照片</span><span>{{ item.p.join('、') }}</span></div>
-        <div class="dv"></div>
-        <div class="ir"><span class="il">整改日期</span><span>{{ item.rd }}</span></div>
-        <div class="ir"><span class="il">整改照片</span><span>{{ item.rp.join('、') }}</span></div>
-        <div class="ir"><span class="il">整改说明</span><span>{{ item.rn }}</span></div>
+      <div class="sc">
+        <div class="sct">整改结果</div>
+        <div class="ic">
+          <div class="ir"><span class="il">隐患说明</span><span>{{ record.hazard || '--' }}</span></div>
+          <div class="ir"><span class="il">隐患照片</span><span>{{ displayPhotos(record.hazardPhotos) }}</span></div>
+          <div class="dv"></div>
+          <div class="ir"><span class="il">整改日期</span><span>{{ record.rectificationDate || record.submitDate || '--' }}</span></div>
+          <div class="ir"><span class="il">整改照片</span><span>{{ displayPhotos(record.rectificationPhotos) }}</span></div>
+          <div class="ir"><span class="il">整改说明</span><span>{{ record.rectificationNote || '--' }}</span></div>
+        </div>
       </div>
-    </div>
 
-    <!-- 复查意见 -->
-    <div class="sc review">
-      <div class="sct">复查意见</div>
-      <div class="fr"><span class="fl-label">复查日期 <i class="req">*</i></span><input type="date" v-model="reviewDate" class="fi-input" /></div>
-      <div class="fr">
-        <span class="fl-label">复查意见 <i class="req">*</i></span>
-        <textarea v-model="reviewComment" class="fta" placeholder="请输入复查意见..." rows="3"></textarea>
+      <div class="sc review">
+        <div class="sct">复查意见</div>
+        <div class="fr"><span class="fl-label">复查日期 <i class="req">*</i></span><input type="date" v-model="reviewDate" class="fi-input" /></div>
+        <div class="fr">
+          <span class="fl-label">复查意见 <i class="req">*</i></span>
+          <textarea v-model="reviewComment" class="fta" placeholder="请输入复查意见..." rows="3"></textarea>
+        </div>
+        <div class="ra">
+          <button class="ab reject" @click="handleReview(false)">❌ 不通过</button>
+          <button class="ab pass" @click="handleReview(true)">✅ 通过</button>
+        </div>
       </div>
-      <div class="ra">
-        <button class="ab reject" @click="handleReview(false)">❌ 不通过</button>
-        <button class="ab pass" @click="handleReview(true)">✅ 通过</button>
-      </div>
-    </div>
+    </template>
   </div>
 </template>
 
@@ -130,6 +162,7 @@ function goBack() { const tab = route.query.tab; router.push(tab ? `/mobile/rect
 .mh { display:flex; align-items:center; padding:12px 16px; background:#8f0045; color:#fff; position:sticky; top:0; z-index:10; }
 .mb { background:none; border:none; color:#fff; font-size:28px; padding:0 4px 0 0; line-height:1; cursor:pointer; }
 .mt { flex:1; font-size:18px; font-weight:600; margin:0; }
+.empty-tip { margin:40px 16px; padding:24px; text-align:center; color:#999; background:#fff; border-radius:10px; }
 
 .ib { background:#fff; padding:14px 16px; border-bottom:1px solid #eee; }
 .ibn { font-size:15px; font-weight:600; color:#1f2329; margin-bottom:6px; }
@@ -151,10 +184,6 @@ function goBack() { const tab = route.query.tab; router.push(tab ? `/mobile/rect
 .ir > span:last-child { flex:1; min-width:0; word-break:break-word; }
 .dv { height:1px; background:#eee; margin:8px 0; }
 
-.pv { background:#fff; border-radius:8px; padding:12px; border-left:3px solid #e53935; margin-top:8px; }
-.pvt { font-size:13px; font-weight:600; color:#e53935; margin-bottom:8px; }
-
-.sc.review { }
 .fr { display:flex; gap:8px; margin-bottom:10px; align-items:flex-start; }
 .fl-label { font-size:13px; color:#666; flex-shrink:0; width:72px; padding-top:4px; }
 .req { color:#e53935; font-style:normal; margin-left:2px; }
@@ -165,7 +194,6 @@ function goBack() { const tab = route.query.tab; router.push(tab ? `/mobile/rect
 .ab.pass { background:#e8f5e9; color:#34a853; border-color:#34a853; }
 .ab.reject { background:#ffebee; color:#e53935; border-color:#e53935; }
 
-/* 流程 */
 .fl { padding-left:6px; }
 .fi { display:flex; gap:10px; padding-bottom:14px; position:relative; }
 .fi::before { content:''; position:absolute; left:7px; top:15px; bottom:0; width:1px; background:#e0e0e0; }

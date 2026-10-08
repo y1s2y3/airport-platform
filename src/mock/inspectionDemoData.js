@@ -1,41 +1,9 @@
 import { COC_PROJECT_OPTIONS } from '../config/projectOptions.js'
-import { DEFAULT_INSPECTOR } from '../config/inspectionManagement.js'
+import { getDemoInspectionPeople, inspectionPeoplePool } from './inspectionPeople.js'
+
+export { getDemoInspectionPeople, inspectionPeoplePool }
 
 export const INSPECTION_DEMO_TODAY = '2026-08-27'
-
-export const inspectionPeoplePool = [
-  DEFAULT_INSPECTOR,
-  { id: 'insp-001', name: '王工', role: '项目安全员', phone: '138****1024' },
-  { id: 'insp-002', name: '刘工', role: '专职安全员', phone: '138****2048' },
-  { id: 'insp-003', name: '陈工', role: '安全主管', phone: '138****3096' },
-  { id: 'insp-004', name: '吴工', role: '巡检员', phone: '138****4072' },
-  { id: 'insp-005', name: '赵工', role: '项目安全负责人', phone: '138****5068' },
-  { id: 'insp-006', name: '周工', role: '质量工程师', phone: '138****6084' },
-  { id: 'insp-007', name: '黄工', role: '专业监理工程师', phone: '138****7066' },
-]
-
-const managerNames = ['赵经理', '李经理', '周经理', '钱经理', '孙经理', '郑经理', '冯经理', '何经理']
-
-function getProjectIndex(projectId) {
-  const index = COC_PROJECT_OPTIONS.findIndex(project => project.id === projectId)
-  return index >= 0 ? index : 0
-}
-
-export function getDemoInspectionPeople(projectId) {
-  const index = getProjectIndex(projectId)
-  const inspector = inspectionPeoplePool[index % inspectionPeoplePool.length]
-  const rectifier = inspectionPeoplePool[(index + 2) % inspectionPeoplePool.length]
-  const reviewer = inspectionPeoplePool[(index + 4) % inspectionPeoplePool.length]
-  return {
-    manager: managerNames[index % managerNames.length],
-    inspector,
-    rectifier,
-    reviewer,
-    inspectorLabel: `${inspector.name}（${inspector.role}）`,
-    rectifierLabel: `${rectifier.name}（${rectifier.role}）`,
-    reviewerLabel: `${reviewer.name}（${reviewer.role}）`,
-  }
-}
 
 export const inspectionProjectTree = [
   {
@@ -303,61 +271,3 @@ function buildTasks(project, index) {
 
 export const inspectionTaskSeeds = COC_PROJECT_OPTIONS.flatMap(buildTasks)
 
-export function getInspectionHazard(id) {
-  return inspectionHazards.find(item => item.id === id) || null
-}
-
-export function getInspectionHazardDetail(id) {
-  const row = getInspectionHazard(id)
-  if (!row) return null
-
-  const detail = {
-    rn: row.rectifyNo,
-    tn: row.taskNo,
-    pj: row.project,
-    project_id: row.project_id,
-    cat: row.inspectionCategory,
-    rf: row.rectifier,
-    rv: row.reviewer,
-    dl: row.deadline,
-    st: row.status,
-    cd: row.closeDate,
-    hazard: { desc: row.desc, photos: [...row.hazardPhotos] },
-    flow: [{ a: '下发整改单', d: `${row.issueDate} 09:30` }],
-  }
-
-  if (row.rectDate) {
-    detail.rectification = {
-      date: row.rectDate,
-      photos: [...(row.rectificationPhotos || [])],
-      note: row.rectificationNote || '已完成整改。',
-    }
-    detail.flow.push({ a: '整改人提交整改结果', d: `${row.rectDate} 16:20` })
-  }
-  if (row.reviewDate) {
-    detail.reviews = [{
-      round: 1,
-      date: row.reviewDate,
-      comment: row.reviewComment || '整改到位，复查合格。',
-      result: '通过',
-    }]
-    detail.flow.push({ a: '复查人复查通过', d: `${row.reviewDate} 10:10` })
-  }
-  if (row.status === '已复查') {
-    detail.managerApproval = { manager: row.manager, status: '审批中', comment: '-' }
-    detail.flow.push({ a: '待项目经理审批', d: '', cur: true })
-  } else if (row.status === '已关闭') {
-    detail.managerApproval = {
-      manager: row.manager,
-      date: row.closeDate,
-      status: '通过',
-      comment: row.approvalComment || '同意关闭。',
-    }
-    detail.flow.push({ a: '项目经理审批通过，整改单关闭', d: `${row.closeDate} 11:00` })
-  } else if (row.status === '待复查') {
-    detail.flow.push({ a: '待复查人审核', d: '', cur: true })
-  } else {
-    detail.flow.push({ a: '等待整改人执行', d: '', cur: true })
-  }
-  return detail
-}

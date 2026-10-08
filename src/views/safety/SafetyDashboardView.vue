@@ -4,7 +4,8 @@ import { useRouter } from 'vue-router'
 import * as echarts from 'echarts'
 import { COC_PROJECT_OPTIONS } from '../../config/projectOptions'
 import { listMobileInspectionTasks } from '../../mock/mobileInspectionTasks'
-import { INSPECTION_DEMO_TODAY, inspectionHazards } from '../../mock/inspectionDemoData'
+import { INSPECTION_DEMO_TODAY } from '../../mock/inspectionDemoData'
+import { listInspectionHazards } from '../../mock/inspectionHazardQuery'
 import { hasInspectionCategory } from '../../config/inspectionManagement'
 
 const router = useRouter()
@@ -86,12 +87,14 @@ function calcOverdue(d) {
   return { overdue: diff > 0, days: diff > 0 ? diff : 0 }
 }
 
-const hazardData = inspectionHazards
+const hazardData = computed(() => listInspectionHazards())
 const taskData = listMobileInspectionTasks()
 
 // ===== 统计 =====
 const scopedHazardData = computed(() =>
-  inspectionCategory.value ? hazardData.filter(item => getInspectionCategory(item) === inspectionCategory.value) : hazardData
+  inspectionCategory.value
+    ? hazardData.value.filter(item => getInspectionCategory(item) === inspectionCategory.value)
+    : hazardData.value
 )
 const scopedTaskData = computed(() =>
   inspectionCategory.value ? taskData.filter(item => hasInspectionCategory(item.inspectionCategories || getInspectionCategory(item), inspectionCategory.value)) : taskData
@@ -150,8 +153,9 @@ const overdueItems = computed(() => {
   return all.sort((a, b) => b.days - a.days)
 })
 
-const hazardNoMap = { 'rec-001':'ZG202607001','rec-006':'ZG202607006','rec-002':'ZG202607002','rec-003':'ZG202607003','rec-007':'ZG202607007','rec-004':'ZG202607004','rec-011':'ZG202607011','rec-020':'ZG202607020','rec-021':'ZG202607021','rec-030':'ZG202607030','rec-031':'ZG202607031','rec-040':'ZG202607040','rec-041':'ZG202607041','rec-050':'ZG202607050','rec-051':'ZG202607051' }
-function getHazardNo(id) { return inspectionHazards.find(item => item.id === id)?.rectifyNo || hazardNoMap[id] || id }
+function getHazardNo(id) {
+  return listInspectionHazards().find(item => item.id === id)?.rectifyNo || id
+}
 
 // ===== ECharts =====
 const pieTaskRef = ref(null), pieHazardRef = ref(null)

@@ -6,26 +6,50 @@ import { getMobileRectification, submitManagerApproval } from '../../composables
 
 const route = useRoute()
 const router = useRouter()
-const record = computed(() => getMobileRectification(route.params.id) || getMobileRectification('rec-007'))
+const record = computed(() => getMobileRectification(route.params.id))
+const missing = computed(() => !record.value)
 const approvalDate = ref('')
 const approvalComment = ref('')
 const flowCollapsed = ref(false)
-onMounted(() => document.querySelector('.page-viewport')?.scrollTo({ top:0 }))
+onMounted(() => document.querySelector('.page-viewport')?.scrollTo({ top: 0 }))
 
-const flowRecords = computed(() => [
-  { action:'下发整改单', date:'2026-07-25 09:00' },
-  { action:'整改人提交整改结果', date:'2026-07-28 16:30' },
-  { action:'复查人复查通过', date:record.value.applyDate },
-  { action:'待项目经理审批', date:'', current:true },
-])
+const flowRecords = computed(() => {
+  const row = record.value
+  if (!row) return []
+  return [
+    { action: '下发整改单', date: row.applyDate || '--' },
+    { action: '整改人提交整改结果', date: row.rectificationDate || row.submitDate || '--' },
+    { action: '复查人复查通过', date: row.reviewDate || row.applyDate || '--' },
+    { action: '待项目经理审批', date: '', current: true },
+  ]
+})
+
+function displayPhotos(list) {
+  if (!list?.length) return '--'
+  return list.join('、')
+}
 
 function handleApproval(pass) {
-  if (!approvalDate.value) { ElMessage.warning('请选择审批日期'); return }
-  if (!approvalComment.value.trim()) { ElMessage.warning('请输入审批意见'); return }
-  submitManagerApproval(record.value.id, pass, {
+  if (missing.value) {
+    ElMessage.error('未找到整改单，无法审批')
+    return
+  }
+  if (!approvalDate.value) {
+    ElMessage.warning('请选择审批日期')
+    return
+  }
+  if (!approvalComment.value.trim()) {
+    ElMessage.warning('请输入审批意见')
+    return
+  }
+  const ok = submitManagerApproval(record.value.id, pass, {
     approvalDate: approvalDate.value,
     approvalComment: approvalComment.value.trim(),
   })
+  if (!ok) {
+    ElMessage.error('审批失败，未找到整改单')
+    return
+  }
   ElMessage.success(pass ? '审批通过，整改流程已闭环' : '审批不通过，已退回复查人重新复查')
   const tab = route.query.tab
   router.push(tab ? `/mobile/rectify?tab=${pass ? '已关闭' : '待复查'}` : '/mobile/rectify')
@@ -44,56 +68,62 @@ function goBack() {
       <h1 class="mt">项目经理审批</h1>
     </header>
 
-    <div class="info-bar">
-      <div class="info-title">⚠ {{ record.rectifyNo }}</div>
-      <div class="info-meta">巡检任务单编号：{{ record.taskNo }}</div>
-      <div class="info-meta">巡检分类：{{ record.inspectionCategory }}</div>
-      <div class="info-meta">{{ record.project }}</div>
-      <div class="people-row">
-        <span>整改人：{{ record.rectifier }}</span>
-        <span>复查人：{{ record.reviewer }}</span>
-      </div>
-    </div>
+    <div v-if="missing" class="empty-tip">未找到该整改单，请返回列表重试。</div>
 
-    <div class="section">
-      <div class="section-title collapsible" @click="flowCollapsed = !flowCollapsed">
-        <span>流程记录</span>
-        <span class="collapse-arrow">{{ flowCollapsed ? '展开 ▸' : '收起 ▾' }}</span>
+    <template v-else>
+      <div class="info-bar">
+        <div class="info-title">⚠ {{ record.rectifyNo }}</div>
+        <div class="info-meta">巡检任务单编号：{{ record.taskNo || '--' }}</div>
+        <div class="info-meta">巡检分类：{{ record.inspectionCategory || '--' }}</div>
+        <div class="info-meta">{{ record.project || '--' }}</div>
+        <div class="people-row">
+          <span>整改人：{{ record.rectifier || '--' }}</span>
+          <span>复查人：{{ record.reviewer || '--' }}</span>
+        </div>
       </div>
-      <div v-show="!flowCollapsed" class="flow-list">
-        <div v-for="(item,index) in flowRecords" :key="index" class="flow-item" :class="{ current:item.current }">
-          <span class="flow-dot"></span>
-          <div class="flow-content">
-            <strong>{{ item.action }}</strong>
-            <span>{{ item.date || '待处理' }}</span>
+
+      <div class="section">
+        <div class="section-title collapsible" @click="flowCollapsed = !flowCollapsed">
+          <span>流程记录</span>
+          <span class="collapse-arrow">{{ flowCollapsed ? '展开 ▸' : '收起 ▾' }}</span>
+        </div>
+        <div v-show="!flowCollapsed" class="flow-list">
+          <div v-for="(item, index) in flowRecords" :key="index" class="flow-item" :class="{ current: item.current }">
+            <span class="flow-dot"></span>
+            <div class="flow-content">
+              <strong>{{ item.action }}</strong>
+              <span>{{ item.date || '待处理' }}</span>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <div class="section">
-      <div class="section-title">隐患与整改复查结果</div>
-      <div class="info-row"><span>隐患说明</span><p>{{ record.hazard }}</p></div>
-      <div class="info-row"><span>整改结果</span><p>已完成现场整改并上传整改照片</p></div>
-      <div class="info-row"><span>复查结果</span><p class="pass-text">通过</p></div>
-      <div class="info-row"><span>复查意见</span><p>{{ record.reviewComment || '整改符合要求，同意提交项目经理审批' }}</p></div>
-    </div>
-
-    <div class="section approval-card">
-      <div class="section-title">审批意见</div>
-      <label class="form-row">
-        <span>审批日期 <i>*</i></span>
-        <input v-model="approvalDate" type="date" />
-      </label>
-      <label class="form-row">
-        <span>审批意见 <i>*</i></span>
-        <textarea v-model="approvalComment" rows="3" placeholder="请输入审批意见..." />
-      </label>
-      <div class="actions">
-        <button class="reject" @click="handleApproval(false)">不通过，退回复查</button>
-        <button class="pass" @click="handleApproval(true)">通过并关闭</button>
+      <div class="section">
+        <div class="section-title">隐患与整改复查结果</div>
+        <div class="info-row"><span>隐患说明</span><p>{{ record.hazard || '--' }}</p></div>
+        <div class="info-row"><span>整改日期</span><p>{{ record.rectificationDate || record.submitDate || '--' }}</p></div>
+        <div class="info-row"><span>整改照片</span><p>{{ displayPhotos(record.rectificationPhotos) }}</p></div>
+        <div class="info-row"><span>整改说明</span><p>{{ record.rectificationNote || '--' }}</p></div>
+        <div class="info-row"><span>复查结果</span><p :class="{ 'pass-text': record.reviewResult === '通过' }">{{ record.reviewResult || '--' }}</p></div>
+        <div class="info-row"><span>复查意见</span><p>{{ record.reviewComment || '--' }}</p></div>
       </div>
-    </div>
+
+      <div class="section approval-card">
+        <div class="section-title">审批意见</div>
+        <label class="form-row">
+          <span>审批日期 <i>*</i></span>
+          <input v-model="approvalDate" type="date" />
+        </label>
+        <label class="form-row">
+          <span>审批意见 <i>*</i></span>
+          <textarea v-model="approvalComment" rows="3" placeholder="请输入审批意见..." />
+        </label>
+        <div class="actions">
+          <button class="reject" @click="handleApproval(false)">不通过，退回复查</button>
+          <button class="pass" @click="handleApproval(true)">通过并关闭</button>
+        </div>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -102,6 +132,7 @@ function goBack() {
 .mh { display:flex; align-items:center; padding:12px 16px; background:#8f0045; color:#fff; position:sticky; top:0; z-index:10; }
 .mb { border:0; background:transparent; color:#fff; font-size:28px; line-height:1; cursor:pointer; }
 .mt { flex:1; margin:0; font-size:18px; font-weight:600; }
+.empty-tip { margin:40px 16px; padding:24px; text-align:center; color:#999; background:#fff; border-radius:10px; }
 .info-bar { background:#fff; padding:14px 16px; border-bottom:1px solid #eee; }
 .info-title { font-size:15px; font-weight:600; color:#1f2329; margin-bottom:5px; }
 .info-meta,.people-row { color:#999; font-size:12px; line-height:1.7; }

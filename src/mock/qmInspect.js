@@ -43,7 +43,7 @@ export const PLAN_STATUS = {
   3: '已完成',
 }
 
-/** 整改单 status */
+/** 整改单 status（已废止：独立整改单主路径已下线，仅保留枚举供历史对照） */
 export const RECTIFY_STATUS = {
   0: '待整改',
   1: '整改中',
@@ -1922,7 +1922,7 @@ export const inspectionItems = reactive([])
 /**
  * RECTIFICATION_ORDER — 验评主路径不支持整改单；种子为空
  */
-export const rectificationOrders = reactive([])
+export const rectificationOrders = reactive([]) // 已下线：不再种子化；创建/办理接口统一拒绝
 
 export const reinspectRounds = reactive([])
 

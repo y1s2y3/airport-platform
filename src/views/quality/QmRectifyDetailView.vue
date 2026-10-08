@@ -1,24 +1,9 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import {
-  addAttachment,
-  decideReinspect,
-  findRectify,
-  findTask,
-  getAttachments,
-  inspectionTasks,
-  ORG_LABEL,
-  RECTIFY_STATUS,
-  resolveProjectName,
-  reinspectRounds,
-  saveRectifyMeasure,
-  submitReinspectRequest,
-  TASK_STATUS,
-} from '../../mock/qm.js'
-import { finishPersonalTodo } from '../../mock/personalCenter.js'
-import PersonalCenterReadonlyHint from '../../components/PersonalCenterReadonlyHint.vue'
+/**
+ * 质量验评整改单详情（已下线）
+ * 旧路由已 redirect 至深填报；本页仅作兜底空态，避免直链/缓存入口白屏。
+ */
+import { useRouter } from 'vue-router'
 
 const props = defineProps({
   embedded: { type: Boolean, default: false },
@@ -28,103 +13,9 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['back'])
-
-const route = useRoute()
 const router = useRouter()
-const order = ref(null)
-const measure = ref('')
 
-const fromPersonalCenter = computed(() => props.embedded)
-
-const resolvedRectifyId = computed(() => {
-  if (props.rectifyId) return props.rectifyId
-  const raw = route.query.id || route.params.id
-  return Array.isArray(raw) ? raw[0] : raw
-})
-
-const resolvedTodoId = computed(() => {
-  if (props.todoId) return props.todoId
-  const raw = route.query.todoId
-  return Array.isArray(raw) ? raw[0] : raw
-})
-
-function load() {
-  order.value = resolvedRectifyId.value ? findRectify(resolvedRectifyId.value) : null
-  measure.value = order.value?.measure || ''
-}
-
-watch(resolvedRectifyId, () => load(), { immediate: true })
-
-const task = computed(() =>
-  order.value
-    ? findTask(order.value.source_task_id) ||
-      inspectionTasks.find((t) => t.id === order.value.source_task_id)
-    : null,
-)
-const afterPhotos = computed(() =>
-  order.value ? getAttachments('RECTIFY', order.value.id).filter((a) => a.file_category === 8) : [],
-)
-const rounds = computed(() =>
-  order.value ? reinspectRounds.filter((r) => r.rectify_id === order.value.id) : [],
-)
-
-const canSubmitRectify = computed(
-  () =>
-    props.embedded &&
-    !props.readonly &&
-    order.value &&
-    Number(order.value.status) !== 3 &&
-    Number(task.value?.status) === 4,
-)
-
-const showModuleReadonlyHint = computed(
-  () =>
-    !props.embedded &&
-    order.value &&
-    Number(order.value.status) !== 3 &&
-    task.value &&
-    Number(task.value.status) === 4,
-)
-
-function onSave() {
-  const r = saveRectifyMeasure(order.value, measure.value)
-  if (!r.ok) return ElMessage.error(r.msg)
-  ElMessage.success('措施已保存')
-}
-
-function onPhoto() {
-  const r = addAttachment({
-    biz_type: 'RECTIFY',
-    biz_id: order.value.id,
-    task_id: order.value.source_task_id,
-    file_name: '整改后影像.jpg',
-    file_category: 8,
-    file_ext: 'jpg',
-  })
-  if (!r.ok) return ElMessage.error(r.msg)
-  ElMessage.success('已上传整改后影像')
-}
-
-function onSubmit() {
-  if (!task.value) return ElMessage.error('来源任务不存在')
-  const r = submitReinspectRequest(task.value)
-  if (!r.ok) return ElMessage.error(r.msg)
-  if (resolvedTodoId.value) finishPersonalTodo(resolvedTodoId.value, '提交复验')
-  ElMessage.success('已提交复验')
-  load()
-  if (props.embedded) emit('back')
-}
-
-function onPass() {
-  const r = decideReinspect(task.value, { pass: true })
-  if (!r.ok) return ElMessage.error(r.msg)
-  if (resolvedTodoId.value) finishPersonalTodo(resolvedTodoId.value, '复验通过')
-  ElMessage.success('复验通过并销号')
-  load()
-  if (props.embedded) emit('back')
-}
-
-function goBack() {
+function handleBack() {
   if (props.embedded) {
     emit('back')
     return
@@ -134,69 +25,27 @@ function goBack() {
 </script>
 
 <template>
-  <div v-if="!order" class="qm-page page-card"><el-empty description="整改单不存在" /></div>
-  <div v-else class="qm-page page-card">
-    <div v-if="!embedded" class="page-header">
-      <div class="page-breadcrumb">质量验评 / 整改复验 / 详情</div>
-      <h1 class="page-title">{{ order.order_no }}</h1>
-      <p class="page-tip">{{ RECTIFY_STATUS[order.status] }} · {{ resolveProjectName(order.project_id) }}</p>
+  <div class="pg">
+    <div v-if="!embedded" class="hd">
+      <el-button text @click="handleBack">‹ 返回</el-button>
+      <h3 class="pt">整改单详情</h3>
     </div>
-    <p v-else class="page-tip embed-tip">
-      {{ order.order_no }} · {{ RECTIFY_STATUS[order.status] }} · {{ resolveProjectName(order.project_id) }}
-    </p>
-    <PersonalCenterReadonlyHint
-      v-if="showModuleReadonlyHint"
-      title="本页为只读查看；整改提交与复验请在「个人中心 → 我的待办」中处理。"
-    />
-    <el-descriptions :column="2" border class="mb">
-      <el-descriptions-item label="来源验评单">{{ task?.task_no || order.source_task_id }}</el-descriptions-item>
-      <el-descriptions-item label="任务状态">{{ task ? TASK_STATUS[task.status] : '—' }}</el-descriptions-item>
-      <el-descriptions-item label="问题描述" :span="2">{{ order.problem_desc }}</el-descriptions-item>
-      <el-descriptions-item label="责任单位">{{ ORG_LABEL[order.responsible_org_id] }}</el-descriptions-item>
-      <el-descriptions-item label="整改期限">{{ order.deadline }}</el-descriptions-item>
-    </el-descriptions>
-
-    <div class="section-title">整改措施</div>
-    <el-input
-      v-model="measure"
-      type="textarea"
-      :rows="3"
-      class="mb"
-      :disabled="order.status === 3 || props.readonly || !canSubmitRectify"
-    />
-    <div v-if="canSubmitRectify || (task?.status === 5 && fromPersonalCenter)" class="filter-bar mb">
-      <el-button v-if="canSubmitRectify" @click="onSave">保存措施</el-button>
-      <el-button v-if="canSubmitRectify" @click="onPhoto">
-        上传整改后影像（{{ afterPhotos.length }}）
-      </el-button>
-      <el-button v-if="canSubmitRectify" type="primary" @click="onSubmit">提交复验</el-button>
-      <el-button v-if="task?.status === 5 && fromPersonalCenter" type="success" @click="onPass">
-        复验通过
-      </el-button>
-    </div>
-
-    <div class="section-title">复验轮次</div>
-    <el-table :data="rounds" border size="small" empty-text="暂无复验轮次">
-      <el-table-column prop="round_no" label="轮次" width="70" />
-      <el-table-column prop="submit_time" label="提交时间" width="170" />
-      <el-table-column prop="reinspect_time" label="复验时间" width="170" />
-      <el-table-column label="结论" width="90">
-        <template #default="{ row }">{{ { 0: '待判定', 1: '通过', 2: '不通过' }[row.result] }}</template>
-      </el-table-column>
-      <el-table-column prop="opinion" label="意见" min-width="160" />
-    </el-table>
-
-    <el-button v-if="!embedded" style="margin-top: 16px" @click="goBack">返回列表</el-button>
+    <el-empty description="质量验评整改单已下线">
+      <template #description>
+        <p class="title">质量验评整改单已下线</p>
+        <p class="desc">
+          独立整改 / 复验单据已废止。请前往质量验评深填报办理；已驳回请重新申报。
+        </p>
+      </template>
+      <el-button type="primary" @click="handleBack">{{ embedded ? '返回' : '前往验评填报' }}</el-button>
+    </el-empty>
   </div>
 </template>
 
 <style scoped>
-.qm-page { display: flex; flex-direction: column; gap: 12px; }
-.page-breadcrumb { font-size: 12px; color: #909399; }
-.page-title { margin: 4px 0; font-size: 20px; }
-.page-tip { margin: 0; font-size: 13px; color: #606266; }
-.embed-tip { margin: 0 0 8px; }
-.section-title { font-weight: 600; }
-.filter-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.mb { margin-bottom: 12px; }
+.pg { padding: 0 0 24px; }
+.hd { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+.pt { margin: 0; font-size: 18px; font-weight: 600; color: #1f2329; }
+.title { margin: 0 0 8px; font-size: 16px; font-weight: 600; color: #1f2329; }
+.desc { margin: 0; font-size: 13px; line-height: 1.6; color: #646a73; max-width: 420px; }
 </style>

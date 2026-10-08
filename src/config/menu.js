@@ -45,6 +45,7 @@ export const menuTree = [
       { key: 'safety-dashboard', label: '巡检看板', icon: 'DataAnalysis', path: '/safety-inspection/dashboard', name: 'SafetyDashboard', component: 'SafetyDashboardView', levels: 'hq' },
       { key: 'major-hazard-dashboard', label: '危大工程看板', icon: 'DataAnalysis', path: '/major-hazard/dashboard', name: 'MajorHazardDashboard', component: 'HazardDashboardView', levels: 'hq', description: '指挥部汇总各项目危大辨识、在施管控、异常跟踪与过程完成情况。' },
       { key: 'video-monitor-stats', label: '视频监控统计', icon: 'DataAnalysis', path: '/video-monitor/stats', name: 'VideoMonitorStats', component: 'VideoMonitorStatsView', routeComponent: 'VideoMonitorPageView', levels: 'hq', description: '指挥部级视频监控统计。' },
+      { key: 'video-monitor-offline-notify-hq', label: '离线通知配置', icon: 'Bell', path: '/video-monitor/offline-notify', name: 'VideoMonitorOfflineNotifyHq', component: 'OfflineNotifyConfigView', routeComponent: 'VideoMonitorPageView', levels: 'hq', description: '指挥部配置视频离线分级通知规则。' },
       { key: 'machine-entry-manage', label: '机械设备台账', icon: 'SuitcaseLine', path: '/hq/machine-supervise/ledger', name: 'MachineEntryManageHq', component: 'MachineryLedgerView', levels: 'hq' },
       { key: 'alert-record', label: '机械设备预警', icon: 'Bell', path: '/hq/machine-supervise/alert-record', name: 'AlertRecordHq', component: 'AlertRecordView', levels: 'hq' },
       { key: 'alert-record-major', label: '危大监测预警', icon: 'Warning', path: '/hq/major-hazard/alert-record', name: 'AlertRecordMajorHq', component: 'AlertRecordMajorView', levels: 'hq' },
@@ -125,7 +126,7 @@ export const menuTree = [
           { key: 'video-monitor-preview', label: '视频预览', icon: 'VideoPlay', path: '/video-monitor/preview', name: 'VideoMonitorPreview', component: 'VideoPreviewView', routeComponent: 'VideoMonitorPageView', levels: 'project', description: '项目级视频预览。' },
           { key: 'video-monitor-ledger', label: '设备台账', icon: 'Files', path: '/video-monitor/device-ledger', name: 'VideoMonitorLedger', component: 'DeviceLedgerView', routeComponent: 'VideoMonitorPageView', levels: 'project', description: '项目级设备台账。' },
           { key: 'video-monitor-group', label: '分组管理', icon: 'Folder', path: '/video-monitor/group', name: 'VideoMonitorGroup', component: 'DeviceGroupManageView', routeComponent: 'VideoMonitorPageView', levels: 'project', description: '项目级设备分组。' },
-          { key: 'video-monitor-offline-notify', label: '离线通知配置', icon: 'Bell', path: '/video-monitor/offline-notify', name: 'VideoMonitorOfflineNotify', component: 'OfflineNotifyConfigView', routeComponent: 'VideoMonitorPageView', levels: 'project', description: '项目级视频离线分级通知。' },
+          { key: 'video-monitor-offline-notify', label: '离线通知配置', icon: 'Bell', path: '/video-monitor/offline-notify', name: 'VideoMonitorOfflineNotify', component: 'OfflineNotifyConfigView', routeComponent: 'VideoMonitorPageView', levels: 'project', description: '回显指挥部规则；项目人员类型可配置本项目通知人。' },
         ],
       },
     ],
@@ -157,6 +158,7 @@ export const menuTree = [
           { key: 'major-hazard-identification', label: '危大辨识', icon: 'DocumentChecked', path: '/major-hazard/identification', name: 'MajorHazardIdentification', component: 'HazardIdentificationView', levels: 'project' },
           { key: 'major-hazard-list', label: '危大清单', icon: 'Notebook', path: '/major-hazard/hazard-list', name: 'MajorHazardList', component: 'HazardListView', levels: 'project' },
           { key: 'major-hazard-calendar', label: '危大工程日历', icon: 'Calendar', path: '/major-hazard/calendar', name: 'MajorHazardCalendar', component: 'HazardCalendarView', levels: 'project' },
+          { key: 'mobile-major-hazard-list', label: '危大清单（移动端）', icon: 'Iphone', path: '/mobile/hazard', name: 'MobileHazardList', component: 'MobileHazardListView', levels: 'project' },
         ],
       },
       {
@@ -395,6 +397,8 @@ export const hiddenRoutes = [
   { key: 'major-hazard-identification-detail', path: '/major-hazard/identification/:id', name: 'MajorHazardIdentificationDetail', component: 'HazardIdentificationFormView', label: '危大辨识详情', sidebarKey: 'major-hazard-identification' },
   { key: 'major-hazard-list-detail', path: '/major-hazard/hazard-list/:sourceId', name: 'MajorHazardListDetail', component: 'HazardListFormView', label: '危大清单详情', sidebarKey: 'major-hazard-list' },
   { key: 'major-hazard-alert-list', path: '/major-hazard/calendar/alerts', name: 'MajorHazardAlertList', component: 'HazardAlertListView', label: '危大工程异常跟踪', sidebarKey: 'major-hazard-calendar' },
+  { key: 'mobile-major-hazard-detail', path: '/mobile/hazard/detail', name: 'MobileHazardDetail', component: 'MobileHazardDetailView', label: '危大工程详情（移动端）', sidebarKey: 'mobile-major-hazard-list' },
+  { key: 'mobile-major-hazard-process', path: '/mobile/hazard/process', name: 'MobileHazardProcess', component: 'MobileHazardProcessView', label: '过程管理（移动端）', sidebarKey: 'mobile-major-hazard-list' },
 
   // 机械设备子页
   { key: 'alert-config-add', path: '/machine-supervise/alert-config/add', name: 'AlertConfigAdd', component: 'AlertConfigFormView', label: '新增预警配置', sidebarKey: 'alert-config' },
@@ -514,8 +518,10 @@ export const redirects = [
   { path: '/qm/inspect/unit-scheme', redirect: '/qm/inspect/form-fill-deep' },
   { path: '/qm/inspect/approver-config', redirect: '/qm/inspect/tree' },
   { path: '/qm/inspect/seal-user', redirect: '/qm/inspect/tree' },
-  { path: '/qm/inspect/rectify/list', redirect: '/qm/inspect/form-fill-deep' },
-  { path: '/qm/inspect/rectify/detail', redirect: '/qm/inspect/form-fill-deep' },
+  { path: '/qm/inspect/rectify/list', redirect: '/qm/inspect/form-fill-deep' }, // 旧整改列表已下线
+  { path: '/qm/inspect/rectify/detail', redirect: '/qm/inspect/form-fill-deep' }, // 旧整改详情已下线
+  // 保留组件登记：直链/个人中心兜底空态，避免懒加载 404
+  // QmRectifyDetailView 仍见下方 componentMap
   { path: '/qm/inspect/batch/approve', redirect: resolveQmInspectHandleRedirect },
   { path: '/qm/inspect/part/approve', redirect: resolveQmInspectHandleRedirect },
   { path: '/qm/inspect/unit/approve', redirect: resolveQmInspectHandleRedirect },
@@ -636,6 +642,9 @@ export const viewLoaders = {
   HazardCalendarView: () => import('../views/majorHazard/HazardCalendarView.vue'),
   HazardAlertListView: () => import('../views/majorHazard/HazardAlertListView.vue'),
   HazardDashboardView: () => import('../views/majorHazard/HazardDashboardView.vue'),
+  MobileHazardListView: () => import('../views/mobile/MobileHazardListView.vue'),
+  MobileHazardDetailView: () => import('../views/mobile/MobileHazardDetailView.vue'),
+  MobileHazardProcessView: () => import('../views/mobile/MobileHazardProcessView.vue'),
 
   VehicleDashboardView: () => import('../views/vehicle/VehicleDashboardView.vue'),
   VehicleAccessView: () => import('../views/vehicle/VehicleAccessView.vue'),
