@@ -81,10 +81,12 @@ function toggleStatusFilter(status) {
 
 async function handleMeetingAction() {
   if (meetingActive.value) {
-    await endMeeting()
+    // 结束会议：按值班人员参会状态落会议记录，并恢复按考勤更新
+    await endMeeting(props.projects)
     return
   }
-  await startMeeting()
+  // 开始会议：冻结当日值班人员参会状态
+  await startMeeting(props.projects)
 }
 </script>
 

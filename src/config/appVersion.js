@@ -17,6 +17,16 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.11.1.12',
+    date: '2026-10-09',
+    highlights: [
+      'COC 调度大屏：指挥部新增「项目值班统计」，项目层新增「项目值班」（白班/夜班人员与在场状态）',
+      '后台新增「每周值班表」：按周维护白班/夜班施工与监理人员，支持照片补录',
+      '会议记录：参会情况改为按项目值班人员标注已参会/未参会',
+      '视频监控：离线通知改为指挥部/项目两级各自配置规则与通知人员',
+    ],
+  },
+  {
     version: 'v2.11.1.11',
     date: '2026-10-08',
     highlights: [

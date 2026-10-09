@@ -1,8 +1,13 @@
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useMeetingAiSession } from './useMeetingAiSession.js'
-import { useMeetingSignInSession } from './useMeetingSignInSession.js'
 import { saveDispatchMeetingRecord, buildSummaryMinutes } from '../utils/dispatchMeetingStorage.js'
+import {
+  endDutyMeetingSession,
+  snapshotDutyMeetingRecord,
+  startDutyMeetingSession,
+} from '../utils/dutyMeetingAttendanceStorage.js'
+import { todayYmd } from '../mock/dutyScreenData.js'
 import { cocFeatureFlags } from '../config/featureFlags.js'
 
 const commandMeetingScreen = ref(null)
@@ -13,16 +18,30 @@ function formatNow() {
 
 export function useCommandMeetingControl() {
   const session = useMeetingAiSession()
-  const signIn = useMeetingSignInSession()
 
-  async function startMeeting() {
-    signIn.ensureSessionStarted()
+  /**
+   * 开始会议：冻结项目值班人员参会状态（会议进行中不随考勤变化）
+   * @param {Array} projects 当前项目列表
+   */
+  async function startMeeting(projects = []) {
+    startDutyMeetingSession({ projects, date: todayYmd() })
     session.panelExpanded.value = true
     await session.startSession()
   }
 
-  async function endMeeting() {
-    signIn.endSessionAndSave()
+  /**
+   * 结束会议：先按值班人员参会状态落会议记录，再清除标注（恢复按考勤更新）
+   * @param {Array} projects 当前项目列表（用于按当日值班人员生成台账）
+   */
+  async function endMeeting(projects = []) {
+    const endedAt = formatNow()
+    const dutyRecord = snapshotDutyMeetingRecord({
+      projects,
+      date: todayYmd(),
+      meetingTime: session.meetingStartedAt.value || endedAt,
+      endedAt,
+    })
+    endDutyMeetingSession(todayYmd())
     const recording = await session.endSession()
     const startedAt = session.meetingStartedAt.value
     const transcript = [...session.transcriptLines.value]
@@ -31,8 +50,8 @@ export function useCommandMeetingControl() {
       startTime: startedAt || formatNow(),
       duration: recording?.durationText || session.meetingDurationText.value || '—',
       host: '指挥部调度席',
-      joinedCount: 6,
-      pendingCount: 4,
+      joinedCount: dutyRecord?.attendeeTotal ?? 0,
+      pendingCount: dutyRecord?.absenteeTotal ?? 0,
       transcript,
       recordingFilename: recording?.filename || session.recordingFilename.value || '',
       recordingLocalPath: recording?.localPath || session.recordingLocalPath.value || '',

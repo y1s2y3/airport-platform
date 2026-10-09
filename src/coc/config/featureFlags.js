@@ -4,4 +4,6 @@ export const cocFeatureFlags = {
   meetingAiUi: false,
   /** 会议管控 · 「会议记录」按钮及大屏会议记录页入口 */
   meetingRecordsEntry: false,
+  /** 会议签到浮层（参会状态已改为项目值班人员标签，签到入口隐藏） */
+  meetingSignIn: false,
 }

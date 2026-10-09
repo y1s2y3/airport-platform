@@ -1,7 +1,7 @@
 <script setup>
 import CocPanelHeading from './CocPanelHeading.vue'
 import SafetyVideoPanel from '../safety/SafetyVideoPanel.vue'
-import ProgressPanel from '../ProgressPanel.vue'
+import HqProjectDutyPanel from './HqProjectDutyPanel.vue'
 import LaborStats from '../LaborStats.vue'
 import ProjectHazardStatsPanel from '../ProjectHazardStatsPanel.vue'
 
@@ -17,7 +17,6 @@ const emit = defineEmits([
   'project-change',
   'status-filter',
   'open-dispatch',
-  'expand-progress',
   'project-dispatch',
 ])
 </script>
@@ -38,15 +37,12 @@ const emit = defineEmits([
       />
     </section>
 
+    <!-- 左下 1×2：项目值班（原「项目进度」） -->
     <section class="hq-zone hq-zone--progress">
-      <CocPanelHeading title="项目进度" show-v2-tag />
-      <ProgressPanel
+      <CocPanelHeading title="项目值班" show-v2-tag />
+      <HqProjectDutyPanel
         class="hq-panel hq-hide-inner-title"
-        :projects="projects"
         :project="selectedProject"
-        :is-enterprise="false"
-        @expand="emit('expand-progress')"
-        @project-change="emit('project-change', $event)"
       />
     </section>
 

@@ -1,33 +1,41 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { buildProjects } from '../mock/data.js'
+import { todayYmd } from '../mock/dutyScreenData.js'
 import {
-  ensureMeetingSignInSeed,
-  getMeetingSignInRecords,
-  onMeetingSignInChange,
-} from '../utils/meetingSignInStorage.js'
+  buildDutyMeetingRecord,
+  isDutyMeetingActive,
+  onDutyJoinChange,
+} from '../utils/dutyMeetingAttendanceStorage.js'
+import { getMeetingSignInRecords } from '../utils/meetingSignInStorage.js'
 
 defineProps({
   title: { type: String, default: '会议记录' },
   description: {
     type: String,
     default:
-      '指挥部会议签到台账：记录会议时间、本次调度项目及各项目参会结束时的已参会人员清单。',
+      '指挥部会议记录：会议时间、本次调度项目，以及各项目值班人员的已参会 / 未参会清单（数据源：大屏「项目值班」人员参会标注）。',
   },
 })
 
+const date = todayYmd()
 const dateFilter = ref('')
 const projectKeyword = ref('')
-const list = ref([])
+const liveRecord = ref(null)
+const history = ref([])
 const detailVisible = ref(false)
 const current = ref(null)
 let offChange = null
+
+/** 进行中的会议记录（实时读取大屏参会标注）+ 历史已结束记录 */
+const list = computed(() => [liveRecord.value, ...history.value].filter(Boolean))
 
 const filtered = computed(() => {
   let rows = list.value
   const dateQ = dateFilter.value
   if (dateQ) {
     rows = rows.filter((row) =>
-      [row.meetingTime, row.endedAt, row.meetingPeriod].some((f) =>
+      [row.date, row.meetingTime, row.endedAt, row.meetingPeriod].some((f) =>
         String(f || '').includes(dateQ),
       ),
     )
@@ -36,15 +44,22 @@ const filtered = computed(() => {
   if (projectQ) {
     rows = rows.filter((row) => {
       const projectText = (row.dispatchProjects || []).join('、')
-      const groupText = (row.projectGroups || []).map((g) => g.projectName || '').join('、')
-      return [projectText, groupText].some((f) => String(f || '').includes(projectQ))
+      return String(projectText).includes(projectQ)
     })
   }
   return rows
 })
 
+/** 会议进行中：实时展示当日值班人员参会情况；会议结束后只留已落库的历史记录 */
 function load() {
-  list.value = getMeetingSignInRecords()
+  history.value = getMeetingSignInRecords()
+  liveRecord.value = isDutyMeetingActive(date)
+    ? buildDutyMeetingRecord({
+        projects: buildProjects(),
+        date,
+        ongoing: true,
+      })
+    : null
 }
 
 function openDetail(row) {
@@ -53,6 +68,7 @@ function openDetail(row) {
 }
 
 function meetingPeriodText(row) {
+  if (row?.ongoing) return `${row.date || date} · 会议进行中`
   return row?.meetingPeriod || row?.meetingTime || '—'
 }
 
@@ -62,9 +78,8 @@ function projectsText(row) {
 }
 
 onMounted(() => {
-  ensureMeetingSignInSeed()
   load()
-  offChange = onMeetingSignInChange(load)
+  offChange = onDutyJoinChange(load)
 })
 
 onUnmounted(() => {
@@ -109,9 +124,21 @@ onUnmounted(() => {
             {{ projectsText(row) }}
           </template>
         </el-table-column>
-        <el-table-column label="已参会人数" width="100" align="center">
+        <el-table-column label="已参会" width="90" align="center">
           <template #default="{ row }">
             {{ row.attendeeTotal || 0 }}
+          </template>
+        </el-table-column>
+        <el-table-column label="未参会" width="90" align="center">
+          <template #default="{ row }">
+            {{ row.absenteeTotal || 0 }}
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" width="96" align="center">
+          <template #default="{ row }">
+            <el-tag :type="row.ongoing ? 'warning' : 'info'" size="small" effect="plain">
+              {{ row.ongoing ? '进行中' : '已结束' }}
+            </el-tag>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="88" fixed="right">
@@ -122,17 +149,26 @@ onUnmounted(() => {
       </el-table>
     </div>
 
-    <el-dialog v-model="detailVisible" title="会议记录详情" width="780px" destroy-on-close>
+    <el-dialog
+      v-model="detailVisible"
+      title="会议记录详情"
+      width="820px"
+      class="meeting-detail-dialog"
+      destroy-on-close
+    >
       <template v-if="current">
-        <el-descriptions :column="1" border size="small">
-          <el-descriptions-item label="会议时间">
+        <el-descriptions :column="2" border size="small">
+          <el-descriptions-item label="会议时间" :span="2">
             {{ meetingPeriodText(current) }}
-          </el-descriptions-item>
-          <el-descriptions-item label="调度项目">
-            {{ projectsText(current) }}
           </el-descriptions-item>
           <el-descriptions-item label="已参会合计">
             {{ current.attendeeTotal || 0 }} 人
+          </el-descriptions-item>
+          <el-descriptions-item label="未参会合计">
+            {{ current.absenteeTotal || 0 }} 人
+          </el-descriptions-item>
+          <el-descriptions-item label="调度项目" :span="2">
+            {{ projectsText(current) }}
           </el-descriptions-item>
         </el-descriptions>
 
@@ -141,7 +177,13 @@ onUnmounted(() => {
           :key="group.projectId || group.projectName"
           class="project-block"
         >
-          <div class="block-label">{{ group.projectName || '—' }} · 参会人员清单</div>
+          <div class="block-label">
+            {{ group.projectName || '—' }} · 参会人员清单
+            <span class="block-count">
+              已参会 {{ group.attendeeCount ?? (group.attendees || []).length }} ·
+              未参会 {{ group.absenteeCount ?? (group.absentees || []).length }}
+            </span>
+          </div>
           <el-table
             :data="group.attendees || []"
             stripe
@@ -152,6 +194,24 @@ onUnmounted(() => {
             <el-table-column type="index" label="序号" width="56" />
             <el-table-column prop="name" label="姓名" min-width="100" />
             <el-table-column prop="role" label="岗位" min-width="120" />
+            <el-table-column prop="joinTime" label="参会时间" width="100">
+              <template #default="{ row }">{{ row.joinTime || '—' }}</template>
+            </el-table-column>
+          </el-table>
+          <el-table
+            v-if="(group.absentees || []).length"
+            class="absentee-table"
+            :data="group.absentees"
+            stripe
+            border
+            size="small"
+          >
+            <el-table-column type="index" label="序号" width="56" />
+            <el-table-column prop="name" label="未参会人员" min-width="100" />
+            <el-table-column prop="role" label="岗位" min-width="120" />
+            <el-table-column prop="reason" label="原因" min-width="110">
+              <template #default="{ row }">{{ row.reason || '—' }}</template>
+            </el-table-column>
           </el-table>
         </div>
       </template>
@@ -208,5 +268,21 @@ onUnmounted(() => {
   font-size: 13px;
   font-weight: 600;
   color: var(--ap-text-primary, #303133);
+}
+
+.block-count {
+  margin-left: 8px;
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--ap-text-secondary, #909399);
+}
+
+.absentee-table {
+  margin-top: 8px;
+}
+
+.meeting-detail-dialog :deep(.el-dialog__body) {
+  max-height: 62vh;
+  overflow: auto;
 }
 </style>

@@ -1,5 +1,6 @@
 <script setup>
 import MeetingSignInFloatingPanel from './MeetingSignInFloatingPanel.vue'
+import { cocFeatureFlags } from '../config/featureFlags.js'
 
 defineProps({
   projects: { type: Array, default: () => [] },
@@ -10,7 +11,9 @@ defineProps({
 
 <template>
   <div class="coc-floating-stack">
+    <!-- 参会状态改由项目值班人员标签标注，原会议签到浮层隐藏（flag 可恢复） -->
     <MeetingSignInFloatingPanel
+      v-if="cocFeatureFlags.meetingSignIn"
       :projects="projects"
       :selected-project-id="selectedProjectId"
       :status-filters="statusFilters"
