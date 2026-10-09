@@ -17,6 +17,13 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.11.1.13',
+    date: '2026-10-09',
+    highlights: [
+      '重新部署发布：内容与 v2.11.1.12 一致，无功能变化',
+    ],
+  },
+  {
     version: 'v2.11.1.12',
     date: '2026-10-09',
     highlights: [
