@@ -62,16 +62,20 @@ export function normalizeMeetingSignInRecord(row = {}) {
         const attendees = Array.isArray(g.attendees)
           ? g.attendees.map((a) => ({
               id: a.id || '',
-              name: a.name || '—',
-              role: a.role || a.position || '—',
+              name: a.name || '--',
+              role: a.role || a.position || '--',
+              shift: a.shift || '',
+              partyRole: a.partyRole || '',
               joinTime: a.joinTime || '',
             }))
           : []
         const absentees = Array.isArray(g.absentees)
           ? g.absentees.map((a) => ({
               id: a.id || '',
-              name: a.name || '—',
-              role: a.role || a.position || '—',
+              name: a.name || '--',
+              role: a.role || a.position || '--',
+              shift: a.shift || '',
+              partyRole: a.partyRole || '',
               reason: a.reason || '',
             }))
           : []

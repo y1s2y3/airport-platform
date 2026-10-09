@@ -311,13 +311,17 @@ export function buildDutyMeetingRecord({
       attendees: joined.map((p) => ({
         id: p.personId,
         name: p.name,
-        role: p.role || '—',
+        role: p.role || '--',
+        shift: p.shift || '--',
+        partyRole: p.partyLabel || '--',
         joinTime: p.joinTime,
       })),
       absentees: absent.map((p) => ({
         id: p.personId,
         name: p.name,
-        role: p.role || '—',
+        role: p.role || '--',
+        shift: p.shift || '--',
+        partyRole: p.partyLabel || '--',
         reason: p.onSite ? '人工标记未参会' : '不在场',
       })),
     }

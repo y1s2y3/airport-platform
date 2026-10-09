@@ -17,6 +17,14 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.11.1.16',
+    date: '2026-10-09',
+    highlights: [
+      '每周值班表：同一班次内，施工与监理不可选同一人（跨班次允许），选人时置灰并拦截保存',
+      '会议记录：参会 / 未参会人员清单在「岗位」右侧新增「班次」（白班 / 夜班）与「角色」（施工 / 监理）',
+    ],
+  },
+  {
     version: 'v2.11.1.15',
     date: '2026-10-09',
     highlights: [

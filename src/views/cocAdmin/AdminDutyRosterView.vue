@@ -7,6 +7,7 @@ import { useCurrentProject } from '../../composables/useCurrentProject.js'
 import { findProjectById } from '../../mock/projectBasicInfo.js'
 import {
   SHIFT_GROUPS,
+  SLOT_DEFS,
   WEEKDAY_LABELS,
   ensureDutyRosterSeed,
   listDutyWeeks,
@@ -24,6 +25,7 @@ import {
   canBackfillPhotoForDate,
   listDutyPersonOptions,
   summarizeDutyWeek,
+  findSameShiftPartyConflicts,
 } from '../../mock/dutyRoster.js'
 
 defineProps({
@@ -231,8 +233,31 @@ function setPersonIds(day, key, party, ids) {
   day[key] = selected
 }
 
+/**
+ * 同班次内「施工 / 监理」互斥：同一人已被另一角色选中时置灰不可选（跨班次允许同一人）
+ */
+function crossPartySlotDef(def) {
+  return SLOT_DEFS.find((s) => s.shift === def.shift && s.party !== def.party)
+}
+
+function isCrossPartyTaken(day, def, userId) {
+  const other = crossPartySlotDef(def)
+  return other ? personIdsOf(day, other.key).includes(userId) : false
+}
+
+function conflictText(conflict) {
+  return `${conflict.weekdayLabel}${conflict.shiftLabel}「${conflict.person.name}」已作为施工值班，同一班次内不能同时作为监理值班`
+}
+
 function submitForm() {
   const payload = normalizeDutyWeek(form.value)
+  const conflict = findSameShiftPartyConflicts(payload)[0]
+  if (conflict) {
+    const idx = payload.days.findIndex((d) => d.date === conflict.date)
+    if (idx >= 0) activeDayTab.value = String(idx)
+    ElMessage.warning(conflictText(conflict))
+    return
+  }
   const res = saveDutyWeek(payload, {
     mode: formMode.value === 'create' ? 'create' : 'edit',
     updatedBy: isProjectMode.value ? '项目值班员' : '指挥部',
@@ -425,7 +450,7 @@ onMounted(reload)
         </el-form-item>
         <el-form-item label="快捷">
           <el-button :icon="CopyDocument" @click="copyLastWeek">复制上周排班</el-button>
-          <span class="field-hint inline">不含照片；0 人表示无施工/本班无安排</span>
+          <span class="field-hint inline">不含照片；0 人表示无施工/本班无安排；同一班次内施工与监理不可选同一人（跨班次允许）</span>
         </el-form-item>
 
         <el-tabs v-model="activeDayTab" type="card" class="day-tabs">
@@ -464,8 +489,9 @@ onMounted(reload)
                       :label="opt.optionLabel"
                       :value="opt.userId"
                       :disabled="
-                        personIdsOf(day, def.key).length >= 9 &&
-                        !personIdsOf(day, def.key).includes(opt.userId)
+                        isCrossPartyTaken(day, def, opt.userId) ||
+                        (personIdsOf(day, def.key).length >= 9 &&
+                          !personIdsOf(day, def.key).includes(opt.userId))
                       "
                     />
                   </el-select>

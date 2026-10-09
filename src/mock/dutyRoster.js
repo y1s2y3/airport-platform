@@ -26,6 +26,24 @@ export const SHIFT_GROUPS = [
   { shift: 'night', label: '夜班', slots: SLOT_DEFS.filter((s) => s.shift === 'night') },
 ]
 
+/** 同班次内的「施工 / 监理」槽位配对（互斥校验用） */
+const SHIFT_PARTY_PAIRS = [
+  { shift: 'day', shiftLabel: '白班', constructionKey: 'constructionDay', supervisionKey: 'supervisionDay' },
+  { shift: 'night', shiftLabel: '夜班', constructionKey: 'constructionNight', supervisionKey: 'supervisionNight' },
+]
+
+/**
+ * 演示用「同一人」：模拟实名制数据把同一个人同时归入施工与监理候选，
+ * 用于验证「同一班次内 施工 / 监理 不可为同一人」的置灰与保存拦截。
+ * ⚠️ 仅演示数据；接入后端后删除本常量，改由接口返回的真实人员承担。
+ */
+const SHARED_DEMO_PERSON = {
+  userId: 'dr-sh-01',
+  name: '周建国',
+  org: '中建八局项目部',
+  position: '施工员',
+}
+
 const CONSTRUCTION_POOL = [
   { userId: 'dr-sg-01', name: '何宏春', org: '中建八局项目部', position: '项目书记', party: 'construction' },
   { userId: 'dr-sg-02', name: '邹观来', org: '中建八局项目部', position: '土建工程师', party: 'construction' },
@@ -37,6 +55,7 @@ const CONSTRUCTION_POOL = [
   { userId: 'dr-sg-08', name: '许金福', org: '中建八局项目部', position: '项目总工', party: 'construction' },
   { userId: 'dr-sg-09', name: '常亮', org: '中建八局项目部', position: '生产经理', party: 'construction' },
   { userId: 'dr-sg-10', name: '田佳乐', org: '中建一局项目部', position: '安全总监', party: 'construction' },
+  { ...SHARED_DEMO_PERSON, party: 'construction' },
 ]
 
 const SUPERVISION_POOL = [
@@ -49,6 +68,7 @@ const SUPERVISION_POOL = [
   { userId: 'dr-jl-07', name: '刘家红', org: '合创建设工程顾问', position: '安全专监', party: 'supervision' },
   { userId: 'dr-jl-08', name: '谭明伟', org: '上海建科工程咨询', position: '监理专监', party: 'supervision' },
   { userId: 'dr-jl-09', name: '朱博', org: '上海建科工程咨询', position: '监理专监', party: 'supervision' },
+  { ...SHARED_DEMO_PERSON, party: 'supervision' },
 ]
 
 function pad(n) {
@@ -286,11 +306,18 @@ function pickPeople(pool, indexes) {
   return indexes.map((i) => enrichPerson(pool[i % pool.length])).filter(Boolean)
 }
 
+/** 播种候选池：排除演示共用人员，保证种子数据本身满足「同班次施工/监理互斥」 */
+function seedPool(pool) {
+  return pool.filter((p) => p.userId !== SHARED_DEMO_PERSON.userId)
+}
+
 function buildSeedWeek(projectId, projectName, weekStart, variant = 0) {
   const week = emptyDutyWeek(projectId, projectName, weekStart)
+  const constructionPool = seedPool(CONSTRUCTION_POOL)
+  const supervisionPool = seedPool(SUPERVISION_POOL)
   week.days = week.days.map((day, idx) => {
-    const cOff = (variant + idx) % CONSTRUCTION_POOL.length
-    const sOff = (variant + idx * 2) % SUPERVISION_POOL.length
+    const cOff = (variant + idx) % constructionPool.length
+    const sOff = (variant + idx * 2) % supervisionPool.length
     const canPhoto = canBackfillPhotoForDate(day.date)
     const dayPhotos =
       canPhoto && idx % 3 === 0
@@ -302,10 +329,10 @@ function buildSeedWeek(projectId, projectName, weekStart, variant = 0) {
         : []
     return {
       ...day,
-      constructionDay: pickPeople(CONSTRUCTION_POOL, [cOff, cOff + 1]),
-      constructionNight: idx === 6 ? [] : pickPeople(CONSTRUCTION_POOL, [cOff + 2]),
-      supervisionDay: pickPeople(SUPERVISION_POOL, [sOff, sOff + 1]),
-      supervisionNight: pickPeople(SUPERVISION_POOL, [sOff + 2]),
+      constructionDay: pickPeople(constructionPool, [cOff, cOff + 1]),
+      constructionNight: idx === 6 ? [] : pickPeople(constructionPool, [cOff + 2]),
+      supervisionDay: pickPeople(supervisionPool, [sOff, sOff + 1]),
+      supervisionNight: pickPeople(supervisionPool, [sOff + 2]),
       dayPhotos,
       nightPhotos,
     }
@@ -370,6 +397,31 @@ export function findDutyWeek(projectId, weekStart) {
   return hit ? summarizeDutyWeek(hit) : null
 }
 
+/**
+ * 同班次内「施工 / 监理 不可为同一人」的冲突明细（跨班次允许同一人）
+ * @returns {Array<{date, weekdayLabel, shift, shiftLabel, person}>}
+ */
+export function findSameShiftPartyConflicts(row = {}) {
+  const week = normalizeDutyWeek(row)
+  const out = []
+  for (const day of week.days) {
+    for (const pair of SHIFT_PARTY_PAIRS) {
+      const supervisionIds = new Set((day[pair.supervisionKey] || []).map((p) => p.userId))
+      for (const person of day[pair.constructionKey] || []) {
+        if (!person?.userId || !supervisionIds.has(person.userId)) continue
+        out.push({
+          date: day.date,
+          weekdayLabel: day.weekdayLabel,
+          shift: pair.shift,
+          shiftLabel: pair.shiftLabel,
+          person,
+        })
+      }
+    }
+  }
+  return out
+}
+
 export function validateDutyWeekPayload(payload, { isCreate = false } = {}) {
   const week = normalizeDutyWeek(payload)
   if (!week.projectId) return { ok: false, msg: '请选择项目' }
@@ -384,6 +436,13 @@ export function validateDutyWeekPayload(payload, { isCreate = false } = {}) {
     }
     if ((day.nightPhotos || []).length > 9) {
       return { ok: false, msg: `${day.weekdayLabel}夜班照片最多 9 张` }
+    }
+  }
+  const conflict = findSameShiftPartyConflicts(week)[0]
+  if (conflict) {
+    return {
+      ok: false,
+      msg: `${conflict.weekdayLabel}${conflict.shiftLabel}「${conflict.person.name}」已作为施工值班，同一班次内不能同时作为监理值班`,
     }
   }
   if (isCreate) {

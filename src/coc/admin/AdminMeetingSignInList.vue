@@ -194,8 +194,14 @@ onUnmounted(() => {
             <el-table-column type="index" label="序号" width="56" />
             <el-table-column prop="name" label="姓名" min-width="100" />
             <el-table-column prop="role" label="岗位" min-width="120" />
+            <el-table-column label="班次" width="80">
+              <template #default="{ row }">{{ row.shift || '--' }}</template>
+            </el-table-column>
+            <el-table-column label="角色" width="80">
+              <template #default="{ row }">{{ row.partyRole || '--' }}</template>
+            </el-table-column>
             <el-table-column prop="joinTime" label="参会时间" width="100">
-              <template #default="{ row }">{{ row.joinTime || '—' }}</template>
+              <template #default="{ row }">{{ row.joinTime || '--' }}</template>
             </el-table-column>
           </el-table>
           <el-table
@@ -209,8 +215,14 @@ onUnmounted(() => {
             <el-table-column type="index" label="序号" width="56" />
             <el-table-column prop="name" label="未参会人员" min-width="100" />
             <el-table-column prop="role" label="岗位" min-width="120" />
+            <el-table-column label="班次" width="80">
+              <template #default="{ row }">{{ row.shift || '--' }}</template>
+            </el-table-column>
+            <el-table-column label="角色" width="80">
+              <template #default="{ row }">{{ row.partyRole || '--' }}</template>
+            </el-table-column>
             <el-table-column prop="reason" label="原因" min-width="110">
-              <template #default="{ row }">{{ row.reason || '—' }}</template>
+              <template #default="{ row }">{{ row.reason || '--' }}</template>
             </el-table-column>
           </el-table>
         </div>
