@@ -21,10 +21,16 @@
  * 4. 「结束会议」时按当日各项目值班人员状态落一条会议记录（沿用 meetingSignInStorage 台账结构与 key），
  *    随后清除当日全部标注（基线 + 人工）→ **散会后一律按考勤（在场）更新**。
  * 5. 「会议记录」即是会议签到功能的记录展示位。
+ * 6. 演示种子：`ensureDutyMeetingRecordSeeds()` 在台账为空时补最近几场「已结束」会议记录，
+ *    明细完全由当日值班人员与实名制在场口径派生（姓名/岗位/班次/角色与值班表一致），不手写人员。
  */
 
 import { buildProjectDutyToday, todayYmd } from '../mock/dutyScreenData.js'
-import { normalizeMeetingSignInRecord, saveMeetingSignInRecord } from './meetingSignInStorage.js'
+import {
+  getMeetingSignInRecords,
+  normalizeMeetingSignInRecord,
+  saveMeetingSignInRecord,
+} from './meetingSignInStorage.js'
 
 const STORAGE_KEY = 'coc-duty-meeting-attendance-v1'
 const SESSION_KEY = 'coc-duty-meeting-session-v1'
@@ -360,4 +366,79 @@ export function snapshotDutyMeetingRecord({
       absentees: g.absentees,
     })),
   })
+}
+
+/* ---------------- 演示种子：后台「会议记录」历史台账 ---------------- */
+
+const RECORD_SEED_FLAG = 'coc-admin-meeting-sign-in-seed-v1'
+
+/** 演示用会议场次：相对今天的天数偏移 + 起止时间（由旧到新展示） */
+const DEMO_MEETING_PLAN = [
+  { offset: -7, start: '09:30:00', end: '10:26:00' },
+  { offset: -4, start: '15:00:00', end: '16:05:00' },
+  { offset: -2, start: '14:30:00', end: '15:38:00' },
+  { offset: -1, start: '15:00:00', end: '16:12:00' },
+]
+
+function addDaysYmd(ymd, days) {
+  const d = new Date(`${String(ymd).slice(0, 10)}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return ''
+  d.setDate(d.getDate() + days)
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+
+/** 归一到最近的工作日：周六→周五、周日→周五（演示里不出现周末开会） */
+function toWorkdayYmd(ymd) {
+  const d = new Date(`${ymd}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return ymd
+  if (d.getDay() === 6) return addDaysYmd(ymd, -1)
+  if (d.getDay() === 0) return addDaysYmd(ymd, -2)
+  return ymd
+}
+
+/**
+ * 演示种子：台账为空时补几场「已结束」的调度会议记录。
+ * 明细由当日值班人员 + 实名制在场口径派生，因此姓名、岗位、班次（白班/夜班）、
+ * 角色（施工/监理）、参会时间、未参会原因都与值班表/大屏完全同源。
+ * 只在首次为空时播种一次；用户自己「结束会议」产生的真实记录不会被覆盖。
+ * @returns {number} 实际写入的记录条数
+ */
+export function ensureDutyMeetingRecordSeeds({ projects = [], date = todayYmd() } = {}) {
+  if (typeof localStorage === 'undefined') return 0
+  if (localStorage.getItem(RECORD_SEED_FLAG) === '1') return 0
+  if (getMeetingSignInRecords().length) {
+    // 已有真实记录（用户自己结束过会议）→ 不播种
+    localStorage.setItem(RECORD_SEED_FLAG, '1')
+    return 0
+  }
+  if (!Array.isArray(projects) || !projects.length) return 0
+
+  const seen = new Set()
+  let saved = 0
+  // 由旧到新写入（台账 unshift，最终列表新记录在前）
+  for (const plan of DEMO_MEETING_PLAN) {
+    const dayKey = toWorkdayYmd(addDaysYmd(date, plan.offset))
+    if (!dayKey || seen.has(dayKey)) continue
+    seen.add(dayKey)
+    const record = buildDutyMeetingRecord({
+      projects,
+      date: dayKey,
+      ongoing: false,
+      meetingTime: `${dayKey} ${plan.start}`,
+      endedAt: `${dayKey} ${plan.end}`,
+    })
+    if (!record.projectGroups.length) continue
+    saveMeetingSignInRecord({
+      meetingTime: record.meetingTime,
+      endedAt: record.endedAt,
+      date: record.date,
+      dispatchProjects: record.dispatchProjects,
+      projectGroups: record.projectGroups,
+    })
+    saved += 1
+  }
+  // 仅在整轮播种正常跑完后置位（异常时不置位，下次进入页面可重试）
+  localStorage.setItem(RECORD_SEED_FLAG, '1')
+  return saved
 }

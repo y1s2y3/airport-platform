@@ -4,6 +4,7 @@ import { buildProjects } from '../mock/data.js'
 import { todayYmd } from '../mock/dutyScreenData.js'
 import {
   buildDutyMeetingRecord,
+  ensureDutyMeetingRecordSeeds,
   isDutyMeetingActive,
   onDutyJoinChange,
 } from '../utils/dutyMeetingAttendanceStorage.js'
@@ -78,6 +79,8 @@ function projectsText(row) {
 }
 
 onMounted(() => {
+  // 演示：台账为空时补几场历史会议记录（口径同「结束会议」，人员取自当日值班）
+  ensureDutyMeetingRecordSeeds({ projects: buildProjects() })
   load()
   offChange = onDutyJoinChange(load)
 })

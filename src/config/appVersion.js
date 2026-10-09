@@ -17,6 +17,13 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.11.1.17',
+    date: '2026-10-09',
+    highlights: [
+      '会议记录：演示环境补充历史会议台账（最近 4 场已结束会议），参会 / 未参会明细取自当日值班与实名制在场口径',
+    ],
+  },
+  {
     version: 'v2.11.1.16',
     date: '2026-10-09',
     highlights: [
