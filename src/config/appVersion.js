@@ -17,6 +17,13 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.11.1.19',
+    date: '2026-10-09',
+    highlights: [
+      '项目取名：按项目 ID 取简称 / 全称时改为优先读项目主数据，修正个别项目显示成目录占位名的问题',
+    ],
+  },
+  {
     version: 'v2.11.1.18',
     date: '2026-10-09',
     highlights: [

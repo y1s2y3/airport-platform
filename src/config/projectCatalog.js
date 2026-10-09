@@ -90,6 +90,39 @@ const PROJECT_SHORT_NAME_BY_FULL = Object.fromEntries(
   PROJECT_NAMES.map((name, i) => [name, PROJECT_SHORT_NAMES[i]]),
 )
 
+/**
+ * 项目主数据（src/mock/projectBasicInfo.js）id → 简称 / 全称 索引。
+ *
+ * 由主数据侧在模块加载时「反向登记」：本文件不能直接 import 主数据，否则会形成
+ * projectBasicInfo → projectSafetyProfile → coc/utils/dailyWorkStorage → coc/mock/data → projectCatalog 的循环依赖。
+ *
+ * 为什么必须优先用本索引：主数据的 id 与 PROJECT_NAMES / PROJECT_SHORT_NAMES 的下标并非同序，
+ * 例如 p-003 在主数据里是「三跑道扩建」，而目录下标 3 是「二跑道FOD探测」；
+ * p-000 / p-001 同样不同名。按 id 取名时必须先查主数据，查不到再退回目录下标。
+ */
+const PROJECT_MASTER_BY_ID = new Map()
+
+/** 供项目主数据模块登记（幂等；重复登记以最后一次为准） */
+export function registerProjectMasterIndex(list = []) {
+  if (!Array.isArray(list)) return
+  list.forEach((item) => {
+    if (!item?.id) return
+    PROJECT_MASTER_BY_ID.set(item.id, {
+      shortName: item.shortName || '',
+      fullName: item.projectName || item.name || '',
+    })
+  })
+}
+
+function masterEntryOf(source) {
+  if (source == null) return null
+  if (typeof source === 'object') {
+    return PROJECT_MASTER_BY_ID.get(source.id || source.projectId) || null
+  }
+  if (typeof source === 'string') return PROJECT_MASTER_BY_ID.get(source) || null
+  return null
+}
+
 export function projectNamePair(index) {
   const i = ((index % PROJECT_NAMES.length) + PROJECT_NAMES.length) % PROJECT_NAMES.length
   return {
@@ -103,6 +136,8 @@ export function getProjectShortName(source) {
   if (typeof source === 'object') {
     if (source.shortName) return source.shortName
     if (source.projectShortName) return source.projectShortName
+    const master = masterEntryOf(source)
+    if (master?.shortName) return master.shortName
     if (source.name) return PROJECT_SHORT_NAME_BY_FULL[source.name] || source.name
     if (source.projectName) return PROJECT_SHORT_NAME_BY_FULL[source.projectName] || source.projectName
     if (source.id?.startsWith('p-')) {
@@ -112,6 +147,8 @@ export function getProjectShortName(source) {
     return ''
   }
   if (typeof source === 'string') {
+    const master = masterEntryOf(source)
+    if (master?.shortName) return master.shortName
     if (source.startsWith('p-')) {
       const idx = Number.parseInt(source.slice(2), 10)
       if (!Number.isNaN(idx)) return PROJECT_SHORT_NAMES[idx] || source
@@ -126,6 +163,8 @@ export function getProjectFullName(source) {
   if (typeof source === 'object') {
     if (source.name) return source.name
     if (source.projectName) return source.projectName
+    const master = masterEntryOf(source)
+    if (master?.fullName) return master.fullName
     if (source.id?.startsWith('p-')) {
       const idx = Number.parseInt(source.id.slice(2), 10)
       if (!Number.isNaN(idx)) return PROJECT_NAMES[idx] || source.id
@@ -133,6 +172,8 @@ export function getProjectFullName(source) {
   }
   if (typeof source === 'string') {
     if (PROJECT_SHORT_NAME_BY_FULL[source]) return source
+    const master = masterEntryOf(source)
+    if (master?.fullName) return master.fullName
     if (source.startsWith('p-')) {
       const idx = Number.parseInt(source.slice(2), 10)
       if (!Number.isNaN(idx)) return PROJECT_NAMES[idx] || source

@@ -1,5 +1,6 @@
 import { mergeSafetyProfile } from './projectSafetyProfile'
 import { parseOneContact } from '../utils/contactValue.js'
+import { registerProjectMasterIndex } from '../config/projectCatalog.js'
 
 export const projectTypeOptions = [
   '房屋市政工程',
@@ -347,6 +348,10 @@ export const projectList = [
     }),
   },
 ]
+
+// 反向登记项目主数据索引：config/projectCatalog.js 按 id 取简称/全称时优先用主数据口径
+// （主数据 id 与目录下标不同序，如 p-003 是「三跑道扩建」而目录下标 3 是「二跑道FOD探测」）
+registerProjectMasterIndex(projectList)
 
 export function getProjectDetail(projectId) {
   const project = projectList.find((item) => item.id === projectId)
