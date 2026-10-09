@@ -1,7 +1,8 @@
 <script setup>
 import { computed, reactive, ref, toRef, watch } from 'vue'
 import DispatchImageAttachments from '../../../coc/components/DispatchImageAttachments.vue'
-import { userOptions, getUserLabel } from '../../../composables/useInspectionPlan.js'
+import { userOptions, getUserLabel, checkCategoryTree, getItemLabel } from '../../../composables/useInspectionPlan.js'
+import { normalizeInspectionCategories } from '../../../config/inspectionManagement.js'
 import { usePersonalTodoSubmit } from '../composables/usePersonalTodoSubmit.js'
 import '../styles/todoHandleBlocks.css'
 
@@ -48,8 +49,23 @@ const inspectionActionMeta = computed(() => {
 })
 
 const personalCheckTree = computed(() => {
+  const detail = props.todo?.detail || {}
   const groups = new Map()
-  for (const item of props.todo?.detail?.checkItems || []) {
+  // 新版下发任务保存的是分类 ID + 检查项 ID；个人中心优先按这份配置还原，
+  // 旧待办仍兼容原有的文字检查项数据。
+  for (const config of Array.isArray(detail.checkConfig) ? detail.checkConfig : []) {
+    const category = checkCategoryTree.find((item) => item.id === config.categoryId)
+    if (!category) continue
+    groups.set(category.id, {
+      id: category.id,
+      label: category.label,
+      inspectionCategory: category.inspectionCategory,
+      items: (config.itemIds || []).map((itemId) => getItemLabel(category.id, itemId)).filter(Boolean),
+    })
+  }
+  if (groups.size) return [...groups.values()]
+
+  for (const item of detail.checkItems || []) {
     let id = 'general'
     let label = '安全管理行为'
     if (/临时用电|配电|电缆/.test(item)) {
@@ -135,7 +151,19 @@ function onSubmit() {
       <el-descriptions-item label="项目名称">{{ todo.detail?.project || '—' }}</el-descriptions-item>
       <el-descriptions-item label="执行人">{{ todo.detail?.executor || '—' }}</el-descriptions-item>
       <el-descriptions-item label="巡检分类">
-        <el-tag size="small" effect="plain">{{ todo.detail?.inspectionCategory || '—' }}</el-tag>
+        <el-tag
+          v-for="category in normalizeInspectionCategories(todo.detail?.inspectionCategories || todo.detail?.inspectionCategory)"
+          :key="category"
+          size="small"
+          :type="category === '质量' ? 'warning' : 'success'"
+          effect="plain"
+          style="margin-right:4px"
+        >{{ category }}</el-tag>
+      </el-descriptions-item>
+      <el-descriptions-item label="危大工程现场巡视">{{ todo.detail?.status === '已完成' || todo.detail?.majorHazardLedgerId ? (todo.detail?.isMajorHazardPatrol || '否') : '移动端执行时选择' }}</el-descriptions-item>
+      <el-descriptions-item v-if="todo.detail?.isMajorHazardPatrol === '是'" label="危大工程名称">{{ todo.detail?.majorHazardName || '—' }}</el-descriptions-item>
+      <el-descriptions-item v-if="todo.detail?.isMajorHazardPatrol === '是'" label="巡视台账同步" :span="todo.detail?.majorHazardName ? 1 : 2">
+        {{ todo.detail?.status === '已完成' ? '已自动同步至危大工程现场巡视台账' : '完成巡检后自动同步至危大工程现场巡视台账' }}
       </el-descriptions-item>
       <el-descriptions-item label="同行人">{{ todo.detail?.companions?.join('、') || '—' }}</el-descriptions-item>
       <el-descriptions-item label="巡检类型">{{ todo.detail?.planType || '—' }}</el-descriptions-item>
@@ -156,7 +184,14 @@ function onSubmit() {
       <el-descriptions-item label="巡检任务单编号">{{ todo.detail?.taskNo || '—' }}</el-descriptions-item>
       <el-descriptions-item label="项目名称">{{ todo.detail?.project || '—' }}</el-descriptions-item>
       <el-descriptions-item label="巡检分类">
-        <el-tag size="small" effect="plain">{{ todo.detail?.inspectionCategory || '—' }}</el-tag>
+        <el-tag
+          v-for="category in normalizeInspectionCategories(todo.detail?.inspectionCategories || todo.detail?.inspectionCategory)"
+          :key="category"
+          size="small"
+          :type="category === '质量' ? 'warning' : 'success'"
+          effect="plain"
+          style="margin-right:4px"
+        >{{ category }}</el-tag>
       </el-descriptions-item>
       <el-descriptions-item label="整改人">{{ todo.detail?.rectifier || '—' }}</el-descriptions-item>
       <el-descriptions-item label="复查人">{{ todo.detail?.reviewer || '—' }}</el-descriptions-item>

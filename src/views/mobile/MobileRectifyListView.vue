@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { mobileRectificationRecords } from '../../composables/useMobileRectification'
+import { normalizeInspectionCategories } from '../../config/inspectionManagement'
 
 defineProps({
   /** 嵌在建管 APP 二级页时隐藏自带顶栏，避免双顶栏 */
@@ -85,7 +86,15 @@ function onCardClick(item) {
               <span v-if="item.overdue&&item.status==='待整改'" class="rec-overdue">⚠ 已逾期</span>
             </div>
             <span class="rec-project">{{ item.project }}</span>
-            <span class="rec-project">巡检分类：{{ item.inspectionCategory }}</span>
+            <span class="rec-project rec-category-row">
+              巡检分类：
+              <span
+                v-for="category in normalizeInspectionCategories(item.inspectionCategories || item.inspectionCategory)"
+                :key="category"
+                class="rec-category-tag"
+                :class="category === '质量' ? 'quality' : 'safety'"
+              >{{ category }}</span>
+            </span>
           </div>
           <span class="rec-status" :style="{ color: statusStyles[item.status]?.color, background: statusStyles[item.status]?.bg }">{{ item.status }}</span>
         </div>
@@ -131,6 +140,10 @@ function onCardClick(item) {
 .rec-name { font-size:15px; font-weight:600; color:#1f2329; }
 .rec-overdue { font-size:10px; color:#e53935; background:#ffebee; padding:1px 6px; border-radius:3px; }
 .rec-project { font-size:12px; color:#999; }
+.rec-category-row { display:flex; align-items:center; gap:3px; flex-wrap:wrap; }
+.rec-category-tag { padding:0 5px; border-radius:3px; font-size:10px; line-height:17px; }
+.rec-category-tag.safety { color:#168f55; background:#effaf4; }
+.rec-category-tag.quality { color:#b36b00; background:#fdf6ec; }
 .rec-status { flex-shrink:0; font-size:11px; padding:2px 8px; border-radius:4px; font-weight:500; }
 
 .rec-mid { display:flex; gap:12px; font-size:12px; color:#999; margin-bottom:6px; flex-wrap:wrap; }

@@ -163,6 +163,14 @@ const taskInfo = computed(() => {
 const isPush = computed(() => taskInfo.value.source === '任务下发')
 const hazardCount = computed(() => taskInfo.value.hazardItems.length)
 const rectifyCount = computed(() => taskInfo.value.hazardItems.filter((h) => h.hasRectify).length)
+const majorHazardPatrolText = computed(() => {
+  if (taskInfo.value.status !== '已完成' && !taskInfo.value.majorHazardLedgerId) return '移动端执行时选择'
+  return taskInfo.value.isMajorHazardPatrol === '是' ? '是' : '否'
+})
+const majorHazardSyncText = computed(() => {
+  if (taskInfo.value.isMajorHazardPatrol !== '是') return ''
+  return taskInfo.value.status === '已完成' ? '已自动同步至现场巡视台账' : '完成巡检后自动同步至现场巡视台账'
+})
 
 const configuredCheckTree = computed(() => taskInfo.value.checkConfig.map((config) => {
   const category = checkCategoryTree.find((item) => item.id === config.categoryId)
@@ -229,8 +237,9 @@ function goBack() {
       <div class="sc-row"><span class="sc-lbl">项目名称</span><span>{{ taskInfo.project }}</span></div>
       <div class="sc-row"><span class="sc-lbl">执行人</span><span>{{ taskInfo.executor || '-' }}</span></div>
       <div class="sc-row"><span class="sc-lbl">巡检分类</span><span>{{ taskInfo.inspectionCategory }}</span></div>
-      <div class="sc-row"><span class="sc-lbl">危大工程现场巡视</span><span>{{ taskInfo.isMajorHazardPatrol }}</span></div>
+      <div class="sc-row"><span class="sc-lbl">危大工程现场巡视</span><span>{{ majorHazardPatrolText }}</span></div>
       <div v-if="taskInfo.isMajorHazardPatrol === '是'" class="sc-row"><span class="sc-lbl">危大工程名称</span><span>{{ taskInfo.majorHazardName || '—' }}</span></div>
+      <div v-if="majorHazardSyncText" class="sc-row"><span class="sc-lbl">巡视台账同步</span><span :class="{ 'sync-completed': taskInfo.status === '已完成' }">{{ majorHazardSyncText }}</span></div>
       <div class="sc-row"><span class="sc-lbl">同行人</span><span>{{ taskInfo.companions.length ? taskInfo.companions.join('、') : '' }}</span></div>
       <div class="sc-row"><span class="sc-lbl">截止日期</span><span>{{ taskInfo.deadline }}</span></div>
       <div class="sc-row"><span class="sc-lbl">巡检日期</span><span>{{ taskInfo.inspDate }}</span></div>
@@ -332,6 +341,7 @@ function goBack() {
 .sc-row { display:flex; gap:6px; font-size:13px; line-height:1.6; margin-bottom:3px; }
 .sc-row:last-child { margin-bottom:0; }
 .sc-lbl { color:#999; flex-shrink:0; width:72px; }
+.sync-completed { color:#34a853; font-weight:500; }
 
 /* 检查项：安全 / 质量页签内展示具体检查分类。 */
 .mobile-detail-type-tabs { display:flex; gap:4px; margin:0 -14px 10px; padding:0 14px 8px; border-bottom:1px solid #eee; }

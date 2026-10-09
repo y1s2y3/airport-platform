@@ -8,7 +8,8 @@ import {
 
 /**
  * 巡检管理与危大工程之间的轻量关联契约。
- * 任务仅选择危大工程名称；提交完成后，系统将该次巡视自动写入该工程当前在施的施工部位。
+ * WEB 下发任务不预先关联危大工程；移动端执行时按实际巡视项目选择危大工程，
+ * 提交完成后系统将该次巡视自动写入该工程当前在施的施工部位。
  */
 export function getMajorHazardLedgerOptions(projectId) {
   if (!projectId) return []
@@ -39,9 +40,9 @@ function taskSnapshot(task) {
     source: task.source || '',
     inspectionCategory: task.inspectionCategory || formatInspectionCategories(task.inspectionCategories),
     inspectionCategories: task.inspectionCategories || [],
-    project: task.project || '',
-    projectId: task.projectId || task.project_id || '',
-    project_id: task.project_id || task.projectId || '',
+    project: task.majorHazardProjectName || task.project || '',
+    projectId: task.majorHazardProjectId || task.projectId || task.project_id || '',
+    project_id: task.majorHazardProjectId || task.project_id || task.projectId || '',
     inspectionDate: inspectionDateOf(task),
     deadline: task.deadline || '',
     status: task.status || '',
@@ -63,7 +64,8 @@ function taskSnapshot(task) {
 export function syncInspectionTaskToMajorHazard(task = {}) {
   if (task.isMajorHazardPatrol !== '是' || task.status !== '已完成') return { synced: 0, reason: 'not-applicable' }
 
-  const projectId = task.projectId || task.project_id || resolveInspectionProjectId(task.project || '')
+  // 多项目任务以移动端执行时选择的实际巡视项目为准；旧数据继续回退到任务所属项目。
+  const projectId = task.majorHazardProjectId || task.projectId || task.project_id || resolveInspectionProjectId(task.majorHazardProjectName || task.project || '')
   if (!projectId || (!task.majorHazardLedgerId && !task.majorHazardSourceId && !task.majorHazardName)) {
     return { synced: 0, reason: 'missing-link' }
   }

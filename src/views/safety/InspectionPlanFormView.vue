@@ -14,7 +14,6 @@ import {
   hasInspectionInspectorConfig,
   hasCompleteInspectionPersonConfig,
 } from '../../composables/useInspectionPersonConfig'
-import { getMajorHazardLedgerOptions } from '../../utils/inspectionMajorHazardLink'
 
 const route = useRoute()
 const router = useRouter()
@@ -25,10 +24,6 @@ const form = reactive({
   name: '',
   inspectionCategories: ['安全'],
   projectIds: [],
-  isMajorHazardPatrol: '是',
-  majorHazardLedgerId: '',
-  majorHazardSourceId: '',
-  majorHazardName: '',
   responsiblePerson: '',
   ccPersons: [],
   deadlineDate: '',
@@ -71,11 +66,6 @@ const activeDisplayConfigs = computed(() =>
   selectedCheckTabs.value.find((tab) => tab.category === displayInspectionCategory.value)?.configs || [],
 )
 
-const majorHazardOptions = computed(() => {
-  if (form.projectIds.length !== 1) return []
-  return getMajorHazardLedgerOptions(form.projectIds[0])
-})
-
 watch(() => [...form.inspectionCategories], (categories) => {
   const available = new Set(checkCategoryTree
     .filter(category => categories.includes(category.inspectionCategory))
@@ -102,29 +92,6 @@ watch(selectInspectionCategory, (category) => {
     selTreeActive.value = categoryCheckTree.value[0]?.id || ''
   }
 })
-
-watch(() => [...form.projectIds], () => {
-  const selected = majorHazardOptions.value.some(item => item.id === form.majorHazardLedgerId)
-  if (!selected) {
-    form.majorHazardLedgerId = ''
-    form.majorHazardSourceId = ''
-    form.majorHazardName = ''
-  }
-})
-
-watch(() => form.isMajorHazardPatrol, (value) => {
-  if (value === '是') return
-  form.majorHazardLedgerId = ''
-  form.majorHazardSourceId = ''
-  form.majorHazardName = ''
-})
-
-function chooseMajorHazard(ledgerId) {
-  const option = majorHazardOptions.value.find(item => item.id === ledgerId)
-  form.majorHazardLedgerId = ledgerId || ''
-  form.majorHazardSourceId = option?.sourceId || ''
-  form.majorHazardName = option?.name || ''
-}
 
 function openSelectDialog() {
   const keys = {}
@@ -206,10 +173,6 @@ onMounted(() => {
       form.name = plan.name
       form.inspectionCategories = normalizeInspectionCategories(plan.inspectionCategories || plan.inspectionCategory)
       form.projectIds = [...(plan.projectIds || [])]
-      form.isMajorHazardPatrol = plan.isMajorHazardPatrol || '否'
-      form.majorHazardLedgerId = plan.majorHazardLedgerId || ''
-      form.majorHazardSourceId = plan.majorHazardSourceId || ''
-      form.majorHazardName = plan.majorHazardName || ''
       form.responsiblePerson = plan.responsiblePerson
       form.ccPersons = [...plan.ccPersons]
       form.deadlineDate = plan.deadlineDate || plan.endDate || ''
@@ -225,14 +188,6 @@ function handleSave() {
   if (!form.name.trim()) { ElMessage.warning('请输入任务名称'); return }
   if (!form.inspectionCategories.length) { ElMessage.warning('请选择至少一个巡检分类'); return }
   if (form.projectIds.length === 0) { ElMessage.warning('请选择所属项目'); return }
-  if (form.isMajorHazardPatrol === '是' && form.projectIds.length !== 1) {
-    ElMessage.warning('危大工程现场巡视仅可选择一个所属项目')
-    return
-  }
-  if (form.isMajorHazardPatrol === '是' && !form.majorHazardLedgerId) {
-    ElMessage.warning('请选择危大工程名称')
-    return
-  }
   const incompleteProject = projectOptions.find(project =>
     form.projectIds.includes(project.id) && !hasCompleteInspectionPersonConfig(project.id),
   )
@@ -256,10 +211,6 @@ function handleSave() {
     inspectionCategories: [...form.inspectionCategories],
     inspectionCategory: formatInspectionCategories(form.inspectionCategories),
     projects: selectedProjects.map(project => project.label), projectIds: selectedProjects.map(project => project.id),
-    isMajorHazardPatrol: form.isMajorHazardPatrol,
-    majorHazardLedgerId: form.majorHazardLedgerId,
-    majorHazardSourceId: form.majorHazardSourceId,
-    majorHazardName: form.majorHazardName,
     checkConfig: form.checkConfig.map(c => ({ categoryId: c.categoryId, itemIds: [...c.itemIds] })),
     responsiblePerson: form.responsiblePerson, ccPersons: [...form.ccPersons],
     deadlineDate: form.deadlineDate, remark: form.remark.trim(),
@@ -311,27 +262,8 @@ function handleCancel() { router.push('/safety-inspection/plan') }
             <span v-if="!hasInspectionInspectorConfig(p.id)" class="project-disabled-note">（未配置巡检人）</span>
           </el-option>
         </el-select>
-        <div class="form-tip">普通巡检支持选择多个在建项目；危大工程现场巡视仅选择一个项目，提交后将直接关联该项目的危大工程。</div>
+        <div class="form-tip">可同时选择多个在建项目；系统会按项目拆分为独立巡检任务，危大工程现场巡视在移动端执行时按本任务所属项目关联。</div>
         <div class="form-tip project-config-tip">未配置巡检人的项目已置灰，无法选择；请先在“人员配置”中完成巡检人配置。</div>
-      </el-form-item>
-      <el-form-item label="是否危大工程现场巡视" required>
-        <el-radio-group v-model="form.isMajorHazardPatrol">
-          <el-radio value="是">是</el-radio>
-          <el-radio value="否">否</el-radio>
-        </el-radio-group>
-      </el-form-item>
-      <el-form-item v-if="form.isMajorHazardPatrol === '是'" label="危大工程名称" required>
-        <el-select
-          v-model="form.majorHazardLedgerId"
-          :disabled="form.projectIds.length !== 1"
-          placeholder="请先选择一个所属项目"
-          filterable
-          style="width: 100%"
-          @change="chooseMajorHazard"
-        >
-          <el-option v-for="item in majorHazardOptions" :key="item.id" :label="item.label" :value="item.id" />
-        </el-select>
-        <div class="form-tip">任务完成后，巡视记录会自动同步至该危大工程当前在施施工部位的“现场巡视”台账。</div>
       </el-form-item>
 
       <!-- ===== 下发信息 ===== -->

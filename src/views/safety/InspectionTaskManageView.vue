@@ -127,6 +127,11 @@ function getTaskCompanions(row) {
   return row.companions || []
 }
 
+function getMajorHazardPatrolText(row) {
+  if (row.status !== '已完成' && !row.majorHazardLedgerId) return '待移动端关联'
+  return row.isMajorHazardPatrol === '是' ? '已关联' : '未关联'
+}
+
 function viewDetail(row) { router.push(`/safety-inspection/task/${row.id}`) }
 function goRectify(id) { router.push(`/safety-inspection/hazard/${id}`) }
 function handleReset() { Object.keys(filterForm).forEach(k => filterForm[k] = '') }
@@ -216,6 +221,17 @@ function goBackToHQ() {
           <el-table-column prop="project" label="所属项目" min- show-overflow-tooltip />
           <el-table-column prop="inspectionCategory" label="巡检分类" min-width="120" align="center">
             <template #default="{ row }"><el-tag v-for="category in normalizeInspectionCategories(row.inspectionCategories || row.inspectionCategory)" :key="category" size="small" :type="category === '质量' ? 'warning' : 'success'" style="margin:1px 2px">{{ category }}</el-tag></template>
+          </el-table-column>
+          <el-table-column label="危大工程现场巡视" min-width="172" align="center">
+            <template #default="{ row }">
+              <el-tag :type="row.isMajorHazardPatrol === '是' ? 'danger' : (row.status === '已完成' ? 'info' : 'warning')" size="small" effect="plain">
+                {{ getMajorHazardPatrolText(row) }}
+              </el-tag>
+              <div v-if="row.isMajorHazardPatrol === '是'" class="major-hazard-cell">
+                <span :title="row.majorHazardName || '未关联危大工程'">{{ row.majorHazardName || '未关联危大工程' }}</span>
+                <small v-if="row.status === '已完成'">已同步现场巡视台账</small>
+              </div>
+            </template>
           </el-table-column>
           <el-table-column label="任务名称" min-width="160">
             <template #default="{ row }">
@@ -308,6 +324,9 @@ function goBackToHQ() {
 .overdue-count { color:#e53935; font-weight:600; }
 .hq-filter-bar { display:flex; justify-content:flex-end; }
 .back-bar { display:flex; align-items:center; gap:10px; margin-bottom:12px; padding:8px 12px; background:#f5f7fa; border-radius:6px; font-size:14px; font-weight:600; }
+.major-hazard-cell { display:flex; flex-direction:column; align-items:center; gap:2px; margin-top:4px; color:#606266; font-size:12px; }
+.major-hazard-cell > span { max-width:155px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.major-hazard-cell small { color:#67c23a; font-size:11px; }
 
 /* 左树右表布局 */
 .page-layout { display:flex; gap:0; width:100%; }

@@ -6,7 +6,7 @@ import { COC_PROJECT_OPTIONS } from '../../config/projectOptions'
 import { listMobileInspectionTasks } from '../../mock/mobileInspectionTasks'
 import { INSPECTION_DEMO_TODAY } from '../../mock/inspectionDemoData'
 import { listInspectionHazards } from '../../mock/inspectionHazardQuery'
-import { hasInspectionCategory } from '../../config/inspectionManagement'
+import { formatInspectionCategories, hasInspectionCategory } from '../../config/inspectionManagement'
 
 const router = useRouter()
 const TODAY = new Date(INSPECTION_DEMO_TODAY)
@@ -16,7 +16,8 @@ const inspectionCategory = ref('')
 
 const qualityIds = new Set(['rec-003', 'rec-004', 'rec-021', 'rec-041', 'rec-051', 'mt-004', 'mt-005', 'mt-011', 'mt-031', 'mt-041'])
 function getInspectionCategory(item) {
-  return item.inspectionCategory || (qualityIds.has(item.id) ? '质量' : '安全')
+  const legacyCategory = qualityIds.has(item.id) ? '质量' : '安全'
+  return formatInspectionCategories(item.inspectionCategories || item.inspectionCategory || legacyCategory)
 }
 
 function startOfDay(date) {
@@ -92,9 +93,7 @@ const taskData = listMobileInspectionTasks()
 
 // ===== 统计 =====
 const scopedHazardData = computed(() =>
-  inspectionCategory.value
-    ? hazardData.value.filter(item => getInspectionCategory(item) === inspectionCategory.value)
-    : hazardData.value
+  inspectionCategory.value ? hazardData.value.filter(item => hasInspectionCategory(item.inspectionCategories || getInspectionCategory(item), inspectionCategory.value)) : hazardData.value
 )
 const scopedTaskData = computed(() =>
   inspectionCategory.value ? taskData.filter(item => hasInspectionCategory(item.inspectionCategories || getInspectionCategory(item), inspectionCategory.value)) : taskData
@@ -153,9 +152,8 @@ const overdueItems = computed(() => {
   return all.sort((a, b) => b.days - a.days)
 })
 
-function getHazardNo(id) {
-  return listInspectionHazards().find(item => item.id === id)?.rectifyNo || id
-}
+const hazardNoMap = { 'rec-001':'ZG202607001','rec-006':'ZG202607006','rec-002':'ZG202607002','rec-003':'ZG202607003','rec-007':'ZG202607007','rec-004':'ZG202607004','rec-011':'ZG202607011','rec-020':'ZG202607020','rec-021':'ZG202607021','rec-030':'ZG202607030','rec-031':'ZG202607031','rec-040':'ZG202607040','rec-041':'ZG202607041','rec-050':'ZG202607050','rec-051':'ZG202607051' }
+function getHazardNo(id) { return listInspectionHazards().find(item => item.id === id)?.rectifyNo || hazardNoMap[id] || id }
 
 // ===== ECharts =====
 const pieTaskRef = ref(null), pieHazardRef = ref(null)
@@ -179,7 +177,6 @@ function initCharts() {
           ],
         }],
       })
-      chPieTask.on('click', () => goTaskList())
     }
     // 环形图2：隐患整改状态
     if (pieHazardRef.value) {
@@ -198,7 +195,6 @@ function initCharts() {
           ],
         }],
       })
-      chPieHazard.on('click', () => goHazardList())
     }
     // 柱状图1：巡检统计
     if (barTaskRef.value) {
@@ -219,7 +215,6 @@ function initCharts() {
           { name:'完成率', type:'line', yAxisIndex:1, data:d.map(v=>v.rate), itemStyle:{color:'#4285f4'}, lineStyle:{width:2}, symbol:'circle', symbolSize:6 },
         ],
       })
-      chBarTask.on('click', () => goTaskList())
     }
     // 柱状图2：隐患整改统计
     if (barHazardRef.value) {
@@ -242,7 +237,6 @@ function initCharts() {
           { name:'整改率', type:'line', yAxisIndex:1, data:d.map(v=>v.rate), itemStyle:{color:'#e53935'}, lineStyle:{width:2}, symbol:'circle', symbolSize:6 },
         ],
       })
-      chBarHazard.on('click', () => goHazardList())
     }
   })
 }
@@ -298,11 +292,9 @@ onMounted(() => window.addEventListener('resize', handleResize))
 onUnmounted(() => window.removeEventListener('resize', handleResize))
 
 function goDetail(type, id) {
-  if (type === 'hazard') router.push(`/safety-inspection/hazard/${id}`)
-  else router.push(`/safety-inspection/task/${id}`)
+  const path = type === 'hazard' ? `/safety-inspection/hazard/${id}` : `/safety-inspection/task/${id}`
+  router.push({ path, query: { from: 'dashboard' } })
 }
-function goTaskList() { router.push('/safety-inspection/task') }
-function goHazardList() { router.push('/safety-inspection/hazard') }
 </script>
 
 <template>
@@ -312,7 +304,7 @@ function goHazardList() { router.push('/safety-inspection/hazard') }
         <h3 class="page-title">巡检看板</h3>
         <span class="page-subtitle">工程指挥部 · 全项目统计</span>
       </div>
-      <span class="drilldown-tip">交互说明：点击统计卡片、饼图、项目统计或逾期清单，可下钻查看对应任务/隐患明细</span>
+      <span class="drilldown-tip">交互说明：本页仅“逾期清单”支持进入任务或隐患详情。</span>
       <el-radio-group v-model="inspectionCategory" size="large" class="category-tabs">
         <el-radio-button value="">全部</el-radio-button>
         <el-radio-button value="安全">安全</el-radio-button>
@@ -329,7 +321,7 @@ function goHazardList() { router.push('/safety-inspection/hazard') }
         { val:hazardStats.reviewed, lbl:'已复查', cls:'reviewed' },
         { val:hazardStats.closed, lbl:'已关闭', cls:'success' },
         { val:hazardStats.overdue, lbl:'逾期隐患', cls:'danger' },
-      ]" :key="s.lbl" @click="goHazardList">
+      ]" :key="s.lbl">
         <div class="stat-card" :class="s.cls ? 'stat-'+s.cls : ''">
           <div class="stat-val">{{ s.val }}</div>
           <div class="stat-lbl">{{ s.lbl }}</div>
@@ -346,7 +338,7 @@ function goHazardList() { router.push('/safety-inspection/hazard') }
         { val:taskStats.rate+'%', lbl:'完成率', cls:'success' },
         { val:taskStats.overdue, lbl:'逾期任务', cls:'danger' },
         { val:taskStats.withHazard, lbl:'有隐患任务', cls:'danger' },
-      ]" :key="s.lbl" @click="goTaskList">
+      ]" :key="s.lbl">
         <div class="stat-card" :class="s.cls ? 'stat-'+s.cls : ''">
           <div class="stat-val">{{ s.val }}</div>
           <div class="stat-lbl">{{ s.lbl }}</div>
@@ -357,13 +349,13 @@ function goHazardList() { router.push('/safety-inspection/hazard') }
     <!-- 环形图 + 逾期清单（两个饼图合计占一半） -->
     <el-row :gutter="16" class="chart-row status-chart-row">
       <el-col :span="6">
-        <div class="chart-card status-chart-card drilldown-card" @click="goTaskList">
+        <div class="chart-card status-chart-card">
           <div class="chart-title">巡检任务状态</div>
           <div ref="pieTaskRef" class="chart-box-pie"></div>
         </div>
       </el-col>
       <el-col :span="6">
-        <div class="chart-card status-chart-card drilldown-card" @click="goHazardList">
+        <div class="chart-card status-chart-card">
           <div class="chart-title">隐患整改状态</div>
           <div ref="pieHazardRef" class="chart-box-pie"></div>
         </div>
@@ -381,6 +373,7 @@ function goHazardList() { router.push('/safety-inspection/hazard') }
               </template>
             </el-table-column>
             <el-table-column prop="project" label="项目" min- show-overflow-tooltip />
+            <el-table-column prop="inspectionCategory" label="巡检分类" width="110" align="center" />
             <el-table-column label="逾期天数"  align="center">
               <template #default="{ row }">
                 <span style="color:#e53935;font-weight:600">{{ row.days }}天</span>
@@ -459,7 +452,7 @@ function goHazardList() { router.push('/safety-inspection/hazard') }
 .drilldown-tip { color:#8f0045; font-size:12px; background:#fceef4; border-radius:4px; padding:5px 9px; }
 .category-tabs { margin-top:8px; }
 .category-tabs :deep(.el-radio-button__inner) { min-width:96px; padding:11px 28px; font-size:15px; font-weight:600; }
-.stat-row { margin-bottom:10px !important; cursor:pointer; }
+.stat-row { margin-bottom:10px !important; }
 .stat-card { background:#fff; border-radius:8px; padding:14px 0; text-align:center; border:1px solid #eee; transition:box-shadow 0.2s; }
 .stat-card:hover { box-shadow:0 2px 8px rgba(0,0,0,0.08); }
 .stat-val { font-size:28px; font-weight:700; color:#1f2329; line-height:1.2; }
@@ -474,7 +467,6 @@ function goHazardList() { router.push('/safety-inspection/hazard') }
 .chart-card { background:#fff; border-radius:8px; padding:16px; border:1px solid #eee; }
 .status-chart-row { align-items:flex-start; }
 .status-chart-card { height:270px; box-sizing:border-box; }
-.drilldown-card { cursor:pointer; }
 .chart-title { font-size:14px; font-weight:600; color:#1f2329; margin-bottom:10px; padding-left:10px; border-left:3px solid #8f0045; }
 .chart-title-wrap { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
 .chart-date-basis { color:#999; font-size:12px; line-height:22px; white-space:nowrap; }

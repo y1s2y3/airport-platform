@@ -13,7 +13,7 @@ import { syncInspectionTaskToMajorHazard } from '../utils/inspectionMajorHazardL
 const seedTasks = [
   {
     id: 'mt-000',
-    taskNo: 'ZHXJ20260730001',
+    taskNo: 'AZXJ20260730001',
     source: '任务下发',
     taskName: '高处作业安全与质量检查',
     inspectionCategories: ['安全', '质量'],

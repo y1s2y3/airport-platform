@@ -5,6 +5,7 @@ import { ElMessage } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { findPersonalProcess, resubmitInspectionStarted } from '../mock/personalCenter.js'
 import DispatchImageAttachments from '../coc/components/DispatchImageAttachments.vue'
+import { normalizeInspectionCategories } from '../config/inspectionManagement.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -124,7 +125,14 @@ function handleSubmit() {
           <el-descriptions-item label="巡检任务单编号">{{ record.detail?.taskNo || '—' }}</el-descriptions-item>
           <el-descriptions-item label="项目名称">{{ record.detail?.project || '—' }}</el-descriptions-item>
           <el-descriptions-item label="巡检分类">
-            <el-tag size="small" effect="plain">{{ record.detail?.inspectionCategory || '—' }}</el-tag>
+            <el-tag
+              v-for="category in normalizeInspectionCategories(record.detail?.inspectionCategories || record.detail?.inspectionCategory)"
+              :key="category"
+              size="small"
+              :type="category === '质量' ? 'warning' : 'success'"
+              effect="plain"
+              style="margin-right:4px"
+            >{{ category }}</el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="整改人">{{ record.detail?.rectifier || '—' }}</el-descriptions-item>
           <el-descriptions-item label="复查人">{{ record.detail?.reviewer || '—' }}</el-descriptions-item>

@@ -9,6 +9,7 @@ import {
   inspectionProjectTree,
 } from '../../mock/inspectionDemoData'
 import { listInspectionHazards } from '../../mock/inspectionHazardQuery'
+import { hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
 
 const router = useRouter()
 const route = useRoute()
@@ -29,16 +30,11 @@ function handleTreeNodeClick(data) {
   }
 }
 
-// 整改单状态：待整改 → 待复查 → 已复查（项目经理审批中）→ 已关闭
-// 含移动端整改记录（同一真相源），状态变更后列表即时可见
-const rectifyData = computed(() => listInspectionHazards())
-
 const treeDataWithCount = computed(() => {
   const root = inspectionProjectTree[0]
-  const rows = rectifyData.value
   const children = root.children
     .map(node => {
-      const count = rows.filter(d => d.project_id === node.id).length
+      const count = rectifyData.value.filter(d => d.project_id === node.id).length
       const label = treeSearch.value
         ? (node.label.includes(treeSearch.value) ? `${node.label}（${count}）` : '')
         : `${node.label}（${count}）`
@@ -47,6 +43,9 @@ const treeDataWithCount = computed(() => {
     .filter(n => n._visible)
   return [{ ...root, label: treeSearch.value ? '搜索结果' : root.label, children }]
 })
+
+// 整改单状态：待整改 → 待复查 → 已复查（项目经理审批中）→ 已关闭
+const rectifyData = computed(() => listInspectionHazards())
 
 const filterForm = reactive({ keyword: '', category: '', status: '', overdue: '' })
 
@@ -82,7 +81,7 @@ const filteredData = computed(() => {
   let list = rectifyData.value
   if (!isHqSelected.value && scopeProjectId.value) list = list.filter(d => d.project_id === scopeProjectId.value)
   return list.filter(d => {
-    if (filterForm.category && d.inspectionCategory !== filterForm.category) return false
+    if (filterForm.category && !hasInspectionCategory(d.inspectionCategories || d.inspectionCategory, filterForm.category)) return false
     if (filterForm.status && d.status !== filterForm.status) return false
     if (filterForm.overdue === '是') {
       if (!d.deadline) return false
@@ -183,7 +182,17 @@ function goBackToHQ() {
           <el-table-column prop="rectifyNo" label="整改单编号" min-width="120" />
           <el-table-column prop="taskNo" label="巡检任务单编号" min-width="120" />
           <el-table-column prop="project" label="项目" min-width="110" show-overflow-tooltip />
-          <el-table-column prop="inspectionCategory" label="巡检分类" min-width="72" align="center" />
+          <el-table-column prop="inspectionCategory" label="巡检分类" min-width="120" align="center">
+            <template #default="{ row }">
+              <el-tag
+                v-for="category in normalizeInspectionCategories(row.inspectionCategories || row.inspectionCategory)"
+                :key="category"
+                size="small"
+                :type="category === '质量' ? 'warning' : 'success'"
+                style="margin:1px 2px"
+              >{{ category }}</el-tag>
+            </template>
+          </el-table-column>
           <el-table-column prop="rectifier" label="整改人" min-width="55" align="center" />
           <el-table-column prop="reviewer" label="复查人" min-width="55" align="center" />
           <el-table-column label="整改日期" min-width="90" align="center">

@@ -44,6 +44,14 @@ const taskInfo = computed(() => {
 const isPush = computed(() => taskInfo.value.source === '任务下发')
 const isSelf = computed(() => taskInfo.value.source === '系统自建')
 const isPending = computed(() => taskInfo.value.status === '待执行')
+const majorHazardPatrolText = computed(() => {
+  if (taskInfo.value.status !== '已完成' && !taskInfo.value.majorHazardLedgerId) return '移动端执行时选择'
+  return taskInfo.value.isMajorHazardPatrol === '是' ? '是' : '否'
+})
+const majorHazardSyncText = computed(() => {
+  if (taskInfo.value.isMajorHazardPatrol !== '是') return ''
+  return taskInfo.value.status === '已完成' ? '已自动同步至危大工程现场巡视台账' : '任务完成后自动同步至危大工程现场巡视台账'
+})
 // mt-002 有隐患已发整改单, mt-003 无隐患, mt-004 无隐患, mt-005 有隐患已发整改单
 
 // ===== mt-002 检查结果（任务下发·有隐患） =====
@@ -128,9 +136,19 @@ watch(activeInspectionCategory, (category) => {
 const activeItems = computed(() => activeCat.value?.items || [])
 
 function goBack() {
+  if (route.query.from === 'dashboard') {
+    router.push('/safety-inspection/dashboard')
+    return
+  }
   router.push(route.query.from === 'task-dispatch' ? '/safety-inspection/plan' : '/safety-inspection/task')
 }
-function goRectify(id) { if (id) router.push(`/safety-inspection/hazard/${id}`) }
+function goRectify(id) {
+  if (!id) return
+  router.push({
+    path: `/safety-inspection/hazard/${id}`,
+    query: route.query.from === 'dashboard' ? { from: 'dashboard' } : {},
+  })
+}
 </script>
 
 <template>
@@ -148,8 +166,9 @@ function goRectify(id) { if (id) router.push(`/safety-inspection/hazard/${id}`) 
       <div class="info-row"><span class="il">项目名称</span><span class="iv">{{ taskInfo.project }}</span></div>
       <div class="info-row"><span class="il">执行人</span><span class="iv">{{ taskInfo.executor || '-' }}</span></div>
       <div class="info-row"><span class="il">巡检分类</span><span class="iv">{{ taskInfo.inspectionCategory }}</span></div>
-      <div class="info-row"><span class="il">危大工程现场巡视</span><span class="iv">{{ taskInfo.isMajorHazardPatrol || '否' }}</span></div>
+      <div class="info-row"><span class="il">危大工程现场巡视</span><span class="iv">{{ majorHazardPatrolText }}</span></div>
       <div v-if="taskInfo.isMajorHazardPatrol === '是'" class="info-row"><span class="il">危大工程名称</span><span class="iv">{{ taskInfo.majorHazardName || '—' }}</span></div>
+      <div v-if="majorHazardSyncText" class="info-row"><span class="il">巡视台账同步</span><span class="iv major-hazard-sync" :class="{ completed: taskInfo.status === '已完成' }">{{ majorHazardSyncText }}</span></div>
       <div class="info-row"><span class="il">同行人</span><span class="iv">{{ taskInfo.companions.length ? taskInfo.companions.join('、') : '' }}</span></div>
       <div class="info-row"><span class="il">截止日期</span><span class="iv">{{ taskInfo.deadline }}</span></div>
       <div class="info-row"><span class="il">巡检日期</span><span class="iv">{{ taskInfo.inspectionDate }}</span></div>
@@ -235,6 +254,8 @@ function goRectify(id) { if (id) router.push(`/safety-inspection/hazard/${id}`) 
 .info-row:nth-child(2n) { border-right:none; }
 .il { width:110px; flex-shrink:0; padding:9px 12px; background:#f8f9fa; border-right:1px solid #f0f0f0; color:#868e96; }
 .iv { padding:9px 12px; color:#212529; }
+.major-hazard-sync { color:#e6a23c; }
+.major-hazard-sync.completed { color:#67c23a; }
 
 /* 检查项：安全 / 质量页签 + 左树右项 */
 .inspection-tree-wrapper { margin-bottom: 16px; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }

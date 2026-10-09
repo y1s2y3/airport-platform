@@ -2,11 +2,15 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getMobileRectification } from '../../composables/useMobileRectification'
+import { formatInspectionCategories } from '../../config/inspectionManagement'
 
 const route = useRoute()
 const router = useRouter()
 const record = computed(() => getMobileRectification(route.params.id))
 const missing = computed(() => !record.value)
+const inspectionCategoryLabel = computed(() =>
+  formatInspectionCategories(record.value?.inspectionCategories || record.value?.inspectionCategory),
+)
 onMounted(() => document.querySelector('.page-viewport')?.scrollTo({ top: 0 }))
 
 const statusText = computed(() => record.value?.status || '--')
@@ -135,7 +139,7 @@ function goBack() {
       <div class="ib">
         <div class="ibn">{{ record.rectifyNo }}</div>
         <div class="ibm">巡检任务单编号：{{ record.taskNo || '--' }}</div>
-        <div class="ibm">巡检分类：{{ record.inspectionCategory || '--' }}</div>
+        <div class="ibm">巡检分类：{{ inspectionCategoryLabel || '--' }}</div>
         <div class="ibm">{{ record.project || '--' }}</div>
         <div class="ibm">整改人：{{ record.rectifier || '--' }}　复查人：{{ record.reviewer || '--' }}</div>
         <div class="ibm">状态：<b :class="'st-' + statusText">{{ statusText }}</b>

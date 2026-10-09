@@ -188,6 +188,8 @@ function submitInspection() {
     projectId: selectedProjectId.value,
     project_id: selectedProjectId.value,
     isMajorHazardPatrol: form.value.isMajorHazardPatrol,
+    majorHazardProjectId: form.value.isMajorHazardPatrol === '是' ? selectedProjectId.value : '',
+    majorHazardProjectName: form.value.isMajorHazardPatrol === '是' ? form.value.project : '',
     majorHazardLedgerId: form.value.majorHazardLedgerId,
     majorHazardSourceId: form.value.majorHazardSourceId,
     majorHazardName: form.value.majorHazardName,

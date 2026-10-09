@@ -33,10 +33,10 @@ export function hasInspectionCategory(value, category) {
   return normalizeInspectionCategories(value).includes(category)
 }
 
-/** 巡检任务编号：安全 AQXJ、质量 ZLXJ、综合 ZHXJ + 年月日 + 三位序号。 */
+/** 巡检任务编号：安全 AQXJ、质量 ZLXJ、安全质量 AZXJ + 年月日 + 三位序号。 */
 export function getInspectionTaskPrefix(categories = '安全') {
   const normalized = normalizeInspectionCategories(categories)
-  if (normalized.length > 1) return 'ZHXJ'
+  if (normalized.length > 1) return 'AZXJ'
   return normalized[0] === '质量' ? 'ZLXJ' : 'AQXJ'
 }
 

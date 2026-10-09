@@ -5,6 +5,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { getMobileInspectionTask, updateMobileInspectionTask } from '../../mock/mobileInspectionTasks'
 import { checkCategoryTree, getItemLabel } from '../../composables/useInspectionPlan'
 import { hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
+import { COC_PROJECT_OPTIONS } from '../../config/projectOptions'
+import { getMajorHazardLedgerOptions } from '../../utils/inspectionMajorHazardLink'
 import {
   inspectorCandidates,
   getProjectRectifierLabel,
@@ -25,6 +27,65 @@ const taskInfo = {
   inspectionCategory: '安全',
   status: '待执行',
   ...(getMobileInspectionTask(route.params.id) || {}),
+}
+
+// WEB 可一次下发多个项目，但会按项目拆分为独立任务。这里仍兼容历史多项目任务：
+// 执行人必须先选择本次实际巡视项目，危大工程候选项只读取该项目的数据。
+const taskProjectOptions = computed(() => {
+  const projectIds = [...new Set([
+    ...(Array.isArray(taskInfo.projectIds) ? taskInfo.projectIds : []),
+    taskInfo.projectId,
+    taskInfo.project_id,
+  ].filter(Boolean))]
+  const projectNames = [...new Set([
+    ...(Array.isArray(taskInfo.projects) ? taskInfo.projects : []),
+    taskInfo.project,
+  ].filter(Boolean))]
+  const options = projectIds.map((id) => {
+    const project = COC_PROJECT_OPTIONS.find((item) => item.id === id)
+    return project ? { id: project.id, label: project.label } : { id, label: projectNames[0] || id }
+  })
+  projectNames.forEach((name) => {
+    if (options.some((item) => item.label === name)) return
+    const project = COC_PROJECT_OPTIONS.find((item) => item.label === name || item.fullName === name)
+    if (project && !options.some((item) => item.id === project.id)) options.push({ id: project.id, label: project.label })
+  })
+  return options.length ? options : [{ id: taskInfo.project || 'task-project', label: taskInfo.project || '当前任务项目' }]
+})
+
+const patrolLink = ref({
+  isMajorHazardPatrol: taskInfo.isMajorHazardPatrol === '是' ? '是' : '否',
+  projectId: taskInfo.majorHazardProjectId || (taskProjectOptions.value.length === 1 ? taskProjectOptions.value[0].id : ''),
+  ledgerId: taskInfo.majorHazardLedgerId || '',
+})
+const selectedPatrolProject = computed(() =>
+  taskProjectOptions.value.find((item) => item.id === patrolLink.value.projectId) || null,
+)
+const majorHazardOptions = computed(() =>
+  patrolLink.value.isMajorHazardPatrol === '是' && patrolLink.value.projectId
+    ? getMajorHazardLedgerOptions(patrolLink.value.projectId)
+    : [],
+)
+
+watch(() => patrolLink.value.projectId, () => {
+  if (!majorHazardOptions.value.some((item) => item.id === patrolLink.value.ledgerId)) {
+    patrolLink.value.ledgerId = ''
+  }
+})
+watch(() => patrolLink.value.isMajorHazardPatrol, (value) => {
+  if (value === '是') return
+  patrolLink.value.ledgerId = ''
+})
+
+function chooseMajorHazard(ledgerId) {
+  patrolLink.value.ledgerId = ledgerId || ''
+}
+
+function setMajorHazardPatrol(value) {
+  patrolLink.value.isMajorHazardPatrol = value
+  if (value === '是' && !patrolLink.value.projectId && taskProjectOptions.value.length === 1) {
+    patrolLink.value.projectId = taskProjectOptions.value[0].id
+  }
 }
 
 // 巡检结果
@@ -125,6 +186,14 @@ function triggerNormalPhoto() {
 function removeNormalPhoto(idx) { normalPhotos.value.splice(idx, 1) }
 
 function submitCheck() {
+  if (patrolLink.value.isMajorHazardPatrol === '是' && !patrolLink.value.projectId) {
+    ElMessage.warning('请先选择本次实际巡视项目')
+    return
+  }
+  if (patrolLink.value.isMajorHazardPatrol === '是' && !patrolLink.value.ledgerId) {
+    ElMessage.warning('请选择危大工程名称')
+    return
+  }
   if (!inspectResult.value) { ElMessage.warning('请选择巡检结果'); return }
   if (inspectResult.value === 'normal' && normalPhotos.value.length === 0) {
     ElMessage.warning('全部正常时请至少上传一张巡检照片')
@@ -160,6 +229,24 @@ function submitCheck() {
       })
     : []
   const rectifyCount = savedHazards.length
+  const selectedMajorHazard = majorHazardOptions.value.find((item) => item.id === patrolLink.value.ledgerId)
+  const majorHazardPatch = patrolLink.value.isMajorHazardPatrol === '是'
+    ? {
+        isMajorHazardPatrol: '是',
+        majorHazardProjectId: patrolLink.value.projectId,
+        majorHazardProjectName: selectedPatrolProject.value?.label || taskInfo.project || '',
+        majorHazardLedgerId: selectedMajorHazard?.id || patrolLink.value.ledgerId,
+        majorHazardSourceId: selectedMajorHazard?.sourceId || '',
+        majorHazardName: selectedMajorHazard?.name || '',
+      }
+    : {
+        isMajorHazardPatrol: '否',
+        majorHazardProjectId: '',
+        majorHazardProjectName: '',
+        majorHazardLedgerId: '',
+        majorHazardSourceId: '',
+        majorHazardName: '',
+      }
 
   updateMobileInspectionTask(taskId, {
     status: '已完成',
@@ -173,6 +260,7 @@ function submitCheck() {
     hazardCount: savedHazards.length,
     hasRectify: rectifyCount > 0,
     rectifyCount,
+    ...majorHazardPatch,
   })
 
   ElMessage.success(
@@ -203,8 +291,6 @@ function goBack() { router.push('/mobile/tasks') }
         <span>任务来源：{{ taskInfo.source }}</span>
         <span>项目名称：{{ taskInfo.project }}</span>
         <span>巡检分类：{{ taskInfo.inspectionCategory }}</span>
-        <span>是否危大工程现场巡视：{{ taskInfo.isMajorHazardPatrol || '否' }}</span>
-        <span v-if="taskInfo.isMajorHazardPatrol === '是'">危大工程名称：{{ taskInfo.majorHazardName || '—' }}</span>
         <span>执行人：{{ taskInfo.executor }}</span>
         <span>截止日期：{{ taskInfo.deadline }}</span>
         <span>状态：{{ taskInfo.status }}</span>
@@ -220,6 +306,31 @@ function goBack() { router.push('/mobile/tasks') }
             </select>
           </div>
         </div>
+        <div class="tbf-row major-hazard-row">
+          <span class="tbf-label">危大工程现场巡视</span>
+          <div class="tbf-tags">
+            <button type="button" class="patrol-choice" :class="{ active: patrolLink.isMajorHazardPatrol === '是' }" @click="setMajorHazardPatrol('是')">是</button>
+            <button type="button" class="patrol-choice" :class="{ active: patrolLink.isMajorHazardPatrol === '否' }" @click="setMajorHazardPatrol('否')">否</button>
+          </div>
+        </div>
+        <template v-if="patrolLink.isMajorHazardPatrol === '是'">
+          <div class="tbf-row">
+            <span class="tbf-label">本次巡视项目 <i class="req">*</i></span>
+            <select v-if="taskProjectOptions.length > 1" v-model="patrolLink.projectId" class="tbf-select">
+              <option value="" disabled>请选择本次实际巡视项目</option>
+              <option v-for="project in taskProjectOptions" :key="project.id" :value="project.id">{{ project.label }}</option>
+            </select>
+            <span v-else class="tbf-static-value">{{ selectedPatrolProject?.label || taskInfo.project || '—' }}</span>
+          </div>
+          <div class="tbf-row">
+            <span class="tbf-label">危大工程名称 <i class="req">*</i></span>
+            <select :value="patrolLink.ledgerId" class="tbf-select" :disabled="!patrolLink.projectId" @change="chooseMajorHazard($event.target.value)">
+              <option value="" disabled>{{ patrolLink.projectId ? '请选择危大工程' : '请先选择本次实际巡视项目' }}</option>
+              <option v-for="item in majorHazardOptions" :key="item.id" :value="item.id">{{ item.label }}</option>
+            </select>
+          </div>
+          <div class="major-hazard-sync-hint">仅展示“{{ selectedPatrolProject?.label || '本次巡视项目' }}”下的危大工程；提交后自动同步至该工程当前在施施工部位的现场巡视台账。</div>
+        </template>
       </div>
     </div>
 
@@ -335,8 +446,12 @@ function goBack() { router.push('/mobile/tasks') }
 .tbf-tags { flex:1; display:flex; gap:4px; flex-wrap:wrap; align-items:center; }
 .tbf-tag { display:inline-flex; align-items:center; gap:2px; padding:2px 8px; background:#f0f0f0; border-radius:4px; font-size:12px; color:#333; }
 .tbf-tag-del { background:none; border:none; font-size:10px; color:#999; cursor:pointer; padding:0; margin-left:2px; }
+.patrol-choice { min-width:46px; padding:5px 12px; border:1px solid #ddd; border-radius:5px; background:#fff; color:#666; font-size:12px; cursor:pointer; }
+.patrol-choice.active { border-color:#8f0045; background:#fceef4; color:#8f0045; font-weight:600; }
+.tbf-static-value { flex:1; padding:6px 8px; border-radius:6px; background:#f7f7f7; color:#555; font-size:13px; line-height:1.25; }
 .task-bar-info { display:grid; grid-template-columns:1fr 1fr; gap:4px 12px; font-size:12px; line-height:1.55; color:#777; }
 .task-bar-info > span { min-width:0; overflow-wrap:anywhere; }
+.major-hazard-sync-hint { margin:-2px 0 8px 64px; padding:7px 8px; border-radius:5px; background:#fff7f7; color:#c45656; font-size:11px; line-height:1.5; }
 
 /* 检查项：安全 / 质量页签 + 检查分类 */
 .check-body { flex:1; min-height: 160px; display:flex; flex-direction:column; overflow:hidden; background:#fff; }

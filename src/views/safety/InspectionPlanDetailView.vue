@@ -103,8 +103,7 @@ function goBack() {
             </el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="关联项目" :span="2">{{ getProjLabels.join('、') }}</el-descriptions-item>
-          <el-descriptions-item label="危大工程现场巡视">{{ plan.isMajorHazardPatrol || '否' }}</el-descriptions-item>
-          <el-descriptions-item label="危大工程名称">{{ plan.isMajorHazardPatrol === '是' ? (plan.majorHazardName || '—') : '—' }}</el-descriptions-item>
+          <el-descriptions-item label="危大工程现场巡视关联" :span="2">在移动端执行巡检时按本任务所属项目选择；下发任务不预先关联。</el-descriptions-item>
           <el-descriptions-item label="更新人">{{ plan.updatedBy }}</el-descriptions-item>
           <el-descriptions-item label="更新时间">{{ plan.updatedAt || '—' }}</el-descriptions-item>
         </el-descriptions>

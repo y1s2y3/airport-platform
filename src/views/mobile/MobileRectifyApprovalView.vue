@@ -3,11 +3,15 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getMobileRectification, submitManagerApproval } from '../../composables/useMobileRectification'
+import { formatInspectionCategories } from '../../config/inspectionManagement'
 
 const route = useRoute()
 const router = useRouter()
 const record = computed(() => getMobileRectification(route.params.id))
 const missing = computed(() => !record.value)
+const inspectionCategoryLabel = computed(() =>
+  formatInspectionCategories(record.value?.inspectionCategories || record.value?.inspectionCategory),
+)
 const approvalDate = ref('')
 const approvalComment = ref('')
 const flowCollapsed = ref(false)
@@ -74,7 +78,7 @@ function goBack() {
       <div class="info-bar">
         <div class="info-title">⚠ {{ record.rectifyNo }}</div>
         <div class="info-meta">巡检任务单编号：{{ record.taskNo || '--' }}</div>
-        <div class="info-meta">巡检分类：{{ record.inspectionCategory || '--' }}</div>
+        <div class="info-meta">巡检分类：{{ inspectionCategoryLabel || '--' }}</div>
         <div class="info-meta">{{ record.project || '--' }}</div>
         <div class="people-row">
           <span>整改人：{{ record.rectifier || '--' }}</span>

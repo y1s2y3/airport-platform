@@ -176,6 +176,7 @@ export function normalizeInspectionPlan(plan = {}) {
     inspectionCategories,
     // 旧字段继续输出，避免已有详情、筛选和导出页面出现兼容问题。
     inspectionCategory: formatInspectionCategories(inspectionCategories),
+    // 危大工程现场巡视在移动端执行时关联；保留旧字段仅用于历史数据兼容。
     isMajorHazardPatrol: plan.isMajorHazardPatrol || '否',
   }
 }
@@ -184,16 +185,16 @@ export const planData = reactive([
   {
     id: 'plan-003',
     inspectionCategories: ['安全', '质量'], inspectionCategory: '安全、质量',
-    assigned: true, executors: ['user-2', 'user-3'], planNo: 'ZHXJ20260718001', name: '雨季临时用电与材料质量检查',
-    projects: ['T1航站区配套'],
-    projectIds: ['p-001'],
+    assigned: true, executors: ['user-2', 'user-3'], planNo: 'AZXJ20260730001', name: '高处作业安全与质量检查',
+    projects: ['T2航站区配套'],
+    projectIds: ['p-000'],
     checkConfig: [
-      { categoryId: 'cat-2', itemIds: ['item-2-1','item-2-2','item-2-3','item-2-4','item-2-5','item-2-6','item-2-7','item-2-8'] },
-      { categoryId: 'cat-q1', itemIds: ['item-q1-1','item-q1-2','item-q1-3'] },
+      { categoryId: 'cat-3', itemIds: ['item-3-1','item-3-2','item-3-5','item-3-7'] },
+      { categoryId: 'cat-q2', itemIds: ['item-q2-1','item-q2-2','item-q2-3'] },
     ],
     responsiblePerson: 'user-3', ccPersons: ['user-1', 'user-5'],
-    deadlineDate: '2026-07-20',
-    status: '已下发', remark: '针对雨季临时用电安全检查',
+    deadlineDate: '2026-07-10',
+    status: '已下发', remark: '高处作业与质量检查，请在移动端执行时按实际巡视情况关联危大工程。',
     createdBy: 'admin', updatedBy: 'admin',
     createdAt: '2026-07-18 16:30', updatedAt: '2026-07-18 16:30',
   },
@@ -275,11 +276,17 @@ function createMobileTask(plan, project, taskNo, itemCount, index = 0) {
     source: '任务下发',
     inspectionCategories: plan.inspectionCategories,
     inspectionCategory: plan.inspectionCategory,
-    isMajorHazardPatrol: plan.isMajorHazardPatrol,
-    majorHazardLedgerId: plan.majorHazardLedgerId || '',
-    majorHazardSourceId: plan.majorHazardSourceId || '',
-    majorHazardName: plan.majorHazardName || '',
+    // WEB 下发不预先关联危大工程；执行人在移动端按本任务项目选择后再写入。
+    isMajorHazardPatrol: '否',
+    majorHazardProjectId: '',
+    majorHazardProjectName: '',
+    majorHazardLedgerId: '',
+    majorHazardSourceId: '',
+    majorHazardName: '',
     project: project.label,
+    // 任务下发多选项目时，系统按项目拆分；保留数组字段以兼容移动端历史多项目任务选择逻辑。
+    projects: [project.label],
+    projectIds: [project.id],
     projectId: project.id,
     project_id: project.id,
     executor: getProjectInspectorLabel(project.id) || DEFAULT_INSPECTOR_LABEL,
@@ -345,10 +352,7 @@ export function updatePlan(id, data) {
       taskName: item.name,
       inspectionCategories: item.inspectionCategories,
       inspectionCategory: item.inspectionCategory,
-      isMajorHazardPatrol: item.isMajorHazardPatrol,
-      majorHazardLedgerId: item.majorHazardLedgerId || '',
-      majorHazardSourceId: item.majorHazardSourceId || '',
-      majorHazardName: item.majorHazardName || '',
+      // 编辑 WEB 下发任务时不覆盖移动端执行后产生的危大工程关联。
       project: primaryProject.label,
       projectId: primaryProject.id,
       project_id: primaryProject.id,

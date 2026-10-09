@@ -28,7 +28,7 @@ const filteredTasks = computed(() => {
   if (categoryFilter.value) list = list.filter(t => hasInspectionCategory(t.inspectionCategories || t.inspectionCategory, categoryFilter.value))
   if (searchKeyword.value.trim()) {
     const kw = searchKeyword.value.trim()
-    list = list.filter(t => t.taskNo.includes(kw) || (t.taskName || '').includes(kw) || t.project.includes(kw))
+    list = list.filter(t => t.taskNo.includes(kw) || (t.taskName || '').includes(kw) || t.project.includes(kw) || (t.majorHazardName || '').includes(kw))
   }
   return list
 })
@@ -89,6 +89,7 @@ function goBack() { router.push('/') }
             </div>
             <span class="m-task-project">{{ task.project }}</span>
             <div v-if="task.taskName" style="font-size:11px;color:#666;margin-top:2px">{{ task.taskName }}</div>
+            <span v-if="task.isMajorHazardPatrol === '是'" class="m-major-hazard">危大巡视 · {{ task.majorHazardName || '已关联' }}</span>
             <span v-if="task.hasRectify" class="m-rectify-badge">📋 已发整改单</span>
           </div>
         </div>
@@ -145,6 +146,7 @@ function goBack() { router.push('/') }
 .m-task-name { font-size:15px; font-weight:600; color:#1f2329; }
 .m-overdue-badge { font-size:10px; color:#e53935; background:#ffebee; padding:1px 6px; border-radius:3px; flex-shrink:0; }
 .m-rectify-badge { font-size:10px; color:#8f0045; background:#fceef4; padding:1px 6px; border-radius:3px; display:inline-block; margin-top:2px; }
+.m-major-hazard { display:inline-block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:10px; color:#c45656; background:#fef0f0; padding:1px 6px; border-radius:3px; margin-top:2px; }
 .m-task-project { font-size:12px; color:#999; }
 .m-task-mid { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
 .m-type-tag { font-size:10px; padding:1px 6px; border-radius:3px; font-weight:500; }
