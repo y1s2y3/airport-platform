@@ -332,13 +332,6 @@ function viewStarted(row) {
   openProcessDetail(row, 'started')
 }
 
-function editStarted(row) {
-  router.push({
-    name: 'PersonalCenterStartedEdit',
-    params: { id: row.id },
-  })
-}
-
 function markAllCcRead() {
   personalCc.forEach((r) => {
     r.readStatus = '已读'
@@ -492,17 +485,9 @@ watch([activeTotal, pageSize], () => {
         <el-table-column prop="endTime" label="结束时间" width="170">
           <template #default="{ row }">{{ row.endTime || '—' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="150" fixed="right">
+        <el-table-column label="操作" width="90" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="viewStarted(row)">详情</el-button>
-            <el-button
-              v-if="row.category === '巡检管理' && row.status === '已驳回'"
-              link
-              type="warning"
-              @click="editStarted(row)"
-            >
-              编辑
-            </el-button>
           </template>
         </el-table-column>
       </el-table>

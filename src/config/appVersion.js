@@ -17,6 +17,14 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.11.1.15',
+    date: '2026-10-09',
+    highlights: [
+      '个人中心「我发起的」：巡检管理已驳回记录不再显示「编辑」入口，仅保留「详情」',
+      '驳回整改的重新提交统一在「我的待办」的整改待办中办理',
+    ],
+  },
+  {
     version: 'v2.11.1.14',
     date: '2026-10-09',
     highlights: [
