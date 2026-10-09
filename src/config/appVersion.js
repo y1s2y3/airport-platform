@@ -17,6 +17,13 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.11.1.18',
+    date: '2026-10-09',
+    highlights: [
+      '项目简称：「三跑道扩建(机场工程)」单独命名，不再与「三跑道扩建」重名；会议记录「调度项目」等列表不再出现同名重复',
+    ],
+  },
+  {
     version: 'v2.11.1.17',
     date: '2026-10-09',
     highlights: [
