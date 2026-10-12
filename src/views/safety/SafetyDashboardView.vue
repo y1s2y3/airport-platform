@@ -113,7 +113,7 @@ const hazardStats = computed(() => {
 const taskStats = computed(() => {
   const data = scopedTaskData.value
   const total = data.length
-  const exec = data.filter(d => d.status === '待执行').length
+  const exec = data.filter(d => d.status === '未完成').length
   const done = data.filter(d => d.status === '已完成').length
   const withHazard = data.filter(d => d.status === '已完成' && d.hazardCount > 0).length
   const overdue = data.filter(d => calcOverdue(d).overdue).length
@@ -135,7 +135,7 @@ const filteredHazardChartItems = computed(() =>
 
 const taskChartData = computed(() => projectNames.map((name, i) => {
   const items = filteredTaskChartItems.value.filter(d => d.project === name)
-  return { name: projectShort[i], exec: items.filter(d => d.status === '待执行').length, done: items.filter(d => d.status === '已完成').length, rate: items.length ? Math.round(items.filter(d=>d.status==='已完成').length / items.length * 100) : 0 }
+  return { name: projectShort[i], exec: items.filter(d => d.status === '未完成').length, done: items.filter(d => d.status === '已完成').length, rate: items.length ? Math.round(items.filter(d=>d.status==='已完成').length / items.length * 100) : 0 }
 }))
 
 const hazardChartData = computed(() => projectNames.map((name, i) => {
@@ -172,7 +172,7 @@ function initCharts() {
         series: [{ type:'pie', radius:['40%','65%'],
           label: { show:true, formatter:'{d}%', fontSize:11 },
           data: [
-            { value:s.exec, name:'待执行', itemStyle:{color:'#f5a623'} },
+            { value:s.exec, name:'未完成', itemStyle:{color:'#f5a623'} },
             { value:s.done, name:'已完成', itemStyle:{color:'#34a853'} },
           ],
         }],
@@ -202,7 +202,7 @@ function initCharts() {
       const d = taskChartData.value
       chBarTask.setOption({
         tooltip: { trigger:'axis', axisPointer:{type:'shadow'} },
-        legend: { data:['待执行','已完成','完成率'], bottom:0, itemWidth:10, itemHeight:10, textStyle:{fontSize:11} },
+        legend: { data:['未完成','已完成','完成率'], bottom:0, itemWidth:10, itemHeight:10, textStyle:{fontSize:11} },
         grid: { left:40, right:40, top:20, bottom:40 },
         xAxis: { type:'category', data:d.map(v=>v.name), axisLabel:{fontSize:11} },
         yAxis: [
@@ -210,7 +210,7 @@ function initCharts() {
           { type:'value', name:'完成率%', min:0, max:100, axisLabel:{fontSize:10,formatter:'{value}%'}, splitLine:{show:false} },
         ],
         series: [
-          { name:'待执行', type:'bar', stack:'total', data:d.map(v=>v.exec), itemStyle:{color:'#f5a623'} },
+          { name:'未完成', type:'bar', stack:'total', data:d.map(v=>v.exec), itemStyle:{color:'#f5a623'} },
           { name:'已完成', type:'bar', stack:'total', data:d.map(v=>v.done), itemStyle:{color:'#34a853'} },
           { name:'完成率', type:'line', yAxisIndex:1, data:d.map(v=>v.rate), itemStyle:{color:'#4285f4'}, lineStyle:{width:2}, symbol:'circle', symbolSize:6 },
         ],
@@ -246,7 +246,7 @@ function updateTimeFilteredCharts() {
     const taskSummary = taskStats.value
     chPieTask?.setOption({
       series: [{ data: [
-        { value:taskSummary.exec, name:'待执行', itemStyle:{color:'#f5a623'} },
+        { value:taskSummary.exec, name:'未完成', itemStyle:{color:'#f5a623'} },
         { value:taskSummary.done, name:'已完成', itemStyle:{color:'#34a853'} },
       ] }],
     })
@@ -264,7 +264,7 @@ function updateTimeFilteredCharts() {
     chBarTask?.setOption({
       xAxis: { data: taskItems.map(item => item.name) },
       series: [
-        { name:'待执行', data:taskItems.map(item => item.exec) },
+        { name:'未完成', data:taskItems.map(item => item.exec) },
         { name:'已完成', data:taskItems.map(item => item.done) },
         { name:'完成率', data:taskItems.map(item => item.rate) },
       ],
@@ -333,7 +333,7 @@ function goDetail(type, id) {
     <el-row :gutter="12" class="stat-row">
       <el-col :span="4" v-for="s in [
         { val:taskStats.total, lbl:'总任务', cls:'' },
-        { val:taskStats.exec, lbl:'待执行', cls:'warn' },
+        { val:taskStats.exec, lbl:'未完成', cls:'warn' },
         { val:taskStats.done, lbl:'已完成', cls:'success' },
         { val:taskStats.rate+'%', lbl:'完成率', cls:'success' },
         { val:taskStats.overdue, lbl:'逾期任务', cls:'danger' },

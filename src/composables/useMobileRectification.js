@@ -361,7 +361,7 @@ export function submitManagerApproval(id, pass, payload = {}) {
 
 export const mobileWorkflowMessages = computed(() => {
   const inspectionTodo = mobileInspectionTasks
-    .filter((item) => item.status === '待执行')
+    .filter((item) => item.status === '未完成')
     .map((item) => ({
       id: `todo-task-${item.id}`,
       recordId: item.id,

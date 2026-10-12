@@ -73,10 +73,52 @@ const routes = [
         meta: { title: '巡检管理', hideTabBar: true, appBiz: true },
       },
       {
+        path: 'tasks/create',
+        name: 'AppTaskCreate',
+        component: () => import('../views/app/AppBizTaskCreateView.vue'),
+        meta: { title: '新建巡检', hideTabBar: true, appBiz: true },
+      },
+      {
+        path: 'tasks/:id/execute',
+        name: 'AppTaskExecute',
+        component: () => import('../views/app/AppBizTaskExecuteView.vue'),
+        meta: { title: '执行巡检', hideTabBar: true, appBiz: true },
+      },
+      {
+        path: 'tasks/:id',
+        name: 'AppTaskDetail',
+        component: () => import('../views/app/AppBizTaskDetailView.vue'),
+        meta: { title: '检查结果', hideTabBar: true, appBiz: true },
+      },
+      {
         path: 'rectify',
         name: 'AppRectify',
         component: () => import('../views/app/AppBizRectifyView.vue'),
         meta: { title: '整改复查', hideTabBar: true, appBiz: true },
+      },
+      {
+        path: 'rectify/:id/execute',
+        name: 'AppRectifyExecute',
+        component: () => import('../views/app/AppBizRectifyExecuteView.vue'),
+        meta: { title: '整改处理', hideTabBar: true, appBiz: true },
+      },
+      {
+        path: 'rectify/:id/review',
+        name: 'AppRectifyReview',
+        component: () => import('../views/app/AppBizRectifyReviewView.vue'),
+        meta: { title: '复查处理', hideTabBar: true, appBiz: true },
+      },
+      {
+        path: 'rectify/:id/approval',
+        name: 'AppRectifyApproval',
+        component: () => import('../views/app/AppBizRectifyApprovalView.vue'),
+        meta: { title: '项目经理审批', hideTabBar: true, appBiz: true },
+      },
+      {
+        path: 'rectify/:id',
+        name: 'AppRectifyDetail',
+        component: () => import('../views/app/AppBizRectifyDetailView.vue'),
+        meta: { title: '整改详情', hideTabBar: true, appBiz: true },
       },
       {
         path: 'mat/entry',

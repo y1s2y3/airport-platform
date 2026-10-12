@@ -15,8 +15,13 @@ import {
   getProjectReviewerLabel,
 } from '../../composables/useInspectionPersonConfig'
 import { getMajorHazardLedgerOptions } from '../../utils/inspectionMajorHazardLink'
+import { useCurrentProject } from '../../composables/useCurrentProject'
+import { COC_PROJECT_OPTIONS } from '../../config/projectOptions'
+import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
 
 const router = useRouter()
+const { tasksBase } = useMobileRouteBase()
+const { selectedProjectId: currentProjectId, isHqSelected, headerProjectLabel } = useCurrentProject()
 
 const form = ref({
   inspectionCategories: ['安全'],
@@ -34,18 +39,30 @@ const form = ref({
   hazardItems: [],
 })
 
-const projectOptions = [
-  { id: 'p-001', label: 'T3 航站楼扩建工程' },
-  { id: 'p-000', label: '飞行区跑道延长工程' },
-  { id: 'p-003', label: '新货运站建设工程' },
-  { id: 'p-004', label: '机场北片区路网工程' },
-  { id: 'p-005', label: '员工宿舍楼工程' },
-]
+/**
+ * 所属项目可选范围：指挥部级可选全部项目；项目级直接带出当前项目且不允许选择。
+ */
+const projectOptions = computed(() => {
+  if (!isHqSelected.value) {
+    const id = currentProjectId.value
+    const label = headerProjectLabel.value || ''
+    return id && label ? [{ id, label }] : []
+  }
+  return COC_PROJECT_OPTIONS.map(item => ({ id: item.id, label: item.label }))
+})
+
+// 项目级：进入页面即带出所在项目
+watch([isHqSelected, currentProjectId, headerProjectLabel], () => {
+  if (isHqSelected.value) return
+  const label = headerProjectLabel.value || ''
+  if (label) form.value.project = label
+}, { immediate: true })
+
 const personOptions = inspectorCandidates.map(p => `${p.name}（${p.role}）`)
 const companionOptions = ['刘工（安全员）', '陈工（技术员）', '周工（施工员）', '吴工（质检员）']
 
 const selectedCompanion = ref('')
-const selectedProjectId = computed(() => projectOptions.find(item => item.label === form.value.project)?.id || resolveInspectionProjectId(form.value.project))
+const selectedProjectId = computed(() => projectOptions.value.find(item => item.label === form.value.project)?.id || resolveInspectionProjectId(form.value.project))
 const majorHazardOptions = computed(() => form.value.project ? getMajorHazardLedgerOptions(selectedProjectId.value) : [])
 
 function toggleInspectionCategory(category) {
@@ -209,10 +226,10 @@ function submitInspection() {
 
   addMobileInspectionTask(newTask)
   ElMessage.success(`巡检记录已提交${rectifyCount ? `，已下发 ${rectifyCount} 份整改单` : ''}`)
-  router.push('/mobile/tasks')
+  router.push(tasksBase.value)
 }
 
-function goBack() { router.push('/mobile/tasks') }
+function goBack() { router.push(tasksBase.value) }
 </script>
 
 <template>
@@ -240,11 +257,12 @@ function goBack() { router.push('/mobile/tasks') }
 
         <div class="form-row">
           <span class="form-label">所属项目<span class="required-mark">*</span></span>
-          <select v-model="form.project" class="form-input">
+          <select v-model="form.project" class="form-input" :disabled="!isHqSelected">
             <option value="" disabled>请选择项目</option>
             <option v-for="p in projectOptions" :key="p.id" :value="p.label">{{ p.label }}</option>
           </select>
         </div>
+        <div v-if="!isHqSelected" class="link-tip">项目级新建巡检任务自动带出所在项目，不可更改。</div>
 
         <div class="form-row">
           <span class="form-label">危大工程现场巡视<span class="required-mark">*</span></span>
@@ -373,6 +391,7 @@ function goBack() { router.push('/mobile/tasks') }
 .form-label { color:#666; flex-shrink:0; width:72px; font-size:13px; padding-top:4px; }
 .required-mark { color:#e53935; margin-left:2px; font-weight:600; }
 .form-input { flex:1; padding:8px 10px; border:1px solid #ddd; border-radius:8px; font-size:13px; font-family:inherit; background:#fff; }
+.form-input:disabled { background:#f2f3f5; color:#606266; }
 .form-textarea { flex:1; padding:8px 10px; border:1px solid #ddd; border-radius:8px; font-size:13px; font-family:inherit; resize:none; background:#fff; }
 .form-tags { flex:1; display:flex; gap:6px; flex-wrap:wrap; }
 .tag-btn { padding:6px 14px; border:1px solid #ddd; border-radius:16px; background:#fff; font-size:13px; color:#666; cursor:pointer; }

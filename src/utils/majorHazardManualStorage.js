@@ -513,7 +513,6 @@ export function saveCategoryDescription(projectId, payload) {
 export function removeCategoryDescription(projectId, id) {
   const data = readProject(projectId)
   data.descriptions = data.descriptions.filter((item) => item.id !== id)
-  data.controlPoints = data.controlPoints.filter((item) => item.descriptionId !== id)
   writeProject(projectId, data)
 }
 
@@ -557,7 +556,7 @@ export function getIdentificationItems(data, { approvedOnly = false } = {}) {
     identifiedAt: batch.identifiedAt,
     approvalStatus: batch.approvalStatus,
     remark: batch.remark || '',
-  }))).filter((item) => item.conclusion === '√' && (!approvedOnly || item.approvalStatus === '已通过'))
+  }))).filter((item) => !approvedOnly || (item.conclusion === '√' && item.approvalStatus === '已通过'))
 }
 
 export function buildLedgerRows(data) {
@@ -580,6 +579,7 @@ export function createLedgerFromSource(source, data) {
     subcontractor: '',
     responsible: '',
     categoryId: source.categoryId,
+    descriptionId: source.id || source.descriptionId || '',
     categoryName: source.categoryName,
     description: source.description,
     isSuperMajor: source.isSuperMajor,
@@ -620,7 +620,15 @@ export function createConstructionPart(data = {}) {
 
 export function normalizeLedger(ledger, data) {
   const source = ledger.source || getIdentificationItems(data).find((item) => item.sourceId === ledger.sourceId)
-  const base = createLedgerFromSource(source || { sourceId: ledger.sourceId, categoryId: ledger.categoryId, categoryName: ledger.categoryName, description: ledger.name, isSuperMajor: ledger.isSuperMajor }, data)
+  const base = createLedgerFromSource(source || {
+    sourceId: ledger.sourceId,
+    id: ledger.descriptionId || String(ledger.sourceId || '').split(':').pop(),
+    descriptionId: ledger.descriptionId || String(ledger.sourceId || '').split(':').pop(),
+    categoryId: ledger.categoryId,
+    categoryName: ledger.categoryName,
+    description: ledger.description || ledger.name,
+    isSuperMajor: ledger.isSuperMajor,
+  }, data)
   const parts = (ledger.parts || []).map((part) => {
     const blank = createConstructionPart()
     return {
@@ -651,7 +659,10 @@ export function normalizeLedger(ledger, data) {
   const storedPoints = new Map((ledger.controlPoints || []).map((point) => [point.id, point]))
   // 清单只保留字典当前仍存在的管控要点；删除或新增字典项后，各入口立即保持一致。
   const configuredPoints = base.controlPoints
-  const controlPoints = configuredPoints.map((definition) => {
+  const configuredIds = new Set(configuredPoints.map((point) => point.id))
+  // 保留已被历史清单引用、但后来从字典删除的要点，避免历史过程记录消失。
+  const historicalPoints = (ledger.controlPoints || []).filter((point) => point.id && !configuredIds.has(point.id))
+  const controlPoints = [...configuredPoints, ...historicalPoints].map((definition) => {
     const point = storedPoints.get(definition.id) || {}
     return {
       ...point,
@@ -759,6 +770,8 @@ export function buildCalendarAlerts(data, ledgerRows = buildLedgerRows(data)) {
         ['scheme', '专项施工方案'],
         ['schemeDisclosure', '方案交底'],
         ['safetyDisclosure', '安全技术交底'],
+        ['conditionAcceptance', '施工条件验收'],
+        ['progress', '施工进度'],
       ].forEach(([key, label]) => {
         if (part.plannedEndDate && part.plannedEndDate < today && part.process?.[key]?.status !== '已完成') {
           alerts.push({ type: label, content: `${label}未在计划结束时间前完成`, part })
@@ -775,7 +788,8 @@ export function buildCalendarAlerts(data, ledgerRows = buildLedgerRows(data)) {
           ledgerName: ledger.name,
           categoryName: ledger.categoryName,
           handler: ledger.responsible || part.safetyResponsible || '项目安全负责人',
-          status: action.status || '待处理',
+          status: action.status === '已处理' ? '已关闭' : action.status || '待处理',
+          occurredAt: action.occurredAt || '',
           handledAt: action.handledAt || '',
           disposalResult: action.disposalResult || '',
           disposalNote: action.disposalNote || '',
@@ -801,10 +815,33 @@ export function buildCalendarAlerts(data, ledgerRows = buildLedgerRows(data)) {
       const part = ledger.parts[0]
       const id = `mh-example:${ledger.sourceId}:${part.id}:${key}`
       const action = data.alertActions?.[id] || {}
-      rows.push({ id, type, content, part, ledgerId: ledger.id, ledgerSourceId: ledger.sourceId, ledgerName: ledger.name, categoryName: ledger.categoryName, handler: part.safetyResponsible || ledger.responsible, isExample: true, status: action.status || '待处理', handledAt: action.handledAt || '', disposalResult: action.disposalResult || '', disposalNote: action.disposalNote || '', disposalAttachments: action.disposalAttachments || [] })
+      rows.push({ id, type, content, part, ledgerId: ledger.id, ledgerSourceId: ledger.sourceId, ledgerName: ledger.name, categoryName: ledger.categoryName, handler: part.safetyResponsible || ledger.responsible, isExample: true, status: action.status === '已处理' ? '已关闭' : action.status || '待处理', occurredAt: action.occurredAt || '', handledAt: action.handledAt || '', disposalResult: action.disposalResult || '', disposalNote: action.disposalNote || '', disposalAttachments: action.disposalAttachments || [] })
     }
   }
   return rows.map((row) => ({ ...row, isExample: row.isExample || String(row.ledgerId).startsWith('mh-demo-ledger-') }))
+}
+
+function alertTimestamp() {
+  const now = new Date()
+  const pad = (value) => String(value).padStart(2, '0')
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`
+}
+
+/** 首次识别时登记产生时间；再次计算只读取原时间，不随刷新或处置覆盖。 */
+export function getCalendarAlerts(projectId, data, ledgerRows = buildLedgerRows(data)) {
+  const alerts = buildCalendarAlerts(data, ledgerRows)
+  if (!projectId) return alerts
+  data.alertActions ||= {}
+  const firstSeenAt = alertTimestamp()
+  let changed = false
+  alerts.forEach((alert) => {
+    const previous = data.alertActions[alert.id] || {}
+    if (previous.occurredAt) return
+    data.alertActions[alert.id] = { ...previous, occurredAt: firstSeenAt }
+    changed = true
+  })
+  if (changed) writeProject(projectId, data)
+  return alerts.map((alert) => ({ ...alert, occurredAt: data.alertActions[alert.id].occurredAt }))
 }
 
 export function updateAlertStatus(projectId, alertId, status, detail = {}) {
@@ -814,8 +851,9 @@ export function updateAlertStatus(projectId, alertId, status, detail = {}) {
     ...data.alertActions,
     [alertId]: {
       ...previous,
-      status,
-      handledAt: status === '已处理' ? (detail.handledAt || new Date().toLocaleString('zh-CN', { hour12: false })) : '',
+      occurredAt: previous.occurredAt || detail.occurredAt || alertTimestamp(),
+      status: status === '已处理' ? '已关闭' : status,
+      handledAt: (status === '已处理' ? '已关闭' : status) === '已关闭' ? (detail.handledAt || new Date().toLocaleString('zh-CN', { hour12: false })) : '',
       disposalResult: detail.disposalResult || previous.disposalResult || '',
       disposalNote: detail.disposalNote || previous.disposalNote || '',
       disposalAttachments: detail.disposalAttachments || previous.disposalAttachments || [],

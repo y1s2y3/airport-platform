@@ -4,9 +4,11 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getMobileRectification, submitManagerApproval } from '../../composables/useMobileRectification'
 import { formatInspectionCategories } from '../../config/inspectionManagement'
+import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
 
 const route = useRoute()
 const router = useRouter()
+const { rectifyBase } = useMobileRouteBase()
 const record = computed(() => getMobileRectification(route.params.id))
 const missing = computed(() => !record.value)
 const inspectionCategoryLabel = computed(() =>
@@ -56,12 +58,12 @@ function handleApproval(pass) {
   }
   ElMessage.success(pass ? '审批通过，整改流程已闭环' : '审批不通过，已退回复查人重新复查')
   const tab = route.query.tab
-  router.push(tab ? `/mobile/rectify?tab=${pass ? '已关闭' : '待复查'}` : '/mobile/rectify')
+  router.push(tab ? `${rectifyBase.value}?tab=${pass ? '已关闭' : '待复查'}` : rectifyBase.value)
 }
 
 function goBack() {
   const tab = route.query.tab
-  router.push(tab ? `/mobile/rectify?tab=${tab}` : '/mobile/rectify')
+  router.push(tab ? `${rectifyBase.value}?tab=${tab}` : rectifyBase.value)
 }
 </script>
 

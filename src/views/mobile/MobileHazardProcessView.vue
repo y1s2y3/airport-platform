@@ -138,15 +138,26 @@ function createBlankRecord() {
   return record
 }
 
+function generateSchemeCode() {
+  const now = new Date()
+  const ymd = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`
+  const prefix = `ZX${ymd}`
+  const codes = (form.value?.parts || [])
+    .flatMap((part) => part.process?.scheme?.records || [])
+    .map((record) => String(record.schemeCode || ''))
+  const maxSequence = codes
+    .filter((code) => code.startsWith(prefix))
+    .reduce((max, code) => Math.max(max, Number(code.slice(prefix.length)) || 0), 0)
+  return `${prefix}${String(maxSequence + 1).padStart(3, '0')}`
+}
+
 function openAdd() {
   if (!form.value?.parts?.length) return ElMessage.warning('当前危大工程尚未配置施工部位')
   const blank = createBlankRecord()
   if (processPartFilter.value) blank.partId = processPartFilter.value
   else blank.partId = form.value.parts.length === 1 ? form.value.parts[0].id : ''
   if (activeTab.value === 'scheme') {
-    const now = new Date()
-    const ymd = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`
-    blank.schemeCode = `ZX${ymd}001`
+    blank.schemeCode = generateSchemeCode()
   }
   if (activeTab.value === 'controlPoints') {
     blank.pointStatuses = (form.value.controlPoints || []).map((point) => ({
@@ -649,28 +660,35 @@ onBeforeUnmount(() => {
 .mh {
   display: flex;
   align-items: center;
-  height: 88px;
-  padding: 0 16px;
+  gap: 4px;
+  padding: 12px 16px;
   background: #8f0045;
   color: #fff;
+  position: sticky;
+  top: 0;
+  z-index: 20;
 }
 .mb {
-  width: 56px;
-  height: 56px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
   border: 0;
   background: transparent;
   color: #fff;
-  font-size: 42px;
+  font-size: 26px;
   line-height: 1;
+  cursor: pointer;
 }
 .mt {
   flex: 1;
   margin: 0;
   text-align: center;
-  font-size: 34px;
+  font-size: 17px;
   font-weight: 600;
 }
-.mh-spacer { width: 56px; }
+.mh-spacer { width: 28px; }
 .title-bar {
   margin: 10px 14px 0;
   padding: 8px 10px;

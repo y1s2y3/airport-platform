@@ -3,9 +3,11 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getMobileRectification, submitRectificationReview } from '../../composables/useMobileRectification'
+import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
 
 const route = useRoute()
 const router = useRouter()
+const { rectifyBase } = useMobileRouteBase()
 const rid = route.params.id
 
 const record = computed(() => getMobileRectification(rid))
@@ -76,12 +78,12 @@ function handleReview(pass) {
       : '复查不通过，已退回整改人重新整改',
   )
   const tab = route.query.tab
-  router.push(tab ? `/mobile/rectify?tab=${tab}` : '/mobile/rectify')
+  router.push(tab ? `${rectifyBase.value}?tab=${tab}` : rectifyBase.value)
 }
 
 function goBack() {
   const tab = route.query.tab
-  router.push(tab ? `/mobile/rectify?tab=${tab}` : '/mobile/rectify')
+  router.push(tab ? `${rectifyBase.value}?tab=${tab}` : rectifyBase.value)
 }
 </script>
 

@@ -98,16 +98,25 @@ function aggregateControlPointRows(row) {
   const definitions = row.controlPoints || []
   return (row.parts || []).flatMap((part) => definitions.map((point) => {
     const latest = [...(part.process?.controlPoints?.records || [])].reverse().find((record) => record.controlPointId === point.id)
-    const handlingStatus = latest?.displayStatus === 'green' || latest?.status === '已落实'
+    const currentStatus = latest?.displayStatus === 'green'
       ? '已落实'
-      : latest?.displayStatus === 'red' || latest?.status === '需整改'
+      : latest?.displayStatus === 'red'
+      ? '需整改'
+      : latest?.status === '已落实'
+      ? '已落实'
+      : latest?.status === '需整改'
       ? '需整改'
       : '未确认'
+    const currentStatusText = currentStatus === '未确认'
+      ? '未确认'
+      : latest?.displayStatusText || (currentStatus === '已落实' ? point.greenStatusText || '已落实' : point.redStatusText || '未落实')
     return {
       ...point,
       partId: part.id,
       partName: part.wbsPath || part.name || '—',
-      handlingStatus,
+      handlingStatus: currentStatus,
+      currentStatus,
+      currentStatusText,
     }
   }))
 }
@@ -258,7 +267,7 @@ watch(projectId, load, { immediate: true })
           <el-table-column prop="content" label="管控内容" min-width="330" />
           <el-table-column label="显示状态（红）" width="150"><template #default="{ row }"><el-tag type="danger">{{ row.redStatusText || '未落实' }}</el-tag></template></el-table-column>
           <el-table-column label="显示状态（绿）" width="150"><template #default="{ row }"><el-tag type="success">{{ row.greenStatusText || '已落实' }}</el-tag></template></el-table-column>
-          <el-table-column label="落实状态" width="110"><template #default="{ row }"><el-tag size="small" :type="row.handlingStatus === '已落实' ? 'success' : row.handlingStatus === '需整改' ? 'danger' : 'info'">{{ row.handlingStatus || '未确认' }}</el-tag></template></el-table-column>
+          <el-table-column label="当前状态" min-width="150"><template #default="{ row }"><el-tag size="small" :type="row.currentStatus === '已落实' ? 'success' : row.currentStatus === '需整改' ? 'danger' : 'info'">{{ row.currentStatusText }}</el-tag></template></el-table-column>
         </el-table>
         <template #footer><el-button type="primary" @click="controlPointDialogVisible = false">关闭</el-button></template>
       </el-dialog>

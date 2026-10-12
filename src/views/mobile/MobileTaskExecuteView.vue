@@ -12,9 +12,11 @@ import {
   getProjectRectifierLabel,
   getProjectReviewerLabel,
 } from '../../composables/useInspectionPersonConfig'
+import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
 
 const route = useRoute()
 const router = useRouter()
+const { tasksBase } = useMobileRouteBase()
 
 const taskInfo = {
   id: route.params.id,
@@ -25,7 +27,7 @@ const taskInfo = {
   executor: '当前用户',
   deadline: '2026-07-28',
   inspectionCategory: '安全',
-  status: '待执行',
+  status: '未完成',
   ...(getMobileInspectionTask(route.params.id) || {}),
 }
 
@@ -268,10 +270,10 @@ function submitCheck() {
       ? `检查结果已提交${rectifyCount ? `，已下发 ${rectifyCount} 份整改单` : ''}`
       : '检查结果已提交',
   )
-  router.push(`/mobile/tasks/${taskId}`)
+  router.push(`${tasksBase.value}/${taskId}`)
 }
 
-function goBack() { router.push('/mobile/tasks') }
+function goBack() { router.push(tasksBase.value) }
 </script>
 
 <template>

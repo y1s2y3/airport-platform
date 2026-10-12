@@ -65,7 +65,7 @@ const hqProjectStats = computed(() => inspectionProjectTree[0].children.map(proj
     project_id: project.id,
     project_name: project.label,
     totalCount: rows.length,
-    pendingCount: rows.filter(item => item.status === '待执行').length,
+    pendingCount: rows.filter(item => item.status === '未完成').length,
     completedCount,
     executionRate: rows.length ? Math.round(completedCount / rows.length * 100) : 0,
     overdueCount: rows.filter(item => isOverdue(item)).length,
@@ -128,7 +128,8 @@ function getTaskCompanions(row) {
 }
 
 function getMajorHazardPatrolText(row) {
-  if (row.status !== '已完成' && !row.majorHazardLedgerId) return '待移动端关联'
+  // 危大工程现场巡视只有两种展示值：已关联 / 未关联（未完成且未选择时也按未关联展示）
+  if (row.status !== '已完成' && !row.majorHazardLedgerId) return '未关联'
   return row.isMajorHazardPatrol === '是' ? '已关联' : '未关联'
 }
 
@@ -158,7 +159,7 @@ function goBackToHQ() {
       <div class="hq-dashboard">
         <div class="stat-cards">
           <div class="stat-card"><div class="sc-value">{{ hqTotalStats.totalCount }}</div><div class="sc-label">任务总数</div></div>
-          <div class="stat-card"><div class="sc-value text-warn">{{ hqTotalStats.pendingCount }}</div><div class="sc-label">待执行</div></div>
+          <div class="stat-card"><div class="sc-value text-warn">{{ hqTotalStats.pendingCount }}</div><div class="sc-label">未完成</div></div>
           <div class="stat-card"><div class="sc-value text-success">{{ hqTotalStats.completedCount }}</div><div class="sc-label">已完成</div></div>
           <div class="stat-card"><div class="sc-value text-success">{{ hqTotalStats.executionRate }}%</div><div class="sc-label">执行率</div></div>
           <div class="stat-card"><div class="sc-value text-danger">{{ hqTotalStats.overdueCount }}</div><div class="sc-label">逾期任务</div></div>
@@ -171,7 +172,7 @@ function goBackToHQ() {
           <el-table-column type="index" label="序号" width="55" align="center" />
           <el-table-column prop="project_name" label="项目名称" min-width="180" />
           <el-table-column prop="totalCount" label="任务数量" align="center" />
-          <el-table-column prop="pendingCount" label="待执行数量" align="center" />
+          <el-table-column prop="pendingCount" label="未完成数量" align="center" />
           <el-table-column prop="completedCount" label="已完成数量" align="center" />
           <el-table-column label="执行率" align="center">
             <template #default="{ row }"><span :class="{ 'rate-low': row.executionRate < 60 }">{{ row.executionRate }}%</span></template>
@@ -200,7 +201,7 @@ function goBackToHQ() {
             <el-option label="安全" value="安全" /><el-option label="质量" value="质量" />
           </el-select>
           <el-select v-model="filterForm.status" placeholder="任务状态" clearable style="width:100px">
-            <el-option label="待执行" value="待执行" /><el-option label="已完成" value="已完成" />
+            <el-option label="未完成" value="未完成" /><el-option label="已完成" value="已完成" />
           </el-select>
           <el-select v-model="filterForm.source" placeholder="任务来源" clearable style="width:110px">
             <el-option label="任务下发" value="任务下发" /><el-option label="系统自建" value="系统自建" />
@@ -250,7 +251,7 @@ function goBackToHQ() {
           </el-table-column>
           <el-table-column label="巡检日期" min- align="center">
             <template #default="{ row }">
-              <span v-if="row.status === '待执行'" style="color:#999">--</span>
+              <span v-if="row.status === '未完成'" style="color:#999">--</span>
               <span v-else-if="row.inspectionDate">{{ row.inspectionDate }}</span>
               <span v-else style="color:#999">-</span>
             </template>

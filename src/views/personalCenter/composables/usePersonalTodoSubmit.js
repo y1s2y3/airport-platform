@@ -35,6 +35,8 @@ import {
   rejectDispatchHazard,
   resolveDispatchHazardPhotoName,
 } from '../../../utils/dispatchHazardStorage.js'
+import { getMajorHazardLedgerOptions, syncInspectionTaskToMajorHazard } from '../../../utils/inspectionMajorHazardLink.js'
+import { COC_PROJECT_OPTIONS } from '../../../config/projectOptions.js'
 
 /**
  * 个人中心待办提交逻辑（与 UI 面板解耦，供 handle 页与各 TodoXxxPanel 复用）。
@@ -383,17 +385,36 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
     if (!row) return
     const bizType = row.inspectionBizType
     if (bizType === '巡检') {
+      // 危大工程现场巡视：与移动端执行巡检一致，先判定再校验危大清单
+      if (inspectionForm.isMajorHazardPatrol === '是') {
+        if (!inspectionForm.majorHazardProjectId) {
+          return ElMessage.warning('请先选择本次实际巡视项目')
+        }
+        if (!inspectionForm.majorHazardLedgerId) {
+          return ElMessage.warning('请选择危大工程名称')
+        }
+      }
       if (!inspectionForm.inspectionResult) return ElMessage.warning('请选择巡检结果')
+      // 与移动端执行巡检一致：全部正常时巡检照片必填
+      if (inspectionForm.inspectionResult === 'normal' && !inspectionForm.attachments.length) {
+        return ElMessage.warning('全部正常时请至少上传一张巡检照片')
+      }
       if (inspectionForm.inspectionResult === 'hazard') {
-        if (!inspectionForm.hazardDescription.trim()) return ElMessage.warning('请填写隐患说明')
-        if (inspectionForm.issueRectify && !inspectionForm.rectifier) {
-          return ElMessage.warning('请选择整改人')
-        }
-        if (inspectionForm.issueRectify && !inspectionForm.reviewer) {
-          return ElMessage.warning('请选择复查人')
-        }
-        if (inspectionForm.issueRectify && !inspectionForm.rectifyDeadline) {
-          return ElMessage.warning('请选择整改截止日期')
+        const hazards = inspectionForm.hazardItems || []
+        if (!hazards.length) return ElMessage.warning('请至少新增一条隐患')
+        for (const [index, hazard] of hazards.entries()) {
+          if (!String(hazard.desc || '').trim()) {
+            return ElMessage.warning(`请填写隐患 ${index + 1} 的隐患说明`)
+          }
+          if (!(hazard.photos || []).length) {
+            return ElMessage.warning(`隐患 ${index + 1} 请至少上传一张隐患照片`)
+          }
+          // 有隐患即直接生成整改单，整改信息必填
+          if (!hazard.rectifier) return ElMessage.warning(`隐患 ${index + 1} 请选择整改人`)
+          if (!hazard.reviewer) return ElMessage.warning(`隐患 ${index + 1} 请选择复查人`)
+          if (!hazard.rectifyDeadline) {
+            return ElMessage.warning(`隐患 ${index + 1} 请选择整改截止日期`)
+          }
         }
       }
     } else {
@@ -412,7 +433,27 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
 
     const approved = inspectionForm.decision === 'pass'
     const now = new Date().toLocaleString('zh-CN', { hour12: false })
+    // 隐患整改单编号：ZG + 日期 + 4 位时间戳 + 两位序号（与移动端执行巡检同规则）
+    const stamp = Date.now()
+    const hazardDateKey = new Date().toISOString().slice(0, 10).replace(/-/g, '')
     const remark = inspectionForm.remark.trim()
+    // 危大工程现场巡视：解析执行时判定的巡视项目与所选危大清单
+    const patrolRequested = bizType === '巡检' && inspectionForm.isMajorHazardPatrol === '是'
+    const patrolProjectId = patrolRequested ? String(inspectionForm.majorHazardProjectId || '') : ''
+    const patrolProject = COC_PROJECT_OPTIONS.find((item) => item.id === patrolProjectId)
+    const patrolLedger = patrolRequested && patrolProjectId
+      ? getMajorHazardLedgerOptions(patrolProjectId).find((item) => item.id === inspectionForm.majorHazardLedgerId)
+      : null
+    const patrolLink = patrolRequested
+      ? {
+          isMajorHazardPatrol: '是',
+          projectId: patrolProjectId,
+          projectName: patrolProject?.label || row.detail?.project || '',
+          ledgerId: patrolLedger?.id || inspectionForm.majorHazardLedgerId || '',
+          sourceId: patrolLedger?.sourceId || '',
+          name: patrolLedger?.name || '',
+        }
+      : { isMajorHazardPatrol: '否', projectId: '', projectName: '', ledgerId: '', sourceId: '', name: '' }
     const nextStatus =
       bizType === '巡检'
         ? '已完成'
@@ -443,16 +484,24 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
           : row.detail?.normalPhotos,
       hazardItems:
         inspectionForm.inspectionResult === 'hazard'
-          ? [
-              {
-                desc: inspectionForm.hazardDescription.trim(),
-                photos: inspectionForm.attachments.map((item) => item.name),
-                issueRectify: inspectionForm.issueRectify,
-                rectifier: inspectionForm.rectifier,
-                reviewer: inspectionForm.reviewer,
-                rectifyDeadline: inspectionForm.rectifyDeadline,
-              },
-            ]
+          ? (inspectionForm.hazardItems || []).map((hazard, index) => {
+              // 有隐患即直接生成整改单信息（与移动端执行巡检一致），编号规则同为 ZG+日期+序号
+              const rectifyNo = `ZG${hazardDateKey}${String(stamp).slice(-4)}${String(index + 1).padStart(2, '0')}`
+              return {
+                desc: String(hazard.desc || '').trim(),
+                photos: (hazard.photos || []).map((item) => item.name),
+                hasRectify: true,
+                issueRectify: true,
+                rectifyNo,
+                rectifyId: `pc-${rectifyNo}`,
+                // 个人中心字段名 + 移动端字段名双写，保证两端展示与后续流转都能取到
+                rectifier: hazard.rectifier || '',
+                reviewer: hazard.reviewer || '',
+                rectifyPerson: hazard.rectifier || '',
+                reviewPerson: hazard.reviewer || '',
+                rectifyDeadline: hazard.rectifyDeadline || '',
+              }
+            })
           : row.detail?.hazardItems,
       rectificationDate:
         bizType === '整改' ? inspectionForm.processDate : row.detail?.rectificationDate,
@@ -469,6 +518,25 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
       approvalResult:
         bizType === '审批' ? (approved ? '通过' : '不通过') : row.detail?.approvalResult,
       approvalComment: bizType === '审批' ? remark : row.detail?.approvalComment,
+      // 危大工程现场巡视：按执行时的判定与危大清单选择落库（与移动端字段一致）
+      isMajorHazardPatrol: bizType === '巡检' ? (inspectionForm.isMajorHazardPatrol === '是' ? '是' : '否') : row.detail?.isMajorHazardPatrol,
+      majorHazardProjectId: bizType === '巡检' ? (patrolLink?.projectId || '') : row.detail?.majorHazardProjectId,
+      majorHazardProjectName: bizType === '巡检' ? (patrolLink?.projectName || '') : row.detail?.majorHazardProjectName,
+      majorHazardLedgerId: bizType === '巡检' ? (patrolLink?.ledgerId || '') : row.detail?.majorHazardLedgerId,
+      majorHazardSourceId: bizType === '巡检' ? (patrolLink?.sourceId || '') : row.detail?.majorHazardSourceId,
+      majorHazardName: bizType === '巡检' ? (patrolLink?.name || '') : row.detail?.majorHazardName,
+    }
+
+    // 与移动端执行巡检一致：判定为现场巡视时归档到危大工程现场巡视台账
+    if (bizType === '巡检' && patrolLink?.isMajorHazardPatrol === '是') {
+      syncInspectionTaskToMajorHazard({
+        ...row.detail,
+        id: row.id,
+        status: '已完成',
+        project: patrolLink.projectName || row.detail.project,
+        projectId: patrolLink.projectId,
+        project_id: patrolLink.projectId,
+      })
     }
 
     if (bizType === '整改' && row.rectifyId) {

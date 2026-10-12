@@ -48,7 +48,7 @@ function blankCategory(row = {}) {
   return { id: '', name: '', ...row }
 }
 function blankDescription(row = {}) {
-  return { id: '', categoryId: selectedCategoryId.value, description: '', isSuperMajor: '否', needMonitoring: '否', ...row }
+  return { id: '', categoryId: selectedCategoryId.value, description: '', isSuperMajor: '否', needMonitoring: '否', basis: '', scene: '', ...row }
 }
 function blankPoint(row = {}) {
   return {
@@ -117,14 +117,23 @@ function saveDescription() {
     return
   }
   const payload = { ...descriptionForm.value }
-  delete payload.basis
-  delete payload.scene
   saveCategoryDescription(projectId.value, payload)
   load()
   descriptionDialog.value = false
   ElMessage.success(descriptionForm.value.id ? '编辑成功' : '新增成功')
 }
 function deleteDescription(row) {
+  const isReferenced = (data.value.identifications || []).some((record) =>
+    (record.items || []).some((item) => item.id === row.id),
+  ) || (data.value.ledgers || []).some((ledger) =>
+    ledger.descriptionId === row.id
+      || ledger.source?.id === row.id
+      || String(ledger.sourceId || '').endsWith(`:${row.id}`),
+  )
+  if (isReferenced) {
+    ElMessage.warning('该类别描述已被辨识或危大清单引用，不能删除，以保留历史数据')
+    return
+  }
   ElMessageBox.confirm('确定删除该类别描述？', '删除确认', { type: 'warning' }).then(() => {
     removeCategoryDescription(projectId.value, row.id)
     load()
@@ -174,6 +183,16 @@ function cancelPointRow() {
   resetPointEdit()
 }
 function deletePoint(row) {
+  const isReferenced = (data.value.ledgers || []).some((ledger) =>
+    (ledger.controlPoints || []).some((point) => point.id === row.id)
+      || (ledger.parts || []).some((part) => Object.values(part.process || {}).some((node) =>
+        (node.records || []).some((record) => record.controlPointId === row.id),
+      )),
+  )
+  if (isReferenced) {
+    ElMessage.warning('该管控要点已被危大清单或过程记录引用，不能删除，以保留历史数据')
+    return
+  }
   ElMessageBox.confirm('确定删除该管控要点？', '删除确认', { type: 'warning' }).then(() => {
     removeControlPoint(projectId.value, row.id)
     load()
@@ -238,6 +257,8 @@ watch(projectId, load, { immediate: true })
                   </template>
                 </el-table-column>
                 <el-table-column prop="needMonitoring" label="是否监测" width="100" />
+                <el-table-column prop="basis" label="依据" min-width="180" show-overflow-tooltip />
+                <el-table-column prop="scene" label="适用场景" min-width="150" show-overflow-tooltip />
                 <el-table-column label="管控要点数量" width="125" align="center">
                   <template #default="{ row }">
                     <el-link type="primary" :underline="false" title="点击查看/新增管控要点" @click="openPoints(row)">{{ pointCount(row) }}</el-link>
@@ -289,6 +310,12 @@ watch(projectId, load, { immediate: true })
             <el-radio label="否">否</el-radio>
             <el-radio label="是">是</el-radio>
           </el-radio-group>
+        </el-form-item>
+        <el-form-item label="依据">
+          <el-input v-model="descriptionForm.basis" placeholder="请输入标准、规范或文件依据" />
+        </el-form-item>
+        <el-form-item label="适用场景">
+          <el-input v-model="descriptionForm.scene" placeholder="请输入适用的机场工程场景" />
         </el-form-item>
       </el-form>
       <template #footer>

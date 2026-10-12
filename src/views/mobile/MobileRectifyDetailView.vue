@@ -3,9 +3,11 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getMobileRectification } from '../../composables/useMobileRectification'
 import { formatInspectionCategories } from '../../config/inspectionManagement'
+import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
 
 const route = useRoute()
 const router = useRouter()
+const { rectifyBase } = useMobileRouteBase()
 const record = computed(() => getMobileRectification(route.params.id))
 const missing = computed(() => !record.value)
 const inspectionCategoryLabel = computed(() =>
@@ -122,7 +124,7 @@ function displayPhotos(list) {
 
 function goBack() {
   const tab = route.query.tab
-  router.push(tab ? `/mobile/rectify?tab=${tab}` : '/mobile/rectify')
+  router.push(tab ? `${rectifyBase.value}?tab=${tab}` : rectifyBase.value)
 }
 </script>
 

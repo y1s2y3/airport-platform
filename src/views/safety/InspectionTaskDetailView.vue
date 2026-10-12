@@ -12,8 +12,8 @@ const taskId = computed(() => props.task?.id || route.params.id)
 
 // ===== 5条任务基本信息 =====
 const taskMap = {
-  'mt-000': { taskNo:'AQXJ20260730001', taskName:'高处作业安全检查', inspectionCategory:'安全', source:'任务下发', project:'飞行区跑道延长工程', project_id:'p-000', executor:'监理', inspector:'监理', companions:[], deadline:'2026-07-10', inspectionDate:'', status:'待执行', itemCount:10, hazardCount:0, result:'', normalPhotos:[], hazardItems:[] },
-  'mt-001': { taskNo:'AQXJ20260728001', taskName:'防台防汛安全检查', inspectionCategory:'安全', source:'任务下发', project:'飞行区跑道延长工程', project_id:'p-000', executor:'监理', inspector:'监理', companions:[], deadline:'2026-07-28', inspectionDate:'', status:'待执行', itemCount:12, hazardCount:0, result:'', normalPhotos:[], hazardItems:[] },
+  'mt-000': { taskNo:'AQXJ20260730001', taskName:'高处作业安全检查', inspectionCategory:'安全', source:'任务下发', project:'飞行区跑道延长工程', project_id:'p-000', executor:'监理', inspector:'监理', companions:[], deadline:'2026-07-10', inspectionDate:'', status:'未完成', itemCount:10, hazardCount:0, result:'', normalPhotos:[], hazardItems:[] },
+  'mt-001': { taskNo:'AQXJ20260728001', taskName:'防台防汛安全检查', inspectionCategory:'安全', source:'任务下发', project:'飞行区跑道延长工程', project_id:'p-000', executor:'监理', inspector:'监理', companions:[], deadline:'2026-07-28', inspectionDate:'', status:'未完成', itemCount:12, hazardCount:0, result:'', normalPhotos:[], hazardItems:[] },
   'mt-002': { taskNo:'AQXJ20260718001', taskName:'临时用电安全检查', inspectionCategory:'安全', source:'任务下发', project:'T3航站楼扩建工程', project_id:'p-001', executor:'监理', inspector:'监理', companions:[], deadline:'2026-07-20', inspectionDate:'2026-07-20', status:'已完成', itemCount:8, hazardCount:2, result:'hazard', normalPhotos:[],
     hazardItems:[
       { desc:'五芯电缆破损，线路未按规范敷设', photos:['📷 隐患照片1'], hasRectify:true, rectifyNo:'ZG202607001', rectifyId:'rec-001', rectifier:'刘工（专职安全员）', rectifyDeadline:'2026-07-30' },
@@ -43,7 +43,7 @@ const taskInfo = computed(() => {
 // ===== 场景判断 =====
 const isPush = computed(() => taskInfo.value.source === '任务下发')
 const isSelf = computed(() => taskInfo.value.source === '系统自建')
-const isPending = computed(() => taskInfo.value.status === '待执行')
+const isPending = computed(() => taskInfo.value.status === '未完成')
 const majorHazardPatrolText = computed(() => {
   if (taskInfo.value.status !== '已完成' && !taskInfo.value.majorHazardLedgerId) return '移动端执行时选择'
   return taskInfo.value.isMajorHazardPatrol === '是' ? '是' : '否'

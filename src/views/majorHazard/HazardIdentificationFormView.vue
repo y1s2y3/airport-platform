@@ -27,7 +27,7 @@ const pointDialogRows = ref([])
 const pointDialogName = ref('')
 const recordId = computed(() => String(route.params.id || ''))
 const isNew = computed(() => !recordId.value)
-const canEdit = computed(() => isNew.value || ['草稿', '已驳回'].includes(form.value.approvalStatus))
+const canEdit = computed(() => isNew.value || (route.query.mode === 'edit' && ['草稿', '已驳回'].includes(form.value.approvalStatus)))
 const categories = computed(() => flattenCategories(data.value.categories))
 const selectedItems = computed(() => form.value.items.filter((item) => item.conclusion === '√'))
 const approverOptions = (kind) => MAJOR_HAZARD_APPROVERS.filter((item) => item.kind === kind).map((item) => ({ id: item.id, label: `${item.name}（${item.post}）` }))
@@ -82,6 +82,7 @@ function validateForm() {
   return invalid ? '辨识结论为“√”的数据必须填写计划施工起止时间' : ''
 }
 function persist(status) {
+  if (!canEdit.value) return
   const message = validateForm()
   if (message) { ElMessage.warning(message); return }
   const saved = saveIdentification(projectId.value, { ...form.value, approvalStatus: status })

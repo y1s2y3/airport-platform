@@ -104,7 +104,9 @@ watch(
     <header class="sub-header">
       <button type="button" class="back" aria-label="返回" @click="goBack">‹</button>
       <h1 :title="titleText">{{ titleText }}</h1>
-      <span class="spacer" />
+      <div class="header-right">
+        <slot name="header-action" />
+      </div>
     </header>
     <div
       v-if="scaleMobile"
@@ -171,9 +173,13 @@ watch(
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.spacer {
+.header-right {
   width: 56px;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
 }
 .scale-host {
   position: relative;

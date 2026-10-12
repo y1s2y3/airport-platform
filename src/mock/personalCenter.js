@@ -949,7 +949,7 @@ const inspectionBaseDetails = {
       planName: '8月第1周安全巡检',
       planType: '周检',
       source: '任务推送',
-      status: '待执行',
+      status: '未完成',
       currentNode: '巡检人执行',
       executor: '监理',
       inspector: '监理',
@@ -1369,7 +1369,8 @@ export function markModuleWarningCenterByBizDispose(
     if (row.status !== '待处理' && row.status !== '待处置') continue
     row.status = '已关闭'
     row.handler = operator
-    row.time = now
+    if (row.module === '危大工程管理') row.disposalTime = now
+    else row.time = now
     row.disposalResult = disposalResult
     row.disposalNote = disposalNote || ''
     row.disposalAttachments = [...attachments]
@@ -2188,7 +2189,7 @@ export function batchDisposeWarningCenter(ids, { content, attachments = [], oper
     row.handler = operator
     row.time = now
     row.disposalResult =
-      row.module === '危大工程管理' ? '已处理' : disposal_result || '已处置'
+      row.module === '危大工程管理' ? '已关闭' : disposal_result || '已处置'
     row.disposalNote = content || ''
     row.disposalAttachments = [...attachments]
     n += 1

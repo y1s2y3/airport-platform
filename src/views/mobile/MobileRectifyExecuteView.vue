@@ -3,9 +3,11 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getMobileRectification, submitRectification } from '../../composables/useMobileRectification'
+import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
 
 const route = useRoute()
 const router = useRouter()
+const { rectifyBase } = useMobileRouteBase()
 const rid = route.params.id
 
 const record = computed(() => getMobileRectification(rid))
@@ -88,12 +90,12 @@ function submitRectify() {
   }
   ElMessage.success('整改结果已提交，已流转至复查人复查')
   const tab = route.query.tab
-  router.push(tab ? `/mobile/rectify?tab=${tab}` : '/mobile/rectify')
+  router.push(tab ? `${rectifyBase.value}?tab=${tab}` : rectifyBase.value)
 }
 
 function goBack() {
   const tab = route.query.tab
-  router.push(tab ? `/mobile/rectify?tab=${tab}` : '/mobile/rectify')
+  router.push(tab ? `${rectifyBase.value}?tab=${tab}` : rectifyBase.value)
 }
 
 function displayPhotos(list) {

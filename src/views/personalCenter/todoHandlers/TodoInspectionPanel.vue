@@ -2,7 +2,9 @@
 import { computed, reactive, ref, toRef, watch } from 'vue'
 import DispatchImageAttachments from '../../../coc/components/DispatchImageAttachments.vue'
 import { userOptions, getUserLabel, checkCategoryTree, getItemLabel } from '../../../composables/useInspectionPlan.js'
-import { normalizeInspectionCategories } from '../../../config/inspectionManagement.js'
+import { normalizeInspectionCategories, resolveInspectionProjectId } from '../../../config/inspectionManagement.js'
+import { COC_PROJECT_OPTIONS } from '../../../config/projectOptions.js'
+import { getMajorHazardLedgerOptions } from '../../../utils/inspectionMajorHazardLink.js'
 import { usePersonalTodoSubmit } from '../composables/usePersonalTodoSubmit.js'
 import '../styles/todoHandleBlocks.css'
 
@@ -22,20 +24,76 @@ const { submitInspectionHandle } = usePersonalTodoSubmit({
   goBack: () => emit('back'),
 })
 
+/** 单条隐患结构：与移动端执行巡检的 hazardItems 保持一致（有隐患即生成整改单，无需开关） */
+function createHazardItem() {
+  return {
+    desc: '',
+    photos: [],
+    rectifier: '',
+    reviewer: '',
+    rectifyDeadline: '',
+  }
+}
+
 const inspectionForm = reactive({
   decision: 'pass',
   processDate: '',
   remark: '',
   inspector: '',
+  // 同行人与移动端一致：执行巡检时按现场实际参加人员选择，不从下发任务预填
   companions: [],
   inspectionResult: '',
+  // 巡检照片（全部正常时）/ 整改照片（整改环节）
   attachments: [],
-  hazardDescription: '',
-  issueRectify: false,
-  rectifier: '',
-  reviewer: '',
-  rectifyDeadline: '',
+  // 危大工程现场巡视：与移动端执行巡检一致，在执行时判定并选择危大清单
+  isMajorHazardPatrol: '否',
+  majorHazardProjectId: '',
+  majorHazardLedgerId: '',
+  // 隐患可多条：与移动端「新增隐患项」一致
+  hazardItems: [createHazardItem()],
 })
+
+/** 本次巡视项目：下发任务只带一个项目；保留多项目任务的兼容分支（与移动端一致） */
+const patrolProjectOptions = computed(() => {
+  const detail = props.todo?.detail || {}
+  const names = [...new Set([...(Array.isArray(detail.projects) ? detail.projects : []), detail.project].filter(Boolean))]
+  const options = names.map((name) => {
+    const project = COC_PROJECT_OPTIONS.find((item) => item.label === name || item.fullName === name)
+    return project ? { id: project.id, label: project.label } : { id: resolveInspectionProjectId(name), label: name }
+  })
+  const deduped = options.filter((item, index) => options.findIndex((other) => other.id === item.id) === index)
+  return deduped.length ? deduped : [{ id: resolveInspectionProjectId(detail.project), label: detail.project || '当前任务项目' }]
+})
+
+const selectedPatrolProject = computed(() =>
+  patrolProjectOptions.value.find((item) => item.id === inspectionForm.majorHazardProjectId) || null,
+)
+
+/** 危大清单候选：仅取本次巡视项目下的危大工程 */
+const majorHazardLedgerOptions = computed(() =>
+  inspectionForm.isMajorHazardPatrol === '是' && inspectionForm.majorHazardProjectId
+    ? getMajorHazardLedgerOptions(inspectionForm.majorHazardProjectId)
+    : [],
+)
+
+watch(() => inspectionForm.majorHazardProjectId, () => {
+  if (!majorHazardLedgerOptions.value.some((item) => item.id === inspectionForm.majorHazardLedgerId)) {
+    inspectionForm.majorHazardLedgerId = ''
+  }
+})
+watch(() => inspectionForm.isMajorHazardPatrol, (value) => {
+  if (value === '是') return
+  inspectionForm.majorHazardLedgerId = ''
+})
+
+function addInspectionHazard() {
+  inspectionForm.hazardItems.push(createHazardItem())
+}
+
+function removeInspectionHazard(index) {
+  if (inspectionForm.hazardItems.length <= 1) return
+  inspectionForm.hazardItems.splice(index, 1)
+}
 
 const inspectionActionMeta = computed(() => {
   const type = props.todo?.inspectionBizType || '巡检'
@@ -107,18 +165,29 @@ function resetInspectionForm() {
     processDate: new Date().toISOString().slice(0, 10),
     remark: '',
     inspector: props.todo?.detail?.executor || '',
-    companions: [...(props.todo?.detail?.companions || [])],
+    // 同行人与移动端一致：执行巡检时按现场实际参加人员选择，不从下发任务预填
+    companions: [],
     inspectionResult: props.todo?.detail?.inspectionResult || '',
     attachments: [],
-    hazardDescription: '',
-    issueRectify: false,
-    rectifier: props.todo?.detail?.rectifier || '',
-    reviewer: props.todo?.detail?.reviewer || '',
-    rectifyDeadline: props.todo?.detail?.deadline?.slice?.(0, 10) || '',
+    hazardItems: [createHazardItem()],
+    // 危大工程现场巡视：已选择过则回显，否则按任务项目预置（多项目任务留空待选）
+    isMajorHazardPatrol: props.todo?.detail?.isMajorHazardPatrol === '是' ? '是' : '否',
+    majorHazardProjectId:
+      props.todo?.detail?.majorHazardProjectId
+      || (patrolProjectOptions.value.length === 1 ? patrolProjectOptions.value[0].id : ''),
+    majorHazardLedgerId: props.todo?.detail?.majorHazardLedgerId || '',
   })
 }
 
 watch(() => props.todo, resetInspectionForm, { immediate: true })
+
+// 选择「有隐患」时保证至少有一条隐患可填
+watch(
+  () => inspectionForm.inspectionResult,
+  (value) => {
+    if (value === 'hazard' && !inspectionForm.hazardItems.length) addInspectionHazard()
+  },
+)
 
 function onSubmit() {
   submitInspectionHandle(inspectionForm, inspectionActionMeta.value)
@@ -144,9 +213,9 @@ function onSubmit() {
       size="small"
       class="desc-panel"
     >
+      <!-- 字段与顺序对齐移动端「巡检任务详情 · 巡检信息」 -->
       <el-descriptions-item label="巡检任务单编号">{{ todo.detail?.taskNo || '—' }}</el-descriptions-item>
-      <el-descriptions-item label="计划名称">{{ todo.detail?.planName || '—' }}</el-descriptions-item>
-      <el-descriptions-item label="计划编号">{{ todo.detail?.planNo || '—' }}</el-descriptions-item>
+      <el-descriptions-item label="任务名称">{{ todo.detail?.taskName || todo.detail?.planName || '—' }}</el-descriptions-item>
       <el-descriptions-item label="任务来源">{{ todo.detail?.source || '—' }}</el-descriptions-item>
       <el-descriptions-item label="项目名称">{{ todo.detail?.project || '—' }}</el-descriptions-item>
       <el-descriptions-item label="执行人">{{ todo.detail?.executor || '—' }}</el-descriptions-item>
@@ -160,24 +229,13 @@ function onSubmit() {
           style="margin-right:4px"
         >{{ category }}</el-tag>
       </el-descriptions-item>
-      <el-descriptions-item label="危大工程现场巡视">{{ todo.detail?.status === '已完成' || todo.detail?.majorHazardLedgerId ? (todo.detail?.isMajorHazardPatrol || '否') : '移动端执行时选择' }}</el-descriptions-item>
       <el-descriptions-item v-if="todo.detail?.isMajorHazardPatrol === '是'" label="危大工程名称">{{ todo.detail?.majorHazardName || '—' }}</el-descriptions-item>
       <el-descriptions-item v-if="todo.detail?.isMajorHazardPatrol === '是'" label="巡视台账同步" :span="todo.detail?.majorHazardName ? 1 : 2">
         {{ todo.detail?.status === '已完成' ? '已自动同步至危大工程现场巡视台账' : '完成巡检后自动同步至危大工程现场巡视台账' }}
       </el-descriptions-item>
-      <el-descriptions-item label="同行人">{{ todo.detail?.companions?.join('、') || '—' }}</el-descriptions-item>
-      <el-descriptions-item label="巡检类型">{{ todo.detail?.planType || '—' }}</el-descriptions-item>
-      <el-descriptions-item :label="todo.detail?.status === '已完成' ? '巡检日期' : '截止日期'">
-        {{
-          todo.detail?.status === '已完成'
-            ? todo.detail?.inspectionDate || '—'
-            : todo.detail?.deadline || '—'
-        }}
-      </el-descriptions-item>
+      <el-descriptions-item label="截止日期">{{ todo.detail?.deadline || '—' }}</el-descriptions-item>
+      <el-descriptions-item label="巡检日期">{{ todo.detail?.inspectionDate || '—' }}</el-descriptions-item>
       <el-descriptions-item label="状态">{{ todo.detail?.status || '—' }}</el-descriptions-item>
-      <el-descriptions-item v-if="todo.detail?.summary" label="任务说明" :span="2">
-        {{ todo.detail.summary }}
-      </el-descriptions-item>
     </el-descriptions>
     <el-descriptions v-else :column="2" border size="small" class="desc-panel">
       <el-descriptions-item label="整改单编号">{{ todo.detail?.rectifyNo || '—' }}</el-descriptions-item>
@@ -302,11 +360,14 @@ function onSubmit() {
         <strong>隐患 {{ index + 1 }}</strong>
         <span>说明：{{ hazard.desc }}</span>
         <span v-if="hazard.photos?.length">照片：{{ hazard.photos.join('、') }}</span>
-        <span>下发整改单：{{ hazard.issueRectify ? '是' : '否' }}</span>
-        <span v-if="hazard.issueRectify">
-          整改人：{{ hazard.rectifier }}　复查人：{{ hazard.reviewer }}　截止：{{
-            hazard.rectifyDeadline
-          }}
+        <span>下发整改单：{{ hazard.issueRectify || hazard.hasRectify ? '是' : '否' }}</span>
+        <span v-if="hazard.issueRectify || hazard.hasRectify">
+          整改单编号：{{ hazard.rectifyNo || '—' }}
+        </span>
+        <span v-if="hazard.issueRectify || hazard.hasRectify">
+          整改人：{{ hazard.rectifier || hazard.rectifyPerson || '—' }}　复查人：{{
+            hazard.reviewer || hazard.reviewPerson || '—'
+          }}　截止：{{ hazard.rectifyDeadline || '—' }}
         </span>
       </div>
     </div>
@@ -334,78 +395,155 @@ function onSubmit() {
               :value="getUserLabel(u.id)"
             />
           </el-select>
+          <div class="field-tip">同行人为执行巡检时的实际参加人员，请按现场情况选择（下发任务中的同行人仅作参考）。</div>
         </el-form-item>
+        <el-form-item label="危大工程现场巡视" required>
+          <el-radio-group v-model="inspectionForm.isMajorHazardPatrol">
+            <el-radio value="是">是</el-radio>
+            <el-radio value="否">否</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <template v-if="inspectionForm.isMajorHazardPatrol === '是'">
+          <el-form-item label="本次巡视项目" required>
+            <el-select
+              v-if="patrolProjectOptions.length > 1"
+              v-model="inspectionForm.majorHazardProjectId"
+              placeholder="请选择本次实际巡视项目"
+              style="width: 100%"
+              aria-label="请选择本次实际巡视项目"
+            >
+              <el-option
+                v-for="project in patrolProjectOptions"
+                :key="project.id"
+                :label="project.label"
+                :value="project.id"
+              />
+            </el-select>
+            <span v-else class="static-value">{{ selectedPatrolProject?.label || '—' }}</span>
+          </el-form-item>
+          <el-form-item label="危大工程名称" required>
+            <el-select
+              v-model="inspectionForm.majorHazardLedgerId"
+              filterable
+              placeholder="请选择危大工程"
+              style="width: 100%"
+              :disabled="!inspectionForm.majorHazardProjectId"
+              aria-label="请选择危大工程"
+            >
+              <el-option
+                v-for="item in majorHazardLedgerOptions"
+                :key="item.id"
+                :label="item.label"
+                :value="item.id"
+              />
+            </el-select>
+            <div class="field-tip">
+              仅展示「{{ selectedPatrolProject?.label || '本次巡视项目' }}」下的危大工程；提交后自动同步至该工程当前在施施工部位的现场巡视台账。
+            </div>
+          </el-form-item>
+        </template>
         <el-form-item label="巡检结果" required>
           <el-radio-group v-model="inspectionForm.inspectionResult">
             <el-radio value="normal">全部正常</el-radio>
             <el-radio value="hazard">有隐患</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item :label="inspectionForm.inspectionResult === 'hazard' ? '隐患照片' : '巡检照片'">
+        <el-form-item v-if="inspectionForm.inspectionResult === 'normal'" label="巡检照片" required>
           <DispatchImageAttachments
             v-model="inspectionForm.attachments"
-            :min="inspectionForm.inspectionResult ? 1 : 0"
+            :min="1"
             :max="9"
-            :name-prefix="inspectionForm.inspectionResult === 'hazard' ? '隐患照片' : '巡检照片'"
+            name-prefix="巡检照片"
           />
         </el-form-item>
         <template v-if="inspectionForm.inspectionResult === 'hazard'">
-          <el-form-item label="隐患说明" required>
-            <el-input
-              v-model="inspectionForm.hazardDescription"
-              type="textarea"
-              :rows="3"
-              placeholder="请描述隐患情况"
-              aria-label="请描述隐患情况"
-            />
-          </el-form-item>
-          <el-form-item label="下发整改单">
-            <el-switch v-model="inspectionForm.issueRectify" />
-          </el-form-item>
-          <template v-if="inspectionForm.issueRectify">
-            <el-form-item label="整改人" required>
-              <el-select
-                v-model="inspectionForm.rectifier"
-                filterable
-                placeholder="请选择整改人"
-                style="width: 100%"
-                aria-label="请选择整改人"
+          <el-form-item label="隐患清单" required>
+            <div class="hazard-editor">
+              <div
+                v-for="(hazard, index) in inspectionForm.hazardItems"
+                :key="index"
+                class="hazard-item"
               >
-                <el-option
-                  v-for="u in userOptions"
-                  :key="u.id"
-                  :label="getUserLabel(u.id)"
-                  :value="getUserLabel(u.id)"
-                />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="复查人" required>
-              <el-select
-                v-model="inspectionForm.reviewer"
-                filterable
-                placeholder="请选择复查人"
-                style="width: 100%"
-                aria-label="请选择复查人"
-              >
-                <el-option
-                  v-for="u in userOptions"
-                  :key="u.id"
-                  :label="getUserLabel(u.id)"
-                  :value="getUserLabel(u.id)"
-                />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="整改截止日期" required>
-              <el-date-picker
-                v-model="inspectionForm.rectifyDeadline"
-                type="date"
-                value-format="YYYY-MM-DD"
-                placeholder="请选择整改截止日期"
-                style="width: 100%"
-                aria-label="请选择整改截止日期"
-              />
-            </el-form-item>
-          </template>
+                <div class="hazard-item-head">
+                  <strong>隐患 {{ index + 1 }}</strong>
+                  <el-button
+                    v-if="inspectionForm.hazardItems.length > 1"
+                    link
+                    type="danger"
+                    @click="removeInspectionHazard(index)"
+                  >删除</el-button>
+                </div>
+                <div class="hazard-row">
+                  <span class="hazard-label">隐患说明<i>*</i></span>
+                  <el-input
+                    v-model="hazard.desc"
+                    type="textarea"
+                    :rows="2"
+                    placeholder="请描述隐患情况"
+                    :aria-label="`隐患${index + 1}说明`"
+                  />
+                </div>
+                <div class="hazard-row">
+                  <span class="hazard-label">隐患照片<i>*</i></span>
+                  <DispatchImageAttachments
+                    v-model="hazard.photos"
+                    :min="1"
+                    :max="9"
+                    :name-prefix="`隐患${index + 1}照片`"
+                  />
+                </div>
+                <div class="hazard-rectify">
+                  <div class="rectify-tip">发现隐患后系统将自动生成整改单，请完善整改信息</div>
+                  <div class="hazard-row">
+                    <span class="hazard-label">整改人<i>*</i></span>
+                    <el-select
+                      v-model="hazard.rectifier"
+                      filterable
+                      placeholder="请选择整改人"
+                      style="width: 100%"
+                      :aria-label="`隐患${index + 1}整改人`"
+                    >
+                      <el-option
+                        v-for="u in userOptions"
+                        :key="u.id"
+                        :label="getUserLabel(u.id)"
+                        :value="getUserLabel(u.id)"
+                      />
+                    </el-select>
+                  </div>
+                  <div class="hazard-row">
+                    <span class="hazard-label">复查人<i>*</i></span>
+                    <el-select
+                      v-model="hazard.reviewer"
+                      filterable
+                      placeholder="请选择复查人"
+                      style="width: 100%"
+                      :aria-label="`隐患${index + 1}复查人`"
+                    >
+                      <el-option
+                        v-for="u in userOptions"
+                        :key="u.id"
+                        :label="getUserLabel(u.id)"
+                        :value="getUserLabel(u.id)"
+                      />
+                    </el-select>
+                  </div>
+                  <div class="hazard-row">
+                    <span class="hazard-label">整改截止日期<i>*</i></span>
+                    <el-date-picker
+                      v-model="hazard.rectifyDeadline"
+                      type="date"
+                      value-format="YYYY-MM-DD"
+                      placeholder="请选择整改截止日期"
+                      style="width: 100%"
+                      :aria-label="`隐患${index + 1}整改截止日期`"
+                    />
+                  </div>
+                </div>
+              </div>
+              <el-button class="hazard-add" @click="addInspectionHazard">+ 新增隐患</el-button>
+            </div>
+          </el-form-item>
         </template>
       </template>
       <template v-else>
@@ -490,6 +628,21 @@ function onSubmit() {
 }
 .inspection-op-form {
   max-width: 760px;
+}
+/* 详情字段标签不折行，避免「巡检任务单编号」等被拆成两行 */
+.desc-panel :deep(.el-descriptions__label) {
+  white-space: nowrap;
+}
+.field-tip {
+  margin-top: 4px;
+  color: #909399;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.static-value {
+  color: #303133;
+  font-size: 14px;
+  line-height: 32px;
 }
 .inspection-detail-block {
   margin-top: 14px;
@@ -613,5 +766,66 @@ function onSubmit() {
 }
 .inspection-hazard-card strong {
   color: #e53935;
+}
+/* 隐患清单：支持多条，样式对齐移动端执行巡检 */
+.hazard-editor {
+  width: 100%;
+}
+.hazard-item {
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  background: #fafbfc;
+}
+.hazard-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.hazard-item-head strong {
+  color: #e53935;
+  font-size: 13px;
+}
+.hazard-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 10px;
+}
+.hazard-rectify {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed #ebeef5;
+}
+.rectify-tip {
+  margin-bottom: 2px;
+  padding: 7px 9px;
+  border-radius: 6px;
+  background: #fff3e0;
+  color: #b26a00;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.hazard-label {
+  flex: 0 0 96px;
+  padding-top: 7px;
+  color: #606266;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.hazard-label i {
+  margin-left: 2px;
+  color: #e53935;
+  font-style: normal;
+}
+.hazard-row > *:last-child {
+  flex: 1;
+  min-width: 0;
+}
+.hazard-add {
+  width: 100%;
+  border-style: dashed;
 }
 </style>

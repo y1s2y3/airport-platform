@@ -5,9 +5,11 @@ import { getMobileInspectionTask } from '../../mock/mobileInspectionTasks'
 import { DEFAULT_INSPECTOR_LABEL } from '../../config/inspectionManagement'
 import { formatInspectionCategories, normalizeInspectionCategories } from '../../config/inspectionManagement'
 import { checkCategoryTree } from '../../composables/useInspectionPlan'
+import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
 
 const route = useRoute()
 const router = useRouter()
+const { tasksBase } = useMobileRouteBase()
 
 /** 静态补充详情（列表 seed 字段不全时兜底，避免白屏） */
 const taskMap = {
@@ -22,7 +24,7 @@ const taskMap = {
     companions: [],
     deadline: '2026-07-28',
     inspDate: '',
-    status: '待执行',
+    status: '未完成',
     submittedAt: '',
     result: '',
     normalPhotos: [],
@@ -140,7 +142,7 @@ function normalizeTaskDetail(raw) {
     companions: Array.isArray(raw.companions) ? raw.companions : [],
     deadline: raw.deadline || '—',
     inspDate: raw.inspectionDate || raw.inspDate || '',
-    status: raw.status || '待执行',
+    status: raw.status || '未完成',
     submittedAt: raw.submittedAt || '',
     result: raw.result || '',
     normalPhotos: Array.isArray(raw.normalPhotos) ? raw.normalPhotos : [],
@@ -207,7 +209,7 @@ watch(activeCheckCategories, (categories) => {
 }, { immediate: true })
 
 function goBack() {
-  router.push('/mobile/tasks')
+  router.push(tasksBase.value)
 }
 </script>
 
@@ -217,7 +219,7 @@ function goBack() {
       <button class="mb" @click="goBack">‹</button>
       <h1 class="mt">巡检任务详情</h1>
       <span v-if="taskInfo.status === '已完成'" style="color: #34a853; font-size: 13px; font-weight: 600">✓ 已完成</span>
-      <span v-else style="color: #f5a623; font-size: 13px; font-weight: 600">待执行</span>
+      <span v-else style="color: #f5a623; font-size: 13px; font-weight: 600">未完成</span>
     </header>
 
     <div v-if="taskInfo.status !== '已完成'" class="task-bar">
@@ -320,7 +322,7 @@ function goBack() {
         ⚠ 已发现 {{ hazardCount }} 项隐患，已下发 {{ rectifyCount }} 份整改单
       </div>
       <div v-else-if="taskInfo.status === '已完成'" class="bottom-info ok">✓ 全部正常，无需整改</div>
-      <div v-else class="bottom-info" style="color: #f5a623; font-weight: 500; text-align: center">待执行，请先完成巡检</div>
+      <div v-else class="bottom-info" style="color: #f5a623; font-weight: 500; text-align: center">未完成，请先完成巡检</div>
     </div>
   </div>
 </template>

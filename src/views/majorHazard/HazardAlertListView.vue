@@ -32,7 +32,7 @@ const sourceRows = computed(() => {
 const filteredRows = computed(() => {
   let rows = [...sourceRows.value]
   if (filters.status) {
-    rows = rows.filter((row) => (filters.status === '未处理' ? row.status === '待处理' : row.status === '已关闭'))
+    rows = rows.filter((row) => (filters.status === '待处理' ? row.status === '待处理' : row.status === '已关闭'))
   }
   const keyword = filters.keyword.trim()
   if (keyword) rows = rows.filter((row) => String(row.sourceName || '').includes(keyword))
@@ -45,7 +45,7 @@ const pagedRows = computed(() => {
 })
 
 function displayStatus(row) {
-  return row.status === '已关闭' ? '已处理' : '未处理'
+  return row.status === '已关闭' ? '已关闭' : '待处理'
 }
 
 function statusType(row) {
@@ -80,7 +80,7 @@ function selectable(row) {
 
 function openBatchDispose() {
   const pending = selection.value.filter((row) => row.status === '待处理')
-  if (!pending.length) return ElMessage.warning('请先勾选需要处置的未处理异常')
+  if (!pending.length) return ElMessage.warning('请先勾选需要处置的待处理异常')
   disposeForm.note = ''
   disposeForm.files = []
   disposeVisible.value = true
@@ -101,7 +101,7 @@ async function confirmBatchDispose() {
   submitting.value = true
   try {
     const count = batchDisposeWarningCenter(selection.value.map((row) => row.id), {
-      disposal_result: '已处理',
+      disposal_result: '已关闭',
       content: note,
       attachments: disposeForm.files.map((file) => file.name || file),
       operator: '张明',
@@ -110,7 +110,7 @@ async function confirmBatchDispose() {
     selection.value = []
     syncMajorHazardWarningCenter()
     refreshTick.value += 1
-    if (!count) return ElMessage.warning('没有可处置的未处理异常')
+    if (!count) return ElMessage.warning('没有可处置的待处理异常')
     ElMessage.success(`已批量处置 ${count} 条异常`)
   } finally {
     submitting.value = false
@@ -140,8 +140,8 @@ watch(projectId, () => {
       <div class="filter-panel">
         <span class="filter-label">处理状态</span>
         <el-select v-model="filters.status" clearable placeholder="请选择" style="width: 150px">
-          <el-option label="未处理" value="未处理" />
-          <el-option label="已处理" value="已处理" />
+          <el-option label="待处理" value="待处理" />
+          <el-option label="已关闭" value="已关闭" />
         </el-select>
         <span class="filter-label">危大工程名称</span>
         <el-input v-model="filters.keyword" clearable placeholder="请输入危大工程名称" style="width: 260px" @keyup.enter="search" />
@@ -171,7 +171,7 @@ watch(projectId, () => {
         <el-table-column label="处理状态" width="100" align="center">
           <template #default="{ row }"><el-tag :type="statusType(row)" size="small">{{ displayStatus(row) }}</el-tag></template>
         </el-table-column>
-        <el-table-column prop="time" label="消息时间" width="170" />
+        <el-table-column prop="time" label="产生时间" width="170" />
         <el-table-column label="操作" width="88" fixed="right" align="center">
           <template #default="{ row }"><el-button link type="primary" @click="openDetail(row)">详情</el-button></template>
         </el-table-column>
@@ -189,7 +189,7 @@ watch(projectId, () => {
 
       <el-dialog v-model="disposeVisible" title="批量处置异常" width="540px" destroy-on-close>
         <el-form label-width="88px">
-          <el-form-item label="处置结果"><el-tag type="success">已处理</el-tag></el-form-item>
+          <el-form-item label="处置结果"><el-tag type="success">已关闭</el-tag></el-form-item>
           <el-form-item label="处置说明" required>
             <el-input v-model="disposeForm.note" type="textarea" :rows="4" maxlength="500" show-word-limit placeholder="请说明现场处理措施及当前处理结果" />
           </el-form-item>

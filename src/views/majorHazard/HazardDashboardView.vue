@@ -7,7 +7,7 @@ import { COC_PROJECT_OPTIONS } from '../../config/projectOptions.js'
 import { useCurrentProject } from '../../composables/useCurrentProject.js'
 import {
   MAJOR_HAZARD_CHANGE_EVENT,
-  buildCalendarAlerts,
+  getCalendarAlerts,
   buildLedgerRows,
   getLedgerStatus,
   getMajorHazardData,
@@ -90,8 +90,9 @@ const projectDataRows = computed(() => {
   return COC_PROJECT_OPTIONS.map((project) => {
     const data = getMajorHazardData(project.id)
     const ledgers = buildLedgerRows(data)
-    const alerts = buildCalendarAlerts(data, ledgers).map((alert) => ({ ...alert, projectId: project.id, projectName: project.label }))
-    return { project, ledgers, alerts }
+    const alerts = getCalendarAlerts(project.id, data, ledgers).map((alert) => ({ ...alert, projectId: project.id, projectName: project.label }))
+    const alertDates = Object.values(data.alertActions || {}).map((action) => action.occurredAt?.slice(0, 10)).filter(Boolean)
+    return { project, ledgers, alerts, alertDates }
   })
 })
 
@@ -114,7 +115,7 @@ const allEntries = computed(() => projectDataRows.value.flatMap(({ project, ledg
     redPoints: points.red,
     totalPoints: points.total,
     overdueAcceptance: isOverdueUnacceptedLedger(ledger) ? 1 : 0,
-    pendingAlerts: ledgerAlerts.filter((alert) => alert.status !== '已处理').length,
+    pendingAlerts: ledgerAlerts.filter((alert) => alert.status !== '已关闭').length,
     alerts: ledgerAlerts,
   }
 })))
@@ -135,7 +136,7 @@ const projectStats = computed(() => {
     row.total += 1
     map.set(entry.projectId, row)
   })
-  return [...map.values()].sort((a, b) => b.total - a.total || a.projectName.localeCompare(b.projectName, 'zh-CN')).slice(0, 10)
+  return [...map.values()].sort((a, b) => b.total - a.total || a.projectName.localeCompare(b.projectName, 'zh-CN')).slice(0, 5)
 })
 
 const categoryStats = computed(() => {
@@ -148,7 +149,15 @@ const categoryStats = computed(() => {
     if (entry.ledger.isSuperMajor === '是') row.superMajor += 1
     map.set(name, row)
   })
-  return [...map.values()].sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, 'zh-CN')).slice(0, 8)
+  const sorted = [...map.values()].sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, 'zh-CN'))
+  if (sorted.length <= 7) return sorted
+  const rest = sorted.slice(7).reduce((sum, row) => ({
+    name: '其他危大工程',
+    total: sum.total + row.total,
+    active: sum.active + row.active,
+    superMajor: sum.superMajor + row.superMajor,
+  }), { name: '其他危大工程', total: 0, active: 0, superMajor: 0 })
+  return [...sorted.slice(0, 7), rest]
 })
 
 const PROCESS_TYPES = [
@@ -210,9 +219,8 @@ const trendStats = computed(() => {
     const acceptedAt = acceptance?.date || (part.process?.acceptance?.result === '合格' ? part.process?.acceptance?.date : '')
     if (completed.has(acceptedAt)) completed.set(acceptedAt, completed.get(acceptedAt) + 1)
   }))
-  allEntries.value.forEach((entry) => entry.alerts.filter((alert) => alert.status !== '已处理').forEach(() => {
-    const today = localDate()
-    alerts.set(today, (alerts.get(today) || 0) + 1)
+  projectDataRows.value.forEach(({ alertDates }) => alertDates.forEach((date) => {
+    if (alerts.has(date)) alerts.set(date, alerts.get(date) + 1)
   }))
   return {
     started: trendDates.value.map((date) => started.get(date) || 0),
@@ -281,10 +289,9 @@ function renderCharts() {
     color: ['#94a3b8', '#2563eb', '#16a34a'],
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     legend: { selectedMode: false, top: 0, data: ['未开工', '在施', '完工'] },
-    grid: { left: 16, right: projectNames.length > 10 ? 42 : 22, top: 42, bottom: 16, containLabel: true },
+    grid: { left: 16, right: 22, top: 42, bottom: 16, containLabel: true },
     xAxis: { type: 'value', minInterval: 1, splitLine: { lineStyle: { color: '#edf1f5' } } },
     yAxis: { type: 'category', inverse: true, data: projectNames, axisTick: { show: false }, axisLabel: { width: 120, overflow: 'truncate' } },
-    dataZoom: projectNames.length > 10 ? [{ type: 'slider', yAxisIndex: 0, right: 3, width: 14, startValue: 0, endValue: 9, zoomLock: true, brushSelect: false }] : [],
     graphic: projectNames.length ? [] : emptyGraphic('暂无项目数据'),
     series: ['未开工', '在施', '完工'].map((name) => ({ name, type: 'bar', cursor: 'default', stack: 'total', barMaxWidth: 20, data: projectRows.map((row) => row[name]) })),
   }, true)
@@ -438,12 +445,12 @@ onUnmounted(() => {
         <div class="metric-card primary"><span>在施数量</span><strong>{{ summary.active }}</strong><small>当前正在实施</small></div>
         <div class="metric-card danger"><span>超危数量</span><strong>{{ summary.superMajor }}</strong><small>超危工程总量</small></div>
         <div class="metric-card danger"><span>超期未验收</span><strong>{{ summary.overdueAcceptance }}</strong><small>任一施工部位超期且未验收合格</small></div>
-        <div class="metric-card warning"><span>待处理异常</span><strong>{{ summary.pendingAlerts }}</strong><small>日历规则识别的未处理异常</small></div>
+        <div class="metric-card warning"><span>待处理异常</span><strong>{{ summary.pendingAlerts }}</strong><small>日历规则识别的待处理异常</small></div>
       </section>
 
       <section class="chart-grid">
         <div class="panel chart-panel">
-          <div class="panel-title">危大工程TOP10项目分布情况</div>
+          <div class="panel-title">危大工程TOP5项目分布情况</div>
           <div ref="projectChartRef" class="chart" />
         </div>
         <div class="panel chart-panel">
@@ -517,7 +524,7 @@ onUnmounted(() => {
           <el-table-column prop="partName" label="施工部位" min-width="180" show-overflow-tooltip />
           <el-table-column prop="type" label="异常类型" width="110" />
           <el-table-column prop="content" label="异常内容" min-width="280" show-overflow-tooltip />
-          <el-table-column label="状态" width="100" align="center"><template #default="{ row }"><el-tag size="small" :type="row.status === '已处理' ? 'success' : 'danger'">{{ row.status }}</el-tag></template></el-table-column>
+          <el-table-column label="状态" width="100" align="center"><template #default="{ row }"><el-tag size="small" :type="row.status === '已关闭' ? 'success' : 'danger'">{{ row.status }}</el-tag></template></el-table-column>
           <el-table-column prop="handledAt" label="处理时间" width="130" align="center" />
         </el-table>
       </el-drawer>
@@ -557,7 +564,7 @@ onUnmounted(() => {
             <el-table-column prop="partName" label="施工部位" min-width="180" show-overflow-tooltip />
             <el-table-column prop="type" label="异常类型" width="110" />
             <el-table-column prop="content" label="异常内容" min-width="260" show-overflow-tooltip />
-            <el-table-column label="状态" width="90" align="center"><template #default="{ row }"><el-tag size="small" :type="row.status === '已处理' ? 'success' : 'danger'">{{ row.status }}</el-tag></template></el-table-column>
+            <el-table-column label="状态" width="90" align="center"><template #default="{ row }"><el-tag size="small" :type="row.status === '已关闭' ? 'success' : 'danger'">{{ row.status }}</el-tag></template></el-table-column>
             <el-table-column prop="handledAt" label="处理时间" width="130" align="center" />
           </el-table>
         </template>

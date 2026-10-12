@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, reactive, watch } from 'vue'
-import { FolderOpened, Plus, Edit, Delete } from '@element-plus/icons-vue'
+import { FolderOpened, Plus, Edit, Delete, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { checkCategoryTree as baseTree } from '../../composables/useInspectionPlan'
 
@@ -34,7 +34,12 @@ const categoryTree = ref(allBaseCategories.map(c => ({
   inspectionCategory: c.inspectionCategory,
 })))
 const selectedCategory = ref(baseTree[0]?.id || null)
+// 分类搜索：位于左侧「检查分类」树标题下方
 const filterText = ref('')
+// 检查项搜索与分页（右侧检查项列表）
+const itemKeyword = ref('')
+const page = ref(1)
+const pageSize = ref(10)
 
 // 检查项数据（合并基础数据 + 用户新增）
 const itemStore = reactive({})
@@ -53,6 +58,30 @@ const currentCategoryName = computed(() => categoryTree.value.find(g => g.id ===
 const checkItems = computed(() => {
   if (!selectedCategory.value) return []
   return itemStore[selectedCategory.value] || []
+})
+
+/** 检查项关键字过滤（右侧列表） */
+const filteredCheckItems = computed(() => {
+  const keyword = itemKeyword.value.trim()
+  if (!keyword) return checkItems.value
+  return checkItems.value.filter(item => (item.checkPoint || '').includes(keyword))
+})
+
+/** 当前页数据 */
+const pagedCheckItems = computed(() => {
+  const start = (page.value - 1) * pageSize.value
+  return filteredCheckItems.value.slice(start, start + pageSize.value)
+})
+
+/** 分页后序号连续 */
+function rowIndex(index) {
+  return (page.value - 1) * pageSize.value + index + 1
+}
+
+watch([selectedCategory, itemKeyword, pageSize], () => { page.value = 1 })
+watch(() => filteredCheckItems.value.length, total => {
+  const maxPage = Math.max(1, Math.ceil(total / pageSize.value))
+  if (page.value > maxPage) page.value = maxPage
 })
 
 const filteredTreeData = computed(() => {
@@ -180,7 +209,6 @@ function deleteItem(row) {
       </div>
       <div class="page-actions">
         <el-button type="primary" size="default" @click="openAddItem"><el-icon><Plus /></el-icon>新增检查项</el-button>
-        <el-input v-model="filterText" placeholder="搜索分类..." clearable size="default" style="width: 200px" />
       </div>
     </div>
 
@@ -189,6 +217,9 @@ function deleteItem(row) {
         <div class="panel-header">
           <span class="panel-title">检查分类</span>
           <el-button text type="primary" size="small" @click="openAddCat"><el-icon><Plus /></el-icon>新增</el-button>
+        </div>
+        <div class="panel-search">
+          <el-input v-model="filterText" placeholder="搜索分类..." clearable size="small" :prefix-icon="Search" />
         </div>
         <div class="tree-wrap">
           <div v-for="cat in filteredTreeData" :key="cat.id" class="cat-item" :class="{ active: selectedCategory === cat.id }" @click="selectedCategory = cat.id">
@@ -210,20 +241,36 @@ function deleteItem(row) {
         <div v-else class="items-table-wrap">
           <div class="table-head">
             <span class="table-title">{{ currentCategoryName }}</span>
-            <span class="table-count">共 {{ checkItems.length }} 项</span>
+            <div class="table-tools">
+              <el-input v-model="itemKeyword" placeholder="搜索检查项..." clearable size="default" :prefix-icon="Search" style="width: 220px" />
+              <span class="table-count">共 {{ filteredCheckItems.length }} 项</span>
+            </div>
           </div>
-          <el-table :data="checkItems" border stripe class="ap-table" style="width: 100%" max-height="560">
-            <el-table-column type="index" label="序号" width="60" align="center" />
-            <el-table-column prop="checkPoint" label="检查项" min-width="380" show-overflow-tooltip />
-            <el-table-column prop="updatedBy" label="更新人" width="100" align="center" />
-            <el-table-column prop="updated_at" label="更新时间" width="160" align="center" />
-            <el-table-column label="操作" width="130" align="center" fixed="right">
-              <template #default="{ row }">
-                <el-button link type="primary" size="small" @click="openEditItem(row)">编辑</el-button>
-                <el-button link type="danger" size="small" @click="deleteItem(row)">删除</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
+          <div class="table-scroll">
+            <el-table :data="pagedCheckItems" border stripe class="ap-table" style="width: 100%" empty-text="暂无符合条件的检查项">
+              <el-table-column type="index" label="序号" width="60" align="center" :index="rowIndex" />
+              <el-table-column prop="checkPoint" label="检查项" min-width="380" show-overflow-tooltip />
+              <el-table-column prop="updatedBy" label="更新人" width="100" align="center" />
+              <el-table-column prop="updated_at" label="更新时间" width="160" align="center" />
+              <el-table-column label="操作" width="130" align="center" fixed="right">
+                <template #default="{ row }">
+                  <el-button link type="primary" size="small" @click="openEditItem(row)">编辑</el-button>
+                  <el-button link type="danger" size="small" @click="deleteItem(row)">删除</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+          <div class="table-footer">
+            <el-pagination
+              v-model:current-page="page"
+              v-model:page-size="pageSize"
+              :page-sizes="[10, 20, 50]"
+              :total="filteredCheckItems.length"
+              layout="total, sizes, prev, pager, next, jumper"
+              background
+              size="small"
+            />
+          </div>
         </div>
       </main>
     </div>
@@ -276,6 +323,7 @@ function deleteItem(row) {
 .category-panel { width:220px; flex-shrink:0; background:var(--ap-card); border:1px solid var(--ap-border); border-radius:8px; display:flex; flex-direction:column; overflow:hidden; }
 .panel-header { padding:10px 14px; border-bottom:1px solid var(--ap-border); display:flex; align-items:center; justify-content:space-between; }
 .panel-title { font-size:14px; font-weight:600; color:var(--ap-text); }
+.panel-search { padding:8px 12px; border-bottom:1px solid var(--ap-border); }
 .tree-wrap { flex:1; overflow-y:auto; padding:2px 0; }
 .cat-item { display:flex; align-items:center; gap:6px; padding:8px 12px; cursor:pointer; font-size:13px; color:var(--ap-text-secondary); }
 .cat-item:hover { background:var(--ap-primary-muted); }
@@ -286,8 +334,11 @@ function deleteItem(row) {
 .items-panel { flex:1; min-width:0; display:flex; flex-direction:column; }
 .empty-hint { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; color:var(--ap-text-muted); background:var(--ap-card); border:1px dashed var(--ap-border); border-radius:8px; min-height:300px; }
 .empty-hint p { font-size:14px; margin:0; }
-.items-table-wrap { flex:1; background:var(--ap-card); border:1px solid var(--ap-border); border-radius:8px; padding:16px; overflow:hidden; }
-.table-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+.items-table-wrap { flex:1; min-height:0; background:var(--ap-card); border:1px solid var(--ap-border); border-radius:8px; padding:16px; display:flex; flex-direction:column; }
+.table-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+.table-tools { display:flex; align-items:center; gap:12px; }
+.table-scroll { flex:1; min-height:0; overflow:auto; }
+.table-footer { display:flex; justify-content:flex-end; padding-top:12px; }
 .table-title { font-size:14px; font-weight:600; color:var(--ap-text); }
 .table-count { font-size:12px; color:var(--ap-text-muted); }
 </style>

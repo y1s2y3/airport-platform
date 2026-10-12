@@ -34,6 +34,18 @@ const taskNames = [
   '高处作业及临边防护检查',
 ]
 
+/**
+ * 危大工程现场巡视「已关联」样例所指向的演示台账。
+ * id / sourceId 与 src/utils/majorHazardManualStorage.js 的演示清单（mh-demo-ledger-pit）
+ * 保持一致，因此每个项目的危大清单中都能按 sourceId 找到该台账。
+ */
+const MAJOR_HAZARD_PATROL_LEDGER = {
+  id: 'mh-demo-ledger-pit',
+  sourceId: 'mh-demo-identify-pit:mh-desc-pit-2',
+  name: 'A区地下室基坑土方开挖',
+  categoryName: '基坑工程',
+}
+
 const hazardDescriptions = [
   '临时配电箱门未关闭，箱体接地标识缺失',
   '作业面临边防护栏杆局部缺失',
@@ -177,7 +189,7 @@ function buildTasks(project, index) {
       companions: [],
       deadline: '2026-09-02',
       inspectionDate: '',
-      status: '待执行',
+      status: '未完成',
       overdue: false,
       hasRectify: false,
       itemCount: 7,
@@ -203,7 +215,7 @@ function buildTasks(project, index) {
       companions: [],
       deadline: `2026-08-${String(18 + (index % 6)).padStart(2, '0')}`,
       inspectionDate: '',
-      status: '待执行',
+      status: '未完成',
       overdue: true,
       hasRectify: false,
       itemCount: 7,
@@ -265,6 +277,39 @@ function buildTasks(project, index) {
       hazardItems: completedHazardItems,
       checkConfig: (hazardCategory === '质量' ? qualityConfig : safetyConfig)
         .map(item => ({ ...item, itemIds: [...item.itemIds] })),
+    },
+    {
+      // 「危大工程现场巡视」已关联样例：WEB 下发、移动端执行时已关联危大工程并完成巡视
+      id: `mt-demo-${String(index).padStart(3, '0')}-5`,
+      demoSlot: 4,
+      taskNo: taskNo(index, 4, '安全'),
+      source: '任务下发',
+      taskName: `${project.label}危大工程现场巡视专项检查`,
+      inspectionCategory: '安全',
+      project: project.label,
+      projectFullName: project.fullName,
+      projectId: project.id,
+      project_id: project.id,
+      isMajorHazardPatrol: '是',
+      majorHazardProjectId: project.id,
+      majorHazardProjectName: project.label,
+      majorHazardLedgerId: MAJOR_HAZARD_PATROL_LEDGER.id,
+      majorHazardSourceId: MAJOR_HAZARD_PATROL_LEDGER.sourceId,
+      majorHazardName: MAJOR_HAZARD_PATROL_LEDGER.name,
+      executor: people.inspectorLabel,
+      inspector: people.inspectorLabel,
+      companions: ['王工'],
+      deadline: '2026-08-26',
+      inspectionDate: '2026-08-25',
+      status: '已完成',
+      overdue: false,
+      hasRectify: false,
+      itemCount: 8,
+      hazardCount: 0,
+      result: 'normal',
+      normalPhotos: ['巡检照片1.jpg'],
+      hazardItems: [],
+      checkConfig: safetyConfig.map(item => ({ ...item, itemIds: [...item.itemIds] })),
     },
   ]
 }

@@ -82,7 +82,7 @@ function goTaskDetail(task) {
 
 function taskStatusTagType(status) {
   if (status === '已完成') return 'success'
-  if (status === '待执行') return 'warning'
+  if (status === '未完成') return 'warning'
   return 'info'
 }
 </script>

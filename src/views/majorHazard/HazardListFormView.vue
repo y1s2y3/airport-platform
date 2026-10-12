@@ -391,6 +391,33 @@ function removePart(part) {
     })
     .catch(() => {})
 }
+
+function descriptionKey(ledger) {
+  return ledger?.descriptionId
+    || ledger?.source?.id
+    || String(ledger?.sourceId || '').split(':').pop()
+    || ledger?.description
+    || ''
+}
+
+function intervalsOverlap(leftStart, leftEnd, rightStart, rightEnd) {
+  if (!leftStart || !leftEnd || !rightStart || !rightEnd) return false
+  if (leftStart > leftEnd || rightStart > rightEnd) return false
+  // 相接日期允许重复辨识；真正发生交集时才阻止保存。
+  const strictOverlap = leftStart < rightEnd && rightStart < leftEnd
+  const sameSingleDay = leftStart === leftEnd && rightStart === rightEnd && leftStart === rightStart
+  return strictOverlap || sameSingleDay
+}
+
+function hasCrossLedgerOverlap(part) {
+  const currentKey = descriptionKey(form.value)
+  return buildLedgerRows(data.value)
+    .filter((row) => row.sourceId !== sourceId.value && descriptionKey(row) === currentKey)
+    .some((row) => (row.parts || []).some((otherPart) => (
+      otherPart.wbsNodeId === part.wbsNodeId
+      && intervalsOverlap(part.startDate, part.plannedEndDate, otherPart.startDate, otherPart.plannedEndDate)
+    )))
+}
 function statusType(status) {
   if (['已完成', '已落实', '合格'].includes(status)) return 'success'
   if (['需整改', '不合格'].includes(status)) return 'danger'
@@ -441,7 +468,7 @@ function generateSchemeCode() {
 function inspectionResultText(task) {
   if (Number(task.hazardCount || 0) > 0 || task.result === 'hazard') return '发现隐患'
   if (task.result === 'normal' || task.status === '已完成') return '检查正常'
-  return task.status || '待执行'
+  return task.status || '未完成'
 }
 function openAddRecord() {
   if (!form.value.parts.length) return ElMessage.warning('当前危大工程尚未配置施工部位')
@@ -664,10 +691,12 @@ function saveBasicInfo() {
   if (!form.value.subcontractor?.trim() || !form.value.responsible?.trim()) return ElMessage.warning('请选择责任分包单位和责任人')
   if (!form.value.parts.length) return ElMessage.warning('请至少新增一个施工部位')
   if (form.value.parts.some((part) => !part.wbsNodeId || !part.safetyResponsible || !part.startDate || !part.plannedEndDate)) return ElMessage.warning('请完整填写施工部位、安全管控责任人、开工时间和计划完工时间')
+  if (form.value.parts.some((part) => part.startDate > part.plannedEndDate)) return ElMessage.warning('施工部位开工时间不能晚于计划完工时间')
   const duplicate = new Set()
   for (const part of form.value.parts) {
     if (duplicate.has(part.wbsNodeId)) return ElMessage.warning('同一危大工程不可重复选择同一个实体工程分解节点')
     duplicate.add(part.wbsNodeId)
+    if (hasCrossLedgerOverlap(part)) return ElMessage.warning('同一类别描述在相同施工部位存在重叠计划时间，不能重复保存')
   }
   saveLedger(projectId.value, form.value)
   ElMessage.success('危大工程清单已保存')

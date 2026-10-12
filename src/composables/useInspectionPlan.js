@@ -294,7 +294,7 @@ function createMobileTask(plan, project, taskNo, itemCount, index = 0) {
     companions: [],
     deadline: plan.deadlineDate,
     inspectionDate: '',
-    status: '待执行',
+    status: '未完成',
     overdue: false,
     hasRectify: false,
     itemCount,

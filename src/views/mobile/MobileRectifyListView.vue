@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { mobileRectificationRecords } from '../../composables/useMobileRectification'
 import { normalizeInspectionCategories } from '../../config/inspectionManagement'
+import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
 
 defineProps({
   /** 嵌在建管 APP 二级页时隐藏自带顶栏，避免双顶栏 */
@@ -11,6 +12,7 @@ defineProps({
 
 const router = useRouter()
 const route = useRoute()
+const { rectifyBase, tasksBase } = useMobileRouteBase()
 
 const rectifyList = computed(() => mobileRectificationRecords)
 
@@ -45,11 +47,11 @@ const statusStyles = {
   '已关闭': { color:'#34a853', bg:'#e8f5e9' },
 }
 
-function goExecute(id) { router.push(`/mobile/rectify/${id}/execute?tab=${activeTab.value}`) }
-function goReview(id) { router.push(`/mobile/rectify/${id}/review?tab=${activeTab.value}`) }
-function goApproval(id) { router.push(`/mobile/rectify/${id}/approval?tab=${activeTab.value}`) }
-function goDetail(id) { router.push(`/mobile/rectify/${id}?tab=${activeTab.value}`) }
-function goBack() { router.push('/mobile/tasks') }
+function goExecute(id) { router.push(`${rectifyBase.value}/${id}/execute?tab=${activeTab.value}`) }
+function goReview(id) { router.push(`${rectifyBase.value}/${id}/review?tab=${activeTab.value}`) }
+function goApproval(id) { router.push(`${rectifyBase.value}/${id}/approval?tab=${activeTab.value}`) }
+function goDetail(id) { router.push(`${rectifyBase.value}/${id}?tab=${activeTab.value}`) }
+function goBack() { router.push(tasksBase.value) }
 
 function onCardClick(item) {
   if (item.status === '待整改') return goExecute(item.id)
