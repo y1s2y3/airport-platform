@@ -1,7 +1,7 @@
 /**
  * 风险管理 Mock — 风险类型配置、配置库、风险点管控台账
  * 口径：仅项目级。类型/风险点/细分来自配置库。
- * 发生频率为「每[周期]/n次」，周期为小时/日/周/月/季/年。
+ * 发生频率为「每[周期]/n次」，周期为小时/日/周/月/季/年；另有「不定期」＝无固定周期、不统计次数。
  * 审批仅监理一级（审批中 / 已通过 / 已驳回）。关闭状态：未关闭 / 已关闭。
  */
 import { reactive } from 'vue'
@@ -20,8 +20,16 @@ export { listMatSupervisorApprovers, formatMatSupervisorApproverLabel }
 
 /** 风险等级已于 PRD V1.2 取消，改为「发生频率 + 严重程度」两个维度，不再保留等级枚举。 */
 export const SEVERITY_LEVELS = ['低', '中', '高', '超高']
-/** 发生频率周期（每 x / n 次 中的 x） */
-export const FREQUENCY_PERIOD_OPTIONS = ['小时', '日', '周', '月', '季', '年']
+/** 发生频率「不定期」：无固定周期，不填统计次数，落库 frequency_n 为空 */
+export const FREQUENCY_IRREGULAR = '不定期'
+
+/** 发生频率周期（每 x / n 次 中的 x）。「不定期」不参与次数统计，默认取值。 */
+export const FREQUENCY_PERIOD_OPTIONS = [FREQUENCY_IRREGULAR, '小时', '日', '周', '月', '季', '年']
+
+/** 是否为「不定期」发生频率（空值/前后空格安全） */
+export function isIrregularFrequency(value) {
+  return String(value ?? '').trim() === FREQUENCY_IRREGULAR
+}
 
 export const APPROVAL_STATUS_LABEL = {
   reviewing: '审批中',
@@ -101,7 +109,10 @@ export function formatRiskFrequency(row) {
   if (!row) return '--'
   const x = row.frequency_x
   const n = row.frequency_n
-  if (x === null || x === undefined || x === '' || n === null || n === undefined || n === '') return '--'
+  if (x === null || x === undefined || x === '') return '--'
+  // 不定期：无固定周期、不统计次数，只展示「不定期」
+  if (isIrregularFrequency(x)) return FREQUENCY_IRREGULAR
+  if (n === null || n === undefined || n === '') return '--'
   return `每${x}/${n}次`
 }
 
@@ -134,6 +145,33 @@ export function approvalStatusTagType(status) {
   if (status === 'approved') return 'success'
   if (status === 'rejected') return 'danger'
   if (status === 'reviewing') return 'warning'
+  return 'info'
+}
+
+/**
+ * 严重程度 Tag 颜色（统一色口径）：
+ * 低＝success（绿）/ 中＝primary（蓝）/ 高＝warning（橙）/ 超高＝danger（红）/ 未知或空＝info（灰）。
+ * 注：本工程 Element Plus 2.14 的 el-tag 未传 type 时会回落 primary（蓝），
+ * 达不到「默认灰」，故未知/空在此显式回落 info（灰），色口径只在此一处维护。
+ */
+export function severityTagType(value) {
+  const level = String(value ?? '').trim()
+  if (level === '低') return 'success'
+  if (level === '中') return 'primary'
+  if (level === '高') return 'warning'
+  if (level === '超高') return 'danger'
+  return 'info'
+}
+
+/**
+ * 激活状态 Tag 颜色（统一色口径，由 riskRunStatus 派生；字段键与枚举值不变）：
+ * activated（已激活）＝danger（红）/ inactive（未激活）＝info（灰）/ closed（已关闭）＝success（绿）。
+ */
+export function activationStatusTagType(row) {
+  const status = riskRunStatus(row)
+  if (status === 'activated') return 'danger'
+  if (status === 'inactive') return 'info'
+  if (status === 'closed') return 'success'
   return 'info'
 }
 
@@ -1307,6 +1345,10 @@ function parseFrequency(payload) {
   if (!FREQUENCY_PERIOD_OPTIONS.includes(frequency_x)) {
     return { ok: false, msg: '发生频率周期无效' }
   }
+  // 不定期：不统计次数，忽略传入值，强制落库为空
+  if (isIrregularFrequency(frequency_x)) {
+    return { ok: true, frequency_x, frequency_n: null }
+  }
   if (payload.frequency_n === null || payload.frequency_n === undefined || payload.frequency_n === '') {
     return { ok: false, msg: '请填写统计次数' }
   }
@@ -1366,24 +1408,50 @@ export function listRiskPointControls(projectId, filters = {}) {
   })
 }
 
+/**
+ * 风险点审批指标（纯审批状态口径）。
+ * 总数 = 该项目全部风险辨识记录；其余三项按审批状态计数。
+ */
 export function listRiskControlMetrics(projectId) {
   const rows = listRiskPointControls(projectId)
-  const activated = rows.filter((row) => riskRunStatus(row) === 'activated')
-  const typeDist = listAirportRiskSources(projectId)
-    .map((type) => ({
-      name: type.source_name,
-      value: activated.filter((row) =>
-        row.risk_type_id ? row.risk_type_id === type.id : row.risk_type === type.source_name,
-      ).length,
-    }))
-    .filter((item) => item.value > 0)
   return {
     total: rows.length,
     reviewing: rows.filter((row) => row.approval_status === 'reviewing').length,
+    approved: rows.filter((row) => row.approval_status === 'approved').length,
+    rejected: rows.filter((row) => row.approval_status === 'rejected').length,
+  }
+}
+
+/**
+ * 风险点台账查询（只读）：仅审批状态为「已通过」的风险辨识记录。
+ * 支持 填报日期 / 风险类型 / 严重程度 / 激活状态（派生） 筛选。
+ */
+export function listRiskPointLedger(projectId, filters = {}) {
+  const {
+    report_date = '',
+    risk_type = '',
+    severity = '',
+    risk_status = '',
+  } = filters
+  return listRiskPointControls(projectId, {
+    report_date,
+    risk_type,
+    severity,
+    risk_status,
+  }).filter((row) => row.approval_status === 'approved')
+}
+
+/**
+ * 风险点台账指标（纯激活状态口径）。
+ * 仅统计已通过记录，按派生激活状态计数；已激活 = 未关闭且关联施工进度为「进行中」。
+ */
+export function listRiskPointLedgerMetrics(projectId) {
+  const rows = listRiskPointLedger(projectId)
+  return {
+    total: rows.length,
+    activated: rows.filter((row) => riskRunStatus(row) === 'activated').length,
     inactive: rows.filter((row) => riskRunStatus(row) === 'inactive').length,
-    activated: activated.length,
     closed: rows.filter((row) => riskRunStatus(row) === 'closed').length,
-    sourceDist: typeDist,
   }
 }
 
@@ -1579,7 +1647,7 @@ export function closeRiskPointControl(projectId, id) {
 /**
  * 关闭后重新激活（Q7 B，C2：不重新审批）
  * 仅「已通过且已关闭」可重新激活；激活后回到未关闭，
- * 由风险状态三态判定（关联进度进行中→已激活，否则→未激活）。
+ * 由激活状态三态判定（关联进度进行中→已激活，否则→未激活）。
  */
 export function reactivateRiskPointControl(projectId, id) {
   const row = riskPointControlList.find((item) => item.id === id && item.project_id === projectId)

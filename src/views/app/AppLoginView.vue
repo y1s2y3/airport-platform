@@ -1,10 +1,11 @@
 <script setup>
 import { reactive, ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { loginApp, getRememberedLogin, hydrateAppSession } from '../../mock/appSession.js'
 import AppPhoneFrame from './AppPhoneFrame.vue'
 
+const route = useRoute()
 const router = useRouter()
 const form = reactive({
   account: '',
@@ -22,6 +23,12 @@ onMounted(() => {
     form.password = remembered.password
     form.remember = true
   }
+  // 找回 / 修改密码后回到登录页：带出账号，密码需重新输入
+  const queryAccount = String(route.query.account || '').trim()
+  if (queryAccount) {
+    form.account = queryAccount
+    form.password = ''
+  }
 })
 
 function onSubmit() {
@@ -35,6 +42,11 @@ function onSubmit() {
   if (!r.ok) return ElMessage.warning(r.msg)
   ElMessage.success('登录成功')
   router.replace('/app/personal')
+}
+
+function goForgotPassword() {
+  const acc = String(form.account || '').trim()
+  router.push({ path: '/app/forgot', query: acc ? { account: acc } : {} })
 }
 </script>
 
@@ -83,15 +95,17 @@ function onSubmit() {
               </button>
             </div>
           </label>
-          <label class="remember">
-            <input v-model="form.remember" type="checkbox" />
-            <span>记住密码</span>
-          </label>
+          <div class="form-meta">
+            <label class="remember">
+              <input v-model="form.remember" type="checkbox" />
+              <span>记住密码</span>
+            </label>
+            <button type="button" class="forgot-link" @click="goForgotPassword">忘记密码？</button>
+          </div>
           <button class="submit" type="submit" :disabled="loading">
             {{ loading ? '登录中…' : '登 录' }}
           </button>
         </form>
-        <p class="hint">演示：任意非空账号与密码即可登录</p>
       </main>
     </div>
   </AppPhoneFrame>
@@ -219,6 +233,12 @@ function onSubmit() {
   cursor: pointer;
   flex-shrink: 0;
 }
+.form-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
 .remember {
   display: flex;
   align-items: center;
@@ -231,6 +251,14 @@ function onSubmit() {
   width: 32px;
   height: 32px;
   accent-color: #8f0045;
+}
+.forgot-link {
+  border: none;
+  background: transparent;
+  color: #8f0045;
+  font-size: 28px;
+  padding: 8px;
+  cursor: pointer;
 }
 .submit {
   margin-top: 12px;
@@ -249,12 +277,5 @@ function onSubmit() {
 }
 .submit:disabled {
   opacity: 0.7;
-}
-.hint {
-  margin: 40px 0 0;
-  text-align: center;
-  font-size: 24px;
-  color: #a8abb2;
-  line-height: 1.5;
 }
 </style>

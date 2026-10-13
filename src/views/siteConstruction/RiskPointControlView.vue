@@ -1,7 +1,8 @@
 <script setup>
 /**
- * 风险点管控列表（项目级）
- * 审批状态 / 操作对齐质量管理：el-tag；详情 + 已驳回重新报审（生成新单）
+ * 风险点审批列表（项目级，F-RISK-02）
+ * 顶部指标为纯审批状态口径；操作：详情 + 已驳回重新报审（生成新单）。
+ * 关闭 / 重新激活已移至「风险点台账」（F-RISK-05），本页不再提供。
  */
 import { computed, reactive, watch } from 'vue'
 import { useRouter } from 'vue-router'
@@ -9,19 +10,15 @@ import { ElMessage } from 'element-plus'
 import { useCurrentProject } from '../../composables/useCurrentProject'
 import {
   APPROVAL_STATUS_LABEL,
-  RISK_RUN_STATUS_LABEL,
   SEVERITY_LEVELS,
   approvalStatusLabel,
   approvalStatusTagType,
-  constructionProgressLabel,
   formatRiskCell,
-  formatRiskFrequency,
   listConfigRiskTypes,
   listRiskControlMetrics,
   listRiskPointControls,
-  riskLocationLabel,
   riskPersonLabel,
-  riskRunStatusLabel,
+  severityTagType,
 } from '../../mock/riskManage.js'
 
 const router = useRouter()
@@ -32,7 +29,6 @@ const filters = reactive({
   risk_type: '',
   severity: '',
   approval_status: '',
-  risk_status: '',
 })
 
 /** 点「搜索」后才生效的查询条件（工具栏内为待提交的条件） */
@@ -41,7 +37,6 @@ const query = reactive({
   risk_type: '',
   severity: '',
   approval_status: '',
-  risk_status: '',
 })
 
 const tableData = computed(() => {
@@ -61,7 +56,6 @@ function doSearch() {
   query.risk_type = filters.risk_type
   query.severity = filters.severity
   query.approval_status = filters.approval_status
-  query.risk_status = filters.risk_status
 }
 
 watch(laborProjectId, () => {
@@ -73,7 +67,6 @@ function resetFilters() {
   filters.risk_type = ''
   filters.severity = ''
   filters.approval_status = ''
-  filters.risk_status = ''
   doSearch()
 }
 
@@ -98,12 +91,13 @@ function goResubmit(row) {
     ElMessage.warning('仅已驳回记录可重新报审')
     return
   }
-  const href = router.resolve({
+  // 直接以路由对象跳转：`router.resolve().href` 在 hash 路由下带前导「#」，
+  // 再 push 会被当成路径导致地址变成「#/…#/…」（双井号），故不使用 href。
+  router.push({
     name: 'RiskPointControlEdit',
     params: { id: row.id },
     query: { from: row.id },
-  }).href
-  router.push(href)
+  })
 }
 </script>
 
@@ -111,9 +105,9 @@ function goResubmit(row) {
   <div class="page page-card">
     <div class="page-head">
       <div>
-        <div class="page-breadcrumb">风险管理 / 风险点管控</div>
-        <h3 class="page-title">风险点管控</h3>
-        <p class="page-tip">按日登记。审批通过后，管控措施推送给管控责任人和实施责任人。关联的施工进度为「进行中」时风险状态为已激活，关闭后为已关闭，其余为未激活。</p>
+        <div class="page-breadcrumb">风险管理 / 风险点审批</div>
+        <h3 class="page-title">风险点审批</h3>
+        <p class="page-tip">按日发起风险辨识并提交监理审批；审批通过后，管控措施推送给管控责任人和实施责任人。已通过的记录在「风险点台账」中跟踪激活状态。</p>
       </div>
       <span class="total-count">共 {{ tableData.length }} 条</span>
     </div>
@@ -131,16 +125,9 @@ function goResubmit(row) {
       <div v-if="metrics" class="metric-row">
         <div class="metric-card"><b>{{ metrics.total }}</b><span>风险辨识总数（条）</span></div>
         <div class="metric-card"><b>{{ metrics.reviewing }}</b><span>审批中（条）</span></div>
-        <div class="metric-card"><b>{{ metrics.inactive }}</b><span>未激活（条）</span></div>
-        <div class="metric-card"><b>{{ metrics.activated }}</b><span>已激活（条）</span></div>
-        <div class="metric-card"><b>{{ metrics.closed }}</b><span>已关闭（条）</span></div>
+        <div class="metric-card"><b>{{ metrics.approved }}</b><span>已通过（条）</span></div>
+        <div class="metric-card"><b>{{ metrics.rejected }}</b><span>已驳回（条）</span></div>
       </div>
-      <p v-if="metrics" class="source-dist">
-        已激活，按风险类型：
-        <template v-for="(item, index) in metrics.sourceDist" :key="item.name">
-          <span v-if="index">；</span>{{ item.name }} {{ item.value }} 条
-        </template>
-      </p>
 
       <div class="toolbar">
         <el-date-picker
@@ -179,15 +166,6 @@ function goResubmit(row) {
         >
           <el-option v-for="(label, key) in APPROVAL_STATUS_LABEL" :key="key" :label="label" :value="key" />
         </el-select>
-        <el-select
-          v-model="filters.risk_status"
-          clearable
-          placeholder="风险状态"
-          style="width: 140px"
-          aria-label="风险状态"
-        >
-          <el-option v-for="(label, key) in RISK_RUN_STATUS_LABEL" :key="key" :label="label" :value="key" />
-        </el-select>
         <el-button type="primary" @click="doSearch">搜索</el-button>
         <el-button @click="resetFilters">重置</el-button>
         <div class="toolbar-spacer" />
@@ -198,41 +176,25 @@ function goResubmit(row) {
         <el-table-column prop="risk_source_no" label="风险源编号" width="150" align="center">
           <template #default="{ row }">{{ formatRiskCell(row.risk_source_no) }}</template>
         </el-table-column>
-        <el-table-column prop="report_date" label="填报日期" width="120" align="center">
-          <template #default="{ row }">{{ formatRiskCell(row.report_date) }}</template>
-        </el-table-column>
         <el-table-column prop="risk_type" label="风险类型" min-width="110" show-overflow-tooltip>
           <template #default="{ row }">{{ formatRiskCell(row.risk_type) }}</template>
-        </el-table-column>
-        <el-table-column label="发生频率" width="120" align="center">
-          <template #default="{ row }">{{ formatRiskFrequency(row) }}</template>
-        </el-table-column>
-        <el-table-column prop="severity" label="严重程度" width="100" align="center">
-          <template #default="{ row }">{{ formatRiskCell(row.severity) }}</template>
         </el-table-column>
         <el-table-column prop="risk_point" label="风险点" min-width="150" show-overflow-tooltip>
           <template #default="{ row }">{{ formatRiskCell(row.risk_point) }}</template>
         </el-table-column>
-        <el-table-column label="受影响区域" min-width="180" show-overflow-tooltip>
-          <template #default="{ row }">{{ riskLocationLabel(row) }}</template>
+        <el-table-column prop="severity" label="严重程度" width="100" align="center">
+          <template #default="{ row }">
+            <el-tag size="small" :type="severityTagType(row.severity)">{{ formatRiskCell(row.severity) }}</el-tag>
+          </template>
         </el-table-column>
         <el-table-column label="管控责任人" min-width="130" show-overflow-tooltip>
           <template #default="{ row }">{{ riskPersonLabel(row.control_person_id) }}</template>
         </el-table-column>
-        <el-table-column label="实施责任人" min-width="130" show-overflow-tooltip>
-          <template #default="{ row }">{{ riskPersonLabel(row.implement_person_id) }}</template>
-        </el-table-column>
-        <el-table-column prop="plan_start" label="计划开始" width="120" align="center">
+        <el-table-column label="计划开始时间" width="120" align="center">
           <template #default="{ row }">{{ formatRiskCell(row.plan_start) }}</template>
         </el-table-column>
-        <el-table-column prop="plan_end" label="计划结束" width="120" align="center">
+        <el-table-column label="计划结束时间" width="120" align="center">
           <template #default="{ row }">{{ formatRiskCell(row.plan_end) }}</template>
-        </el-table-column>
-        <el-table-column label="施工阶段" width="120" align="center">
-          <template #default="{ row }">{{ formatRiskCell(row.construction_stage) }}</template>
-        </el-table-column>
-        <el-table-column label="施工进度" min-width="140" show-overflow-tooltip>
-          <template #default="{ row }">{{ constructionProgressLabel(row.construction_progress_id) }}</template>
         </el-table-column>
         <el-table-column label="审批状态" width="100" align="center">
           <template #default="{ row }">
@@ -241,8 +203,8 @@ function goResubmit(row) {
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="风险状态" width="100" align="center">
-          <template #default="{ row }">{{ riskRunStatusLabel(row) }}</template>
+        <el-table-column prop="report_date" label="填报日期" width="120" align="center">
+          <template #default="{ row }">{{ formatRiskCell(row.report_date) }}</template>
         </el-table-column>
         <el-table-column label="操作" width="160" align="center" fixed="right">
           <template #default="{ row }">
@@ -304,7 +266,7 @@ function goResubmit(row) {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 16px;
 }
 .metric-card {
   min-width: 140px;
@@ -321,12 +283,6 @@ function goResubmit(row) {
 .metric-card span {
   font-size: 12px;
   color: #606266;
-}
-.source-dist {
-  margin: 0 0 12px;
-  font-size: 13px;
-  color: #606266;
-  line-height: 1.6;
 }
 .mb-16 {
   margin-bottom: 16px;

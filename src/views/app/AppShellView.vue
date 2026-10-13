@@ -20,7 +20,7 @@ const tabs = [
 
 const activeKey = computed(() => {
   const p = route.path
-  if (p.startsWith('/app/mine')) return 'mine'
+  if (p.startsWith('/app/mine') || route.meta?.appMine) return 'mine'
   if (p.startsWith('/app/biz') || route.meta?.appBiz) return 'biz'
   if (route.meta?.appPersonal || p.startsWith('/app/personal') || p.startsWith('/app/todo') || p.startsWith('/app/warning')) {
     return 'personal'

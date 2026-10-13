@@ -2,7 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown, SwitchButton, Fold, Expand } from '@element-plus/icons-vue'
+import { ArrowDown, SwitchButton, Fold, Expand, Lock } from '@element-plus/icons-vue'
 import {
   menuTree,
   filterMenuByLevel,
@@ -24,6 +24,9 @@ import {
   getPublishedChangelogs,
 } from '../config/appVersion'
 import { resolveHqEnterPath, resolveHqLeavePath } from '../router/hqLevelPathRedirect'
+import { logoutWeb, webLoginAccount } from '../mock/webSession.js'
+import { getCurrentUserSnapshot } from '../mock/currentUser.js'
+import ChangePasswordDialog from '../components/common/ChangePasswordDialog.vue'
 import SidebarMenuNode from './SidebarMenuNode.vue'
 
 const route = useRoute()
@@ -35,6 +38,12 @@ const changelogHistoryVisible = ref(false)
 const changelog = computed(() => getChangelogByVersion(APP_VERSION))
 const publishedChangelogs = computed(() => getPublishedChangelogs())
 const collapsed = ref(false)
+const changePasswordVisible = ref(false)
+
+/** 修改密码所用账号：优先取本次 Web 登录账号，深链直达后台时回退到当前用户快照 */
+const webAccount = computed(
+  () => webLoginAccount.value || getCurrentUserSnapshot(selectedProjectId.value).loginAccount || '',
+)
 
 /** 顶栏项目分类筛选：在建 / 前期 / 历史（默认仅在建） */
 const PROJECT_STATUS_FILTER_OPTIONS = ['在建', '前期', '历史']
@@ -260,9 +269,25 @@ async function handleLogout() {
     return
   }
   ElMessage.success('已退出')
+  logoutWeb()
   selectedProjectId.value = HQ_PROJECT_OPTION.id
   openTabs.value = [{ key: 'workbench', label: '工作台', path: '/workbench' }]
-  router.push('/workbench')
+  router.replace('/login')
+}
+
+/** 用户名下拉操作：修改密码 / 退出登录 */
+function onUserCommand(command) {
+  if (command === 'change-password') {
+    changePasswordVisible.value = true
+    return
+  }
+  if (command === 'logout') handleLogout()
+}
+
+/** 密码修改成功：需使用新密码重新登录 */
+function onPasswordChanged() {
+  logoutWeb()
+  router.replace('/login')
 }
 
 function skipToMain(e) {
@@ -381,17 +406,33 @@ function skipToMain(e) {
         >
           安全态势大屏
         </a>
-        <div class="user-block">
-          <el-avatar :size="32" class="user-avatar">调</el-avatar>
-          <span class="user-name">COC调度室</span>
-          <el-icon :size="12" color="#8f959e"><ArrowDown /></el-icon>
-        </div>
-        <button type="button" class="logout-btn" aria-label="退出登录" @click="handleLogout">
-          <el-icon :size="16"><SwitchButton /></el-icon>
-          <span>退出</span>
-        </button>
+        <el-dropdown trigger="click" placement="bottom-end" @command="onUserCommand">
+          <div class="user-block" role="button" tabindex="0" aria-label="账号操作">
+            <el-avatar :size="32" class="user-avatar">调</el-avatar>
+            <span class="user-name">COC调度室</span>
+            <el-icon :size="12" color="#8f959e"><ArrowDown /></el-icon>
+          </div>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="change-password">
+                <el-icon><Lock /></el-icon>
+                <span>修改密码</span>
+              </el-dropdown-item>
+              <el-dropdown-item command="logout" divided>
+                <el-icon><SwitchButton /></el-icon>
+                <span>退出登录</span>
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
     </header>
+
+    <ChangePasswordDialog
+      v-model="changePasswordVisible"
+      :account="webAccount"
+      @success="onPasswordChanged"
+    />
 
     <el-dialog
       v-model="changelogVisible"
@@ -788,7 +829,15 @@ function skipToMain(e) {
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 4px 8px;
+  border-radius: 6px;
   cursor: pointer;
+  outline: none;
+}
+
+.user-block:hover,
+.user-block:focus-visible {
+  background: var(--ap-primary-muted);
 }
 
 .user-avatar {
@@ -800,24 +849,6 @@ function skipToMain(e) {
 .user-name {
   font-size: 14px;
   color: var(--ap-text);
-}
-
-.logout-btn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  background: none;
-  border: none;
-  color: var(--ap-text-secondary);
-  cursor: pointer;
-  font-size: 13px;
-  padding: 4px 8px;
-  border-radius: 4px;
-}
-
-.logout-btn:hover {
-  color: var(--ap-primary);
-  background: var(--ap-primary-muted);
 }
 
 .admin-body {

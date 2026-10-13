@@ -5,6 +5,7 @@ import { HQ_PROJECT_OPTION } from '../config/projectOptions'
 import { selectedProjectId } from '../composables/useCurrentProject'
 import { resolveHqLevelPathRedirect } from './hqLevelPathRedirect'
 import { appLoggedIn, hydrateAppSession } from '../mock/appSession.js'
+import { webLoggedIn, hydrateWebSession } from '../mock/webSession.js'
 
 const routes = [
   {
@@ -20,10 +21,23 @@ const routes = [
     meta: { title: '安全态势大屏' },
   },
   {
+    /** Web 端登录页（顶层全屏，不进 AdminLayout）；演示不拦截未登录访问 */
+    path: '/login',
+    name: 'WebLogin',
+    component: () => import('../views/WebLoginView.vue'),
+    meta: { title: '登录' },
+  },
+  {
     path: '/app/login',
     name: 'AppLogin',
     component: () => import('../views/app/AppLoginView.vue'),
     meta: { title: '建管APP登录' },
+  },
+  {
+    path: '/app/forgot',
+    name: 'AppForgotPassword',
+    component: () => import('../views/app/AppForgotPasswordView.vue'),
+    meta: { title: '建管APP找回密码' },
   },
   {
     path: '/app',
@@ -59,6 +73,12 @@ const routes = [
         name: 'AppMine',
         component: () => import('../views/app/AppMineView.vue'),
         meta: { title: '我的' },
+      },
+      {
+        path: 'password',
+        name: 'AppPassword',
+        component: () => import('../views/app/AppPasswordView.vue'),
+        meta: { title: '密码修改', hideTabBar: true, appMine: true },
       },
       {
         path: 'video',
@@ -155,7 +175,11 @@ const routes = [
   {
     path: '/',
     component: AdminLayout,
-    redirect: '/workbench',
+    /** 平台默认入口：未登录进登录页，已登录进工作台（后台页面本身不拦截） */
+    redirect: () => {
+      hydrateWebSession()
+      return webLoggedIn.value ? '/workbench' : '/login'
+    },
     children: [
       ...buildRoutes(),
       ...redirects.map((r) => ({
@@ -181,7 +205,9 @@ router.beforeEach((to) => {
   if (to.path.startsWith('/app')) {
     hydrateAppSession()
     const isLogin = to.path === '/app/login'
-    if (!isLogin && !appLoggedIn.value) {
+    // 登录页与找回密码页无需登录态
+    const isPublic = isLogin || to.path === '/app/forgot'
+    if (!isPublic && !appLoggedIn.value) {
       return { path: '/app/login', replace: true }
     }
     if (isLogin && appLoggedIn.value && to.query.force !== '1') {

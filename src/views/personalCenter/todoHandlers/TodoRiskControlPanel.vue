@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import {
+  activationStatusTagType,
   approvalStatusLabel,
   constructionProgressLabel,
   formatMatSupervisorApproverLabel,
@@ -12,6 +13,7 @@ import {
   riskLocationLabel,
   riskPersonLabel,
   riskRunStatusLabel,
+  severityTagType,
 } from '../../../mock/riskManage.js'
 import TodoApprovalFlowSection from '../components/TodoApprovalFlowSection.vue'
 import '../styles/todoHandleBlocks.css'
@@ -53,7 +55,9 @@ const approvalFlow = computed(() => riskApprovalFlow(row.value))
         <el-descriptions-item label="风险点">{{ formatRiskCell(row.risk_point) }}</el-descriptions-item>
         <el-descriptions-item label="风险细分">{{ formatRiskCell(row.risk_segment) }}</el-descriptions-item>
         <el-descriptions-item label="发生频率">{{ formatRiskFrequency(row) }}</el-descriptions-item>
-        <el-descriptions-item label="严重程度">{{ formatRiskCell(row.severity) }}</el-descriptions-item>
+        <el-descriptions-item label="严重程度">
+          <el-tag size="small" :type="severityTagType(row.severity)">{{ formatRiskCell(row.severity) }}</el-tag>
+        </el-descriptions-item>
         <el-descriptions-item label="受影响区域" :span="2">{{ riskLocationLabel(row) }}</el-descriptions-item>
         <el-descriptions-item label="风险因素" :span="2">{{ formatRiskCell(row.risk_factor) }}</el-descriptions-item>
         <el-descriptions-item label="危害后果" :span="2">{{ formatRiskCell(row.hazard_consequence) }}</el-descriptions-item>
@@ -68,7 +72,9 @@ const approvalFlow = computed(() => riskApprovalFlow(row.value))
         <el-descriptions-item label="监理审批人">{{ supervisorLabel }}</el-descriptions-item>
         <el-descriptions-item label="审批状态">{{ approvalStatusLabel(row.approval_status) }}</el-descriptions-item>
         <el-descriptions-item label="最近审批意见" :span="2">{{ formatRiskCell(row.last_opinion) }}</el-descriptions-item>
-        <el-descriptions-item label="风险状态">{{ riskRunStatusLabel(row) }}</el-descriptions-item>
+        <el-descriptions-item label="激活状态">
+          <el-tag size="small" :type="activationStatusTagType(row)">{{ riskRunStatusLabel(row) }}</el-tag>
+        </el-descriptions-item>
       </el-descriptions>
 
       <TodoApprovalFlowSection class="approval-flow" :approval-flow="approvalFlow" />

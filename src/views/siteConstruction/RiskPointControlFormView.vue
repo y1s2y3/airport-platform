@@ -1,6 +1,6 @@
 <script setup>
 /**
- * 风险点管控 — 新增 / 重新报审风险辨识
+ * 风险点审批 — 新增 / 重新报审风险辨识
  * 风险类型来自风险类型配置；风险点 → 风险细分来自配置库联动。
  * 重新报审：路由 query `from=<源记录id>`，源单须为同项目已驳回记录；
  * 提交后生成新的风险源编号（按新的填报日期），原单保留、只读、不可再提。
@@ -12,12 +12,14 @@ import { useCurrentProject } from '../../composables/useCurrentProject'
 import { nowStr } from '../../utils/datetime.js'
 import {
   CONSTRUCTION_STAGE_OPTIONS,
+  FREQUENCY_IRREGULAR,
   FREQUENCY_PERIOD_OPTIONS,
   SEVERITY_LEVELS,
   findRiskPointConfig,
   formatMatSupervisorApproverLabel,
   getRiskPointControl,
   constructionProgressLabel,
+  isIrregularFrequency,
   listConstructionProgressOptions,
   listConfigRiskPoints,
   listConfigRiskSegments,
@@ -49,7 +51,7 @@ const form = reactive({
   risk_segment: '',
   risk_factor: '',
   hazard_consequence: '',
-  frequency_x: '',
+  frequency_x: FREQUENCY_IRREGULAR,
   frequency_n: null,
   severity: '',
   construction_stage: '',
@@ -82,6 +84,9 @@ const partTree = computed(() =>
 const loaded = ref(false)
 /** 避免编辑回填时联动清空 / 覆盖已有措施 */
 const syncing = ref(false)
+
+/** 发生频率为「不定期」时，统计次数禁用并清空，保存时不传次数 */
+const isIrregularFrequencySelected = computed(() => isIrregularFrequency(form.frequency_x))
 
 function goBack() {
   router.push('/site-construction/risk-point-control')
@@ -164,8 +169,8 @@ function loadCopyFrom() {
   form.risk_segment = row.risk_segment || ''
   form.risk_factor = row.risk_factor || ''
   form.hazard_consequence = row.hazard_consequence || ''
-  form.frequency_x = row.frequency_x || ''
-  form.frequency_n = row.frequency_n ?? null
+  form.frequency_x = row.frequency_x || FREQUENCY_IRREGULAR
+  form.frequency_n = isIrregularFrequency(form.frequency_x) ? null : (row.frequency_n ?? null)
   form.severity = row.severity || ''
   form.construction_stage = row.construction_stage || ''
   form.construction_progress_id = row.construction_progress_id || ''
@@ -210,13 +215,38 @@ watch(
   },
 )
 
+/** 切到「不定期」时清空统计次数；切回其它周期保持可填、不自动填数 */
+watch(
+  () => form.frequency_x,
+  (value) => {
+    if (isIrregularFrequency(value)) form.frequency_n = null
+  },
+)
+
 function handleSubmit() {
+  // 发生频率：不定期不校验次数并强制不带次数；其它周期沿用必填与 ≥1 整数校验
+  if (!String(form.frequency_x || '').trim()) {
+    ElMessage.warning('请选择发生频率周期')
+    return
+  }
+  if (!isIrregularFrequencySelected.value) {
+    if (form.frequency_n === null || form.frequency_n === undefined || form.frequency_n === '') {
+      ElMessage.warning('请填写统计次数')
+      return
+    }
+    const frequencyN = Number(form.frequency_n)
+    if (!Number.isInteger(frequencyN) || frequencyN < 1) {
+      ElMessage.warning('统计次数须为不小于 1 的整数')
+      return
+    }
+  }
   // 风险源编号由提交时按本次填报日期生成，不随表单提交
   const { risk_source_no, ...rest } = form
   const r = saveRiskPointControl(
     laborProjectId.value,
     {
       ...rest,
+      frequency_n: isIrregularFrequencySelected.value ? null : form.frequency_n,
       copy_from_control_id: isCopyResubmit.value ? copyFromId.value : '',
     },
     '系统管理员',
@@ -234,29 +264,13 @@ function handleSubmit() {
   <div v-if="loaded" class="page page-card">
     <div class="page-head">
       <div>
-        <div class="page-breadcrumb">风险管理 / 风险点管控 / {{ pageTitle }}</div>
+        <div class="page-breadcrumb">风险管理 / 风险点审批 / {{ pageTitle }}</div>
         <div class="heading-row">
           <el-button link type="primary" @click="goBack">← 返回</el-button>
           <h3 class="page-title">{{ pageTitle }}</h3>
         </div>
       </div>
     </div>
-
-    <el-alert
-      v-if="isCopyResubmit"
-      type="info"
-      :closable="false"
-      show-icon
-      class="copy-alert"
-      :title="`将从 ${copyFromNo} 重新报审，提交后生成新的风险源编号`"
-    >
-      <template #default>
-        <span>
-          已带出源单 <b>{{ copyFromNo }}</b> 的风险类型、风险点、风险因素、危害后果、管控措施与责任人信息，可修改后提交；
-          原单保留为已驳回记录（只读、不可再提），新单按填报日期生成新的风险源编号并保留来源追溯。
-        </span>
-      </template>
-    </el-alert>
 
     <el-form label-width="132px" class="risk-form" @submit.prevent>
       <el-row :gutter="16">
@@ -332,7 +346,7 @@ function handleSubmit() {
         <el-col :span="8">
           <el-form-item label="发生频率" required>
             <div class="freq-row">
-              <span>每</span>
+              <span v-if="!isIrregularFrequencySelected">每</span>
               <el-select
                 v-model="form.frequency_x"
                 placeholder="周期"
@@ -346,16 +360,25 @@ function handleSubmit() {
                   :value="p"
                 />
               </el-select>
-              <span>/</span>
+              <template v-if="!isIrregularFrequencySelected">
+                <span>/</span>
+              </template>
               <el-input-number
                 v-model="form.frequency_n"
                 :min="1"
                 :precision="0"
                 :step="1"
                 controls-position="right"
+                :disabled="isIrregularFrequencySelected"
                 aria-label="统计次数"
               />
-              <span>次</span>
+              <template v-if="!isIrregularFrequencySelected">
+                <span>次</span>
+              </template>
+              <span
+                v-else
+                class="freq-tip"
+              >无固定周期，不统计次数</span>
             </div>
           </el-form-item>
         </el-col>
@@ -557,7 +580,7 @@ function handleSubmit() {
                 :value="u.user_id"
               />
             </el-select>
-            <p class="field-hint">本单仅需监理单位审批，通过后进入管控；驳回后原单只读，请从原单「重新报审」（生成新的风险源编号）。</p>
+            <p class="field-hint">本单仅需监理单位审批，通过后进入管控。</p>
           </el-form-item>
         </el-col>
       </el-row>
@@ -593,10 +616,6 @@ function handleSubmit() {
 .risk-form {
   max-width: 1100px;
 }
-.copy-alert {
-  margin-bottom: 16px;
-  max-width: 1100px;
-}
 .form-footer {
   display: flex;
   justify-content: flex-start;
@@ -628,5 +647,9 @@ function handleSubmit() {
 }
 .freq-row :deep(.el-select) {
   width: 110px;
+}
+.freq-tip {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
 }
 </style>

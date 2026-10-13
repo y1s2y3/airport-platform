@@ -1,8 +1,9 @@
 <script setup>
 /**
- * 风险点管控 — 详情（只读）
- * 审批在个人中心办理；已通过且未关闭可在此关闭；
+ * 风险点审批 — 详情（只读）
+ * 审批在个人中心办理；「关闭 / 重新激活」仅在从「风险点台账」进入时出现（见 fromLedger）；
  * 已驳回原单只读、不可再提，可从此处「重新报审」生成新单。
+ * 本组件同时被「风险点台账」详情路由复用（路径 /site-construction/risk-point-ledger/:id）。
  */
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -12,6 +13,7 @@ import TodoApprovalFlowSection from '../personalCenter/components/TodoApprovalFl
 import { useCurrentProject } from '../../composables/useCurrentProject'
 import {
   APPROVAL_STATUS_LABEL,
+  activationStatusTagType,
   approvalStatusTagType,
   closeRiskPointControl,
   reactivateRiskPointControl,
@@ -26,6 +28,7 @@ import {
   riskPersonLabel,
   riskRunStatus,
   riskRunStatusLabel,
+  severityTagType,
 } from '../../mock/riskManage.js'
 
 const route = useRoute()
@@ -33,6 +36,13 @@ const router = useRouter()
 const { laborProjectId } = useCurrentProject()
 
 const detailId = computed(() => String(route.params.id || ''))
+
+/** 本组件被「风险点审批」与「风险点台账」两条详情路由复用，按进入路径取名 */
+const fromLedger = computed(() => route.path.startsWith('/site-construction/risk-point-ledger'))
+const listPath = computed(() => (
+  fromLedger.value ? '/site-construction/risk-point-ledger' : '/site-construction/risk-point-control'
+))
+const pageOwner = computed(() => (fromLedger.value ? '风险点台账' : '风险点审批'))
 
 const detail = computed(() => {
   const id = detailId.value
@@ -65,19 +75,19 @@ const supervisorLabel = computed(() => {
 const approvalFlow = computed(() => riskApprovalFlow(detail.value))
 
 function goBack() {
-  router.push('/site-construction/risk-point-control')
+  router.push(listPath.value)
 }
 
 /** 重新报审：跳本模块编辑页并带源单 id，由表单页预填后提交生成新单 */
 function goResubmit() {
   const row = detail.value
   if (!row) return
-  const href = router.resolve({
+  // 同上：hash 路由下不要把 resolve().href 再 push（会产生双井号地址）
+  router.push({
     name: 'RiskPointControlEdit',
     params: { id: row.id },
     query: { from: row.id },
-  }).href
-  router.push(href)
+  })
 }
 
 function handleClose() {
@@ -115,9 +125,9 @@ function handleReactivate() {
   <div class="page page-card">
     <div class="page-head">
       <div>
-        <div class="page-breadcrumb">风险管理 / 风险点管控 / 详情</div>
+        <div class="page-breadcrumb">风险管理 / {{ pageOwner }} / 详情</div>
         <div class="title-row">
-          <h3 class="page-title">风险点管控详情</h3>
+          <h3 class="page-title">{{ pageOwner }}详情</h3>
           <div class="title-actions">
             <el-button
               v-if="canResubmit"
@@ -125,12 +135,12 @@ function handleReactivate() {
               @click="goResubmit"
             >重新报审</el-button>
             <el-button
-              v-if="canClose"
+              v-if="fromLedger && canClose"
               type="warning"
               @click="handleClose"
             >关闭</el-button>
             <el-button
-              v-if="canReactivate"
+              v-if="fromLedger && canReactivate"
               type="warning"
               @click="handleReactivate"
             >重新激活</el-button>
@@ -150,14 +160,16 @@ function handleReactivate() {
     <el-descriptions v-else :column="2" border>
       <el-descriptions-item label="填报日期">{{ formatRiskCell(detail.report_date) }}</el-descriptions-item>
       <el-descriptions-item label="风险源编号">{{ formatRiskCell(detail.risk_source_no) }}</el-descriptions-item>
-      <el-descriptions-item v-if="detail.copy_from_source_no" label="重新申报来源">
+      <el-descriptions-item v-if="!fromLedger && detail.copy_from_source_no" label="重新申报来源">
         {{ riskCopyFromLabel(detail) }}
       </el-descriptions-item>
       <el-descriptions-item label="风险类型">{{ formatRiskCell(detail.risk_type) }}</el-descriptions-item>
       <el-descriptions-item label="风险点">{{ formatRiskCell(detail.risk_point) }}</el-descriptions-item>
       <el-descriptions-item label="风险细分">{{ formatRiskCell(detail.risk_segment) }}</el-descriptions-item>
       <el-descriptions-item label="发生频率">{{ formatRiskFrequency(detail) }}</el-descriptions-item>
-      <el-descriptions-item label="严重程度">{{ formatRiskCell(detail.severity) }}</el-descriptions-item>
+      <el-descriptions-item label="严重程度">
+        <el-tag size="small" :type="severityTagType(detail.severity)">{{ formatRiskCell(detail.severity) }}</el-tag>
+      </el-descriptions-item>
       <el-descriptions-item label="受影响区域" :span="2">{{ riskLocationLabel(detail) }}</el-descriptions-item>
       <el-descriptions-item label="风险因素" :span="2">{{ formatRiskCell(detail.risk_factor) }}</el-descriptions-item>
       <el-descriptions-item label="危害后果" :span="2">{{ formatRiskCell(detail.hazard_consequence) }}</el-descriptions-item>
@@ -170,16 +182,19 @@ function handleReactivate() {
       <el-descriptions-item label="管控责任人">{{ riskPersonLabel(detail.control_person_id) }}</el-descriptions-item>
       <el-descriptions-item label="实施责任人">{{ riskPersonLabel(detail.implement_person_id) }}</el-descriptions-item>
       <el-descriptions-item label="监理审批人">{{ supervisorLabel }}</el-descriptions-item>
-      <el-descriptions-item label="审批状态">
+      <el-descriptions-item v-if="!fromLedger" label="审批状态">
         <el-tag size="small" :type="approvalStatusTagType(detail.approval_status)">
           {{ APPROVAL_STATUS_LABEL[detail.approval_status] || '--' }}
         </el-tag>
       </el-descriptions-item>
-      <el-descriptions-item label="最近审批意见" :span="2">{{ formatRiskCell(detail.last_opinion) }}</el-descriptions-item>
-      <el-descriptions-item label="风险状态">{{ riskRunStatusLabel(detail) }}</el-descriptions-item>
+      <el-descriptions-item v-if="!fromLedger" label="最近审批意见" :span="2">{{ formatRiskCell(detail.last_opinion) }}</el-descriptions-item>
+      <el-descriptions-item label="激活状态">
+        <el-tag size="small" :type="activationStatusTagType(detail)">{{ riskRunStatusLabel(detail) }}</el-tag>
+      </el-descriptions-item>
     </el-descriptions>
 
-    <TodoApprovalFlowSection v-if="detail" class="approval-flow" :approval-flow="approvalFlow" />
+    <!-- 审批过程仅在「风险点审批」入口展示；台账为只读业务台账，不展示审批流程与审批相关字段 -->
+    <TodoApprovalFlowSection v-if="detail && !fromLedger" class="approval-flow" :approval-flow="approvalFlow" />
   </div>
 </template>
 

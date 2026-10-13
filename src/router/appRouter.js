@@ -19,6 +19,12 @@ const routes = [
     meta: { title: '登录' },
   },
   {
+    path: '/app/forgot',
+    name: 'AppForgotPassword',
+    component: () => import('../views/app/AppForgotPasswordView.vue'),
+    meta: { title: '找回密码' },
+  },
+  {
     path: '/app',
     component: () => import('../views/app/AppShellView.vue'),
     redirect: '/app/personal',
@@ -54,6 +60,12 @@ const routes = [
         meta: { title: '我的' },
       },
       {
+        path: 'password',
+        name: 'AppPassword',
+        component: () => import('../views/app/AppPasswordView.vue'),
+        meta: { title: '密码修改', hideTabBar: true, appMine: true },
+      },
+      {
         path: 'video',
         name: 'AppVideo',
         component: () => import('../views/app/AppVideoCenterView.vue'),
@@ -66,10 +78,52 @@ const routes = [
         meta: { title: '巡检管理', hideTabBar: true, appBiz: true },
       },
       {
+        path: 'tasks/create',
+        name: 'AppTaskCreate',
+        component: () => import('../views/app/AppBizTaskCreateView.vue'),
+        meta: { title: '新建巡检', hideTabBar: true, appBiz: true },
+      },
+      {
+        path: 'tasks/:id/execute',
+        name: 'AppTaskExecute',
+        component: () => import('../views/app/AppBizTaskExecuteView.vue'),
+        meta: { title: '执行巡检', hideTabBar: true, appBiz: true },
+      },
+      {
+        path: 'tasks/:id',
+        name: 'AppTaskDetail',
+        component: () => import('../views/app/AppBizTaskDetailView.vue'),
+        meta: { title: '检查结果', hideTabBar: true, appBiz: true },
+      },
+      {
         path: 'rectify',
         name: 'AppRectify',
         component: () => import('../views/app/AppBizRectifyView.vue'),
         meta: { title: '整改复查', hideTabBar: true, appBiz: true },
+      },
+      {
+        path: 'rectify/:id/execute',
+        name: 'AppRectifyExecute',
+        component: () => import('../views/app/AppBizRectifyExecuteView.vue'),
+        meta: { title: '整改处理', hideTabBar: true, appBiz: true },
+      },
+      {
+        path: 'rectify/:id/review',
+        name: 'AppRectifyReview',
+        component: () => import('../views/app/AppBizRectifyReviewView.vue'),
+        meta: { title: '复查处理', hideTabBar: true, appBiz: true },
+      },
+      {
+        path: 'rectify/:id/approval',
+        name: 'AppRectifyApproval',
+        component: () => import('../views/app/AppBizRectifyApprovalView.vue'),
+        meta: { title: '项目经理审批', hideTabBar: true, appBiz: true },
+      },
+      {
+        path: 'rectify/:id',
+        name: 'AppRectifyDetail',
+        component: () => import('../views/app/AppBizRectifyDetailView.vue'),
+        meta: { title: '整改详情', hideTabBar: true, appBiz: true },
       },
       {
         path: 'mat/entry',
@@ -118,7 +172,9 @@ router.beforeEach((to) => {
   if (!to.path.startsWith('/app')) return true
   hydrateAppSession()
   const isLogin = to.path === '/app/login'
-  if (!isLogin && !appLoggedIn.value) {
+  // 登录页与找回密码页无需登录态
+  const isPublic = isLogin || to.path === '/app/forgot'
+  if (!isPublic && !appLoggedIn.value) {
     return { path: '/app/login', replace: true }
   }
   if (isLogin && appLoggedIn.value && to.query.force !== '1') {

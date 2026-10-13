@@ -6,6 +6,7 @@ import { getCurrentUserSnapshot } from './currentUser.js'
 import { getOrgInfo, getOrgMembers } from './orgStructure.js'
 import { selectedProjectId } from '../composables/useCurrentProject'
 import { COC_PROJECT_OPTIONS } from '../config/projectOptions.js'
+import { verifyAccountPassword } from './accountSecurity.js'
 
 const STORAGE_SESSION = 'jg-app-session'
 const STORAGE_REMEMBER = 'jg-app-remember'
@@ -56,10 +57,45 @@ export function getRememberedLogin() {
   }
 }
 
+/** 写入「记住密码」记录（登录勾选 / 密码变更后同步使用） */
+export function saveRememberedLogin({ account, password, remember }) {
+  const acc = String(account == null ? '' : account).trim()
+  try {
+    if (!remember || !acc) {
+      localStorage.removeItem(STORAGE_REMEMBER)
+      return
+    }
+    localStorage.setItem(
+      STORAGE_REMEMBER,
+      JSON.stringify({ account: acc, password: String(password == null ? '' : password), remember: true }),
+    )
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * 密码修改 / 重置后同步「记住密码」
+ * 仅当记住的账号与本次变更账号一致时更新自动填充密码，避免旧密码回填导致登录失败。
+ */
+export function syncRememberedPassword(account, password) {
+  const remembered = getRememberedLogin()
+  if (!remembered.remember) return
+  if (normalizeLoginAccount(remembered.account) !== normalizeLoginAccount(account)) return
+  saveRememberedLogin({ account: remembered.account, password, remember: true })
+}
+
+function normalizeLoginAccount(account) {
+  return String(account == null ? '' : account).trim()
+}
+
 export function loginApp({ account, password, remember }) {
   const acc = String(account || '').trim()
   const pwd = String(password || '')
   if (!acc || !pwd) return { ok: false, msg: '请输入账号和密码' }
+  // 已修改 / 重置过密码的账号必须使用新密码；未设置过的账号沿用演示口径（任意非空）
+  const passwordCheck = verifyAccountPassword({ account: acc, password: pwd })
+  if (!passwordCheck.ok) return passwordCheck
   appLoggedIn.value = true
   appLoginAccount.value = acc
   sessionStorage.setItem(STORAGE_SESSION, JSON.stringify({ account: acc, at: Date.now() }))
@@ -67,14 +103,7 @@ export function loginApp({ account, password, remember }) {
     const orgs = listAppUserOrgs()
     if (orgs[0]) setAppSelectedOrgId(orgs[0].id)
   }
-  if (remember) {
-    localStorage.setItem(
-      STORAGE_REMEMBER,
-      JSON.stringify({ account: acc, password: pwd, remember: true }),
-    )
-  } else {
-    localStorage.removeItem(STORAGE_REMEMBER)
-  }
+  saveRememberedLogin({ account: acc, password: pwd, remember })
   return { ok: true }
 }
 
@@ -172,6 +201,8 @@ export function useAppSession() {
     loginApp,
     logoutApp,
     getRememberedLogin,
+    saveRememberedLogin,
+    syncRememberedPassword,
     getAppMineProfile,
     listAppUserOrgs,
     setAppSelectedOrgId,
