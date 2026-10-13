@@ -49,7 +49,7 @@ function onSubmit() {
         <div class="brand">
           <div class="logo">建</div>
           <h1>建管 APP</h1>
-          <p>智慧工程建设管控一体化平台</p>
+          <p>工程建设智慧管控一体化平台</p>
         </div>
       </header>
 

@@ -287,7 +287,7 @@ function skipToMain(e) {
             <line x1="12" y1="24" x2="24" y2="24" stroke="#fff" stroke-width="1.8" />
           </svg>
         </div>
-        <span class="brand-title">智慧工程建设管控一体化平台</span>
+        <span class="brand-title">工程建设智慧管控一体化平台</span>
         <span class="brand-version">
           <span class="brand-version-text">{{ APP_VERSION }}</span>
           <button

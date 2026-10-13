@@ -166,7 +166,7 @@ const routes = [
   },
 ]
 
-const APP_DOC_TITLE = '智慧工程建设管控一体化平台'
+const APP_DOC_TITLE = '工程建设智慧管控一体化平台'
 
 const router = createRouter({
   history: createWebHashHistory(),

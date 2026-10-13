@@ -22,7 +22,7 @@ function demoDocumentPreviewDataUrl(title = '附件预览') {
     p{line-height:1.8;margin:0 0 10px;color:#303133}
     .foot{margin-top:24px;color:#909399;font-size:12px}
   </style></head><body><div class="card">
-    <div class="brand">智慧工程建设管控一体化平台</div>
+    <div class="brand">工程建设智慧管控一体化平台</div>
     <h1>${t}</h1>
     <p>本页为原型演示附件预览内容，正式环境将展示实际上传文件。</p>
     <div class="foot">演示数据 · 仅供预览展示</div>

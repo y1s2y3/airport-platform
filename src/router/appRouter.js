@@ -5,7 +5,7 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { appLoggedIn, hydrateAppSession } from '../mock/appSession.js'
 
-const APP_DOC_TITLE = '建管 APP · 智慧工程建设管控一体化平台'
+const APP_DOC_TITLE = '建管 APP · 工程建设智慧管控一体化平台'
 
 const routes = [
   {
