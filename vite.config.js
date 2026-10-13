@@ -16,7 +16,8 @@ export default defineConfig({
     host: true,
     port: 5173,
     strictPort: false,
-    open: true,
+    // 置 false：DSH 沙箱禁 spawn，open: true 会在每次启动时多报一次无害的 spawn EPERM
+    open: false,
     headers: {
       'X-Content-Type-Options': 'nosniff',
       'Referrer-Policy': 'strict-origin-when-cross-origin',
@@ -26,7 +27,7 @@ export default defineConfig({
   preview: {
     host: true,
     port: 4173,
-    open: true,
+    open: false,
     headers: {
       'X-Content-Type-Options': 'nosniff',
       'Referrer-Policy': 'strict-origin-when-cross-origin',
