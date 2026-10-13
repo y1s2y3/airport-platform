@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 应用版本与更新说明
  * - 格式：v{BASE}.x（x 从 0 起，每次 GitHub Pages 成功发布后 +1）
  * - 由 scripts/bump-pages-version.mjs 在发布流水线中递增 patch
@@ -7,7 +7,7 @@
 export const APP_VERSION_BASE = '2.11.1'
 
 /** GitHub Pages 发布序号（从 0 开始；仓库内为「当前即将发布 / 下一版」序号） */
-export const APP_VERSION_PATCH = 22
+export const APP_VERSION_PATCH = 21
 
 export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
 
@@ -23,6 +23,9 @@ export const VERSION_CHANGELOG = [
       '顶栏「选择组织 / 项目」下拉：修复被安全态势大屏样式串味导致的深蓝黑底色，恢复白底深灰字',
       '安全态势大屏：样式作用域收敛到屏内根节点，不再影响主平台其它页面（同源缺陷：页面滚动锁定、深色变量泄漏）',
       '风险管理：详情 / 个人中心待办新增审批过程步骤条；已驳回可「重新报审」生成新单；列表新增严重程度筛选',
+      '建管 APP：巡检管理新增「新建巡检 / 执行巡检 / 检查结果」子页；整改复查新增「整改处理 / 复查处理 / 项目经理审批 / 整改详情」子页并接入路由',
+      '建管 APP：跳转基路径统一走 useMobileRouteBase，APP 内点击卡片或返回不再跳出 APP 外壳',
+      '移动端整改列表 / 详情 / 执行 / 复查 / 审批视图联动优化；同步危大工程需求规程说明书 V1.5、安全巡检需求说明书 V1.5',
     ],
   },
   {
