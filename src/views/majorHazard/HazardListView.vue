@@ -62,11 +62,11 @@ function load() {
 }
 function state(row) { return getLedgerStatus(row) }
 function tagType(status) { return status === '完工' ? 'success' : status === '在施' ? 'primary' : 'info' }
-function partStart(row) { return getLedgerStartDate(row) || '--' }
-function partEnd(row) { return getLedgerEndDate(row) || '--' }
-function plannedTime(row) { return `${row.source?.plannedStart || '--'} 至 ${row.source?.plannedEnd || '--'}` }
+function partStart(row) { return getLedgerStartDate(row) || '—' }
+function partEnd(row) { return getLedgerEndDate(row) || '—' }
+function plannedTime(row) { return `${row.source?.plannedStart || '—'} 至 ${row.source?.plannedEnd || '—'}` }
 function constructionTime(row) { return `${partStart(row)} 至 ${partEnd(row)}` }
-function partNames(row) { return (row.parts || []).map((part) => part.wbsPath || part.name).filter(Boolean).join('；') || '--' }
+function partNames(row) { return (row.parts || []).map((part) => part.wbsPath || part.name).filter(Boolean).join('；') || '—' }
 function partStatus(part) {
   if (part.process?.acceptance?.status === '已完成' && part.process?.acceptance?.result === '合格') return '完工'
   return part.startDate ? '在施' : '未开工'
@@ -113,7 +113,7 @@ function aggregateControlPointRows(row) {
     return {
       ...point,
       partId: part.id,
-      partName: part.wbsPath || part.name || '--',
+      partName: part.wbsPath || part.name || '—',
       handlingStatus: currentStatus,
       currentStatus,
       currentStatusText,
@@ -196,16 +196,16 @@ watch(projectId, load, { immediate: true })
               <el-table v-if="row.parts?.length" :data="row.parts" border class="part-expand-table">
                 <el-table-column type="index" label="序号" width="56" />
                 <el-table-column label="施工部位" min-width="260" show-overflow-tooltip>
-                  <template #default="{ row: part }">{{ part.wbsPath || part.name || '--' }}</template>
+                  <template #default="{ row: part }">{{ part.wbsPath || part.name || '—' }}</template>
                 </el-table-column>
                 <el-table-column label="安全管控责任人" width="150">
-                  <template #default="{ row: part }">{{ part.safetyResponsible || '--' }}</template>
+                  <template #default="{ row: part }">{{ part.safetyResponsible || '—' }}</template>
                 </el-table-column>
                 <el-table-column label="开工时间" width="120">
-                  <template #default="{ row: part }">{{ part.startDate || '--' }}</template>
+                  <template #default="{ row: part }">{{ part.startDate || '—' }}</template>
                 </el-table-column>
                 <el-table-column label="计划完工时间" width="140">
-                  <template #default="{ row: part }">{{ part.plannedEndDate || '--' }}</template>
+                  <template #default="{ row: part }">{{ part.plannedEndDate || '—' }}</template>
                 </el-table-column>
                 <el-table-column label="施工进度" width="120">
                   <template #default="{ row: part }"><div class="part-progress"><span>{{ partProgressPercent(part) }}%</span><el-progress :percentage="partProgressPercent(part)" :show-text="false" :stroke-width="5" /></div></template>
@@ -225,14 +225,14 @@ watch(projectId, load, { immediate: true })
         </el-table-column>
         <el-table-column label="危大工程类别" min-width="155">
           <template #default="{ row }">
-            <div class="category-cell"><div class="hazard-main-text" :title="row.categoryName">{{ row.categoryName || '--' }}</div><el-tag v-if="row.isSuperMajor === '是'" size="small" type="danger" effect="plain">超危</el-tag></div>
-            <div class="hazard-sub-text two-line" :title="row.description">{{ row.description || '--' }}</div>
+            <div class="category-cell"><div class="hazard-main-text" :title="row.categoryName">{{ row.categoryName || '—' }}</div><el-tag v-if="row.isSuperMajor === '是'" size="small" type="danger" effect="plain">超危</el-tag></div>
+            <div class="hazard-sub-text two-line" :title="row.description">{{ row.description || '—' }}</div>
           </template>
         </el-table-column>
         <el-table-column label="危大工程名称" min-width="170">
           <template #default="{ row }">
-            <div class="hazard-main-text" :title="row.name">{{ row.name || '--' }}</div>
-            <div class="hazard-sub-text">{{ row.source?.identifiedBy || row.identifiedBy || '--' }}识别于：{{ row.source?.identifiedAt || row.identifiedAt || '--' }}</div>
+            <div class="hazard-main-text" :title="row.name">{{ row.name || '—' }}</div>
+            <div class="hazard-sub-text">{{ row.source?.identifiedBy || row.identifiedBy || '—' }}识别于：{{ row.source?.identifiedAt || row.identifiedAt || '—' }}</div>
           </template>
         </el-table-column>
         <el-table-column label="施工部位" min-width="195">
@@ -243,9 +243,9 @@ watch(projectId, load, { immediate: true })
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="计划时间" width="105"><template #default="{ row }"><div class="time-cell"><span>{{ row.source?.plannedStart || '--' }}</span><small>至</small><span>{{ row.source?.plannedEnd || '--' }}</span></div></template></el-table-column>
+        <el-table-column label="计划时间" width="105"><template #default="{ row }"><div class="time-cell"><span>{{ row.source?.plannedStart || '—' }}</span><small>至</small><span>{{ row.source?.plannedEnd || '—' }}</span></div></template></el-table-column>
         <el-table-column label="施工时间" width="105"><template #default="{ row }"><div class="time-cell"><span>{{ partStart(row) }}</span><small>至</small><span>{{ partEnd(row) }}</span></div></template></el-table-column>
-        <el-table-column prop="subcontractor" label="分包单位" min-width="135"><template #default="{ row }"><div class="unit-cell"><span>{{ row.subcontractor || '--' }}</span><small>责任人：{{ row.responsible || '--' }}</small></div></template></el-table-column>
+        <el-table-column prop="subcontractor" label="分包单位" min-width="135"><template #default="{ row }"><div class="unit-cell"><span>{{ row.subcontractor || '—' }}</span><small>责任人：{{ row.responsible || '—' }}</small></div></template></el-table-column>
         <el-table-column label="施工进度" width="105"><template #default="{ row }"><div class="progress-cell"><div><span>{{ progressText(row) }}</span><b>{{ progressPercent(row) }}%</b></div><el-progress :percentage="progressPercent(row)" :show-text="false" :stroke-width="6" /></div></template></el-table-column>
         <el-table-column label="安全状态" width="100"><template #default="{ row }"><button class="control-rate" type="button" @click="openControlPoints(row)"><strong>{{ implementedPointCount(row) }}/{{ totalPointCount(row) }}</strong><small>管控要点</small></button></template></el-table-column>
         <el-table-column label="施工情况" width="78"><template #default="{ row }"><el-tag size="small" :type="tagType(state(row))">{{ state(row) }}</el-tag></template></el-table-column>

@@ -129,7 +129,7 @@ watch([projectId, recordId], load, { immediate: true })
                     <span class="date-separator">至</span>
                     <el-date-picker v-model="row.plannedEnd" type="date" value-format="YYYY-MM-DD" placeholder="结束" :disabled="!canEdit" />
                   </div>
-                  <span v-else>--</span>
+                  <span v-else>—</span>
                 </template>
               </el-table-column>
               <el-table-column label="管控要点" width="100" align="center">

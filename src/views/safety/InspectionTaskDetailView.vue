@@ -167,7 +167,7 @@ function goRectify(id) {
       <div class="info-row"><span class="il">执行人</span><span class="iv">{{ taskInfo.executor || '-' }}</span></div>
       <div class="info-row"><span class="il">巡检分类</span><span class="iv">{{ taskInfo.inspectionCategory }}</span></div>
       <div class="info-row"><span class="il">危大工程现场巡视</span><span class="iv">{{ majorHazardPatrolText }}</span></div>
-      <div v-if="taskInfo.isMajorHazardPatrol === '是'" class="info-row"><span class="il">危大工程名称</span><span class="iv">{{ taskInfo.majorHazardName || '--' }}</span></div>
+      <div v-if="taskInfo.isMajorHazardPatrol === '是'" class="info-row"><span class="il">危大工程名称</span><span class="iv">{{ taskInfo.majorHazardName || '—' }}</span></div>
       <div v-if="majorHazardSyncText" class="info-row"><span class="il">巡视台账同步</span><span class="iv major-hazard-sync" :class="{ completed: taskInfo.status === '已完成' }">{{ majorHazardSyncText }}</span></div>
       <div class="info-row"><span class="il">同行人</span><span class="iv">{{ taskInfo.companions.length ? taskInfo.companions.join('、') : '' }}</span></div>
       <div class="info-row"><span class="il">截止日期</span><span class="iv">{{ taskInfo.deadline }}</span></div>

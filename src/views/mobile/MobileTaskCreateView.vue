@@ -17,8 +17,10 @@ import {
 import { getMajorHazardLedgerOptions } from '../../utils/inspectionMajorHazardLink'
 import { useCurrentProject } from '../../composables/useCurrentProject'
 import { COC_PROJECT_OPTIONS } from '../../config/projectOptions'
+import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
 
 const router = useRouter()
+const { tasksBase } = useMobileRouteBase()
 const { selectedProjectId: currentProjectId, isHqSelected, headerProjectLabel } = useCurrentProject()
 
 const form = ref({
@@ -224,10 +226,10 @@ function submitInspection() {
 
   addMobileInspectionTask(newTask)
   ElMessage.success(`巡检记录已提交${rectifyCount ? `，已下发 ${rectifyCount} 份整改单` : ''}`)
-  router.push('/mobile/tasks')
+  router.push(tasksBase.value)
 }
 
-function goBack() { router.push('/mobile/tasks') }
+function goBack() { router.push(tasksBase.value) }
 </script>
 
 <template>

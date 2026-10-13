@@ -143,8 +143,8 @@ const processRows = computed(() => {
       return {
         ...displayRecord,
         partId: part.id,
-        partName: part.wbsPath || part.name || '--',
-        controlPointContent: point?.content || displayRecord.content || '--',
+        partName: part.wbsPath || part.name || '—',
+        controlPointContent: point?.content || displayRecord.content || '—',
         redStatusText,
         greenStatusText,
         displayStatusText: displayRecord.displayStatusText || (displayRecord.displayStatus === 'red' ? redStatusText : greenStatusText),
@@ -159,15 +159,15 @@ const tabAttachmentRows = computed(() => processRows.value.flatMap((record, reco
     id: `${record.id || recordIndex}-${fileIndex}-${fileName}`,
     fileName,
     fileUrl: record.attachmentUrls?.[fileName] || '',
-    uploader: record.createdBy || record.responsible || '--',
-    uploadTime: record.createdAt || record.date || '--',
+    uploader: record.createdBy || record.responsible || '—',
+    uploadTime: record.createdAt || record.date || '—',
   }))
 }))
 const recordAttachmentNames = computed(() => String(recordForm.value.attachmentInfo || '').split('\n').map((item) => item.trim()).filter(Boolean))
 const recordDetailPartName = computed(() => {
   if (recordForm.value.partName) return recordForm.value.partName
   const part = form.value?.parts?.find((item) => item.id === recordForm.value.partId)
-  return part?.wbsPath || part?.name || '--'
+  return part?.wbsPath || part?.name || '—'
 })
 const recordDetailStatus = computed(() => deriveRecordStatus(activeProcessTab.value, recordForm.value))
 const recordDetailFields = computed(() => {
@@ -351,8 +351,8 @@ function load() {
 }
 function back() { router.push('/major-hazard/hazard-list') }
 function stateTagType(status) { return status === '完工' ? 'success' : status === '在施' ? 'primary' : 'info' }
-function plannedTime() { return `${form.value?.source?.plannedStart || '--'} 至 ${form.value?.source?.plannedEnd || '--'}` }
-function constructionTime() { return `${getLedgerStartDate(form.value || {}) || '--'} 至 ${getLedgerEndDate(form.value || {}) || '--'}` }
+function plannedTime() { return `${form.value?.source?.plannedStart || '—'} 至 ${form.value?.source?.plannedEnd || '—'}` }
+function constructionTime() { return `${getLedgerStartDate(form.value || {}) || '—'} 至 ${getLedgerEndDate(form.value || {}) || '—'}` }
 function partStatus(part) {
   if (part.process?.acceptance?.status === '已完成' && part.process?.acceptance?.result === '合格') return '完工'
   return part.startDate ? '在施' : '未开工'
@@ -452,7 +452,7 @@ function tableValue(row, column) {
     controlPointContent: 'content', checkDate: 'date',
   }
   const value = row[column.key] ?? row[fallback[column.key]]
-  if (value === '' || value === undefined || value === null) return '--'
+  if (value === '' || value === undefined || value === null) return '—'
   return `${Array.isArray(value) ? value.join('、') : value}${column.suffix || ''}`
 }
 function generateSchemeCode() {
@@ -554,7 +554,7 @@ function realNamePersonRecord(person) {
     workerName: person.basic?.name || '',
     idNumber: person.basic?.id_number || maskIdCard(idNumberFull),
     idNumberFull,
-    phone: phoneFull ? maskPhone(phoneFull) : '--',
+    phone: phoneFull ? maskPhone(phoneFull) : '—',
     phoneFull,
     employer: person.unit?.unit_name || '',
     jobType: person.unit?.work_type || '',
@@ -740,11 +740,11 @@ watch([projectId, sourceId, routeMode], load, { immediate: true })
         <el-form label-width="126px" class="basic-form">
           <el-row :gutter="24">
             <el-col :span="12"><el-form-item label="危大工程名称" required><el-input v-model="form.name" :disabled="basicReadonly" /></el-form-item></el-col>
-            <el-col :span="12"><el-form-item label="危大工程类别"><span class="form-text">{{ form.categoryName || '--' }}</span></el-form-item></el-col>
+            <el-col :span="12"><el-form-item label="危大工程类别"><span class="form-text">{{ form.categoryName || '—' }}</span></el-form-item></el-col>
             <el-col :span="24"><el-form-item label="危大工程概况" required><el-input v-model="form.overview" type="textarea" :rows="3" :disabled="basicReadonly" /></el-form-item></el-col>
             <el-col :span="12"><el-form-item label="计划时间"><span class="form-text">{{ plannedTime() }}</span></el-form-item></el-col>
             <el-col :span="12"><el-form-item label="施工时间"><span class="form-text">{{ constructionTime() }}</span></el-form-item></el-col>
-            <el-col :span="24"><el-form-item label="类别描述"><span class="form-text description-text">{{ form.description || form.source?.description || '--' }}</span></el-form-item></el-col>
+            <el-col :span="24"><el-form-item label="类别描述"><span class="form-text description-text">{{ form.description || form.source?.description || '—' }}</span></el-form-item></el-col>
             <el-col :span="12"><el-form-item label="责任分包单位" required><el-select v-model="form.subcontractor" filterable :disabled="basicReadonly" placeholder="请选择已通过报审的分包单位" style="width:100%"><el-option v-for="item in subcontractorOptions" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item></el-col>
             <el-col :span="12"><el-form-item label="责任人" required><el-select v-model="form.responsible" filterable :disabled="basicReadonly" placeholder="请选择人员姓名（岗位）" style="width:100%"><el-option v-for="item in responsibleOptions" :key="item" :label="item" :value="item" /></el-select></el-form-item></el-col>
           </el-row>
@@ -755,10 +755,10 @@ watch([projectId, sourceId, routeMode], load, { immediate: true })
         <div class="section-head"><div class="section-heading"><div class="section-title">施工部位</div><p>从基础数据管理的实体工程分解选择，明确每个部位的责任人与施工时间</p></div><el-button v-if="canEditBasic" type="primary" :icon="Plus" @click="addPart">添加施工部位</el-button></div>
         <el-table :data="form.parts" border stripe empty-text="暂无施工部位" class="business-table">
           <el-table-column type="index" label="序号" width="56" />
-          <el-table-column label="施工部位" min-width="320"><template #default="{ row }"><span v-if="basicReadonly">{{ row.wbsPath || row.name || '--' }}</span><div v-else class="part-wbs-cell"><el-tree-select :model-value="row.wbsNodeId" :data="entityTree" node-key="id" :props="{ value: 'id', label: 'label', children: 'children', disabled: 'disabled' }" check-strictly filterable placeholder="请选择实体工程分解节点" @update:model-value="chooseEntityPart(row, $event)" /><small v-if="row.wbsPath">{{ row.wbsPath }}</small></div></template></el-table-column>
-          <el-table-column label="安全管控责任人" width="190"><template #default="{ row }"><span v-if="basicReadonly">{{ row.safetyResponsible || '--' }}</span><el-select v-else v-model="row.safetyResponsible" filterable placeholder="人员姓名（岗位）"><el-option v-for="item in responsibleOptions" :key="item" :label="item" :value="item" /></el-select></template></el-table-column>
-          <el-table-column label="开工时间" width="150"><template #default="{ row }"><span v-if="basicReadonly">{{ row.startDate || '--' }}</span><el-date-picker v-else v-model="row.startDate" type="date" value-format="YYYY-MM-DD" style="width:130px" /></template></el-table-column>
-          <el-table-column label="计划完工时间" width="150"><template #default="{ row }"><span v-if="basicReadonly">{{ row.plannedEndDate || '--' }}</span><el-date-picker v-else v-model="row.plannedEndDate" type="date" value-format="YYYY-MM-DD" style="width:130px" /></template></el-table-column>
+          <el-table-column label="施工部位" min-width="320"><template #default="{ row }"><span v-if="basicReadonly">{{ row.wbsPath || row.name || '—' }}</span><div v-else class="part-wbs-cell"><el-tree-select :model-value="row.wbsNodeId" :data="entityTree" node-key="id" :props="{ value: 'id', label: 'label', children: 'children', disabled: 'disabled' }" check-strictly filterable placeholder="请选择实体工程分解节点" @update:model-value="chooseEntityPart(row, $event)" /><small v-if="row.wbsPath">{{ row.wbsPath }}</small></div></template></el-table-column>
+          <el-table-column label="安全管控责任人" width="190"><template #default="{ row }"><span v-if="basicReadonly">{{ row.safetyResponsible || '—' }}</span><el-select v-else v-model="row.safetyResponsible" filterable placeholder="人员姓名（岗位）"><el-option v-for="item in responsibleOptions" :key="item" :label="item" :value="item" /></el-select></template></el-table-column>
+          <el-table-column label="开工时间" width="150"><template #default="{ row }"><span v-if="basicReadonly">{{ row.startDate || '—' }}</span><el-date-picker v-else v-model="row.startDate" type="date" value-format="YYYY-MM-DD" style="width:130px" /></template></el-table-column>
+          <el-table-column label="计划完工时间" width="150"><template #default="{ row }"><span v-if="basicReadonly">{{ row.plannedEndDate || '—' }}</span><el-date-picker v-else v-model="row.plannedEndDate" type="date" value-format="YYYY-MM-DD" style="width:130px" /></template></el-table-column>
           <el-table-column label="施工情况" width="100"><template #default="{ row }"><el-tag size="small" :type="stateTagType(partStatus(row))">{{ partStatus(row) }}</el-tag></template></el-table-column>
           <el-table-column v-if="canEditBasic" label="操作" width="80" fixed="right"><template #default="{ row }"><el-button link type="danger" @click="removePart(row)">删除</el-button></template></el-table-column>
         </el-table>
@@ -789,9 +789,9 @@ watch([projectId, sourceId, routeMode], load, { immediate: true })
           <template v-if="activeProcessTab === 'controlPoints'">
             <el-table-column prop="controlPointContent" label="管控要点" min-width="320" show-overflow-tooltip />
             <el-table-column prop="date" label="记录日期" width="120" />
-            <el-table-column label="显示状态" width="140"><template #default="{ row }"><el-tag size="small" :type="row.displayStatus === 'red' ? 'danger' : 'success'">{{ row.displayStatusText || '--' }}</el-tag></template></el-table-column>
+            <el-table-column label="显示状态" width="140"><template #default="{ row }"><el-tag size="small" :type="row.displayStatus === 'red' ? 'danger' : 'success'">{{ row.displayStatusText || '—' }}</el-tag></template></el-table-column>
           </template>
-          <template v-else><el-table-column v-for="column in currentConfig.columns" :key="column.key" :label="column.label" :width="column.width" :min-width="column.minWidth" show-overflow-tooltip><template #default="{ row }"><template v-if="column.mask"><span>{{ isRevealed(`${row.id}-${column.key}`) ? (row[column.fullKey] || row[column.key] || '--') : (row[column.key] || '--') }}</span><el-button link type="primary" @click.stop="toggleReveal(`${row.id}-${column.key}`)">{{ isRevealed(`${row.id}-${column.key}`) ? '隐藏' : '查看' }}</el-button></template><span v-else>{{ tableValue(row, column) }}</span></template></el-table-column></template>
+          <template v-else><el-table-column v-for="column in currentConfig.columns" :key="column.key" :label="column.label" :width="column.width" :min-width="column.minWidth" show-overflow-tooltip><template #default="{ row }"><template v-if="column.mask"><span>{{ isRevealed(`${row.id}-${column.key}`) ? (row[column.fullKey] || row[column.key] || '—') : (row[column.key] || '—') }}</span><el-button link type="primary" @click.stop="toggleReveal(`${row.id}-${column.key}`)">{{ isRevealed(`${row.id}-${column.key}`) ? '隐藏' : '查看' }}</el-button></template><span v-else>{{ tableValue(row, column) }}</span></template></el-table-column></template>
           <el-table-column v-if="activeProcessTab === 'progress'" label="危险作业数量" width="120">
             <template #default="{ row }">{{ dangerWorkCount(row) }}</template>
           </el-table-column>
@@ -822,7 +822,7 @@ watch([projectId, sourceId, routeMode], load, { immediate: true })
           <div class="record-detail-head">
             <div>
               <h3>{{ currentTab.label }}记录详情</h3>
-              <p>记录编号：{{ recordForm.id || '--' }}</p>
+              <p>记录编号：{{ recordForm.id || '—' }}</p>
             </div>
           </div>
 
@@ -831,19 +831,19 @@ watch([projectId, sourceId, routeMode], load, { immediate: true })
             <el-descriptions :column="2" border>
               <el-descriptions-item label="施工部位" :span="2">{{ recordDetailPartName }}</el-descriptions-item>
               <el-descriptions-item label="记录类型">{{ currentTab.label }}</el-descriptions-item>
-              <el-descriptions-item label="创建人">{{ recordForm.createdBy || '--' }}</el-descriptions-item>
-              <el-descriptions-item label="创建时间">{{ recordForm.createdAt || recordForm.date || '--' }}</el-descriptions-item>
+              <el-descriptions-item label="创建人">{{ recordForm.createdBy || '—' }}</el-descriptions-item>
+              <el-descriptions-item label="创建时间">{{ recordForm.createdAt || recordForm.date || '—' }}</el-descriptions-item>
             </el-descriptions>
           </section>
 
           <section class="record-detail-section">
             <div class="record-detail-title">{{ activeProcessTab === 'workerRegistration' ? '实名制人员信息' : activeProcessTab === 'controlPoints' ? '管控要点信息' : '业务详情' }}</div>
             <el-descriptions v-if="activeProcessTab === 'controlPoints'" :column="2" border>
-              <el-descriptions-item label="管控要点" :span="2">{{ recordForm.controlPointContent || recordForm.content || '--' }}</el-descriptions-item>
+              <el-descriptions-item label="管控要点" :span="2">{{ recordForm.controlPointContent || recordForm.content || '—' }}</el-descriptions-item>
               <el-descriptions-item label="显示状态（红）"><el-tag type="danger">{{ recordForm.redStatusText || '未落实' }}</el-tag></el-descriptions-item>
               <el-descriptions-item label="显示状态（绿）"><el-tag type="success">{{ recordForm.greenStatusText || '已落实' }}</el-tag></el-descriptions-item>
-              <el-descriptions-item label="本次显示状态"><el-tag :type="recordForm.displayStatus === 'red' ? 'danger' : 'success'">{{ recordForm.displayStatusText || (recordForm.displayStatus === 'red' ? recordForm.redStatusText : recordForm.greenStatusText) || '--' }}</el-tag></el-descriptions-item>
-              <el-descriptions-item label="记录日期">{{ recordForm.date || '--' }}</el-descriptions-item>
+              <el-descriptions-item label="本次显示状态"><el-tag :type="recordForm.displayStatus === 'red' ? 'danger' : 'success'">{{ recordForm.displayStatusText || (recordForm.displayStatus === 'red' ? recordForm.redStatusText : recordForm.greenStatusText) || '—' }}</el-tag></el-descriptions-item>
+              <el-descriptions-item label="记录日期">{{ recordForm.date || '—' }}</el-descriptions-item>
             </el-descriptions>
             <el-descriptions v-else :column="2" border>
               <el-descriptions-item v-for="field in recordDetailFields" :key="field.label" :label="field.label" :span="field.wide ? 2 : 1">
@@ -851,10 +851,10 @@ watch([projectId, sourceId, routeMode], load, { immediate: true })
                   <el-progress :percentage="Math.round((field.progress.done / field.progress.total) * 100)" :stroke-width="8" :format="() => `${field.progress.done}/${field.progress.total}`" />
                 </div>
                 <template v-else-if="field.maskKey">
-                  <span class="detail-value">{{ isRevealed(field.maskKey) ? (field.fullValue || field.value || '--') : (field.value || '--') }}</span>
+                  <span class="detail-value">{{ isRevealed(field.maskKey) ? (field.fullValue || field.value || '—') : (field.value || '—') }}</span>
                   <el-button link type="primary" @click.stop="toggleReveal(field.maskKey)">{{ isRevealed(field.maskKey) ? '隐藏' : '查看' }}</el-button>
                 </template>
-                <span v-else class="detail-value">{{ field.value === '' || field.value === undefined || field.value === null ? '--' : field.value }}</span>
+                <span v-else class="detail-value">{{ field.value === '' || field.value === undefined || field.value === null ? '—' : field.value }}</span>
               </el-descriptions-item>
             </el-descriptions>
           </section>
@@ -908,11 +908,11 @@ watch([projectId, sourceId, routeMode], load, { immediate: true })
             </el-col>
           </el-row>
           <el-table v-if="activeProcessTab === 'workerRegistration' && selectedRealNamePersonnel.length" :data="selectedRealNamePersonnel" border stripe size="small" class="person-preview-table">
-            <el-table-column label="姓名" width="100"><template #default="{ row }">{{ row.basic?.name || '--' }}</template></el-table-column>
-            <el-table-column label="参建单位" min-width="180"><template #default="{ row }">{{ row.unit?.unit_name || '--' }}</template></el-table-column>
-            <el-table-column label="工人类型" width="130"><template #default="{ row }">{{ row.unit?.personnel_category || '--' }}</template></el-table-column>
-            <el-table-column label="工种/职务" width="130"><template #default="{ row }">{{ row.unit?.work_type || '--' }}</template></el-table-column>
-            <el-table-column label="资格证号" width="160"><template #default="{ row }">{{ row.cert_no || '--' }}</template></el-table-column>
+            <el-table-column label="姓名" width="100"><template #default="{ row }">{{ row.basic?.name || '—' }}</template></el-table-column>
+            <el-table-column label="参建单位" min-width="180"><template #default="{ row }">{{ row.unit?.unit_name || '—' }}</template></el-table-column>
+            <el-table-column label="工人类型" width="130"><template #default="{ row }">{{ row.unit?.personnel_category || '—' }}</template></el-table-column>
+            <el-table-column label="工种/职务" width="130"><template #default="{ row }">{{ row.unit?.work_type || '—' }}</template></el-table-column>
+            <el-table-column label="资格证号" width="160"><template #default="{ row }">{{ row.cert_no || '—' }}</template></el-table-column>
           </el-table>
           <el-form-item v-if="activeProcessTab === 'progress'" label="关联危险作业">
             <div class="danger-link-block">

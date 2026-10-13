@@ -93,7 +93,7 @@ export function clipProcessBizLabel(text, max = 24) {
   const s = String(text || '')
     .trim()
     .replace(/\s+/g, ' ')
-  if (!s) return '--'
+  if (!s) return '—'
   return s.length > max ? `${s.slice(0, max)}…` : s
 }
 
@@ -110,7 +110,7 @@ export function buildInspectionTaskProcessName(taskName) {
 }
 
 export function buildHazardRectifyProcessName(hazardDesc, status) {
-  return `隐患整改·${clipProcessBizLabel(hazardDesc)}-${status || '--'}`
+  return `隐患整改·${clipProcessBizLabel(hazardDesc)}-${status || '—'}`
 }
 
 export function buildSampleProcessName(bizLabel, title) {
@@ -118,7 +118,7 @@ export function buildSampleProcessName(bizLabel, title) {
 }
 
 export function buildDispatchHazardProcessName(description, status) {
-  return `调度隐患·${clipProcessBizLabel(description)}-${status || '--'}`
+  return `调度隐患·${clipProcessBizLabel(description)}-${status || '—'}`
 }
 
 export function buildBrandProcessName(materialName) {
@@ -196,21 +196,21 @@ export function buildDispatchHazardApprovalFlow(todo) {
 /** 按业务状态生成审批过程 */
 export function buildPenaltyApprovalFlow(todo) {
   const p = todo?.penalty || {}
-  const applyTime = todo?.applyTime || '--'
+  const applyTime = todo?.applyTime || '—'
   const issueTime = p.issueTime || applyTime
   if (todo?.bizStatus === PENALTY_TODO_STATUS.PROCESSING) {
     return [
       { title: '指挥部开具处罚单', time: applyTime, user: todo.applicant || '指挥部', remark: '已创建处罚单', status: 'done' },
-      { title: '下发至责任单位/指派人', time: issueTime, user: 'COC调度室', remark: `指派人：${p.assignee || '--'}`, status: 'done' },
+      { title: '下发至责任单位/指派人', time: issueTime, user: 'COC调度室', remark: `指派人：${p.assignee || '—'}`, status: 'done' },
       { title: '接收人处理（上报结果 / 申诉）', time: '', user: p.assignee || '指派人', remark: '待处理', status: 'current' },
       { title: '验收 / 申诉复核', time: '', user: '验收人', remark: '待流转', status: 'pending' },
-      { title: '办结关闭', time: '', user: '--', remark: '', status: 'pending' },
+      { title: '办结关闭', time: '', user: '—', remark: '', status: 'pending' },
     ]
   }
   if (todo?.bizStatus === PENALTY_TODO_STATUS.PENDING_ACCEPTANCE) {
     return [
       { title: '指挥部开具处罚单', time: applyTime, user: todo.applicant || '指挥部', remark: '已创建处罚单', status: 'done' },
-      { title: '下发至责任单位/指派人', time: issueTime, user: 'COC调度室', remark: `指派人：${p.assignee || '--'}`, status: 'done' },
+      { title: '下发至责任单位/指派人', time: issueTime, user: 'COC调度室', remark: `指派人：${p.assignee || '—'}`, status: 'done' },
       {
         title: '接收人上报结果',
         time: p.reportTime || applyTime,
@@ -219,13 +219,13 @@ export function buildPenaltyApprovalFlow(todo) {
         status: 'done',
       },
       { title: '验收人验收', time: '', user: p.acceptor || '验收人', remark: '待验收', status: 'current' },
-      { title: '办结关闭', time: '', user: '--', remark: '', status: 'pending' },
+      { title: '办结关闭', time: '', user: '—', remark: '', status: 'pending' },
     ]
   }
   if (todo?.bizStatus === PENALTY_TODO_STATUS.APPEALING) {
     return [
       { title: '指挥部开具处罚单', time: applyTime, user: todo.applicant || '指挥部', remark: '已创建处罚单', status: 'done' },
-      { title: '下发至责任单位/指派人', time: issueTime, user: 'COC调度室', remark: `指派人：${p.assignee || '--'}`, status: 'done' },
+      { title: '下发至责任单位/指派人', time: issueTime, user: 'COC调度室', remark: `指派人：${p.assignee || '—'}`, status: 'done' },
       {
         title: '接收人提交申诉',
         time: p.appealTime || applyTime,
@@ -234,12 +234,12 @@ export function buildPenaltyApprovalFlow(todo) {
         status: 'done',
       },
       { title: '指挥部复核申诉', time: '', user: '指挥部', remark: '待处理', status: 'current' },
-      { title: '办结关闭', time: '', user: '--', remark: '', status: 'pending' },
+      { title: '办结关闭', time: '', user: '—', remark: '', status: 'pending' },
     ]
   }
   return [
-    { title: '提交申请', time: applyTime, user: todo?.applicant || '--', remark: '', status: 'done' },
-    { title: '待审批', time: '', user: '--', remark: '当前节点', status: 'current' },
+    { title: '提交申请', time: applyTime, user: todo?.applicant || '—', remark: '', status: 'done' },
+    { title: '待审批', time: '', user: '—', remark: '当前节点', status: 'current' },
   ]
 }
 
@@ -949,7 +949,7 @@ const inspectionBaseDetails = {
       planName: '8月第1周安全巡检',
       planType: '周检',
       source: '任务推送',
-      status: '待执行',
+      status: '未完成',
       currentNode: '巡检人执行',
       executor: '监理',
       inspector: '监理',
@@ -1155,7 +1155,7 @@ const WARNING_CENTER_HANDLER = {
 }
 
 function getLaborProjectShortName(projectId) {
-  if (!projectId) return '--'
+  if (!projectId) return '—'
   if (LABOR_PROJECT_SHORT_NAME[projectId]) return LABOR_PROJECT_SHORT_NAME[projectId]
   const full = getProjectLabel(projectId) || ''
   return full.replace(/工程$/, '') || projectId
@@ -1369,7 +1369,8 @@ export function markModuleWarningCenterByBizDispose(
     if (row.status !== '待处理' && row.status !== '待处置') continue
     row.status = '已关闭'
     row.handler = operator
-    row.time = now
+    if (row.module === '危大工程管理') row.disposalTime = now
+    else row.time = now
     row.disposalResult = disposalResult
     row.disposalNote = disposalNote || ''
     row.disposalAttachments = [...attachments]
@@ -1398,7 +1399,7 @@ function buildLaborWarningProcess(warningId, listType = 'todo') {
     if (w.handle_mode !== '手动处理' || w.status !== '已关闭') return null
   }
 
-  const project = getProjectLabel(w.project_id) || w.project_id || '--'
+  const project = getProjectLabel(w.project_id) || w.project_id || '—'
   const timeline = (w.disposal_records || []).map((r) => ({
     title: disposalTypeLabels[r.type] || r.type,
     time: r.time,
@@ -1462,7 +1463,7 @@ export function resolveWarningCenterHandle(warningId) {
   if (!w) return null
 
   if (w.handle_mode === '通知') {
-    const project = getProjectLabel(w.project_id) || w.project_id || '--'
+    const project = getProjectLabel(w.project_id) || w.project_id || '—'
     return {
       id: `wc-notify-${warningId}`,
       type: 'labor_warning',
@@ -1522,7 +1523,7 @@ export function resolveModuleWarningCenterHandle(warningCenterId) {
     applyTime: item.time,
     warnCenterReadonly: !canDispose,
     detail: {
-      project: item.projectName || '--',
+      project: item.projectName || '—',
       warningNo: item.warningNo || '',
       alertType: item.alertType || '',
       location: item.location || '',
@@ -1565,7 +1566,7 @@ export function seedQmInspectTodos() {
       approvalFlow: [
         { title: '施工报验', time: '2026-07-15 10:30:00', user: '张工', remark: '提交报验', status: 'done' },
         { title: '一级审批人', time: '', user: '当前用户', remark: '待审批', status: 'current' },
-        { title: '二级审批人', time: '', user: '--', remark: '', status: 'pending' },
+        { title: '二级审批人', time: '', user: '—', remark: '', status: 'pending' },
       ],
     },
     {
@@ -2188,7 +2189,7 @@ export function batchDisposeWarningCenter(ids, { content, attachments = [], oper
     row.handler = operator
     row.time = now
     row.disposalResult =
-      row.module === '危大工程管理' ? '已处理' : disposal_result || '已处置'
+      row.module === '危大工程管理' ? '已关闭' : disposal_result || '已处置'
     row.disposalNote = content || ''
     row.disposalAttachments = [...attachments]
     n += 1
@@ -2449,12 +2450,12 @@ function buildBrandTodo(payload) {
     dept: payload.dept || '总包项目部',
     applyTime: payload.applyTime || '',
     detail: {
-      project: payload.projectLabel || payload.projectId || '--',
+      project: payload.projectLabel || payload.projectId || '—',
       applicationId: payload.applicationId,
-      materialName: payload.materialName || '--',
-      materialType: payload.materialType || '--',
-      specs: payload.specsText || '--',
-      brands: payload.brandsText || '--',
+      materialName: payload.materialName || '—',
+      materialType: payload.materialType || '—',
+      specs: payload.specsText || '—',
+      brands: payload.brandsText || '—',
       currentNode: isPm ? '待项目经理审' : '待监理审',
       usePart: payload.usePart || '',
       copyFromApplicationId: payload.copyFromApplicationId || '',
@@ -2539,7 +2540,7 @@ function mapBrandStartedStatus(status) {
   if (status === 'in_approval' || status === 'pending') return '审批中'
   if (status === 'approved') return '已通过'
   if (status === 'rejected' || status === 'withdrawn') return '已驳回'
-  return status || '--'
+  return status || '—'
 }
 
 export function upsertBrandStarted(app) {
@@ -2563,13 +2564,13 @@ export function upsertBrandStarted(app) {
     brandApplicationId: app.application_id,
     editable: status === '待提交',
     detail: {
-      project: getProjectLabel(app.project_id) || app.project_id || '--',
+      project: getProjectLabel(app.project_id) || app.project_id || '—',
       applicationId: app.application_id,
-      materialName: app.material_name || '--',
-      materialType: app.material_type || '--',
+      materialName: app.material_name || '—',
+      materialType: app.material_type || '—',
       usePart: app.use_part || '',
       copyFromApplicationId: app.copy_from_application_id || '',
-      summary: `${app.material_name || '--'} · ${status}`,
+      summary: `${app.material_name || '—'} · ${status}`,
     },
     approvalFlow: [],
   }
@@ -2601,10 +2602,10 @@ function pushBrandDoneIfNeeded(app) {
     handleLabel: app.status === 'approved' ? '审批通过' : '驳回',
     brandApplicationId: app.application_id,
     detail: {
-      project: getProjectLabel(app.project_id) || app.project_id || '--',
+      project: getProjectLabel(app.project_id) || app.project_id || '—',
       applicationId: app.application_id,
-      materialName: app.material_name || '--',
-      summary: `${app.material_name || '--'} · ${mapBrandStartedStatus(app.status)}`,
+      materialName: app.material_name || '—',
+      summary: `${app.material_name || '—'} · ${mapBrandStartedStatus(app.status)}`,
     },
     approvalFlow: [],
   })
@@ -2692,11 +2693,11 @@ function buildSampleTodo(payload) {
     dept: payload.dept || '总包项目部',
     applyTime: payload.applyTime || '',
     detail: {
-      project: payload.projectLabel || payload.projectId || '--',
+      project: payload.projectLabel || payload.projectId || '—',
       applicationId: payload.applicationId,
       bizType: bizLabel,
-      title: payload.title || '--',
-      usePart: payload.usePart || '--',
+      title: payload.title || '—',
+      usePart: payload.usePart || '—',
       unitName: payload.unitName || '',
       sampleDate: payload.sampleDate || '',
       spec: payload.spec || '',
@@ -2773,7 +2774,7 @@ function mapSampleStartedStatus(status) {
   if (status === 'in_approval' || status === 'pending') return '审批中'
   if (status === 'approved') return '已通过'
   if (status === 'rejected') return '已驳回'
-  return status || '--'
+  return status || '—'
 }
 
 export function upsertSampleStarted(bizType, app) {
@@ -2802,12 +2803,12 @@ export function upsertSampleStarted(bizType, app) {
     applyTime: app.submit_time || '',
     endTime: status === '已通过' || status === '已驳回' ? app.finish_time || '' : '',
     detail: {
-      project: getProjectLabel(app.project_id) || app.project_id || '--',
+      project: getProjectLabel(app.project_id) || app.project_id || '—',
       applicationId: app.application_id,
       bizType: bizLabel,
-      title: title || '--',
+      title: title || '—',
       copyFromApplicationId: app.copy_from_application_id || '',
-      summary: `${title || '--'} · ${status}`,
+      summary: `${title || '—'} · ${status}`,
     },
     approvalFlow: [],
   }
@@ -2843,10 +2844,10 @@ function pushSampleDoneIfNeeded(bizType, app) {
     handleTime: app.finish_time || '',
     handleLabel: app.status === 'approved' ? '审批通过' : '驳回',
     detail: {
-      project: getProjectLabel(app.project_id) || app.project_id || '--',
+      project: getProjectLabel(app.project_id) || app.project_id || '—',
       applicationId: app.application_id,
-      title: title || '--',
-      summary: `${title || '--'} · ${mapSampleStartedStatus(app.status)}`,
+      title: title || '—',
+      summary: `${title || '—'} · ${mapSampleStartedStatus(app.status)}`,
     },
     approvalFlow: [],
   })
@@ -2897,8 +2898,8 @@ function buildMatEntryTodo(payload) {
   matEntryTodoSeq += 1
   const isEq = payload.entryType === 'equipment'
   const itemName = isEq
-    ? payload.equipmentName || payload.materialName || '--'
-    : payload.materialName || '--'
+    ? payload.equipmentName || payload.materialName || '—'
+    : payload.materialName || '—'
   return {
     id: `todo-mat-${matEntryTodoSeq}`,
     type: 'mat_entry',
@@ -2912,14 +2913,14 @@ function buildMatEntryTodo(payload) {
     dept: payload.dept || '总包项目部',
     applyTime: payload.applyTime || '',
     detail: {
-      project: payload.projectLabel || payload.projectId || '--',
+      project: payload.projectLabel || payload.projectId || '—',
       entryId: payload.entryId,
       entryType: payload.entryType || 'material',
-      materialName: payload.materialName || '--',
-      equipmentName: payload.equipmentName || payload.materialName || '--',
-      brandName: payload.brandName || '--',
-      sampleId: payload.sampleId || '--',
-      quantity: payload.quantity || '--',
+      materialName: payload.materialName || '—',
+      equipmentName: payload.equipmentName || payload.materialName || '—',
+      brandName: payload.brandName || '—',
+      sampleId: payload.sampleId || '—',
+      quantity: payload.quantity || '—',
       currentNode: '监理审批',
       copyFromEntryNo: payload.copyFromEntryNo || '',
     },
@@ -2959,7 +2960,7 @@ function mapMatStartedStatus(status) {
   if (status === 'reviewing') return '审批中'
   if (status === 'approved') return '已通过'
   if (status === 'rejected') return '已驳回'
-  return status || '--'
+  return status || '—'
 }
 
 export function upsertMatEntryStarted(entry) {
@@ -2985,12 +2986,12 @@ export function upsertMatEntryStarted(entry) {
     applyTime: entry.submit_time || '',
     endTime: status === '已通过' || status === '已驳回' ? entry.finish_time || '' : '',
     detail: {
-      project: getProjectLabel(entry.project_id) || entry.project_id || '--',
+      project: getProjectLabel(entry.project_id) || entry.project_id || '—',
       entryId: entry.entry_no,
-      materialName: itemName || '--',
-      brandName: entry.brand_name || '--',
+      materialName: itemName || '—',
+      brandName: entry.brand_name || '—',
       copyFromEntryNo: entry.copy_from_entry_no || '',
-      summary: `${itemName || '--'} · ${status}`,
+      summary: `${itemName || '—'} · ${status}`,
     },
     approvalFlow: [],
   }
@@ -3024,10 +3025,10 @@ function pushMatDoneIfNeeded(entry) {
     handleTime: entry.finish_time || '',
     handleLabel: entry.status === 'approved' ? '审批通过' : '驳回',
     detail: {
-      project: getProjectLabel(entry.project_id) || entry.project_id || '--',
+      project: getProjectLabel(entry.project_id) || entry.project_id || '—',
       entryId: entry.entry_no,
-      materialName: itemName || '--',
-      summary: `${itemName || '--'} · ${mapMatStartedStatus(entry.status)}`,
+      materialName: itemName || '—',
+      summary: `${itemName || '—'} · ${mapMatStartedStatus(entry.status)}`,
     },
     approvalFlow: [],
   })
@@ -3314,13 +3315,13 @@ function buildAsbuiltTodo(payload) {
     dept: payload.dept || '总包项目部',
     applyTime: payload.applyTime || '',
     detail: {
-      project: payload.projectLabel || payload.projectId || '--',
+      project: payload.projectLabel || payload.projectId || '—',
       acceptanceId: payload.acceptanceId,
-      bizNo: payload.bizNo || '--',
-      title: payload.title || '--',
+      bizNo: payload.bizNo || '—',
+      title: payload.title || '—',
       remark: payload.remark || '',
-      nodePaths: payload.nodePaths || '--',
-      reportNames: payload.reportNames || '--',
+      nodePaths: payload.nodePaths || '—',
+      reportNames: payload.reportNames || '—',
       currentNode: isPm ? '待项目经理终审' : '待监理审',
       supervisorTime: payload.supervisorTime || '',
       supervisorName: payload.supervisorName || '',
@@ -3425,7 +3426,7 @@ function mapAsbuiltStartedStatus(status) {
   if (status === 'pending_approval') return '审批中'
   if (status === 'approved') return '已通过'
   if (status === 'rejected') return '已驳回'
-  return status || '--'
+  return status || '—'
 }
 
 export function upsertAsbuiltStarted(row) {
@@ -3448,13 +3449,13 @@ export function upsertAsbuiltStarted(row) {
     endTime: status === '已通过' || status === '已驳回' ? row.updated_at || '' : '',
     asbuiltAcceptanceId: row.id,
     detail: {
-      project: getProjectLabel(row.project_id) || row.project_id || '--',
+      project: getProjectLabel(row.project_id) || row.project_id || '—',
       acceptanceId: row.id,
-      bizNo: row.biz_no || '--',
-      title: row.title || '--',
+      bizNo: row.biz_no || '—',
+      title: row.title || '—',
       copyFromId: row.copy_from_id || '',
       copyFromBizNo: row.copy_from_biz_no || '',
-      summary: `${row.title || '--'} · ${status}`,
+      summary: `${row.title || '—'} · ${status}`,
     },
     approvalFlow: [],
   }
@@ -3486,11 +3487,11 @@ function pushAsbuiltDoneIfNeeded(row) {
     handleLabel: row.status === 'approved' ? '审批通过' : '驳回',
     asbuiltAcceptanceId: row.id,
     detail: {
-      project: getProjectLabel(row.project_id) || row.project_id || '--',
+      project: getProjectLabel(row.project_id) || row.project_id || '—',
       acceptanceId: row.id,
-      bizNo: row.biz_no || '--',
-      title: row.title || '--',
-      summary: `${row.title || '--'} · ${mapAsbuiltStartedStatus(row.status)}`,
+      bizNo: row.biz_no || '—',
+      title: row.title || '—',
+      summary: `${row.title || '—'} · ${mapAsbuiltStartedStatus(row.status)}`,
     },
     approvalFlow: [],
   })

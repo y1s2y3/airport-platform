@@ -4,7 +4,7 @@
  */
 import { COC_PROJECT_OPTIONS } from '../config/projectOptions.js'
 import {
-  buildCalendarAlerts,
+  getCalendarAlerts,
   buildLedgerRows,
   ensureMajorHazardData,
   getMajorHazardData,
@@ -24,7 +24,6 @@ function stableWarningHash(value) {
 }
 
 function majorHazardWarningCenterItem(project, alert) {
-  const actionTime = alert.handledAt || `${new Date().toISOString().slice(0, 10)} 08:00:00`
   return {
     id: `wc-major-hazard-${project.id}-${stableWarningHash(alert.id)}`,
     module: '危大工程管理',
@@ -33,20 +32,21 @@ function majorHazardWarningCenterItem(project, alert) {
     safetyResponsible: alert.part?.safetyResponsible || alert.handler || '项目安全负责人',
     warningNo: `MHYC${stableWarningHash(`${project.id}:${alert.id}`)}`,
     alertType: alert.type,
-    location: alert.part?.name || '--',
+    location: alert.part?.name || '—',
     sourceName: alert.ledgerName,
     description: `${alert.content}（${alert.ledgerName} / ${alert.part?.name || '未填写施工部位'}）`,
     handler: alert.handler || '项目安全负责人',
     requiresDisposal: true,
     warnType: '处置任务',
-    status: alert.status === '已处理' ? '已关闭' : '待处理',
-    time: actionTime,
+    status: alert.status === '已关闭' || alert.status === '已处理' ? '已关闭' : '待处理',
+    time: alert.occurredAt || '',
     majorHazardProjectId: project.id,
     majorHazardAlertId: alert.id,
     majorHazardLedgerSourceId: alert.ledgerSourceId,
     disposalResult: alert.disposalResult || '',
     disposalNote: alert.disposalNote || '',
     disposalAttachments: alert.disposalAttachments || [],
+    disposalTime: alert.handledAt || '',
     dismissed: false,
   }
 }
@@ -57,7 +57,7 @@ export function syncMajorHazardWarningCenter(personalWarningCenterStore) {
   for (const project of COC_PROJECT_OPTIONS) {
     ensureMajorHazardData(project.id)
     const data = getMajorHazardData(project.id)
-    const alerts = buildCalendarAlerts(data, buildLedgerRows(data))
+    const alerts = getCalendarAlerts(project.id, data, buildLedgerRows(data))
     for (const alert of alerts) {
       const row = majorHazardWarningCenterItem(project, alert)
       const existing = personalWarningCenterStore.items.find((item) => item.id === row.id)
@@ -73,9 +73,9 @@ export function syncMajorHazardWarningCenter(personalWarningCenterStore) {
 /** 预警中心处置回写危大工程管理异常 */
 export function applyMajorHazardWarningDispose(row, { content = '', attachments = [], operator = '张明' } = {}) {
   if (row?.module !== '危大工程管理' || !row.majorHazardProjectId || !row.majorHazardAlertId) return false
-  // 危大工程异常不支持「误报」，与备份口径一致，统一按「已处理」回写
-  updateAlertStatus(row.majorHazardProjectId, row.majorHazardAlertId, '已处理', {
-    disposalResult: '已处理',
+  // 危大工程异常不支持「误报」，统一关闭异常并回写「已关闭」
+  updateAlertStatus(row.majorHazardProjectId, row.majorHazardAlertId, '已关闭', {
+    disposalResult: '已关闭',
     disposalNote: content || '',
     disposalAttachments: attachments,
     operator,
@@ -198,15 +198,15 @@ export function seedMajorHazardIdentificationPersonalCenter() {
 
 function buildMajorHazardIdentificationDetail(identification, projectName) {
   const identifiedItems = (identification.items || []).filter((item) => item.conclusion === '√')
-  const supervisorApprover = majorHazardApproverLabel(identification.supervisorApproverId) || '--'
-  const projectManagerApprover = majorHazardApproverLabel(identification.projectManagerApproverId) || '--'
+  const supervisorApprover = majorHazardApproverLabel(identification.supervisorApproverId) || '—'
+  const projectManagerApprover = majorHazardApproverLabel(identification.projectManagerApproverId) || '—'
   return {
     identificationNo: identification.identificationNo || `WD-BS-${String(identification.id || '').replace(/^mh-identify-/, '') || '新建'}`,
     project: projectName || '当前项目',
     wbsName: '待危大清单维护',
     workName: identifiedItems.map((item) => item.description).join('；') || '未辨识出危大工程',
     workPart: '待危大清单维护',
-    hazardCategory: identification.categoryName || '--',
+    hazardCategory: identification.categoryName || '—',
     identificationBasis: '依据危大工程字典完成辨识，审批通过后同步纳入危大工程清单。',
     superMajor: identifiedItems.some((item) => item.isSuperMajor === '是') ? '是' : '否',
     supervisorApprover,
@@ -237,14 +237,14 @@ export function createMajorHazardIdentificationTodo(
     {
       title: '监理单位审批',
       time: '',
-      user: detail.supervisorApprover === '--' ? '监理单位审批人' : detail.supervisorApprover,
+      user: detail.supervisorApprover === '—' ? '监理单位审批人' : detail.supervisorApprover,
       remark: '待审批',
       status: 'current',
     },
     {
       title: '项目经理审批',
       time: '',
-      user: detail.projectManagerApprover === '--' ? '项目经理' : detail.projectManagerApprover,
+      user: detail.projectManagerApprover === '—' ? '项目经理' : detail.projectManagerApprover,
       remark: '待审批',
       status: 'pending',
     },
@@ -337,7 +337,7 @@ export function handleMajorHazardIdentificationTodo(
   todo.detail = {
     ...todo.detail,
     currentNode: '已办结',
-    summary: approved ? '审批通过，已同步纳入危大工程清单。' : `审批已驳回：${opinion || '请到「危大辨识」列表修改后重新提交。'}`,
+        summary: approved ? '审批通过，已同步纳入危大工程清单。' : `审批已驳回：${opinion || '请到“危大工程清单辨识记录”页面操作栏点击“编辑”后重新提交，个人中心不提供编辑入口。'}`,
   }
   saveIdentification(todo.majorHazardProjectId, {
     ...identification,
@@ -361,7 +361,7 @@ export function handleMajorHazardIdentificationTodo(
         currentNode: '已办结',
         summary: approved
           ? '审批通过，已同步纳入危大工程清单。'
-          : `审批已驳回：${opinion || '请到「危大辨识」列表修改后重新提交。'}`,
+          : `审批已驳回：${opinion || '请到“危大工程清单辨识记录”页面操作栏点击“编辑”后重新提交，个人中心不提供编辑入口。'}`,
       },
       approvalFlow: approvalFlow.map((item) => ({ ...item })),
     })

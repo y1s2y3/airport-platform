@@ -18,7 +18,7 @@ const getProjLabels = computed(() => {
   if (!plan.value) return []
   return plan.value.projectIds.map(id => projectOptions.find(p => p.id === id)?.label || '').filter(Boolean)
 })
-const taskReceiver = computed(() => getProjectInspectorLabel(plan.value?.projectIds?.[0]) || '--')
+const taskReceiver = computed(() => getProjectInspectorLabel(plan.value?.projectIds?.[0]) || '—')
 // 检查内容树形结构
 const checkConfigTree = computed(() => {
   if (!plan.value?.checkConfig) return []
@@ -88,7 +88,7 @@ function goBack() {
         <div class="detail-title-row">
           <h3 class="detail-title">{{ plan.name }}</h3>
         </div>
-        <span class="detail-meta">更新人：{{ plan.updatedBy }} · 更新时间：{{ plan.updatedAt || '--' }}</span>
+        <span class="detail-meta">更新人：{{ plan.updatedBy }} · 更新时间：{{ plan.updatedAt || '—' }}</span>
       </div>
 
       <!-- ===== 基本信息 ===== -->
@@ -96,7 +96,7 @@ function goBack() {
         <h4 class="section-title">基本信息</h4>
         <el-descriptions :column="2" border>
           <el-descriptions-item label="任务名称" :span="2">{{ plan.name }}</el-descriptions-item>
-          <el-descriptions-item label="任务单编号">{{ plan.planNo || '--' }}</el-descriptions-item>
+          <el-descriptions-item label="任务单编号">{{ plan.planNo || '—' }}</el-descriptions-item>
           <el-descriptions-item label="巡检分类">
             <el-tag v-for="category in normalizeInspectionCategories(plan.inspectionCategories || plan.inspectionCategory)" :key="category" class="detail-tag" :type="category === '质量' ? 'warning' : 'success'" size="small" effect="plain" style="margin-right:4px">
               {{ category }}
@@ -105,7 +105,7 @@ function goBack() {
           <el-descriptions-item label="关联项目" :span="2">{{ getProjLabels.join('、') }}</el-descriptions-item>
           <el-descriptions-item label="危大工程现场巡视关联" :span="2">在移动端执行巡检时按本任务所属项目选择；下发任务不预先关联。</el-descriptions-item>
           <el-descriptions-item label="更新人">{{ plan.updatedBy }}</el-descriptions-item>
-          <el-descriptions-item label="更新时间">{{ plan.updatedAt || '--' }}</el-descriptions-item>
+          <el-descriptions-item label="更新时间">{{ plan.updatedAt || '—' }}</el-descriptions-item>
         </el-descriptions>
       </div>
 
@@ -115,7 +115,7 @@ function goBack() {
         <el-descriptions :column="2" border>
           <el-descriptions-item label="任务接收人">{{ taskReceiver }}</el-descriptions-item>
           <el-descriptions-item label="抄送人">{{ getCcLabels }}</el-descriptions-item>
-          <el-descriptions-item label="截止日期" :span="2">{{ plan.deadlineDate || plan.endDate || '--' }}</el-descriptions-item>
+          <el-descriptions-item label="截止日期" :span="2">{{ plan.deadlineDate || plan.endDate || '—' }}</el-descriptions-item>
           <el-descriptions-item label="备注" :span="2">{{ plan.remark || '无' }}</el-descriptions-item>
         </el-descriptions>
       </div>

@@ -5,9 +5,11 @@ import { getMobileInspectionTask } from '../../mock/mobileInspectionTasks'
 import { DEFAULT_INSPECTOR_LABEL } from '../../config/inspectionManagement'
 import { formatInspectionCategories, normalizeInspectionCategories } from '../../config/inspectionManagement'
 import { checkCategoryTree } from '../../composables/useInspectionPlan'
+import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
 
 const route = useRoute()
 const router = useRouter()
+const { tasksBase } = useMobileRouteBase()
 
 /** 静态补充详情（列表 seed 字段不全时兜底，避免白屏） */
 const taskMap = {
@@ -129,16 +131,16 @@ const taskMap = {
 function normalizeTaskDetail(raw) {
   if (!raw) return null
   return {
-    taskNo: raw.taskNo || '--',
+    taskNo: raw.taskNo || '—',
     taskName: raw.taskName || '巡检任务',
     inspectionCategories: normalizeInspectionCategories(raw.inspectionCategories || raw.inspectionCategory),
     inspectionCategory: formatInspectionCategories(raw.inspectionCategories || raw.inspectionCategory),
-    project: raw.project || '--',
-    executor: raw.executor || '--',
+    project: raw.project || '—',
+    executor: raw.executor || '—',
     source: raw.source || '任务下发',
-    inspector: raw.inspector || raw.executor || '--',
+    inspector: raw.inspector || raw.executor || '—',
     companions: Array.isArray(raw.companions) ? raw.companions : [],
-    deadline: raw.deadline || '--',
+    deadline: raw.deadline || '—',
     inspDate: raw.inspectionDate || raw.inspDate || '',
     status: raw.status || '未完成',
     submittedAt: raw.submittedAt || '',
@@ -207,7 +209,7 @@ watch(activeCheckCategories, (categories) => {
 }, { immediate: true })
 
 function goBack() {
-  router.push('/mobile/tasks')
+  router.push(tasksBase.value)
 }
 </script>
 
@@ -238,7 +240,7 @@ function goBack() {
       <div class="sc-row"><span class="sc-lbl">执行人</span><span>{{ taskInfo.executor || '-' }}</span></div>
       <div class="sc-row"><span class="sc-lbl">巡检分类</span><span>{{ taskInfo.inspectionCategory }}</span></div>
       <div class="sc-row"><span class="sc-lbl">危大工程现场巡视</span><span>{{ majorHazardPatrolText }}</span></div>
-      <div v-if="taskInfo.isMajorHazardPatrol === '是'" class="sc-row"><span class="sc-lbl">危大工程名称</span><span>{{ taskInfo.majorHazardName || '--' }}</span></div>
+      <div v-if="taskInfo.isMajorHazardPatrol === '是'" class="sc-row"><span class="sc-lbl">危大工程名称</span><span>{{ taskInfo.majorHazardName || '—' }}</span></div>
       <div v-if="majorHazardSyncText" class="sc-row"><span class="sc-lbl">巡视台账同步</span><span :class="{ 'sync-completed': taskInfo.status === '已完成' }">{{ majorHazardSyncText }}</span></div>
       <div class="sc-row"><span class="sc-lbl">同行人</span><span>{{ taskInfo.companions.length ? taskInfo.companions.join('、') : '' }}</span></div>
       <div class="sc-row"><span class="sc-lbl">截止日期</span><span>{{ taskInfo.deadline }}</span></div>
@@ -288,7 +290,7 @@ function goBack() {
       <div class="sc-row">
         <span class="sc-lbl">结果</span>
         <span :style="{ color: taskInfo.result === 'hazard' ? '#e53935' : '#34a853', fontWeight: 600 }">
-          {{ taskInfo.result === 'hazard' ? `⚠ 有隐患（${hazardCount}项）` : taskInfo.result === 'normal' ? '✓ 全部正常' : '--' }}
+          {{ taskInfo.result === 'hazard' ? `⚠ 有隐患（${hazardCount}项）` : taskInfo.result === 'normal' ? '✓ 全部正常' : '—' }}
         </span>
       </div>
       <div v-if="taskInfo.result === 'normal' && taskInfo.normalPhotos.length" class="sc-row">

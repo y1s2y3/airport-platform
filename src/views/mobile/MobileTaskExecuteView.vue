@@ -12,9 +12,11 @@ import {
   getProjectRectifierLabel,
   getProjectReviewerLabel,
 } from '../../composables/useInspectionPersonConfig'
+import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
 
 const route = useRoute()
 const router = useRouter()
+const { tasksBase } = useMobileRouteBase()
 
 const taskInfo = {
   id: route.params.id,
@@ -268,10 +270,10 @@ function submitCheck() {
       ? `检查结果已提交${rectifyCount ? `，已下发 ${rectifyCount} 份整改单` : ''}`
       : '检查结果已提交',
   )
-  router.push(`/mobile/tasks/${taskId}`)
+  router.push(`${tasksBase.value}/${taskId}`)
 }
 
-function goBack() { router.push('/mobile/tasks') }
+function goBack() { router.push(tasksBase.value) }
 </script>
 
 <template>
@@ -320,7 +322,7 @@ function goBack() { router.push('/mobile/tasks') }
               <option value="" disabled>请选择本次实际巡视项目</option>
               <option v-for="project in taskProjectOptions" :key="project.id" :value="project.id">{{ project.label }}</option>
             </select>
-            <span v-else class="tbf-static-value">{{ selectedPatrolProject?.label || taskInfo.project || '--' }}</span>
+            <span v-else class="tbf-static-value">{{ selectedPatrolProject?.label || taskInfo.project || '—' }}</span>
           </div>
           <div class="tbf-row">
             <span class="tbf-label">危大工程名称 <i class="req">*</i></span>

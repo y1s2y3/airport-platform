@@ -109,10 +109,10 @@ function eventsOf(day) {
 }
 function activePartNames(row) {
   const parts = (row.parts || []).filter((part) => part.startDate && part.plannedEndDate && part.startDate <= selectedDay.value && part.plannedEndDate >= selectedDay.value)
-  return parts.map((part) => part.wbsPath || part.name).filter(Boolean).join('；') || '--'
+  return parts.map((part) => part.wbsPath || part.name).filter(Boolean).join('；') || '—'
 }
-function plannedTime(row) { return `${row.source?.plannedStart || '--'} 至 ${row.source?.plannedEnd || '--'}` }
-function constructionTime(row) { return `${getLedgerStartDate(row) || '--'} 至 ${getLedgerEndDate(row) || '--'}` }
+function plannedTime(row) { return `${row.source?.plannedStart || '—'} 至 ${row.source?.plannedEnd || '—'}` }
+function constructionTime(row) { return `${getLedgerStartDate(row) || '—'} 至 ${getLedgerEndDate(row) || '—'}` }
 function openLedger(row) { router.push({ path: `/major-hazard/hazard-list/${encodeURIComponent(row.sourceId)}`, query: { mode: 'view' } }) }
 
 function eventClass(row) { return row.isSuperMajor === '是' ? 'super' : 'normal' }

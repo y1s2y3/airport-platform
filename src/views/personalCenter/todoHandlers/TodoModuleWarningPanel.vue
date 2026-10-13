@@ -80,30 +80,36 @@ function handleBack() {
     <section class="detail-section">
       <div class="section-title">预警详情</div>
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="预警编号">{{ detail.warningNo || '--' }}</el-descriptions-item>
-        <el-descriptions-item label="所属模块">{{ detail.module || '--' }}</el-descriptions-item>
-        <el-descriptions-item label="预警类型">{{ detail.alertType || '--' }}</el-descriptions-item>
-        <el-descriptions-item label="预警状态">{{ detail.status || '--' }}</el-descriptions-item>
-        <el-descriptions-item label="所属项目">{{ detail.projectName || '--' }}</el-descriptions-item>
-        <el-descriptions-item label="预警时间">{{ detail.time || '--' }}</el-descriptions-item>
-        <el-descriptions-item label="发生位置">{{ detail.location || '--' }}</el-descriptions-item>
-        <el-descriptions-item label="设备/监测源">{{ detail.sourceName || '--' }}</el-descriptions-item>
-        <el-descriptions-item label="当前处置人">{{ detail.handler || '--' }}</el-descriptions-item>
-        <el-descriptions-item label="任务类型">{{ detail.warnType || '--' }}</el-descriptions-item>
-        <el-descriptions-item label="预警内容" :span="2">{{ detail.description || '--' }}</el-descriptions-item>
+        <el-descriptions-item label="预警编号">{{ detail.warningNo || '—' }}</el-descriptions-item>
+        <el-descriptions-item label="所属模块">{{ detail.module || '—' }}</el-descriptions-item>
+        <el-descriptions-item label="预警类型">{{ detail.alertType || '—' }}</el-descriptions-item>
+        <el-descriptions-item label="预警状态">{{ detail.status || '—' }}</el-descriptions-item>
+        <el-descriptions-item label="所属项目">{{ detail.projectName || '—' }}</el-descriptions-item>
+        <el-descriptions-item label="预警时间">{{ detail.time || '—' }}</el-descriptions-item>
+        <template v-if="isMajorHazardAlert">
+          <el-descriptions-item label="施工部位">{{ detail.location || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="危大清单名称">{{ detail.sourceName || '—' }}</el-descriptions-item>
+        </template>
+        <template v-else>
+          <el-descriptions-item label="发生位置">{{ detail.location || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="设备/监测源">{{ detail.sourceName || '—' }}</el-descriptions-item>
+        </template>
+        <el-descriptions-item label="当前处置人">{{ detail.handler || '—' }}</el-descriptions-item>
+        <el-descriptions-item label="任务类型">{{ detail.warnType || '—' }}</el-descriptions-item>
+        <el-descriptions-item label="预警内容" :span="2">{{ detail.description || '—' }}</el-descriptions-item>
       </el-descriptions>
     </section>
 
     <section v-if="detail.status === '已关闭'" class="detail-section">
       <div class="section-title">处置信息</div>
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="处置结果">{{ detail.disposalResult || '--' }}</el-descriptions-item>
-        <el-descriptions-item label="处置人">{{ detail.handler || '--' }}</el-descriptions-item>
-        <el-descriptions-item label="处置时间">{{ detail.time || '--' }}</el-descriptions-item>
+        <el-descriptions-item label="处置结果">{{ detail.disposalResult || '—' }}</el-descriptions-item>
+        <el-descriptions-item label="处置人">{{ detail.handler || '—' }}</el-descriptions-item>
+        <el-descriptions-item label="处置时间">{{ (isMajorHazardAlert ? detail.disposalTime : detail.time) || '—' }}</el-descriptions-item>
         <el-descriptions-item label="处置附件">
-          {{ detail.disposalAttachments?.join('、') || '--' }}
+          {{ detail.disposalAttachments?.join('、') || '—' }}
         </el-descriptions-item>
-        <el-descriptions-item label="处置说明" :span="2">{{ detail.disposalNote || '--' }}</el-descriptions-item>
+        <el-descriptions-item label="处置说明" :span="2">{{ detail.disposalNote || '—' }}</el-descriptions-item>
       </el-descriptions>
     </section>
 

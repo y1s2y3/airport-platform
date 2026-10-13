@@ -265,11 +265,11 @@ const alertRows = computed(() => allEntries.value.flatMap((entry) => entry.alert
   projectName: entry.projectName,
   sourceId: entry.ledger.sourceId,
   ledgerName: alert.ledgerName,
-  partName: alert.part?.name || alert.part?.wbsPath || '--',
+  partName: alert.part?.name || alert.part?.wbsPath || '—',
   type: alert.type,
   content: alert.content,
   status: alert.status,
-  handledAt: alert.handledAt || '--',
+  handledAt: alert.handledAt || '—',
 }))))
 
 function openAlertLedger() {
@@ -336,8 +336,8 @@ function resizeCharts() {
 function entryForDrawer(entry) {
   return {
     ...entry,
-    categoryName: entry.ledger.categoryName || '--',
-    description: entry.ledger.description || '--',
+    categoryName: entry.ledger.categoryName || '—',
+    description: entry.ledger.description || '—',
     superMajor: entry.ledger.isSuperMajor || '否',
     progress: (entry.ledger.parts || []).length ? Math.round((entry.ledger.parts || []).reduce((sum, part) => sum + latestProgress(part), 0) / entry.ledger.parts.length) : 0,
   }
@@ -386,8 +386,8 @@ const detailParts = computed(() => {
     const stats = controlPointStats(ledger, part)
     return {
       id: part.id,
-      partName: part.name || part.wbsPath || '--',
-      time: `${part.startDate || '--'} 至 ${part.plannedEndDate || '--'}`,
+      partName: part.name || part.wbsPath || '—',
+      time: `${part.startDate || '—'} 至 ${part.plannedEndDate || '—'}`,
       progress: latestProgress(part),
       pointText: `${stats.green}/${stats.total}`,
     }
@@ -396,11 +396,11 @@ const detailParts = computed(() => {
 
 const detailAlerts = computed(() => (detailEntry.value?.alerts || []).map((alert) => ({
   id: alert.id,
-  partName: alert.part?.name || alert.part?.wbsPath || '--',
+  partName: alert.part?.name || alert.part?.wbsPath || '—',
   type: alert.type,
   content: alert.content,
   status: alert.status,
-  handledAt: alert.handledAt || '--',
+  handledAt: alert.handledAt || '—',
 })))
 
 function refresh() {
@@ -509,7 +509,7 @@ onUnmounted(() => {
           <el-table-column prop="description" label="类别描述" min-width="220" show-overflow-tooltip />
           <el-table-column prop="status" label="施工状态" width="90" align="center" />
           <el-table-column label="超危" width="80" align="center"><template #default="{ row }"><el-tag v-if="row.superMajor === '是'" size="small" type="danger">超危</el-tag><span v-else>否</span></template></el-table-column>
-          <el-table-column label="计划时间" width="205"><template #default="{ row }">{{ row.start || '--' }} 至 {{ row.end || '--' }}</template></el-table-column>
+          <el-table-column label="计划时间" width="205"><template #default="{ row }">{{ row.start || '—' }} 至 {{ row.end || '—' }}</template></el-table-column>
           <el-table-column prop="progress" label="施工进度" width="95" align="center"><template #default="{ row }">{{ row.progress }}%</template></el-table-column>
           <el-table-column prop="overdueAcceptance" label="超期未验收" width="105" align="center"><template #default="{ row }"><span :class="{ 'danger-num': row.overdueAcceptance }">{{ row.overdueAcceptance }}</span></template></el-table-column>
           <el-table-column prop="pendingAlerts" label="待处理异常" width="105" align="center" />
@@ -542,9 +542,9 @@ onUnmounted(() => {
               <el-tag v-if="detailEntry.superMajor === '是'" size="small" type="danger">超危</el-tag>
               <span v-else>否</span>
             </el-descriptions-item>
-            <el-descriptions-item label="责任分包单位">{{ detailEntry.ledger?.subcontractor || '--' }}</el-descriptions-item>
-            <el-descriptions-item label="责任人">{{ detailEntry.ledger?.responsible || '--' }}</el-descriptions-item>
-            <el-descriptions-item label="计划时间">{{ detailEntry.start || '--' }} 至 {{ detailEntry.end || '--' }}</el-descriptions-item>
+            <el-descriptions-item label="责任分包单位">{{ detailEntry.ledger?.subcontractor || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="责任人">{{ detailEntry.ledger?.responsible || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="计划时间">{{ detailEntry.start || '—' }} 至 {{ detailEntry.end || '—' }}</el-descriptions-item>
             <el-descriptions-item label="施工进度">{{ detailEntry.progress }}%</el-descriptions-item>
             <el-descriptions-item label="超期未验收"><span :class="{ 'danger-num': detailEntry.overdueAcceptance }">{{ detailEntry.overdueAcceptance }}</span></el-descriptions-item>
             <el-descriptions-item label="待处理异常"><span :class="{ 'warning-num': detailEntry.pendingAlerts }">{{ detailEntry.pendingAlerts }}</span></el-descriptions-item>

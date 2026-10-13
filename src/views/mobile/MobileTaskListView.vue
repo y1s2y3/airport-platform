@@ -3,8 +3,10 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { listMobileInspectionTasks } from '../../mock/mobileInspectionTasks'
 import { hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
+import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
 
 const router = useRouter()
+const { tasksBase, bizHome } = useMobileRouteBase()
 
 /** 直接读共享 reactive，提交后列表状态可即时刷新 */
 const tasks = computed(() => listMobileInspectionTasks())
@@ -33,10 +35,10 @@ const filteredTasks = computed(() => {
   return list
 })
 
-function goExecute(id) { router.push(`/mobile/tasks/${id}/execute`) }
-function goDetail(id) { router.push(`/mobile/tasks/${id}`) }
-function goCreate() { router.push('/mobile/tasks/create') }
-function goBack() { router.push('/') }
+function goExecute(id) { router.push(`${tasksBase.value}/${id}/execute`) }
+function goDetail(id) { router.push(`${tasksBase.value}/${id}`) }
+function goCreate() { router.push(`${tasksBase.value}/create`) }
+function goBack() { router.push(bizHome.value) }
 </script>
 
 <template>
