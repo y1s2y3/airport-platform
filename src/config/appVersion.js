@@ -17,6 +17,14 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.17.1.2',
+    date: '2026-10-14',
+    highlights: [
+      '修复：安全态势大屏（当前版）样式作用域收敛到屏内根节点，不再污染主平台',
+      '修复：顶栏「选择组织 / 项目」恢复白底深灰字，不再被大屏的深蓝底色串味',
+    ],
+  },
+  {
     version: 'v2.17.1.1',
     date: '2026-10-14',
     highlights: [
