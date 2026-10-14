@@ -17,6 +17,14 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.17.1.3',
+    date: '2026-10-14',
+    highlights: [
+      '修复：两个安全态势大屏（V1 经典版 / V2 当前版）的满屏重置改为仅在挂载期间生效，不再锁死主平台整页滚动',
+      '顺带：大屏的 body 样式改用字面值，不再依赖已收敛到屏根的变量',
+    ],
+  },
+  {
     version: 'v2.17.1.2',
     date: '2026-10-14',
     highlights: [

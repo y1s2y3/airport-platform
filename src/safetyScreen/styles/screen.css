@@ -18,13 +18,16 @@
 
 .safety-screen-app * { box-sizing: border-box; }
 
-html,
-body,
-#app { width: 100%; height: 100%; margin: 0; overflow: hidden; }
-
+/* 满屏壳体重置：仅在 body.coc-hq-shell 生效（大屏挂载时添加、卸载时移除），
+   不再无条件作用于主平台的 html / body / #app。
+   屏内变量已收敛到屏根，故此处改用字面值，避免 var() 在 body 上无法解析。 */
 body.coc-hq-shell {
-  background: var(--screen-bg);
-  color: var(--text);
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: #031126;
+  color: #e8fbff;
   font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
 }
 
