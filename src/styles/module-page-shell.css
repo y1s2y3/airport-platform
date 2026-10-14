@@ -1,0 +1,58 @@
+/* 平台「页面壳」共享样式（由 scripts 归并，2026-10-14）
+ * 背景：.page-header/.page-title/.page-breadcrumb/.page-tip/.filter-bar/.mb/.title-row/.qm-page
+ * 这组页面壳类原本在 quality/{brand,mat,sample} 与 siteConstruction/engineering-work-page.css
+ * 中**各自重复定义**（取值一致）。单文件构建下它们全局生效，重复定义虽不报错但极脆弱：
+ * 任一处被修改都会因打包顺序产生「谁生效」的不确定行为。故收敛为单一定义。
+ * 由 src/main.js 引入，global 生效——消费者（80+ 页面）无需改动。
+ */
+.qm-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.page-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.page-breadcrumb {
+  font-size: 12px;
+  line-height: 1.4;
+  color: #909399;
+}
+
+.page-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #1f2329;
+}
+
+.page-tip {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #606266;
+}
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.mb {
+  margin-bottom: 12px;
+}
+
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}

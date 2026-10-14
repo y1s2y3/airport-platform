@@ -17,6 +17,14 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.17.1.6',
+    date: '2026-10-14',
+    highlights: [
+      '样式修复：消除模块间同名类的“谁生效取决于打包顺序”问题（.section-title/.form-section/.form-actions/.muted）',
+      '样式治理：页面壳共享类（.page-title/.page-header/.page-breadcrumb/.page-tip/.filter-bar 等）归并为单一定义，新增样式作用域冲突检查',
+    ],
+  },
+  {
     version: 'v2.17.1.5',
     date: '2026-10-14',
     highlights: [
