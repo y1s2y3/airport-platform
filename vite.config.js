@@ -1,12 +1,21 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { viteSingleFile } from 'vite-plugin-singlefile'
+import scopeSubAppStyles from './scripts/postcss-scope-screens.mjs'
 
 // GitHub Pages 项目站需要子路径；本地 / Vercel 仍用根路径
 const base = process.env.VITE_BASE || '/'
 
 export default defineConfig({
   base,
+  css: {
+    postcss: {
+      // 构建期自动把子应用样式表收敛到各自的根类（目标见 scripts/css-scope.config.mjs）。
+      // 原因：单文件构建会把全部 CSS 内联，未限定作用域的样式会污染整站；而 dev 按路由懒加载
+      // 所以本地看不出来。此插件让「新增选择器不会再泄漏」不再依赖人工纪律。
+      plugins: [scopeSubAppStyles()],
+    },
+  },
   plugins: [
     vue(),
     // 单文件 HTML 模式：将所有 JS/CSS 内联进 HTML

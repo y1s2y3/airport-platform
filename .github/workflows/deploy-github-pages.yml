@@ -41,10 +41,16 @@ jobs:
       - name: Install
         run: npm ci
 
+      - name: 样式作用域闸门（源码）
+        run: node scripts/check-style-scope.mjs
+
       - name: Build
         env:
           VITE_BASE: /${{ github.event.repository.name }}/
         run: npm run build
+
+      - name: 样式作用域闸门（构建产物）
+        run: node scripts/check-style-scope.mjs --dist dist
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

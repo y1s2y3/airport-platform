@@ -17,6 +17,14 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.17.1.4',
+    date: '2026-10-14',
+    highlights: [
+      '工程改进：新增「样式作用域」发布闸门（源码体检 + 构建产物断言），泄漏将直接阻断发布，不再流到线上',
+      '工程改进：构建期自动把大屏/子应用样式收敛到各自根节点，新增选择器不会再污染主平台',
+    ],
+  },
+  {
     version: 'v2.17.1.3',
     date: '2026-10-14',
     highlights: [
