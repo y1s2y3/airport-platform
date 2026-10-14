@@ -2,8 +2,9 @@
 /**
  * 风险点台账（项目级，F-RISK-05）
  * 只读台账：仅展示审批状态为「已通过」的风险辨识记录。
- * 顶部指标为纯激活状态口径（已激活 / 未激活 / 已关闭，按派生激活状态统计）。
- * 操作：详情；已通过且未关闭可关闭；已通过且已关闭可重新激活。无新增 / 编辑 / 删除。
+ * 顶部指标为纯激活状态口径（已激活 / 未开始 / 已关闭，按派生激活状态统计）。
+ * 操作：详情；手工三态流转——未开始可「激活」或「关闭」，已激活可「关闭」，已关闭可「重新激活」（均二次确认）。
+ * 无新增 / 编辑 / 删除。
  */
 import { computed, reactive, watch } from 'vue'
 import { useRouter } from 'vue-router'
@@ -12,6 +13,7 @@ import { useCurrentProject } from '../../composables/useCurrentProject'
 import {
   RISK_RUN_STATUS_LABEL,
   SEVERITY_LEVELS,
+  activateRiskPointControl,
   activationStatusTagType,
   closeRiskPointControl,
   formatRiskCell,
@@ -23,6 +25,7 @@ import {
   riskPersonLabel,
   riskRunStatus,
   riskRunStatusLabel,
+  riskTypeName,
   severityTagType,
 } from '../../mock/riskManage.js'
 
@@ -79,7 +82,22 @@ function goDetail(row) {
   router.push(`/site-construction/risk-point-ledger/${row.id}`)
 }
 
-/** 关闭：仅「已通过且未关闭」，二次确认 */
+/** 激活：仅「未开始」，二次确认 */
+function handleActivate(row) {
+  if (!laborProjectId.value || riskRunStatus(row) !== 'not_started') return
+  ElMessageBox.confirm(`确认激活风险点「${row.risk_point}」？激活后纳入跟踪。`, '提示', { type: 'warning' })
+    .then(() => {
+      const r = activateRiskPointControl(laborProjectId.value, row.id)
+      if (!r.ok) {
+        ElMessage.warning(r.msg)
+        return
+      }
+      ElMessage.success('已激活')
+    })
+    .catch(() => {})
+}
+
+/** 关闭：未开始或已激活均可关闭（已关闭不可再关闭），二次确认 */
 function handleClose(row) {
   if (!laborProjectId.value || row.approval_status !== 'approved') return
   if (riskRunStatus(row) === 'closed') return
@@ -95,10 +113,10 @@ function handleClose(row) {
     .catch(() => {})
 }
 
-/** 重新激活：仅「已通过且已关闭」，二次确认 */
+/** 重新激活：仅「已关闭」，二次确认 */
 function handleReactivate(row) {
   if (!laborProjectId.value) return
-  if (row.approval_status !== 'approved' || row.close_status !== 'closed') return
+  if (row.approval_status !== 'approved' || riskRunStatus(row) !== 'closed') return
   ElMessageBox.confirm(`确认重新激活风险点「${row.risk_point}」？激活后恢复跟踪。`, '提示', { type: 'warning' })
     .then(() => {
       const r = reactivateRiskPointControl(laborProjectId.value, row.id)
@@ -118,7 +136,7 @@ function handleReactivate(row) {
       <div>
         <div class="page-breadcrumb">风险管理 / 风险点台账</div>
         <h3 class="page-title">风险点台账</h3>
-        <p class="page-tip">只读台账，仅收录审批状态为「已通过」的风险辨识记录。关联的施工进度为「进行中」时激活状态为已激活，关闭后为已关闭，其余为未激活。</p>
+        <p class="page-tip">只读台账，仅收录审批状态为「已通过」的风险辨识记录。激活状态为手工驱动：未开始的记录需手工「激活」，已激活可「关闭」，已关闭可「重新激活」；状态取「已关闭 &gt; 已激活 &gt; 未开始」。</p>
       </div>
       <span class="total-count">共 {{ tableData.length }} 条</span>
     </div>
@@ -136,7 +154,7 @@ function handleReactivate(row) {
       <div v-if="metrics" class="metric-row">
         <div class="metric-card"><b>{{ metrics.total }}</b><span>风险点总数（条）</span></div>
         <div class="metric-card"><b>{{ metrics.activated }}</b><span>已激活（条）</span></div>
-        <div class="metric-card"><b>{{ metrics.inactive }}</b><span>未激活（条）</span></div>
+        <div class="metric-card"><b>{{ metrics.not_started }}</b><span>未开始（条）</span></div>
         <div class="metric-card"><b>{{ metrics.closed }}</b><span>已关闭（条）</span></div>
       </div>
 
@@ -186,7 +204,7 @@ function handleReactivate(row) {
           <template #default="{ row }">{{ formatRiskCell(row.risk_source_no) }}</template>
         </el-table-column>
         <el-table-column prop="risk_type" label="风险类型" min-width="110" show-overflow-tooltip>
-          <template #default="{ row }">{{ formatRiskCell(row.risk_type) }}</template>
+          <template #default="{ row }">{{ riskTypeName(row) }}</template>
         </el-table-column>
         <el-table-column prop="risk_point" label="风险点" min-width="150" show-overflow-tooltip>
           <template #default="{ row }">{{ formatRiskCell(row.risk_point) }}</template>
@@ -213,9 +231,16 @@ function handleReactivate(row) {
         <el-table-column prop="report_time" label="填报时间" width="160" align="center">
           <template #default="{ row }">{{ formatRiskReportTime(row.report_time) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="160" align="center" fixed="right">
+        <el-table-column label="操作" width="220" align="center" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="goDetail(row)">详情</el-button>
+            <el-button
+              v-if="row.approval_status === 'approved' && riskRunStatus(row) === 'not_started'"
+              link
+              type="primary"
+              size="small"
+              @click="handleActivate(row)"
+            >激活</el-button>
             <el-button
               v-if="row.approval_status === 'approved' && riskRunStatus(row) !== 'closed'"
               link
@@ -224,7 +249,7 @@ function handleReactivate(row) {
               @click="handleClose(row)"
             >关闭</el-button>
             <el-button
-              v-if="row.approval_status === 'approved' && row.close_status === 'closed'"
+              v-if="row.approval_status === 'approved' && riskRunStatus(row) === 'closed'"
               link
               type="primary"
               size="small"

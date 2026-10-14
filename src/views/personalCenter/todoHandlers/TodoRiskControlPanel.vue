@@ -3,7 +3,6 @@ import { computed } from 'vue'
 import {
   activationStatusTagType,
   approvalStatusLabel,
-  constructionProgressLabel,
   formatMatSupervisorApproverLabel,
   formatRiskCell,
   formatRiskFrequency,
@@ -14,6 +13,7 @@ import {
   riskLocationLabel,
   riskPersonLabel,
   riskRunStatusLabel,
+  riskTypeName,
   severityTagType,
 } from '../../../mock/riskManage.js'
 import TodoApprovalFlowSection from '../components/TodoApprovalFlowSection.vue'
@@ -52,7 +52,7 @@ const approvalFlow = computed(() => riskApprovalFlow(row.value))
         <el-descriptions-item v-if="row.copy_from_source_no" label="重新申报来源" :span="2">
           {{ riskCopyFromLabel(row) }}
         </el-descriptions-item>
-        <el-descriptions-item label="风险类型">{{ formatRiskCell(row.risk_type) }}</el-descriptions-item>
+        <el-descriptions-item label="风险类型">{{ riskTypeName(row) }}</el-descriptions-item>
         <el-descriptions-item label="风险点">{{ formatRiskCell(row.risk_point) }}</el-descriptions-item>
         <el-descriptions-item label="风险细分">{{ formatRiskCell(row.risk_segment) }}</el-descriptions-item>
         <el-descriptions-item label="发生频率">{{ formatRiskFrequency(row) }}</el-descriptions-item>
@@ -64,8 +64,6 @@ const approvalFlow = computed(() => riskApprovalFlow(row.value))
         <el-descriptions-item label="危害后果" :span="2">{{ formatRiskCell(row.hazard_consequence) }}</el-descriptions-item>
         <el-descriptions-item label="风险描述" :span="2">{{ formatRiskCell(row.risk_desc) }}</el-descriptions-item>
         <el-descriptions-item label="管控措施" :span="2">{{ formatRiskCell(row.control_measure) }}</el-descriptions-item>
-        <el-descriptions-item label="施工阶段">{{ formatRiskCell(row.construction_stage) }}</el-descriptions-item>
-        <el-descriptions-item label="施工进度">{{ constructionProgressLabel(row.construction_progress_id) }}</el-descriptions-item>
         <el-descriptions-item label="计划开始时间">{{ formatRiskCell(row.plan_start) }}</el-descriptions-item>
         <el-descriptions-item label="计划结束时间">{{ formatRiskCell(row.plan_end) }}</el-descriptions-item>
         <el-descriptions-item label="管控责任人">{{ riskPersonLabel(row.control_person_id) }}</el-descriptions-item>

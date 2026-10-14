@@ -1,9 +1,10 @@
 <script setup>
 /**
- * 风险点审批 — 详情（只读）
- * 审批在个人中心办理；「关闭 / 重新激活」仅在从「风险点台账」进入时出现（见 fromLedger）；
+ * 风险点申报 — 详情（只读）
+ * 审批在个人中心办理；「激活 / 关闭 / 重新激活」仅在从「风险点台账」进入时出现（见 fromLedger）；
  * 已驳回原单只读、不可再提，可从此处「重新报审」生成新单。
  * 本组件同时被「风险点台账」详情路由复用（路径 /site-construction/risk-point-ledger/:id）。
+ * 本页不展示施工阶段与施工进度相关字段（激活状态由台账手工驱动，与进度无关）。
  */
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -13,11 +14,11 @@ import TodoApprovalFlowSection from '../personalCenter/components/TodoApprovalFl
 import { useCurrentProject } from '../../composables/useCurrentProject'
 import {
   APPROVAL_STATUS_LABEL,
+  activateRiskPointControl,
   activationStatusTagType,
   approvalStatusTagType,
   closeRiskPointControl,
   reactivateRiskPointControl,
-  constructionProgressLabel,
   formatMatSupervisorApproverLabel,
   formatRiskCell,
   formatRiskFrequency,
@@ -29,6 +30,7 @@ import {
   riskPersonLabel,
   riskRunStatus,
   riskRunStatusLabel,
+  riskTypeName,
   severityTagType,
 } from '../../mock/riskManage.js'
 
@@ -38,12 +40,12 @@ const { laborProjectId } = useCurrentProject()
 
 const detailId = computed(() => String(route.params.id || ''))
 
-/** 本组件被「风险点审批」与「风险点台账」两条详情路由复用，按进入路径取名 */
+/** 本组件被「风险点申报」与「风险点台账」两条详情路由复用，按进入路径取名 */
 const fromLedger = computed(() => route.path.startsWith('/site-construction/risk-point-ledger'))
 const listPath = computed(() => (
   fromLedger.value ? '/site-construction/risk-point-ledger' : '/site-construction/risk-point-control'
 ))
-const pageOwner = computed(() => (fromLedger.value ? '风险点台账' : '风险点审批'))
+const pageOwner = computed(() => (fromLedger.value ? '风险点台账' : '风险点申报'))
 
 const detail = computed(() => {
   const id = detailId.value
@@ -51,15 +53,20 @@ const detail = computed(() => {
 })
 
 const isReviewing = computed(() => detail.value?.approval_status === 'reviewing')
+const runStatus = computed(() => riskRunStatus(detail.value))
+const canActivate = computed(() => {
+  const row = detail.value
+  return !!(row && row.approval_status === 'approved' && runStatus.value === 'not_started')
+})
 const canClose = computed(() => {
   const row = detail.value
   if (!row || row.approval_status !== 'approved') return false
-  return riskRunStatus(row) !== 'closed'
+  return runStatus.value !== 'closed'
 })
 const canResubmit = computed(() => detail.value?.approval_status === 'rejected')
 const canReactivate = computed(() => {
   const row = detail.value
-  return !!(row && row.approval_status === 'approved' && row.close_status === 'closed')
+  return !!(row && row.approval_status === 'approved' && runStatus.value === 'closed')
 })
 
 const supervisorLabel = computed(() => {
@@ -89,6 +96,21 @@ function goResubmit() {
     params: { id: row.id },
     query: { from: row.id },
   })
+}
+
+function handleActivate() {
+  const row = detail.value
+  if (!row || !laborProjectId.value) return
+  ElMessageBox.confirm(`确认激活风险点「${row.risk_point}」？激活后纳入跟踪。`, '提示', { type: 'warning' })
+    .then(() => {
+      const r = activateRiskPointControl(laborProjectId.value, row.id)
+      if (!r.ok) {
+        ElMessage.warning(r.msg)
+        return
+      }
+      ElMessage.success('已激活')
+    })
+    .catch(() => {})
 }
 
 function handleClose() {
@@ -136,6 +158,11 @@ function handleReactivate() {
               @click="goResubmit"
             >重新报审</el-button>
             <el-button
+              v-if="fromLedger && canActivate"
+              type="warning"
+              @click="handleActivate"
+            >激活</el-button>
+            <el-button
               v-if="fromLedger && canClose"
               type="warning"
               @click="handleClose"
@@ -164,7 +191,7 @@ function handleReactivate() {
       <el-descriptions-item v-if="!fromLedger && detail.copy_from_source_no" label="重新申报来源">
         {{ riskCopyFromLabel(detail) }}
       </el-descriptions-item>
-      <el-descriptions-item label="风险类型">{{ formatRiskCell(detail.risk_type) }}</el-descriptions-item>
+      <el-descriptions-item label="风险类型">{{ riskTypeName(detail) }}</el-descriptions-item>
       <el-descriptions-item label="风险点">{{ formatRiskCell(detail.risk_point) }}</el-descriptions-item>
       <el-descriptions-item label="风险细分">{{ formatRiskCell(detail.risk_segment) }}</el-descriptions-item>
       <el-descriptions-item label="发生频率">{{ formatRiskFrequency(detail) }}</el-descriptions-item>
@@ -176,8 +203,6 @@ function handleReactivate() {
       <el-descriptions-item label="危害后果" :span="2">{{ formatRiskCell(detail.hazard_consequence) }}</el-descriptions-item>
       <el-descriptions-item label="风险描述" :span="2">{{ formatRiskCell(detail.risk_desc) }}</el-descriptions-item>
       <el-descriptions-item label="管控措施" :span="2">{{ formatRiskCell(detail.control_measure) }}</el-descriptions-item>
-      <el-descriptions-item label="施工阶段">{{ formatRiskCell(detail.construction_stage) }}</el-descriptions-item>
-      <el-descriptions-item label="施工进度">{{ constructionProgressLabel(detail.construction_progress_id) }}</el-descriptions-item>
       <el-descriptions-item label="计划开始时间">{{ formatRiskCell(detail.plan_start) }}</el-descriptions-item>
       <el-descriptions-item label="计划结束时间">{{ formatRiskCell(detail.plan_end) }}</el-descriptions-item>
       <el-descriptions-item label="管控责任人">{{ riskPersonLabel(detail.control_person_id) }}</el-descriptions-item>
@@ -194,7 +219,7 @@ function handleReactivate() {
       </el-descriptions-item>
     </el-descriptions>
 
-    <!-- 审批过程仅在「风险点审批」入口展示；台账为只读业务台账，不展示审批流程与审批相关字段 -->
+    <!-- 审批过程仅在「风险点申报」入口展示；台账为只读业务台账，不展示审批流程与审批相关字段 -->
     <TodoApprovalFlowSection v-if="detail && !fromLedger" class="approval-flow" :approval-flow="approvalFlow" />
   </div>
 </template>

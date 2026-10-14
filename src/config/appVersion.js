@@ -4,10 +4,10 @@
  * - 由 scripts/bump-pages-version.mjs 在发布流水线中递增 patch
  */
 
-export const APP_VERSION_BASE = '2.11.1'
+export const APP_VERSION_BASE = '2.17.1'
 
 /** GitHub Pages 发布序号（从 0 开始；仓库内为「当前即将发布 / 下一版」序号） */
-export const APP_VERSION_PATCH = 28
+export const APP_VERSION_PATCH = 1
 
 export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
 
@@ -16,6 +16,17 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  * highlights 宜短句，便于页头问号弹窗快速阅读
  */
 export const VERSION_CHANGELOG = [
+  {
+    version: 'v2.17.1.1',
+    date: '2026-10-14',
+    highlights: [
+      '版本号基线调整为 v2.17.1.1，后续版本在此基础上递增',
+      '风险管理：新增「风险点台账」（只读台账，仅收录已通过记录，指标按激活状态统计）；原「风险点审批」改为「风险点申报」',
+      '风险管理：激活状态改为手工驱动三态（未开始 / 已激活 / 已关闭），支持激活、关闭、重新激活',
+      '风险管理：列表精简为 10 列并按语义色区分严重程度与激活状态；发生频率新增「不定期」（默认选中）',
+      '风险管理：填报日期改为提交自动生成的「填报时间」；审批通过后不再推送站内信；类型改名后引用处显示新名称',
+    ],
+  },
   {
     version: 'v2.11.1.27',
     date: '2026-10-14',

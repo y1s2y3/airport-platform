@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useTodoHandleContext } from './personalCenter/composables/useTodoHandleContext.js'
@@ -204,7 +204,7 @@ function goBack() {
         :approval-flow="approvalFlow"
       />
       <TodoApprovalFlowSection
-        v-else
+        v-else-if="todo.type !== 'risk_control'"
         :approval-flow="approvalFlow"
         :is-inspection="todo.type === 'inspection'"
       />

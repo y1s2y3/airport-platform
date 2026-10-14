@@ -1,26 +1,24 @@
 <script setup>
 /**
- * 风险点审批 — 新增 / 重新报审风险辨识
+ * 风险点申报 — 新增 / 重新报审风险辨识
  * 风险类型来自风险类型配置；风险点 → 风险细分来自配置库联动。
  * 重新报审：路由 query `from=<源记录id>`，源单须为同项目已驳回记录；
  * 提交后生成新的风险源编号（按新的填报时间），原单保留、只读、不可再提。
  * 填报时间为提交后系统自动生成，表单中不可编辑（仅只读展示）。
+ * 本页不展示施工阶段与施工进度相关字段（激活状态由台账手工驱动，与进度无关）。
  */
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useCurrentProject } from '../../composables/useCurrentProject'
 import {
-  CONSTRUCTION_STAGE_OPTIONS,
   FREQUENCY_IRREGULAR,
   FREQUENCY_PERIOD_OPTIONS,
   SEVERITY_LEVELS,
   findRiskPointConfig,
   formatMatSupervisorApproverLabel,
   getRiskPointControl,
-  constructionProgressLabel,
   isIrregularFrequency,
-  listConstructionProgressOptions,
   listConfigRiskPoints,
   listConfigRiskSegments,
   listConfigRiskTypes,
@@ -39,13 +37,11 @@ const { laborProjectId, isHqSelected } = useCurrentProject()
 
 /** 重新报审来源（源记录 id），来自列表/详情「重新报审」入口的 query */
 const copyFromId = computed(() => String(route.query.from || '').trim())
-const copyFromNo = ref('')
-const isCopyResubmit = computed(() => !!copyFromNo.value)
+const isCopyResubmit = computed(() => !!copyFromId.value)
 const pageTitle = computed(() => (isCopyResubmit.value ? '重新报审风险辨识' : '新增风险辨识'))
 
 const form = reactive({
   report_time: '',
-  risk_source_no: '',
   risk_type: '',
   risk_point: '',
   risk_segment: '',
@@ -54,8 +50,6 @@ const form = reactive({
   frequency_x: FREQUENCY_IRREGULAR,
   frequency_n: null,
   severity: '',
-  construction_stage: '',
-  construction_progress_id: '',
   risk_location_wbs_id: [],
   risk_desc: '',
   control_measure: '',
@@ -67,7 +61,6 @@ const form = reactive({
 })
 
 const typeOptions = computed(() => listConfigRiskTypes(laborProjectId.value))
-const progressOptions = computed(() => listConstructionProgressOptions(laborProjectId.value))
 const supervisorOptions = computed(() => listMatSupervisorApprovers(laborProjectId.value))
 
 const pointOptions = computed(() => {
@@ -172,7 +165,6 @@ function loadCopyFrom() {
     return
   }
   syncing.value = true
-  form.risk_source_no = ''
   form.risk_type = row.risk_type || ''
   form.risk_point = row.risk_point || ''
   form.risk_segment = row.risk_segment || ''
@@ -181,8 +173,6 @@ function loadCopyFrom() {
   form.frequency_x = row.frequency_x || FREQUENCY_IRREGULAR
   form.frequency_n = isIrregularFrequency(form.frequency_x) ? null : (row.frequency_n ?? null)
   form.severity = row.severity || ''
-  form.construction_stage = row.construction_stage || ''
-  form.construction_progress_id = row.construction_progress_id || ''
   form.risk_location_wbs_id = normalizeLocationWbsIds(row.risk_location_wbs_id)
   form.risk_desc = row.risk_desc || ''
   form.control_measure = row.control_measure || ''
@@ -191,7 +181,6 @@ function loadCopyFrom() {
   form.control_person_id = row.control_person_id || ''
   form.implement_person_id = row.implement_person_id || ''
   form.supervisor_approver_user_id = row.supervisor_approver_user_id || ''
-  copyFromNo.value = row.risk_source_no || copyFromId.value
   loaded.value = true
   syncing.value = false
 }
@@ -273,7 +262,7 @@ function handleSubmit() {
   <div v-if="loaded" class="page page-card">
     <div class="page-head">
       <div>
-        <div class="page-breadcrumb">风险管理 / 风险点审批 / {{ pageTitle }}</div>
+        <div class="page-breadcrumb">风险管理 / 风险点申报 / {{ pageTitle }}</div>
         <div class="heading-row">
           <el-button link type="primary" @click="goBack">← 返回</el-button>
           <h3 class="page-title">{{ pageTitle }}</h3>
@@ -291,14 +280,6 @@ function handleSubmit() {
               aria-label="填报时间"
             />
             <p class="field-hint">由系统在提交后自动生成，表单中不可编辑。</p>
-          </el-form-item>
-        </el-col>
-        <el-col :span="8">
-          <el-form-item label="风险源编号">
-            <el-input
-              :model-value="isCopyResubmit ? `提交后按填报时间生成（源单 ${copyFromNo}）` : '提交后自动生成'"
-              disabled
-            />
           </el-form-item>
         </el-col>
         <el-col :span="8">
@@ -472,44 +453,6 @@ function handleSubmit() {
           placeholder="选择配置项后可自动带出，仍可修改"
         />
       </el-form-item>
-
-      <el-row :gutter="16">
-        <el-col :span="8">
-          <el-form-item label="施工阶段">
-            <el-select v-model="form.construction_stage" clearable placeholder="请选择" style="width: 100%">
-              <el-option v-for="item in CONSTRUCTION_STAGE_OPTIONS" :key="item" :label="item" :value="item" />
-            </el-select>
-          </el-form-item>
-        </el-col>
-        <el-col :span="8">
-          <el-form-item label="施工进度">
-            <el-select
-              v-model="form.construction_progress_id"
-              clearable
-              filterable
-              placeholder="请选择，后续接入进度数据"
-              style="width: 100%"
-            >
-              <el-option
-                v-for="item in progressOptions"
-                :key="item.id"
-                :label="`${item.progress_name}（${item.progress_status || '--'}）`"
-                :value="item.id"
-              />
-            </el-select>
-          </el-form-item>
-        </el-col>
-        <el-col :span="8">
-          <el-form-item label="施工进度状态">
-            <el-input
-              :model-value="constructionProgressLabel(form.construction_progress_id)"
-              disabled
-              placeholder="请先选施工进度"
-            />
-            <p class="field-hint">施工进度为只读引用（进度名称与状态取自施工进度台账，本模块不回写）。进度为「进行中」时，未关闭的风险为已激活；关闭后为已关闭，其余为未激活。</p>
-          </el-form-item>
-        </el-col>
-      </el-row>
 
       <el-row :gutter="16">
         <el-col :span="8">

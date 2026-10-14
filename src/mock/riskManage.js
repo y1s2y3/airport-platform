@@ -2,7 +2,9 @@
  * 风险管理 Mock — 风险类型配置、配置库、风险点管控台账
  * 口径：仅项目级。类型/风险点/细分来自配置库。
  * 发生频率为「每[周期]/n次」，周期为小时/日/周/月/季/年；另有「不定期」＝无固定周期、不统计次数。
- * 审批仅监理一级（审批中 / 已通过 / 已驳回）。关闭状态：未关闭 / 已关闭。
+ * 审批仅监理一级（审批中 / 已通过 / 已驳回）。
+ * 落库：close_status（open / closed）+ manual_activated（手工激活标记）；
+ * 激活三态（未开始 / 已激活 / 已关闭）为展示期派生，不落库，且不再由施工进度或日期判定。
  */
 import { reactive } from 'vue'
 import { nowStr } from '../utils/datetime.js'
@@ -14,7 +16,7 @@ import {
   formatMatSupervisorApproverLabel,
   listMatSupervisorApprovers,
 } from './mat.js'
-import { createRiskControlSupervisorTodo, pushRiskControlMeasureNotices } from './personalCenter.js'
+import { createRiskControlSupervisorTodo } from './personalCenter.js'
 
 export { listMatSupervisorApprovers, formatMatSupervisorApproverLabel }
 
@@ -55,7 +57,7 @@ export const AIRPORT_RISK_SOURCE_DEFAULTS = [
 export const CONSTRUCTION_STAGE_OPTIONS = ['设计', '开工报建', '施工', '竣工']
 
 export const RISK_RUN_STATUS_LABEL = {
-  inactive: '未激活',
+  not_started: '未开始',
   activated: '已激活',
   closed: '已关闭',
 }
@@ -63,7 +65,8 @@ export const RISK_RUN_STATUS_LABEL = {
 /**
  * 施工进度关联选项。
  * 后续施工进度模块接入后，只替换本列表的数据来源，登记单仍保存 progress id。
- * 进度状态为「进行中」时，未关闭的风险辨识为「已激活」。
+ * 注意：进度状态仅为进度台账自身的只读展示口径，
+ * 自 2026-10-14 起「不再」用于推导风险点的激活状态（激活改为手工驱动）。
  */
 export const constructionProgressOptions = reactive([
   { id: 'prog-p-000-1', project_id: 'p-000', progress_name: '基坑开挖与支护', progress_status: '进行中' },
@@ -88,12 +91,26 @@ export function constructionProgressStatus(id) {
   return constructionProgressOptions.find((item) => item.id === id)?.progress_status || ''
 }
 
-/** 已关闭优先；已关联且进度为进行中则为已激活；其余未激活 */
+/**
+ * 激活状态三态派生（不落库、无日期判定、与施工进度无关）：
+ * 已关闭优先 → 手工激活标记 → 其余为未开始。
+ */
 export function riskRunStatus(row) {
-  if (!row) return 'inactive'
+  if (!row) return 'not_started'
   if (row.close_status === 'closed') return 'closed'
-  if (constructionProgressStatus(row.construction_progress_id) === '进行中') return 'activated'
-  return 'inactive'
+  if (row.manual_activated === true) return 'activated'
+  return 'not_started'
+}
+
+/** 类型实时取名：优先按 risk_type_id 取当前类型配置名称，取不到再回落记录内的名称快照 */
+export function riskTypeName(row) {
+  if (!row) return '--'
+  const typeId = String(row.risk_type_id || '').trim()
+  if (typeId) {
+    const source = airportRiskSourceList.find((item) => item.id === typeId)
+    if (source?.source_name) return source.source_name
+  }
+  return cell(row.risk_type)
 }
 
 export function riskRunStatusLabel(row) {
@@ -165,12 +182,12 @@ export function severityTagType(value) {
 
 /**
  * 激活状态 Tag 颜色（统一色口径，由 riskRunStatus 派生；字段键与枚举值不变）：
- * activated（已激活）＝danger（红）/ inactive（未激活）＝info（灰）/ closed（已关闭）＝success（绿）。
+ * activated（已激活）＝danger（红）/ not_started（未开始）＝info（灰）/ closed（已关闭）＝success（绿）。
  */
 export function activationStatusTagType(row) {
   const status = riskRunStatus(row)
   if (status === 'activated') return 'danger'
-  if (status === 'inactive') return 'info'
+  if (status === 'not_started') return 'info'
   if (status === 'closed') return 'success'
   return 'info'
 }
@@ -513,6 +530,7 @@ function reportDay(value) {
 /**
  * 演示种子：编号与填报时间成对传入，编号取填报时间的日期部分，保持三段式 `FX-YYYYMMDD-序号` 自洽，
  * 且不同项目使用不同日期段，避免编号与「同日序号」冲突。
+ * 演示口径：原先「关联进度进行中」的种子改为手工激活（manual_activated: true），保证演示三态齐全。
  */
 function buildDemoControls(projectId, skipTypes, progressId, locationId, reportTime) {
   const day = reportDay(reportTime).replace(/-/g, '')
@@ -541,6 +559,7 @@ function buildDemoControls(projectId, skipTypes, progressId, locationId, reportT
     severity: item.severity,
     approval_status: 'approved',
     close_status: 'open',
+    manual_activated: constructionProgressStatus(progressId) === '进行中',
     copy_from_pk: '',
     copy_from_source_no: '',
     ...DEMO_SUPERVISOR,
@@ -661,6 +680,7 @@ export const riskPointControlList = reactive([
     severity: '高',
     approval_status: 'approved',
     close_status: 'open',
+    manual_activated: true,
     copy_from_pk: '',
     copy_from_source_no: '',
     supervisor_approver_user_id: 'u-jl-01',
@@ -697,6 +717,7 @@ export const riskPointControlList = reactive([
     severity: '超高',
     approval_status: 'approved',
     close_status: 'open',
+    manual_activated: true,
     copy_from_pk: '',
     copy_from_source_no: '',
     supervisor_approver_user_id: 'u-jl-01',
@@ -733,6 +754,7 @@ export const riskPointControlList = reactive([
     severity: '高',
     approval_status: 'reviewing',
     close_status: 'open',
+    manual_activated: false,
     copy_from_pk: '',
     copy_from_source_no: '',
     supervisor_approver_user_id: 'u-jl-01',
@@ -769,6 +791,7 @@ export const riskPointControlList = reactive([
     severity: '中',
     approval_status: 'approved',
     close_status: 'closed',
+    manual_activated: false,
     closed_at: '2026-09-08 17:20:00',
     copy_from_pk: '',
     copy_from_source_no: '',
@@ -795,7 +818,7 @@ export const riskPointControlList = reactive([
     risk_segment: '配电箱及电缆敷设',
     risk_location_wbs_id: ['loc-cable-1'],
     risk_location: '',
-    risk_desc: '管线迁改已完成，进度不再进行中，风险未激活。',
+    risk_desc: '管线迁改已完成，风险点未手工激活。',
     control_measure: '一机一闸一漏保；电缆架空或穿管；配电箱上锁；电工持证巡查。',
     plan_start: '2026-08-20',
     plan_end: '2026-09-05',
@@ -806,6 +829,7 @@ export const riskPointControlList = reactive([
     severity: '低',
     approval_status: 'approved',
     close_status: 'open',
+    manual_activated: false,
     copy_from_pk: '',
     copy_from_source_no: '',
     supervisor_approver_user_id: 'u-jl-01',
@@ -842,6 +866,7 @@ export const riskPointControlList = reactive([
     severity: '中',
     approval_status: 'rejected',
     close_status: 'open',
+    manual_activated: false,
     copy_from_pk: '',
     copy_from_source_no: '',
     last_opinion: '交叉作业时段和隔离措施请补充后再报。',
@@ -879,6 +904,7 @@ export const riskPointControlList = reactive([
     severity: '高',
     approval_status: 'reviewing',
     close_status: 'open',
+    manual_activated: false,
     copy_from_pk: '',
     copy_from_source_no: '',
     supervisor_approver_user_id: 'u-jl-01',
@@ -915,6 +941,7 @@ export const riskPointControlList = reactive([
     severity: '中',
     approval_status: 'approved',
     close_status: 'open',
+    manual_activated: true,
     copy_from_pk: '',
     copy_from_source_no: '',
     supervisor_approver_user_id: 'u-jl-01',
@@ -951,6 +978,7 @@ export const riskPointControlList = reactive([
     severity: '超高',
     approval_status: 'approved',
     close_status: 'open',
+    manual_activated: true,
     copy_from_pk: '',
     copy_from_source_no: '',
     supervisor_approver_user_id: 'u-jl-01',
@@ -987,6 +1015,7 @@ export const riskPointControlList = reactive([
     severity: '中',
     approval_status: 'approved',
     close_status: 'closed',
+    manual_activated: false,
     closed_at: '2026-09-15 16:00:00',
     copy_from_pk: '',
     copy_from_source_no: '',
@@ -1052,6 +1081,8 @@ function buildResubmitControl(source, seq) {
     report_time,
     approval_status: 'reviewing',
     close_status: 'open',
+    // 重新报审生成的新单从「未开始」起算，激活须由台账页手工触发
+    manual_activated: false,
     last_opinion: '',
     last_operator: '',
     closed_at: '',
@@ -1328,8 +1359,8 @@ export function saveAirportRiskSource(projectId, payload, editorName = '系统�
   if (payload.id) {
     const row = airportRiskSourceList.find((item) => item.id === payload.id && item.project_id === projectId)
     if (!row) return { ok: false, msg: '记录不存在' }
-    // Q12 B / C3：标识关联 + 名称快照。改名只改类型配置本身，
-    // 不级联更新下游配置库/台账（历史保留旧名称快照）。
+    // 2026-10-14 口径：标识关联 + 展示实时取名。改名只改类型配置本身，
+    // 下游配置库/台账的展示通过 riskTypeName() 按 risk_type_id 实时取当前名称（不保留历史快照）。
     row.source_name = source_name
     return { ok: true, data: row }
   }
@@ -1419,7 +1450,8 @@ export function listRiskPointControls(projectId, filters = {}) {
     if (row.project_id !== projectId) return false
     // 填报时间筛选：按该日期当天匹配（筛选器只提供日期，不新造范围筛选）
     if (reportTimeDay && reportDay(row.report_time) !== reportTimeDay) return false
-    if (risk_type && row.risk_type !== risk_type) return false
+    // 风险类型筛选：按当前类型配置名称匹配（类型改名后历史记录跟随显示新名称）
+    if (risk_type && riskTypeName(row) !== risk_type) return false
     if (severity && row.severity !== severity) return false
     if (approval_status && row.approval_status !== approval_status) return false
     if (risk_status && riskRunStatus(row) !== risk_status) return false
@@ -1428,7 +1460,7 @@ export function listRiskPointControls(projectId, filters = {}) {
 }
 
 /**
- * 风险点审批指标（纯审批状态口径）。
+ * 风险点申报指标（纯审批状态口径）。
  * 总数 = 该项目全部风险辨识记录；其余三项按审批状态计数。
  */
 export function listRiskControlMetrics(projectId) {
@@ -1462,14 +1494,14 @@ export function listRiskPointLedger(projectId, filters = {}) {
 
 /**
  * 风险点台账指标（纯激活状态口径）。
- * 仅统计已通过记录，按派生激活状态计数；已激活 = 未关闭且关联施工进度为「进行中」。
+ * 仅统计已通过记录，按派生激活状态计数：已关闭优先，其次手工激活，其余为未开始。
  */
 export function listRiskPointLedgerMetrics(projectId) {
   const rows = listRiskPointLedger(projectId)
   return {
     total: rows.length,
     activated: rows.filter((row) => riskRunStatus(row) === 'activated').length,
-    inactive: rows.filter((row) => riskRunStatus(row) === 'inactive').length,
+    not_started: rows.filter((row) => riskRunStatus(row) === 'not_started').length,
     closed: rows.filter((row) => riskRunStatus(row) === 'closed').length,
   }
 }
@@ -1603,6 +1635,8 @@ export function saveRiskPointControl(projectId, payload, editorName = '系统管
     ...supervisor,
     approval_status: 'reviewing',
     close_status: 'open',
+    // 新单从「未开始」起算；激活由台账页「激活」按钮手工触发
+    manual_activated: false,
     submit_time: nowStr(),
     finish_time: '',
   }
@@ -1634,22 +1668,25 @@ export function supervisorApproveRiskControl(id, { action, opinion, operatorName
   if (action === 'agree') {
     row.approval_status = 'approved'
     row.finish_time = time
-    const receivers = [row.control_person_id, row.implement_person_id]
-      .filter(Boolean)
-      .map((id) => ({ id, name: riskPersonLabel(id) }))
-    pushRiskControlMeasureNotices({
-      controlId: row.id,
-      riskSourceNo: row.risk_source_no,
-      riskPoint: row.risk_point,
-      controlMeasure: row.control_measure,
-      receivers,
-    })
   } else {
     row.approval_status = 'rejected'
     row.finish_time = time
   }
   row.last_opinion = String(opinion || '').trim()
   row.last_operator = operatorName || '当前用户'
+  return { ok: true, data: row }
+}
+
+/**
+ * 手工激活（台账链路，二次确认由调用方负责）
+ * 前置校验：记录存在、属于本项目、且当前处于「未开始」（已通过审批亦为必要条件）。
+ */
+export function activateRiskPointControl(projectId, id) {
+  const row = riskPointControlList.find((item) => item.id === id && item.project_id === projectId)
+  if (!row) return { ok: false, msg: '记录不存在' }
+  if (row.approval_status !== 'approved') return { ok: false, msg: '仅已通过审批的风险点可激活' }
+  if (riskRunStatus(row) !== 'not_started') return { ok: false, msg: '当前不可激活' }
+  row.manual_activated = true
   return { ok: true, data: row }
 }
 
@@ -1666,8 +1703,8 @@ export function closeRiskPointControl(projectId, id) {
 
 /**
  * 关闭后重新激活（Q7 B，C2：不重新审批）
- * 仅「已通过且已关闭」可重新激活；激活后回到未关闭，
- * 由激活状态三态判定（关联进度进行中→已激活，否则→未激活）。
+ * 仅「已通过且已关闭」可重新激活；重新激活后回到未关闭，
+ * 并置手工激活标记为 true，派生状态即为「已激活」。
  */
 export function reactivateRiskPointControl(projectId, id) {
   const row = riskPointControlList.find((item) => item.id === id && item.project_id === projectId)
@@ -1677,6 +1714,7 @@ export function reactivateRiskPointControl(projectId, id) {
   }
   row.close_status = 'open'
   row.closed_at = ''
+  row.manual_activated = true
   return { ok: true, data: row }
 }
 

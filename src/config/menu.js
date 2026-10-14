@@ -147,7 +147,7 @@ export const menuTree = [
         key: 'risk-manage-group', label: '风险管理', icon: 'Compass', levels: 'project',
         children: [
           { key: 'risk-point-ledger', label: '风险点台账', icon: 'Notebook', path: '/site-construction/risk-point-ledger', name: 'RiskPointLedger', component: 'RiskPointLedgerView', levels: 'project' },
-          { key: 'risk-point-control', label: '风险点审批', icon: 'Compass', path: '/site-construction/risk-point-control', name: 'RiskPointControl', component: 'RiskPointControlView', levels: 'project' },
+          { key: 'risk-point-control', label: '风险点申报', icon: 'Compass', path: '/site-construction/risk-point-control', name: 'RiskPointControl', component: 'RiskPointControlView', levels: 'project' },
           { key: 'risk-point-config', label: '风险配置库', icon: 'CollectionTag', path: '/site-construction/risk-point-config', name: 'RiskPointConfig', component: 'RiskPointConfigView', levels: 'project' },
           { key: 'airport-risk-source', label: '风险类型配置', icon: 'Memo', path: '/site-construction/airport-risk-source', name: 'AirportRiskSource', component: 'AirportRiskSourceView', levels: 'project' },
         ],
@@ -393,7 +393,7 @@ export const hiddenRoutes = [
   { key: 'risk-point-ledger-detail', path: '/site-construction/risk-point-ledger/:id', name: 'RiskPointLedgerDetail', component: 'RiskPointControlDetailView', label: '风险点台账详情', sidebarKey: 'risk-point-ledger' },
   { key: 'risk-point-control-create', path: '/site-construction/risk-point-control/create', name: 'RiskPointControlCreate', component: 'RiskPointControlFormView', label: '新增风险辨识', sidebarKey: 'risk-point-control' },
   { key: 'risk-point-control-edit', path: '/site-construction/risk-point-control/:id/edit', name: 'RiskPointControlEdit', component: 'RiskPointControlFormView', label: '重新报审', sidebarKey: 'risk-point-control' },
-  { key: 'risk-point-control-detail', path: '/site-construction/risk-point-control/:id', name: 'RiskPointControlDetail', component: 'RiskPointControlDetailView', label: '风险点审批详情', sidebarKey: 'risk-point-control' },
+  { key: 'risk-point-control-detail', path: '/site-construction/risk-point-control/:id', name: 'RiskPointControlDetail', component: 'RiskPointControlDetailView', label: '风险点申报详情', sidebarKey: 'risk-point-control' },
 
   // 危大工程管理子页
   { key: 'major-hazard-identification-create', path: '/major-hazard/identification/create', name: 'MajorHazardIdentificationCreate', component: 'HazardIdentificationFormView', label: '新增危大辨识', sidebarKey: 'major-hazard-identification' },
