@@ -291,6 +291,17 @@ function cell(v) {
 
 export { cell as formatRiskCell }
 
+/**
+ * 填报时间展示（统一到分）：`YYYY-MM-DD HH:mm`。
+ * 填报时间由提交后系统自动生成，落库为完整时间戳 `YYYY-MM-DD HH:mm:ss`；
+ * 列表 / 详情 / 个人中心待办面板统一用本 helper 截断到分展示，空值回落 `--`。
+ */
+export function formatRiskReportTime(value) {
+  const text = String(value ?? '').trim()
+  if (!text) return '--'
+  return text.slice(0, 16)
+}
+
 let configSeq = 7
 let controlSeq = 10
 
@@ -494,16 +505,22 @@ function buildDemoConfigs(projectId, skipTypes) {
   }))
 }
 
+/** 取填报时间的日期部分（`YYYY-MM-DD HH:mm:ss` → `YYYY-MM-DD`；仅传日期时原样返回），供风险源编号使用 */
+function reportDay(value) {
+  return String(value || '').trim().slice(0, 10)
+}
+
 /**
- * 演示种子：编号与填报日期成对传入，保持三段式 `FX-YYYYMMDD-序号` 自洽，
+ * 演示种子：编号与填报时间成对传入，编号取填报时间的日期部分，保持三段式 `FX-YYYYMMDD-序号` 自洽，
  * 且不同项目使用不同日期段，避免编号与「同日序号」冲突。
  */
-function buildDemoControls(projectId, skipTypes, progressId, locationId, reportDate) {
+function buildDemoControls(projectId, skipTypes, progressId, locationId, reportTime) {
+  const day = reportDay(reportTime).replace(/-/g, '')
   return demoSeedsFor(skipTypes).map((item, index) => ({
     id: `rpk-${projectId}-d${index + 1}`,
     project_id: projectId,
-    risk_source_no: `FX-${reportDate.replace(/-/g, '')}-${String(index + 1).padStart(3, '0')}`,
-    report_date: reportDate,
+    risk_source_no: `FX-${day}-${String(index + 1).padStart(3, '0')}`,
+    report_time: reportTime,
     risk_factor: item.risk_factor,
     hazard_consequence: item.hazard_consequence,
     construction_stage: '施工',
@@ -623,7 +640,7 @@ export const riskPointControlList = reactive([
     id: 'rpk-001',
     project_id: 'p-000',
     risk_source_no: 'FX-20260828-001',
-    report_date: '2026-08-28',
+    report_time: '2026-08-28 10:20:00',
     risk_factor: '临边栏杆未封闭，作业面临空。',
     hazard_consequence: '人员高处坠落，造成伤亡。',
     construction_stage: '施工',
@@ -659,7 +676,7 @@ export const riskPointControlList = reactive([
     id: 'rpk-002',
     project_id: 'p-000',
     risk_source_no: 'FX-20260829-001',
-    report_date: '2026-08-29',
+    report_time: '2026-08-29 14:05:00',
     risk_factor: '多台起重设备在同一覆盖区交叉作业。',
     hazard_consequence: '吊物坠落或设备碰撞，造成人员伤害和设备损坏。',
     construction_stage: '施工',
@@ -695,7 +712,7 @@ export const riskPointControlList = reactive([
     id: 'rpk-003',
     project_id: 'p-000',
     risk_source_no: 'FX-20260916-001',
-    report_date: '2026-09-16',
+    report_time: '2026-09-16 09:30:00',
     risk_factor: '基坑临边防护不连续。',
     hazard_consequence: '人员或物料坠入基坑。',
     construction_stage: '施工',
@@ -731,7 +748,7 @@ export const riskPointControlList = reactive([
     id: 'rpk-004',
     project_id: 'p-000',
     risk_source_no: 'FX-20260901-001',
-    report_date: '2026-09-01',
+    report_time: '2026-09-01 09:10:00',
     risk_factor: '航站区动火点周边仍堆放包装材料和油污抹布。',
     hazard_consequence: '动火引燃可燃物，造成火灾和人员灼伤。',
     construction_stage: '施工',
@@ -768,7 +785,7 @@ export const riskPointControlList = reactive([
     id: 'rpk-005',
     project_id: 'p-000',
     risk_source_no: 'FX-20260820-001',
-    report_date: '2026-08-20',
+    report_time: '2026-08-20 11:00:00',
     risk_factor: '管线迁改段临时电缆曾沿地敷设，绝缘局部老化。',
     hazard_consequence: '潮湿环境触电，造成人员伤亡或停电。',
     construction_stage: '施工',
@@ -804,7 +821,7 @@ export const riskPointControlList = reactive([
     id: 'rpk-006',
     project_id: 'p-000',
     risk_source_no: 'FX-20260905-001',
-    report_date: '2026-09-05',
+    report_time: '2026-09-05 08:40:00',
     risk_factor: '楼层上下同时作业，防护棚未按方案搭设。',
     hazard_consequence: '上方物料坠落，打击下方作业人员。',
     construction_stage: '施工',
@@ -841,7 +858,7 @@ export const riskPointControlList = reactive([
     id: 'rpk-007',
     project_id: 'p-000',
     risk_source_no: 'FX-20260918-001',
-    report_date: '2026-09-18',
+    report_time: '2026-09-18 10:05:00',
     risk_factor: '不停航通道上施工车辆与场内运行车辆混行。',
     hazard_consequence: '车辆碰撞或碾压，造成人员伤亡和运行中断。',
     construction_stage: '施工',
@@ -877,7 +894,7 @@ export const riskPointControlList = reactive([
     id: 'rpk-008',
     project_id: 'p-000',
     risk_source_no: 'FX-20260910-001',
-    report_date: '2026-09-10',
+    report_time: '2026-09-10 13:20:00',
     risk_factor: '基坑段配电箱门锁损坏，电缆接头外露。',
     hazard_consequence: '非电工误触带电部位，造成触电伤害。',
     construction_stage: '施工',
@@ -913,7 +930,7 @@ export const riskPointControlList = reactive([
     id: 'rpk-009',
     project_id: 'p-001',
     risk_source_no: 'FX-20260902-001',
-    report_date: '2026-09-02',
+    report_time: '2026-09-02 09:00:00',
     risk_factor: '主体施工段深基坑监测位移接近预警。',
     hazard_consequence: '支护失效导致基坑坍塌，掩埋人员和设备。',
     construction_stage: '施工',
@@ -949,7 +966,7 @@ export const riskPointControlList = reactive([
     id: 'rpk-010',
     project_id: 'p-001',
     risk_source_no: 'FX-20260908-001',
-    report_date: '2026-09-08',
+    report_time: '2026-09-08 10:30:00',
     risk_factor: '局部超挖已回填并复测合格。',
     hazard_consequence: '若再次超挖，可能引起边坡失稳。',
     construction_stage: '施工',
@@ -982,8 +999,8 @@ export const riskPointControlList = reactive([
     creator: '刘安全',
     created_at: '2026-09-08 10:30:00',
   },
-  ...buildDemoControls('p-000', ['高处坠落', '起重伤害', '触电', '火灾爆炸', '物体打击', '车辆伤害'], 'prog-p-000-1', 'loc-conc-1', '2026-09-19'),
-  ...buildDemoControls('p-001', ['坍塌'], 'prog-p-001-1', 'loc-rwy-1', '2026-09-20'),
+  ...buildDemoControls('p-000', ['高处坠落', '起重伤害', '触电', '火灾爆炸', '物体打击', '车辆伤害'], 'prog-p-000-1', 'loc-conc-1', '2026-09-19 09:00:00'),
+  ...buildDemoControls('p-001', ['坍塌'], 'prog-p-001-1', 'loc-rwy-1', '2026-09-20 09:00:00'),
   // 演示「重新报审 + 审批过程」：源单 = 已驳回的 rpk-006，新记录按今天生成编号（同日序号接排）
   ...buildResubmitControl(
     {
@@ -1020,30 +1037,30 @@ export const riskPointControlList = reactive([
 
 /**
  * 「重新报审」演示种子：由已驳回原单 rpk-006（FX-20260905-001）复制生成的新记录。
- * 原单保持已驳回、只读、不可再提；新记录按新填报日期生成新的风险源编号，并保留来源追溯。
+ * 原单保持已驳回、只读、不可再提；新记录按新的填报时间（新单提交时刻）生成新的风险源编号，
+ * 并保留来源追溯。
  * 注意：本函数在 riskPointControlList 初始化表达式中被调用，不能反向引用该常量（TDZ），
  * 故源单对象与「同日序号」由调用处传入。
  */
 function buildResubmitControl(source, seq) {
   if (!source) return []
-  const report_date = nowStr().slice(0, 10)
-  const stamp = nowStr()
+  const report_time = nowStr()
   return [{
     ...source,
     id: 'rpk-011',
-    risk_source_no: `FX-${report_date.replace(/-/g, '')}-${String(seq).padStart(3, '0')}`,
-    report_date,
+    risk_source_no: `FX-${reportDay(report_time).replace(/-/g, '')}-${String(seq).padStart(3, '0')}`,
+    report_time,
     approval_status: 'reviewing',
     close_status: 'open',
     last_opinion: '',
     last_operator: '',
     closed_at: '',
-    submit_time: stamp,
+    submit_time: report_time,
     finish_time: '',
     copy_from_pk: source.id,
     copy_from_source_no: source.risk_source_no,
     creator: source.creator,
-    created_at: stamp,
+    created_at: report_time,
   }]
 }
 
@@ -1391,15 +1408,17 @@ function pushSupervisorTodo(row) {
 
 export function listRiskPointControls(projectId, filters = {}) {
   const {
-    report_date = '',
+    report_time = '',
     risk_type = '',
     severity = '',
     approval_status = '',
     risk_status = '',
   } = filters
+  const reportTimeDay = String(report_time || '').trim().slice(0, 10)
   return riskPointControlList.filter((row) => {
     if (row.project_id !== projectId) return false
-    if (report_date && row.report_date !== report_date) return false
+    // 填报时间筛选：按该日期当天匹配（筛选器只提供日期，不新造范围筛选）
+    if (reportTimeDay && reportDay(row.report_time) !== reportTimeDay) return false
     if (risk_type && row.risk_type !== risk_type) return false
     if (severity && row.severity !== severity) return false
     if (approval_status && row.approval_status !== approval_status) return false
@@ -1424,17 +1443,17 @@ export function listRiskControlMetrics(projectId) {
 
 /**
  * 风险点台账查询（只读）：仅审批状态为「已通过」的风险辨识记录。
- * 支持 填报日期 / 风险类型 / 严重程度 / 激活状态（派生） 筛选。
+ * 支持 填报时间 / 风险类型 / 严重程度 / 激活状态（派生） 筛选。
  */
 export function listRiskPointLedger(projectId, filters = {}) {
   const {
-    report_date = '',
+    report_time = '',
     risk_type = '',
     severity = '',
     risk_status = '',
   } = filters
   return listRiskPointControls(projectId, {
-    report_date,
+    report_time,
     risk_type,
     severity,
     risk_status,
@@ -1463,8 +1482,8 @@ export function getConfigProjectName(projectId) {
   return getProjectLabel(projectId) || '--'
 }
 
-function nextRiskSourceNo(projectId, reportDate) {
-  const day = String(reportDate || '').replace(/-/g, '')
+function nextRiskSourceNo(projectId, reportTime) {
+  const day = reportDay(reportTime).replace(/-/g, '')
   const prefix = `FX-${day}-`
   const max = riskPointControlList.reduce((acc, row) => {
     if (row.project_id !== projectId) return acc
@@ -1480,13 +1499,15 @@ function nextRiskSourceNo(projectId, reportDate) {
  * 新增风险辨识（唯一写入口）。
  * - 普通新增：不传 `copy_from_control_id`。
  * - 重新报审：传 `copy_from_control_id`，源单须为同项目已驳回记录；
- *   原单保留、只读、不可再提，本方法只生成新记录（新风险源编号，按本次填报日期）。
+ *   原单保留、只读、不可再提，本方法只生成新记录（新风险源编号，按本次填报时间的日期部分）。
+ * - 填报时间由系统在提交时自动生成：忽略调用方传入的填报时间入参（含历史字段名），
+ *   一律落库为当前时刻（`YYYY-MM-DD HH:mm:ss`）；重新报审同样按新单提交时刻生成。
  */
 export function saveRiskPointControl(projectId, payload, editorName = '系统管理员') {
   if (!projectId) return { ok: false, msg: '请先选择项目' }
   ensureAirportRiskSources(projectId)
   const copy_from_control_id = String(payload.copy_from_control_id || '').trim()
-  const report_date = (payload.report_date || '').trim()
+  const report_time = nowStr()
   const risk_factor = (payload.risk_factor || '').trim()
   const hazard_consequence = (payload.hazard_consequence || '').trim()
   const construction_stage = (payload.construction_stage || '').trim()
@@ -1524,7 +1545,6 @@ export function saveRiskPointControl(projectId, payload, editorName = '系统管
     }
   }
 
-  if (!report_date) return { ok: false, msg: '请选择填报日期' }
   if (!risk_factor) return { ok: false, msg: '请填写风险因素' }
   if (risk_factor.length > 300) return { ok: false, msg: '风险因素不超过300字' }
   if (!hazard_consequence) return { ok: false, msg: '请填写危害后果' }
@@ -1560,7 +1580,7 @@ export function saveRiskPointControl(projectId, payload, editorName = '系统管
   if (!implement_person_id) return { ok: false, msg: '请选择实施责任人' }
 
   const base = {
-    report_date,
+    report_time,
     risk_factor,
     hazard_consequence,
     construction_stage,
@@ -1589,7 +1609,7 @@ export function saveRiskPointControl(projectId, payload, editorName = '系统管
 
   const row = {
     id: `rpk-${String(++controlSeq).padStart(3, '0')}`,
-    risk_source_no: nextRiskSourceNo(projectId, report_date),
+    risk_source_no: nextRiskSourceNo(projectId, report_time),
     project_id: projectId,
     ...base,
     copy_from_pk: copySource ? copySource.id : '',

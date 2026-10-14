@@ -1,12 +1,18 @@
 /**
  * 每周值班表（项目维护 / 指挥部汇总只读）
- * 粒度：项目 + 周（周一）→ 每日先白班/夜班，再施工/监理（0～9 人）
+ * 粒度：项目 + 周（周一）→ 每日先白班/夜班，再施工/监理（0～30 人）
  * 值班照片：不在新增时上传，仅对今天及更早日期补录（image 档，0～9）
  */
 
 import { nowStr } from '../utils/datetime.js'
 import { formatApproverOptionLabel } from '../utils/approverDisplay.js'
-import { getProjectSelectOptions, findProjectById } from './projectBasicInfo.js'
+import { getProjectSelectOptions, findProjectById, getHiddenProjectIdSet } from './projectBasicInfo.js'
+import { PROJECT_NAMES, PROJECT_SHORT_NAMES } from '../config/projectCatalog.js'
+import { getProjectPersonnel } from './laborRealName.js'
+import { REALNAME_ENTRY_STATUS } from '../constants/laborPersonStatus.js'
+
+/** 单槽位（班次 × 角色）值班人数上限 */
+export const DUTY_SLOT_PERSON_LIMIT = 30
 
 const STORAGE_KEY = 'coc-admin-duty-roster-v1'
 const SEED_FLAG = 'coc-admin-duty-roster-seed-v1'
@@ -42,6 +48,83 @@ const SHARED_DEMO_PERSON = {
   name: '周建国',
   org: '中建八局项目部',
   position: '施工员',
+}
+
+/**
+ * 演示用值班人员的实名制手机号（实名制身份信息一部分）。
+ * 大屏按实名制考勤流水核验在场状态时需要手机号，故演示池人员也带手机号；
+ * 未登记手机号或考勤未匹配的候选人在大屏不展示在场状态标签。
+ * ⚠️ 仅演示数据；接入后端后由实名制接口返回真实人员与手机号。
+ */
+const DEMO_PERSON_PHONES = {
+  'dr-sg-01': '13800100011',
+  'dr-sg-02': '13800100012',
+  'dr-sg-03': '13800100013',
+  'dr-sg-04': '13800100014',
+  'dr-sg-05': '13800100015',
+  'dr-sg-06': '13800100016',
+  'dr-sg-07': '13800100017',
+  'dr-sg-08': '13800100018',
+  'dr-sg-09': '13800100019',
+  'dr-sg-10': '13800100020',
+  'dr-jl-01': '13900100031',
+  'dr-jl-02': '13900100032',
+  'dr-jl-03': '13900100033',
+  'dr-jl-04': '13900100034',
+  'dr-jl-05': '13900100035',
+  'dr-jl-06': '13900100036',
+  'dr-jl-07': '13900100037',
+  'dr-jl-08': '13900100038',
+  'dr-jl-09': '13900100039',
+  'dr-sh-01': '13800100023',
+}
+
+/**
+ * 人员来源：
+ * - realname：来自实名制（含选拔池），在大屏按实名制考勤核验在场状态
+ * - manual：值班表内手动输入的「姓名 + 岗位」，非实名制人员，大屏不展示在场状态标签
+ */
+export const DUTY_PERSON_SOURCE = {
+  REAL_NAME: 'realname',
+  MANUAL: 'manual',
+}
+
+function demoPhoneOf(userId) {
+  return DEMO_PERSON_PHONES[String(userId || '')] || ''
+}
+
+let manualPersonSeq = 0
+
+/** 手动输入人员：值班表内直接录入「姓名 + 岗位」，不关联实名制 */
+export function buildManualDutyPerson(name, position) {
+  const n = String(name || '').trim()
+  const pos = String(position || '').trim()
+  if (!n) return null
+  manualPersonSeq += 1
+  const userId = `dr-manual-${Date.now().toString(36)}-${manualPersonSeq}`
+  return enrichPerson({
+    userId,
+    name: n,
+    org: '',
+    position: pos,
+    phone: '',
+    source: DUTY_PERSON_SOURCE.MANUAL,
+  })
+}
+
+/** 人员来源判定：手动输入的人员不做实名制考勤核验、不展示在场状态 */
+export function isManualDutyPerson(person) {
+  return person?.source === DUTY_PERSON_SOURCE.MANUAL
+}
+
+/** 是否已存在的值班人员（重名 + 同岗位视为同一人） */
+export function hasDutyPerson(list, name, position) {
+  const n = String(name || '').trim()
+  const pos = String(position || '').trim()
+  if (!n) return false
+  return (Array.isArray(list) ? list : []).some(
+    (p) => String(p?.name || '').trim() === n && String(p?.position || '').trim() === pos,
+  )
 }
 
 const CONSTRUCTION_POOL = [
@@ -125,28 +208,49 @@ export function enrichPerson(raw) {
   const name = raw.name || ''
   const org = raw.org || raw.orgName || ''
   const position = raw.position || raw.post_label || raw.postLabel || ''
+  const userId = raw.userId || raw.user_id || ''
+  const source =
+    raw.source === DUTY_PERSON_SOURCE.MANUAL || raw.manual
+      ? DUTY_PERSON_SOURCE.MANUAL
+      : DUTY_PERSON_SOURCE.REAL_NAME
+  const phone = source === DUTY_PERSON_SOURCE.MANUAL ? '' : raw.phone || demoPhoneOf(userId) || ''
   return {
-    userId: raw.userId || raw.user_id || '',
+    userId,
     name,
     org,
     position,
+    phone,
+    source,
     party: raw.party || '',
     optionLabel: raw.optionLabel || formatApproverOptionLabel(name, org, position),
   }
 }
 
+/**
+ * 槽位人员候选 = 实名制人员（当前项目，已退场人员除外）+ 演示选拔池。
+ * 实名制人员带手机号，可直接按实名制考勤核验在场状态；演示池人员用于演示「考勤未匹配（不展示在场标签）」。
+ */
 export function listDutyPersonOptions(projectId, party) {
   if (!projectId) return []
   const pool = party === 'supervision' ? SUPERVISION_POOL : CONSTRUCTION_POOL
-  // 演示：各项目共用池，按项目微扰姓名后缀保证「项目范围内」可区分
-  return pool.map((p) => {
-    const base = enrichPerson(p)
-    return {
-      ...base,
-      projectId,
-      optionLabel: formatApproverOptionLabel(base.name, base.org, base.position),
-    }
-  })
+  const demoOptions = pool
+    .map((p) => enrichPerson(p))
+    .map((p) => ({ ...p, projectId }))
+  const seen = new Set(demoOptions.map((p) => p.userId))
+  const realNameOptions = getProjectPersonnel(projectId)
+    .filter((row) => row?.entry_status !== REALNAME_ENTRY_STATUS.EXITED)
+    .map((row) =>
+      enrichPerson({
+        userId: row.id,
+        name: row.basic?.name || '',
+        org: row.unit?.unit_name || '',
+        position: row.unit?.work_type || '',
+        phone: row.basic?.phone || '',
+      }),
+    )
+    .filter((p) => p?.name && !seen.has(p.userId))
+    .map((p) => ({ ...p, projectId }))
+  return [...realNameOptions, ...demoOptions]
 }
 
 function emptyDay(dateYmd, weekdayIndex) {
@@ -192,7 +296,7 @@ function normalizePersonList(list) {
     if (!p?.userId || seen.has(p.userId)) continue
     seen.add(p.userId)
     out.push(p)
-    if (out.length >= 9) break
+    if (out.length >= DUTY_SLOT_PERSON_LIMIT) break
   }
   return out
 }
@@ -342,22 +446,54 @@ function buildSeedWeek(projectId, projectName, weekStart, variant = 0) {
   return week
 }
 
+/**
+ * 值班表所属项目清单：以 COC 大屏项目主键（p-000～p-0NN，取自项目名录）为准，
+ * 覆盖全部在建项目 —— 大屏当日值班按 projectId 读值班表，未播种的项目会整项目「未排班」。
+ * 已登记项目主数据的项目沿用其简称；其余用项目名录简称。
+ */
+function dutyRosterProjectList() {
+  const hidden = getHiddenProjectIdSet()
+  const masterOptions = getProjectSelectOptions()
+  const masterById = new Map(masterOptions.map((p) => [p.id, p]))
+  const out = []
+  const seen = new Set()
+  PROJECT_NAMES.forEach((name, i) => {
+    const id = `p-${String(i).padStart(3, '0')}`
+    if (hidden.has(id) || seen.has(id)) return
+    seen.add(id)
+    const master = masterById.get(id)
+    out.push({ id, name: master?.shortName || PROJECT_SHORT_NAMES[i] || name })
+  })
+  // 主数据里存在但不在项目名录内的项目（如 p-pump-002 / p-east-terminal）兜底补上
+  masterOptions.forEach((p) => {
+    if (seen.has(p.id)) return
+    seen.add(p.id)
+    out.push({ id: p.id, name: p.shortName || p.name })
+  })
+  return out
+}
+
 export function ensureDutyRosterSeed() {
   if (typeof localStorage === 'undefined') return
-  if (localStorage.getItem(SEED_FLAG) === '1' && readRaw().length) return
-  const options = getProjectSelectOptions().slice(0, 4)
   const thisWeek = toWeekStartMonday(todayYmd())
   const lastWeek = addDaysYmd(thisWeek, -7)
-  const seeds = []
-  options.forEach((p, i) => {
-    seeds.push(buildSeedWeek(p.id, p.shortName || p.name, lastWeek, i))
-    seeds.push(buildSeedWeek(p.id, p.shortName || p.name, thisWeek, i + 1))
+  const list = readRaw()
+  const seededProjectIds = new Set(list.map((row) => row.projectId))
+  const projects = dutyRosterProjectList()
+  // 项目名单扩充后，只为「尚无任何值班表」的项目补种，不覆盖既有排班
+  const missing = projects.filter((p) => !seededProjectIds.has(p.id))
+  if (localStorage.getItem(SEED_FLAG) === '1' && list.length && !missing.length) return
+  let nextIdSeq = list.length
+  missing.forEach((p) => {
+    const i = projects.findIndex((x) => x.id === p.id)
+    const last = buildSeedWeek(p.id, p.name, lastWeek, i)
+    const current = buildSeedWeek(p.id, p.name, thisWeek, i + 1)
+    for (const row of [last, current]) {
+      nextIdSeq += 1
+      list.push({ ...normalizeDutyWeek(row), id: `drw-${String(nextIdSeq).padStart(4, '0')}` })
+    }
   })
-  const withIds = seeds.map((row, i) => ({
-    ...normalizeDutyWeek(row),
-    id: `drw-${String(i + 1).padStart(4, '0')}`,
-  }))
-  writeRaw(withIds)
+  writeRaw(list)
   localStorage.setItem(SEED_FLAG, '1')
 }
 
@@ -429,7 +565,9 @@ export function validateDutyWeekPayload(payload, { isCreate = false } = {}) {
   for (const day of week.days) {
     for (const def of SLOT_DEFS) {
       const n = (day[def.key] || []).length
-      if (n > 9) return { ok: false, msg: `${day.weekdayLabel}${def.label}最多 9 人` }
+      if (n > DUTY_SLOT_PERSON_LIMIT) {
+        return { ok: false, msg: `${day.weekdayLabel}${def.label}最多 ${DUTY_SLOT_PERSON_LIMIT} 人` }
+      }
     }
     if ((day.dayPhotos || []).length > 9) {
       return { ok: false, msg: `${day.weekdayLabel}白班照片最多 9 张` }

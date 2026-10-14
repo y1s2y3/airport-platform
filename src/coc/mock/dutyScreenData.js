@@ -2,13 +2,13 @@
  * COC 调度大屏 · 项目值班统计（指挥部层级）/ 项目值班（项目层级）
  *
  * 数据口径：
- * 1. 值班安排：项目值班表按「周 + 日期 + 白班/夜班 + 施工/监理」排班，本模块取“今日”值班人员；
- *    演示数据按项目 ID 稳定生成，其中约 1/5 在建项目未排班，部分项目个别槽位未排班。
- * 2. 在场状态：按【姓名 + 手机号】查询实名制考勤流水（当日在场口径），派生：
+ * 1. 值班安排：取当日所在周的项目值班表当日排班（四个槽位）；无当周值班表时回退演示数据。
+ * 2. 在场状态：按【姓名 + 手机号】查询实名制考勤流水（当日在场口径），**仅两态**：
  *    - 在场：当日已进场且未出场（有进场时间、无出场时间）
- *    - 不在场（已出场）：当日已进场且已出场
- *    - 不在场（未进场）：当日无进场记录（夜班尚未到进场时间）
- *    - 未查询到考勤：实名制考勤流水中未匹配到该「姓名 + 手机号」
+ *    - 不在场：当日已进场且已出场，或当日无进场记录（如夜班尚未到进场时间）
+ *    值班人员直接取自实名制名册（原型为值班候选名册），考勤流水覆盖全部可排班人员，
+ *    因此正常不存在「查不到考勤」；值班表内**手动输入人员**不核验考勤、不展示在场状态标签
+ *    （`attendance.statusKey` 为空串）。
  *
  * 与 `src/mock/dutyRoster.js`（项目值班表）的口径一致：班次（白/夜）× 角色（施工/监理）四槽位、
  * 槽位中文名同为「白班 · 施工 / 白班 · 监理 / 夜班 · 施工 / 夜班 · 监理」。
@@ -19,6 +19,7 @@ import {
   ONSITE_STATUS,
   getOnSiteStatus,
 } from '../../constants/laborPersonStatus.js'
+import { findDutyWeek, toWeekStartMonday, isManualDutyPerson } from '../../mock/dutyRoster.js'
 
 export const DUTY_SHIFT_DEFS = [
   { key: 'day', label: '白班', timeRange: '08:00 - 20:00' },
@@ -66,11 +67,14 @@ export const PARTY_LABELS = {
   supervision: '监理',
 }
 
-/** 实名制考勤状态（在场口径与劳务实名制一致，见 constants/laborPersonStatus.js） */
+/**
+ * 大屏在场状态：**仅在场 / 不在场两态**。
+ * 未匹配到实名制考勤、手动输入人员一律为空串（不展示标签），核验原因见 attendance.detail。
+ */
 export const DUTY_ONSITE_STATUS = {
   ON_SITE: ONSITE_STATUS.ON_SITE,
   OFF_SITE: ONSITE_STATUS.OFF_SITE,
-  NO_RECORD: '未查询到考勤',
+  NO_RECORD: '',
 }
 
 const CONSTRUCTION_UNIT_A = '中建八局项目部'
@@ -180,14 +184,12 @@ function maskPhone(phone) {
 export { maskPhone }
 
 /**
- * 生成某「班次 × 角色」池的当日在场考勤流水。
- * 白班：已进场（个别已出场 / 个别无记录）；夜班：尚未到进场时间（个别无记录）。
+ * 生成某「班次 × 角色」池的当日在场考勤流水（全部有记录，不设「无记录」分支）。
+ * 白班：已进场（个别已出场）；夜班：尚未到进场时间。
  */
 function buildLedgerForPool(pool, shift, date) {
   return pool.map((person, idx) => {
     const seed = hashStr(`${person.userId}-${date}`)
-    // 约 1/8 人员在实名制考勤流水中无记录 → 未查询到考勤
-    if (seed % 8 === 3) return null
     if (shift === 'day') {
       const clockIn = `${pad(7)}:${pad(30 + (seed % 25))}`
       const leaveEarly = seed % 4 === 1
@@ -214,6 +216,25 @@ function buildLedgerForPool(pool, shift, date) {
 
 const LEDGER_CACHE = new Map()
 
+/** 值班表候选人（各项目共用）：用于把考勤流水覆盖到全部可排班人员 */
+let DUTY_ROSTER_CANDIDATES = null
+
+function dutyRosterCandidates() {
+  if (DUTY_ROSTER_CANDIDATES) return DUTY_ROSTER_CANDIDATES
+  const seen = new Set()
+  const out = []
+  for (const pool of [CONSTRUCTION_DAY_POOL, CONSTRUCTION_NIGHT_POOL, SUPERVISION_DAY_POOL, SUPERVISION_NIGHT_POOL]) {
+    for (const person of pool) {
+      const key = `${person.name}|${person.phone}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      out.push(person)
+    }
+  }
+  DUTY_ROSTER_CANDIDATES = out
+  return out
+}
+
 /** 当日实名制考勤流水（按 姓名 + 手机号 可查） */
 export function getRealNameAttendanceLedger(date = todayYmd()) {
   const key = String(date).slice(0, 10)
@@ -223,6 +244,8 @@ export function getRealNameAttendanceLedger(date = todayYmd()) {
     ...buildLedgerForPool(SUPERVISION_DAY_POOL, 'day', key),
     ...buildLedgerForPool(CONSTRUCTION_NIGHT_POOL, 'night', key),
     ...buildLedgerForPool(SUPERVISION_NIGHT_POOL, 'night', key),
+    // 值班表候选人（只补未覆盖到的人）：保证「值班人员 → 在场状态」必定可查，不出现无记录
+    ...buildLedgerForPool(dutyRosterCandidates(), 'day', key),
   ].filter(Boolean)
   LEDGER_CACHE.set(key, ledger)
   return ledger
@@ -230,7 +253,8 @@ export function getRealNameAttendanceLedger(date = todayYmd()) {
 
 /**
  * 按【姓名 + 手机号】查询实名制考勤，返回在场状态
- * @returns {{ matched: boolean, status: string, statusKey: 'onSite'|'offSite'|'noRecord',
+ * 仅在场 / 不在场两态；未匹配到考勤返回空 status/statusKey（大屏不展示标签）
+ * @returns {{ matched: boolean, status: string, statusKey: 'onSite'|'offSite'|'',
  *   clockIn: string, clockOut: string, gate: string, detail: string }}
  */
 export function queryRealNameAttendance({ name, phone, date = todayYmd() } = {}) {
@@ -240,7 +264,7 @@ export function queryRealNameAttendance({ name, phone, date = todayYmd() } = {})
     return {
       matched: false,
       status: DUTY_ONSITE_STATUS.NO_RECORD,
-      statusKey: 'noRecord',
+      statusKey: '',
       clockIn: '',
       clockOut: '',
       gate: '',
@@ -248,13 +272,13 @@ export function queryRealNameAttendance({ name, phone, date = todayYmd() } = {})
     }
   }
   const ledger = getRealNameAttendanceLedger(date)
-  // 匹配口径：姓名 + 手机号 完全一致
+  // 匹配口径：姓名 + 手机号 完全一致（值班人员取自实名制名册，正常必能查到）
   const hit = ledger.find((row) => row.name === n && row.phone === p)
   if (!hit) {
     return {
       matched: false,
       status: DUTY_ONSITE_STATUS.NO_RECORD,
-      statusKey: 'noRecord',
+      statusKey: '',
       clockIn: '',
       clockOut: '',
       gate: '',
@@ -299,9 +323,62 @@ export function queryRealNameAttendance({ name, phone, date = todayYmd() } = {})
  * 值班安排（演示：按项目稳定生成）
  * ------------------------------------------------------------------ */
 
-/** 项目未排班判定 */
+/* ------------------------------------------------------------------ *
+ * 值班安排：数据源 = 项目「每周值班表」当日排班
+ * ------------------------------------------------------------------ */
+
+/** 项目未排班判定（仅用于无值班表时的演示回退） */
 export function isProjectDutyScheduled(projectId) {
   return hashStr(`${projectId}-duty-week`) % 5 !== 0
+}
+
+/**
+ * 取项目某日值班表当日排班（四个槽位）。
+ * 仅认「当天所在周 ±6 天」范围：只补录历史周 / 只新增未来周时，不影响当日大屏展示。
+ * @returns {null | { weekStart: string, day: object }}
+ */
+export function buildDutyDayFromRoster(projectId, date) {
+  const dayKey = String(date).slice(0, 10)
+  if (!dayKey) return null
+  // 只在「当天 ±7 天」内认排班：只补录历史周 / 只新增未来周时，不影响当日大屏
+  const dayMs = Date.parse(dayKey)
+  const todayMs = Date.parse(todayYmd())
+  if (!Number.isFinite(dayMs) || !Number.isFinite(todayMs)) return null
+  if (Math.abs(dayMs - todayMs) > 7 * 86400000) return null
+  const week = projectId ? findDutyWeek(projectId, toWeekStartMonday(dayKey)) : null
+  if (!week) return null
+  const day = (week.days || []).find((d) => String(d.date).slice(0, 10) === dayKey)
+  if (!day) return null
+  return { weekStart: week.weekStart, day }
+}
+
+/**
+ * 值班表人员 → 大屏值班人员。
+ * - 实名制人员：带手机号，按实名制考勤核验在场状态
+ * - 手动输入人员：非实名制人员，不核验考勤（大屏不展示在场状态标签），保留手机号占位
+ */
+function enrichRosterDutyPerson(person, slotKey, date) {
+  const meta = SLOT_META_BY_KEY[slotKey]
+  const manual = isManualDutyPerson(person)
+  return {
+    userId: person.userId,
+    name: person.name || '',
+    position: person.position || '',
+    unit: person.org || '',
+    phone: person.phone || '',
+    source: person.source || 'realname',
+    manual,
+    party: meta.party,
+    partyLabel: meta.partyLabel,
+    shift: meta.shift,
+    shiftLabel: meta.shiftLabel,
+    slotKey,
+    partyKey: `duty-party--${meta.party}`,
+    phoneMasked: person.phone ? maskPhone(person.phone) : '',
+    attendance: manual
+      ? { manual: true, statusKey: '', status: '', detail: '手动输入人员，不核验实名制考勤' }
+      : queryRealNameAttendance({ name: person.name, phone: person.phone, date }),
+  }
 }
 
 function pickFromPool(pool, projectId, count, salt) {
@@ -327,7 +404,7 @@ function slotQuota(projectId, slotKey) {
   }
 }
 
-/** 已排班项目的个别槽位（如夜班监理）可能未排班 */
+/** 已排班项目的个别槽位（如夜班监理）可能未排班（仅用于演示回退） */
 function isSlotEmpty(projectId, slotKey) {
   const h = hashStr(`${projectId}-empty-${slotKey}`)
   if (slotKey === 'supervisionNight') return h % 7 === 0
@@ -335,10 +412,13 @@ function isSlotEmpty(projectId, slotKey) {
   return false
 }
 
+/** 演示回退人员（无该周值班表时使用） */
 function enrichDutyPerson(person, slotKey, date) {
   const meta = SLOT_META_BY_KEY[slotKey]
   return {
     ...person,
+    source: 'demo',
+    manual: false,
     party: meta.party,
     partyLabel: meta.partyLabel,
     shift: meta.shift,
@@ -352,17 +432,26 @@ function enrichDutyPerson(person, slotKey, date) {
 
 /**
  * 某项目今日值班（含在场核验）
+ * 数据源优先取「每周值班表」当日排班；无该周值班表时回退到演示数据。
  * @returns {{ projectId, projectName, date, weekdayLabel, weekStart, scheduled: boolean,
- *   slots: Record<string, Array>, counts: Record<string, number>, personTotal: number }}
+ *   fromRoster: boolean, slots: Record<string, Array>, counts: Record<string, number>, personTotal: number }}
  */
 export function buildProjectDutyToday(project, { date = todayYmd() } = {}) {
   const projectId = project?.id || ''
   const projectName = project?.shortName || project?.name || ''
-  const scheduled = isProjectDutyScheduled(projectId)
+  const rosterDay = buildDutyDayFromRoster(projectId, date)
   const slots = {}
   const counts = {}
 
   for (const def of DUTY_SLOT_DEFS) {
+    const rosterPeople = rosterDay ? rosterDay.day[def.key] || [] : []
+    if (rosterDay) {
+      // 有值班表：以值班表为准，空槽位即「未排班」，不再用演示数据填充
+      slots[def.key] = rosterPeople.map((p) => enrichRosterDutyPerson(p, def.key, date))
+      counts[def.key] = slots[def.key].length
+      continue
+    }
+    const scheduled = isProjectDutyScheduled(projectId)
     if (!scheduled || isSlotEmpty(projectId, def.key)) {
       slots[def.key] = []
       counts[def.key] = 0
@@ -381,8 +470,9 @@ export function buildProjectDutyToday(project, { date = todayYmd() } = {}) {
     projectName,
     date: String(date).slice(0, 10),
     weekdayLabel: weekdayLabelOf(date),
-    weekStart: weekStartOf(date),
-    scheduled,
+    weekStart: toWeekStartMonday(String(date).slice(0, 10)),
+    scheduled: personTotal > 0,
+    fromRoster: Boolean(rosterDay),
     slots,
     counts,
     personTotal,

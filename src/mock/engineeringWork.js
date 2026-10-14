@@ -46,24 +46,6 @@ export const ACTION_LABEL = {
   reject: '驳回',
 }
 
-export const SNAPSHOT_FIELDS = [
-  { key: 'reportDate', label: '施工日期' },
-  { key: 'dangerWorkCategory', label: '作业类别' },
-  { key: 'workArea', label: '施工区域' },
-  { key: 'workContent', label: '当日施工具体内容' },
-  { key: 'startTime', label: '作业开始时间' },
-  { key: 'endTime', label: '作业结束时间' },
-  { key: 'contractor', label: '施工单位' },
-  { key: 'leadUnit', label: '管理单位' },
-  { key: 'ownerProjectManager', label: '建设单位项目负责人及手机号' },
-  { key: 'ownerSafetyManager', label: '建设单位现场安全监管人及手机号' },
-  { key: 'contractorProjectManager', label: '施工单位项目负责人及手机号' },
-  { key: 'contractorSafetyManager', label: '施工单位现场安全监管人及手机号' },
-  { key: 'supervisorProjectManager', label: '监理单位项目负责人及手机号' },
-  { key: 'supervisorSafetyManager', label: '监理单位现场安全监管人及手机号' },
-  { key: 'dangerControlMeasures', label: '风险管控措施', span: 2 },
-]
-
 export function statusLabel(status) {
   return STATUS_LABEL[status] || status || '--'
 }
@@ -84,9 +66,9 @@ export function emptyCell(value) {
 /** 单条危险作业摘要文案：日期 类别 · 区域 */
 export function formatDangerWorkPickLabel(work) {
   if (!work) return ''
-  const date = work.reportDate || ''
-  const cat = work.dangerWorkCategory || ''
-  const area = work.workArea || ''
+  const date = work.report_date || ''
+  const cat = work.danger_work_category || ''
+  const area = work.work_area || ''
   const head = [date, cat].filter(Boolean).join(' ')
   return area ? `${head} · ${area}` : head
 }
@@ -123,29 +105,29 @@ export function getEngineeringWorkIds(row) {
 export function summarizeWorksLabel(works) {
   const list = Array.isArray(works) ? works : []
   if (!list.length) return '危险作业'
-  const cats = [...new Set(list.map((w) => w.dangerWorkCategory).filter(Boolean))]
+  const cats = [...new Set(list.map((w) => w.danger_work_category).filter(Boolean))]
   if (cats.length <= 1) {
     const cat = cats[0] || '危险作业'
-    const area = list[0]?.workArea || ''
+    const area = list[0]?.work_area || ''
     return area ? `${cat}·${area}` : cat
   }
   return `${cats[0]}等${list.length}项`
 }
 
 export function formatWorksCategories(works) {
-  const cats = [...new Set((works || []).map((w) => w.dangerWorkCategory).filter(Boolean))]
+  const cats = [...new Set((works || []).map((w) => w.danger_work_category).filter(Boolean))]
   return cats.length ? cats.join('、') : '--'
 }
 
 export function formatWorksDates(works) {
-  const dates = [...new Set((works || []).map((w) => w.reportDate).filter(Boolean))]
+  const dates = [...new Set((works || []).map((w) => w.report_date).filter(Boolean))]
   if (!dates.length) return '--'
   if (dates.length === 1) return dates[0]
   return `${dates[dates.length - 1]} ~ ${dates[0]}`
 }
 
 export function formatWorksAreas(works) {
-  const areas = [...new Set((works || []).map((w) => w.workArea).filter(Boolean))]
+  const areas = [...new Set((works || []).map((w) => w.work_area).filter(Boolean))]
   return areas.length ? areas.join('、') : '--'
 }
 
@@ -156,11 +138,22 @@ export function formatWorksContractors(works) {
 
 function toWorkItem(source) {
   if (!source) return null
-  const snap = snapshotFromDailyRecord(source)
+  // source 已由 sourceFromDaily / sourceFromListItem 归一为快照字段（snake_case），此处不再二次映射，
+  // 否则会把 snake_case 的 source 按 camelCase 再读一遍而全部读空。
   return {
     id: source.id || '',
-    ...snap,
+    ...emptySnapshot(),
+    ...snapshotFromSource(source),
   }
+}
+
+/** 从已归一化的 source 取快照字段（仅取 emptySnapshot 声明的键，剔除 projectId/type 等辅助字段） */
+function snapshotFromSource(source) {
+  const snap = emptySnapshot()
+  Object.keys(snap).forEach((key) => {
+    snap[key] = source?.[key] || ''
+  })
+  return snap
 }
 
 function buildWorksFromSources(sources) {
@@ -179,8 +172,34 @@ function syncLegacyFields(works) {
   }
 }
 
-export function formatSupervisorDisplay(row) {
-  if (!row) return '--'
+/**
+ * 审批过程取数（详情页步骤条/时间线与个人中心待办面板共用）
+ * 返回 [{ title, status: done|current|pending, time, user, remark }]
+ * 仅监理一级：第 1 步施工提交、第 2 步监理审批；审批中时第 2 步为 current。
+ */
+export function buildEngineeringWorkApprovalFlow(row) {
+  if (!row) return []
+  const records = Array.isArray(row.approvals) ? row.approvals : []
+  const steps = records.map((item) => ({
+    title: item.node === 'applicant' ? '施工提交' : '监理审批',
+    status: 'done',
+    time: item.time || '',
+    user: item.operator_name || '--',
+    remark: item.opinion || '',
+  }))
+  if (row.status === 'reviewing') {
+    steps.push({
+      title: '监理审批',
+      status: 'current',
+      time: '',
+      user: row.supervisor_approver_name || '--',
+      remark: '待办理（个人中心 → 我的待办）',
+    })
+  }
+  return steps
+}
+
+export function formatSupervisorDisplay(row) {  if (!row) return '--'
   const user = findMatSupervisorApprover(row.supervisor_approver_user_id)
   if (user) return formatMatSupervisorApproverLabel(user)
   return formatMatSupervisorApproverLabel({
@@ -196,31 +215,23 @@ function cloneAttach(list) {
 
 function emptySnapshot() {
   return {
-    reportDate: '',
-    leadUnit: '',
-    projectName: '',
+    report_date: '',
+    lead_unit: '',
+    project_name: '',
     contractor: '',
-    workArea: '',
-    workContent: '',
-    dangerWorkCategory: '',
-    startTime: '',
-    endTime: '',
-    ownerProjectManager: '',
-    ownerSafetyManager: '',
-    contractorProjectManager: '',
-    contractorSafetyManager: '',
-    supervisorProjectManager: '',
-    supervisorSafetyManager: '',
-    dangerControlMeasures: '',
+    work_area: '',
+    work_content: '',
+    danger_work_category: '',
+    start_time: '',
+    end_time: '',
+    owner_project_manager: '',
+    owner_safety_manager: '',
+    contractor_project_manager: '',
+    contractor_safety_manager: '',
+    supervisor_project_manager: '',
+    supervisor_safety_manager: '',
+    danger_control_measures: '',
   }
-}
-
-function snapshotFromDailyRecord(record) {
-  const snap = emptySnapshot()
-  Object.keys(snap).forEach((key) => {
-    snap[key] = record?.[key] || ''
-  })
-  return snap
 }
 
 function snapshotFromDangerListItem(item) {
@@ -233,22 +244,22 @@ function snapshotFromDangerListItem(item) {
   const endTime = item.endTime || (date && endH ? `${date} ${endH}` : endH)
   return {
     ...emptySnapshot(),
-    reportDate: date,
-    leadUnit: item.leadUnit || '深圳机场集团/建设工程指挥部',
-    projectName: item.projectName || '',
+    report_date: date,
+    lead_unit: item.leadUnit || '深圳机场集团/建设工程指挥部',
+    project_name: item.projectName || '',
     contractor: item.contractor || '',
-    workArea: item.location || item.workArea || '',
-    workContent: item.subType || item.workContent || '',
-    dangerWorkCategory: item.type || item.dangerWorkCategory || '',
-    startTime,
-    endTime,
-    ownerProjectManager: item.ownerProjectManager || '',
-    ownerSafetyManager: item.ownerSafetyManager || '',
-    contractorProjectManager: item.contractorProjectManager || '',
-    contractorSafetyManager: item.contractorSafetyManager || '',
-    supervisorProjectManager: item.supervisorProjectManager || '',
-    supervisorSafetyManager: item.supervisorSafetyManager || '',
-    dangerControlMeasures: item.measures || item.dangerControlMeasures || '',
+    work_area: item.location || item.workArea || '',
+    work_content: item.subType || item.workContent || '',
+    danger_work_category: item.type || item.dangerWorkCategory || '',
+    start_time: startTime,
+    end_time: endTime,
+    owner_project_manager: item.ownerProjectManager || '',
+    owner_safety_manager: item.ownerSafetyManager || '',
+    contractor_project_manager: item.contractorProjectManager || '',
+    contractor_safety_manager: item.contractorSafetyManager || '',
+    supervisor_project_manager: item.supervisorProjectManager || '',
+    supervisor_safety_manager: item.supervisorSafetyManager || '',
+    danger_control_measures: item.measures || item.dangerControlMeasures || '',
   }
 }
 
@@ -380,8 +391,8 @@ const P000_EXTRA_SOURCES = [
     projectName: '宝安国际机场T2航站区及配套工程',
     measures: '办理动火票，配备灭火器与看火人，作业面下方清理易燃物。',
     ...T2_CONTACTS,
-    ownerSafetyManager: '刘安/13900139001，赵敏/13900139002，孙伟/13900139003，黄涛/13900139004',
-    contractorSafetyManager:
+    owner_safety_manager: '刘安/13900139001，赵敏/13900139002，孙伟/13900139003，黄涛/13900139004',
+    contractor_safety_manager:
       '李明/13600136001，周杰/13600136002，吴磊/13600136003，郑浩/13600136004，冯凯/13600136005',
   },
   {
@@ -443,10 +454,11 @@ function nameMatchesProject(projectName, projectId) {
 function sourceFromDaily(record) {
   const item = toDangerWorkListItem(record)
   if (!item) return null
+  // 与 sourceFromListItem 走同一个归一函数，避免两条取数路径产出不同字段名
   return {
     id: record.id,
     projectId: item.projectId,
-    ...snapshotFromDailyRecord(record),
+    ...snapshotFromDangerListItem(item),
   }
 }
 
@@ -479,7 +491,7 @@ export function listAllDangerWorkSources(projectId) {
     if (!isDangerWorkRecord(record)) continue
     const src = sourceFromDaily(record)
     if (!src) continue
-    const match = src.projectId === projectId || nameMatchesProject(src.projectName, projectId)
+    const match = src.projectId === projectId || nameMatchesProject(src.project_name, projectId)
     if (!match) continue
     map.set(src.id, src)
   }
@@ -490,7 +502,7 @@ export function listAllDangerWorkSources(projectId) {
 
   if (projectId === 'p-000') {
     const hasProjectDaily = [...map.values()].some(
-      (src) => src.projectId === projectId || nameMatchesProject(src.projectName, projectId),
+      (src) => src.projectId === projectId || nameMatchesProject(src.project_name, projectId),
     )
     if (!hasProjectDaily) {
       for (const extra of P000_EXTRA_SOURCES) {
@@ -499,7 +511,7 @@ export function listAllDangerWorkSources(projectId) {
     }
   }
 
-  return [...map.values()].sort((a, b) => String(b.reportDate).localeCompare(String(a.reportDate)))
+  return [...map.values()].sort((a, b) => String(b.report_date).localeCompare(String(a.report_date)))
 }
 
 export function listSelectableDangerWorks(projectId, { allowDailyWorkIds = [] } = {}) {
@@ -797,11 +809,11 @@ export function listEngineeringWorks(projectId, { keyword = '', status = '' } = 
         row.biz_no,
         row.personnel_qual_desc,
         ...works.flatMap((snap) => [
-          snap.dangerWorkCategory,
-          snap.workArea,
+          snap.danger_work_category,
+          snap.work_area,
           snap.contractor,
-          snap.workContent,
-          snap.reportDate,
+          snap.work_content,
+          snap.report_date,
         ]),
       ]
         .join(' ')
@@ -809,7 +821,11 @@ export function listEngineeringWorks(projectId, { keyword = '', status = '' } = 
       return blob.includes(kw)
     })
     .map(cloneRow)
-    .sort((a, b) => String(b.submit_time).localeCompare(String(a.submit_time)))
+    .sort((a, b) => {
+      const byTime = String(b.submit_time).localeCompare(String(a.submit_time))
+      if (byTime) return byTime
+      return String(a.biz_no).localeCompare(String(b.biz_no))
+    })
 }
 
 export function getEngineeringWork(id) {
@@ -833,6 +849,11 @@ function validatePayload(payload) {
   }
   const desc = String(payload.personnel_qual_desc || '').trim()
   if (!desc) return { ok: false, msg: '请填写作业人员及特种作业资质说明' }
+  if (desc.length > 500) {
+    return { ok: false, msg: '作业人员及特种作业资质说明不超过 500 字' }
+  }
+  const remark = String(payload.remark || '').trim()
+  if (remark.length > 200) return { ok: false, msg: '备注不超过 200 字' }
   if (!attachRequiredOk(payload.scheme_files, 1)) return { ok: false, msg: '请上传专项施工方案' }
   if (!attachRequiredOk(payload.cert_files, 1)) return { ok: false, msg: '请上传人员资质证明' }
   const sup = resolveSupervisor(payload)
@@ -844,6 +865,13 @@ function isOccupied(dailyWorkId, exceptBizNo = '') {
   return occupiedDailyWorkIds(exceptBizNo).has(dailyWorkId)
 }
 
+function projectDisplayLabel(projectId) {  // getProjectLabel 只覆盖人员实名制的项目树；未收录的项目回退到项目主数据简称，避免待办里显示 p-xxx 原始 ID
+  return getProjectLabel(projectId)
+    || findProjectById(projectId)?.shortName
+    || findProjectById(projectId)?.projectName
+    || projectId
+}
+
 function pushTodo(row) {
   const works = getEngineeringWorkItems(row)
   const label = summarizeWorksLabel(works)
@@ -851,7 +879,7 @@ function pushTodo(row) {
     applicationId: row.id,
     bizNo: row.biz_no,
     projectId: row.project_id,
-    projectLabel: getProjectLabel(row.project_id) || row.project_id,
+    projectLabel: projectDisplayLabel(row.project_id),
     category: label,
     workArea: '',
     applicantName: row.applicant_name,

@@ -14,6 +14,7 @@ import {
   approvalStatusLabel,
   approvalStatusTagType,
   formatRiskCell,
+  formatRiskReportTime,
   listConfigRiskTypes,
   listRiskControlMetrics,
   listRiskPointControls,
@@ -25,7 +26,7 @@ const router = useRouter()
 const { laborProjectId, isHqSelected } = useCurrentProject()
 
 const filters = reactive({
-  report_date: '',
+  report_time: '',
   risk_type: '',
   severity: '',
   approval_status: '',
@@ -33,7 +34,7 @@ const filters = reactive({
 
 /** 点「搜索」后才生效的查询条件（工具栏内为待提交的条件） */
 const query = reactive({
-  report_date: '',
+  report_time: '',
   risk_type: '',
   severity: '',
   approval_status: '',
@@ -52,7 +53,7 @@ const metrics = computed(() => {
 const typeOptions = computed(() => listConfigRiskTypes(laborProjectId.value))
 
 function doSearch() {
-  query.report_date = filters.report_date
+  query.report_time = filters.report_time
   query.risk_type = filters.risk_type
   query.severity = filters.severity
   query.approval_status = filters.approval_status
@@ -63,7 +64,7 @@ watch(laborProjectId, () => {
 })
 
 function resetFilters() {
-  filters.report_date = ''
+  filters.report_time = ''
   filters.risk_type = ''
   filters.severity = ''
   filters.approval_status = ''
@@ -131,12 +132,12 @@ function goResubmit(row) {
 
       <div class="toolbar">
         <el-date-picker
-          v-model="filters.report_date"
+          v-model="filters.report_time"
           type="date"
           value-format="YYYY-MM-DD"
-          placeholder="填报日期"
+          placeholder="填报时间"
           style="width: 160px"
-          aria-label="填报日期"
+          aria-label="填报时间"
         />
         <el-select
           v-model="filters.risk_type"
@@ -203,8 +204,8 @@ function goResubmit(row) {
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="report_date" label="填报日期" width="120" align="center">
-          <template #default="{ row }">{{ formatRiskCell(row.report_date) }}</template>
+        <el-table-column prop="report_time" label="填报时间" width="160" align="center">
+          <template #default="{ row }">{{ formatRiskReportTime(row.report_time) }}</template>
         </el-table-column>
         <el-table-column label="操作" width="160" align="center" fixed="right">
           <template #default="{ row }">

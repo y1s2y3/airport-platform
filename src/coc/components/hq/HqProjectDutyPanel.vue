@@ -36,6 +36,16 @@ function personOnSite(person) {
   return person.attendance?.statusKey === 'onSite'
 }
 
+/** 在场状态标签：仅「在场 / 不在场」两态展示；手动输入人员与未匹配到考勤者不出标签 */
+function showAttendanceTag(person) {
+  return person.attendance?.statusKey === 'onSite' || person.attendance?.statusKey === 'offSite'
+}
+
+/** 岗位 · 单位：手动输入人员无单位时只显示岗位 */
+function postText(person) {
+  return [person.position, person.unit].filter(Boolean).join(' · ') || '--'
+}
+
 function syncJoinStates() {
   const current = duty.value
   const sessionActive = isDutyMeetingActive(date)
@@ -138,12 +148,16 @@ onUnmounted(() => {
               v-for="person in shift.people"
               :key="`${person.slotKey}-${person.userId}`"
               class="person-card"
-              :class="{ 'is-offsite': person.attendance.statusKey === 'offSite' }"
+              :class="{ 'is-offsite': showAttendanceTag(person) && person.attendance?.statusKey === 'offSite' }"
             >
               <div class="person-card__head">
                 <span class="person-card__name">{{ person.name }}</span>
                 <span class="person-card__badges">
-                  <span class="person-card__status" :class="`is-${person.attendance.statusKey}`">
+                  <span
+                    v-if="showAttendanceTag(person)"
+                    class="person-card__status"
+                    :class="`is-${person.attendance.statusKey}`"
+                  >
                     {{ person.attendance.status }}
                   </span>
                   <button
@@ -158,14 +172,14 @@ onUnmounted(() => {
                   </button>
                 </span>
               </div>
-              <div class="person-card__post" :title="`${person.position} · ${person.unit}`">
-                {{ person.position }} · {{ person.unit }}
+              <div class="person-card__post" :title="postText(person)">
+                {{ postText(person) }}
               </div>
               <div class="person-card__foot">
                 <span class="person-card__party" :class="person.partyKey">{{ person.partyLabel }}</span>
-                <!-- 仅「在场」展示考勤凭据；不在场 / 未查询到考勤均不展示原因 -->
+                <!-- 手动输入人员不展示在场状态；仅「在场」展示考勤凭据 -->
                 <span
-                  v-if="person.attendance.statusKey === 'onSite'"
+                  v-if="showAttendanceTag(person) && person.attendance.statusKey === 'onSite'"
                   class="person-card__attend"
                   :title="`${person.phoneMasked} · ${person.attendance.detail}`"
                 >
@@ -387,12 +401,6 @@ onUnmounted(() => {
   color: #a8abb2;
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.2);
-}
-
-.person-card__status.is-noRecord {
-  color: #f6c575;
-  background: rgba(246, 197, 117, 0.12);
-  border-color: rgba(246, 197, 117, 0.36);
 }
 
 .person-card__post {

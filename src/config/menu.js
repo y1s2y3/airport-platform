@@ -337,6 +337,7 @@ export const menuTree = [
         ],
       },
       { key: 'sys-dict', label: '数据字典', icon: 'Notebook', path: '/sys-config/dict', name: 'SysDict', component: 'OfficialBizPlaceholderView', levels: 'hq' },
+      { key: 'sys-version-notice', label: '版本通知', icon: 'Tickets', path: '/sys-config/version-notice', name: 'SysVersionNotice', component: 'VersionNoticeView', levels: 'hq', description: '指挥部登记各机型已发布版本与强制更新要求，供两级查看最新版本。' },
     ],
   },
 
@@ -745,6 +746,7 @@ export const viewLoaders = {
   RoleManageFormView: () => import('../views/settings/RoleManageFormView.vue'),
   PositionManageView: () => import('../views/settings/PositionManageView.vue'),
   MenuManageView: () => import('../views/settings/MenuManageView.vue'),
+  VersionNoticeView: () => import('../views/settings/VersionNoticeView.vue'),
   OfficialBizPlaceholderView: () => import('../views/settings/OfficialBizPlaceholderView.vue'),
   SystemLogView: () => import('../views/logs/SystemLogView.vue'),
   LoginLogView: () => import('../views/logs/LoginLogView.vue'),

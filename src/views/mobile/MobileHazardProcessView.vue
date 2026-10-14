@@ -73,8 +73,8 @@ const filteredDangerWorks = computed(() => {
   const date = String(dangerPickFilterDate.value || '').trim()
   const category = String(dangerPickFilterCategory.value || '').trim()
   return allDangerWorks.value.filter((row) => {
-    if (date && String(row.reportDate || '') !== date) return false
-    if (category && String(row.dangerWorkCategory || '') !== category) return false
+    if (date && String(row.report_date || '') !== date) return false
+    if (category && String(row.danger_work_category || '') !== category) return false
     return true
   })
 })
@@ -204,12 +204,12 @@ function removeRecordAttachment(name) {
 function snapshotDangerWork(src) {
   return {
     id: src.id,
-    reportDate: src.reportDate || '',
-    dangerWorkCategory: src.dangerWorkCategory || '',
-    workArea: src.workArea || '',
-    workContent: src.workContent || '',
-    startTime: src.startTime || '',
-    endTime: src.endTime || '',
+    reportDate: src.report_date || '',
+    dangerWorkCategory: src.danger_work_category || '',
+    workArea: src.work_area || '',
+    workContent: src.work_content || '',
+    startTime: src.start_time || '',
+    endTime: src.end_time || '',
     contractor: src.contractor || '',
   }
 }
@@ -575,8 +575,8 @@ onBeforeUnmount(() => {
             <div v-if="linkedDangerWorks.length" class="danger-list">
               <div v-for="row in linkedDangerWorks" :key="row.id" class="danger-item">
                 <div class="danger-main">
-                  <strong>{{ emptyCell(row.dangerWorkCategory) }}</strong>
-                  <span>{{ emptyCell(row.workArea) }}</span>
+                  <strong>{{ emptyCell(row.danger_work_category) }}</strong>
+                  <span>{{ emptyCell(row.work_area) }}</span>
                 </div>
                 <button v-if="recordDialogMode !== 'view'" type="button" class="danger-remove" @click="removeLinkedDangerWork(row.id)">移除</button>
               </div>
@@ -629,8 +629,8 @@ onBeforeUnmount(() => {
         >
           <span class="pick-check">{{ dangerSelectedMap.has(row.id) ? '✓' : '' }}</span>
           <div class="pick-info">
-            <div class="pick-title">{{ emptyCell(row.dangerWorkCategory) }} · {{ emptyCell(row.workArea) }}</div>
-            <div class="pick-meta">{{ emptyCell(row.reportDate) }} · {{ emptyCell(row.workContent) }}</div>
+            <div class="pick-title">{{ emptyCell(row.danger_work_category) }} · {{ emptyCell(row.work_area) }}</div>
+            <div class="pick-meta">{{ emptyCell(row.report_date) }} · {{ emptyCell(row.work_content) }}</div>
           </div>
         </button>
       </div>

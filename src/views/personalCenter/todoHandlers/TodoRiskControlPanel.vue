@@ -7,6 +7,7 @@ import {
   formatMatSupervisorApproverLabel,
   formatRiskCell,
   formatRiskFrequency,
+  formatRiskReportTime,
   getRiskPointControl,
   riskApprovalFlow,
   riskCopyFromLabel,
@@ -46,7 +47,7 @@ const approvalFlow = computed(() => riskApprovalFlow(row.value))
     <el-empty v-if="!row" description="未找到关联风险辨识" :image-size="64" />
     <template v-else>
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="填报日期">{{ formatRiskCell(row.report_date) }}</el-descriptions-item>
+        <el-descriptions-item label="填报时间">{{ formatRiskReportTime(row.report_time) }}</el-descriptions-item>
         <el-descriptions-item label="风险源编号">{{ formatRiskCell(row.risk_source_no) }}</el-descriptions-item>
         <el-descriptions-item v-if="row.copy_from_source_no" label="重新申报来源" :span="2">
           {{ riskCopyFromLabel(row) }}

@@ -60,22 +60,22 @@ const workItems = computed(() => getEngineeringWorkItems(props.form))
         empty-text="暂未选择"
       >
         <el-table-column label="施工日期" width="110">
-          <template #default="{ row }">{{ emptyCell(row.reportDate) }}</template>
+          <template #default="{ row }">{{ emptyCell(row.report_date) }}</template>
         </el-table-column>
         <el-table-column label="作业类别" width="120" show-overflow-tooltip>
-          <template #default="{ row }">{{ emptyCell(row.dangerWorkCategory) }}</template>
+          <template #default="{ row }">{{ emptyCell(row.danger_work_category) }}</template>
         </el-table-column>
         <el-table-column label="施工区域" min-width="140" show-overflow-tooltip>
-          <template #default="{ row }">{{ emptyCell(row.workArea) }}</template>
+          <template #default="{ row }">{{ emptyCell(row.work_area) }}</template>
         </el-table-column>
         <el-table-column label="当日施工具体内容" min-width="150" show-overflow-tooltip>
-          <template #default="{ row }">{{ emptyCell(row.workContent) }}</template>
+          <template #default="{ row }">{{ emptyCell(row.work_content) }}</template>
         </el-table-column>
         <el-table-column label="作业开始时间" width="150" show-overflow-tooltip>
-          <template #default="{ row }">{{ emptyCell(row.startTime) }}</template>
+          <template #default="{ row }">{{ emptyCell(row.start_time) }}</template>
         </el-table-column>
         <el-table-column label="作业结束时间" width="150" show-overflow-tooltip>
-          <template #default="{ row }">{{ emptyCell(row.endTime) }}</template>
+          <template #default="{ row }">{{ emptyCell(row.end_time) }}</template>
         </el-table-column>
         <el-table-column label="施工单位" min-width="140" show-overflow-tooltip>
           <template #default="{ row }">{{ emptyCell(row.contractor) }}</template>

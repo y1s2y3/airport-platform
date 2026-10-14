@@ -67,8 +67,8 @@ const filteredSelectableWorks = computed(() => {
   const date = String(pickFilterDate.value || '').trim()
   const category = String(pickFilterCategory.value || '').trim()
   return allSelectableWorks.value.filter((row) => {
-    if (date && String(row.reportDate || '') !== date) return false
-    if (category && String(row.dangerWorkCategory || '') !== category) return false
+    if (date && String(row.report_date || '') !== date) return false
+    if (category && String(row.danger_work_category || '') !== category) return false
     return true
   })
 })
@@ -84,22 +84,22 @@ function applySupervisor(userId) {
 function applyWorks(sources) {
   const list = (sources || []).map((src) => ({
     id: src.id,
-    reportDate: src.reportDate || '',
-    dangerWorkCategory: src.dangerWorkCategory || '',
-    workArea: src.workArea || '',
-    workContent: src.workContent || '',
-    startTime: src.startTime || '',
-    endTime: src.endTime || '',
+    report_date: src.report_date || '',
+    danger_work_category: src.danger_work_category || '',
+    work_area: src.work_area || '',
+    work_content: src.work_content || '',
+    start_time: src.start_time || '',
+    end_time: src.end_time || '',
     contractor: src.contractor || '',
-    leadUnit: src.leadUnit || '',
-    projectName: src.projectName || '',
-    ownerProjectManager: src.ownerProjectManager || '',
-    ownerSafetyManager: src.ownerSafetyManager || '',
-    contractorProjectManager: src.contractorProjectManager || '',
-    contractorSafetyManager: src.contractorSafetyManager || '',
-    supervisorProjectManager: src.supervisorProjectManager || '',
-    supervisorSafetyManager: src.supervisorSafetyManager || '',
-    dangerControlMeasures: src.dangerControlMeasures || '',
+    lead_unit: src.lead_unit || '',
+    project_name: src.project_name || '',
+    owner_project_manager: src.owner_project_manager || '',
+    owner_safety_manager: src.owner_safety_manager || '',
+    contractor_project_manager: src.contractor_project_manager || '',
+    contractor_safety_manager: src.contractor_safety_manager || '',
+    supervisor_project_manager: src.supervisor_project_manager || '',
+    supervisor_safety_manager: src.supervisor_safety_manager || '',
+    danger_control_measures: src.danger_control_measures || '',
   }))
   form.works = list
   form.daily_work_ids = list.map((item) => item.id).filter(Boolean)
@@ -318,22 +318,22 @@ function onSubmit() {
       >
         <el-table-column type="selection" width="48" align="center" />
         <el-table-column label="施工日期" width="120">
-          <template #default="{ row }">{{ emptyCell(row.reportDate) }}</template>
+          <template #default="{ row }">{{ emptyCell(row.report_date) }}</template>
         </el-table-column>
         <el-table-column label="作业类别" width="120">
-          <template #default="{ row }">{{ emptyCell(row.dangerWorkCategory) }}</template>
+          <template #default="{ row }">{{ emptyCell(row.danger_work_category) }}</template>
         </el-table-column>
         <el-table-column label="施工区域" min-width="140" show-overflow-tooltip>
-          <template #default="{ row }">{{ emptyCell(row.workArea) }}</template>
+          <template #default="{ row }">{{ emptyCell(row.work_area) }}</template>
         </el-table-column>
         <el-table-column label="当日施工具体内容" min-width="160" show-overflow-tooltip>
-          <template #default="{ row }">{{ emptyCell(row.workContent) }}</template>
+          <template #default="{ row }">{{ emptyCell(row.work_content) }}</template>
         </el-table-column>
         <el-table-column label="作业开始时间" width="160">
-          <template #default="{ row }">{{ emptyCell(row.startTime) }}</template>
+          <template #default="{ row }">{{ emptyCell(row.start_time) }}</template>
         </el-table-column>
         <el-table-column label="作业结束时间" width="160">
-          <template #default="{ row }">{{ emptyCell(row.endTime) }}</template>
+          <template #default="{ row }">{{ emptyCell(row.end_time) }}</template>
         </el-table-column>
         <el-table-column label="施工单位" min-width="160" show-overflow-tooltip>
           <template #default="{ row }">{{ emptyCell(row.contractor) }}</template>

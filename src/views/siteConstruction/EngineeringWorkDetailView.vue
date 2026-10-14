@@ -9,6 +9,7 @@ import {
   ACTION_LABEL,
   NODE_LABEL,
   STATUS_LABEL,
+  buildEngineeringWorkApprovalFlow,
   emptyCell,
   getEngineeringWork,
   statusTagType,
@@ -33,6 +34,9 @@ const form = computed(() => detail.value || {
 
 const isReviewing = computed(() => detail.value?.status === 'reviewing')
 
+/** 审批过程：与个人中心待办面板同一取数 */
+const approvalFlow = computed(() => buildEngineeringWorkApprovalFlow(detail.value))
+
 const processSteps = computed(() => {
   const d = detail.value
   if (!d) return []
@@ -49,34 +53,24 @@ const processSteps = computed(() => {
   ]
 })
 
-const timeline = computed(() => {
-  const d = detail.value
-  if (!d) return []
-  const records = d.approvals || []
-  const steps = records.map((r) => ({
-    key: r.approval_id,
-    title: r.node === 'applicant' ? '施工提交' : '监理审批',
-    actionLabel: ACTION_LABEL[r.action] || r.action,
-    operator: r.operator_name || '--',
-    time: r.time || '--',
-    remark: r.opinion || '',
-    status: 'done',
-    color: r.action === 'reject' ? '#f56c6c' : '#67c23a',
-  }))
-  if (isReviewing.value) {
-    steps.push({
-      key: 'pending',
-      title: '监理审批',
-      actionLabel: '待办理',
-      operator: d.supervisor_approver_name || '--',
-      time: '--',
-      remark: '请在个人中心待办办理',
-      status: 'current',
-      color: '#e6a23c',
-    })
-  }
-  return steps
-})
+const timeline = computed(() =>
+  approvalFlow.value.map((step, index) => ({
+    key: `${step.title}-${index}-${step.time}`,
+    title: step.title,
+    actionLabel: step.status === 'current' ? '待办理' : (ACTION_LABEL[stepAction(detail.value, index)] || ''),
+    operator: step.user || '--',
+    time: step.time || '--',
+    remark: step.remark || '',
+    status: step.status,
+    color: step.status === 'current' ? '#e6a23c' : (stepAction(detail.value, index) === 'reject' ? '#f56c6c' : '#67c23a'),
+  })),
+)
+
+/** 第 index 条留痕的办理动作（用于时间线颜色与动作标签） */
+function stepAction(row, index) {
+  const records = Array.isArray(row?.approvals) ? row.approvals : []
+  return records[index]?.action || ''
+}
 
 function actionTagType(action) {
   if (action === 'agree' || action === 'submit') return 'success'
@@ -105,6 +99,7 @@ function actionTagType(action) {
     <el-form v-else label-width="168px" class="create-form" label-position="right">
       <el-descriptions :column="2" border class="mb">
         <el-descriptions-item label="申报单号">{{ emptyCell(detail.biz_no) }}</el-descriptions-item>
+        <el-descriptions-item label="申报人">{{ emptyCell(detail.applicant_name) }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag size="small" :type="statusTagType(detail.status)">
             {{ STATUS_LABEL[detail.status] }}

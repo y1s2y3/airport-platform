@@ -1,6 +1,7 @@
 <script setup>
 import { defineAsyncComponent, onMounted } from 'vue'
 import { ensureDailyWorkSeed } from '../coc/utils/dailyWorkStorage.js'
+import { ensureDutyRosterSeed } from '../mock/dutyRoster.js'
 import '../coc/styles/theme.css'
 
 const CocApp = defineAsyncComponent({
@@ -16,6 +17,9 @@ const CocApp = defineAsyncComponent({
   delay: 80,
   timeout: 120000,
 })
+
+// 大屏当日值班读「每周值班表」：先确保值班表种子就绪，避免首屏出现演示回退数据
+ensureDutyRosterSeed()
 
 onMounted(() => {
   ensureDailyWorkSeed()

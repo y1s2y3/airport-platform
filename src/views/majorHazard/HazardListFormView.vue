@@ -64,8 +64,8 @@ const filteredDangerWorks = computed(() => {
   const date = String(dangerPickFilterDate.value || '').trim()
   const category = String(dangerPickFilterCategory.value || '').trim()
   return allDangerWorks.value.filter((row) => {
-    if (date && String(row.reportDate || '') !== date) return false
-    if (category && String(row.dangerWorkCategory || '') !== category) return false
+    if (date && String(row.report_date || '') !== date) return false
+    if (category && String(row.danger_work_category || '') !== category) return false
     return true
   })
 })
@@ -261,12 +261,12 @@ function createBlankRecord() {
 function snapshotDangerWork(src) {
   return {
     id: src.id,
-    reportDate: src.reportDate || '',
-    dangerWorkCategory: src.dangerWorkCategory || '',
-    workArea: src.workArea || '',
-    workContent: src.workContent || '',
-    startTime: src.startTime || '',
-    endTime: src.endTime || '',
+    reportDate: src.report_date || '',
+    dangerWorkCategory: src.danger_work_category || '',
+    workArea: src.work_area || '',
+    workContent: src.work_content || '',
+    startTime: src.start_time || '',
+    endTime: src.end_time || '',
     contractor: src.contractor || '',
   }
 }
@@ -870,10 +870,10 @@ watch([projectId, sourceId, routeMode], load, { immediate: true })
           <section v-if="activeProcessTab === 'progress'" class="record-detail-section">
             <div class="record-detail-title">关联危险作业（{{ linkedDangerWorks.length }}）</div>
             <el-table v-if="linkedDangerWorks.length" :data="linkedDangerWorks" border stripe size="small" empty-text="暂无关联危险作业">
-              <el-table-column label="施工日期" width="120"><template #default="{ row }">{{ emptyCell(row.reportDate) }}</template></el-table-column>
-              <el-table-column label="作业类别" width="120"><template #default="{ row }">{{ emptyCell(row.dangerWorkCategory) }}</template></el-table-column>
-              <el-table-column label="施工区域" min-width="140" show-overflow-tooltip><template #default="{ row }">{{ emptyCell(row.workArea) }}</template></el-table-column>
-              <el-table-column label="当日施工具体内容" min-width="160" show-overflow-tooltip><template #default="{ row }">{{ emptyCell(row.workContent) }}</template></el-table-column>
+              <el-table-column label="施工日期" width="120"><template #default="{ row }">{{ emptyCell(row.report_date) }}</template></el-table-column>
+              <el-table-column label="作业类别" width="120"><template #default="{ row }">{{ emptyCell(row.danger_work_category) }}</template></el-table-column>
+              <el-table-column label="施工区域" min-width="140" show-overflow-tooltip><template #default="{ row }">{{ emptyCell(row.work_area) }}</template></el-table-column>
+              <el-table-column label="当日施工具体内容" min-width="160" show-overflow-tooltip><template #default="{ row }">{{ emptyCell(row.work_content) }}</template></el-table-column>
               <el-table-column label="施工单位" min-width="150" show-overflow-tooltip><template #default="{ row }">{{ emptyCell(row.contractor) }}</template></el-table-column>
             </el-table>
             <el-empty v-else :image-size="54" description="暂无关联危险作业" />
@@ -921,10 +921,10 @@ watch([projectId, sourceId, routeMode], load, { immediate: true })
                 <span class="muted">可多选每日施工作业中的危险作业；默认按记录日期筛选</span>
               </div>
               <el-table v-if="linkedDangerWorks.length" :data="linkedDangerWorks" border stripe size="small" class="danger-link-table">
-                <el-table-column label="施工日期" width="120"><template #default="{ row }">{{ emptyCell(row.reportDate) }}</template></el-table-column>
-                <el-table-column label="作业类别" width="110"><template #default="{ row }">{{ emptyCell(row.dangerWorkCategory) }}</template></el-table-column>
-                <el-table-column label="施工区域" min-width="120" show-overflow-tooltip><template #default="{ row }">{{ emptyCell(row.workArea) }}</template></el-table-column>
-                <el-table-column label="当日施工具体内容" min-width="140" show-overflow-tooltip><template #default="{ row }">{{ emptyCell(row.workContent) }}</template></el-table-column>
+                <el-table-column label="施工日期" width="120"><template #default="{ row }">{{ emptyCell(row.report_date) }}</template></el-table-column>
+                <el-table-column label="作业类别" width="110"><template #default="{ row }">{{ emptyCell(row.danger_work_category) }}</template></el-table-column>
+                <el-table-column label="施工区域" min-width="120" show-overflow-tooltip><template #default="{ row }">{{ emptyCell(row.work_area) }}</template></el-table-column>
+                <el-table-column label="当日施工具体内容" min-width="140" show-overflow-tooltip><template #default="{ row }">{{ emptyCell(row.work_content) }}</template></el-table-column>
                 <el-table-column label="操作" width="80" fixed="right">
                   <template #default="{ row }"><el-button link type="danger" @click="removeLinkedDangerWork(row.id)">移除</el-button></template>
                 </el-table-column>
@@ -977,12 +977,12 @@ watch([projectId, sourceId, routeMode], load, { immediate: true })
           @selection-change="onDangerPickSelectionChange"
         >
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column label="施工日期" width="120"><template #default="{ row }">{{ emptyCell(row.reportDate) }}</template></el-table-column>
-          <el-table-column label="作业类别" width="120"><template #default="{ row }">{{ emptyCell(row.dangerWorkCategory) }}</template></el-table-column>
-          <el-table-column label="施工区域" min-width="140" show-overflow-tooltip><template #default="{ row }">{{ emptyCell(row.workArea) }}</template></el-table-column>
-          <el-table-column label="当日施工具体内容" min-width="160" show-overflow-tooltip><template #default="{ row }">{{ emptyCell(row.workContent) }}</template></el-table-column>
-          <el-table-column label="作业开始时间" width="160"><template #default="{ row }">{{ emptyCell(row.startTime) }}</template></el-table-column>
-          <el-table-column label="作业结束时间" width="160"><template #default="{ row }">{{ emptyCell(row.endTime) }}</template></el-table-column>
+          <el-table-column label="施工日期" width="120"><template #default="{ row }">{{ emptyCell(row.report_date) }}</template></el-table-column>
+          <el-table-column label="作业类别" width="120"><template #default="{ row }">{{ emptyCell(row.danger_work_category) }}</template></el-table-column>
+          <el-table-column label="施工区域" min-width="140" show-overflow-tooltip><template #default="{ row }">{{ emptyCell(row.work_area) }}</template></el-table-column>
+          <el-table-column label="当日施工具体内容" min-width="160" show-overflow-tooltip><template #default="{ row }">{{ emptyCell(row.work_content) }}</template></el-table-column>
+          <el-table-column label="作业开始时间" width="160"><template #default="{ row }">{{ emptyCell(row.start_time) }}</template></el-table-column>
+          <el-table-column label="作业结束时间" width="160"><template #default="{ row }">{{ emptyCell(row.end_time) }}</template></el-table-column>
           <el-table-column label="施工单位" min-width="160" show-overflow-tooltip><template #default="{ row }">{{ emptyCell(row.contractor) }}</template></el-table-column>
         </el-table>
         <template #footer>

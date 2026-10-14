@@ -21,6 +21,7 @@ import {
   formatMatSupervisorApproverLabel,
   formatRiskCell,
   formatRiskFrequency,
+  formatRiskReportTime,
   getRiskPointControl,
   riskApprovalFlow,
   riskCopyFromLabel,
@@ -158,7 +159,7 @@ function handleReactivate() {
     <el-empty v-if="!detail" description="未找到风险辨识记录" />
 
     <el-descriptions v-else :column="2" border>
-      <el-descriptions-item label="填报日期">{{ formatRiskCell(detail.report_date) }}</el-descriptions-item>
+      <el-descriptions-item label="填报时间">{{ formatRiskReportTime(detail.report_time) }}</el-descriptions-item>
       <el-descriptions-item label="风险源编号">{{ formatRiskCell(detail.risk_source_no) }}</el-descriptions-item>
       <el-descriptions-item v-if="!fromLedger && detail.copy_from_source_no" label="重新申报来源">
         {{ riskCopyFromLabel(detail) }}

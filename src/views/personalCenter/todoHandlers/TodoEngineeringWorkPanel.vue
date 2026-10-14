@@ -4,10 +4,12 @@ import EngineeringWorkFormBody from '../../siteConstruction/EngineeringWorkFormB
 import '../../siteConstruction/engineering-work-page.css'
 import {
   STATUS_LABEL,
+  buildEngineeringWorkApprovalFlow,
   emptyCell,
   getEngineeringWork,
   statusTagType,
 } from '../../../mock/engineeringWork.js'
+import TodoApprovalFlowSection from '../components/TodoApprovalFlowSection.vue'
 import '../styles/todoHandleBlocks.css'
 
 const props = defineProps({
@@ -18,6 +20,8 @@ const application = computed(() => {
   const id = props.todo?.engineeringWorkId || props.todo?.detail?.applicationId
   return id ? getEngineeringWork(id) : null
 })
+
+const approvalFlow = computed(() => buildEngineeringWorkApprovalFlow(application.value))
 
 const form = computed(() => application.value || {
   snapshot: {},
@@ -42,6 +46,9 @@ const form = computed(() => application.value || {
             {{ STATUS_LABEL[application.status] || emptyCell(application.status) }}
           </el-tag>
         </el-descriptions-item>
+        <el-descriptions-item label="申报人">
+          {{ emptyCell(application.applicant_name) }}
+        </el-descriptions-item>
         <el-descriptions-item label="项目">
           {{ emptyCell(todo.detail?.project) }}
         </el-descriptions-item>
@@ -52,11 +59,16 @@ const form = computed(() => application.value || {
       <el-form label-width="168px" class="create-form" label-position="right">
         <EngineeringWorkFormBody :form="form" readonly :project-id="application.project_id" />
       </el-form>
+
+      <TodoApprovalFlowSection class="approval-flow" :approval-flow="approvalFlow" />
     </template>
   </div>
 </template>
 
 <style scoped>
+.approval-flow {
+  margin-top: 16px;
+}
 .ew-todo-detail {
   display: flex;
   flex-direction: column;

@@ -3,13 +3,13 @@
  * 风险点审批 — 新增 / 重新报审风险辨识
  * 风险类型来自风险类型配置；风险点 → 风险细分来自配置库联动。
  * 重新报审：路由 query `from=<源记录id>`，源单须为同项目已驳回记录；
- * 提交后生成新的风险源编号（按新的填报日期），原单保留、只读、不可再提。
+ * 提交后生成新的风险源编号（按新的填报时间），原单保留、只读、不可再提。
+ * 填报时间为提交后系统自动生成，表单中不可编辑（仅只读展示）。
  */
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useCurrentProject } from '../../composables/useCurrentProject'
-import { nowStr } from '../../utils/datetime.js'
 import {
   CONSTRUCTION_STAGE_OPTIONS,
   FREQUENCY_IRREGULAR,
@@ -44,7 +44,7 @@ const isCopyResubmit = computed(() => !!copyFromNo.value)
 const pageTitle = computed(() => (isCopyResubmit.value ? '重新报审风险辨识' : '新增风险辨识'))
 
 const form = reactive({
-  report_date: nowStr().slice(0, 10),
+  report_time: '',
   risk_source_no: '',
   risk_type: '',
   risk_point: '',
@@ -87,6 +87,15 @@ const syncing = ref(false)
 
 /** 发生频率为「不定期」时，统计次数禁用并清空，保存时不传次数 */
 const isIrregularFrequencySelected = computed(() => isIrregularFrequency(form.frequency_x))
+
+/**
+ * 填报时间只读展示：提交后由系统自动生成，表单中不可编辑，故值恒为空，
+ * 按空值口径显示「提交后自动生成」；重新报审同样不预填源单时间。
+ */
+const reportTimeDisplay = computed(() => {
+  const text = String(form.report_time || '').trim()
+  return text ? text.slice(0, 16) : '提交后自动生成'
+})
 
 function goBack() {
   router.push('/site-construction/risk-point-control')
@@ -143,7 +152,8 @@ function onRiskSegmentChange() {
 
 /**
  * 重新报审预填：仅同项目已驳回记录可作为来源；
- * 填报日期默认今天（因此新单的风险源编号按今天的日期生成），其余字段由源单带出。
+ * 填报时间不预填源单时间（由提交时系统自动生成，新单的风险源编号按提交当日生成），
+ * 其余字段由源单带出。
  */
 function loadCopyFrom() {
   if (!copyFromId.value) {
@@ -162,7 +172,6 @@ function loadCopyFrom() {
     return
   }
   syncing.value = true
-  form.report_date = nowStr().slice(0, 10)
   form.risk_source_no = ''
   form.risk_type = row.risk_type || ''
   form.risk_point = row.risk_point || ''
@@ -240,8 +249,8 @@ function handleSubmit() {
       return
     }
   }
-  // 风险源编号由提交时按本次填报日期生成，不随表单提交
-  const { risk_source_no, ...rest } = form
+  // 风险源编号与填报时间均由提交时按提交时刻生成，不随表单提交
+  const { risk_source_no, report_time, ...rest } = form
   const r = saveRiskPointControl(
     laborProjectId.value,
     {
@@ -275,20 +284,19 @@ function handleSubmit() {
     <el-form label-width="132px" class="risk-form" @submit.prevent>
       <el-row :gutter="16">
         <el-col :span="8">
-          <el-form-item label="填报日期" required>
-            <el-date-picker
-              v-model="form.report_date"
-              type="date"
-              value-format="YYYY-MM-DD"
-              placeholder="请选择"
-              style="width: 100%"
+          <el-form-item label="填报时间">
+            <el-input
+              :model-value="reportTimeDisplay"
+              disabled
+              aria-label="填报时间"
             />
+            <p class="field-hint">由系统在提交后自动生成，表单中不可编辑。</p>
           </el-form-item>
         </el-col>
         <el-col :span="8">
           <el-form-item label="风险源编号">
             <el-input
-              :model-value="isCopyResubmit ? `提交后按填报日期生成（源单 ${copyFromNo}）` : '提交后自动生成'"
+              :model-value="isCopyResubmit ? `提交后按填报时间生成（源单 ${copyFromNo}）` : '提交后自动生成'"
               disabled
             />
           </el-form-item>

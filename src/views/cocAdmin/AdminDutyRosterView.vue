@@ -26,6 +26,10 @@ import {
   listDutyPersonOptions,
   summarizeDutyWeek,
   findSameShiftPartyConflicts,
+  buildManualDutyPerson,
+  hasDutyPerson,
+  isManualDutyPerson,
+  DUTY_SLOT_PERSON_LIMIT,
 } from '../../mock/dutyRoster.js'
 
 defineProps({
@@ -46,6 +50,19 @@ const activeDayTab = ref('0')
 
 const detailVisible = ref(false)
 const detail = ref(null)
+
+/** 单槽位人数上限（与 mock 层 DUTY_SLOT_PERSON_LIMIT 一致） */
+const manualPersonLimit = DUTY_SLOT_PERSON_LIMIT
+
+/** 手动输入人员（每条 = 姓名 + 岗位，可逐条新增）：非实名制人员，仅写入本值班表 */
+const manualVisible = ref(false)
+const manualForm = ref({
+  dayIndex: -1,
+  slotKey: '',
+  partyLabel: '',
+  shiftLabel: '',
+  rows: [],
+})
 
 const photoVisible = ref(false)
 const photoForm = ref({
@@ -229,8 +246,125 @@ function personIdsOf(day, key) {
 function setPersonIds(day, key, party, ids) {
   const pool = listDutyPersonOptions(form.value.projectId, party)
   const map = new Map(pool.map((p) => [p.userId, p]))
-  const selected = (ids || []).map((id) => map.get(id)).filter(Boolean).slice(0, 9)
+  const selected = (ids || [])
+    .map((id) => map.get(id) || (day[key] || []).find((p) => p.userId === id))
+    .filter(Boolean)
+    .slice(0, 9)
   day[key] = selected
+}
+
+/** 槽位候选项：实名制/演示池 + 本槽位已选的手动输入人员（否则标签会显示成内部 userId） */
+function slotOptions(day, def) {
+  const base = def.party === 'supervision' ? supervisionOptions.value : constructionOptions.value
+  const out = [...base]
+  const seen = new Set(base.map((p) => p.userId))
+  for (const person of day[def.key] || []) {
+    if (!person?.userId || seen.has(person.userId)) continue
+    seen.add(person.userId)
+    out.push(person)
+  }
+  return out
+}
+
+/** 手动输入人员标记（下拉标签与详情共用） */
+function manualMark(person) {
+  return isManualDutyPerson(person) ? '（手动）' : ''
+}
+
+/** 手动输入人员：一条 = 一行「姓名 + 岗位」；支持逐条「新增一条」 */
+let manualRowSeq = 0
+
+function makeManualRow(name = '', position = '') {
+  manualRowSeq += 1
+  return { key: `mrow-${manualRowSeq}`, name, position }
+}
+
+/** 打开「手动输入人员」弹窗：定位到当前日期的指定槽位，默认一行 */
+function openManualInput(dayIndex, def) {
+  const day = form.value.days?.[dayIndex]
+  if (!day) return
+  if ((day[def.key] || []).length >= manualPersonLimit) {
+    ElMessage.warning(`${def.label}最多 ${manualPersonLimit} 人`)
+    return
+  }
+  manualForm.value = {
+    dayIndex,
+    slotKey: def.key,
+    partyLabel: def.partyLabel,
+    shiftLabel: def.shiftLabel,
+    rows: [makeManualRow()],
+  }
+  manualVisible.value = true
+}
+
+function addManualRow() {
+  manualForm.value.rows.push(makeManualRow())
+}
+
+function removeManualRow(index) {
+  if (manualForm.value.rows.length <= 1) {
+    manualForm.value.rows = [makeManualRow()]
+    return
+  }
+  manualForm.value.rows.splice(index, 1)
+}
+
+function submitManualPerson() {
+  const { dayIndex, slotKey } = manualForm.value
+  const day = form.value.days?.[dayIndex]
+  if (!day || !slotKey) {
+    manualVisible.value = false
+    return
+  }
+  const filled = (manualForm.value.rows || [])
+    .map((row) => ({
+      name: String(row.name || '').trim(),
+      position: String(row.position || '').trim(),
+    }))
+    .filter((row) => row.name || row.position)
+  if (!filled.length) {
+    ElMessage.warning('请填写人员姓名与岗位')
+    return
+  }
+  const incomplete = filled.filter((row) => !row.name || !row.position)
+  if (incomplete.length) {
+    ElMessage.warning('每一条都需同时填写姓名与岗位')
+    return
+  }
+  const def = SLOT_DEFS.find((s) => s.key === slotKey)
+  const other = def ? crossPartySlotDef(def) : null
+  const current = [...(day[slotKey] || [])]
+  const added = []
+  const errors = []
+  for (const item of filled) {
+    if (current.length >= manualPersonLimit) {
+      errors.push(`「${item.name}」超出本槽位上限（最多 ${manualPersonLimit} 人）`)
+      continue
+    }
+    if (other && hasDutyPerson(day[other.key], item.name, item.position)) {
+      errors.push(`同一班次内「${item.name}」已作为${other.partyLabel}值班，不能同时作为${def.partyLabel}值班`)
+      continue
+    }
+    if (hasDutyPerson(current, item.name, item.position)) {
+      errors.push(`「${item.name}·${item.position}」已在列表中或本槽位已有`)
+      continue
+    }
+    const person = buildManualDutyPerson(item.name, item.position)
+    if (!person) {
+      errors.push(`「${item.name}」姓名无效`)
+      continue
+    }
+    current.push(person)
+    added.push(item)
+  }
+  if (!added.length) {
+    ElMessage.warning(errors[0] || '没有可添加的人员')
+    return
+  }
+  day[slotKey] = current.slice(0, manualPersonLimit)
+  manualVisible.value = false
+  const errTail = errors.length ? `；${errors.length} 条未添加：${errors.join('；')}` : ''
+  ElMessage.success(`已手动录入 ${added.length} 人（不参与实名制考勤，大屏不展示在场状态）${errTail}`)
 }
 
 /**
@@ -472,35 +606,44 @@ onMounted(reload)
                   :key="def.key"
                   :label="def.partyLabel"
                 >
-                  <el-select
-                    :model-value="personIdsOf(day, def.key)"
-                    multiple
-                    filterable
-                    collapse-tags
-                    collapse-tags-tooltip
-                    :max-collapse-tags="2"
-                    placeholder="0～9 人，可空"
-                    style="width: 100%"
-                    @update:model-value="(ids) => setPersonIds(day, def.key, def.party, ids)"
-                  >
-                    <el-option
-                      v-for="opt in def.party === 'supervision' ? supervisionOptions : constructionOptions"
-                      :key="opt.userId"
-                      :label="opt.optionLabel"
-                      :value="opt.userId"
-                      :disabled="
-                        isCrossPartyTaken(day, def, opt.userId) ||
-                        (personIdsOf(day, def.key).length >= 9 &&
-                          !personIdsOf(day, def.key).includes(opt.userId))
-                      "
-                    />
-                  </el-select>
+                  <div class="slot-picker">
+                    <el-select
+                      :model-value="personIdsOf(day, def.key)"
+                      multiple
+                      filterable
+                      collapse-tags
+                      collapse-tags-tooltip
+                      :max-collapse-tags="2"
+                      placeholder="从实名制选人，或点右侧手动输入"
+                      style="width: 100%"
+                      @update:model-value="(ids) => setPersonIds(day, def.key, def.party, ids)"
+                    >
+                      <el-option
+                        v-for="opt in slotOptions(day, def)"
+                        :key="opt.userId"
+                        :label="`${opt.optionLabel}${manualMark(opt)}`"
+                        :value="opt.userId"
+                        :disabled="
+                          isCrossPartyTaken(day, def, opt.userId) ||
+                          (personIdsOf(day, def.key).length >= manualPersonLimit &&
+                            !personIdsOf(day, def.key).includes(opt.userId))
+                        "
+                      />
+                    </el-select>
+                    <el-button
+                      :icon="Plus"
+                      title="手动输入人员（姓名 + 岗位）；该人员非实名制人员，在大屏不展示在场状态"
+                      @click="openManualInput(Number(activeDayTab), def)"
+                    >
+                      手动输入
+                    </el-button>
+                  </div>
                 </el-form-item>
               </div>
               <el-alert
                 type="info"
                 :closable="false"
-                title="值班照片不在此处上传；保存后通过「补录照片」分别录入白班、夜班现场照片（今天及更早）。"
+                title="人员来源：从实名制选人的人员带实名制身份，大屏按实名制考勤展示在场状态；手动输入的人员（姓名 + 岗位）在大屏不展示在场状态标签。值班照片不在此处上传，保存后通过「补录照片」分别录入白班、夜班现场照片（今天及更早）。"
               />
             </div>
           </el-tab-pane>
@@ -511,6 +654,64 @@ onMounted(reload)
         <el-button type="primary" @click="submitForm">保存并生效</el-button>
       </div>
     </el-drawer>
+
+    <!-- 手动输入人员：每条「姓名 + 岗位」，可逐条新增（非实名制人员） -->
+    <el-dialog
+      v-model="manualVisible"
+      title="手动输入值班人员"
+      width="600px"
+      append-to-body
+      destroy-on-close
+    >
+      <el-form label-width="72px">
+        <el-form-item label="录入位置">
+          <span class="manual-slot-text">
+            {{ form.days?.[manualForm.dayIndex]?.weekdayLabel || '--' }}
+            {{ form.days?.[manualForm.dayIndex]?.date || '' }}
+            · {{ manualForm.shiftLabel }}{{ manualForm.partyLabel }}
+          </span>
+        </el-form-item>
+        <el-form-item label="人员" required>
+          <div class="manual-rows">
+            <div class="manual-row manual-row--head">
+              <span class="manual-row__no">#</span>
+              <span class="manual-row__name">姓名</span>
+              <span class="manual-row__post">岗位</span>
+              <span class="manual-row__op">操作</span>
+            </div>
+            <div
+              v-for="(row, idx) in manualForm.rows"
+              :key="row.key"
+              class="manual-row"
+            >
+              <span class="manual-row__no">{{ idx + 1 }}</span>
+              <el-input
+                v-model="row.name"
+                class="manual-row__name"
+                maxlength="20"
+                placeholder="姓名"
+              />
+              <el-input
+                v-model="row.position"
+                class="manual-row__post"
+                maxlength="20"
+                placeholder="如：施工员"
+              />
+              <span class="manual-row__op">
+                <el-button link type="danger" @click="removeManualRow(idx)">删除</el-button>
+              </span>
+            </div>
+            <el-button :icon="Plus" class="manual-add-row" @click="addManualRow">
+              新增一条
+            </el-button>
+          </div>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="manualVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitManualPerson">添加</el-button>
+      </template>
+    </el-dialog>
 
     <!-- 补录照片：区分白班 / 夜班 -->
     <el-drawer v-model="photoVisible" title="补录值班照片" size="560px" destroy-on-close>
@@ -604,11 +805,12 @@ onMounted(reload)
                   >
                     <div v-if="personLabelsOf(day, def.key).length" class="person-lines">
                       <div
-                        v-for="(label, pi) in personLabelsOf(day, def.key)"
+                        v-for="(person, pi) in day[def.key] || []"
                         :key="`${def.key}-${pi}`"
                         class="person-line"
                       >
-                        {{ label }}
+                        {{ person.optionLabel || person.name }}
+                        <span v-if="isManualDutyPerson(person)" class="manual-tag">手动</span>
                       </div>
                     </div>
                     <template v-else>--</template>
@@ -672,6 +874,87 @@ onMounted(reload)
 
 .field-hint.inline {
   margin-left: 8px;
+}
+
+/* 槽位选人：左侧实名制多选 + 右侧手动输入入口 */
+.slot-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.slot-picker .el-select {
+  flex: 1;
+  min-width: 0;
+}
+
+.slot-picker .el-button {
+  flex: 0 0 auto;
+}
+
+.manual-slot-text {
+  color: var(--ap-text-secondary, #606266);
+}
+
+/* 手动输入：逐条「姓名 + 岗位」录入，可新增一条（最多 30 条，超出滚动） */
+.manual-rows {
+  width: 100%;
+  max-height: 52vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.manual-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+
+.manual-row--head {
+  padding-bottom: 4px;
+  color: var(--ap-text-secondary, #909399);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.manual-row__no {
+  flex: 0 0 20px;
+  text-align: center;
+  color: var(--ap-text-secondary, #909399);
+  font-size: 12px;
+}
+
+.manual-row__name {
+  flex: 0 0 150px;
+}
+
+.manual-row__post {
+  flex: 1;
+  min-width: 0;
+}
+
+.manual-row__op {
+  flex: 0 0 44px;
+  text-align: center;
+}
+
+.manual-add-row {
+  margin-top: 6px;
+}
+
+/* 详情：手动输入人员标记 */
+.manual-tag {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 4px;
+  border-radius: 3px;
+  font-size: 11px;
+  line-height: 16px;
+  color: #b88230;
+  background: rgba(230, 162, 60, 0.14);
+  border: 1px solid rgba(230, 162, 60, 0.4);
 }
 
 .day-tabs {
