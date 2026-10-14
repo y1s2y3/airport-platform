@@ -17,6 +17,14 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.17.1.5',
+    date: '2026-10-14',
+    highlights: [
+      '工程改进：样式作用域闸门扩展到 COC 调度大屏主题（要求每条规则受 .coc-hq-shell / .coc-hq-mode 门控）',
+      '工程改进：新增「平台框架类名受保护」检查——顶栏等平台骨架类名被其它文件写成全局规则将直接阻断发布',
+    ],
+  },
+  {
     version: 'v2.17.1.4',
     date: '2026-10-14',
     highlights: [

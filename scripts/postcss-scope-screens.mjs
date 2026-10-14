@@ -14,7 +14,7 @@
  * 单文件构建会把全部 CSS 内联，因此这里挡住的每一条都对应一次潜在的全站污染。
  */
 import path from 'node:path'
-import { SCOPE_TARGETS, HIGH_RISK_GLOBAL, UNPREFIXABLE_ROOT } from './css-scope.config.mjs'
+import { SCOPE_TARGETS, HIGH_RISK_GLOBAL, UNPREFIXABLE_ROOT, matchAllow } from './css-scope.config.mjs'
 
 const normalize = (s) => s.replace(/\s+/g, ' ').trim()
 
@@ -46,7 +46,7 @@ export default function scopeSubAppStyles(options = {}) {
       if (!target) return
 
       const { root: rootSel, allowGlobal = [] } = target
-      const allow = new Set(allowGlobal.map(normalize))
+      const allow = allowGlobal.map(normalize)
       const errors = []
 
       root.walkRules((rule) => {
@@ -57,8 +57,8 @@ export default function scopeSubAppStyles(options = {}) {
         const next = parts.map((part) => {
           // 已作用域（首段含根类）→ 跳过
           if (firstCompound(part).includes(rootSel)) return part
-          // 允许保留的全局
-          if (allow.has(part)) return part
+          // 允许保留的全局（前缀白名单）
+          if (matchAllow(allow, part)) return part
           changed = true
           // :root → 根类
           if (part === ':root') return rootSel
