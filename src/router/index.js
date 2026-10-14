@@ -15,6 +15,12 @@ const routes = [
     meta: { title: 'COC 调度中心' },
   },
   {
+    path: '/safety-situation-screen-v1',
+    name: 'SafetySituationScreenV1',
+    component: () => import('../views/SafetySituationScreenV1View.vue'),
+    meta: { title: '安全态势大屏 V1' },
+  },
+  {
     path: '/safety-situation-screen',
     name: 'SafetySituationScreen',
     component: () => import('../views/SafetySituationScreenView.vue'),

@@ -17,6 +17,14 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.11.1.26',
+    date: '2026-10-13',
+    highlights: [
+      '安全态势大屏支持版本选择：新增 V1 经典版与 V2 当前版',
+      '个人中心巡检待办流程名称去掉状态后缀，列表更简洁',
+    ],
+  },
+  {
     version: 'v2.11.1.25',
     date: '2026-10-13',
     highlights: [

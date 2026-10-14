@@ -35,6 +35,7 @@ const { isHqSelected } = useCurrentProject()
 
 const changelogVisible = ref(false)
 const changelogHistoryVisible = ref(false)
+const safetyVersionVisible = ref(false)
 const changelog = computed(() => getChangelogByVersion(APP_VERSION))
 const publishedChangelogs = computed(() => getPublishedChangelogs())
 const collapsed = ref(false)
@@ -257,6 +258,18 @@ const safetyScreenHref = computed(() => resolveScreenHref(
   'safety-situation-screen',
   { projectId: selectedProjectId.value || HQ_PROJECT_OPTION.id },
 ))
+const safetyScreenV1Href = computed(() => resolveScreenHref(
+  'SafetySituationScreenV1',
+  'safety-situation-screen-v1',
+  { projectId: selectedProjectId.value || HQ_PROJECT_OPTION.id },
+))
+
+/** 顶栏「安全态势大屏」：先选版本（V1 经典版 / V2 当前版），再新窗口打开 */
+function openSafetyVersion(version) {
+  const href = version === 'v1' ? safetyScreenV1Href.value : safetyScreenHref.value
+  safetyVersionVisible.value = false
+  window.open(href, '_blank', 'noopener,noreferrer')
+}
 
 async function handleLogout() {
   try {
@@ -396,16 +409,15 @@ function skipToMain(e) {
         >
           COC调度大屏
         </a>
-        <a
+        <button
           class="screen-btn safety-screen-btn"
-          :href="safetyScreenHref"
-          target="_blank"
-          rel="noopener noreferrer"
+          type="button"
+          @click="safetyVersionVisible = true"
           title="打开安全态势大屏"
           aria-label="打开安全态势大屏"
         >
           安全态势大屏
-        </a>
+        </button>
         <el-dropdown trigger="click" placement="bottom-end" @command="onUserCommand">
           <div class="user-block" role="button" tabindex="0" aria-label="账号操作">
             <el-avatar :size="32" class="user-avatar">调</el-avatar>
@@ -433,6 +445,28 @@ function skipToMain(e) {
       :account="webAccount"
       @success="onPasswordChanged"
     />
+
+    <el-dialog
+      v-model="safetyVersionVisible"
+      title="选择安全态势大屏版本"
+      width="520px"
+      append-to-body
+      destroy-on-close
+      class="safety-version-dialog"
+    >
+      <div class="safety-version-options">
+        <button type="button" class="safety-version-option" @click="openSafetyVersion('v1')">
+          <span class="safety-version-option__badge">V1</span>
+          <span class="safety-version-option__copy"><strong>经典版</strong><small>原三栏安全态势布局，适合延续原演示口径</small></span>
+          <span class="safety-version-option__action">打开 →</span>
+        </button>
+        <button type="button" class="safety-version-option safety-version-option--current" @click="openSafetyVersion('v2')">
+          <span class="safety-version-option__badge">V2</span>
+          <span class="safety-version-option__copy"><strong>当前版</strong><small>项目 / 工程指挥部双层级安全态势大屏</small></span>
+          <span class="safety-version-option__action">打开 →</span>
+        </button>
+      </div>
+    </el-dialog>
 
     <el-dialog
       v-model="changelogVisible"
@@ -982,6 +1016,98 @@ function skipToMain(e) {
   overflow: auto;
   padding: 16px;
   background: var(--ap-bg);
+}
+
+/* ---------- 安全态势大屏版本选择 ---------- */
+.safety-version-options {
+  display: grid;
+  gap: 12px;
+}
+
+.safety-version-option {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  border: 1px solid #dcdfe6;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ap-text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+}
+
+.safety-version-option:hover,
+.safety-version-option:focus-visible {
+  border-color: #8f0045;
+  background: #fff8fb;
+  box-shadow: 0 3px 12px rgba(143, 0, 69, 0.12);
+  outline: none;
+}
+
+.safety-version-option--current {
+  border-color: #167d8d;
+}
+
+.safety-version-option--current:hover,
+.safety-version-option--current:focus-visible {
+  border-color: #167d8d;
+  background: #f3fcfd;
+  box-shadow: 0 3px 12px rgba(22, 125, 141, 0.14);
+}
+
+.safety-version-option__badge {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 8px;
+  background: #fbeaf2;
+  color: #8f0045;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.safety-version-option--current .safety-version-option__badge {
+  background: #e4f6f8;
+  color: #167d8d;
+}
+
+.safety-version-option__copy {
+  min-width: 0;
+}
+
+.safety-version-option__copy strong,
+.safety-version-option__copy small {
+  display: block;
+}
+
+.safety-version-option__copy strong {
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.safety-version-option__copy small {
+  margin-top: 3px;
+  overflow: hidden;
+  color: var(--ap-text-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.safety-version-option__action {
+  color: var(--ap-primary);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.safety-version-option--current .safety-version-option__action {
+  color: #167d8d;
 }
 </style>
 

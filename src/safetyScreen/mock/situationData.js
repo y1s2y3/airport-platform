@@ -81,7 +81,10 @@ export function buildProjectRows() {
     const inspectionTotal = 18 + ((seed * 3) % 13)
     const inspectionDone = Math.max(0, inspectionTotal - (1 + (seed % 5)))
     const inspectionHazards = 7 + ((seed * 4) % 15)
-    const hazardClosed = Math.max(0, inspectionHazards - (1 + (seed % 4)))
+    const hazardPending = 1 + (seed % 4)
+    const hazardReview = (index + 1) % 4 === 0 ? 1 : 0
+    const hazardReviewed = (index + 1) % 5 === 0 ? 1 : 0
+    const hazardClosed = Math.max(0, inspectionHazards - hazardPending - hazardReview - hazardReviewed)
     const machineDevices = 12 + ((seed * 5) % 22)
     const machineOffline = seed % 4
     const machineOnline = Math.max(0, machineDevices - machineOffline)
@@ -108,7 +111,9 @@ export function buildProjectRows() {
       inspectionRate: inspectionTotal ? Math.round((inspectionDone / inspectionTotal) * 100) : 0,
       inspectionHazards,
       hazardClosed,
-      hazardPending: inspectionHazards - hazardClosed,
+      hazardPending,
+      hazardReview,
+      hazardReviewed,
       hazardOverdue: seed % 3,
       hazardClosureRate: inspectionHazards ? Math.round((hazardClosed / inspectionHazards) * 100) : 0,
       machineDevices,
@@ -120,6 +125,7 @@ export function buildProjectRows() {
       aiTotal: ai.total,
       aiUnhandled: ai.unhandled,
       aiHandled: ai.handled,
+      aiReminder: ai.reminder,
       aiHandlingRate: ai.handlingRate,
       aiProcessed: ai.processed,
       aiFalseAlarm: ai.falseAlarm,
@@ -142,6 +148,7 @@ export function buildScopeSummary(selectedProject, projectRows) {
   const majorOnline = sum(rows, 'majorOnline')
   const aiTotal = sum(rows, 'aiTotal')
   const aiHandled = sum(rows, 'aiHandled')
+  const aiUnhandled = sum(rows, 'aiUnhandled')
 
   return {
     projectCount: rows.length,
@@ -162,9 +169,12 @@ export function buildScopeSummary(selectedProject, projectRows) {
     inspectionOverdue: sum(rows, 'inspectionOverdue'),
     inspectionRate: inspectionTotal ? Math.round((inspectionDone / inspectionTotal) * 100) : 0,
     inspectionHazards,
+    hazardClosed,
     hazardPending: sum(rows, 'hazardPending'),
     hazardOverdue: sum(rows, 'hazardOverdue'),
     hazardClosureRate: inspectionHazards ? Math.round((hazardClosed / inspectionHazards) * 100) : 0,
+    hazardReview: sum(rows, 'hazardReview'),
+    hazardReviewed: sum(rows, 'hazardReviewed'),
     machineDevices,
     machineOnline,
     machineOffline: sum(rows, 'machineOffline'),
@@ -180,9 +190,10 @@ export function buildScopeSummary(selectedProject, projectRows) {
     majorTodayAlerts: sum(rows, 'majorTodayAlerts'),
     majorUnhandled: sum(rows, 'majorUnhandled'),
     aiTotal,
-    aiUnhandled: sum(rows, 'aiUnhandled'),
+    aiUnhandled,
     aiHandled,
-    aiHandlingRate: aiTotal ? Math.round((aiHandled / aiTotal) * 1000) / 10 : 0,
+    aiReminder: sum(rows, 'aiReminder'),
+    aiHandlingRate: aiHandled + aiUnhandled ? Math.round((aiHandled / (aiHandled + aiUnhandled)) * 1000) / 10 : 0,
     aiProcessed: sum(rows, 'aiProcessed'),
     aiFalseAlarm: sum(rows, 'aiFalseAlarm'),
   }
@@ -239,14 +250,18 @@ export function getAiOverview(projectId = HQ_SELECTION_ID) {
   const source = projectId === HQ_SELECTION_ID
     ? aiAlerts.value.filter((item) => SCREEN_PROJECTS.some((project) => project.id === item.projectId))
     : aiAlerts.value.filter((item) => item.projectId === projectId)
-  const handled = source.filter((item) => item.status === '已处置').length
+  const disposalSource = source.filter((item) => item.requiresDisposal !== false)
+  const handled = disposalSource.filter((item) => item.status === '已处置').length
+  const unhandled = disposalSource.filter((item) => item.status === '未处置').length
+  const reminder = source.filter((item) => item.requiresDisposal === false).length
   const processed = source.filter((item) => item.disposition === '已处理').length
   const falseAlarm = source.filter((item) => item.disposition === '误报').length
   return {
     total: source.length,
     handled,
-    unhandled: source.length - handled,
-    handlingRate: source.length ? Math.round((handled / source.length) * 1000) / 10 : 0,
+    unhandled,
+    reminder,
+    handlingRate: disposalSource.length ? Math.round((handled / disposalSource.length) * 1000) / 10 : 0,
     processed,
     falseAlarm,
     categories: Object.values(AI_CATEGORY_META).map((meta) => ({ ...meta, value: source.filter((item) => item.category === meta.key).length })),
@@ -260,19 +275,31 @@ export function buildTrend(selectedProject, projectRows, range = 7) {
   const latestAiDate = sourceAi.reduce((latest, item) => String(item.occurredAt || '').slice(0, 10) > latest ? String(item.occurredAt).slice(0, 10) : latest, '')
   const anchor = latestAiDate ? new Date(`${latestAiDate}T12:00:00`) : new Date()
   const inspectionBase = Math.max(1, sum(rows, 'inspectionPending'))
+  const inspectionCountBase = Math.max(1, sum(rows, 'inspectionTotal'))
+  const hazardCountBase = Math.max(1, sum(rows, 'inspectionHazards'))
   const machineBase = sum(rows, 'machineUnhandled')
   const majorBase = sum(rows, 'majorUnhandled')
+  const aiBase = Math.max(1, Math.round(sum(rows, 'aiTotal') / range))
+  const aiUnhandledBase = Math.max(0, Math.round(sum(rows, 'aiUnhandled') / range))
   return Array.from({ length: range }, (_, index) => {
     const date = new Date(anchor)
     date.setDate(date.getDate() - (range - 1 - index))
     const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
     const seed = index + (selectedProject?.index || 2)
+    const dayAi = sourceAi.filter((item) => String(item.occurredAt || '').startsWith(dateKey))
+    const fallbackAi = Math.max(0, aiBase + ((seed % 5) - 2))
+    const fallbackUnhandled = Math.min(fallbackAi, Math.max(0, aiUnhandledBase + ((seed % 3) - 1)))
     return {
       label: dateKey.slice(5),
       inspection: Math.max(0, inspectionBase + ((seed % 5) - 2)),
+      inspectionCount: Math.max(0, Math.round(inspectionCountBase / range) + ((seed % 3) - 1)),
+      hazardCount: Math.max(0, Math.round(hazardCountBase / range) + ((seed % 4) - 1)),
       machine: Math.max(0, machineBase + ((seed % 3) - 1)),
       major: Math.max(0, majorBase + ((seed % 4) - 2)),
-      ai: sourceAi.filter((item) => String(item.occurredAt || '').startsWith(dateKey)).length,
+      ai: dayAi.length || fallbackAi,
+      aiUnhandled: dayAi.length
+        ? dayAi.filter((item) => item.requiresDisposal !== false && item.status === '未处置').length
+        : fallbackUnhandled,
     }
   })
 }

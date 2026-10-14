@@ -109,8 +109,13 @@ export function buildInspectionTaskProcessName(taskName) {
   return `巡检任务·${clipProcessBizLabel(taskName, 30)}`
 }
 
-export function buildHazardRectifyProcessName(hazardDesc, status) {
-  return `隐患整改·${clipProcessBizLabel(hazardDesc)}-${status || '—'}`
+/**
+ * 巡检隐患整改待办的流程名称。
+ * 需求：流程名称里不再拼接状态（待整改/待复查/已复查），状态由待办/已办分组与详情体现。
+ * 保留第二参数以兼容既有调用方。
+ */
+export function buildHazardRectifyProcessName(hazardDesc) {
+  return `隐患整改·${clipProcessBizLabel(hazardDesc)}`
 }
 
 export function buildSampleProcessName(bizLabel, title) {
@@ -964,7 +969,7 @@ const inspectionBaseDetails = {
     },
   },
   整改: {
-    processName: '隐患整改·五芯电缆破损，线路未按规范敷设-待整改',
+    processName: '隐患整改·五芯电缆破损，线路未按规范敷设',
     applicant: '陈工（监理工程师）',
     rectifyId: 'rec-001',
     detail: {
@@ -983,7 +988,7 @@ const inspectionBaseDetails = {
     },
   },
   复查: {
-    processName: '隐患整改·五芯电缆破损，线路未按规范敷设-待复查',
+    processName: '隐患整改·五芯电缆破损，线路未按规范敷设',
     applicant: '王工（项目安全员）',
     rectifyId: 'rec-002',
     detail: {
@@ -1005,7 +1010,7 @@ const inspectionBaseDetails = {
     },
   },
   审批: {
-    processName: '隐患整改·临边防护栏杆局部缺失。-已复查',
+    processName: '隐患整改·临边防护栏杆局部缺失。',
     applicant: '陈工（监理工程师）',
     rectifyId: 'rec-007',
     detail: {
@@ -1700,7 +1705,7 @@ export const personalTodoStore = reactive({
       bizType: '整改',
       inspectionBizType: '整改',
       rectifyId: 'rec-006',
-      processName: '隐患整改·脚手架施工方案未报审即施工-待整改',
+      processName: '隐患整改·脚手架施工方案未报审即施工',
       applicant: '王工（项目安全员）',
       dept: '工程管理部',
       applyTime: '2026-07-22 09:20:00',
@@ -1743,7 +1748,7 @@ export const personalTodoStore = reactive({
       sourceLabel: '巡检管理',
       category: '巡检管理',
       bizType: '整改验收',
-      processName: '隐患整改·3号塔吊警戒区隐患整改-已关闭',
+      processName: '隐患整改·3号塔吊警戒区隐患整改',
       applicant: '王强',
       dept: '总包项目部',
       applyTime: '2026-07-10 11:20:00',
@@ -1885,7 +1890,7 @@ export const personalStarted = reactive([
     sourceLabel: '巡检管理',
     category: '巡检管理',
     bizType: '整改申请',
-    processName: '隐患整改·电缆敷设区临边防护缺失-已通过',
+    processName: '隐患整改·电缆敷设区临边防护缺失',
     status: '已通过',
     applicant: '当前用户',
     dept: '安监部',
@@ -1909,7 +1914,7 @@ export const personalStarted = reactive([
     bizType: '整改',
     inspectionBizType: '整改',
     rectifyId: 'rec-006',
-    processName: '隐患整改·脚手架施工方案未报审即施工-待整改',
+    processName: '隐患整改·脚手架施工方案未报审即施工',
     status: '已驳回',
     applicant: '当前用户',
     dept: '工程管理部',
