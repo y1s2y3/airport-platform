@@ -4,7 +4,7 @@
  * 审批在个人中心办理；「激活 / 关闭 / 重新激活」仅在从「风险点台账」进入时出现（见 fromLedger）；
  * 已驳回原单只读、不可再提，可从此处「重新报审」生成新单。
  * 本组件同时被「风险点台账」详情路由复用（路径 /site-construction/risk-point-ledger/:id）。
- * 本页不展示施工阶段与施工进度相关字段（激活状态由台账手工驱动，与进度无关）。
+ * 管控 / 实施责任人展示统一「姓名（组织-岗位）」，缺岗位回落「姓名（部门）」（见 utils/riskPersonDisplay.js）。
  */
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -27,12 +27,12 @@ import {
   riskApprovalFlow,
   riskCopyFromLabel,
   riskLocationLabel,
-  riskPersonLabel,
   riskRunStatus,
   riskRunStatusLabel,
   riskTypeName,
   severityTagType,
 } from '../../mock/riskManage.js'
+import { formatRiskPersonLabelById } from '../../utils/riskPersonDisplay.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -205,8 +205,8 @@ function handleReactivate() {
       <el-descriptions-item label="管控措施" :span="2">{{ formatRiskCell(detail.control_measure) }}</el-descriptions-item>
       <el-descriptions-item label="计划开始时间">{{ formatRiskCell(detail.plan_start) }}</el-descriptions-item>
       <el-descriptions-item label="计划结束时间">{{ formatRiskCell(detail.plan_end) }}</el-descriptions-item>
-      <el-descriptions-item label="管控责任人">{{ riskPersonLabel(detail.control_person_id) }}</el-descriptions-item>
-      <el-descriptions-item label="实施责任人">{{ riskPersonLabel(detail.implement_person_id) }}</el-descriptions-item>
+      <el-descriptions-item label="管控责任人">{{ formatRiskPersonLabelById(detail.control_person_id) }}</el-descriptions-item>
+      <el-descriptions-item label="实施责任人">{{ formatRiskPersonLabelById(detail.implement_person_id) }}</el-descriptions-item>
       <el-descriptions-item label="监理审批人">{{ supervisorLabel }}</el-descriptions-item>
       <el-descriptions-item v-if="!fromLedger" label="审批状态">
         <el-tag size="small" :type="approvalStatusTagType(detail.approval_status)">

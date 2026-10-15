@@ -1,13 +1,12 @@
 <script setup>
 /**
  * Web 端 · 平台登录页
- * 账号 + 密码登录，提供「忘记密码？」弹窗（重置密码后请使用新密码登录）
+ * 账号 + 密码登录（不提供「忘记密码」，密码由管理员在「系统管理 → 用户管理」中重置）
  * 说明：本页为平台登录入口，未登录也可直接访问后台（演示不拦截）
  */
 import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import ForgotPasswordDialog from '../components/common/ForgotPasswordDialog.vue'
 import { APP_VERSION } from '../config/appVersion.js'
 import { verifyAccountPassword } from '../mock/accountSecurity.js'
 import { hydrateWebSession, loginWeb } from '../mock/webSession.js'
@@ -22,7 +21,6 @@ const form = reactive({
   remember: true,
 })
 const loading = ref(false)
-const forgotVisible = ref(false)
 
 const rules = {
   account: [{ required: true, message: '请输入账号', trigger: 'blur' }],
@@ -67,16 +65,6 @@ async function onSubmit() {
   ElMessage.success('登录成功')
   router.replace('/workbench')
 }
-
-function openForgot() {
-  forgotVisible.value = true
-}
-
-function onResetSuccess(account) {
-  form.account = account
-  form.password = ''
-  formRef.value?.clearValidate(['password'])
-}
 </script>
 
 <template>
@@ -116,7 +104,6 @@ function onResetSuccess(account) {
           </el-form-item>
           <div class="form-meta">
             <el-checkbox v-model="form.remember">记住账号</el-checkbox>
-            <button type="button" class="forgot-link" @click="openForgot">忘记密码？</button>
           </div>
           <el-button
             class="submit-btn ap-btn-primary"
@@ -131,12 +118,6 @@ function onResetSuccess(account) {
         <p class="form-footer">工程建设智慧管控一体化平台 · {{ APP_VERSION }}</p>
       </div>
     </section>
-
-    <ForgotPasswordDialog
-      v-model="forgotVisible"
-      :default-account="form.account"
-      @success="onResetSuccess"
-    />
   </div>
 </template>
 
@@ -221,19 +202,7 @@ function onResetSuccess(account) {
 .form-meta {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   margin: 2px 0 22px;
-}
-.forgot-link {
-  border: none;
-  background: transparent;
-  color: var(--ap-primary);
-  font-size: 13px;
-  cursor: pointer;
-  padding: 4px 0;
-}
-.forgot-link:hover {
-  color: var(--ap-primary-hover);
 }
 .submit-btn {
   width: 100%;

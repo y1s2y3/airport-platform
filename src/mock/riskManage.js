@@ -1,15 +1,17 @@
 /**
- * 风险管理 Mock — 风险类型配置、配置库、风险点管控台账
+ * 风险管理 Mock — 风险类型配置、风险配置库、风险点申报 / 风险点台账
  * 口径：仅项目级。类型/风险点/细分来自配置库。
  * 发生频率为「每[周期]/n次」，周期为小时/日/周/月/季/年；另有「不定期」＝无固定周期、不统计次数。
  * 审批仅监理一级（审批中 / 已通过 / 已驳回）。
  * 落库：close_status（open / closed）+ manual_activated（手工激活标记）；
- * 激活三态（未开始 / 已激活 / 已关闭）为展示期派生，不落库，且不再由施工进度或日期判定。
+ * 激活三态（未开始 / 已激活 / 已关闭）为展示期派生，不落库，且不由施工进度或日期判定
+ * （施工阶段 / 施工进度字段已按裁决从 PRD 与 DDL 删除，本 Mock 不再保留）。
+ * 表体实体名仍为「风险点管控记录」（qm_risk_control），页面/功能名统一称「风险点申报 / 风险点台账」。
  */
 import { reactive } from 'vue'
 import { nowStr } from '../utils/datetime.js'
 import { getProjectLabel } from './laborRealName.js'
-import { tierPersonnelCatalog, getTierPersonLabel } from './laborWarningConfig.js'
+import { formatRiskPersonLabelById } from '../utils/riskPersonDisplay.js'
 import { getEntityNodePathLabel } from './constructionLocation.js'
 import {
   findMatSupervisorApprover,
@@ -52,10 +54,7 @@ export const AIRPORT_RISK_SOURCE_DEFAULTS = [
   '空防安全',
 ]
 
-/** 施工阶段下拉。取值与 PRD 6.2.8 construction_stage 枚举一致，带「阶段」后缀的旧值已废弃。
- * 施工位置沿用实体工程分解，不另做地图坐标。 */
-export const CONSTRUCTION_STAGE_OPTIONS = ['设计', '开工报建', '施工', '竣工']
-
+/** 风险激活状态三态（派生展示口径，不落库） */
 export const RISK_RUN_STATUS_LABEL = {
   not_started: '未开始',
   activated: '已激活',
@@ -63,37 +62,9 @@ export const RISK_RUN_STATUS_LABEL = {
 }
 
 /**
- * 施工进度关联选项。
- * 后续施工进度模块接入后，只替换本列表的数据来源，登记单仍保存 progress id。
- * 注意：进度状态仅为进度台账自身的只读展示口径，
- * 自 2026-10-14 起「不再」用于推导风险点的激活状态（激活改为手工驱动）。
- */
-export const constructionProgressOptions = reactive([
-  { id: 'prog-p-000-1', project_id: 'p-000', progress_name: '基坑开挖与支护', progress_status: '进行中' },
-  { id: 'prog-p-000-2', project_id: 'p-000', progress_name: '土建主体施工', progress_status: '未开始' },
-  { id: 'prog-p-000-3', project_id: 'p-000', progress_name: '航站区管线迁改', progress_status: '已完成' },
-  { id: 'prog-p-001-1', project_id: 'p-001', progress_name: '土建主体施工', progress_status: '进行中' },
-])
-
-export function listConstructionProgressOptions(projectId) {
-  return constructionProgressOptions.filter((row) => row.project_id === projectId)
-}
-
-export function constructionProgressLabel(id) {
-  if (!id) return '--'
-  const row = constructionProgressOptions.find((item) => item.id === id)
-  if (!row) return '--'
-  return row.progress_status ? `${row.progress_name}（${row.progress_status}）` : row.progress_name
-}
-
-export function constructionProgressStatus(id) {
-  if (!id) return ''
-  return constructionProgressOptions.find((item) => item.id === id)?.progress_status || ''
-}
-
-/**
  * 激活状态三态派生（不落库、无日期判定、与施工进度无关）：
  * 已关闭优先 → 手工激活标记 → 其余为未开始。
+ * 台账页展示与筛选口径同步使用本函数；申报页不展示激活状态。
  */
 export function riskRunStatus(row) {
   if (!row) return 'not_started'
@@ -147,10 +118,12 @@ export const RISK_TYPE_PRESETS = [
   '其他',
 ]
 
-export const riskPersonCandidates = tierPersonnelCatalog
-
+/**
+ * 责任人展示名：统一「姓名（组织-岗位）」，缺岗位回落「姓名（部门）」。
+ * 申报表单的候选人过滤与三端展示统一走 utils/riskPersonDisplay.js；此处保留同名入口供台账页复用。
+ */
 export function riskPersonLabel(personId) {
-  return getTierPersonLabel(personId)
+  return formatRiskPersonLabelById(personId)
 }
 
 export function approvalStatusLabel(status) {
@@ -324,7 +297,7 @@ let controlSeq = 10
 
 /**
  * 每个风险类型一条演示种子。已有台账的类型按项目跳过，避免重复。
- * 管控登记挂在「进行中」进度上，审批已通过且未关闭，列表中为已激活。
+ * 演示种子审批已通过且未关闭，激活状态由调用处显式声明（不再与施工进度关联）。
  */
 const RISK_TYPE_DEMO_SEEDS = [
   {
@@ -530,9 +503,10 @@ function reportDay(value) {
 /**
  * 演示种子：编号与填报时间成对传入，编号取填报时间的日期部分，保持三段式 `FX-YYYYMMDD-序号` 自洽，
  * 且不同项目使用不同日期段，避免编号与「同日序号」冲突。
- * 演示口径：原先「关联进度进行中」的种子改为手工激活（manual_activated: true），保证演示三态齐全。
+ * 演示口径：激活状态显式声明（manualActivated 入参），不再由施工进度派生；
+ * 两个项目各自保证三态齐全（未开始 / 已激活 / 已关闭）。
  */
-function buildDemoControls(projectId, skipTypes, progressId, locationId, reportTime) {
+function buildDemoControls(projectId, skipTypes, locationId, reportTime, manualActivated) {
   const day = reportDay(reportTime).replace(/-/g, '')
   return demoSeedsFor(skipTypes).map((item, index) => ({
     id: `rpk-${projectId}-d${index + 1}`,
@@ -541,8 +515,6 @@ function buildDemoControls(projectId, skipTypes, progressId, locationId, reportT
     report_time: reportTime,
     risk_factor: item.risk_factor,
     hazard_consequence: item.hazard_consequence,
-    construction_stage: '施工',
-    construction_progress_id: progressId,
     risk_type: item.risk_type,
     risk_point: item.risk_point,
     risk_segment: item.risk_segment,
@@ -559,7 +531,7 @@ function buildDemoControls(projectId, skipTypes, progressId, locationId, reportT
     severity: item.severity,
     approval_status: 'approved',
     close_status: 'open',
-    manual_activated: constructionProgressStatus(progressId) === '进行中',
+    manual_activated: manualActivated === true,
     copy_from_pk: '',
     copy_from_source_no: '',
     ...DEMO_SUPERVISOR,
@@ -653,7 +625,7 @@ export const riskPointConfigList = reactive([
   ...buildDemoConfigs('p-001', ['坍塌']),
 ])
 
-/** 风险点管控台账（风险点位置 = 实体工程分解节点） */
+/** 风险点台账数据（表体为「风险点管控记录」qm_risk_control；风险点位置 = 实体工程分解节点） */
 export const riskPointControlList = reactive([
   {
     id: 'rpk-001',
@@ -662,8 +634,6 @@ export const riskPointControlList = reactive([
     report_time: '2026-08-28 10:20:00',
     risk_factor: '临边栏杆未封闭，作业面临空。',
     hazard_consequence: '人员高处坠落，造成伤亡。',
-    construction_stage: '施工',
-    construction_progress_id: 'prog-p-000-1',
     risk_type: '高处坠落',
     risk_point: '临边防护缺失或不到位',
     risk_segment: '楼层临边、基坑临边',
@@ -699,8 +669,6 @@ export const riskPointControlList = reactive([
     report_time: '2026-08-29 14:05:00',
     risk_factor: '多台起重设备在同一覆盖区交叉作业。',
     hazard_consequence: '吊物坠落或设备碰撞，造成人员伤害和设备损坏。',
-    construction_stage: '施工',
-    construction_progress_id: 'prog-p-000-2',
     risk_type: '起重伤害',
     risk_point: '塔吊吊装交叉作业',
     risk_segment: '塔吊覆盖区吊运材料',
@@ -736,8 +704,6 @@ export const riskPointControlList = reactive([
     report_time: '2026-09-16 09:30:00',
     risk_factor: '基坑临边防护不连续。',
     hazard_consequence: '人员或物料坠入基坑。',
-    construction_stage: '施工',
-    construction_progress_id: 'prog-p-000-1',
     risk_type: '高处坠落',
     risk_point: '临边防护缺失或不到位',
     risk_segment: '楼层临边、基坑临边',
@@ -773,8 +739,6 @@ export const riskPointControlList = reactive([
     report_time: '2026-09-01 09:10:00',
     risk_factor: '航站区动火点周边仍堆放包装材料和油污抹布。',
     hazard_consequence: '动火引燃可燃物，造成火灾和人员灼伤。',
-    construction_stage: '施工',
-    construction_progress_id: 'prog-p-000-1',
     risk_type: '火灾爆炸',
     risk_point: '动火作业防护不到位',
     risk_segment: '航站区动火点',
@@ -811,8 +775,6 @@ export const riskPointControlList = reactive([
     report_time: '2026-08-20 11:00:00',
     risk_factor: '管线迁改段临时电缆曾沿地敷设，绝缘局部老化。',
     hazard_consequence: '潮湿环境触电，造成人员伤亡或停电。',
-    construction_stage: '施工',
-    construction_progress_id: 'prog-p-000-3',
     risk_type: '触电',
     risk_point: '临时用电线路破损',
     risk_segment: '配电箱及电缆敷设',
@@ -848,8 +810,6 @@ export const riskPointControlList = reactive([
     report_time: '2026-09-05 08:40:00',
     risk_factor: '楼层上下同时作业，防护棚未按方案搭设。',
     hazard_consequence: '上方物料坠落，打击下方作业人员。',
-    construction_stage: '施工',
-    construction_progress_id: 'prog-p-000-2',
     risk_type: '物体打击',
     risk_point: '交叉作业防护缺失',
     risk_segment: '垂直交叉作业区',
@@ -886,8 +846,6 @@ export const riskPointControlList = reactive([
     report_time: '2026-09-18 10:05:00',
     risk_factor: '不停航通道上施工车辆与场内运行车辆混行。',
     hazard_consequence: '车辆碰撞或碾压，造成人员伤亡和运行中断。',
-    construction_stage: '施工',
-    construction_progress_id: 'prog-p-000-2',
     risk_type: '车辆伤害',
     risk_point: '场内车辆混行',
     risk_segment: '不停航施工通道',
@@ -923,8 +881,6 @@ export const riskPointControlList = reactive([
     report_time: '2026-09-10 13:20:00',
     risk_factor: '基坑段配电箱门锁损坏，电缆接头外露。',
     hazard_consequence: '非电工误触带电部位，造成触电伤害。',
-    construction_stage: '施工',
-    construction_progress_id: 'prog-p-000-1',
     risk_type: '触电',
     risk_point: '临时用电线路破损',
     risk_segment: '配电箱及电缆敷设',
@@ -960,8 +916,6 @@ export const riskPointControlList = reactive([
     report_time: '2026-09-02 09:00:00',
     risk_factor: '主体施工段深基坑监测位移接近预警。',
     hazard_consequence: '支护失效导致基坑坍塌，掩埋人员和设备。',
-    construction_stage: '施工',
-    construction_progress_id: 'prog-p-001-1',
     risk_type: '坍塌',
     risk_point: '深基坑支护变形',
     risk_segment: '基坑开挖与支护',
@@ -997,8 +951,6 @@ export const riskPointControlList = reactive([
     report_time: '2026-09-08 10:30:00',
     risk_factor: '局部超挖已回填并复测合格。',
     hazard_consequence: '若再次超挖，可能引起边坡失稳。',
-    construction_stage: '施工',
-    construction_progress_id: 'prog-p-001-1',
     risk_type: '坍塌',
     risk_point: '深基坑支护变形',
     risk_segment: '基坑开挖与支护',
@@ -1028,8 +980,9 @@ export const riskPointControlList = reactive([
     creator: '刘安全',
     created_at: '2026-09-08 10:30:00',
   },
-  ...buildDemoControls('p-000', ['高处坠落', '起重伤害', '触电', '火灾爆炸', '物体打击', '车辆伤害'], 'prog-p-000-1', 'loc-conc-1', '2026-09-19 09:00:00'),
-  ...buildDemoControls('p-001', ['坍塌'], 'prog-p-001-1', 'loc-rwy-1', '2026-09-20 09:00:00'),
+  // 演示三态：p-000 的演示种子为「已激活」，p-001 的演示种子为「未开始」（各自三态齐全）
+  ...buildDemoControls('p-000', ['高处坠落', '起重伤害', '触电', '火灾爆炸', '物体打击', '车辆伤害'], 'loc-conc-1', '2026-09-19 09:00:00', true),
+  ...buildDemoControls('p-001', ['坍塌'], 'loc-rwy-1', '2026-09-20 09:00:00', false),
   // 演示「重新报审 + 审批过程」：源单 = 已驳回的 rpk-006，新记录按今天生成编号（同日序号接排）
   ...buildResubmitControl(
     {
@@ -1038,8 +991,6 @@ export const riskPointControlList = reactive([
       risk_source_no: 'FX-20260905-001',
       risk_factor: '楼层上下同时作业，防护棚未按方案搭设。',
       hazard_consequence: '上方物料坠落，打击下方作业人员。',
-      construction_stage: '施工',
-      construction_progress_id: 'prog-p-000-2',
       risk_type: '物体打击',
       risk_point: '交叉作业防护缺失',
       risk_segment: '垂直交叉作业区',
@@ -1542,8 +1493,6 @@ export function saveRiskPointControl(projectId, payload, editorName = '系统管
   const report_time = nowStr()
   const risk_factor = (payload.risk_factor || '').trim()
   const hazard_consequence = (payload.hazard_consequence || '').trim()
-  const construction_stage = (payload.construction_stage || '').trim()
-  const construction_progress_id = payload.construction_progress_id || ''
   const risk_type = (payload.risk_type || '').trim()
   const risk_point = (payload.risk_point || '').trim()
   const risk_segment = (payload.risk_segment || '').trim()
@@ -1581,17 +1530,6 @@ export function saveRiskPointControl(projectId, payload, editorName = '系统管
   if (risk_factor.length > 300) return { ok: false, msg: '风险因素不超过300字' }
   if (!hazard_consequence) return { ok: false, msg: '请填写危害后果' }
   if (hazard_consequence.length > 300) return { ok: false, msg: '危害后果不超过300字' }
-  if (construction_stage && !CONSTRUCTION_STAGE_OPTIONS.includes(construction_stage)) {
-    return { ok: false, msg: '施工阶段无效' }
-  }
-  if (
-    construction_progress_id
-    && !constructionProgressOptions.some(
-      (row) => row.id === construction_progress_id && row.project_id === projectId,
-    )
-  ) {
-    return { ok: false, msg: '施工进度不在当前可选范围内' }
-  }
   if (!risk_type) return { ok: false, msg: '请选择风险类型' }
   if (!listRiskTypeNames(projectId).includes(risk_type)) {
     return { ok: false, msg: '风险类型须从风险类型配置中选择' }
@@ -1615,8 +1553,6 @@ export function saveRiskPointControl(projectId, payload, editorName = '系统管
     report_time,
     risk_factor,
     hazard_consequence,
-    construction_stage,
-    construction_progress_id,
     risk_type_id: riskTypeIdByName(projectId, risk_type),
     risk_type,
     risk_point,

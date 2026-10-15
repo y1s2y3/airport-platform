@@ -314,13 +314,26 @@ export const menuTree = [
     ],
   },
 
-  /** 流程管理（仅指挥部；页面为正式工程入口说明） */
+  /**
+   * 流程管理（仅指挥部）
+   * 流程组件 / 流程表单 / 消息模板 为可交互原型页；流程分类 / 流程配置 / 流程定义 仍为正式工程入口说明页
+   * （2026-10-14 按线上登记表补齐：流程组件、流程表单、消息模板→消息分类/模板定义）
+   */
   {
     key: 'flow-manage', label: '流程管理', icon: 'Guide', levels: 'hq',
     children: [
+      { key: 'flow-components', label: '流程组件', icon: 'SetUp', path: '/flow/components', name: 'FlowComponents', component: 'FlowComponentView', levels: 'hq', description: '维护流程设计器可拖拽使用的控件库。' },
       { key: 'flow-category', label: '流程分类', icon: 'CollectionTag', path: '/flow/category', name: 'FlowCategory', component: 'OfficialBizPlaceholderView', levels: 'hq' },
       { key: 'flow-config', label: '流程配置', icon: 'SetUp', path: '/flow/config', name: 'FlowConfig', component: 'OfficialBizPlaceholderView', levels: 'hq' },
       { key: 'flow-definition', label: '流程定义', icon: 'Document', path: '/flow/definition', name: 'FlowDefinition', component: 'OfficialBizPlaceholderView', levels: 'hq' },
+      { key: 'flow-form', label: '流程表单', icon: 'DocumentChecked', path: '/flow/form', name: 'FlowForm', component: 'FlowFormView', levels: 'hq', description: '维护流程绑定的业务表单模板。' },
+      {
+        key: 'flow-message-group', label: '消息模板', icon: 'ChatLineRound', levels: 'hq',
+        children: [
+          { key: 'flow-message-classify', label: '消息分类', icon: 'CollectionTag', path: '/flow/message/classify', name: 'FlowMessageClassify', component: 'MessageClassifyView', levels: 'hq', description: '维护通知消息的分类字典。' },
+          { key: 'flow-message-template', label: '模板定义', icon: 'Document', path: '/flow/message/template', name: 'FlowMessageTemplate', component: 'MessageTemplateView', levels: 'hq', description: '维护各分类下的通知模板正文与变量。' },
+        ],
+      },
     ],
   },
 
@@ -748,6 +761,10 @@ export const viewLoaders = {
   MenuManageView: () => import('../views/settings/MenuManageView.vue'),
   VersionNoticeView: () => import('../views/settings/VersionNoticeView.vue'),
   OfficialBizPlaceholderView: () => import('../views/settings/OfficialBizPlaceholderView.vue'),
+  FlowComponentView: () => import('../views/settings/FlowComponentView.vue'),
+  FlowFormView: () => import('../views/settings/FlowFormView.vue'),
+  MessageClassifyView: () => import('../views/settings/MessageClassifyView.vue'),
+  MessageTemplateView: () => import('../views/settings/MessageTemplateView.vue'),
   SystemLogView: () => import('../views/logs/SystemLogView.vue'),
   LoginLogView: () => import('../views/logs/LoginLogView.vue'),
   OperationLogView: () => import('../views/logs/OperationLogView.vue'),

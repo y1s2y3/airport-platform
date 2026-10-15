@@ -11,11 +11,11 @@ import {
   riskApprovalFlow,
   riskCopyFromLabel,
   riskLocationLabel,
-  riskPersonLabel,
   riskRunStatusLabel,
   riskTypeName,
   severityTagType,
 } from '../../../mock/riskManage.js'
+import { formatRiskPersonLabelById } from '../../../utils/riskPersonDisplay.js'
 import TodoApprovalFlowSection from '../components/TodoApprovalFlowSection.vue'
 import '../styles/todoHandleBlocks.css'
 
@@ -66,8 +66,8 @@ const approvalFlow = computed(() => riskApprovalFlow(row.value))
         <el-descriptions-item label="管控措施" :span="2">{{ formatRiskCell(row.control_measure) }}</el-descriptions-item>
         <el-descriptions-item label="计划开始时间">{{ formatRiskCell(row.plan_start) }}</el-descriptions-item>
         <el-descriptions-item label="计划结束时间">{{ formatRiskCell(row.plan_end) }}</el-descriptions-item>
-        <el-descriptions-item label="管控责任人">{{ riskPersonLabel(row.control_person_id) }}</el-descriptions-item>
-        <el-descriptions-item label="实施责任人">{{ riskPersonLabel(row.implement_person_id) }}</el-descriptions-item>
+        <el-descriptions-item label="管控责任人">{{ formatRiskPersonLabelById(row.control_person_id) }}</el-descriptions-item>
+        <el-descriptions-item label="实施责任人">{{ formatRiskPersonLabelById(row.implement_person_id) }}</el-descriptions-item>
         <el-descriptions-item label="监理审批人">{{ supervisorLabel }}</el-descriptions-item>
         <el-descriptions-item label="审批状态">{{ approvalStatusLabel(row.approval_status) }}</el-descriptions-item>
         <el-descriptions-item label="最近审批意见" :span="2">{{ formatRiskCell(row.last_opinion) }}</el-descriptions-item>

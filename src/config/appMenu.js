@@ -8,7 +8,6 @@ export const appMenu = [
     levels: 'project',
     children: [
       { key: 'app-jg-login', label: '登录', icon: 'Unlock', levels: 'project' },
-      { key: 'app-jg-forgot-password', label: '找回密码', icon: 'Key', levels: 'project' },
       { key: 'app-jg-personal', label: '个人中心', icon: 'Notebook', levels: 'project' },
       { key: 'app-jg-biz', label: '业务功能', icon: 'SuitcaseLine', levels: 'project' },
       { key: 'app-jg-mine', label: '我的', icon: 'User', levels: 'project' },

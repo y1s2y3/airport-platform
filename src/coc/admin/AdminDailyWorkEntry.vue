@@ -227,7 +227,7 @@ function handleDelete(row) {
 function onImportFileChange(uploadFile) {
   importFile.value = uploadFile.raw
   if (!uploadFile.raw) return
-  parseDailyWorkFile(uploadFile.raw, importSheet.value)
+  parseDailyWorkFile(uploadFile.raw, importSheet.value, { includeNormalRows: true })
     .then((res) => {
       const checked = validateDailyWorkImportRecords(res.records)
       if (!checked.ok) {

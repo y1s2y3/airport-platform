@@ -5,7 +5,8 @@
  * 重新报审：路由 query `from=<源记录id>`，源单须为同项目已驳回记录；
  * 提交后生成新的风险源编号（按新的填报时间），原单保留、只读、不可再提。
  * 填报时间为提交后系统自动生成，表单中不可编辑（仅只读展示）。
- * 本页不展示施工阶段与施工进度相关字段（激活状态由台账手工驱动，与进度无关）。
+ * 管控 / 实施责任人候选按当前项目过滤，选人与展示统一「姓名（组织-岗位）」（见 utils/riskPersonDisplay.js）；
+ * 激活状态由「风险点台账」手工驱动，与审批填报无关。
  */
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -24,9 +25,9 @@ import {
   listConfigRiskTypes,
   listMatSupervisorApprovers,
   normalizeLocationWbsIds,
-  riskPersonCandidates,
   saveRiskPointControl,
 } from '../../mock/riskManage.js'
+import { filterRiskProjectPersonnel, formatRiskPersonLabel } from '../../utils/riskPersonDisplay.js'
 import {
   listEntityPartSelectTree,
 } from '../../mock/constructionLocation.js'
@@ -62,6 +63,8 @@ const form = reactive({
 
 const typeOptions = computed(() => listConfigRiskTypes(laborProjectId.value))
 const supervisorOptions = computed(() => listMatSupervisorApprovers(laborProjectId.value))
+/** 管控 / 实施责任人候选：仅当前项目可选人员（数据限制见 utils/riskPersonDisplay.js 文件头说明） */
+const personCandidates = computed(() => filterRiskProjectPersonnel(laborProjectId.value))
 
 const pointOptions = computed(() => {
   if (!form.risk_type) return []
@@ -487,12 +490,13 @@ function handleSubmit() {
               style="width: 100%"
             >
               <el-option
-                v-for="p in riskPersonCandidates"
+                v-for="p in personCandidates"
                 :key="p.id"
-                :label="`${p.name}（${p.dept}）`"
+                :label="formatRiskPersonLabel(p)"
                 :value="p.id"
               />
             </el-select>
+            <p v-if="!personCandidates.length" class="field-hint">本项目暂无可选人员，请先维护项目人员名册</p>
           </el-form-item>
         </el-col>
       </el-row>
@@ -508,12 +512,13 @@ function handleSubmit() {
               style="width: 100%"
             >
               <el-option
-                v-for="p in riskPersonCandidates"
+                v-for="p in personCandidates"
                 :key="p.id"
-                :label="`${p.name}（${p.dept}）`"
+                :label="formatRiskPersonLabel(p)"
                 :value="p.id"
               />
             </el-select>
+            <p v-if="!personCandidates.length" class="field-hint">本项目暂无可选人员，请先维护项目人员名册</p>
           </el-form-item>
         </el-col>
         <el-col :span="8">
@@ -531,7 +536,7 @@ function handleSubmit() {
                 :value="u.user_id"
               />
             </el-select>
-            <p class="field-hint">本单仅需监理单位审批，通过后进入管控。</p>
+            <p class="field-hint">本单仅需监理单位审批，通过后在「风险点台账」跟踪激活状态。</p>
           </el-form-item>
         </el-col>
       </el-row>

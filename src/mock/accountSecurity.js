@@ -1,22 +1,16 @@
 /**
  * 平台账号安全（原型 Mock）· Web 端登录与建管 APP 共用
  *
- * - 验证码：演示固定 123456，5 分钟有效，60 秒内不可重复发送
- * - 密码：修改 / 重置后写入本机存储；未设置过密码的账号沿用
+ * - 密码：修改 / 管理员重置后写入本机存储；未设置过密码的账号沿用
  *   「任意非空账号密码即可登录」的既有演示口径（改过密码的账号必须用新密码）
- * - 与真实后端的差异（演示口径）：不校验「账号 ↔ 手机号」绑定关系，
- *   不发真实短信，不校验账号是否存在
+ * - 不提供「忘记密码」自助找回：用户登录密码由管理员在「系统管理 → 用户管理」中重置
+ * - 与真实后端的差异（演示口径）：密码明文存本机、不校验账号是否存在与账号状态
  */
 
 const STORAGE_CREDENTIALS = 'jg-account-credentials'
-const STORAGE_SMS = 'jg-account-sms'
 
-/** 演示验证码（真实环境由后端下发） */
-export const DEMO_SMS_CODE = '123456'
-/** 验证码有效期 */
-export const SMS_CODE_TTL_MS = 5 * 60 * 1000
-/** 验证码重发间隔 */
-export const SMS_RESEND_COOLDOWN_MS = 60 * 1000
+/** 管理员重置后的系统默认初始密码（演示值，接入后端后由服务端下发策略） */
+export const DEFAULT_RESET_PASSWORD = 'Szjc@2026'
 
 function readJson(key, fallback) {
   try {
@@ -43,13 +37,6 @@ export function normalizeAccount(account) {
 
 export function validateAccount(account) {
   if (!normalizeAccount(account)) return { ok: false, msg: '请输入账号' }
-  return { ok: true }
-}
-
-export function validatePhone(phone) {
-  const p = String(phone == null ? '' : phone).trim()
-  if (!p) return { ok: false, msg: '请输入手机号' }
-  if (!/^1\d{10}$/.test(p)) return { ok: false, msg: '手机号格式不正确' }
   return { ok: true }
 }
 
@@ -89,7 +76,7 @@ export function verifyAccountPassword({ account, password }) {
   return { ok: true }
 }
 
-/** 写入账号密码（内部使用；对外走修改 / 重置密码） */
+/** 写入账号密码（内部使用；对外走修改 / 管理员重置密码） */
 export function setAppPassword({ account, password }) {
   const acc = normalizeAccount(account)
   if (!acc) return { ok: false, msg: '请输入账号' }
@@ -99,72 +86,17 @@ export function setAppPassword({ account, password }) {
   return { ok: true }
 }
 
-/** 发送短信验证码（演示：固定 123456，直接回显；校验重发倒计时） */
-export function sendSmsCode({ phone }) {
-  const check = validatePhone(phone)
-  if (!check.ok) return check
-  const p = String(phone).trim()
-  const now = Date.now()
-  const last = readJson(STORAGE_SMS, null)
-  if (last && last.phone === p && last.nextSendAt > now) {
-    return { ok: false, msg: `请 ${Math.ceil((last.nextSendAt - now) / 1000)} 秒后再获取验证码` }
-  }
-  const record = {
-    phone: p,
-    code: DEMO_SMS_CODE,
-    expireAt: now + SMS_CODE_TTL_MS,
-    nextSendAt: now + SMS_RESEND_COOLDOWN_MS,
-    sentAt: now,
-  }
-  writeJson(STORAGE_SMS, record)
-  return { ok: true, code: DEMO_SMS_CODE, expireAt: record.expireAt, nextSendAt: record.nextSendAt }
-}
-
-/** 剩余重发倒计时秒数（页面刷新后可恢复） */
-export function smsCountdownSeconds(phone) {
-  const p = String(phone == null ? '' : phone).trim()
-  const last = readJson(STORAGE_SMS, null)
-  if (!p || !last || last.phone !== p) return 0
-  const left = Math.ceil((last.nextSendAt - Date.now()) / 1000)
-  return left > 0 ? left : 0
-}
-
-export function verifySmsCode({ phone, code }) {
-  const check = validatePhone(phone)
-  if (!check.ok) return check
-  const p = String(phone).trim()
-  const c = String(code == null ? '' : code).trim()
-  if (!c) return { ok: false, msg: '请输入验证码' }
-  const last = readJson(STORAGE_SMS, null)
-  if (!last || last.phone !== p) return { ok: false, msg: '请先获取验证码' }
-  if (Date.now() > last.expireAt) return { ok: false, msg: '验证码已失效，请重新获取' }
-  if (last.code !== c) return { ok: false, msg: '验证码不正确' }
-  return { ok: true }
-}
-
-export function clearSmsCode() {
-  try {
-    localStorage.removeItem(STORAGE_SMS)
-  } catch {
-    /* ignore */
-  }
-}
-
 /**
- * 找回密码：账号 + 手机号 + 验证码 → 设置新密码
- * @returns {{ ok: boolean, msg?: string }}
+ * 管理员重置密码：账号 → 写回系统默认初始密码
+ * 不校验原密码，也不校验短信验证码（由管理员在用户管理中触发）
+ * @returns {{ ok: boolean, msg?: string, defaultPassword?: string }}
  */
-export function resetPassword({ account, phone, code, newPassword }) {
+export function adminResetPassword({ account }) {
   const accCheck = validateAccount(account)
   if (!accCheck.ok) return accCheck
-  const smsCheck = verifySmsCode({ phone, code })
-  if (!smsCheck.ok) return smsCheck
-  const pwdCheck = validatePassword(newPassword)
-  if (!pwdCheck.ok) return pwdCheck
-  const saved = setAppPassword({ account, password: newPassword })
+  const saved = setAppPassword({ account, password: DEFAULT_RESET_PASSWORD })
   if (!saved.ok) return saved
-  clearSmsCode()
-  return { ok: true }
+  return { ok: true, defaultPassword: DEFAULT_RESET_PASSWORD }
 }
 
 /**

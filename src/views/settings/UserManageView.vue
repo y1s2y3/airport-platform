@@ -7,6 +7,7 @@ import {
   sysUserRecords,
   userStatusOptions,
   deleteSysUser,
+  resetSysUserPassword,
   toggleSysUserStatus,
 } from '../../mock/sysUsers'
 import { useOrgScope } from '../../composables/useOrgScope'
@@ -80,6 +81,30 @@ function handleStatusChange(row, status) {
   toggleSysUserStatus(row.id, status)
   ElMessage.success(status ? '已启用' : '已停用')
 }
+
+/** 重置密码：二次确认后写回系统默认初始密码 */
+async function handleResetPassword(row) {
+  try {
+    await ElMessageBox.confirm(
+      `确定将用户「${row.name}（${row.loginAccount}）」的登录密码重置为系统默认初始密码？重置后该用户需使用默认密码登录，请及时通知本人并修改。`,
+      '重置密码',
+      {
+        type: 'warning',
+        confirmButtonText: '确认重置',
+        cancelButtonText: '取消',
+      },
+    )
+  } catch {
+    return
+  }
+  const r = resetSysUserPassword(row.id)
+  if (!r.ok) return ElMessage.warning(r.msg)
+  ElMessage({
+    type: 'success',
+    message: `已将「${row.name}」的登录密码重置为默认初始密码 ${r.defaultPassword}，请通知用户登录后及时修改`,
+    duration: 5000,
+  })
+}
 </script>
 
 <template>
@@ -117,11 +142,13 @@ function handleStatusChange(row, status) {
         </template>
       </el-table-column>
       <el-table-column prop="email" label="邮件" min-width="220" show-overflow-tooltip />
-      <el-table-column label="操作" width="180" fixed="right" align="center">
+      <el-table-column label="操作" width="248" fixed="right" align="center">
         <template #default="{ row }">
           <el-button link type="primary" @click="goDetail(row)">详情</el-button>
           <span class="op-divider">|</span>
           <el-button link type="primary" @click="goEdit(row)">编辑</el-button>
+          <span class="op-divider">|</span>
+          <el-button link type="primary" @click="handleResetPassword(row)">重置密码</el-button>
           <span class="op-divider">|</span>
           <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
         </template>

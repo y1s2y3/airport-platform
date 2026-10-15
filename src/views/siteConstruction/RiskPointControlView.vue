@@ -2,8 +2,10 @@
 /**
  * 风险点申报列表（项目级，F-RISK-02）
  * 顶部指标为纯审批状态口径；操作：详情 + 已驳回重新报审（生成新单）。
- * 激活状态（未开始 / 已激活 / 已关闭）为台账派生口径，本页仅作筛选与展示；
- * 激活 / 关闭 / 重新激活的操作入口在「风险点台账」（F-RISK-05）。
+ * 本页固定 10 列：风险源编号 / 风险类型 / 风险点 / 严重程度 / 管控责任人 /
+ * 计划开始时间 / 计划结束时间 / 审批状态 / 填报时间 / 操作。
+ * 激活三态（未开始 / 已激活 / 已关闭）属台账口径，仅在「风险点台账」（F-RISK-05）展示与筛选，
+ * 本页不展示该列、也不提供该筛选项（避免与台账口径重复）。
  */
 import { computed, reactive, watch } from 'vue'
 import { useRouter } from 'vue-router'
@@ -11,9 +13,7 @@ import { ElMessage } from 'element-plus'
 import { useCurrentProject } from '../../composables/useCurrentProject'
 import {
   APPROVAL_STATUS_LABEL,
-  RISK_RUN_STATUS_LABEL,
   SEVERITY_LEVELS,
-  activationStatusTagType,
   approvalStatusLabel,
   approvalStatusTagType,
   formatRiskCell,
@@ -21,11 +21,10 @@ import {
   listConfigRiskTypes,
   listRiskControlMetrics,
   listRiskPointControls,
-  riskPersonLabel,
-  riskRunStatusLabel,
   riskTypeName,
   severityTagType,
 } from '../../mock/riskManage.js'
+import { formatRiskPersonLabelById } from '../../utils/riskPersonDisplay.js'
 
 const router = useRouter()
 const { laborProjectId, isHqSelected } = useCurrentProject()
@@ -35,7 +34,6 @@ const filters = reactive({
   risk_type: '',
   severity: '',
   approval_status: '',
-  risk_status: '',
 })
 
 /** 点「搜索」后才生效的查询条件（工具栏内为待提交的条件） */
@@ -44,7 +42,6 @@ const query = reactive({
   risk_type: '',
   severity: '',
   approval_status: '',
-  risk_status: '',
 })
 
 const tableData = computed(() => {
@@ -64,7 +61,6 @@ function doSearch() {
   query.risk_type = filters.risk_type
   query.severity = filters.severity
   query.approval_status = filters.approval_status
-  query.risk_status = filters.risk_status
 }
 
 watch(laborProjectId, () => {
@@ -76,7 +72,6 @@ function resetFilters() {
   filters.risk_type = ''
   filters.severity = ''
   filters.approval_status = ''
-  filters.risk_status = ''
   doSearch()
 }
 
@@ -117,7 +112,7 @@ function goResubmit(row) {
       <div>
         <div class="page-breadcrumb">风险管理 / 风险点申报</div>
         <h3 class="page-title">风险点申报</h3>
-        <p class="page-tip">按日发起风险辨识并提交监理审批。已通过的记录在「风险点台账」中跟踪激活状态（未开始 / 已激活 / 已关闭）。</p>
+        <p class="page-tip">发起风险辨识并提交监理审批，填报时间由系统在提交时自动生成。已通过的记录在「风险点台账」中跟踪激活状态（未开始 / 已激活 / 已关闭）。</p>
       </div>
       <span class="total-count">共 {{ tableData.length }} 条</span>
     </div>
@@ -176,15 +171,6 @@ function goResubmit(row) {
         >
           <el-option v-for="(label, key) in APPROVAL_STATUS_LABEL" :key="key" :label="label" :value="key" />
         </el-select>
-        <el-select
-          v-model="filters.risk_status"
-          clearable
-          placeholder="激活状态"
-          style="width: 140px"
-          aria-label="激活状态"
-        >
-          <el-option v-for="(label, key) in RISK_RUN_STATUS_LABEL" :key="key" :label="label" :value="key" />
-        </el-select>
         <el-button type="primary" @click="doSearch">搜索</el-button>
         <el-button @click="resetFilters">重置</el-button>
         <div class="toolbar-spacer" />
@@ -206,8 +192,8 @@ function goResubmit(row) {
             <el-tag size="small" :type="severityTagType(row.severity)">{{ formatRiskCell(row.severity) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="管控责任人" min-width="130" show-overflow-tooltip>
-          <template #default="{ row }">{{ riskPersonLabel(row.control_person_id) }}</template>
+        <el-table-column label="管控责任人" min-width="180" show-overflow-tooltip>
+          <template #default="{ row }">{{ formatRiskPersonLabelById(row.control_person_id) }}</template>
         </el-table-column>
         <el-table-column label="计划开始时间" width="120" align="center">
           <template #default="{ row }">{{ formatRiskCell(row.plan_start) }}</template>
@@ -220,11 +206,6 @@ function goResubmit(row) {
             <el-tag size="small" :type="approvalStatusTagType(row.approval_status)">
               {{ approvalStatusLabel(row.approval_status) }}
             </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="激活状态" width="100" align="center">
-          <template #default="{ row }">
-            <el-tag size="small" :type="activationStatusTagType(row)">{{ riskRunStatusLabel(row) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="report_time" label="填报时间" width="160" align="center">

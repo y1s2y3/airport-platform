@@ -14,6 +14,8 @@ import {
   clonePersonnel,
   savePersonnel,
   createEmptySafetyEducation,
+  educationTypeChoices,
+  educationTypeLabel,
 } from '../../mock/laborRealName'
 import { REALNAME_ENTRY_LABEL } from '../../constants/laborPersonStatus'
 import FileAttachmentPreview from '../../components/basicData/FileAttachmentPreview.vue'
@@ -28,8 +30,6 @@ const idVisible = ref(false)
 const educationEditVisible = ref(false)
 const educationDraft = ref([])
 const educationSaving = ref(false)
-
-const educationTypeOptions = ['三级教育', '岗前培训', '专项培训']
 
 onMounted(() => {
   detail.value = getPersonnelDetail(route.params.id)
@@ -104,7 +104,7 @@ function saveEducation() {
       education_type: row.education_type,
       train_date: row.train_date,
       duration: row.duration || '',
-      qualified: !!row.qualified,
+      passed: !!row.passed,
       certificate: firstAttachName(row.certificate) || (typeof row.certificate === 'string' ? row.certificate : ''),
     }))
     detail.value = savePersonnel(payload, 'edit')
@@ -194,13 +194,15 @@ function saveEducation() {
         </div>
         <el-table :data="detail.safety_education" border stripe class="ap-table">
           <el-table-column type="index" label="序号" width="60" align="center" />
-          <el-table-column prop="education_type" label="教育类型" width="120" />
+          <el-table-column label="教育类型" width="120">
+            <template #default="{ row }">{{ educationTypeLabel(row.education_type) }}</template>
+          </el-table-column>
           <el-table-column prop="train_date" label="培训日期" width="120" />
           <el-table-column prop="duration" label="培训时长" width="100" />
           <el-table-column label="是否合格" width="100" align="center">
             <template #default="{ row }">
-              <span class="ap-status-tag" :class="row.qualified ? 'ap-tag-enabled' : 'ap-tag-high'">
-                {{ row.qualified ? '合格' : '不合格' }}
+              <span class="ap-status-tag" :class="row.passed ? 'ap-tag-enabled' : 'ap-tag-high'">
+                {{ row.passed ? '合格' : '不合格' }}
               </span>
             </template>
           </el-table-column>
@@ -226,7 +228,12 @@ function saveEducation() {
         <el-table-column label="教育类型" width="150">
           <template #default="{ row }">
             <el-select v-model="row.education_type" placeholder="请选择" style="width: 100%" aria-label="请选择">
-              <el-option v-for="opt in educationTypeOptions" :key="opt" :label="opt" :value="opt" />
+              <el-option
+                v-for="opt in educationTypeChoices"
+                :key="opt.value"
+                :label="opt.label"
+                :value="opt.value"
+              />
             </el-select>
           </template>
         </el-table-column>
@@ -247,7 +254,7 @@ function saveEducation() {
         </el-table-column>
         <el-table-column label="是否合格" width="110" align="center">
           <template #default="{ row }">
-            <el-switch v-model="row.qualified" inline-prompt active-text="合格" inactive-text="否" />
+            <el-switch v-model="row.passed" inline-prompt active-text="合格" inactive-text="否" />
           </template>
         </el-table-column>
         <el-table-column label="培训证书" min-width="220">

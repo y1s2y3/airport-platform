@@ -89,6 +89,19 @@ function normalizeLoginAccount(account) {
   return String(account == null ? '' : account).trim()
 }
 
+/**
+ * 管理员重置某账号密码后调用：若本机「记住密码」记录的正是该账号，
+ * 清掉旧的自动填充密码，避免登录页回填旧密码导致登录失败。
+ * @returns {boolean} 是否清除了记录
+ */
+export function clearRememberedPassword(account) {
+  const remembered = getRememberedLogin()
+  if (!remembered.remember) return false
+  if (normalizeLoginAccount(remembered.account) !== normalizeLoginAccount(account)) return false
+  saveRememberedLogin({ account: remembered.account, password: '', remember: false })
+  return true
+}
+
 export function loginApp({ account, password, remember }) {
   const acc = String(account || '').trim()
   const pwd = String(password || '')
@@ -203,6 +216,7 @@ export function useAppSession() {
     getRememberedLogin,
     saveRememberedLogin,
     syncRememberedPassword,
+    clearRememberedPassword,
     getAppMineProfile,
     listAppUserOrgs,
     setAppSelectedOrgId,

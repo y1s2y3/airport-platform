@@ -1,6 +1,8 @@
 import { ref } from 'vue'
 import { COC_PROJECT_OPTIONS } from '../config/projectOptions'
 import { getProjectOrgNodeId } from './orgStructure'
+import { adminResetPassword } from './accountSecurity'
+import { clearRememberedPassword } from './appSession'
 
 export const userStatusOptions = [
   { label: '全部', value: '' },
@@ -208,6 +210,23 @@ export function toggleSysUserStatus(id, status) {
   if (!user) return false
   user.status = status
   return true
+}
+
+/**
+ * 管理员重置用户登录密码：写回系统默认初始密码
+ * 密码存储与 Web / APP 登录共用（见 mock/accountSecurity.js）；
+ * 若本机 APP「记住密码」记的正是该账号，一并清掉旧密码，避免自动回填旧密码登录失败。
+ * @returns {{ ok: boolean, msg?: string, defaultPassword?: string }}
+ */
+export function resetSysUserPassword(id) {
+  const user = getSysUser(id)
+  if (!user) return { ok: false, msg: '用户不存在' }
+  const account = String(user.loginAccount || '').trim()
+  if (!account) return { ok: false, msg: '该用户未设置登录账号，无法重置密码' }
+  const result = adminResetPassword({ account })
+  if (!result.ok) return result
+  clearRememberedPassword(account)
+  return { ok: true, defaultPassword: result.defaultPassword, account }
 }
 
 /** 兼容 rbac 模块 */

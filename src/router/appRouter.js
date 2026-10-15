@@ -19,12 +19,6 @@ const routes = [
     meta: { title: '登录' },
   },
   {
-    path: '/app/forgot',
-    name: 'AppForgotPassword',
-    component: () => import('../views/app/AppForgotPasswordView.vue'),
-    meta: { title: '找回密码' },
-  },
-  {
     path: '/app',
     component: () => import('../views/app/AppShellView.vue'),
     redirect: '/app/personal',
@@ -172,8 +166,8 @@ router.beforeEach((to) => {
   if (!to.path.startsWith('/app')) return true
   hydrateAppSession()
   const isLogin = to.path === '/app/login'
-  // 登录页与找回密码页无需登录态
-  const isPublic = isLogin || to.path === '/app/forgot'
+  // 登录页无需登录态
+  const isPublic = isLogin
   if (!isPublic && !appLoggedIn.value) {
     return { path: '/app/login', replace: true }
   }

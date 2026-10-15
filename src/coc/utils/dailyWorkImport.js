@@ -164,9 +164,9 @@ export function parseDailyWorkWorkbook(arrayBuffer, preferredSheet, options = {}
   return { sheetName, reportDate: parseSheetDate(sheetName), records, sheetNames }
 }
 
-export async function parseDailyWorkFile(file, preferredSheet) {
+export async function parseDailyWorkFile(file, preferredSheet, options = {}) {
   const buffer = await file.arrayBuffer()
-  return parseDailyWorkWorkbook(buffer, preferredSheet)
+  return parseDailyWorkWorkbook(buffer, preferredSheet, options)
 }
 
 function colLetterToNumber(col) {

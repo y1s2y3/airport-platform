@@ -251,7 +251,7 @@ function confirmDangerPick() {
 function realNamePersonRecord(person) {
   const idNumberFull = person.basic?.id_number_raw || person.basic?.id_number || ''
   const phoneFull = person.basic?.phone || ''
-  const educationDone = Math.min(3, (person.safety_education || []).filter((item) => item.qualified).length)
+  const educationDone = Math.min(3, (person.safety_education || []).filter((item) => item.passed).length)
   return {
     personId: person.id,
     workerName: person.basic?.name || '',

@@ -57,7 +57,38 @@ export function normalizePersonnelCategory(category) {
   return personnelCategoryOptions.includes(c) ? c : '建筑工人'
 }
 export const unitTypeOptions = ['建设单位', '勘察单位', '设计单位', '监理单位', '总包单位', '劳务分包', '单位分包']
-export const educationTypeOptions = ['三级教育', '岗前培训']
+/**
+ * 三级安全教育类型（PRD 6.4.8：三级教育/岗前培训/专项培训）
+ * 口径：库表存英文编码、界面展示中文。编码为本轮定稿（PRD 未给值）。
+ */
+export const EDUCATION_TYPE = {
+  THREE_LEVEL: 'three_level_education',
+  PRE_JOB: 'pre_job_training',
+  SPECIAL: 'special_training',
+}
+
+/** 培训类型选项：[{ value: 存储编码, label: 中文展示 }] */
+export const educationTypeChoices = [
+  { value: EDUCATION_TYPE.THREE_LEVEL, label: '三级教育' },
+  { value: EDUCATION_TYPE.PRE_JOB, label: '岗前培训' },
+  { value: EDUCATION_TYPE.SPECIAL, label: '专项培训' },
+]
+
+/** 培训类型中文标签（导入模板下拉与导入校验用） */
+export const educationTypeLabels = educationTypeChoices.map((item) => item.label)
+
+/** 存储编码 → 中文展示 */
+export function educationTypeLabel(code) {
+  return educationTypeChoices.find((item) => item.value === code)?.label || String(code || '')
+}
+
+/** 中文标签 → 存储编码（导入时转换） */
+export function educationTypeCode(label) {
+  return educationTypeChoices.find((item) => item.label === label)?.value || ''
+}
+
+/** 安全教育记录导入模板「是否合格」下拉值 */
+export const educationQualifiedOptions = ['是', '否']
 export const idTypeOptions = ['居民身份证', '护照', '港澳居民来往内地通行证', '台湾居民来往大陆通行证']
 
 const projectNodes = [
@@ -131,27 +162,27 @@ function buildSafetyEducation(seq, entry_status) {
   if (entry_status === REALNAME_ENTRY_STATUS.EXITED && seq % 3 === 0) {
     return [
       {
-        education_type: '三级教育',
+        education_type: EDUCATION_TYPE.THREE_LEVEL,
         train_date: '2024-08-12',
         duration: '8小时',
-        qualified: true,
+        passed: true,
         certificate: '三级教育合格证.pdf',
       },
     ]
   }
   return [
     {
-      education_type: '三级教育',
+      education_type: EDUCATION_TYPE.THREE_LEVEL,
       train_date: `2025-${String((seq % 6) + 1).padStart(2, '0')}-06`,
       duration: '8小时',
-      qualified: true,
+      passed: true,
       certificate: '三级教育合格证.pdf',
     },
     {
-      education_type: '岗前培训',
+      education_type: EDUCATION_TYPE.PRE_JOB,
       train_date: `2025-${String((seq % 6) + 1).padStart(2, '0')}-07`,
       duration: '4小时',
-      qualified: seq % 7 !== 0,
+      passed: seq % 7 !== 0,
       certificate: seq % 7 !== 0 ? '岗前培训证书.pdf' : '',
     },
   ]
@@ -317,15 +348,15 @@ export function buildHqRealNameStatsByProject() {
 }
 
 export function isSafetyEducationComplete(records) {
-  return records?.every((item) => item.qualified) ?? false
+  return records?.every((item) => item.passed) ?? false
 }
 
 export function createEmptySafetyEducation() {
   return {
-    education_type: '三级教育',
+    education_type: EDUCATION_TYPE.THREE_LEVEL,
     train_date: '',
     duration: '',
-    qualified: true,
+    passed: true,
     certificate: '',
   }
 }
@@ -456,6 +487,150 @@ export function syncProjectTreeCounts() {
   projectTree[0].children.forEach((node) => {
     node.count = (personnelByProject[node.id] || []).length
   })
+}
+
+/** 证件号归一：去空格、统一大写 */
+function normalizeIdNumber(value) {
+  return String(value ?? '').replace(/\s/g, '').toUpperCase()
+}
+
+/**
+ * 导入三级安全教育记录（按项目匹配人员，一份表可导入多人）
+ * 定位规则（按顺序）：
+ *  1) 姓名 + 身份证号（明文）唯一命中；
+ *  2) 证件号为脱敏值（含 *）时，用 姓名 + 手机号 唯一命中；
+ *  3) 明文证件号未命中但填了手机号、且 姓名 + 手机号 唯一命中 → 按手机号定位并计入差异提示。
+ * 未命中、同名/同证件号冗余命中 → 跳过该行并返回原因；手机号与系统不一致仅提示差异。
+ * 重复规则：同一人员已存在相同「培训类型 + 培训日期」的记录时跳过该行。
+ * 证书：模板无证书列，导入记录 certificate 留空，证书由用户在系统中手工上传（也可能没有）。
+ * 培训类型：模板里为中文下拉值，落库前经 educationTypeCode 转为英文编码（界面展示再由 educationTypeLabel 还原中文）。
+ * @param {string} projectId
+ * @param {Array<{rowIndex:number,name:string,idNumber:string,phone:string,educationType:string,trainDate:string,duration:string,passed:boolean}>} rows
+ */
+export function importSafetyEducationRecords(projectId, rows = []) {
+  const list = getProjectPersonnel(projectId)
+  if (!list.length) {
+    return { ok: false, msg: '当前项目暂无可导入的人员台账', imported: 0, personCount: 0, failures: [], warnings: [] }
+  }
+
+  const byName = new Map()
+  list.forEach((person) => {
+    const name = String(person.basic?.name || '').trim()
+    if (!byName.has(name)) byName.set(name, [])
+    byName.get(name).push(person)
+  })
+
+  const failures = []
+  const warnings = []
+  const acceptedByPerson = new Map()
+
+  const keysOf = (person, extra) => {
+    const keys = new Set((person.safety_education || []).map((item) => `${item.education_type}|${item.train_date}`))
+    ;(extra || []).forEach((item) => keys.add(`${item.education_type}|${item.train_date}`))
+    return keys
+  }
+
+  rows.forEach((row) => {
+    const rowIndex = row.rowIndex
+    const typeCode = educationTypeCode(row.educationType)
+    if (!typeCode) {
+      failures.push({ rowIndex, reason: `培训类型「${row.educationType || '空'}」不在枚举内（三级教育/岗前培训/专项培训）` })
+      return
+    }
+    const name = String(row.name || '').trim()
+    const candidates = byName.get(name) || []
+    if (!candidates.length) {
+      failures.push({ rowIndex, reason: `当前项目未找到姓名为「${name || '空'}」的人员` })
+      return
+    }
+
+    const idNumber = normalizeIdNumber(row.idNumber)
+    const maskedId = idNumber.includes('*')
+    const phone = String(row.phone || '').replace(/\s/g, '')
+    let matched = null
+    let matchedByPhone = false
+
+    if (!maskedId) {
+      const idHits = candidates.filter(
+        (person) => normalizeIdNumber(person.basic?.id_number_raw || person.basic?.id_number) === idNumber,
+      )
+      if (idHits.length === 1) {
+        matched = idHits[0]
+      } else if (idHits.length > 1) {
+        failures.push({ rowIndex, reason: '匹配到多名证件号相同的人员，请核对人员台账是否有重复登记' })
+        return
+      }
+    }
+
+    if (!matched) {
+      if (!phone) {
+        failures.push({
+          rowIndex,
+          reason: maskedId
+            ? '身份证号为脱敏值，请同时填写手机号以匹配人员'
+            : '未匹配到人员，请核对身份证号（或补充手机号后再试）',
+        })
+        return
+      }
+      const phoneHits = candidates.filter(
+        (person) => String(person.basic?.phone || '').replace(/\s/g, '') === phone,
+      )
+      if (phoneHits.length === 1) {
+        matched = phoneHits[0]
+        matchedByPhone = true
+      } else if (phoneHits.length > 1) {
+        failures.push({ rowIndex, reason: '按「姓名 + 手机号」匹配到多名人员，请填写身份证号明文' })
+        return
+      } else {
+        failures.push({
+          rowIndex,
+          reason: maskedId
+            ? '按「姓名 + 手机号」未匹配到人员，请核对手机号'
+            : '未匹配到人员，请核对身份证号与手机号',
+        })
+        return
+      }
+    }
+
+    const systemPhone = String(matched.basic?.phone || '').replace(/\s/g, '')
+    if (maskedId) {
+      warnings.push({ rowIndex, reason: '身份证号为脱敏值，已按「姓名 + 手机号」匹配' })
+    } else if (matchedByPhone) {
+      warnings.push({ rowIndex, reason: '身份证号与系统不一致，已按「姓名 + 手机号」匹配' })
+    } else if (phone && phone !== systemPhone) {
+      warnings.push({ rowIndex, reason: `手机号「${maskPhone(phone)}」与系统手机号不一致` })
+    }
+
+    const accepted = acceptedByPerson.get(matched.id) || []
+    const keys = keysOf(matched, accepted)
+    const key = `${typeCode}|${row.trainDate}`
+    if (keys.has(key)) {
+      failures.push({
+        rowIndex,
+        reason: `${matched.basic?.name || '该人员'}已存在相同培训类型与培训日期的记录（${educationTypeLabel(typeCode)} · ${row.trainDate}）`,
+      })
+      return
+    }
+
+    accepted.push({
+      education_type: typeCode,
+      train_date: row.trainDate,
+      duration: row.duration || '',
+      passed: !!row.passed,
+      certificate: '',
+    })
+    acceptedByPerson.set(matched.id, accepted)
+  })
+
+  let imported = 0
+  acceptedByPerson.forEach((accepted, personId) => {
+    const person = list.find((item) => item.id === personId)
+    if (!person || !accepted.length) return
+    person.safety_education = [...(person.safety_education || []), ...accepted]
+    imported += accepted.length
+  })
+
+  return { ok: true, imported, personCount: acceptedByPerson.size, failures, warnings }
 }
 
 export function lookupCreditCode(unit_name) {

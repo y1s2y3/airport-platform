@@ -1,7 +1,8 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Search, Refresh, Download, ArrowLeft } from '@element-plus/icons-vue'
+import { Search, Refresh, Download, Upload, ArrowLeft } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useLaborProjectScope, selectedProjectId, useCurrentProject } from '../../composables/useCurrentProject'
 import { HQ_PROJECT_OPTION } from '../../config/projectOptions'
 import {
@@ -15,7 +16,10 @@ import {
   isSafetyEducationComplete,
   maskPhone,
   logPhoneView,
+  importSafetyEducationRecords,
 } from '../../mock/laborRealName'
+import { downloadSafetyEducationTemplate, parseSafetyEducationFile } from '../../utils/safetyEducationTemplate'
+import { validateAttachFile } from '../../constants/attachmentUpload.js'
 import { REALNAME_ENTRY_LABEL } from '../../constants/laborPersonStatus'
 
 const route = useRoute()
@@ -26,6 +30,10 @@ const fromHq = computed(() => route.query.from === 'hq')
 const keyword = ref('')
 const filters = ref({ work_type: '', personnel_category: '', entry_status: '', unit_name: '' })
 const visiblePhoneIds = ref(new Set())
+const refreshTick = ref(0)
+const educationImportVisible = ref(false)
+const educationImporting = ref(false)
+const educationUploadRef = ref(null)
 
 /** 预警「去处理」跳转：自动带入姓名关键词，并切到对应项目 */
 function applyRouteFilters() {
@@ -43,7 +51,10 @@ function applyRouteFilters() {
 onMounted(applyRouteFilters)
 watch(() => [route.query.keyword, route.query.name, route.query.projectId], applyRouteFilters)
 
-const allPersonnel = computed(() => getProjectPersonnel(scopeProjectId.value))
+const allPersonnel = computed(() => {
+  void refreshTick.value
+  return getProjectPersonnel(scopeProjectId.value)
+})
 
 const treeData = computed(() =>
   projectTree.map((group) => ({
@@ -111,6 +122,119 @@ function goBackToHQ() {
   selectedProjectId.value = HQ_PROJECT_OPTION.id
   router.push('/labor/realname-stats')
 }
+
+function escapeHtml(text) {
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+async function handleDownloadEducationTemplate() {
+  try {
+    await downloadSafetyEducationTemplate()
+    ElMessage.success('模板已下载，按模板填报后上传 .xlsx')
+  } catch {
+    ElMessage.error('模板下载失败，请重试')
+  }
+}
+
+/** 整单拒绝：表头/文件级校验未通过 */
+function showImportAbort(parsed) {
+  const details = (parsed.errors || []).filter(Boolean)
+  const listHtml = details.length
+    ? `<ol style="margin:0;padding-left:20px;color:#303133">${details
+        .map((item) => `<li style="margin:4px 0;line-height:1.5">${escapeHtml(item)}</li>`)
+        .join('')}</ol>`
+    : ''
+  ElMessageBox.alert(
+    `<div style="max-height:320px;overflow:auto">
+      <p style="margin:0 0 10px;color:#606266">${escapeHtml(parsed.error || '文件校验未通过')}，请按模板修正后重新上传。</p>
+      ${listHtml}
+    </div>`,
+    '导入失败',
+    {
+      type: 'error',
+      dangerouslyUseHTMLString: true,
+      confirmButtonText: '知道了',
+      customClass: 'import-format-error-box',
+    },
+  )
+}
+
+/** 行级失败与差异提示统一在结果弹窗列明 */
+function showImportResult({ imported, personCount, failures, warnings }, totalRows) {
+  const summary = `文件共 ${totalRows} 行数据，成功导入 ${imported} 条安全教育记录${
+    imported ? `，涉及 ${personCount} 名人员` : ''
+  }。`
+  const blocks = [`<p style="margin:0 0 10px;color:#303133">${summary}</p>`]
+  if (failures.length) {
+    blocks.push(`<p style="margin:0 0 6px;color:#606266">跳过 ${failures.length} 行（未导入）：</p>`)
+    blocks.push(
+      `<ol style="margin:0 0 10px;padding-left:20px;color:#303133">${failures
+        .map((item) => `<li style="margin:4px 0;line-height:1.5">第 ${item.rowIndex} 行：${escapeHtml(item.reason)}</li>`)
+        .join('')}</ol>`,
+    )
+  }
+  if (warnings.length) {
+    blocks.push(`<p style="margin:0 0 6px;color:#606266">差异提示 ${warnings.length} 行（已导入）：</p>`)
+    blocks.push(
+      `<ol style="margin:0;padding-left:20px;color:#303133">${warnings
+        .map((item) => `<li style="margin:4px 0;line-height:1.5">第 ${item.rowIndex} 行：${escapeHtml(item.reason)}</li>`)
+        .join('')}</ol>`,
+    )
+  }
+  ElMessageBox.alert(`<div style="max-height:340px;overflow:auto">${blocks.join('')}</div>`, '导入结果', {
+    type: imported ? 'success' : 'warning',
+    dangerouslyUseHTMLString: true,
+    confirmButtonText: '知道了',
+  })
+}
+
+async function handleEducationImport(uploadFile) {
+  const file = uploadFile?.raw || uploadFile
+  const sizeErr = validateAttachFile(file, 'xlsx', { currentCount: 0, max: 1 })
+  if (sizeErr) {
+    ElMessage.warning(sizeErr)
+    return false
+  }
+
+  educationImporting.value = true
+  try {
+    const parsed = await parseSafetyEducationFile(file)
+    if (!parsed.ok) {
+      showImportAbort(parsed)
+      return false
+    }
+
+    const result = importSafetyEducationRecords(scopeProjectId.value, parsed.rows)
+    if (!result.ok) {
+      ElMessage.error(result.msg || '导入失败')
+      return false
+    }
+
+    refreshTick.value += 1
+    educationImportVisible.value = false
+    const failures = [...parsed.rowErrors, ...result.failures].sort((a, b) => a.rowIndex - b.rowIndex)
+    showImportResult(
+      {
+        imported: result.imported,
+        personCount: result.personCount,
+        failures,
+        warnings: result.warnings,
+      },
+      parsed.rows.length + parsed.rowErrors.length,
+    )
+  } catch {
+    ElMessageBox.alert('文件解析失败，请确认文件未损坏且为模板格式后重试。', '导入失败', { type: 'error' })
+  } finally {
+    educationImporting.value = false
+    educationUploadRef.value?.clearFiles?.()
+  }
+
+  return false
+}
 </script>
 
 <template>
@@ -120,6 +244,42 @@ function goBackToHQ() {
       <div class="page-heading">
         <h1 class="page-title">人员实名制</h1>
         <div class="header-actions">
+          <el-popover
+            v-model:visible="educationImportVisible"
+            placement="bottom-end"
+            :width="420"
+            trigger="click"
+            popper-class="edu-import-popover"
+          >
+            <template #reference>
+              <el-button :icon="Upload">导入安全教育记录</el-button>
+            </template>
+            <div class="edu-import-panel">
+              <div class="edu-import-title">导入安全教育记录</div>
+              <p class="edu-import-tip">
+                按模板填报后上传 .xlsx（单个 ≤50MB，单次最多 500 行）。模板列：姓名、身份证号、手机号、培训类型、培训日期、培训时长、是否合格；培训类型下拉（三级教育 / 岗前培训 / 专项培训），是否合格下拉（是 / 否）。
+              </p>
+              <p class="edu-import-tip">
+                一份表可导入多人：按「姓名 + 身份证号」匹配{{ scopeProjectLabel }}的人员，未匹配到的行跳过并在结果中列明；身份证号填脱敏值时按「姓名 + 手机号」匹配，手机号不一致仅提示差异；同一人员已有的相同「培训类型 + 培训日期」记录不重复导入。
+              </p>
+              <p class="edu-import-tip">
+                模板不含培训证书，导入记录证书留空，可在人员详情「三级安全教育完成情况」中手工上传（也可能没有证书）。
+              </p>
+              <div class="edu-import-actions">
+                <el-button size="small" :icon="Download" @click="handleDownloadEducationTemplate">下载导入模板</el-button>
+                <el-upload
+                  ref="educationUploadRef"
+                  :show-file-list="false"
+                  accept=".xlsx"
+                  :before-upload="handleEducationImport"
+                >
+                  <el-button size="small" type="primary" :icon="Upload" :loading="educationImporting">
+                    导入安全教育记录
+                  </el-button>
+                </el-upload>
+              </div>
+            </div>
+          </el-popover>
           <el-button :icon="Download">导出</el-button>
         </div>
       </div>
@@ -283,4 +443,9 @@ function goBackToHQ() {
 .search-input { width: 300px; }
 .list-avatar { background: var(--ap-primary-light); color: var(--ap-primary); font-size: 14px; }
 .phone-cell { display: flex; align-items: center; gap: 6px; }
+.header-actions { display: flex; align-items: center; gap: 8px; }
+.edu-import-panel { display: flex; flex-direction: column; gap: 8px; }
+.edu-import-title { font-size: 14px; font-weight: 600; color: var(--ap-text); }
+.edu-import-tip { margin: 0; font-size: 13px; line-height: 1.6; color: var(--ap-text-secondary); }
+.edu-import-actions { display: flex; align-items: center; gap: 8px; padding-top: 4px; flex-wrap: wrap; }
 </style>
