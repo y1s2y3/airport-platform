@@ -2,7 +2,8 @@
 import { ref, reactive, computed } from 'vue'
 import { Search, Plus, VideoCamera } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { useLaborProjectScope } from '../../composables/useCurrentProject'
+import { useLaborProjectScope, selectedProjectId } from '../../composables/useCurrentProject'
+import { ensureVideoDeviceLedgerSeed, getProjectVideoDevices } from '../../coc/utils/videoDeviceLedgerStorage.js'
 import { projectTree } from '../../mock/laborRealName.js'
 
 const { isHqSelected, treeProjectId, onTreeNodeClick: _treeClick } = useLaborProjectScope()
@@ -97,8 +98,19 @@ const formModel = reactive({
   deviceName: '', deviceSN: '', regionName: '', contact: '', contactPhone: '',
   // 塔吊专属字段
   craneHeight: '', boomHeight: '', jibLength: '', counterJibLength: '', hookHeight: '',
-  xCoord: '', yCoord: '', rotation: '', remark: '', cameraName: '', cameraUrl: '',
+  xCoord: '', yCoord: '', rotation: '', remark: '', cameraName: '', cameraNo: '',
 })
+
+// 监控设备（取本项目视频监控设备台账）：选择"监控设备名称"后自动带出"设备编号"
+const cameraOptions = computed(() => {
+  ensureVideoDeviceLedgerSeed()
+  return getProjectVideoDevices(selectedProjectId.value || '')
+})
+
+function handleCameraChange(name) {
+  const hit = cameraOptions.value.find((d) => d.deviceName === name)
+  formModel.cameraNo = hit ? (hit.deviceId || '') : ''
+}
 
 function openAddDialog() {
   isEditMode.value = false
@@ -107,7 +119,7 @@ function openAddDialog() {
   formModel.deviceName = ''; formModel.deviceSN = ''; formModel.regionName = ''
   formModel.contact = ''; formModel.contactPhone = ''
   formModel.craneHeight = ''; formModel.boomHeight = ''; formModel.jibLength = ''; formModel.counterJibLength = ''
-  formModel.hookHeight = ''; formModel.xCoord = ''; formModel.yCoord = ''; formModel.rotation = ''; formModel.remark = ''; formModel.cameraName = ''; formModel.cameraUrl = ''
+  formModel.hookHeight = ''; formModel.xCoord = ''; formModel.yCoord = ''; formModel.rotation = ''; formModel.remark = ''; formModel.cameraName = ''; formModel.cameraNo = ''
   formDialogVisible.value = true
 }
 
@@ -120,7 +132,7 @@ function openEditDialog(row) {
   formModel.craneHeight = row.craneHeight || ''; formModel.boomHeight = row.boomHeight || ''; formModel.jibLength = row.jibLength || ''
   formModel.counterJibLength = row.counterJibLength || ''; formModel.hookHeight = row.hookHeight || ''
   formModel.xCoord = row.xCoord || ''; formModel.yCoord = row.yCoord || ''; formModel.rotation = row.rotation || ''; formModel.remark = row.remark || ''
-  formModel.cameraName = row.cameraName || ''; formModel.cameraUrl = row.cameraUrl || ''
+  formModel.cameraName = row.cameraName || ''; formModel.cameraNo = row.cameraNo || ''
   formDialogVisible.value = true
 }
 
@@ -142,7 +154,7 @@ function saveForm() {
     jibLength: formModel.jibLength, counterJibLength: formModel.counterJibLength,
     hookHeight: formModel.hookHeight, xCoord: formModel.xCoord,
     yCoord: formModel.yCoord, rotation: formModel.rotation, remark: formModel.remark,
-    cameraName: formModel.cameraName, cameraUrl: formModel.cameraUrl,
+    cameraName: formModel.cameraName, cameraNo: formModel.cameraNo,
   } : {}
 
   if (isEditMode.value) {
@@ -353,8 +365,8 @@ function saveTechChars() {
         <template v-if="formModel.deviceType === '塔吊'">
           <el-divider content-position="left" style="margin:12px 0;font-size:13px">塔吊参数</el-divider>
           <el-row :gutter="16">
-            <el-col :span="12"><el-form-item label="镜头名称"><el-input v-model="formModel.cameraName" placeholder="请输入镜头名称" aria-label="请输入镜头名称"/></el-form-item></el-col>
-            <el-col :span="12"><el-form-item label="镜头地址"><el-input v-model="formModel.cameraUrl" placeholder="请输入镜头地址" aria-label="请输入镜头地址"/></el-form-item></el-col>
+            <el-col :span="12"><el-form-item label="监控设备名称"><el-select v-model="formModel.cameraName" placeholder="请选择监控设备名称" filterable clearable style="width:100%" aria-label="请选择监控设备名称" @change="handleCameraChange"><el-option v-for="d in cameraOptions" :key="d.id" :label="d.deviceName" :value="d.deviceName" /></el-select></el-form-item></el-col>
+            <el-col :span="12"><el-form-item label="设备编号"><el-input :model-value="formModel.cameraNo" placeholder="选择监控设备后自动带出" readonly aria-label="设备编号"/></el-form-item></el-col>
           </el-row>
           <el-row :gutter="16">
             <el-col :span="12"><el-form-item label="塔机高度（m）" style="white-space:nowrap"><el-input v-model="formModel.craneHeight" /></el-form-item></el-col>

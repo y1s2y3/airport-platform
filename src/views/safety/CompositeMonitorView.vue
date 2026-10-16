@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Search, View, ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -89,7 +89,7 @@ const monitorData = ref([
     },
 ])
 
-const filterForm = reactive({ keyword: '' })
+const filterForm = reactive({ keyword: '', range: [] })
 const treeDataWithCount = computed(() => {
   if (!isHqSelected.value) return []
   const root = projectTree[0]
@@ -103,9 +103,24 @@ const treeDataWithCount = computed(() => {
 const filteredData = computed(() => {
   let list = monitorData.value
   if (isHqSelected.value && localProjectId.value) list = list.filter(d => d.project_id === localProjectId.value)
-  return list.filter(d => { if (filterForm.keyword && !d.deviceName.includes(filterForm.keyword) && !d.deviceSN.includes(filterForm.keyword) && !d.project.includes(filterForm.keyword)) return false; return true })
+  return list.filter(d => {
+    if (filterForm.keyword && !d.deviceName.includes(filterForm.keyword) && !d.deviceSN.includes(filterForm.keyword) && !d.project.includes(filterForm.keyword)) return false
+    if (filterForm.range?.length === 2) {
+      const day = String(d.pushTime || '').slice(0, 10)
+      if (day && (day < filterForm.range[0] || day > filterForm.range[1])) return false
+    }
+    return true
+  })
 })
-function handleReset() { filterForm.keyword = '' }
+const page = ref(1)
+const pageSize = ref(15)
+const pagedData = computed(() => {
+  const start = (page.value - 1) * pageSize.value
+  return filteredData.value.slice(start, start + pageSize.value)
+})
+watch([filteredData, pageSize], () => { page.value = 1 })
+
+function handleReset() { filterForm.keyword = ''; filterForm.range = [] }
 
 // 指挥部看板数据
 const hqProjectStats = ref([
@@ -177,10 +192,21 @@ function viewProjectDetail(row) {
         <span class="total-count">共 {{ filteredData.length }} 条监测记录</span>
         <div class="filter-bar">
           <el-input v-model="filterForm.keyword" placeholder="搜索设备名称/SN..." clearable style="width:240px" :prefix-icon="Search" aria-label="搜索设备名称/SN..."/>
+          <el-date-picker
+            v-model="filterForm.range"
+            type="daterange"
+            unlink-panels
+            range-separator="至"
+            start-placeholder="推送开始日期"
+            end-placeholder="推送结束日期"
+            value-format="YYYY-MM-DD"
+            style="width: 320px"
+            aria-label="监测时间段"
+          />
           <el-button @click="handleReset">重置</el-button>
         </div>
       </div>
-      <el-table :data="filteredData" stripe border style="width:100%" class="data-table">
+      <el-table :data="pagedData" stripe border style="width:100%" class="data-table">
         <el-table-column type="index" label="序号" width="55" align="center" />
         <el-table-column prop="deviceName" label="设备名称" align="center" />
             <el-table-column prop="deviceSN" label="设备SN" align="center" />
@@ -193,6 +219,14 @@ function viewProjectDetail(row) {
             <el-table-column prop="rate" label="速率(m/min)" align="center" />
             <el-table-column prop="pushTime" label="推送时间" align="center" />
       </el-table>
+      <el-pagination
+        v-model:current-page="page"
+        v-model:page-size="pageSize"
+        :page-sizes="[10, 15, 30]"
+        layout="total, sizes, prev, pager, next"
+        :total="filteredData.length"
+        style="margin-top:12px;justify-content:flex-end"
+      />
     </template>
   </div>
 </template>

@@ -6,6 +6,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { selectedProjectId, useCurrentProject } from '../../composables/useCurrentProject'
 import { HQ_PROJECT_OPTION, COC_PROJECT_OPTIONS } from '../../config/projectOptions'
 import { machineTypeList } from '../../mock/machineTypes.js'
+import AttachmentUpload from '../../components/common/AttachmentUpload.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -171,12 +172,13 @@ const editForm = reactive({
   name: '', spec: '', machineType: '', attr: '', entryType: '',
   supplier: '', supplierContact: '', supplierPhone: '', recordNo: '',
   manufacturer: '', factoryNo: '', prodDate: '', entryDate: '', exitDate: '',
-  admin: '', address: '', status: ''
+  admin: '', address: '', status: '', attachments: []
 })
 
 function openEdit(row) {
   editRow.value = row
   Object.keys(editForm).forEach(k => { editForm[k] = row[k] || '' })
+  if (!Array.isArray(editForm.attachments)) editForm.attachments = []
   editVisible.value = true
 }
 
@@ -402,6 +404,9 @@ function toggleEnabled(row) {
           </el-col>
           <el-col :span="12" />
         </el-row>
+        <el-form-item label="相关附件">
+          <AttachmentUpload v-model="editForm.attachments" preset="file" :min="0" :max="9" name-prefix="相关附件" />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="editVisible = false">取消</el-button>

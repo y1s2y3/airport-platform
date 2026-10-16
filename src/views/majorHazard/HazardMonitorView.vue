@@ -1,6 +1,7 @@
-﻿<script setup>
-import { ref, computed, watch } from 'vue'
+<script setup>
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import * as echarts from 'echarts'
 import { Search, Refresh, Download, DataAnalysis, DataLine, View } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useLaborProjectScope, selectedProjectId } from '../../composables/useCurrentProject'
@@ -25,7 +26,7 @@ const viewMode = ref('table') // table | chart
 
 // 筛选条件
 const keyword = ref('')
-const filters = ref({ regionId: '', pointId: '', indicatorId: '' })
+const filters = ref({ regionId: '', pointId: '', indicatorId: '', range: [] })
 const dataList = ref([])
 const allData = ref([])
 
@@ -33,9 +34,44 @@ const allData = ref([])
 const page = ref(1)
 const pageSize = ref(15)
 
-// 图表数据
+// 图表数据（图表视图统一用折线图）
 const chartSeries = ref([])
 const chartCategories = ref([])
+const chartRef = ref(null)
+let chartInstance = null
+
+function renderChart() {
+  if (viewMode.value !== 'chart' || !chartRef.value) return
+  if (!chartInstance) chartInstance = echarts.init(chartRef.value)
+  const series = chartSeries.value
+  chartInstance.setOption({
+    tooltip: { trigger: 'axis' },
+    legend: { type: 'scroll', bottom: 0, data: series.map((s) => s.name) },
+    grid: { left: 52, right: 24, top: 24, bottom: 56 },
+    color: ['#8f0045', '#e68a2e', '#4a90d9', '#5cb87a'],
+    xAxis: { type: 'category', boundaryGap: false, data: chartCategories.value, axisLabel: { hideOverlap: true } },
+    yAxis: { type: 'value', splitLine: { lineStyle: { type: 'dashed' } } },
+    series: series.map((s) => ({
+      name: s.name,
+      type: 'line',
+      smooth: true,
+      symbolSize: 5,
+      connectNulls: true,
+      data: s.data,
+    })),
+  }, true)
+  chartInstance.resize()
+}
+
+watch([viewMode, chartSeries, chartCategories], () => nextTick(renderChart), { deep: true })
+
+function resizeChart() { chartInstance?.resize() }
+onMounted(() => { window.addEventListener('resize', resizeChart) })
+onUnmounted(() => {
+  window.removeEventListener('resize', resizeChart)
+  chartInstance?.dispose()
+  chartInstance = null
+})
 
 const treeData = computed(() =>
   projectTree.map((g) => ({ id: g.id, label: g.label, children: g.children?.map((c) => ({ id: c.id, label: c.label.replace(/\(\d+\)$/, '') })) }))
@@ -72,6 +108,13 @@ const filteredData = computed(() => {
   if (filters.value.regionId) list = list.filter(r => r.regionId === filters.value.regionId)
   if (filters.value.pointId) list = list.filter(r => r.pointId === filters.value.pointId)
   if (filters.value.indicatorId) list = list.filter(r => r.indicatorId === filters.value.indicatorId)
+  if (filters.value.range?.length === 2) {
+    const [from, to] = filters.value.range
+    list = list.filter(r => {
+      const day = String(r.collectTime || '').slice(0, 10)
+      return !day || (day >= from && day <= to)
+    })
+  }
   return list
 })
 
@@ -137,7 +180,7 @@ function buildChart() {
 
 watch(scopeProjectId, () => {
   keyword.value = ''
-  filters.value = { regionId: '', pointId: '', indicatorId: '' }
+  filters.value = { regionId: '', pointId: '', indicatorId: '', range: [] }
   page.value = 1
   loadData()
   loadHQStats()
@@ -145,7 +188,7 @@ watch(scopeProjectId, () => {
 
 function handleReset() {
   keyword.value = ''
-  filters.value = { regionId: '', pointId: '', indicatorId: '' }
+  filters.value = { regionId: '', pointId: '', indicatorId: '', range: [] }
   page.value = 1
 }
 
@@ -249,6 +292,17 @@ function viewProjectDetail(row) {
           <el-select v-model="filters.indicatorId" placeholder="监测指标" clearable style="width: 130px" aria-label="监测指标">
             <el-option v-for="ind in indicatorOptions" :key="ind.name" :label="ind.name" :value="ind.name" />
           </el-select>
+          <el-date-picker
+            v-model="filters.range"
+            type="daterange"
+            unlink-panels
+            range-separator="至"
+            start-placeholder="采集开始日期"
+            end-placeholder="采集结束日期"
+            value-format="YYYY-MM-DD"
+            style="width: 320px"
+            aria-label="监测时间段"
+          />
           <el-button class="ap-btn-primary" type="primary" :icon="Search">查询</el-button>
           <el-button :icon="Refresh" @click="handleReset">重置</el-button>
           <el-button :icon="Download" @click="handleExport" style="margin-left:auto">导出</el-button>
@@ -279,27 +333,14 @@ function viewProjectDetail(row) {
           </div>
         </template>
 
-        <!-- 图表视图 -->
+        <!-- 图表视图（折线图） -->
         <template v-if="viewMode === 'chart'">
           <div class="chart-container">
             <div class="chart-header">
               <h4>监测数据趋势图</h4>
-              <span class="chart-hint">各指标监测值变化趋势</span>
+              <span class="chart-hint">各指标监测值变化趋势（折线图，可悬浮查看数值）</span>
             </div>
-            <div v-if="chartSeries.length > 0" class="chart-body">
-              <div v-for="(series, si) in chartSeries" :key="si" class="chart-item">
-                <div class="chart-legend">
-                  <span class="chart-dot" :style="{ background: ['#8f0045','#e68a2e','#4a90d9','#5cb87a'][si % 4] }"></span>
-                  <span class="chart-label">{{ series.name }}</span>
-                </div>
-                <div class="chart-bars">
-                  <div v-for="(val, vi) in series.data" :key="vi" class="bar-group" :title="`${chartCategories[vi]} ${val ?? '-'}`">
-                    <div class="bar-fill" :style="{ height: val != null ? Math.min((val / Math.max(...series.data.filter(v => v != null))) * 100, 100) + '%' : '0', background: ['#8f0045','#e68a2e','#4a90d9','#5cb87a'][si % 4] }"></div>
-                    <div class="bar-label" v-if="vi % 4 === 0">{{ chartCategories[vi] }}</div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <div v-if="chartSeries.length > 0" ref="chartRef" class="chart-canvas"></div>
             <div v-else class="chart-empty">暂无数据</div>
           </div>
         </template>
@@ -334,15 +375,7 @@ function viewProjectDetail(row) {
 .chart-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
 .chart-header h4 { margin: 0; font-size: 14px; }
 .chart-hint { font-size: 12px; color: var(--ap-text-muted); }
-.chart-body { display: flex; flex-direction: column; gap: 24px; }
-.chart-item { }
-.chart-legend { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
-.chart-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
-.chart-label { font-size: 13px; font-weight: 600; }
-.chart-bars { display: flex; align-items: flex-end; gap: 2px; height: 120px; border-bottom: 1px solid #ddd; padding-bottom: 18px; position: relative; }
-.bar-group { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; cursor: pointer; }
-.bar-fill { width: 60%; min-height: 2px; border-radius: 2px 2px 0 0; transition: height 0.3s; }
-.bar-label { font-size: 10px; color: #999; margin-top: 4px; white-space: nowrap; transform: rotate(-30deg); }
+.chart-canvas { width: 100%; height: 380px; }
 .chart-empty { text-align: center; color: #ccc; padding: 40px 0; }
 
 /* 指挥部看板 */

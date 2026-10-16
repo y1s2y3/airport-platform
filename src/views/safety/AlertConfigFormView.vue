@@ -24,7 +24,7 @@ const deviceIndicators = {
 }
 const alertTypeOptions = Object.keys(deviceIndicators)
 const conditionOptions = ['大于', '小于', '大于等于', '小于等于', '等于', '不等于']
-const personOptions = ['王工', '李工', '张工', '赵工', '陈工', '刘工', '系统管理员']
+const personOptions = ['王工', '李工', '张工', '赵工', '陈工', '刘工', '唐美丽', '王也', '系统管理员']
 
 const deviceOptions = {
   '塔吊预警': ['塔吊QTZ160（#1）', '塔吊QTZ160（#2）', '塔吊QTZ80（#7）'],
@@ -39,7 +39,7 @@ const deviceOptions = {
 const form = reactive({
   alertType: '',
   devices: [],
-  handler: '',
+  handler: [],
   enabled: true,
 })
 
@@ -83,7 +83,7 @@ function goBack() { router.back() }
 if (route.query.type) {
   form.alertType = route.query.type
   if (route.query.device) form.devices = [route.query.device]
-  if (route.query.handler) form.handler = route.query.handler
+  if (route.query.handler) form.handler = String(route.query.handler).split(/[、,，]/).map((s) => s.trim()).filter(Boolean)
   if (route.query.enabled) form.enabled = route.query.enabled === '1'
   thresholdRows.value = [{
     indicator: deviceIndicators[form.alertType]?.[0] || '',
@@ -107,7 +107,7 @@ if (route.query.type) {
           <div class="detail-grid">
             <div class="detail-item"><span class="detail-label">预警类型</span><span class="detail-value">{{ form.alertType || '-' }}</span></div>
             <div class="detail-item"><span class="detail-label">预警设备</span><span class="detail-value">{{ form.devices.join('、') || '-' }}</span></div>
-            <div class="detail-item"><span class="detail-label">处理人</span><span class="detail-value">{{ form.handler || '-' }}</span></div>
+            <div class="detail-item"><span class="detail-label">处理人</span><span class="detail-value">{{ form.handler.join('、') || '-' }}</span></div>
             <div class="detail-item"><span class="detail-label">是否启用</span><span class="detail-value">{{ form.enabled ? '是' : '否' }}</span></div>
           </div>
         </div>
@@ -154,7 +154,7 @@ if (route.query.type) {
           </el-col>
           <el-col :span="8">
             <el-form-item label="处理人" required>
-              <el-select v-model="form.handler" placeholder="请选择" style="width:100%" :disabled="isReadonly">
+              <el-select v-model="form.handler" multiple filterable collapse-tags collapse-tags-tooltip placeholder="请选择（可多选）" style="width:100%" :disabled="isReadonly">
                 <el-option v-for="p in personOptions" :key="p" :label="p" :value="p" />
               </el-select>
             </el-form-item>

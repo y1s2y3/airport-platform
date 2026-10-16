@@ -1,9 +1,10 @@
-﻿<script setup>
+<script setup>
 import { ref, computed, watch } from 'vue'
 import { Search, Download, View } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useLaborProjectScope } from '../../composables/useCurrentProject'
 import { projectTree, getAlertRecords, handleAlertRecord, getRegions } from '../../mock/majorHazard'
+import AttachmentUpload from '../../components/common/AttachmentUpload.vue'
 
 const { isHqSelected, treeProjectId, scopeProjectId, scopeProjectLabel, onTreeNodeClick } = useLaborProjectScope()
 const isReadOnly = computed(() => isHqSelected.value)
@@ -88,16 +89,18 @@ function viewDetail(row) {
 const disposeVisible = ref(false)
 const disposeItem = ref(null)
 const disposeContent = ref('')
+const disposeAttachments = ref([])
 
 function openDispose(row) {
   disposeItem.value = row
   disposeContent.value = ''
+  disposeAttachments.value = []
   disposeVisible.value = true
 }
 
 function submitDispose() {
   if (!disposeContent.value.trim()) { ElMessage.warning('请填写处置记录'); return }
-  handleAlertRecord(disposeItem.value.id, { content: disposeContent.value })
+  handleAlertRecord(disposeItem.value.id, { content: disposeContent.value, attachments: disposeAttachments.value })
   ElMessage.success('处置完成')
   disposeVisible.value = false
   load()
@@ -221,6 +224,9 @@ function handleExport() {
       <el-form label-width="80px">
         <el-form-item label="处置记录" required>
           <el-input v-model="disposeContent" type="textarea" :rows="4" placeholder="请填写处置内容及措施..." aria-label="请填写处置内容及措施..."/>
+        </el-form-item>
+        <el-form-item label="上传附件">
+          <AttachmentUpload v-model="disposeAttachments" preset="file" :min="0" :max="9" name-prefix="处置附件" />
         </el-form-item>
       </el-form>
       <template #footer>

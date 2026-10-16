@@ -1,10 +1,11 @@
 <script setup>
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
 import { InfoFilled, Search, Setting } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useLaborProjectScope } from '../../composables/useCurrentProject'
 import { projectTree } from '../../mock/laborRealName.js'
 import { machineAlerts, disposeMachineAlert } from '../../mock/machineAlert.js'
+import AttachmentUpload from '../../components/common/AttachmentUpload.vue'
 
 const { isHqSelected, treeProjectId, onTreeNodeClick: _treeClick } = useLaborProjectScope()
 const treeSearch = ref('')
@@ -28,12 +29,13 @@ function viewDetail(row) {
 
 const confirmDialogVisible = ref(false)
 const confirmTarget = ref(null)
-const confirmForm = reactive({ result: '已处置', remark: '' })
+const confirmForm = reactive({ result: '已处置', remark: '', attachments: [] })
 
 function confirmAlert(row) {
   confirmTarget.value = row
   confirmForm.result = '已处置'
   confirmForm.remark = ''
+  confirmForm.attachments = []
   confirmDialogVisible.value = true
 }
 
@@ -42,6 +44,7 @@ function doConfirm() {
   const item = disposeMachineAlert(confirmTarget.value.id, {
     result: confirmForm.result,
     remark: confirmForm.remark,
+    attachments: confirmForm.attachments,
     handler: '系统',
   })
   if (!item) ElMessage.warning('该预警已处置或状态已变化')
@@ -80,6 +83,15 @@ const filteredData = computed(() => {
 function handleReset() { Object.keys(filterForm).forEach(k => filterForm[k] = '') }
 
 // 预警规则配置弹窗
+// 分页
+const page = ref(1)
+const pageSize = ref(10)
+const pagedData = computed(() => {
+  const start = (page.value - 1) * pageSize.value
+  return filteredData.value.slice(start, start + pageSize.value)
+})
+watch([filteredData, pageSize], () => { page.value = 1 })
+
 const ruleDialogVisible = ref(false)
 const alertTypeOptions = ['塔吊预警', '升降机预警', '桩基预警', '复合地基预警', '高支模预警', '深基坑预警', '地铁铁路安全监管预警']
 const hqPushOptions = ['是', '否']
@@ -140,7 +152,7 @@ function submitRuleConfig() {
           </el-select>
           <el-button @click="handleReset">重置</el-button>
         </div>
-        <el-table :data="filteredData" stripe border style="width:100%" class="data-table">
+        <el-table :data="pagedData" stripe border style="width:100%" class="data-table">
           <el-table-column type="index" label="序号" width="55" align="center" />
           <el-table-column prop="alertType" label="预警类型"  align="center" />
           <el-table-column prop="deviceName" label="设备名称" min- />
@@ -160,6 +172,14 @@ function submitRuleConfig() {
             </template>
           </el-table-column>
         </el-table>
+        <el-pagination
+          v-model:current-page="page"
+          v-model:page-size="pageSize"
+          :page-sizes="[10, 20, 50]"
+          layout="total, sizes, prev, pager, next"
+          :total="filteredData.length"
+          style="margin-top:12px;justify-content:flex-end"
+        />
       </div>
     </div>
 
@@ -203,6 +223,9 @@ function submitRuleConfig() {
         </el-form-item>
         <el-form-item label="预警说明">
           <el-input v-model="confirmForm.remark" type="textarea" :rows="3" placeholder="请输入预警说明" aria-label="请输入预警说明"/>
+        </el-form-item>
+        <el-form-item label="上传附件">
+          <AttachmentUpload v-model="confirmForm.attachments" preset="file" :min="0" :max="9" name-prefix="处置附件" />
         </el-form-item>
       </el-form>
       <template #footer>

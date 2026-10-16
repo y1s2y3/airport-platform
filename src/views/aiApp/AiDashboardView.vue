@@ -2,7 +2,6 @@
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import * as echarts from 'echarts'
-import { Refresh, Search } from '@element-plus/icons-vue'
 import { COC_PROJECT_OPTIONS } from '../../config/projectOptions.js'
 import {
   AI_ALERT_TYPES,
@@ -49,6 +48,15 @@ const projectRows = computed(() =>
     ...getProjectAiSummary(project.id, filteredAlerts.value),
   })).filter((item) => item.total > 0 || filters.projectId === item.projectId),
 )
+
+// 项目预警统计分页
+const projectPage = ref(1)
+const projectPageSize = ref(10)
+const pagedProjectRows = computed(() => {
+  const start = (projectPage.value - 1) * projectPageSize.value
+  return projectRows.value.slice(start, start + projectPageSize.value)
+})
+watch(projectRows, () => { projectPage.value = 1 })
 
 watch(filteredAlerts, () => nextTick(renderCharts), { deep: true })
 
@@ -114,10 +122,6 @@ function resizeCharts() {
   typeChart?.resize()
 }
 
-function resetFilters() {
-  filters.projectId = ''
-}
-
 function openProjectLedger(row, category) {
   router.push(`/ai-alert-dashboard/project/${row.projectId}/${category}`)
 }
@@ -140,10 +144,6 @@ function openProjectLedger(row, category) {
         <el-select v-model="filters.projectId" placeholder="项目" clearable filterable style="width: 190px">
           <el-option v-for="item in COC_PROJECT_OPTIONS" :key="item.id" :label="item.label" :value="item.id" />
         </el-select>
-        <div class="ai-filter-actions">
-          <el-button type="primary" :icon="Search">查询</el-button>
-          <el-button :icon="Refresh" @click="resetFilters">重置</el-button>
-        </div>
       </div>
     </div>
 
@@ -187,7 +187,7 @@ function openProjectLedger(row, category) {
 
     <div class="ai-panel">
       <div class="ai-panel-title">项目预警统计</div>
-      <el-table :data="projectRows" stripe border class="ap-table" empty-text="当前条件下暂无项目预警数据">
+      <el-table :data="pagedProjectRows" stripe border class="ap-table" empty-text="当前条件下暂无项目预警数据">
         <el-table-column prop="projectName" label="项目名称" min-width="190" fixed show-overflow-tooltip />
         <el-table-column prop="total" label="预警总数" width="100" align="center" />
         <el-table-column prop="unhandled" label="未处置数量" width="110" align="center">
@@ -207,6 +207,15 @@ function openProjectLedger(row, category) {
           </template>
         </el-table-column>
       </el-table>
+      <div style="margin-top:12px;display:flex;justify-content:flex-end">
+        <el-pagination
+          v-model:current-page="projectPage"
+          v-model:page-size="projectPageSize"
+          layout="total, prev, pager, next"
+          :total="projectRows.length"
+          background
+        />
+      </div>
     </div>
   </div>
 </template>

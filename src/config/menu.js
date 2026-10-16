@@ -47,8 +47,6 @@ export const menuTree = [
       { key: 'video-monitor-stats', label: '视频监控统计', icon: 'DataAnalysis', path: '/video-monitor/stats', name: 'VideoMonitorStats', component: 'VideoMonitorStatsView', routeComponent: 'VideoMonitorPageView', levels: 'hq', description: '指挥部级视频监控统计。' },
       { key: 'video-monitor-offline-notify-hq', label: '监控离线通知', icon: 'Bell', path: '/hq/video-monitor/offline-notify', name: 'VideoMonitorOfflineNotifyHq', component: 'OfflineNotifyConfigView', routeComponent: 'VideoMonitorPageView', levels: 'hq', description: '指挥部层级配置视频离线分级通知规则与指挥部层级通知人员。' },
       { key: 'machine-entry-manage', label: '机械设备台账', icon: 'SuitcaseLine', path: '/hq/machine-supervise/ledger', name: 'MachineEntryManageHq', component: 'MachineryLedgerView', levels: 'hq' },
-      { key: 'alert-record', label: '机械设备预警', icon: 'Bell', path: '/hq/machine-supervise/alert-record', name: 'AlertRecordHq', component: 'AlertRecordView', levels: 'hq' },
-      { key: 'alert-record-major', label: '危大监测预警', icon: 'Warning', path: '/hq/major-hazard/alert-record', name: 'AlertRecordMajorHq', component: 'AlertRecordMajorView', levels: 'hq' },
     ],
   },
 
@@ -104,6 +102,7 @@ export const menuTree = [
           { key: 'pile-monitor', label: '桩基机械施工监管', icon: 'Place', path: '/machine-supervise/pile', name: 'PileMonitor', component: 'PileMonitorView', levels: 'both' },
           { key: 'composite-monitor', label: '复合地基机械施工监管', icon: 'SetUp', path: '/machine-supervise/composite', name: 'CompositeMonitor', component: 'CompositeMonitorView', levels: 'both' },
           { key: 'alert-record', label: '预警记录', icon: 'AlarmClock', path: '/machine-supervise/alert-record', name: 'AlertRecord', component: 'AlertRecordView', levels: 'project' },
+          { key: 'alert-record', label: '机械设备预警', icon: 'Bell', path: '/hq/machine-supervise/alert-record', name: 'AlertRecordHq', component: 'AlertRecordView', levels: 'hq' },
         ],
       },
       {
@@ -114,9 +113,8 @@ export const menuTree = [
           { key: 'high-formwork', label: '高支模变形监管', icon: 'School', path: '/major-hazard/high-formwork', name: 'HighFormwork', component: 'HighFormworkView', levels: 'both' },
           { key: 'hazard-manage', label: '监测区域管理', icon: 'MapLocation', path: '/major-hazard/hazard-manage', name: 'HazardManage', component: 'HazardManageView', levels: 'project' },
           { key: 'device-binding', label: '监测设备管理', icon: 'Link', path: '/major-hazard/device-binding', name: 'DeviceBinding', component: 'DeviceBindingView', levels: 'project' },
-          { key: 'monitor-device', label: '监测设备台账', icon: 'Memo', path: '/major-hazard/monitor-device', name: 'MonitoringDevice', component: 'MonitoringDeviceView', levels: 'project' },
           { key: 'alert-record-major', label: '预警记录', icon: 'Bell', path: '/major-hazard/alert-record', name: 'AlertRecordMajor', component: 'AlertRecordMajorView', levels: 'project' },
-          { key: 'alert-config-major', label: '危大预警配置', icon: 'Setting', path: '/major-hazard/warning-config', name: 'AlertConfigMajor', component: 'AlertConfigMajorView', levels: 'project' },
+          { key: 'alert-record-major', label: '危大监测预警', icon: 'Bell', path: '/hq/major-hazard/alert-record', name: 'AlertRecordMajorHq', component: 'AlertRecordMajorView', levels: 'hq' },
         ],
       },
       { key: 'alert-config', label: '预警配置', icon: 'Tools', path: '/machine-supervise/alert-config', name: 'AlertConfig', component: 'AlertConfigView', levels: 'project' },
@@ -628,8 +626,7 @@ export const viewLoaders = {
   AlertRecordView: () => import('../views/safety/AlertRecordView.vue'),
   AlertConfigView: () => import('../views/safety/AlertConfigView.vue'),
   AlertConfigFormView: () => import('../views/safety/AlertConfigFormView.vue'),
-  AlertConfigMajorView: () => import('../views/majorHazard/AlertConfigMajorView.vue'),
-  MonitoringDeviceView: () => import('../views/majorHazard/MonitoringDeviceView.vue'),
+
   MachineryLedgerView: () => import('../views/safety/MachineryLedgerView.vue'),
   MachineTypeMaintainView: () => import('../views/safety/MachineTypeMaintainView.vue'),
   MachineEntryFormView: () => import('../views/safety/MachineEntryFormView.vue'),
