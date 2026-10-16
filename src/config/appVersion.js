@@ -17,6 +17,15 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.17.1.10',
+    date: '2026-10-16',
+    highlights: [
+      'COC 项目调度：巡检对讲设备四宫格内每台设备新增「开启/关闭声音」「呼叫」图标按钮；呼叫按钮统一为单个图标不带文字',
+      'COC 项目调度：呼叫后按钮播放响铃动效（约 3 秒）、声音开启后按钮呼吸闪动；单设备视图不再重复显示这两个按钮',
+      'COC 项目调度：修复「手持巡检实时画面」工具栏按钮文字折行溢出（按钮文字改为单行且不被压缩，空间不足时设备切换下拉换行）',
+    ],
+  },
+  {
     version: 'v2.17.1.8',
     date: '2026-10-16',
     highlights: [

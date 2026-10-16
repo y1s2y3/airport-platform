@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, inject } from 'vue'
+import { ref, computed, watch, inject, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   VideoCamera,
@@ -68,7 +68,12 @@ const emptySlotCount = computed(() => Math.max(0, monitorPageSize.value - monito
 const expandedCamera = ref(null)
 const expandedDevice = ref(null)
 const markDialogVisible = ref(false)
-const deviceMuted = ref(true)
+/** 设备静音状态：按设备 id 分别记录，缺省为静音（与工具栏原口径一致） */
+const mutedDeviceIds = ref({})
+/** 呼叫进行中的设备：点击呼叫后按钮进入响铃动效，约 3 秒后自动结束（演示用动态效果） */
+const CALLING_DURATION_MS = 3000
+const callingDeviceIds = ref({})
+const callingTimers = new Map()
 const deviceStream = ref('main')
 const selectedDeviceId = ref(props.device.id)
 const devicePage = ref(0)
@@ -142,6 +147,22 @@ const activeDevice = computed(() => {
 })
 
 const singleGridDevices = computed(() => [activeDevice.value])
+
+/** 单设备视图工具栏的静音态＝当前设备的静音态 */
+const deviceMuted = computed(() => isDeviceMuted(activeDevice.value))
+
+function isDeviceMuted(device) {
+  const id = device?.id
+  if (!id) return true
+  const hit = mutedDeviceIds.value[id]
+  return hit === undefined ? true : Boolean(hit)
+}
+
+function setDeviceMuted(device, muted) {
+  const id = device?.id
+  if (!id) return
+  mutedDeviceIds.value = { ...mutedDeviceIds.value, [id]: muted }
+}
 
 const deviceTotalPages = computed(() =>
   Math.max(1, Math.ceil(projectDevices.value.length / DEVICE_GRID_PAGE_SIZE)),
@@ -266,8 +287,20 @@ function openDeviceExpand(device, idx = 0) {
 }
 
 function toggleDeviceMute() {
-  deviceMuted.value = !deviceMuted.value
-  ElMessage.info(deviceMuted.value ? '已静音' : '已开启声音')
+  const next = !deviceMuted.value
+  setDeviceMuted(activeDevice.value, next)
+  ElMessage.info(next ? '已静音' : '已开启声音')
+}
+
+/** 宫格单元内的声音开关（按钮文案：开启声音 / 关闭声音） */
+function toggleCellMute(device) {
+  if (!device?.online) {
+    ElMessage.warning('设备离线，无法操作声音')
+    return
+  }
+  const next = !isDeviceMuted(device)
+  setDeviceMuted(device, next)
+  ElMessage.info(next ? `${device.name} 已静音` : `${device.name} 已开启声音`)
 }
 
 function toggleDeviceStream() {
@@ -283,13 +316,50 @@ function openIssueSnapshot() {
   markDialogVisible.value = true
 }
 
-function deviceCall() {
-  if (!activeDevice.value.online) {
-    ElMessage.warning(`${activeDevice.value.name} 离线，无法呼叫`)
+/** 呼叫指定设备（宫格单元与单设备工具栏共用）：点击后按钮播放响铃动效，约 3 秒自动复位 */
+function callDevice(device) {
+  if (!device?.online) {
+    ElMessage.warning(`${device.name} 离线，无法呼叫`)
     return
   }
-  ElMessage.info(`正在呼叫 ${activeDevice.value.name}…`)
+  const id = device.id
+  callingDeviceIds.value = { ...callingDeviceIds.value, [id]: true }
+  const prev = callingTimers.get(id)
+  if (prev) clearTimeout(prev)
+  callingTimers.set(
+    id,
+    setTimeout(() => stopDeviceCall(device), CALLING_DURATION_MS),
+  )
+  ElMessage.info(`正在呼叫 ${device.name}…`)
 }
+
+function isDeviceCalling(device) {
+  const id = device?.id
+  return Boolean(id && callingDeviceIds.value[id])
+}
+
+function stopDeviceCall(device) {
+  const id = device?.id
+  if (!id) return
+  const timer = callingTimers.get(id)
+  if (timer) {
+    clearTimeout(timer)
+    callingTimers.delete(id)
+  }
+  if (!callingDeviceIds.value[id]) return
+  const next = { ...callingDeviceIds.value }
+  delete next[id]
+  callingDeviceIds.value = next
+}
+
+function deviceCall() {
+  callDevice(activeDevice.value)
+}
+
+onBeforeUnmount(() => {
+  callingTimers.forEach((timer) => clearTimeout(timer))
+  callingTimers.clear()
+})
 
 function prevDevicePage() {
   if (devicePage.value > 0) devicePage.value -= 1
@@ -388,6 +458,32 @@ function nextMonitorPage() {
                   {{ formatDispatchOperatorLabel(dev) }}
                 </span>
               </div>
+              <!-- 宫格单元操作：开启/关闭声音、呼叫（均为单个图标按钮，点击不触发进入单设备视图）；
+                   单设备视图（1 宫格）不显示，声音/呼叫已在面板工具栏 -->
+              <div v-if="!effectiveSingleDeviceView" class="device-live-actions">
+                <button
+                  type="button"
+                  class="device-live-act-btn"
+                  :class="{ 'is-muted': isDeviceMuted(dev), 'is-sound-on': !isDeviceMuted(dev) }"
+                  :title="isDeviceMuted(dev) ? '开启声音' : '关闭声音'"
+                  :aria-label="isDeviceMuted(dev) ? '开启声音' : '关闭声音'"
+                  :aria-pressed="!isDeviceMuted(dev)"
+                  @click.stop="toggleCellMute(dev)"
+                >
+                  <el-icon><SpeakerVolumeIcon :muted="isDeviceMuted(dev)" /></el-icon>
+                </button>
+                <button
+                  type="button"
+                  class="device-live-act-btn"
+                  :class="{ 'is-call': dev.online, 'is-offline': !dev.online, 'is-calling': isDeviceCalling(dev) }"
+                  :title="isDeviceCalling(dev) ? '呼叫中…' : (dev.online ? '呼叫' : `${dev.name} 离线，无法呼叫`)"
+                  aria-label="呼叫"
+                  :aria-busy="isDeviceCalling(dev)"
+                  @click.stop="callDevice(dev)"
+                >
+                  <el-icon><Phone /></el-icon>
+                </button>
+              </div>
             </div>
           </div>
           <div v-if="!dispatchHqUi" class="device-live-label">
@@ -418,15 +514,26 @@ function nextMonitorPage() {
             <el-icon><Camera /></el-icon>
             问题截图
           </button>
-          <button class="ctrl-btn" :title="deviceMuted ? '开启声音' : '静音'" @click="toggleDeviceMute">
+          <button
+            class="ctrl-btn"
+            :class="{ 'is-sound-on': !deviceMuted }"
+            :title="deviceMuted ? '开启声音' : '静音'"
+            @click="toggleDeviceMute"
+          >
             <el-icon><SpeakerVolumeIcon :muted="deviceMuted" /></el-icon>
           </button>
           <button class="ctrl-btn" @click="toggleDeviceStream">
             {{ deviceStream === 'main' ? '主码流' : '子码流' }}
           </button>
-          <button class="ctrl-btn ctrl-btn-call" title="呼叫" @click="deviceCall">
+          <button
+            class="ctrl-btn ctrl-btn-call"
+            :class="{ 'is-calling': isDeviceCalling(activeDevice) }"
+            :title="isDeviceCalling(activeDevice) ? '呼叫中…' : '呼叫'"
+            aria-label="呼叫"
+            :aria-busy="isDeviceCalling(activeDevice)"
+            @click="deviceCall"
+          >
             <el-icon><Phone /></el-icon>
-            呼叫
           </button>
         </div>
         <div v-if="showDeviceSwitch" class="device-switch-form">
