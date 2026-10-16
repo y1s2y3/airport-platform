@@ -37,7 +37,6 @@ function cellText(row, slotKey) {
   <div class="panel-card duty-stats-panel">
     <div class="panel-title">
       <span>项目值班统计</span>
-      <span class="panel-v2-tip">V2版本上线</span>
     </div>
 
     <div class="panel-body duty-stats-body">

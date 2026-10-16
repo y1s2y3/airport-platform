@@ -172,7 +172,6 @@ function closeDetail() {
     </DispatchHqPanelTitle>
     <div v-else class="panel-title compact hazard-title-row title-left">
       <span class="hazard-title-text">隐患清单</span>
-      <span class="panel-v2-tip">V2版本上线</span>
       <div class="title-actions">
         <el-select
           v-model="hazardStatusFilter"

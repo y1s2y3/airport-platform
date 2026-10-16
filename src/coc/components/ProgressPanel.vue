@@ -58,7 +58,6 @@ function barColor(p) {
   <div class="panel-card progress-panel">
     <div class="panel-title" :class="{ 'title-with-tools': !isEnterprise && single }">
       <span>项目进度</span>
-      <span class="panel-v2-tip">V2版本上线</span>
       <span v-if="!isEnterprise && single" class="project-subtitle" :title="single.name">
         {{ single.shortName || single.name }}
       </span>

@@ -174,7 +174,6 @@ onUnmounted(() => {
   <div class="panel-card hazard-analysis-panel">
     <div class="panel-title compact title-left">
       <span>隐患分析</span>
-      <span class="panel-v2-tip">V2版本上线</span>
     </div>
     <div class="panel-body hazard-body">
       <div class="chart-row">

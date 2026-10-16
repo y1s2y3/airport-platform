@@ -17,6 +17,15 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.17.1.8',
+    date: '2026-10-16',
+    highlights: [
+      'COC 项目级：项目值班移入「项目调度」页（与管理人员清单、实名制预警对调位置）；白班/夜班改为标题栏标签页，默认标签按进入时间判定（<16:00 白班、≥16:00 夜班）',
+      'COC 项目级：管理人员清单、实名制预警移到首页左下并排展示，四块面板标题行统一落在卡片底色内',
+      'COC 大屏：去掉全部「V2版本上线」角标；隐患统计补齐卡片底色；项目值班人员卡不再展示「进场时间 · 门岗」考勤凭据',
+    ],
+  },
+  {
     version: 'v2.17.1.7',
     date: '2026-10-15',
     highlights: [

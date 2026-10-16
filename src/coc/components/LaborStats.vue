@@ -2,11 +2,15 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import * as echarts from 'echarts'
 import { getCocLaborPanelStats } from '../../mock/laborManagement.js'
+import CocPanelHeading from './hq/CocPanelHeading.vue'
 
 const props = defineProps({
   projects: { type: Array, required: true },
   focusProject: { type: Object, default: null },
   isEnterprise: { type: Boolean, default: false },
+  /** 标题行渲染在卡片内（项目级首页用；指挥部仍由页面外置标题，保持原结构） */
+  embeddedHeading: { type: Boolean, default: false },
+  headingTitle: { type: String, default: '劳务分析' },
 })
 
 const chartRef = ref(null)
@@ -234,9 +238,9 @@ onUnmounted(() => {
 
 <template>
   <div class="panel-card labor-panel">
+    <CocPanelHeading v-if="embeddedHeading" :title="headingTitle" />
     <div class="panel-title compact title-left">
       <span>劳务统计</span>
-      <span class="panel-v2-tip">V2版本上线</span>
       <span v-if="isEnterprise" class="scope-tag">企业级</span>
       <span v-else-if="focusProject" class="scope-tag project">{{ focusProject.shortName || focusProject.name }}</span>
     </div>
@@ -285,6 +289,11 @@ onUnmounted(() => {
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+/* 内嵌标题（项目级首页）：标题行落在卡片底色内，左内边距与内容区（16px）对齐 */
+.labor-panel > :deep(.hq-panel-heading-wrap) {
+  padding: 10px 16px 0;
 }
 
 .panel-title.compact.title-left {

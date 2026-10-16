@@ -1,11 +1,14 @@
 <script setup>
-import { ref, computed, inject } from 'vue'
-import { getCocDispatchPendingWarnings } from '../../../../mock/laborWarningList.js'
-import DispatchDraggablePanel from './DispatchDraggablePanel.vue'
-import DispatchHqPanelTitle from './DispatchHqPanelTitle.vue'
+import { ref, computed } from 'vue'
+import { getCocDispatchPendingWarnings } from '../../../mock/laborWarningList.js'
+import DispatchDraggablePanel from '../safety/dispatch/DispatchDraggablePanel.vue'
+import CocPanelHeading from './CocPanelHeading.vue'
 
-const dispatchHqUi = inject('dispatchHqUi', false)
-
+/**
+ * 项目级大屏 ·「实名制预警」（深色主题）
+ * 原为「项目调度」页的 PersonnelRiskVerifyPanel，2026-10-16 与「项目值班」对调后
+ * 落在项目级首页左下，并改挂首页标题（图标 + 标题 + V2 角标 + 前置操作位）。
+ */
 const props = defineProps({
   projectId: { type: String, required: true },
 })
@@ -73,23 +76,17 @@ function formatTriggered(row) {
 </script>
 
 <template>
-  <div class="panel-card detail-panel list-panel risk-panel" :class="{ 'dispatch-hq-list-panel': dispatchHqUi }">
-    <DispatchHqPanelTitle v-if="dispatchHqUi" title="实名制预警" show-v2-tag>
+  <div class="panel-card risk-panel">
+    <CocPanelHeading title="实名制预警">
       <template #actions>
         <span class="risk-count">待处置 {{ riskList.length }}</span>
         <button type="button" class="title-more-btn" @click="openMore">更多</button>
       </template>
-    </DispatchHqPanelTitle>
-    <div v-else class="panel-title compact risk-title-row title-left">
-      <span class="risk-title-text">实名制预警</span>
-      <span class="panel-v2-tip">V2版本上线</span>
-      <span class="risk-count">待处置 {{ riskList.length }}</span>
-      <button type="button" class="title-more-btn" @click="openMore">更多</button>
-    </div>
+    </CocPanelHeading>
 
-    <div class="panel-body list-table-body list-wrap">
+    <div class="panel-body risk-body">
       <div class="table-scroll">
-        <table class="mini-table risk-table">
+        <table class="risk-table">
           <thead>
             <tr>
               <th class="col-person">人员</th>
@@ -140,7 +137,7 @@ function formatTriggered(row) {
         />
       </div>
       <div class="more-table-wrap">
-        <table class="mini-table more-table risk-more-table">
+        <table class="more-table risk-more-table">
           <thead>
             <tr>
               <th>人员</th>
@@ -179,65 +176,83 @@ function formatTriggered(row) {
 </template>
 
 <style scoped>
-@import './dispatch-lower.css';
-
-.risk-panel .panel-title {
-  border-left: 4px solid #e6a23c;
-}
-
-.risk-title-row {
+.risk-panel {
+  flex: 1;
+  min-height: 0;
   display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 8px;
+  flex-direction: column;
 }
 
-.risk-title-text {
-  flex-shrink: 0;
-  text-align: left;
+.risk-panel > :deep(.hq-panel-heading-wrap) {
+  padding: 10px 14px 0;
 }
 
 .risk-count {
   font-size: calc(12px + var(--coc-font-boost));
   font-weight: 600;
-  color: #e6a23c;
+  color: #f6c575;
   white-space: nowrap;
-}
-
-.risk-title-row .risk-count {
-  margin-left: auto;
-}
-
-.risk-title-row .title-more-btn {
-  margin-left: 0;
 }
 
 .title-more-btn {
-  border: 1px solid var(--coc-border);
+  border: 1px solid rgba(94, 238, 255, 0.45);
   border-radius: 6px;
-  background: #fff;
+  background: rgba(64, 158, 255, 0.1);
   padding: 4px 12px;
   font-size: calc(12px + var(--coc-font-boost));
   font-weight: 600;
-  color: var(--coc-accent);
+  color: #5eeeff;
   cursor: pointer;
   white-space: nowrap;
   line-height: 1.4;
+  font-family: inherit;
 }
 
 .title-more-btn:hover {
-  border-color: var(--coc-accent);
-  background: rgba(201, 123, 99, 0.08);
+  border-color: rgba(94, 238, 255, 0.7);
+  background: rgba(64, 158, 255, 0.22);
+  color: #fff;
+}
+
+.risk-body {
+  flex: 1;
+  min-height: 0;
+  padding: 0 !important;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.table-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 
 .risk-table {
+  width: 100%;
+  border-collapse: collapse;
   table-layout: fixed;
+  font-size: calc(13px + var(--coc-font-boost));
 }
 
 .risk-table th,
 .risk-table td {
   padding: 10px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: left;
+  line-height: 1.5;
   vertical-align: middle;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.risk-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--coc-table-head-bg);
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: 600;
 }
 
 .risk-table .col-person {
@@ -258,7 +273,7 @@ function formatTriggered(row) {
 
 .person-name {
   font-weight: 600;
-  color: var(--coc-text);
+  color: #fff;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -275,7 +290,7 @@ function formatTriggered(row) {
 
 .type-text {
   font-size: calc(12px + var(--coc-font-boost));
-  color: var(--coc-text);
+  color: rgba(255, 255, 255, 0.92);
   line-height: 1.35;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -305,17 +320,26 @@ function formatTriggered(row) {
 
 .mode-tag.mode-auto {
   background: rgba(103, 194, 58, 0.14);
-  color: #67c23a;
+  color: #95d475;
 }
 
 .mode-tag.mode-notify {
   background: rgba(144, 147, 153, 0.14);
-  color: #909399;
+  color: #a8abb2;
 }
 
 .mode-tag.mode-default {
   background: rgba(64, 158, 255, 0.12);
-  color: #409eff;
+  color: #5eeeff;
+}
+
+.status-tag {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: calc(12px + var(--coc-font-boost));
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .status-tag.pending {
@@ -331,6 +355,7 @@ function formatTriggered(row) {
   white-space: nowrap;
 }
 
+/* 浮层内表格沿用 .more-table 全局基线，仅对齐本表面板的内边距 */
 .risk-more-table th,
 .risk-more-table td {
   padding: 10px 12px;

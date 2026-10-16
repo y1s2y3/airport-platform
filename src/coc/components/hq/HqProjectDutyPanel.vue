@@ -6,6 +6,7 @@ import {
   buildProjectDutyToday,
   todayYmd,
 } from '../../mock/dutyScreenData.js'
+import DispatchHqPanelTitle from '../safety/dispatch/DispatchHqPanelTitle.vue'
 import {
   ensureDutyJoinBaselines,
   getDutyJoinRecord,
@@ -20,14 +21,28 @@ const props = defineProps({
 
 const date = todayYmd()
 
+/** 默认班次：按进入页面时的当前时间判定（< 16:00 白班；≥ 16:00 夜班），停留期间不自动切换 */
+function resolveDefaultShift() {
+  return new Date().getHours() >= 16 ? 'night' : 'day'
+}
+
+const activeShift = ref(resolveDefaultShift())
+
 const duty = computed(() => buildProjectDutyToday(props.project, { date }))
 
-const shiftColumns = computed(() =>
+/** 班次标签页：白班 / 夜班，标签上带人数（无人显示「未排班」） */
+const shiftTabs = computed(() =>
   DUTY_SHIFT_DEFS.map((shift) => ({
     ...shift,
     people: shift.key === 'day' ? duty.value.dayPeople : duty.value.nightPeople,
   })),
 )
+
+const activeTab = computed(
+  () => shiftTabs.value.find((tab) => tab.key === activeShift.value) || shiftTabs.value[0],
+)
+
+const activePeople = computed(() => activeTab.value?.people || [])
 
 /* ---------------- 参会状态：在场默认已参会，可手动切换，会议结束前不随考勤变化 ---------------- */
 const joinStates = ref({})
@@ -127,72 +142,70 @@ onUnmounted(() => {
 
 <template>
   <div class="panel-card duty-project-panel">
-    <div class="panel-title">
-      <span>项目值班</span>
-      <span class="panel-v2-tip">V2版本上线</span>
-    </div>
-
-    <div class="panel-body duty-project-body">
-      <div class="duty-project-shifts">
-        <section v-for="shift in shiftColumns" :key="shift.key" class="shift-col">
-          <header class="shift-col__head">
-            <span class="shift-col__label" :class="`shift-col__label--${shift.key}`">{{ shift.label }}</span>
-            <span class="shift-col__count">
-              <template v-if="shift.people.length">{{ shift.people.length }} 人</template>
+    <DispatchHqPanelTitle title="项目值班">
+      <template #actions>
+        <div class="duty-tabs" role="tablist">
+          <button
+            v-for="tab in shiftTabs"
+            :key="tab.key"
+            type="button"
+            class="duty-tab-btn"
+            :class="[tab.key, { active: activeShift === tab.key }]"
+            role="tab"
+            :aria-selected="activeShift === tab.key"
+            @click="activeShift = tab.key"
+          >
+            <span class="duty-tab-label">{{ tab.label }}</span>
+            <span class="duty-tab-count">
+              <template v-if="tab.people.length">{{ tab.people.length }} 人</template>
               <template v-else>未排班</template>
             </span>
-          </header>
+          </button>
+        </div>
+      </template>
+    </DispatchHqPanelTitle>
 
-          <div class="shift-col__list">
-            <div
-              v-for="person in shift.people"
-              :key="`${person.slotKey}-${person.userId}`"
-              class="person-card"
-              :class="{ 'is-offsite': showAttendanceTag(person) && person.attendance?.statusKey === 'offSite' }"
-            >
-              <div class="person-card__head">
-                <span class="person-card__name">{{ person.name }}</span>
-                <span class="person-card__badges">
-                  <span
-                    v-if="showAttendanceTag(person)"
-                    class="person-card__status"
-                    :class="`is-${person.attendance.statusKey}`"
-                  >
-                    {{ person.attendance.status }}
-                  </span>
-                  <button
-                    type="button"
-                    class="person-card__join"
-                    :class="{ 'is-joined': joinStateOf(person).joined }"
-                    :title="joinStateOf(person).joined ? '点击标记为未参会' : '点击标记为已参会'"
-                    :aria-pressed="joinStateOf(person).joined"
-                    @click="toggleJoin(person)"
-                  >
-                    {{ joinStateOf(person).joined ? '已参会' : '未参会' }}
-                  </button>
-                </span>
-              </div>
-              <div class="person-card__post" :title="postText(person)">
-                {{ postText(person) }}
-              </div>
-              <div class="person-card__foot">
-                <span class="person-card__party" :class="person.partyKey">{{ person.partyLabel }}</span>
-                <!-- 手动输入人员不展示在场状态；仅「在场」展示考勤凭据 -->
-                <span
-                  v-if="showAttendanceTag(person) && person.attendance.statusKey === 'onSite'"
-                  class="person-card__attend"
-                  :title="`${person.phoneMasked} · ${person.attendance.detail}`"
-                >
-                  {{ person.attendance.detail }}
-                </span>
-              </div>
-            </div>
-
-            <div v-if="!shift.people.length" class="shift-empty">
-              <span class="shift-empty__hint">该项目当日{{ shift.label }}未安排值班人员</span>
-            </div>
+    <div class="panel-body duty-project-body">
+      <div class="shift-list">
+        <div
+          v-for="person in activePeople"
+          :key="`${person.slotKey}-${person.userId}`"
+          class="person-card"
+          :class="{ 'is-offsite': showAttendanceTag(person) && person.attendance?.statusKey === 'offSite' }"
+        >
+          <div class="person-card__head">
+            <span class="person-card__name">{{ person.name }}</span>
+            <span class="person-card__badges">
+              <span
+                v-if="showAttendanceTag(person)"
+                class="person-card__status"
+                :class="`is-${person.attendance.statusKey}`"
+              >
+                {{ person.attendance.status }}
+              </span>
+              <button
+                type="button"
+                class="person-card__join"
+                :class="{ 'is-joined': joinStateOf(person).joined }"
+                :title="joinStateOf(person).joined ? '点击标记为未参会' : '点击标记为已参会'"
+                :aria-pressed="joinStateOf(person).joined"
+                @click="toggleJoin(person)"
+              >
+                {{ joinStateOf(person).joined ? '已参会' : '未参会' }}
+              </button>
+            </span>
           </div>
-        </section>
+          <div class="person-card__post" :title="postText(person)">
+            {{ postText(person) }}
+          </div>
+          <div class="person-card__foot">
+            <span class="person-card__party" :class="person.partyKey">{{ person.partyLabel }}</span>
+          </div>
+        </div>
+
+        <div v-if="!activePeople.length" class="shift-empty">
+          <span class="shift-empty__hint">该项目当日{{ activeTab?.label }}未安排值班人员</span>
+        </div>
       </div>
     </div>
   </div>
@@ -211,68 +224,62 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-.duty-project-shifts {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  position: relative;
-}
-
-/* 白班 / 夜班 两栏之间的竖向分割线（居中于栏间距，不占布局空间） */
-.duty-project-shifts::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 50%;
-  width: 1px;
-  transform: translateX(-50%);
-  background: linear-gradient(
-    180deg,
-    rgba(94, 238, 255, 0.08) 0%,
-    rgba(94, 238, 255, 0.46) 14%,
-    rgba(94, 238, 255, 0.46) 86%,
-    rgba(94, 238, 255, 0.08) 100%
-  );
-  pointer-events: none;
-}
-
-.shift-col {
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.shift-col__head {
-  flex-shrink: 0;
+/* 白班 / 夜班 标签页：放在面板标题栏右侧（默认标签按进入页面时的当前时间判定） */
+.duty-tabs {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding-bottom: 4px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  gap: 6px;
 }
 
-.shift-col__label {
-  font-size: calc(14px + var(--coc-font-boost));
-  font-weight: 700;
+.duty-tab-btn {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--coc-text-secondary);
+  font-family: inherit;
+  font-size: calc(12px + var(--coc-font-boost));
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s, border-color 0.2s;
+}
+
+.duty-tab-btn:hover {
+  color: #fff;
+  border-color: rgba(94, 238, 255, 0.5);
+}
+
+.duty-tab-btn:focus-visible {
+  outline: 2px solid rgba(94, 238, 255, 0.8);
+  outline-offset: 1px;
+}
+
+.duty-tab-btn.active.day {
+  border-color: rgba(94, 238, 255, 0.55);
+  background: rgba(64, 158, 255, 0.2);
   color: #5eeeff;
-  letter-spacing: 1px;
 }
 
-.shift-col__label--night {
+.duty-tab-btn.active.night {
+  border-color: rgba(246, 197, 117, 0.55);
+  background: rgba(246, 197, 117, 0.14);
   color: #f6c575;
 }
 
-.shift-col__count {
+.duty-tab-count {
   font-size: calc(11px + var(--coc-font-boost));
-  color: var(--coc-text-secondary);
+  font-weight: 500;
+  color: var(--coc-text-muted);
 }
 
-.shift-col__list {
+.duty-tab-btn.active .duty-tab-count {
+  color: inherit;
+}
+
+.shift-list {
   flex: 1;
   min-height: 0;
   overflow: auto;
@@ -286,16 +293,16 @@ onUnmounted(() => {
   scrollbar-color: var(--coc-hq-scrollbar-thumb-solid) var(--coc-hq-scrollbar-track);
 }
 
-.shift-col__list::-webkit-scrollbar {
+.shift-list::-webkit-scrollbar {
   width: var(--coc-hq-scrollbar-size, 5px);
   height: var(--coc-hq-scrollbar-size, 5px);
 }
 
-.shift-col__list::-webkit-scrollbar-track {
+.shift-list::-webkit-scrollbar-track {
   background: var(--coc-hq-scrollbar-track, rgba(255, 255, 255, 0.05));
 }
 
-.shift-col__list::-webkit-scrollbar-thumb {
+.shift-list::-webkit-scrollbar-thumb {
   background: var(--coc-hq-scrollbar-thumb-solid, rgba(94, 238, 255, 0.58));
   border-radius: 3px;
 }
@@ -436,16 +443,6 @@ onUnmounted(() => {
 .person-card__party.duty-party--supervision {
   color: #f6c575;
   background: rgba(246, 197, 117, 0.14);
-}
-
-.person-card__attend {
-  font-size: calc(10px + var(--coc-font-boost));
-  color: var(--coc-text-muted);
-  line-height: 1.3;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
 }
 
 .shift-empty {

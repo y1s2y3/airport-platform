@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import * as echarts from 'echarts'
 import { getProjectHazardStats } from '../mock/hazardStats.js'
 import HazardSourceDetailDialog from './HazardSourceDetailDialog.vue'
+import CocPanelHeading from './hq/CocPanelHeading.vue'
 
 const props = defineProps({
   projectId: { type: String, required: true },
@@ -147,6 +148,7 @@ onUnmounted(() => {
 
 <template>
   <div class="panel-card project-hazard-stats">
+    <CocPanelHeading title="隐患统计" />
     <div class="stats-top">
       <div
         v-for="item in stats.sourceCards"
@@ -215,8 +217,14 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 10px 12px 12px !important;
+  padding: 0 12px 12px !important;
   overflow: hidden;
+}
+
+/* 标题行落在卡片底色内，左内边距与内容区（12px）对齐；标题与内容间距由卡片 gap 控制 */
+.project-hazard-stats > :deep(.hq-panel-heading-wrap) {
+  padding: 10px 12px 0;
+  margin-bottom: 0;
 }
 
 .stats-top {

@@ -112,7 +112,6 @@ function display(value) {
   <div class="panel-card labor-analysis-panel">
     <div class="panel-title compact title-left">
       <span>劳务分析</span>
-      <span class="panel-v2-tip">V2版本上线</span>
     </div>
     <div class="panel-body analysis-body">
       <div class="kpi-grid" :class="{ 'kpi-grid--hq': darkTheme }">

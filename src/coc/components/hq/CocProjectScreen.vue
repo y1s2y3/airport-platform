@@ -1,7 +1,7 @@
 <script setup>
-import CocPanelHeading from './CocPanelHeading.vue'
 import SafetyVideoPanel from '../safety/SafetyVideoPanel.vue'
-import HqProjectDutyPanel from './HqProjectDutyPanel.vue'
+import HqProjectMgmtPanel from './HqProjectMgmtPanel.vue'
+import HqProjectLaborRiskPanel from './HqProjectLaborRiskPanel.vue'
 import LaborStats from '../LaborStats.vue'
 import ProjectHazardStatsPanel from '../ProjectHazardStatsPanel.vue'
 
@@ -37,13 +37,10 @@ const emit = defineEmits([
       />
     </section>
 
-    <!-- 左下 1×2：项目值班（原「项目进度」） -->
-    <section class="hq-zone hq-zone--progress">
-      <CocPanelHeading title="项目值班" show-v2-tag />
-      <HqProjectDutyPanel
-        class="hq-panel hq-hide-inner-title"
-        :project="selectedProject"
-      />
+    <!-- 左下 1×2：管理人员清单 / 实名制预警（原「项目值班」；项目值班已移入「项目调度」页） -->
+    <section class="hq-zone hq-zone--progress hq-zone--dual">
+      <HqProjectMgmtPanel class="hq-panel" :project-id="selectedProject.id" />
+      <HqProjectLaborRiskPanel class="hq-panel" :project-id="selectedProject.id" />
     </section>
 
     <aside class="hq-zone hq-zone--right">
@@ -55,16 +52,16 @@ const emit = defineEmits([
         项目调度
       </button>
       <div class="hq-analysis-block">
-        <CocPanelHeading title="劳务分析" show-v2-tag />
         <LaborStats
           class="hq-labor-panel hq-hide-inner-title"
+          embedded-heading
+          heading-title="劳务分析"
           :projects="projects"
           :focus-project="selectedProject"
           :is-enterprise="false"
         />
       </div>
       <div class="hq-analysis-block hq-analysis-block--hazard">
-        <CocPanelHeading title="隐患统计" show-v2-tag />
         <ProjectHazardStatsPanel
           class="hq-hazard-panel"
           :project-id="selectedProject.id"
@@ -114,9 +111,16 @@ const emit = defineEmits([
   grid-row: 3 / 4;
 }
 
+/* 左下 1×2 区内的两块只读清单（管理人员清单 / 实名制预警）左右等宽 */
+.hq-zone--dual {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
 .hq-zone--progress .hq-panel {
-  flex: 1;
-  min-height: 0;
+  min-width: 0;
+  height: 100%;
 }
 
 .hq-zone--right {

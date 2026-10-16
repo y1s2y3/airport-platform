@@ -57,7 +57,7 @@ const dispatchDevice = computed(() => {
           />
         </section>
 
-        <DispatchProjectDispatchLower :project-id="selectedProjectId" />
+        <DispatchProjectDispatchLower :project-id="selectedProjectId" :project="videoProject" />
       </section>
 
       <aside class="dispatch-side">

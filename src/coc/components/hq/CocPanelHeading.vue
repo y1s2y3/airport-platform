@@ -4,7 +4,6 @@ import HqPanelTitleLine from './HqPanelTitleLine.vue'
 
 defineProps({
   title: { type: String, required: true },
-  showV2Tag: { type: Boolean, default: false },
 })
 </script>
 
@@ -21,7 +20,9 @@ defineProps({
         draggable="false"
       />
       <span class="hq-panel-heading__text">{{ title }}</span>
-      <span v-if="showV2Tag" class="panel-v2-tip">V2版本上线</span>
+      <div v-if="$slots.actions" class="hq-panel-heading__actions">
+        <slot name="actions" />
+      </div>
     </div>
     <HqPanelTitleLine />
   </div>
@@ -34,5 +35,14 @@ defineProps({
   gap: 8px;
   flex-wrap: wrap;
   min-width: 0;
+}
+
+/* 右侧操作位（计数 / 更多等），不占用标题与 V2 角标之间的间距 */
+.hq-panel-heading__actions {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 </style>

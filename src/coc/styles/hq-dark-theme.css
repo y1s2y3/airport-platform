@@ -1189,11 +1189,7 @@
   color: #fff;
 }
 
-.coc-hq-mode .project-hazard-stats {
-  background: transparent;
-  border: none;
-  box-shadow: none;
-}
+/* 隐患统计（项目级首页）：沿用 .panel-card 的卡片底色与边框，与「劳务分析」保持一致 */
 
 .coc-hq-mode .project-hazard-stats .kpi-label,
 .coc-hq-mode .project-hazard-stats .chart-title {

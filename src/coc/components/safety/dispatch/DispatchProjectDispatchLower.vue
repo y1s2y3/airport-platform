@@ -1,16 +1,17 @@
 <script setup>
 import { ref, computed, inject } from 'vue'
 import { getDispatchDangerWorkToday } from '../../../utils/dailyWorkStorage.js'
-import { getProjectManagementPersonnel } from '../../../mock/data.js'
 import DispatchDraggablePanel from './DispatchDraggablePanel.vue'
 import DispatchRecordDetailBody from './DispatchRecordDetailBody.vue'
 import DispatchHqPanelTitle from './DispatchHqPanelTitle.vue'
-import PersonnelRiskVerifyPanel from './PersonnelRiskVerifyPanel.vue'
+import HqProjectDutyPanel from '../../hq/HqProjectDutyPanel.vue'
 
 const dispatchHqUi = inject('dispatchHqUi', false)
 
 const props = defineProps({
   projectId: { type: String, required: true },
+  /** 项目对象（项目值班面板取当日值班人员所需） */
+  project: { type: Object, required: true },
 })
 
 const dangerMoreOpen = ref(false)
@@ -55,8 +56,6 @@ const filteredDangerList = computed(() => {
 })
 
 const dangerListPreview = computed(() => dangerListFull.value.slice(0, 12))
-
-const managementList = computed(() => getProjectManagementPersonnel(props.projectId))
 
 const workStatusMap = { 未开始: 'pending', 进行中: 'doing', 已结束: 'closed' }
 
@@ -136,49 +135,7 @@ function openDangerMore() {
       </div>
     </div>
 
-    <div class="panel-card detail-panel list-panel mgmt-panel" :class="{ 'dispatch-hq-list-panel': dispatchHqUi }">
-      <DispatchHqPanelTitle v-if="dispatchHqUi" title="管理人员清单" show-v2-tag>
-        <template #actions>
-          <span class="mgmt-count">共 {{ managementList.length }} 人</span>
-        </template>
-      </DispatchHqPanelTitle>
-      <div v-else class="panel-title compact mgmt-title-row title-left">
-        <span class="mgmt-title-text">管理人员清单</span>
-        <span class="panel-v2-tip">V2版本上线</span>
-        <span class="mgmt-count">共 {{ managementList.length }} 人</span>
-      </div>
-      <div class="panel-body list-table-body list-wrap">
-        <div class="table-scroll">
-          <table class="mini-table">
-            <thead>
-              <tr>
-                <th>姓名</th>
-                <th>岗位</th>
-                <th>单位</th>
-                <th>在场状态</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="row in managementList" :key="row.id">
-                <td>{{ row.name }}</td>
-                <td>{{ row.role }}</td>
-                <td class="desc" :title="row.unit">{{ row.unit }}</td>
-                <td>
-                  <span class="status-tag" :class="row.onSite ? 'closed' : 'pending'">
-                    {{ row.onSiteStatus }}
-                  </span>
-                </td>
-              </tr>
-              <tr v-if="!managementList.length">
-                <td colspan="4" class="empty-row">暂无管理人员记录</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <PersonnelRiskVerifyPanel :project-id="projectId" />
+    <HqProjectDutyPanel :project="project" />
 
     <DispatchDraggablePanel
       v-if="dangerMoreOpen"
@@ -281,24 +238,26 @@ function openDangerMore() {
   border-left: 4px solid #e6a23c;
 }
 
-.mgmt-panel .panel-title {
-  border-left: 4px solid #409eff;
+/* 下部两块：危险作业清单（1/3）+ 项目值班（2/3，占原管理人员清单与实名制预警两格） */
+.project-dispatch-lower {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
 }
 
-.danger-title-row,
-.mgmt-title-row {
+.project-dispatch-lower :deep(.duty-project-panel) {
+  min-height: 0;
+}
+
+.danger-title-row {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.danger-title-text,
-.mgmt-title-text {
+.danger-title-text {
   flex-shrink: 0;
 }
 
-.danger-date-tag,
-.mgmt-count {
+.danger-date-tag {
   margin-left: auto;
   font-size: calc(12px + var(--coc-font-boost));
   color: var(--coc-text-muted);
