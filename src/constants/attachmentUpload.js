@@ -17,6 +17,20 @@ export const ATTACH_PRESETS = {
     maxSizeMb: 5,
     hint: '支持 jpg / jpeg / png / gif / webp / bmp / svg，单个不超过 5MB',
   },
+  /**
+   * 图片（宽档 10MB）
+   * 用户 2026-10-19 指定：仅「工程指挥部 · 调度后台管理 · 黑红榜单」的榜单图片使用。
+   * 其它图片位仍用上面的 image（≤5MB），不得擅自把本档位扩用到别处。
+   */
+  image10: {
+    key: 'image10',
+    kind: 'image',
+    label: '图片',
+    accept: ATTACH_IMAGE_EXTS.join(','),
+    exts: ATTACH_IMAGE_EXTS,
+    maxSizeMb: 10,
+    hint: '仅支持 jpg、jpeg、png、gif、webp、bmp、svg，单个不超过 10MB',
+  },
   file: {
     key: 'file',
     kind: 'file',

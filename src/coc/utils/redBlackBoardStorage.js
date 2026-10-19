@@ -90,6 +90,7 @@ function normalizeRecord(record) {
     period: normalizePeriodKey(record.period || record.month || ''),
     boardType: record.boardType === 'black' ? 'black' : 'red',
     shortName: record.shortName || '',
+    projectShort: record.projectShort || '',
     fullName: record.fullName || '',
     description: record.description || '',
     image: record.image || buildPlaceholderImage(hue, record.boardType === 'black' ? '黑榜' : '红榜'),

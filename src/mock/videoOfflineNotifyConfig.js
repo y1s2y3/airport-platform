@@ -49,7 +49,8 @@ export function formatOfflineDuration(value, unit) {
 
 /**
  * 通知人员假数据
- * 展示名：姓名（组织-岗位）
+ * 展示名（用户 2026-10-19）：只显示人名，不再拼接岗位 —— 名单长了会把后面的挤没，
+ * 反而看不清到底通知了谁。组织/岗位仍在数据里，供悬浮浮窗与追溯使用。
  */
 export const notifyPersonnelCatalog = [
   { id: 'np-safe-01', name: '陈安全', org: 'T2空侧捷运线项目部', positionIds: ['pos-007'] },
@@ -74,6 +75,16 @@ function resolvePersonPostLabel(positionIds = []) {
 }
 
 export function formatNotifyPersonLabel(item) {
+  if (!item) return '--'
+  // 只显示人名（用户 2026-10-19）
+  return item.name || '--'
+}
+
+/**
+ * 悬浮浮窗用的完整口径：姓名（组织-岗位）
+ * 列表格点多时看不全，靠它补全「到底通知了谁」。
+ */
+export function formatNotifyPersonFullLabel(item) {
   if (!item) return '--'
   return formatApproverOptionLabel(item.name, item.org, resolvePersonPostLabel(item.positionIds))
 }

@@ -13,6 +13,7 @@ import {
   offlineDurationToMinutes,
   formatOfflineDuration,
   listNotifyPersonOptions,
+  formatNotifyPersonFullLabel,
   createEmptyOfflineNotifyRule,
   listHqVideoOfflineNotifyRules,
   listProjectVideoOfflineNotifyRules,
@@ -48,6 +49,23 @@ const levelLabel = computed(() => (isHqMode.value ? '指挥部层级' : '项目�
 
 /** 通知人员候选池：只含本层级用户（公司级岗位=指挥部层级，项目级岗位=项目层级） */
 const personOptions = computed(() => listNotifyPersonOptions(isHqMode.value ? 'hq' : 'project'))
+
+const personLabelById = computed(() => {
+  const map = new Map()
+  personOptions.value.forEach((opt) => map.set(opt.value, opt))
+  return map
+})
+
+/** 格子内只显示人名；人多时靠悬浮浮窗补全「姓名（组织-岗位）」 */
+function personTooltip(row) {
+  const ids = row?.person_ids || []
+  if (!ids.length) return ''
+  return ids
+    .map((id) => personLabelById.value.get(id))
+    .filter(Boolean)
+    .map((opt) => formatNotifyPersonFullLabel(opt))
+    .join('\n')
+}
 
 const saving = ref(false)
 const rows = ref([])
@@ -271,25 +289,34 @@ const canOperate = computed(() => isHqMode.value || !!projectId.value)
           </template>
         </el-table-column>
 
-        <el-table-column :label="`通知人员（${levelLabel}用户）`" min-width="320">
+        <el-table-column :label="`通知人员（${levelLabel}用户）`" min-width="420">
           <template #default="{ row }">
-            <el-select
-              v-model="row.person_ids"
-              multiple
-              filterable
-              collapse-tags
-              collapse-tags-tooltip
-              :placeholder="`请选择${levelLabel}通知人员`"
-              style="width: 100%"
-              aria-label="通知人员"
+            <el-tooltip
+              placement="top"
+              :disabled="!(row.person_ids && row.person_ids.length)"
+              popper-class="notify-person-popper"
             >
-              <el-option
-                v-for="opt in personOptions"
-                :key="opt.value"
-                :label="opt.label"
-                :value="opt.value"
-              />
-            </el-select>
+              <template #content>
+                <div class="notify-person-popper__title">已选 {{ row.person_ids.length }} 人</div>
+                <div class="notify-person-popper__body">{{ personTooltip(row) }}</div>
+              </template>
+              <el-select
+                v-model="row.person_ids"
+                multiple
+                filterable
+                :placeholder="`请选择${levelLabel}通知人员`"
+                class="notify-person-select"
+                style="width: 100%"
+                aria-label="通知人员"
+              >
+                <el-option
+                  v-for="opt in personOptions"
+                  :key="opt.value"
+                  :label="opt.label"
+                  :value="opt.value"
+                />
+              </el-select>
+            </el-tooltip>
           </template>
         </el-table-column>
 
@@ -398,5 +425,43 @@ const canOperate = computed(() => isHqMode.value || !!projectId.value)
   flex-wrap: wrap;
   font-size: 13px;
   color: var(--ap-text-secondary);
+}
+
+/**
+ * 通知人员格子（用户 2026-10-19）：
+ * 多选标签在格子内换行铺满，撑满高度；再多就靠悬浮浮窗看全量名单。
+ */
+.notify-person-select :deep(.el-select__wrapper) {
+  min-height: 32px;
+  align-items: flex-start;
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+
+.notify-person-select :deep(.el-select__tags) {
+  flex-wrap: wrap;
+  max-height: 62px;
+  overflow: hidden;
+}
+
+.notify-person-select :deep(.el-select__tags .el-tag) {
+  margin: 2px 4px 2px 0;
+}
+</style>
+
+<style>
+/* 通知人员悬浮浮窗（浮层挂到 body，必须非 scoped） */
+.notify-person-popper.el-popper .notify-person-popper__title {
+  font-size: 12px;
+  color: var(--ap-text-secondary, #8f959e);
+  margin-bottom: 4px;
+}
+
+.notify-person-popper.el-popper .notify-person-popper__body {
+  max-width: 420px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: #1f2329;
+  white-space: pre-line;
 }
 </style>

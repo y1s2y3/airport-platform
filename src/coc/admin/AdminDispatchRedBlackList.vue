@@ -39,6 +39,7 @@ function emptyForm() {
     periodNo: current.periodNo || new Date().getMonth() + 1,
     boardType: 'red',
     shortName: '',
+    projectShort: '',
     fullName: '',
     description: '',
     image: '',
@@ -53,6 +54,44 @@ const projectOptions = buildProjects().map((p) => ({
   fullName: p.name,
 }))
 
+/** 项目全称 → 项目简称（用于历史记录回显兜底） */
+const shortNameByFullName = new Map(projectOptions.map((p) => [p.fullName, p.shortName]))
+
+/**
+ * 项目部名称口径（用户 2026-10-19）：由项目简称自动带出，表单只读、不可修改。
+ * 规则：项目简称 + 「项目部」；已以「部」结尾的不重复拼接。
+ */
+function toDeptName(shortName) {
+  const text = String(shortName || '').trim()
+  if (!text) return ''
+  return /部$/.test(text) ? text : `${text}项目部`
+}
+
+/**
+ * 列表「项目简称」列展示值。
+ * 口径（用户 2026-10-19）：项目部名称与项目简称两列并存，不再展示项目全称。
+ * 回显优先级：记录自带 projectShort → 按全称反查基础数据 → 记录里非「项目部」形式的旧简称
+ * → 全称截断兜底 → `--`
+ */
+function displayProjectShort(row) {
+  if (row?.projectShort) return row.projectShort
+  const hit = shortNameByFullName.get(row?.fullName)
+  if (hit) return hit
+  const legacy = String(row?.shortName || '').trim()
+  if (legacy && !/部$/.test(legacy)) return legacy
+  const text = String(row?.fullName || '').trim()
+  if (!text) return '--'
+  return text.length > 12 ? `${text.slice(0, 12)}…` : text
+}
+
+/** 列表「项目部名称」列展示值：历史记录同样按简称推导，保证两列口径一致 */
+function displayProjectDept(row) {
+  const name = String(row?.shortName || '').trim()
+  if (name) return toDeptName(name)
+  const short = displayProjectShort(row)
+  return short && short !== '--' ? toDeptName(short) : '--'
+}
+
 const periodOptions = computed(() => getRedBlackBoardPeriods())
 
 const filtered = computed(() => {
@@ -61,7 +100,7 @@ const filtered = computed(() => {
   const q = keyword.value.trim()
   if (!q) return list
   return list.filter((item) =>
-    [item.shortName, item.fullName, item.description]
+    [item.shortName, item.projectShort, item.fullName, item.description]
       .some((field) => String(field || '').includes(q)),
   )
 })
@@ -88,17 +127,24 @@ function openCreate() {
 function openEdit(row) {
   formMode.value = 'edit'
   const parsed = parseRedBlackPeriod(row.period)
+  // 历史记录可能只存了旧口径，编辑时按列表同一套规则回填，保证「简称→项目部名称」联动一致
+  const short = displayProjectShort(row)
+  const dept = displayProjectDept(row)
   form.value = {
     ...row,
+    projectShort: short === '--' ? '' : short,
+    shortName: dept === '--' ? '' : dept,
     periodYear: Number(parsed.year) || new Date().getFullYear(),
     periodNo: parsed.periodNo || 1,
   }
   formVisible.value = true
 }
 
-function onProjectPick(shortName) {
+/** 选项目简称 → 自动带出项目部名称（只读）与项目全称（内部留痕） */
+function onProjectShortPick(shortName) {
   const project = projectOptions.find((item) => item.shortName === shortName)
-  if (project) form.value.fullName = project.fullName
+  form.value.fullName = project ? project.fullName : ''
+  form.value.shortName = toDeptName(shortName)
 }
 
 function validateForm() {
@@ -106,8 +152,8 @@ function validateForm() {
     ElMessage.warning('请填写所属期数')
     return false
   }
-  if (!form.value.shortName?.trim()) {
-    ElMessage.warning('请填写项目简称')
+  if (!form.value.projectShort?.trim()) {
+    ElMessage.warning('请选择项目简称')
     return false
   }
   if (!form.value.description?.trim()) {
@@ -123,7 +169,8 @@ function validateForm() {
 
 function handleImageUpload(uploadFile) {
   const file = uploadFile.raw
-  const err = validateAttachFile(file, 'image', { currentCount: 0, max: 1 })
+  // 黑红榜单图片使用 10MB 宽档（用户 2026-10-19 指定），其它图片位仍为 5MB
+  const err = validateAttachFile(file, 'image10', { currentCount: 0, max: 1 })
   if (err) {
     ElMessage.warning(err)
     return false
@@ -210,8 +257,12 @@ onMounted(load)
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="shortName" label="项目简称" min-width="120" show-overflow-tooltip />
-        <el-table-column prop="fullName" label="项目全称" min-width="200" show-overflow-tooltip />
+        <el-table-column label="项目部名称" min-width="160" show-overflow-tooltip>
+          <template #default="{ row }">{{ displayProjectDept(row) }}</template>
+        </el-table-column>
+        <el-table-column label="项目简称" min-width="160" show-overflow-tooltip>
+          <template #default="{ row }">{{ displayProjectShort(row) }}</template>
+        </el-table-column>
         <el-table-column prop="description" label="说明" min-width="240" show-overflow-tooltip />
         <el-table-column prop="updatedAt" label="更新时间" width="168" />
         <el-table-column label="图片" width="88">
@@ -253,13 +304,13 @@ onMounted(load)
         </el-form-item>
         <el-form-item label="项目简称" required>
           <el-select
-            v-model="form.shortName"
+            v-model="form.projectShort"
             filterable
             allow-create
             default-first-option
-            placeholder="选择或输入项目简称"
+            placeholder="选择项目简称"
             style="width: 100%"
-            @change="onProjectPick" aria-label="选择或输入项目简称">
+            @change="onProjectShortPick" aria-label="选择项目简称">
             <el-option
               v-for="item in projectOptions"
               :key="item.id"
@@ -268,8 +319,12 @@ onMounted(load)
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="项目全称">
-          <el-input v-model="form.fullName" placeholder="选填，可自动带出" aria-label="选填，可自动带出"/>
+        <el-form-item label="项目部名称">
+          <el-input
+            v-model="form.shortName"
+            readonly
+            placeholder="选项目简称后自动带出，不可修改"
+            aria-label="项目部名称，选项目简称后自动带出，不可修改"/>
         </el-form-item>
         <el-form-item label="榜单说明" required>
           <el-input
@@ -288,11 +343,12 @@ onMounted(load)
               v-else
               drag
               :show-file-list="false"
-              :accept="ATTACH_PRESETS.image.accept"
+              :accept="ATTACH_PRESETS.image10.accept"
               :before-upload="handleImageUpload"
             >
               <div class="upload-placeholder">点击或拖拽上传现场图片</div>
             </el-upload>
+            <p class="upload-hint">{{ ATTACH_PRESETS.image10.hint }}</p>
           </div>
         </el-form-item>
       </el-form>
@@ -393,6 +449,13 @@ onMounted(load)
 
 .image-upload {
   width: 100%;
+}
+
+.upload-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--coc-text-secondary);
 }
 
 .image-preview {
