@@ -211,8 +211,8 @@ function initCharts() {
         xAxis: { type: 'value', name: '任务数', axisLabel: { fontSize: 10 }, splitLine: { lineStyle: { type: 'dashed' } } },
         yAxis: { type: 'category', inverse: true, data: d.map((v) => v.name), axisLabel: { fontSize: 11, width: 150, overflow: 'truncate' } },
         series: [
-          { name: '已完成', type: 'bar', stack: 'total', barMaxWidth: 16, data: d.map((v) => v.done), itemStyle: { color: '#34a853' }, label: { show: true, position: 'inside', fontSize: 10, color: '#fff', formatter: (p) => (p.value ? p.value : '') } },
-          { name: '未完成', type: 'bar', stack: 'total', barMaxWidth: 16, data: d.map((v) => v.exec), itemStyle: { color: '#f5a623' }, label: { show: true, position: 'inside', fontSize: 10, color: '#fff', formatter: (p) => (p.value ? p.value : '') } },
+          { name: '已完成', type: 'bar', stack: 'total', barMaxWidth: 16, data: d.map((v) => v.done), itemStyle: { color: '#34a853' }, label: { show: false } },
+          { name: '未完成', type: 'bar', stack: 'total', barMaxWidth: 16, data: d.map((v) => v.exec), itemStyle: { color: '#f5a623' }, label: { show: false } },
         ],
       })
     }
