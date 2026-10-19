@@ -33,8 +33,6 @@ const emit = defineEmits(['status-filter', 'project-change', 'open-dispatch', 'v
 const monitorPage = ref(0)
 const dispatchPage = ref(0)
 const expandedVideo = ref(null)
-/** 左侧列表点选后，在视频区单画面聚焦的摄像头（用户 2026-10-19） */
-const focusedTreeCamera = ref(null)
 const internalVideoFilter = ref('all')
 const monitorFocusProjectId = ref(FOCUS_PROJECT_ID)
 
@@ -140,7 +138,6 @@ function onProjectChange(id) {
   monitorPage.value = 0
   dispatchPage.value = 0
   expandedVideo.value = null
-  focusedTreeCamera.value = null
   if (id === HQ_SELECTION_ID) {
     monitorFocusProjectId.value = FOCUS_PROJECT_ID
   }
@@ -152,7 +149,6 @@ function handleMonitorFocusChange(projectId) {
   monitorFocusProjectId.value = projectId
   monitorPage.value = 0
   dispatchPage.value = 0
-  focusedTreeCamera.value = null
 }
 
 function setVideoFilter(mode) {
@@ -173,24 +169,12 @@ function openCameraExpand(cam) {
 }
 
 /**
- * 左侧监控列表点击（用户 2026-10-19）：
- * 不再直接全屏，改为在右侧视频区（红框）内放大显示这一路画面；再点画面才进全屏。
+ * 左侧监控列表点击设备名称（用户 2026-10-19 明确）：
+ * 弹出放大窗查看，且与点击「放大镜」共用同一个弹窗（同一个 expandedVideo / VideoExpandOverlay 实例）。
  */
 function onTreeCameraClick(camera) {
   if (!camera) return
-  if (!camera.online) {
-    ElMessage.warning('该摄像头离线，无法查看')
-    return
-  }
-  focusedTreeCamera.value = { ...camera }
-}
-
-function backToGrid() {
-  focusedTreeCamera.value = null
-}
-
-function treeCameraTypeLabel(camera) {
-  return camera?.type === 'ptz' ? '球机' : '枪机'
+  openCameraExpand(camera)
 }
 
 function handleSetCameraKey(camera) {
@@ -311,33 +295,8 @@ function openDispatch(device) {
           </div>
         </div>
         <div class="panel-body module-body">
-          <div class="video-hint">
-            {{ focusedTreeCamera ? '已选中左侧监控，点击画面可放大到全屏' : '点击在线画面可放大查看，支持云台、截图等操作' }}
-          </div>
-          <!-- 单画面聚焦：左侧列表点选后在此放大显示，再点画面进全屏（用户 2026-10-19） -->
-          <div v-if="focusedTreeCamera" class="video-focus">
-            <div
-              class="video-focus-canvas"
-              :style="{ background: videoPlaceholderColor(focusedTreeCamera.online, 0) }"
-              @click="openCameraExpand(focusedTreeCamera)"
-            >
-              <el-icon :size="30" color="rgba(255,255,255,0.6)"><VideoCamera /></el-icon>
-              <span class="expand-hint expand-hint--hq">
-                <el-icon><ZoomIn /></el-icon> 点击放大到全屏
-              </span>
-            </div>
-            <div class="video-focus-bar">
-              <span v-if="focusedTreeCamera.key" class="key-badge">重点</span>
-              <span class="cam-name" :title="focusedTreeCamera.name">{{ focusedTreeCamera.name }}</span>
-              <span class="cam-type-badge">{{ treeCameraTypeLabel(focusedTreeCamera) }}</span>
-              <span class="cam-status" :class="focusedTreeCamera.online ? 'online' : 'offline'">
-                {{ focusedTreeCamera.online ? '在线' : '离线' }}
-              </span>
-              <span class="focus-spacer" />
-              <button type="button" class="focus-back-btn" @click="backToGrid">返回宫格</button>
-            </div>
-          </div>
-          <div v-else class="video-grid grid-3x3">
+          <div class="video-hint">点击在线画面或左侧监控名称可放大查看，支持云台、截图等操作</div>
+          <div class="video-grid grid-3x3">
             <template v-if="isConnected">
               <div
                 v-for="(cam, idx) in pagedCameras"
@@ -721,78 +680,6 @@ function openDispatch(device) {
   grid-template-rows: repeat(3, 1fr);
   gap: 12px;
   min-height: 0;
-}
-
-/* 单画面聚焦（左侧列表点选后）——用户 2026-10-19 */
-.video-focus {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.video-focus-canvas {
-  position: relative;
-  flex: 1;
-  min-height: 0;
-  border-radius: 10px;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: zoom-in;
-}
-
-.video-focus-canvas:hover .expand-hint {
-  opacity: 1;
-}
-
-.video-focus-bar {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  font-size: calc(12px + var(--coc-font-boost));
-  color: var(--coc-text-secondary);
-}
-
-.video-focus-bar .cam-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.cam-type-badge {
-  flex-shrink: 0;
-  font-size: calc(10px + var(--coc-font-boost));
-  padding: 0 6px;
-  border-radius: 3px;
-  border: 1px solid var(--coc-border);
-  color: var(--coc-text-secondary);
-}
-
-.focus-spacer {
-  flex: 1;
-}
-
-.focus-back-btn {
-  flex-shrink: 0;
-  padding: 2px 10px;
-  border-radius: 4px;
-  border: 1px solid var(--coc-border);
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--coc-text-secondary);
-  font-size: calc(11px + var(--coc-font-boost));
-  cursor: pointer;
-  transition: color 0.2s, border-color 0.2s;
-}
-
-.focus-back-btn:hover {
-  color: var(--coc-accent);
-  border-color: var(--coc-accent);
 }
 
 .video-cell {

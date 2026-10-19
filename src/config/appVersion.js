@@ -17,6 +17,13 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.17.1.15',
+    date: '2026-10-19',
+    highlights: [
+      'COC 调度大屏·视频监控：点左侧监控名称与点画面上的放大镜共用同一个放大弹窗，两处入口行为一致',
+    ],
+  },
+  {
     version: 'v2.17.1.14',
     date: '2026-10-19',
     highlights: [
