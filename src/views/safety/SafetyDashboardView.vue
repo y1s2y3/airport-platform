@@ -199,42 +199,42 @@ function initCharts() {
     // 柱状图1：巡检统计
     if (barTaskRef.value) {
       chBarTask = echarts.init(barTaskRef.value)
-      const d = taskChartData.value
+      const d = [...taskChartData.value].sort((a,b) => ((b.exec + b.done) - (a.exec + a.done)) || String(a.name).localeCompare(String(b.name))).slice(0, 10)
       chBarTask.setOption({
-        tooltip: { trigger:'axis', axisPointer:{type:'shadow'} },
-        legend: { data:['未完成','已完成','完成率'], bottom:0, itemWidth:10, itemHeight:10, textStyle:{fontSize:11} },
-        grid: { left:40, right:40, top:20, bottom:40 },
-        xAxis: { type:'category', data:d.map(v=>v.name), axisLabel:{fontSize:11} },
-        yAxis: [
-          { type:'value', name:'任务数', axisLabel:{fontSize:10}, splitLine:{lineStyle:{type:'dashed'}} },
-          { type:'value', name:'完成率%', min:0, max:100, axisLabel:{fontSize:10,formatter:'{value}%'}, splitLine:{show:false} },
-        ],
+        title: { text: 'TOP10', left: 6, top: 2, textStyle: { fontSize: 11, color: '#8f959e', fontWeight: 'normal' } },
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: (ps) => {
+          const nm = ps[0]?.name || ''; const row = d.find((v) => v.name === nm) || {}
+          return nm + '<br/>巡检任务数：' + ((row.exec||0)+(row.done||0)) + ' 项<br/>未完成：' + (row.exec||0) + '　已完成：' + (row.done||0) + '<br/>完成率：' + (row.rate||0) + '%'
+        } },
+        legend: { data: ['未完成','已完成'], bottom: 0, itemWidth: 10, itemHeight: 10, textStyle: { fontSize: 11 } },
+        grid: { left: 8, right: 56, top: 24, bottom: 28, containLabel: true },
+        xAxis: { type: 'value', name: '任务数', axisLabel: { fontSize: 10 }, splitLine: { lineStyle: { type: 'dashed' } } },
+        yAxis: { type: 'category', inverse: true, data: d.map((v) => v.name), axisLabel: { fontSize: 11, width: 150, overflow: 'truncate' } },
         series: [
-          { name:'未完成', type:'bar', stack:'total', data:d.map(v=>v.exec), itemStyle:{color:'#f5a623'} },
-          { name:'已完成', type:'bar', stack:'total', data:d.map(v=>v.done), itemStyle:{color:'#34a853'} },
-          { name:'完成率', type:'line', yAxisIndex:1, data:d.map(v=>v.rate), itemStyle:{color:'#4285f4'}, lineStyle:{width:2}, symbol:'circle', symbolSize:6 },
+          { name: '已完成', type: 'bar', stack: 'total', barMaxWidth: 16, data: d.map((v) => v.done), itemStyle: { color: '#34a853' }, label: { show: true, position: 'inside', fontSize: 10, color: '#fff', formatter: (p) => (p.value ? p.value : '') } },
+          { name: '未完成', type: 'bar', stack: 'total', barMaxWidth: 16, data: d.map((v) => v.exec), itemStyle: { color: '#f5a623' }, label: { show: true, position: 'inside', fontSize: 10, color: '#fff', formatter: (p) => (p.value ? p.value : '') } },
         ],
       })
     }
     // 柱状图2：隐患整改统计
     if (barHazardRef.value) {
       chBarHazard = echarts.init(barHazardRef.value)
-      const d = hazardChartData.value
+      const dh = [...hazardChartData.value].sort((a,b) => ((b.pending+b.review+b.reviewed+b.closed) - (a.pending+a.review+a.reviewed+a.closed)) || String(a.name).localeCompare(String(b.name))).slice(0, 10)
       chBarHazard.setOption({
-        tooltip: { trigger:'axis', axisPointer:{type:'shadow'} },
-        legend: { data:['待整改','待复查','已复查','已关闭','整改率'], bottom:0, itemWidth:10, itemHeight:10, textStyle:{fontSize:11} },
-        grid: { left:40, right:40, top:20, bottom:40 },
-        xAxis: { type:'category', data:d.map(v=>v.name), axisLabel:{fontSize:11} },
-        yAxis: [
-          { type:'value', name:'隐患数', axisLabel:{fontSize:10}, splitLine:{lineStyle:{type:'dashed'}} },
-          { type:'value', name:'整改率%', min:0, max:100, axisLabel:{fontSize:10,formatter:'{value}%'}, splitLine:{show:false} },
-        ],
+        title: { text: 'TOP10', left: 6, top: 2, textStyle: { fontSize: 11, color: '#8f959e', fontWeight: 'normal' } },
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: (ps) => {
+          const nm = ps[0]?.name || ''; const row = dh.find((v) => v.name === nm) || {}
+          return nm + '<br/>隐患总数：' + ((row.pending||0)+(row.review||0)+(row.reviewed||0)+(row.closed||0)) + ' 条<br/>待整改：' + (row.pending||0) + '　待复查：' + (row.review||0) + '<br/>已复查：' + (row.reviewed||0) + '　已关闭：' + (row.closed||0) + '<br/>整改率：' + (row.rate||0) + '%'
+        } },
+        legend: { data: ['待整改','待复查','已复查','已关闭'], bottom: 0, itemWidth: 10, itemHeight: 10, textStyle: { fontSize: 11 } },
+        grid: { left: 8, right: 56, top: 24, bottom: 28, containLabel: true },
+        xAxis: { type: 'value', name: '隐患数', axisLabel: { fontSize: 10 }, splitLine: { lineStyle: { type: 'dashed' } } },
+        yAxis: { type: 'category', inverse: true, data: dh.map((v) => v.name), axisLabel: { fontSize: 11, width: 150, overflow: 'truncate' } },
         series: [
-          { name:'待整改', type:'bar', stack:'total', data:d.map(v=>v.pending), itemStyle:{color:'#f5a623'} },
-          { name:'待复查', type:'bar', stack:'total', data:d.map(v=>v.review), itemStyle:{color:'#4285f4'} },
-          { name:'已复查', type:'bar', stack:'total', data:d.map(v=>v.reviewed), itemStyle:{color:'#8f0045'} },
-          { name:'已关闭', type:'bar', stack:'total', data:d.map(v=>v.closed), itemStyle:{color:'#34a853'} },
-          { name:'整改率', type:'line', yAxisIndex:1, data:d.map(v=>v.rate), itemStyle:{color:'#e53935'}, lineStyle:{width:2}, symbol:'circle', symbolSize:6 },
+          { name: '已关闭', type: 'bar', stack: 'total', barMaxWidth: 16, data: dh.map((v) => v.closed), itemStyle: { color: '#34a853' } },
+          { name: '已复查', type: 'bar', stack: 'total', barMaxWidth: 16, data: dh.map((v) => v.reviewed), itemStyle: { color: '#8f0045' } },
+          { name: '待复查', type: 'bar', stack: 'total', data: dh.map((v) => v.review), itemStyle: { color: '#4285f4' } },
+          { name: '待整改', type: 'bar', stack: 'total', barMaxWidth: 16, data: dh.map((v) => v.pending), itemStyle: { color: '#f5a623' } },
         ],
       })
     }
@@ -260,25 +260,23 @@ function updateTimeFilteredCharts() {
       ] }],
     })
 
-    const taskItems = taskChartData.value
+    const taskItems = [...taskChartData.value].sort((a,b) => ((b.exec + b.done) - (a.exec + a.done)) || String(a.name).localeCompare(String(b.name))).slice(0, 10)
     chBarTask?.setOption({
-      xAxis: { data: taskItems.map(item => item.name) },
+      yAxis: { data: taskItems.map(item => item.name) },
       series: [
-        { name:'未完成', data:taskItems.map(item => item.exec) },
         { name:'已完成', data:taskItems.map(item => item.done) },
-        { name:'完成率', data:taskItems.map(item => item.rate) },
+        { name:'未完成', data:taskItems.map(item => item.exec) },
       ],
     })
 
-    const hazardItems = hazardChartData.value
+    const hazardItems = [...hazardChartData.value].sort((a,b) => ((b.pending+b.review+b.reviewed+b.closed) - (a.pending+a.review+a.reviewed+a.closed)) || String(a.name).localeCompare(String(b.name))).slice(0, 10)
     chBarHazard?.setOption({
-      xAxis: { data: hazardItems.map(item => item.name) },
+      yAxis: { data: hazardItems.map(item => item.name) },
       series: [
-        { name:'待整改', data:hazardItems.map(item => item.pending) },
-        { name:'待复查', data:hazardItems.map(item => item.review) },
-        { name:'已复查', data:hazardItems.map(item => item.reviewed) },
         { name:'已关闭', data:hazardItems.map(item => item.closed) },
-        { name:'整改率', data:hazardItems.map(item => item.rate) },
+        { name:'已复查', data:hazardItems.map(item => item.reviewed) },
+        { name:'待复查', data:hazardItems.map(item => item.review) },
+        { name:'待整改', data:hazardItems.map(item => item.pending) },
       ],
     })
   })
