@@ -13,6 +13,9 @@ import {
   buildRedBlackPeriodKey,
   getCurrentRedBlackPeriodKey,
   parseRedBlackPeriod,
+  toDeptName,
+  deriveRecordShortName,
+  deriveRecordDeptName,
 } from '../utils/redBlackBoardStorage.js'
 
 defineProps({
@@ -58,38 +61,20 @@ const projectOptions = buildProjects().map((p) => ({
 const shortNameByFullName = new Map(projectOptions.map((p) => [p.fullName, p.shortName]))
 
 /**
- * 项目部名称口径（用户 2026-10-19）：由项目简称自动带出，表单只读、不可修改。
- * 规则：项目简称 + 「项目部」；已以「部」结尾的不重复拼接。
- */
-function toDeptName(shortName) {
-  const text = String(shortName || '').trim()
-  if (!text) return ''
-  return /部$/.test(text) ? text : `${text}项目部`
-}
-
-/**
  * 列表「项目简称」列展示值。
  * 口径（用户 2026-10-19）：项目部名称与项目简称两列并存，不再展示项目全称。
- * 回显优先级：记录自带 projectShort → 按全称反查基础数据 → 记录里非「项目部」形式的旧简称
- * → 全称截断兜底 → `--`
+ * 回显优先级：记录自带 projectShort → 按全称反查基础数据 → 公用推导 → `--`
  */
 function displayProjectShort(row) {
   if (row?.projectShort) return row.projectShort
   const hit = shortNameByFullName.get(row?.fullName)
   if (hit) return hit
-  const legacy = String(row?.shortName || '').trim()
-  if (legacy && !/部$/.test(legacy)) return legacy
-  const text = String(row?.fullName || '').trim()
-  if (!text) return '--'
-  return text.length > 12 ? `${text.slice(0, 12)}…` : text
+  return deriveRecordShortName(row) || '--'
 }
 
-/** 列表「项目部名称」列展示值：历史记录同样按简称推导，保证两列口径一致 */
+/** 列表「项目部名称」列展示值：与项目简称同源推导，保证两列口径一致 */
 function displayProjectDept(row) {
-  const name = String(row?.shortName || '').trim()
-  if (name) return toDeptName(name)
-  const short = displayProjectShort(row)
-  return short && short !== '--' ? toDeptName(short) : '--'
+  return deriveRecordDeptName(row) || '--'
 }
 
 const periodOptions = computed(() => getRedBlackBoardPeriods())

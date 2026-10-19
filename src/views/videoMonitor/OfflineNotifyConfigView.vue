@@ -450,10 +450,25 @@ const canOperate = computed(() => isHqMode.value || !!projectId.value)
 </style>
 
 <style>
-/* 通知人员悬浮浮窗（浮层挂到 body，必须非 scoped） */
+/*
+ * 通知人员悬浮浮窗（浮层挂到 body，必须非 scoped）
+ * el-tooltip 默认是深色底，文字必须用浅色 —— 之前误按浅色底配深色字，等于黑字压黑底。
+ * 这里把底色与文字色一起锁死，不依赖主题继承。
+ */
+.notify-person-popper.el-popper {
+  background: #1f2329;
+  border-color: #1f2329;
+  color: #fff;
+}
+
+.notify-person-popper.el-popper .el-popper__arrow::before {
+  background: #1f2329;
+  border-color: #1f2329;
+}
+
 .notify-person-popper.el-popper .notify-person-popper__title {
   font-size: 12px;
-  color: var(--ap-text-secondary, #8f959e);
+  color: rgba(255, 255, 255, 0.65);
   margin-bottom: 4px;
 }
 
@@ -461,7 +476,7 @@ const canOperate = computed(() => isHqMode.value || !!projectId.value)
   max-width: 420px;
   font-size: 12px;
   line-height: 1.7;
-  color: #1f2329;
+  color: #ffffff;
   white-space: pre-line;
 }
 </style>

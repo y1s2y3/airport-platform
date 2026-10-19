@@ -83,6 +83,38 @@ export function buildPlaceholderImage(hue = 145, label = '现场图') {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`
 }
 
+/**
+ * 项目部名称口径（用户 2026-10-19）：由项目简称自动带出。
+ * 规则：项目简称 + 「项目部」；已以「部」结尾的不重复拼接。
+ */
+export function toDeptName(shortName) {
+  const text = String(shortName || '').trim()
+  if (!text) return ''
+  return /部$/.test(text) ? text : `${text}项目部`
+}
+
+/**
+ * 记录的项目简称（不依赖项目基础数据，供大屏等处回显）。
+ * 优先级：projectShort → 旧口径里非「项目部」形式的 shortName → 项目全称截断
+ */
+export function deriveRecordShortName(record) {
+  if (!record) return ''
+  if (record.projectShort) return record.projectShort
+  const legacy = String(record.shortName || '').trim()
+  if (legacy && !/部$/.test(legacy)) return legacy
+  const text = String(record.fullName || '').trim()
+  if (!text) return ''
+  return text.length > 12 ? `${text.slice(0, 12)}…` : text
+}
+
+/** 记录的项目部名称：优先用记录里的项目部名，否则按简称推导 */
+export function deriveRecordDeptName(record) {
+  const name = String(record?.shortName || '').trim()
+  if (name) return toDeptName(name)
+  const short = deriveRecordShortName(record)
+  return short ? toDeptName(short) : ''
+}
+
 function normalizeRecord(record) {
   const hue = Number.isFinite(record.imageHue) ? record.imageHue : 145
   return {

@@ -17,6 +17,14 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.17.1.14',
+    date: '2026-10-19',
+    highlights: [
+      'COC 调度大屏·红黑榜详情：与调度后台口径统一，改为「项目部名称 + 项目简称」，去掉项目全称',
+      '监控离线通知：修复通知人员悬浮浮窗黑底黑字看不清的问题，文字改为白色',
+    ],
+  },
+  {
     version: 'v2.17.1.13',
     date: '2026-10-19',
     highlights: [

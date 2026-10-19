@@ -6,6 +6,7 @@ import {
   getLatestRedBlackBoard,
   formatRedBlackPeriod,
   RED_BLACK_BOARD_CHANGE_EVENT,
+  deriveRecordShortName,
 } from '../utils/redBlackBoardStorage.js'
 import HqRedBlackItem from './hq/HqRedBlackItem.vue'
 import HqLeaderSpeechButton from './hq/HqLeaderSpeechButton.vue'
@@ -42,6 +43,19 @@ const detailDisplayName = computed(() => {
   if (!detailItem.value) return ''
   if (detailItem.value.boardType === 'black') return blackItemName(detailItem.value)
   return detailItem.value.shortName
+})
+
+/**
+ * 大屏详情两列口径（用户 2026-10-19）：项目部名称 + 项目简称，不再展示项目全称。
+ * 黑榜在大屏上统一脱敏，避免从简称反推真实项目名。
+ */
+const detailDeptName = computed(() => detailDisplayName.value || '--')
+
+const detailShortName = computed(() => {
+  const item = detailItem.value
+  if (!item) return '--'
+  if (item.boardType === 'black') return blackItemName(item)
+  return deriveRecordShortName(item) || '--'
 })
 
 function reload() {
@@ -209,12 +223,12 @@ onUnmounted(() => {
                 <span>{{ periodLabel }}</span>
               </div>
               <div class="detail-item">
-                <span class="dl">项目简称</span>
-                <span>{{ detailDisplayName || '--' }}</span>
+                <span class="dl">项目部名称</span>
+                <span>{{ detailDeptName }}</span>
               </div>
               <div class="detail-item full">
-                <span class="dl">项目全称</span>
-                <span>{{ detailItem.fullName || '--' }}</span>
+                <span class="dl">项目简称</span>
+                <span>{{ detailShortName }}</span>
               </div>
               <div v-if="detailItem.updatedAt" class="detail-item">
                 <span class="dl">更新时间</span>
