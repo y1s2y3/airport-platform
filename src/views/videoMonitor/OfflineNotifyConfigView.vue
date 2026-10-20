@@ -314,7 +314,12 @@ const canOperate = computed(() => isHqMode.value || !!projectId.value)
                   :key="opt.value"
                   :label="opt.label"
                   :value="opt.value"
-                />
+                >
+                  <!-- 下拉项显式只渲染人名（用户 2026-10-19）；完整口径放 title -->
+                  <span class="notify-person-option" :title="formatNotifyPersonFullLabel(opt)">
+                    {{ opt.name }}
+                  </span>
+                </el-option>
               </el-select>
             </el-tooltip>
           </template>
@@ -478,5 +483,11 @@ const canOperate = computed(() => isHqMode.value || !!projectId.value)
   line-height: 1.7;
   color: #ffffff;
   white-space: pre-line;
+}
+
+/* 下拉选项：只显示人名 */
+.notify-person-option {
+  display: block;
+  width: 100%;
 }
 </style>

@@ -17,6 +17,13 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.17.1.16',
+    date: '2026-10-19',
+    highlights: [
+      '监控离线通知：选人下拉项也统一只显示人名（与已选标签口径一致），完整「姓名（组织-岗位）」放在悬浮提示里查看',
+    ],
+  },
+  {
     version: 'v2.17.1.15',
     date: '2026-10-19',
     highlights: [
