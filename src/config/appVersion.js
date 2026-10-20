@@ -17,6 +17,13 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.17.1.17',
+    date: '2026-10-19',
+    highlights: [
+      'COC 调度大屏·视频监控：恢复「点左侧监控名称 → 在画面区放大显示该路画面」，再点画面才进全屏（撤销上一版的直接弹窗）',
+    ],
+  },
+  {
     version: 'v2.17.1.16',
     date: '2026-10-19',
     highlights: [
