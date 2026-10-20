@@ -17,6 +17,13 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.17.1.18',
+    date: '2026-10-20',
+    highlights: [
+      'COC 调度大屏·视频监控：单画面放大时的「返回宫格」按钮移到画面左上角，不再占底部信息行',
+    ],
+  },
+  {
     version: 'v2.17.1.17',
     date: '2026-10-19',
     highlights: [

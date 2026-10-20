@@ -321,6 +321,14 @@ function openDispatch(device) {
               :style="{ background: videoPlaceholderColor(focusedTreeCamera.online, 0) }"
               @click="openCameraExpand(focusedTreeCamera)"
             >
+              <!-- 返回宫格：放在画面左上角（用户 2026-10-20） -->
+              <button
+                type="button"
+                class="focus-back-btn"
+                @click.stop="backToGrid"
+              >
+                返回宫格
+              </button>
               <el-icon :size="30" color="rgba(255,255,255,0.6)"><VideoCamera /></el-icon>
               <span class="expand-hint expand-hint--hq">
                 <el-icon><ZoomIn /></el-icon> 点击放大到全屏
@@ -333,8 +341,6 @@ function openDispatch(device) {
               <span class="cam-status" :class="focusedTreeCamera.online ? 'online' : 'offline'">
                 {{ focusedTreeCamera.online ? '在线' : '离线' }}
               </span>
-              <span class="focus-spacer" />
-              <button type="button" class="focus-back-btn" @click="backToGrid">返回宫格</button>
             </div>
           </div>
           <div v-else class="video-grid grid-3x3">
@@ -774,24 +780,25 @@ function openDispatch(device) {
   color: var(--coc-text-secondary);
 }
 
-.focus-spacer {
-  flex: 1;
-}
-
+/* 返回宫格：叠加在画面左上角（用户 2026-10-20） */
 .focus-back-btn {
-  flex-shrink: 0;
-  padding: 2px 10px;
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  padding: 3px 10px;
   border-radius: 4px;
-  border: 1px solid var(--coc-border);
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--coc-text-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
   font-size: calc(11px + var(--coc-font-boost));
+  line-height: 1.4;
   cursor: pointer;
-  transition: color 0.2s, border-color 0.2s;
+  transition: background 0.2s, border-color 0.2s;
 }
 
 .focus-back-btn:hover {
-  color: var(--coc-accent);
+  background: rgba(0, 0, 0, 0.78);
   border-color: var(--coc-accent);
 }
 
