@@ -1,6 +1,6 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { Refresh, Search } from '@element-plus/icons-vue'
 import { useCurrentProject } from '../../composables/useCurrentProject.js'
 import {
@@ -88,16 +88,14 @@ async function saveEdit() {
   editingRow.value = null
 }
 
-async function toggleRow(row) {
-  const nextAction = row.enabled === false ? '启用' : '禁用'
-  const confirmed = await ElMessageBox.confirm(
-    `${nextAction}后将${nextAction === '禁用' ? '暂停向该类型处置人发送站内信' : '恢复该类型预警配置'}，是否确认${nextAction}？`,
-    `${nextAction}配置`,
-    { type: 'warning', confirmButtonText: `确认${nextAction}`, cancelButtonText: '取消' },
-  ).catch(() => false)
-  if (!confirmed) return
+/**
+ * 启用 / 禁用改为开关按钮（用户 2026-10-20）：
+ * 与「安全看板 · 监控离线通知」的展示一致，开关直接切换、即时生效，不再弹确认框。
+ */
+function onToggleEnabled(row) {
+  const enabling = row.enabled === false
   toggleHandlerConfig(row.id)
-  ElMessage.success(`配置已${nextAction}`)
+  ElMessage.success(enabling ? '已启用' : '已禁用')
 }
 
 function resetFilters() {
@@ -156,21 +154,16 @@ function resetFilters() {
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="90" align="center">
+        <el-table-column label="启用" width="88" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.enabled === false ? 'info' : 'success'" size="small" effect="plain">
-              {{ row.enabled === false ? '已禁用' : '已启用' }}
-            </el-tag>
+            <el-switch :model-value="row.enabled !== false" @change="onToggleEnabled(row)" />
           </template>
         </el-table-column>
         <el-table-column prop="updatedBy" label="更新人" width="120" />
         <el-table-column prop="updatedAt" label="更新时间" width="165" />
-        <el-table-column label="操作" width="150" fixed="right" align="center">
+        <el-table-column label="操作" width="90" fixed="right" align="center">
           <template #default="{ row }">
             <el-button link type="primary" @click="startEdit(row)">编辑</el-button>
-            <el-button link :type="row.enabled === false ? 'success' : 'danger'" @click="toggleRow(row)">
-              {{ row.enabled === false ? '启用' : '禁用' }}
-            </el-button>
           </template>
         </el-table-column>
       </el-table>

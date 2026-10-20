@@ -17,6 +17,14 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.17.1.19',
+    date: '2026-10-20',
+    highlights: [
+      'AI 应用·预警配置：启用 / 禁用改为开关按钮，与「安全看板·监控离线通知」的展示一致，切换即时生效',
+      'AI 应用·预警配置：状态列与操作列的重复入口合并，操作列只保留「编辑」',
+    ],
+  },
+  {
     version: 'v2.17.1.18',
     date: '2026-10-20',
     highlights: [
