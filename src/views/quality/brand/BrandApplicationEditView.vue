@@ -20,6 +20,7 @@ import {
   formatBrandProjectUserLabel,
   findApprovedDuplicateMaterialApplications,
   normalizeBrandMaterialName,
+  supplementLedger,
 } from '../../../mock/brand.js'
 import BrandCandidateAttachBlock from './BrandCandidateAttachBlock.vue'
 import ConstructionLocationSelect from '../../../components/ConstructionLocationSelect.vue'
@@ -48,17 +49,24 @@ const form = reactive({
 const brandSuggest = ref({})
 const copyFromLabel = ref('')
 const draftApplicationId = ref('')
+/** 台账补录模式：与报审填报表单字段一致，但无需配置审批人、提交直接入库 */
+const isSupplement = computed(() => route.path.includes('/qm/brand/ledger/supplement'))
 const projectUsers = computed(() => listBrandProjectUsers(scopeProjectId.value))
 const pageModeTitle = computed(() => {
+  if (isSupplement.value) return '台账补录'
   if (draftApplicationId.value) return '继续编辑品牌报审'
   if (copyFromLabel.value) return '重新申报品牌报审'
   return '新增品牌报审'
 })
 const pageModeCrumb = computed(() => {
+  if (isSupplement.value) return '补录'
   if (draftApplicationId.value) return '继续编辑'
   if (copyFromLabel.value) return '重新申报'
   return '新建'
 })
+const pageBreadcrumb = computed(() =>
+  isSupplement.value ? '品牌报审 / 品牌报审台账 / 补录' : `品牌报审 / 报审申请 / ${pageModeCrumb.value}`,
+)
 
 /** 同项目已通过单材料名重复提示（仅提示，不拦截提交） */
 const duplicateMaterialHits = computed(() => {
@@ -108,6 +116,7 @@ function onApproverChange(role) {
 }
 
 onMounted(() => {
+  if (isSupplement.value) return
   const draftId = String(route.query.id || '')
   if (draftId) {
     const payload = buildEditPayloadFromDraft(draftId)
@@ -179,7 +188,7 @@ function removeCandidate(idx) {
     syncPrimaryByPosition()
     return
   }
-  if (form.candidates.length <= 3) return ElMessage.warning('须 1 主选 + 至少 2 备选')
+  if (form.candidates.length <= 1) return ElMessage.warning('至少保留 1 个主选品牌')
   form.candidates.splice(idx, 1)
   syncPrimaryByPosition()
 }
@@ -221,6 +230,13 @@ function onSubmit() {
     candidates: form.candidates,
   }
   let r
+  if (isSupplement.value) {
+    r = supplementLedger(payload)
+    if (!r.ok) return ElMessage.error(r.msg)
+    ElMessage.success(`补录成功，已直接写入品牌报审台账（补录单号 ${r.data.supplement_id}）`)
+    router.push('/qm/brand/ledger')
+    return
+  }
   if (draftApplicationId.value) {
     r = submitDraftApplication(draftApplicationId.value, payload)
   } else if (form.copy_from_application_id) {
@@ -249,7 +265,7 @@ function openSourceApplication(applicationId) {
 <template>
   <div class="qm-page page-card brand-create">
     <div class="page-header">
-      <div class="page-breadcrumb">品牌报审 / 报审申请 / {{ pageModeCrumb }}</div>
+      <div class="page-breadcrumb">{{ pageBreadcrumb }}</div>
       <div class="title-row">
         <h1 class="page-title">{{ pageModeTitle }}</h1>
         <el-tag v-if="draftApplicationId" size="small" type="info" effect="light">
@@ -277,6 +293,14 @@ function openSourceApplication(applicationId) {
           </span>
         </template>
       </el-alert>
+      <el-alert
+        v-if="isSupplement"
+        class="supplement-alert"
+        type="info"
+        :closable="false"
+        show-icon
+        title="台账补录：提交后直接写入品牌报审台账，不进入审批流程、不生成审批待办。"
+      />
       <p class="page-tip">
         当前项目：
         <strong>{{ isHqSelected ? '未选择（请先切换项目）' : scopeProjectLabel }}</strong>
@@ -341,6 +365,7 @@ function openSourceApplication(applicationId) {
             <div class="section-title-row">
               <h2 class="section-title">报审品牌</h2>
             </div>
+            <p class="section-desc">主选品牌必填 1 条；备选品牌可添加多条，也可全部删除。</p>
           </div>
         </header>
 
@@ -367,7 +392,7 @@ function openSourceApplication(applicationId) {
                 link
                 type="danger"
                 :icon="Delete"
-                :disabled="form.candidates.length <= 3"
+                :disabled="form.candidates.length <= 1"
                 @click="removeCandidate(idx)"
               >
                 删除
@@ -416,7 +441,7 @@ function openSourceApplication(applicationId) {
         </div>
       </section>
 
-      <section class="form-section">
+      <section v-if="!isSupplement" class="form-section">
         <header class="section-head">
           <el-icon class="section-icon"><UserFilled /></el-icon>
           <div class="section-head-main">
@@ -471,7 +496,7 @@ function openSourceApplication(applicationId) {
 
     <div class="form-footer">
       <el-button @click="router.back()">取消</el-button>
-      <el-button type="primary" @click="onSubmit">提交审批</el-button>
+      <el-button type="primary" @click="onSubmit">{{ isSupplement ? '提交补录' : '提交审批' }}</el-button>
     </div>
   </div>
 </template>
@@ -564,6 +589,9 @@ function openSourceApplication(applicationId) {
 }
 
 .resubmit-source-alert {
+  margin-top: 8px;
+}
+.supplement-alert {
   margin-top: 8px;
 }
 .material-dup-alert {

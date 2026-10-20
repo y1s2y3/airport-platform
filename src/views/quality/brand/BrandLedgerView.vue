@@ -2,10 +2,16 @@
 import './brand-page.css'
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Search, Refresh, ArrowLeft } from '@element-plus/icons-vue'
+import { Search, Refresh, ArrowLeft, Plus } from '@element-plus/icons-vue'
 import { useQmProjectScope } from '../../../composables/useCurrentProject'
 import { COC_PROJECT_OPTIONS } from '../../../config/projectOptions'
-import { listLedger, MATERIAL_TYPE, ROLE_TAG, paginateBrandRows } from '../../../mock/brand.js'
+import {
+  listLedger,
+  MATERIAL_TYPE,
+  ROLE_TAG,
+  LEDGER_SOURCE,
+  paginateBrandRows,
+} from '../../../mock/brand.js'
 import '../qm-hq-stats.css'
 
 const route = useRoute()
@@ -27,6 +33,8 @@ const viewProjectLabel = computed(() => {
 })
 
 const canViewList = computed(() => !!viewProjectId.value)
+/** 项目级视图可补录；指挥部下钻只读 */
+const canSupplement = computed(() => canViewList.value && !fromHq.value && !isHqSelected.value)
 const keyword = ref('')
 const page = ref(1)
 const pageSize = ref(20)
@@ -51,6 +59,15 @@ watch(keyword, () => {
 function openDetail(row) {
   if (!row?.application_id) return
   router.push(`/qm/brand/ledger/detail?id=${row.application_id}`)
+}
+
+function openSupplementDetail(row) {
+  if (!row?.supplement_id) return
+  router.push(`/qm/brand/ledger/supplement-detail?id=${row.supplement_id}`)
+}
+
+function goSupplement() {
+  router.push('/qm/brand/ledger/supplement')
 }
 
 function goBackToHQ() {
@@ -78,7 +95,7 @@ function goBackToHQ() {
         <span v-if="fromHq && canViewList" class="hq-title-project">{{ viewProjectLabel }}</span>
       </div>
       <p class="page-tip">
-        审批通过后写入 · 当前：{{
+        报审通过或台账补录后写入 · 当前：{{
           viewProjectLabel || (isHqSelected ? '请从看板选择项目查看' : scopeProjectLabel)
         }}
         <template v-if="fromHq">（指挥部只读）</template>
@@ -107,6 +124,9 @@ function goBackToHQ() {
         />
         <el-button type="primary" :icon="Search">查询</el-button>
         <el-button :icon="Refresh" @click="reset">重置</el-button>
+        <el-button v-if="canSupplement" type="primary" :icon="Plus" @click="goSupplement">
+          补录
+        </el-button>
       </div>
 
       <el-table :data="list" stripe border empty-text="暂无台账记录">
@@ -124,16 +144,33 @@ function goBackToHQ() {
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="application_id" label="报审单号" width="130">
+        <el-table-column label="数据来源" width="100">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openDetail(row)">{{ row.application_id }}</el-button>
+            <el-tag
+              size="small"
+              effect="plain"
+              :type="row.source_type === 'supplement' ? 'warning' : 'info'"
+            >
+              {{ LEDGER_SOURCE[row.source_type] || LEDGER_SOURCE.application }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="报审单号" width="130">
+          <template #default="{ row }">
+            <el-button v-if="row.application_id" link type="primary" @click="openDetail(row)">
+              {{ row.application_id }}
+            </el-button>
+            <span v-else>--</span>
           </template>
         </el-table-column>
         <el-table-column prop="use_part" label="施工部位" width="110" />
         <el-table-column prop="updated_at" label="更新时间" width="170" />
-        <el-table-column label="操作" width="110" fixed="right">
+        <el-table-column label="操作" width="120" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openDetail(row)">查看报审单</el-button>
+            <el-button v-if="row.supplement_id" link type="primary" @click="openSupplementDetail(row)">
+              查看补录详情
+            </el-button>
+            <el-button v-else link type="primary" @click="openDetail(row)">查看报审单</el-button>
           </template>
         </el-table-column>
       </el-table>

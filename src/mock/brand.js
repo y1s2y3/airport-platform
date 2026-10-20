@@ -55,6 +55,9 @@ export const ATTACH_TYPE = {
 }
 export const ROLE_TAG = { primary: '主选', alternate: '备选' }
 
+/** 台账数据来源：application=报审通过写入；supplement=台账补录写入（不走审批） */
+export const LEDGER_SOURCE = { application: '报审', supplement: '补录' }
+
 export const ATTACH_TYPE_KEYS = Object.keys(ATTACH_TYPE)
 
 /** 项目级审批人选人池（演示：各项目共用同一组织范围名单） */
@@ -943,8 +946,71 @@ const store = reactive({
       file_url: '#mock/baosteel-sample.jpg',
     },
   ],
-  seq: { app: 18, cand: 113, ledger: 9, ar: 18, att: 10 },
+  seq: { app: 18, cand: 113, ledger: 9, ar: 18, att: 10, sup: 0, supcand: 0 },
+  /** 台账补录单（不走审批；一次补录可含 1 主选 + 0..n 备选，写入台账时一品牌一行） */
+  supplements: [],
+  supplementCandidates: [],
 })
+
+/** 台账数据来源归一：历史行均来自「报审通过写入」；补录行在写入时显式标记 supplement */
+store.ledger.forEach((row) => {
+  if (!row.source_type) row.source_type = 'application'
+})
+
+/**
+ * 演示种子：品牌台账补录 1 条（仅主选品牌、无备选）
+ * 同时用于演示「备选品牌可全部删除」与台账「查看补录详情」
+ */
+function seedLedgerSupplementDemo() {
+  const supplement_id = 'BLX-2026-001'
+  if (store.supplements.some((s) => s.supplement_id === supplement_id)) return
+  const project_id = 'p-000'
+  const filled_at = '2026-08-18 10:20:00'
+  store.seq.sup += 1
+  store.supplements.push({
+    supplement_id,
+    project_id,
+    material_name: '挤塑聚苯板',
+    material_type: 'material',
+    use_part: '屋面保温',
+    location_id: '',
+    source_type: 'supplement',
+    filled_by_user_id: 'u-contractor',
+    filled_by_name: '张工',
+    filled_at,
+    remark: '演示：历史线下已确认的品牌资料补录，未走审批流程',
+  })
+  store.seq.supcand += 1
+  const candidate_id = `SC-${String(store.seq.supcand).padStart(3, '0')}`
+  store.supplementCandidates.push({
+    candidate_id,
+    supplement_id,
+    ledger_id: '',
+    seq_no: 1,
+    brand_name: '华美',
+    manufacturer: '河北华美化工建材集团有限公司',
+    remark: '提供出厂检测报告',
+    is_primary: true,
+  })
+  store.seq.ledger += 1
+  store.ledger.push({
+    ledger_id: `BL-${String(store.seq.ledger).padStart(3, '0')}`,
+    project_id,
+    brand_name: '华美',
+    manufacturer: '河北华美化工建材集团有限公司',
+    material_name: '挤塑聚苯板',
+    material_type: 'material',
+    role_tag: 'primary',
+    application_id: '',
+    supplement_id,
+    source_type: 'supplement',
+    use_part: '屋面保温',
+    updated_at: filled_at,
+    ledger_updated_at: filled_at,
+  })
+}
+
+seedLedgerSupplementDemo()
 
 function ledgerUniqueKey(projectId, brandName, manufacturer, materialName) {
   return [
@@ -975,6 +1041,8 @@ function upsertLedgerFromCandidate(app, candidate) {
       application_id: app.application_id,
       source_application_no: app.application_id,
       source_application_pk: app.application_id,
+      source_type: 'application',
+      supplement_id: '',
       use_part: app.use_part || '',
       updated_at: now,
       ledger_updated_at: now,
@@ -993,6 +1061,8 @@ function upsertLedgerFromCandidate(app, candidate) {
     application_id: app.application_id,
     source_application_no: app.application_id,
     source_application_pk: app.application_id,
+    source_type: 'application',
+    supplement_id: '',
     use_part: app.use_part || '',
     updated_at: now,
     ledger_updated_at: now,
@@ -1052,7 +1122,7 @@ export function listLedger(projectId, { keyword = '' } = {}) {
   const kw = keyword.trim()
   if (kw) {
     rows = rows.filter((r) =>
-      `${r.brand_name}${r.manufacturer}${r.material_name}${r.application_id}${r.use_part}`.includes(kw),
+      `${r.brand_name}${r.manufacturer}${r.material_name}${r.application_id}${r.supplement_id || ''}${r.use_part}`.includes(kw),
     )
   }
   return rows.sort((a, b) => {
@@ -1228,6 +1298,30 @@ export function getApplicationDetail(applicationId) {
   }
 }
 
+/**
+ * 台账补录详情（补录单 + 品牌行 + 附件）
+ * @param {string} supplementId 补录单号 BLX-YYYY-NNN
+ */
+export function getSupplementDetail(supplementId) {
+  const id = String(supplementId || '').trim()
+  if (!id) return null
+  const supplement = store.supplements.find((s) => s.supplement_id === id)
+  if (!supplement) return null
+  const candidates = store.supplementCandidates
+    .filter((c) => c.supplement_id === id)
+    .sort((a, b) => a.seq_no - b.seq_no)
+    .map((c) => {
+      const atts = store.attachments.filter((att) => att.candidate_id === c.candidate_id)
+      return {
+        ...c,
+        remark: c.remark || '',
+        attachments: atts,
+        attachSlots: buildAttachSlotsFromRecords(atts),
+      }
+    })
+  return { supplement, candidates }
+}
+
 export function resolveBrandTodoAssigneeUserId(todo) {
   if (todo?.assigneeUserId) return todo.assigneeUserId
   if (!todo?.brandApplicationId) return ''
@@ -1298,14 +1392,13 @@ function buildBrandTodoPayload(app) {
   }
 }
 
+/** 上报品牌数量口径：主选恰好 1 条；备选 0..n 条（可全部删除） */
 function validateCandidates(candidates) {
   const filled = candidates.filter(
     (c) => (c.brand_name || '').trim() && (c.manufacturer || '').trim(),
   )
   const primaryCount = filled.filter((c) => c.is_primary).length
-  const alternateCount = filled.filter((c) => !c.is_primary).length
-  if (primaryCount !== 1) return { ok: false, msg: '须恰好标记 1 个主选品牌' }
-  if (alternateCount < 2) return { ok: false, msg: '备选品牌至少 2 条' }
+  if (primaryCount !== 1) return { ok: false, msg: '请填写主选品牌（品牌名称与生产厂家必填）' }
   return { ok: true, data: filled }
 }
 
@@ -1412,7 +1505,8 @@ function replaceBrandCandidates(application_id, project_id, validCandidates) {
   void project_id
 }
 
-function validateBrandSubmitPayload(payload) {
+/** 材料/设备信息 + 上报品牌校验（报审提交与台账补录共用；不含审批人） */
+function validateMaterialAndCandidates(payload = {}) {
   const project_id = payload.project_id
   const material_name = (payload.material_name || '').trim()
   const material_type = payload.material_type
@@ -1444,6 +1538,14 @@ function validateBrandSubmitPayload(payload) {
       }
     }
   }
+  return { ok: true, project_id, material_name, material_type, validCandidates }
+}
+
+function validateBrandSubmitPayload(payload) {
+  const base = validateMaterialAndCandidates(payload)
+  if (!base.ok) return base
+  const { project_id, material_name, material_type, validCandidates } = base
+
   const supervisor_approver_user_id = String(payload.supervisor_approver_user_id || '').trim()
   const pm_approver_user_id = String(payload.pm_approver_user_id || '').trim()
   if (!supervisor_approver_user_id) return { ok: false, msg: '请选择监理单位审批人' }
@@ -1610,6 +1712,121 @@ export function submitDraftApplication(applicationId, payload = {}) {
   app.applicant_name = app.applicant_name || '当前用户'
   finalizeBrandSubmission(app, checked.project_id, checked.validCandidates, checked)
   return { ok: true, data: app }
+}
+
+/** 台账补录校验：材料/品牌规则与报审一致，但不校验审批人；并拦截台账重复行 */
+function validateSupplementPayload(payload = {}) {
+  const base = validateMaterialAndCandidates(payload)
+  if (!base.ok) return base
+  const { project_id, material_name, validCandidates } = base
+
+  const seen = new Set()
+  for (const c of validCandidates) {
+    const dedupeKey = `${(c.brand_name || '').trim()}\0${(c.manufacturer || '').trim()}`
+    if (seen.has(dedupeKey)) {
+      return {
+        ok: false,
+        msg: `品牌「${(c.brand_name || '').trim()}」在同一张补录单中重复，请删除重复品牌`,
+      }
+    }
+    seen.add(dedupeKey)
+  }
+
+  for (const c of validCandidates) {
+    const key = ledgerUniqueKey(project_id, c.brand_name, c.manufacturer, material_name)
+    const hit = store.ledger.find(
+      (row) =>
+        ledgerUniqueKey(row.project_id, row.brand_name, row.manufacturer, row.material_name) ===
+        key,
+    )
+    if (hit) {
+      return {
+        ok: false,
+        msg: `品牌「${(c.brand_name || '').trim()}（${(c.manufacturer || '').trim()}）」在该材料下已存在台账记录（${hit.ledger_id}），无需补录`,
+      }
+    }
+  }
+  return { ...base }
+}
+
+/**
+ * 台账补录：提交即入库，不走审批、不生成审批待办
+ * 一次补录按品牌行写入台账（1 主选 + 0..n 备选）
+ */
+export function supplementLedger(payload = {}) {
+  const checked = validateSupplementPayload(payload)
+  if (!checked.ok) return checked
+  const { project_id, material_name, material_type, validCandidates } = checked
+  const now = nowStr()
+
+  store.seq.sup += 1
+  const supplement_id = `BLX-2026-${String(store.seq.sup).padStart(3, '0')}`
+  const supplement = {
+    supplement_id,
+    project_id,
+    material_name,
+    material_type,
+    use_part: String(payload.use_part || '').trim(),
+    location_id: String(payload.location_id || '').trim(),
+    source_type: 'supplement',
+    filled_by_user_id: 'u-contractor',
+    filled_by_name: '当前用户',
+    filled_at: now,
+    remark: String(payload.remark || '').trim(),
+  }
+  store.supplements.push(supplement)
+
+  validCandidates.forEach((c, i) => {
+    store.seq.supcand += 1
+    const candidate_id = `SC-${String(store.seq.supcand).padStart(3, '0')}`
+    store.supplementCandidates.push({
+      candidate_id,
+      supplement_id,
+      ledger_id: c.ledger_id || '',
+      seq_no: i + 1,
+      brand_name: c.brand_name.trim(),
+      manufacturer: c.manufacturer.trim(),
+      remark: (c.remark || '').trim(),
+      is_primary: !!c.is_primary,
+    })
+    const slots = Array.isArray(c.attachSlots) ? c.attachSlots : []
+    slots.forEach((slot) => {
+      if (!slot.is_checked) return
+      const files = Array.isArray(slot.files) ? slot.files : []
+      files.forEach((f) => {
+        const name = (f.file_name || '').trim()
+        if (!name) return
+        store.seq.att += 1
+        store.attachments.push({
+          attachment_id: `BA-${String(store.seq.att).padStart(3, '0')}`,
+          candidate_id,
+          attach_type: slot.attach_type,
+          is_checked: true,
+          file_name: name,
+          file_url: f.file_url || `#mock/${name}`,
+        })
+      })
+    })
+
+    store.seq.ledger += 1
+    store.ledger.push({
+      ledger_id: `BL-${String(store.seq.ledger).padStart(3, '0')}`,
+      project_id,
+      brand_name: c.brand_name.trim(),
+      manufacturer: c.manufacturer.trim(),
+      material_name,
+      material_type,
+      role_tag: c.is_primary ? 'primary' : 'alternate',
+      application_id: '',
+      supplement_id,
+      source_type: 'supplement',
+      use_part: supplement.use_part,
+      updated_at: now,
+      ledger_updated_at: now,
+    })
+  })
+
+  return { ok: true, data: { supplement_id, ledger_row_count: validCandidates.length } }
 }
 
 /** 品牌报审不再支持撤回 */

@@ -442,6 +442,9 @@ export const hiddenRoutes = [
   { key: 'brand-application-edit', path: '/qm/brand/applications/edit', name: 'BrandApplicationEdit', component: 'BrandApplicationEditView', label: '新建报审', sidebarKey: 'brand-application' },
   { key: 'brand-application-detail', path: '/qm/brand/applications/detail', name: 'BrandApplicationDetail', component: 'BrandApplicationDetailView', label: '报审详情', sidebarKey: 'brand-application' },
   { key: 'brand-ledger-detail', path: '/qm/brand/ledger/detail', name: 'BrandLedgerDetail', component: 'BrandApplicationDetailView', label: '报审详情', sidebarKey: 'brand-ledger' },
+  // 台账补录：填报表单与报审页同构（复用 BrandApplicationEditView 的补录模式），提交直接入库
+  { key: 'brand-ledger-supplement', path: '/qm/brand/ledger/supplement', name: 'BrandLedgerSupplement', component: 'BrandApplicationEditView', label: '台账补录', sidebarKey: 'brand-ledger' },
+  { key: 'brand-ledger-supplement-detail', path: '/qm/brand/ledger/supplement-detail', name: 'BrandLedgerSupplementDetail', component: 'BrandLedgerSupplementDetailView', label: '补录详情', sidebarKey: 'brand-ledger' },
 
   // 样板管理子页（审批仅个人中心待办，无独立审批列表路由）
   { key: 'sample-material-edit', path: '/qm/sample/material/applications/edit', name: 'SampleMaterialEdit', component: 'SampleMaterialEditView', label: '新建材料设备定样报审', sidebarKey: 'sample-material-app' },
@@ -706,6 +709,7 @@ export const viewLoaders = {
   BrandApplicationListView: () => import('../views/quality/brand/BrandApplicationListView.vue'),
   BrandApplicationEditView: () => import('../views/quality/brand/BrandApplicationEditView.vue'),
   BrandApplicationDetailView: () => import('../views/quality/brand/BrandApplicationDetailView.vue'),
+  BrandLedgerSupplementDetailView: () => import('../views/quality/brand/BrandLedgerSupplementDetailView.vue'),
   BrandApprovalStatsView: () => import('../views/quality/brand/BrandApprovalStatsView.vue'),
 
   SampleLedgerView: () => import('../views/quality/sample/SampleLedgerView.vue'),

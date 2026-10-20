@@ -17,6 +17,14 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.17.1.21',
+    date: '2026-10-20',
+    highlights: [
+      '品牌报审：上报品牌数量口径调整为「主选品牌 1 条必填 + 备选品牌可 0～n 条」，备选支持全部删除，仅剩主选即可提交',
+      '品牌报审台账：新增「补录」（填报表单与报审页一致、无需配置审批人、提交直接写入台账不走审批）；台账新增「数据来源」列，补录行操作列显示「查看补录详情」并进入只读补录详情',
+    ],
+  },
+  {
     version: 'v2.17.1.20',
     date: '2026-10-20',
     highlights: [
