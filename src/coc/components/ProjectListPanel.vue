@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, watch, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Search, Rank, Star, StarFilled, Microphone } from '@element-plus/icons-vue'
+import { VideoCamera, Search, Rank, Star, Microphone } from '@element-plus/icons-vue'
 import { FOCUS_PROJECT_ID, HQ_SELECTION_ID, getMonitorDispatchDevices, getDispatchDeviceTypeLabel } from '../mock/data.js'
 import { sortCamerasByOrder } from '../utils/cameraOrder.js'
 import { PANEL_TITLE_ICON_URL } from '../config/panelTitleAssets.js'
@@ -202,8 +202,15 @@ const treeData = computed(() => {
 
 const defaultExpandedKeys = computed(() => {
   if (isHqView.value) {
-    // 用户 2026-10-19：指挥部层级下项目默认收起，点某个项目部再展开该项目所有监控
-    return [HQ_SELECTION_ID]
+    const projectId = props.selectionId !== HQ_SELECTION_ID
+      ? props.selectionId
+      : props.focusProjectId
+    return [
+      HQ_SELECTION_ID,
+      projectId,
+      `${projectId}-video`,
+      `${projectId}-dispatch`,
+    ]
   }
   if (!activeProject.value) return []
   return [
@@ -212,19 +219,6 @@ const defaultExpandedKeys = computed(() => {
     `${activeProject.value.id}-dispatch`,
   ]
 })
-
-/** 摄像头类型：枪机 / 球机（用户 2026-10-19：监控要体现枪机还是球机） */
-function cameraTypeLabel(camera) {
-  return camera?.type === 'ptz' ? '球机' : '枪机'
-}
-
-/** 指挥部层级：点项目部即展开该项目的监控分类（默认收起下的主要交互） */
-function toggleProjectNode(projectId) {
-  const node = treeRef.value?.getNode(projectId)
-  if (!node) return
-  if (node.expanded) node.collapse()
-  else node.expand()
-}
 
 function statusClass(status) {
   if (status === '前期') return 'early'
@@ -257,11 +251,8 @@ function ensureHqProjectContext(projectId) {
 
 function onTreeClick(data) {
   if (data.nodeType === 'project' && isHqView.value) {
-    // 用户 2026-10-19：指挥部层级点项目部 = 展开该项目的监控；不再直接跳到项目大屏
-    // （仍可从顶栏项目下拉切到项目大屏，下钻能力保留）
     currentNodeKey.value = data.id
-    toggleProjectNode(data.id)
-    ensureHqProjectContext(data.id)
+    emit('project-change', data.id)
     return
   }
   if (data.nodeType === 'camera') {
@@ -428,10 +419,9 @@ onUnmounted(() => {
       </div>
       <el-tree
         ref="treeRef"
-        :key="`${selectionId}-${videoFilter}-${searchKeyword}-${statusFilters.join(',')}`"
+        :key="`${selectionId}-${focusProjectId}-${videoFilter}-${searchKeyword}-${statusFilters.join(',')}-${cameraOrder.join(',')}-${dispatchOrder.join(',')}`"
         :data="treeData"
         node-key="id"
-        :indent="10"
         highlight-current
         :current-node-key="currentNodeKey"
         :default-expanded-keys="defaultExpandedKeys"
@@ -499,88 +489,84 @@ onUnmounted(() => {
               :data-project-id="data.projectId"
               @click="onTreeClick(data)"
             >
-              <span class="cam-node cam-node--single">
-                <!-- 重点（收藏）标记：占用原摄像头小图标位置，用户 2026-10-19 -->
-                <template v-if="isInteractiveCamera(data)">
-                  <el-popover
-                    v-if="data.camera.key"
-                    :visible="keyUnsetPopoverId === data.id"
-                    placement="top"
-                    :width="200"
-                    trigger="click"
-                    :show-arrow="true"
-                    popper-class="key-unset-popover"
-                    @update:visible="(visible) => onKeyPopoverVisible(data.id, visible)"
-                  >
-                    <template #reference>
-                      <span
-                        class="fav-btn fav-btn--on"
-                        role="button"
-                        tabindex="0"
-                        aria-label="取消重点标记"
-                        @click.stop="openKeyUnsetPopover(data.id)"
-                        @keydown.enter.stop.prevent="openKeyUnsetPopover(data.id)"
-                        @keydown.space.stop.prevent="openKeyUnsetPopover(data.id)"
-                      >
-                        <el-icon :size="13"><StarFilled /></el-icon>
-                      </span>
-                    </template>
-                    <div class="key-unset-bubble">
-                      <p class="key-unset-bubble__text">是否取消重点标记？</p>
-                      <div class="key-unset-bubble__actions">
-                        <button
-                          type="button"
-                          class="key-unset-bubble__btn"
-                          @click.stop="closeKeyUnsetPopover"
-                        >
-                          取消
-                        </button>
-                        <button
-                          type="button"
-                          class="key-unset-bubble__btn key-unset-bubble__btn--primary"
-                          @click.stop="confirmUnsetKey(data.camera)"
-                        >
-                          确定
-                        </button>
-                      </div>
-                    </div>
-                  </el-popover>
-                  <el-tooltip v-else content="设置为重点" placement="top" :show-after="200">
-                    <button
-                      type="button"
-                      class="fav-btn"
-                      aria-label="设置为重点"
-                      @click.stop="emit('camera-set-key', data.camera)"
-                    >
-                      <el-icon :size="13"><Star /></el-icon>
-                    </button>
-                  </el-tooltip>
-                </template>
-                <span
-                  class="tree-label cam-name-label"
-                  :class="data.camera.online ? 'is-online' : 'is-offline'"
-                  :title="data.label"
-                >{{ data.label }}</span>
-                <span class="cam-type" :class="data.camera.type === 'ptz' ? 'ptz' : 'gun'">
-                  {{ cameraTypeLabel(data.camera) }}
-                </span>
-                <span class="tree-cam-status" :class="data.camera.online ? 'online' : 'offline'">
-                  <i class="status-dot" :class="data.camera.online ? 'online' : 'offline'" />
-                  {{ data.camera.online ? '在线' : '离线' }}
-                </span>
-                <el-tooltip
-                  v-if="isInteractiveCamera(data)"
-                  content="拖动排序"
-                  placement="top"
-                  :show-after="200"
-                >
-                  <span
-                    class="drag-handle"
-                    @mousedown.prevent.stop="startDrag('camera', data.id, data.projectId, $event)"
-                  >
-                    <el-icon :size="12"><Rank /></el-icon>
+              <span class="cam-node">
+                <span class="cam-row-top">
+                  <span class="cam-row-name">
+                    <el-icon :size="11" class="cam-icon"><VideoCamera /></el-icon>
+                    <span class="tree-label" :title="data.label">{{ data.label }}</span>
                   </span>
-                </el-tooltip>
+                  <el-tooltip
+                    v-if="isInteractiveCamera(data)"
+                    content="拖动排序"
+                    placement="top"
+                    :show-after="200"
+                  >
+                    <span
+                      class="drag-handle"
+                      @mousedown.prevent.stop="startDrag('camera', data.id, data.projectId, $event)"
+                    >
+                      <el-icon :size="12"><Rank /></el-icon>
+                    </span>
+                  </el-tooltip>
+                </span>
+                <span class="cam-row-meta">
+                  <template v-if="isInteractiveCamera(data)">
+                    <el-popover
+                      v-if="data.camera.key"
+                      :visible="keyUnsetPopoverId === data.id"
+                      placement="top"
+                      :width="200"
+                      trigger="click"
+                      :show-arrow="true"
+                      popper-class="key-unset-popover"
+                      @update:visible="(visible) => onKeyPopoverVisible(data.id, visible)"
+                    >
+                      <template #reference>
+                        <span
+                          class="tree-key tree-key--clickable"
+                          role="button"
+                          tabindex="0"
+                          @click.stop="openKeyUnsetPopover(data.id)"
+                          @keydown.enter.stop.prevent="openKeyUnsetPopover(data.id)"
+                          @keydown.space.stop.prevent="openKeyUnsetPopover(data.id)"
+                        >重点</span>
+                      </template>
+                      <div class="key-unset-bubble">
+                        <p class="key-unset-bubble__text">是否取消重点标记？</p>
+                        <div class="key-unset-bubble__actions">
+                          <button
+                            type="button"
+                            class="key-unset-bubble__btn"
+                            @click.stop="closeKeyUnsetPopover"
+                          >
+                            取消
+                          </button>
+                          <button
+                            type="button"
+                            class="key-unset-bubble__btn key-unset-bubble__btn--primary"
+                            @click.stop="confirmUnsetKey(data.camera)"
+                          >
+                            确定
+                          </button>
+                        </div>
+                      </div>
+                    </el-popover>
+                    <el-tooltip v-else content="设置为重点" placement="top" :show-after="200">
+                      <button
+                        type="button"
+                        class="fav-btn"
+                        aria-label="设置为重点"
+                        @click.stop="emit('camera-set-key', data.camera)"
+                      >
+                        <el-icon :size="13"><Star /></el-icon>
+                      </button>
+                    </el-tooltip>
+                  </template>
+                  <span class="tree-cam-status" :class="data.camera.online ? 'online' : 'offline'">
+                    <i class="status-dot" :class="data.camera.online ? 'online' : 'offline'" />
+                    {{ data.camera.online ? '在线' : '离线' }}
+                  </span>
+                </span>
               </span>
             </div>
           </div>
@@ -861,20 +847,29 @@ onUnmounted(() => {
   padding: 2px 0;
 }
 
-/* 摄像头单行（用户 2026-10-19）：星标 + 名称 + 枪机/球机 + 在线 + 拖动 */
-.cam-node--single {
-  flex-direction: row;
+.cam-row-top {
+  display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 1px 0;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
 }
 
-.cam-node--single .cam-name-label {
+.cam-row-name {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cam-row-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-left: 17px;
 }
 
 .cam-drag-item .tree-label {
@@ -882,34 +877,9 @@ onUnmounted(() => {
   font-size: calc(12px + var(--coc-font-boost));
 }
 
-/* 名称颜色即在线态（配合右侧徽标，用户 2026-10-19） */
-.cam-drag-item .cam-name-label.is-online {
-  color: var(--coc-text-secondary);
-}
-
-.cam-drag-item .cam-name-label.is-offline {
-  color: var(--coc-text-muted);
-  text-decoration: line-through;
-  text-decoration-color: rgba(245, 108, 108, 0.55);
-}
-
-.cam-type {
-  flex-shrink: 0;
-  font-size: calc(10px + var(--coc-font-boost));
-  line-height: 1.5;
-  padding: 0 5px;
-  border-radius: 3px;
-  border: 1px solid var(--coc-border);
-  color: var(--coc-text-secondary);
-}
-
-.cam-type.ptz {
+.cam-icon {
   color: var(--coc-accent);
-  border-color: rgba(201, 123, 99, 0.45);
-}
-
-.fav-btn--on {
-  color: var(--coc-gold);
+  flex-shrink: 0;
 }
 
 .tree-cam-status {

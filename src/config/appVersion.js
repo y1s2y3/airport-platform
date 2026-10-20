@@ -17,6 +17,13 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.17.1.20',
+    date: '2026-10-20',
+    highlights: [
+      'COC 调度大屏：回退监控列表与画面交互的展示类改动（层级缩进、摄像头单行、重点星标位置、项目默认收起、点名称在框内放大、大屏红黑榜详情口径），恢复为改动前行为',
+    ],
+  },
+  {
     version: 'v2.17.1.19',
     date: '2026-10-20',
     highlights: [
