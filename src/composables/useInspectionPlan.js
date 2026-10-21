@@ -6,7 +6,7 @@ import {
   getInspectionTaskPrefix,
   normalizeInspectionCategories,
 } from '../config/inspectionManagement'
-import { addMobileInspectionTask, updateMobileInspectionTaskByNo } from '../mock/mobileInspectionTasks'
+import { addMobileInspectionTask, listMobileInspectionTasks, updateMobileInspectionTaskByNo } from '../mock/mobileInspectionTasks'
 import { COC_PROJECT_OPTIONS } from '../config/projectOptions'
 import { inspectionTaskSeeds } from '../mock/inspectionDemoData'
 import { getProjectInspectorLabel } from './useInspectionPersonConfig'
@@ -386,4 +386,16 @@ export function togglePlanEnabled(id) {
     item.updatedAt = now()
     item.updatedBy = '当前用户'
   }
+}
+
+/**
+ * 任务执行状态（用户 2026-10-20）：
+ * 由移动端执行任务反查（任务单编号 → 执行任务），值域固定为「已完成 / 未完成」。
+ * 列表页与详情页共用本方法，避免两处各写一套导致口径漂移。
+ */
+export function getPlanExecutionStatus(plan) {
+  const taskNo = plan?.planNo
+  if (!taskNo) return '未完成'
+  const task = listMobileInspectionTasks().find(item => item.taskNo === taskNo)
+  return task?.status === '已完成' ? '已完成' : '未完成'
 }

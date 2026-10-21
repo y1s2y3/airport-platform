@@ -2,7 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { FolderOpened } from '@element-plus/icons-vue'
-import { getPlanById, userOptions, projectOptions, checkCategoryTree, getItemLabel } from '../../composables/useInspectionPlan'
+import { getPlanById, userOptions, projectOptions, checkCategoryTree, getItemLabel, getPlanExecutionStatus } from '../../composables/useInspectionPlan'
 import { getProjectInspectorLabel } from '../../composables/useInspectionPersonConfig'
 import { normalizeInspectionCategories } from '../../config/inspectionManagement'
 
@@ -19,6 +19,8 @@ const getProjLabels = computed(() => {
   return plan.value.projectIds.map(id => projectOptions.find(p => p.id === id)?.label || '').filter(Boolean)
 })
 const taskReceiver = computed(() => getProjectInspectorLabel(plan.value?.projectIds?.[0]) || '—')
+/** 任务执行状态：未完成 / 已完成（用户 2026-10-20，与列表页同口径） */
+const executionStatus = computed(() => (plan.value ? getPlanExecutionStatus(plan.value) : '未完成'))
 // 检查内容树形结构
 const checkConfigTree = computed(() => {
   if (!plan.value?.checkConfig) return []
@@ -104,6 +106,17 @@ function goBack() {
           </el-descriptions-item>
           <el-descriptions-item label="关联项目" :span="2">{{ getProjLabels.join('、') }}</el-descriptions-item>
           <el-descriptions-item label="危大工程现场巡视关联" :span="2">在移动端执行巡检时按本任务所属项目选择；下发任务不预先关联。</el-descriptions-item>
+          <!-- 任务执行状态（用户 2026-10-20）：值域固定 未完成 / 已完成，与列表页同口径 -->
+          <el-descriptions-item label="任务执行状态" :span="2">
+            <el-tag
+              :type="executionStatus === '已完成' ? 'success' : 'warning'"
+              size="small"
+              effect="light"
+              disable-transitions
+            >
+              {{ executionStatus }}
+            </el-tag>
+          </el-descriptions-item>
           <el-descriptions-item label="更新人">{{ plan.updatedBy }}</el-descriptions-item>
           <el-descriptions-item label="更新时间">{{ plan.updatedAt || '—' }}</el-descriptions-item>
         </el-descriptions>

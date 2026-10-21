@@ -17,6 +17,13 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.17.1.22',
+    date: '2026-10-21',
+    highlights: [
+      '安全巡检·任务下发详情：新增「任务执行状态」字段（已完成 / 未完成），与列表页口径一致',
+    ],
+  },
+  {
     version: 'v2.17.1.21',
     date: '2026-10-20',
     highlights: [

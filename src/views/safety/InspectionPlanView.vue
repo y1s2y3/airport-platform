@@ -2,7 +2,7 @@
 import { reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Plus } from '@element-plus/icons-vue'
-import { planData, userOptions } from '../../composables/useInspectionPlan'
+import { planData, userOptions, getPlanExecutionStatus } from '../../composables/useInspectionPlan'
 import { listMobileInspectionTasks } from '../../mock/mobileInspectionTasks'
 import { getProjectInspectorLabel } from '../../composables/useInspectionPersonConfig'
 import { hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
@@ -31,8 +31,9 @@ function goEdit(id) { router.push(`/safety-inspection/plan/${id}/edit`) }
 function getExecutionTask(row) {
   return listMobileInspectionTasks().find(task => task.taskNo === row.planNo)
 }
+// 任务执行状态与详情页共用同一套口径（用户 2026-10-20）
 function getExecutionStatus(row) {
-  return getExecutionTask(row)?.status === '已完成' ? '已完成' : '未完成'
+  return getPlanExecutionStatus(row)
 }
 function getTaskReceiver(row) {
   return getProjectInspectorLabel(row.projectIds?.[0]) || '--'
