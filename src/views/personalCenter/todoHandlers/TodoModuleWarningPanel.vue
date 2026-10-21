@@ -1,7 +1,8 @@
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AttachmentUpload from '../../../components/common/AttachmentUpload.vue'
+import '../../aiApp/ai-app.css'
 import {
   disposePersonalWarningCenterItem,
   getPersonalWarningCenterItem,
@@ -28,9 +29,20 @@ const detail = computed(() => {
 })
 
 const isMajorHazardAlert = computed(() => detail.value?.module === '危大工程管理')
-const disposalResultOptions = computed(() =>
-  isMajorHazardAlert.value ? ['已处置'] : ['已处置', '误报'],
-)
+const isAiAlert = computed(() => detail.value?.module === 'AI应用')
+const isMachineAlert = computed(() => detail.value?.module === '机械设备监管')
+const disposalResultOptions = computed(() => {
+  if (isMajorHazardAlert.value) return ['已关闭']
+  if (isAiAlert.value) return ['已处理', '误报']
+  return ['已处置', '误报']
+})
+const noteLabel = computed(() => {
+  if (isMachineAlert.value) return '预警说明'
+  return '处置说明'
+})
+watch(disposalResultOptions, (options) => {
+  if (!options.includes(form.disposalResult)) form.disposalResult = options[0]
+}, { immediate: true })
 
 const canDispose = computed(
   () =>
@@ -46,7 +58,7 @@ async function submitDispose() {
     return ElMessage.warning('危大工程异常不支持按误报处置')
   }
   const disposalNote = form.disposalNote.trim()
-  if (!disposalNote) return ElMessage.warning('请填写处置说明')
+  if (!disposalNote && !isMachineAlert.value) return ElMessage.warning(`请填写${noteLabel.value}`)
   await ElMessageBox.confirm('确认处置完成并关闭该预警？', '预警处置', {
     type: 'warning',
     confirmButtonText: '确认关闭',
@@ -77,9 +89,24 @@ function handleBack() {
 
 <template>
   <div v-if="detail" class="module-warning-panel">
+    <div class="warning-primary" :class="{ 'with-snapshot': detail.business?.snapshot }">
+    <section v-if="detail.business?.snapshot" class="detail-section">
+      <div class="section-title">预警截图</div>
+      <div class="ai-snapshot large">
+        <span class="ai-snapshot-label">{{ detail.business.snapshot.alertType }} · {{ detail.business.snapshot.camera }}</span>
+      </div>
+    </section>
     <section class="detail-section">
       <div class="section-title">预警详情</div>
-      <el-descriptions :column="2" border>
+      <el-descriptions v-if="detail.business" :column="detail.business.snapshot ? 1 : 2" border>
+        <el-descriptions-item
+          v-for="item in detail.business.fields"
+          :key="item.label"
+          :label="item.label"
+          :span="['预警内容', '异常内容', '隐患内容'].includes(item.label) ? 2 : 1"
+        >{{ item.value || '--' }}</el-descriptions-item>
+      </el-descriptions>
+      <el-descriptions v-else :column="2" border>
         <el-descriptions-item label="预警编号">{{ detail.warningNo || '—' }}</el-descriptions-item>
         <el-descriptions-item label="所属模块">{{ detail.module || '—' }}</el-descriptions-item>
         <el-descriptions-item label="预警类型">{{ detail.alertType || '—' }}</el-descriptions-item>
@@ -99,8 +126,21 @@ function handleBack() {
         <el-descriptions-item label="预警内容" :span="2">{{ detail.description || '—' }}</el-descriptions-item>
       </el-descriptions>
     </section>
+    </div>
 
-    <section v-if="detail.status === '已关闭'" class="detail-section">
+    <section v-if="detail.business?.disposalFields?.length" class="detail-section">
+      <div class="section-title">处置信息</div>
+      <el-descriptions :column="2" border>
+        <el-descriptions-item
+          v-for="item in detail.business.disposalFields"
+          :key="item.label"
+          :label="item.label"
+          :span="['处置说明', '处置记录', '预警说明'].includes(item.label) ? 2 : 1"
+        >{{ item.value || '--' }}</el-descriptions-item>
+      </el-descriptions>
+    </section>
+
+    <section v-else-if="!detail.business && detail.status === '已关闭'" class="detail-section">
       <div class="section-title">处置信息</div>
       <el-descriptions :column="2" border>
         <el-descriptions-item label="处置结果">{{ detail.disposalResult || '—' }}</el-descriptions-item>
@@ -116,20 +156,21 @@ function handleBack() {
     <section v-if="canDispose" class="detail-section dispose-section">
       <div class="section-title">预警处置</div>
       <el-form :model="form" label-width="86px" class="dispose-form">
-        <el-form-item label="处置结果" required>
-          <el-radio-group v-model="form.disposalResult">
+        <el-form-item :label="isMachineAlert ? '处理结果' : '处置结果'" required>
+          <el-tag v-if="isMajorHazardAlert" type="success">已关闭</el-tag>
+          <el-radio-group v-else v-model="form.disposalResult">
             <el-radio v-for="opt in disposalResultOptions" :key="opt" :value="opt">{{ opt }}</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="处置说明" required>
+        <el-form-item :label="noteLabel" :required="!isMachineAlert">
           <el-input
             v-model="form.disposalNote"
             type="textarea"
             :rows="4"
-            maxlength="500"
+            :maxlength="isAiAlert ? 300 : 500"
             show-word-limit
-            :placeholder="form.disposalResult === '误报' ? '请说明判断为误报的原因' : '请说明现场如何处理以及当前处理结果'"
-            aria-label="请填写处置说明"
+            :placeholder="form.disposalResult === '误报' ? '请说明判断为误报的原因' : `请填写${noteLabel}`"
+            :aria-label="`请填写${noteLabel}`"
           />
         </el-form-item>
         <el-form-item label="处置附件">
@@ -153,6 +194,14 @@ function handleBack() {
   flex-direction: column;
   gap: 16px;
 }
+.warning-primary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+.warning-primary.with-snapshot {
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+}
 .detail-section {
   border: 1px solid var(--ap-border, #e4e7ed);
   border-radius: 8px;
@@ -171,5 +220,10 @@ function handleBack() {
   color: var(--ap-text-muted, #909399);
   font-size: 12px;
   line-height: 1.5;
+}
+@media (max-width: 1100px) {
+  .warning-primary.with-snapshot {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 </style>

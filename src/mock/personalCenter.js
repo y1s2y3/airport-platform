@@ -26,6 +26,7 @@ import {
 import {
   WC_DEMO_MAJOR_ALERT_ID,
   ensureWcDemoMajorAlert,
+  getMajorAlertById,
   handleAlertRecord,
 } from './majorHazard.js'
 import {
@@ -1306,7 +1307,7 @@ export function seedModuleWarningCenter() {
       module: '危大工程监测',
       bizModule: 'major',
       bizAlertId: majorBiz?.id || WC_DEMO_MAJOR_ALERT_ID,
-      projectName: 'T2航站区及配套工程',
+      projectName: '飞行区跑道延长工程',
       warningNo: majorBiz?.id ? `MH-${majorBiz.id}` : 'MH202608210001',
       alertType: majorBiz?.alertType || '深基坑水平位移超限预警',
       location: majorBiz?.region || '基坑东侧',
@@ -1323,6 +1324,85 @@ export function seedModuleWarningCenter() {
   ]
 }
 
+/** 工作台统一列的展示值与详情字段直接取业务台账，内部处置状态仍独立保存。 */
+export function getWarningCenterBusinessView(row) {
+  if (!row) return null
+  const item = { ...row }
+  const field = (label, value) => ({ label, value: value ?? '' })
+  if (row.bizModule === 'ai') {
+    const biz = aiAlerts.value.find((alert) => String(alert.id) === String(row.bizAlertId))
+    if (!biz) return item
+    item.business = {
+      type: biz.alertType, status: biz.status, time: biz.occurredAt,
+      handler: biz.status === '已处置' ? (biz.disposedBy || biz.handler || '') : '',
+      snapshot: { alertType: biz.alertType, camera: biz.camera },
+      fields: [field('预警编号', biz.alertNo), field('预警类型', biz.alertType),
+        field('预警状态', biz.status), field('所属项目', biz.projectName),
+        field('预警时间', biz.occurredAt), field('发生位置', biz.location),
+        field('摄像头名称', biz.camera), field('预警内容', biz.content)],
+      disposalFields: biz.status === '已处置' ? [field('处置结果', biz.disposition),
+        field('处置人', biz.disposedBy || biz.handler), field('处置时间', biz.disposedAt),
+        field('处置说明', biz.disposalNote),
+        field('处置附件', (biz.disposalAttachments || []).map((file) =>
+          typeof file === 'string' ? file : file?.name || '').filter(Boolean).join('、'))] : [],
+    }
+    item.projectName = biz.projectName
+    item.description = biz.content
+  } else if (row.bizModule === 'machine') {
+    const biz = getMachineAlertById(row.bizAlertId)
+    if (!biz) return item
+    item.business = {
+      type: biz.alertType, status: biz.status, time: biz.alertTime,
+      handler: biz.status === '已处置' ? (biz.handler || '') : '',
+      fields: [field('预警类型', biz.alertType), field('设备名称', biz.deviceName),
+        field('预警内容', biz.content), field('预警区域', biz.region),
+        field('预警等级', biz.level), field('预警状态', biz.status),
+        field('预警时间', biz.alertTime)],
+      disposalFields: biz.status === '已处置' ? [field('处理结果', biz.result),
+        field('预警说明', biz.remark), field('处理人', biz.handler),
+        field('处理时间', biz.handleTime)] : [],
+    }
+    item.projectName = biz.project
+    item.description = biz.content
+  } else if (row.bizModule === 'major') {
+    const biz = getMajorAlertById(row.bizAlertId)
+    if (!biz) return item
+    const measure = (value) => value == null || value === '' ? '' : `${value} ${biz.unit || ''}`.trim()
+    item.business = {
+      type: biz.alertType, status: biz.status, time: biz.time,
+      handler: biz.status === '已处置' ? (biz.handler || '') : '',
+      fields: [field('预警类型', biz.alertType), field('监测区域', biz.region),
+        field('监测点位', biz.point), field('设备名称', biz.deviceName),
+        field('超限指标', biz.indicatorName), field('当前值', measure(biz.currentValue)),
+        field('预警阈值', measure(biz.threshold)), field('预警等级', biz.level),
+        field('发生时间', biz.time), field('处置状态', biz.status),
+        field('预警内容', biz.detail)],
+      disposalFields: biz.status === '已处置' ? [field('处置结果', biz.handlingResult || '已处置'),
+        field('处置人', biz.handler), field('处置时间', biz.handlingTime),
+        field('处置说明', biz.handlingContent),
+        field('处置附件', (biz.handlingAttachments || []).join('、'))] : [],
+    }
+    item.description = biz.detail
+  } else if (row.module === '危大工程管理') {
+    const suffix = `（${row.sourceName} / ${row.location === '—' ? '未填写施工部位' : row.location}）`
+    const content = String(row.description || '').endsWith(suffix)
+      ? row.description.slice(0, -suffix.length) : row.description
+    item.business = {
+      type: row.alertType, status: row.status, time: row.time, handler: row.handler,
+      fields: [field('危大工程名称', row.sourceName), field('施工部位', row.location),
+        field('异常类型', row.alertType), field('异常内容', content),
+        field('处置人', row.handler), field('处理状态', row.status),
+        field('产生时间', row.time)],
+      disposalFields: row.status === '已关闭' ? [field('处置结果', row.disposalResult),
+        field('处置说明', row.disposalNote), field('处置时间', row.disposalTime),
+        field('处置附件', (row.disposalAttachments || []).map((file) =>
+          typeof file === 'string' ? file : file?.name || '').filter(Boolean).join('、'))] : [],
+    }
+    item.description = content
+  }
+  return item
+}
+
 /**
  * 预警中心处置 → 回写业务台账
  */
@@ -1334,7 +1414,8 @@ function syncBizAlertFromWarningCenter(row, { content, attachments = [], operato
       const files = (attachments || []).map((item) =>
         typeof item === 'string' ? { name: item } : { ...item },
       )
-      disposeAiAlert(row.bizAlertId, disposition, content || '', operator, files)
+      const assignedHandler = aiAlerts.value.find((item) => String(item.id) === String(row.bizAlertId))?.handler
+      disposeAiAlert(row.bizAlertId, disposition, content || '', assignedHandler || operator, files)
       return
     }
     if (row.bizModule === 'machine') {
@@ -1346,11 +1427,10 @@ function syncBizAlertFromWarningCenter(row, { content, attachments = [], operato
       return
     }
     if (row.bizModule === 'major') {
-      const note =
-        disposal_result === '误报'
-          ? `误报：${content || ''}`.trim()
-          : content || ''
-      handleAlertRecord(row.bizAlertId, { content: note, handler: operator || '系统' })
+      handleAlertRecord(row.bizAlertId, {
+        result: disposal_result === '误报' ? '误报' : '已处置',
+        content: content || '', attachments, handler: operator || '系统',
+      })
     }
   })
 }
@@ -1373,9 +1453,10 @@ export function markModuleWarningCenterByBizDispose(
     if (row.warnType !== '处置任务') continue
     if (row.status !== '待处理' && row.status !== '待处置') continue
     row.status = '已关闭'
-    row.handler = operator
-    if (row.module === '危大工程管理') row.disposalTime = now
-    else row.time = now
+    row.handler = row.bizModule === 'ai'
+      ? aiAlerts.value.find((item) => String(item.id) === String(row.bizAlertId))?.disposedBy || operator
+      : operator
+    row.disposalTime = now
     row.disposalResult = disposalResult
     row.disposalNote = disposalNote || ''
     row.disposalAttachments = [...attachments]
@@ -2082,7 +2163,7 @@ export function ensureLaborWarningCenterSeeds() {
       }
     } else {
       existing.module = existing.module || row.module
-      existing.projectName = existing.projectName || row.projectName
+      existing.projectName = row.projectName || existing.projectName
       existing.description = existing.description || row.description
       existing.warnType = existing.warnType || row.warnType
       existing.warningNo = existing.warningNo || row.warningNo
@@ -2102,7 +2183,7 @@ export function ensureLaborWarningCenterSeeds() {
 export function listPersonalWarningCenter({ includeAllMajorHazardExamples = false } = {}) {
   ensureLaborWarningCenterSeeds()
   const rows = personalWarningCenterStore.items.filter((row) => !row.dismissed)
-  if (includeAllMajorHazardExamples) return rows
+  if (includeAllMajorHazardExamples) return rows.map(getWarningCenterBusinessView)
   const selectedExamples = new Set()
   const types = new Set()
   for (const row of rows) {
@@ -2112,13 +2193,20 @@ export function listPersonalWarningCenter({ includeAllMajorHazardExamples = fals
     types.add(row.alertType)
   }
   return rows.filter((row) => row.module !== '危大工程管理' || !row.isExample || selectedExamples.has(row.id))
+    .map(getWarningCenterBusinessView)
 }
 
 export function getPersonalWarningCenterItem(id) {
-  ensureLaborWarningCenterSeeds()
-  return personalWarningCenterStore.items.find(
-    (row) => !row.dismissed && String(row.id) === String(id),
-  ) || null
+  let row = personalWarningCenterStore.items.find(
+    (item) => !item.dismissed && String(item.id) === String(id),
+  )
+  if (!row) {
+    ensureLaborWarningCenterSeeds()
+    row = personalWarningCenterStore.items.find(
+      (item) => !item.dismissed && String(item.id) === String(id),
+    )
+  }
+  return row ? getWarningCenterBusinessView(row) : null
 }
 
 export function disposePersonalWarningCenterItem(
@@ -2165,6 +2253,8 @@ export function batchDisposeWarningCenter(ids, { content, attachments = [], oper
       row.status === '待处理',
   )
   if (!targets.length) return 0
+  if (disposal_result === '误报' && targets.some((row) =>
+    row.module === '危大工程管理')) return 0
 
   const warningIds = targets.map((row) => row.laborWarningId).filter(Boolean)
   if (warningIds.length) {
@@ -2191,8 +2281,11 @@ export function batchDisposeWarningCenter(ids, { content, attachments = [], oper
       }
     }
     row.status = '已关闭'
-    row.handler = operator
-    row.time = now
+    row.handler = row.bizModule === 'ai'
+      ? aiAlerts.value.find((item) => String(item.id) === String(row.bizAlertId))?.disposedBy || operator
+      : operator
+    if (row.laborWarningId) row.time = now
+    else row.disposalTime = now
     row.disposalResult =
       row.module === '危大工程管理' ? '已关闭' : disposal_result || '已处置'
     row.disposalNote = content || ''

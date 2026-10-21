@@ -58,10 +58,6 @@ function goBack() {
               <div class="ai-info-value">{{ alert.occurredAt }}</div>
             </div>
             <div class="ai-info-item">
-              <div class="ai-info-label">处置人</div>
-              <div class="ai-info-value">{{ alert.handler }}</div>
-            </div>
-            <div class="ai-info-item">
               <div class="ai-info-label">所属项目</div>
               <div class="ai-info-value">{{ alert.projectName }}</div>
             </div>

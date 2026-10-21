@@ -13,7 +13,6 @@ import {
   READ_STATUS_OPTIONS,
   NOTICE_MODULE_OPTIONS,
   WARNING_CENTER_TYPE_OPTIONS,
-  WARNING_CENTER_STATUS_OPTIONS,
   WARNING_CENTER_MODULE_OPTIONS,
   ensureQmPersonalCenterSeeds,
   ensureLaborWarningCenterSeeds,
@@ -94,6 +93,12 @@ const warningCenterList = computed(() => {
   warningCenterTick.value
   return listPersonalWarningCenter()
 })
+const warningStatusOptions = computed(() => {
+  const rows = filters.warnModule
+    ? warningCenterList.value.filter((row) => row.module === filters.warnModule)
+    : warningCenterList.value
+  return [...new Set(rows.map((row) => row.business?.status || row.status))]
+})
 
 const startedSelection = ref([])
 const noticeSelection = ref([])
@@ -101,6 +106,11 @@ const warningSelection = ref([])
 
 const page = ref(1)
 const pageSize = ref(10)
+
+watch(() => filters.warnModule, () => {
+  filters.warnStatus = ''
+  page.value = 1
+})
 
 function resetFilters() {
   filters.processName = ''
@@ -173,11 +183,12 @@ const filteredWarningCenter = computed(() => {
   let rows = [...warningCenterList.value]
   if (filters.warnModule) rows = rows.filter((r) => r.module === filters.warnModule)
   if (filters.warnType) rows = rows.filter((r) => r.warnType === filters.warnType)
-  if (filters.warnStatus) rows = rows.filter((r) => r.status === filters.warnStatus)
+  if (filters.warnStatus) rows = rows.filter((r) => (r.business?.status || r.status) === filters.warnStatus)
   const kw = filters.warnKeyword.trim()
   if (kw) {
     rows = rows.filter((r) =>
-      [r.description, r.projectName, r.handler, r.module].some((v) => String(v || '').includes(kw)),
+      [r.description, r.projectName, r.business?.handler ?? r.handler,
+        r.business?.type, r.business?.status, r.module].some((v) => String(v || '').includes(kw)),
     )
   }
   return rows
@@ -228,13 +239,13 @@ function viewWarningCenter(row) {
     if (findPersonalTodo(todoId)) {
       router.push({
         path: '/personal-center/todo/handle',
-        query: { id: todoId, from: 'todo' },
+        query: { id: todoId, from: 'todo', returnTo: props.basePath, returnTab: 'warning-center' },
       })
       return
     }
     router.push({
       path: '/personal-center/todo/handle',
-      query: { warningId, from: 'warning-center' },
+      query: { warningId, from: 'warning-center', returnTo: props.basePath, returnTab: 'warning-center' },
     })
     return
   }
@@ -244,7 +255,7 @@ function viewWarningCenter(row) {
   }
   router.push({
     path: '/personal-center/todo/handle',
-    query: { id: row.id, from: 'warning-center' },
+    query: { id: row.id, from: 'warning-center', returnTo: props.basePath, returnTab: 'warning-center' },
   })
 }
 
@@ -263,22 +274,29 @@ const batchDisposeContent = ref('')
 const batchDisposeFiles = ref([])
 const batchDisposeSubmitting = ref(false)
 
-const batchIncludesMajorHazard = computed(() =>
-  warningSelection.value.some((row) => row.module === '危大工程管理'),
-)
-const batchDisposalResultOptions = computed(() =>
-  batchIncludesMajorHazard.value ? ['已处置'] : ['已处置', '误报'],
-)
+const selectedPendingWarnings = computed(() => warningSelection.value.filter(
+  (row) => row.warnType === '处置任务' && row.status === '待处理',
+))
+const batchModule = computed(() => selectedPendingWarnings.value[0]?.module || '')
+const batchDisposalResultOptions = computed(() => {
+  if (batchModule.value === 'AI应用') return ['已处理', '误报']
+  if (batchModule.value === '危大工程管理') return ['已关闭']
+  return ['已处置', '误报']
+})
+const batchNoteLabel = computed(() => {
+  if (batchModule.value === '机械设备监管') return '预警说明'
+  return '处置说明'
+})
 
 function openBatchDispose() {
   if (!warningSelection.value.length) return ElMessage.warning('请先勾选要处置的预警')
-  const pendingTasks = warningSelection.value.filter(
-    (r) => r.warnType === '处置任务' && r.status === '待处理',
-  )
-  if (!pendingTasks.length) {
+  if (!selectedPendingWarnings.value.length) {
     return ElMessage.warning('所选条目中没有可批量处置的「待处理」处置任务')
   }
-  batchDisposeResult.value = '已处置'
+  if (new Set(selectedPendingWarnings.value.map((row) => row.module)).size > 1) {
+    return ElMessage.warning('请分别选择同一业务模块的预警进行批量处置')
+  }
+  batchDisposeResult.value = batchDisposalResultOptions.value[0]
   batchDisposeContent.value = ''
   batchDisposeFiles.value = []
   batchDisposeVisible.value = true
@@ -286,11 +304,9 @@ function openBatchDispose() {
 
 async function confirmBatchDispose() {
   if (!batchDisposeResult.value) return ElMessage.warning('请选择处置结果')
-  if (batchIncludesMajorHazard.value && batchDisposeResult.value === '误报') {
-    return ElMessage.warning('危大工程异常不支持按误报处置')
-  }
+  if (!batchDisposalResultOptions.value.includes(batchDisposeResult.value)) return ElMessage.warning('请选择有效的处置结果')
   const content = batchDisposeContent.value.trim()
-  if (!content) return ElMessage.warning('请填写处置说明')
+  if (!content && batchModule.value !== '机械设备监管') return ElMessage.warning(`请填写${batchNoteLabel.value}`)
   await ElMessageBox.confirm('确认将所选「待处理」处置任务批量关闭为「已关闭」？', '批量处置预警', {
     type: 'warning',
   })
@@ -544,7 +560,7 @@ watch([activeTotal, pageSize], () => {
         </el-select>
         <span class="filter-label">状态</span>
         <el-select v-model="filters.warnStatus" clearable placeholder="请选择" style="width: 150px" aria-label="请选择">
-          <el-option v-for="s in WARNING_CENTER_STATUS_OPTIONS" :key="s" :label="s" :value="s" />
+          <el-option v-for="s in warningStatusOptions" :key="s" :label="s" :value="s" />
         </el-select>
         <span class="filter-label">预警描述</span>
         <el-input v-model="filters.warnKeyword" clearable placeholder="请输入关键词" style="width: 240px" aria-label="请输入关键词"/>
@@ -569,10 +585,18 @@ watch([activeTotal, pageSize], () => {
         <el-table-column prop="module" label="所属模块" width="110" />
         <el-table-column prop="projectName" label="项目名称" width="120" show-overflow-tooltip />
         <el-table-column prop="description" label="预警描述" min-width="280" show-overflow-tooltip />
-        <el-table-column prop="handler" label="处理人" width="100" />
-        <el-table-column prop="warnType" label="类型" width="120" />
-        <el-table-column prop="status" label="状态" width="100" />
-        <el-table-column prop="time" label="消息时间" width="170" />
+        <el-table-column label="处理人" width="100">
+          <template #default="{ row }">{{ row.business ? (row.business.handler || '--') : (row.handler || '--') }}</template>
+        </el-table-column>
+        <el-table-column label="类型" width="120">
+          <template #default="{ row }">{{ row.business?.type || row.warnType || '--' }}</template>
+        </el-table-column>
+        <el-table-column label="状态" width="120">
+          <template #default="{ row }">{{ row.business?.status || row.status || '--' }}</template>
+        </el-table-column>
+        <el-table-column label="业务时间" width="170">
+          <template #default="{ row }">{{ row.business?.time || row.time || '--' }}</template>
+        </el-table-column>
         <el-table-column label="操作" width="90" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="viewWarningCenter(row)">详情</el-button>
@@ -587,8 +611,9 @@ watch([activeTotal, pageSize], () => {
         destroy-on-close
       >
         <el-form label-width="96px">
-          <el-form-item label="处置结果" required>
-            <el-radio-group v-model="batchDisposeResult">
+          <el-form-item :label="batchModule === '机械设备监管' ? '处理结果' : '处置结果'" required>
+            <el-tag v-if="batchModule === '危大工程管理'" type="success">已关闭</el-tag>
+            <el-radio-group v-else v-model="batchDisposeResult">
               <el-radio
                 v-for="opt in batchDisposalResultOptions"
                 :key="opt"
@@ -598,14 +623,14 @@ watch([activeTotal, pageSize], () => {
               </el-radio>
             </el-radio-group>
           </el-form-item>
-          <el-form-item label="处置说明" required>
+          <el-form-item :label="batchNoteLabel" :required="batchModule !== '机械设备监管'">
             <el-input
               v-model="batchDisposeContent"
               type="textarea"
               :rows="4"
-              maxlength="500"
+              :maxlength="batchModule === 'AI应用' ? 300 : 500"
               show-word-limit
-              placeholder="请填写处置说明（与详情处置一致）" aria-label="请填写处置说明（与详情处置一致）"/>
+              :placeholder="`请填写${batchNoteLabel}`" :aria-label="`请填写${batchNoteLabel}`"/>
           </el-form-item>
           <el-form-item label="处置附件">
             <AttachmentUpload v-model="batchDisposeFiles" preset="file" :min="0" :max="9" name-prefix="处置附件" />

@@ -17,6 +17,15 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.17.1.24',
+    date: '2026-10-21',
+    highlights: [
+      '个人中心·预警中心：列表的处理人 / 类型 / 状态 / 业务时间改为取业务台账真实值（AI 应用、机械设备、危大工程），状态筛选项随所选模块动态生成',
+      '个人中心·预警中心：批量处置按模块区分处置结果（AI 已处理 / 误报、危大已关闭、机械处理结果 + 预警说明），并限制跨模块混合批量处置',
+      '个人中心·预警中心：从预警进入详情处置后，返回可直接回到「预警中心」页签，不再跳回工作台首页',
+    ],
+  },
+  {
     version: 'v2.17.1.23',
     date: '2026-10-21',
     highlights: [

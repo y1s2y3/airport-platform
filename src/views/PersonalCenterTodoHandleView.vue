@@ -114,6 +114,12 @@ const todoSourceLabel = computed(() => {
 
 function goBack() {
   const tab = fromTab.value
+  const returnTo = String(route.query.returnTo || '')
+  const returnTab = String(route.query.returnTab || '')
+  if (['/workbench', '/personal-center'].includes(returnTo) && returnTab === 'warning-center') {
+    router.push({ path: returnTo, query: { tab: returnTab } })
+    return
+  }
   // 建管 APP 壳内处置页：返回 APP 个人中心
   if (route.path.startsWith('/app')) {
     const q =
