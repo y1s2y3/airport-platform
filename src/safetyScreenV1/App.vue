@@ -951,8 +951,26 @@ function handleRealtimeAlert(item) {
   router.push('/machine-supervise/alert-record')
 }
 
+/**
+ * 画布等比缩放（用户 2026-10-21，方案 A）：
+ * 大屏按 1920×1080 设计稿排版，再整体缩放到视口内并居中，
+ * 避免窗口偏矮时面板被压扁、文字重叠（看着像乱码）。
+ */
+const DESIGN_WIDTH = 1920
+const DESIGN_HEIGHT = 1080
+const screenScale = ref(1)
+
+function updateScreenScale() {
+  const w = window.innerWidth || DESIGN_WIDTH
+  const h = window.innerHeight || DESIGN_HEIGHT
+  const scale = Math.min(w / DESIGN_WIDTH, h / DESIGN_HEIGHT)
+  screenScale.value = Number.isFinite(scale) && scale > 0 ? Number(scale.toFixed(4)) : 1
+}
+
 onMounted(() => {
   document.body.classList.add('coc-hq-shell')
+  updateScreenScale()
+  window.addEventListener('resize', updateScreenScale)
   tick()
   timer = window.setInterval(tick, 1000)
   realtimeTimer = window.setInterval(() => {
@@ -962,13 +980,14 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.body.classList.remove('coc-hq-shell')
+  window.removeEventListener('resize', updateScreenScale)
   if (timer) window.clearInterval(timer)
   if (realtimeTimer) window.clearInterval(realtimeTimer)
 })
 </script>
 
 <template>
-  <div class="safety-screen-app safety-screen-v1">
+  <div class="safety-screen-app safety-screen-v1" :style="{ '--screen-scale': screenScale }">
     <HqEdgeLights />
 
     <header class="safety-header">

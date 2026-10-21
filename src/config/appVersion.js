@@ -17,6 +17,13 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.17.1.23',
+    date: '2026-10-21',
+    highlights: [
+      '安全态势大屏（V1 经典版 / V2 当前版）：改为 1920×1080 设计画布 + 等比缩放居中，窗口偏矮时不再压缩面板、文字不再重叠',
+    ],
+  },
+  {
     version: 'v2.17.1.22',
     date: '2026-10-21',
     highlights: [

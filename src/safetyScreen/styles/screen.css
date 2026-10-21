@@ -36,10 +36,19 @@ body.coc-hq-shell {
 
 .safety-screen-app button { color: inherit; }
 
+/*
+ * 大屏画布（用户 2026-10-21，方案 A）：固定 1920×1080 设计稿 + 等比缩放居中。
+ * 之前用 100vw/100vh 铺满，窗口一矮面板就被压到内容以下、文字重叠（看着像乱码）。
+ * scale 由 App.vue 按 min(视口宽/1920, 视口高/1080) 计算后写入 --screen-scale。
+ */
 .safety-screen-app {
-  position: relative;
-  width: 100vw;
-  height: 100vh;
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  width: 1920px;
+  height: 1080px;
+  transform: translate(-50%, -50%) scale(var(--screen-scale, 1));
+  transform-origin: center center;
   overflow: hidden;
   background:
     radial-gradient(circle at 50% 38%, rgba(16, 116, 173, 0.18), transparent 36%),
@@ -83,7 +92,7 @@ body.coc-hq-shell {
   margin: -8px 0 0;
   color: #f3fdff;
   max-width: 560px;
-  font-size: clamp(22px, 1.42vw, 28px);
+  font-size: 27px;
   font-weight: 700;
   letter-spacing: 3px;
   text-align: center;
@@ -176,9 +185,9 @@ body.coc-hq-shell {
 .safety-screen-app .dashboard-shell {
   position: relative;
   z-index: 2;
-  height: calc(100vh - 76px);
+  height: calc(100% - 76px);
   display: grid;
-  grid-template-columns: clamp(310px, 18vw, 356px) minmax(650px, 1fr) clamp(318px, 18.5vw, 365px);
+  grid-template-columns: clamp(310px, 18%, 356px) minmax(650px, 1fr) clamp(318px, 18.5%, 365px);
   gap: 10px;
   padding: 0 18px 8px;
 }
@@ -606,8 +615,8 @@ body.coc-hq-shell {
 }
 
 .safety-screen-app .detail-modal {
-  width: min(1120px, 82vw);
-  max-height: 76vh;
+  width: min(1120px, 82%);
+  max-height: 76%;
   overflow: hidden;
   border: 1px solid rgba(73, 217, 250, 0.62);
   background: linear-gradient(180deg, rgba(7, 38, 72, 0.99), rgba(3, 22, 46, 0.99));
@@ -633,7 +642,7 @@ body.coc-hq-shell {
 .safety-screen-app .detail-modal__source > span { padding: 3px 8px; border: 1px solid rgba(61, 208, 239, 0.3); color: #59dff0; background: rgba(21, 117, 151, 0.25); }
 .safety-screen-app .detail-modal__source em { margin-left: auto; color: #5e90a3; font-size: 11px; font-style: normal; }
 
-.safety-screen-app .detail-table-wrap { max-height: calc(76vh - 106px); overflow: auto; padding: 0 20px 20px; }
+.safety-screen-app .detail-table-wrap { max-height: calc(76% - 106px); overflow: auto; padding: 0 20px 20px; }
 .safety-screen-app .detail-table { width: 100%; border-collapse: collapse; color: #ccecf3; font-size: 13px; table-layout: fixed; }
 .safety-screen-app .detail-table th { position: sticky; z-index: 1; top: 0; height: 42px; border: 1px solid rgba(68, 183, 222, 0.18); background: #0b3155; color: #86b7c8; font-weight: 500; }
 .safety-screen-app .detail-table td { height: 40px; padding: 0 12px; border: 1px solid rgba(68, 183, 222, 0.12); text-align: center; }
@@ -663,7 +672,7 @@ body.coc-hq-shell {
 @media (max-height: 850px) {
   .safety-screen-app .safety-header { height: 66px; }
   .safety-screen-app .safety-header__bg { height: 64px; }
-  .safety-screen-app .dashboard-shell { height: calc(100vh - 66px); }
+  .safety-screen-app .dashboard-shell { height: calc(100% - 66px); }
   .safety-screen-app .dashboard-center { grid-template-rows: minmax(0, 1fr) 205px; }
   .safety-screen-app .panel-heading { height: 32px; }
   .safety-screen-app .metric-quad { margin-top: 5px; }
@@ -686,12 +695,12 @@ body.coc-hq-shell {
 .safety-screen-app .level-select option { color: #12283a; background: #fff; }
 
 .safety-screen-app .dashboard-shell {
-  grid-template-columns: clamp(340px, 25vw, 450px) minmax(560px, 1fr) clamp(340px, 25vw, 450px);
+  grid-template-columns: clamp(340px, 25%, 450px) minmax(560px, 1fr) clamp(340px, 25%, 450px);
   grid-template-rows: minmax(0, 1.55fr) minmax(0, 1fr);
 }
 
 .safety-screen-app .dashboard-shell--project {
-  grid-template-columns: clamp(340px, 25vw, 450px) minmax(560px, 1fr) clamp(340px, 25vw, 450px);
+  grid-template-columns: clamp(340px, 25%, 450px) minmax(560px, 1fr) clamp(340px, 25%, 450px);
 }
 
 .safety-screen-app .dashboard-shell > .layout-left-top,
