@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -126,6 +126,7 @@ import {
   saveWorkbenchShortcutKeys,
 } from '../mock/workbenchShortcuts.js'
 import { TRACK_EXTERNAL_MENU_KEYS, openTrackExternalByMenuKey } from '../utils/trackExternalJump'
+import { openPhase1ByItem } from '../utils/phase1Jump'
 import { resolveMenuIconName } from '../utils/menuIcon.js'
 import AiScreenIcon from '../components/icons/AiScreenIcon.vue'
 import SafetyScreenIcon from '../components/icons/SafetyScreenIcon.vue'
@@ -386,6 +387,11 @@ function openPicker() {
 
 function openShortcut(item) {
   if (!item?.key) return
+  // 一期系统入口：新窗口跳转，不进入二期伪路由
+  if (item.externalJump) {
+    openPhase1ByItem({ label: item.label, hashPath: item.externalJump.hashPath })
+    return
+  }
   if (TRACK_EXTERNAL_MENU_KEYS.has(item.key)) {
     openTrackExternalByMenuKey(item.key)
     return

@@ -7,10 +7,12 @@ import {
   MENU_SCOPE_HQ,
   MENU_SCOPE_PROJECT,
   filterMenuByLevel,
+  filterPhase1ByRole,
   menuTree,
   resolveMenuTree,
 } from '../config/menu.js'
 import { SAMPLE_APPROVE_MENU_KEYS } from '../utils/sampleHiddenMenuKeys.js'
+import { resolvePhase1RoleIds } from '../utils/phase1Role.js'
 
 const STORAGE_KEY = 'workbench-shortcuts-v1'
 const EXCLUDED_KEYS = new Set(['workbench', 'personal-center'])
@@ -185,10 +187,11 @@ function stripHidden(items = []) {
     .filter((item) => !item.children || item.children.length > 0)
 }
 
-/** 当前层级可选菜单树（与侧栏同口径，不含工作台自身） */
+/** 当前层级可选菜单树（与侧栏同口径，不含工作台自身；一期入口按角色过滤） */
 export function getWorkbenchMenuTree(isHq) {
   const level = levelKey(isHq)
-  return stripHidden(resolveMenuTree(filterMenuByLevel(menuTree, level), level))
+  const scoped = filterPhase1ByRole(filterMenuByLevel(menuTree, level), resolvePhase1RoleIds())
+  return stripHidden(resolveMenuTree(scoped, level))
 }
 
 function walkLeaves(items, ancestorIcon, out) {
@@ -204,6 +207,7 @@ function walkLeaves(items, ancestorIcon, out) {
         query: item.query,
         icon: icon || 'Document',
         openInNewTab: Boolean(item.openInNewTab),
+        externalJump: item.externalJump,
       })
     }
   }
@@ -324,6 +328,7 @@ export function listWorkbenchShortcuts(isHq, keys) {
         query: item.query,
         icon: item.icon,
         openInNewTab: item.openInNewTab,
+        externalJump: item.externalJump,
         iconBg: theme.iconBg,
         iconColor: theme.iconColor,
       }

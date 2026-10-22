@@ -6,6 +6,7 @@ import { ArrowDown, SwitchButton, Fold, Expand, Lock } from '@element-plus/icons
 import {
   menuTree,
   filterMenuByLevel,
+  filterPhase1ByRole,
   resolveMenuTree,
   flattenMenuLeaves,
   getMenuLabelByPath,
@@ -17,6 +18,8 @@ import {
 import { projectList } from '../mock/projectBasicInfo'
 import { selectedProjectId, useCurrentProject } from '../composables/useCurrentProject'
 import { TRACK_EXTERNAL_MENU_KEYS, openTrackExternalByMenuKey } from '../utils/trackExternalJump'
+import { openPhase1ByItem } from '../utils/phase1Jump'
+import { resolvePhase1RoleIds } from '../utils/phase1Role'
 import { SAMPLE_APPROVE_MENU_KEYS } from '../utils/sampleHiddenMenuKeys.js'
 import {
   APP_VERSION,
@@ -96,7 +99,15 @@ watch(
 /** 当前层级：指挥部 / 项目 */
 const currentLevel = computed(() => (isHqSelected.value ? 'hq' : 'project'))
 
-/** 侧栏可见菜单 = 按层级过滤 → 排序 → 名称覆盖 → 剔除已迁个人中心的样板审批入口 */
+/** 当前生效的一期授权角色（支持 ?role=HQ-03 预览；正式系统替换为登录角色） */
+const phase1RoleIds = computed(() => resolvePhase1RoleIds({ override: String(route.query.role || '') }))
+
+/** 层级过滤 + 一期入口角色过滤（二期既有菜单不受影响） */
+const scopedSidebarMenu = computed(() =>
+  filterPhase1ByRole(filterMenuByLevel(menuTree, currentLevel.value), phase1RoleIds.value),
+)
+
+/** 侧栏可见菜单 = 按层级/角色过滤 → 排序 → 名称覆盖 → 剔除已迁个人中心的样板审批入口 */
 const visibleSidebarMenu = computed(() => {
   const stripApprove = (items = []) =>
     items
@@ -105,13 +116,12 @@ const visibleSidebarMenu = computed(() => {
         item.children?.length ? { ...item, children: stripApprove(item.children) } : item,
       )
       .filter((item) => !item.children || item.children.length > 0)
-  const scoped = filterMenuByLevel(menuTree, currentLevel.value)
-  return stripApprove(resolveMenuTree(scoped, currentLevel.value))
+  return stripApprove(resolveMenuTree(scopedSidebarMenu.value, currentLevel.value))
 })
 
 /** 高亮菜单索引：route.query.entry 区分同一路径下的多个菜单入口 */
 const activeMenuIndex = computed(() => {
-  const leaves = flattenMenuLeaves(filterMenuByLevel(menuTree, currentLevel.value))
+  const leaves = flattenMenuLeaves(scopedSidebarMenu.value)
   const entry = String(route.query.entry || '')
   const menuItem = entry
     ? leaves.find((leaf) => leaf.path === route.path && String(leaf.query?.entry || '') === entry)
@@ -127,9 +137,7 @@ function menuIndex(item) {
 
 /** 当前层级菜单索引，以唯一路径/查询组合识别入口 */
 const leafByMenuIndex = computed(() =>
-  new Map(
-    flattenMenuLeaves(filterMenuByLevel(menuTree, currentLevel.value)).map((leaf) => [menuIndex(leaf), leaf]),
-  ),
+  new Map(flattenMenuLeaves(scopedSidebarMenu.value).map((leaf) => [menuIndex(leaf), leaf])),
 )
 
 function onMenuSelect(index) {
@@ -138,6 +146,11 @@ function onMenuSelect(index) {
 }
 
 function navigateByMenuItem(item) {
+  // 一期系统入口：只做页面跳转，新窗口打开一期对应页面（不复制页面、不打通数据）
+  if (item.externalJump) {
+    openPhase1ByItem({ label: item.label, hashPath: item.externalJump.hashPath })
+    return
+  }
   const menuKey = item.key || ''
   if (menuKey && TRACK_EXTERNAL_MENU_KEYS.has(menuKey)) {
     openTrackExternalByMenuKey(menuKey)
@@ -909,6 +922,40 @@ function skipToMain(e) {
   flex: 1;
   border-right: none;
   overflow-y: auto;
+  /* 菜单过长时只允许纵向滚动，横向统一省略号截断（避免出现横向滚动条把文字切掉） */
+  overflow-x: hidden;
+}
+
+/* 菜单文字：长名称允许换行完整显示，不做横向滚动/省略号截断 */
+.sidebar-menu :deep(.el-menu-item),
+.sidebar-menu :deep(.el-sub-menu__title) {
+  overflow: hidden;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.sidebar-menu :deep(.el-menu-item) {
+  height: auto;
+  min-height: 46px;
+  line-height: 1.45;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.sidebar-menu :deep(.el-menu-item > span),
+.sidebar-menu :deep(.el-sub-menu__title > span) {
+  min-width: 0;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.45;
+}
+
+.sidebar-menu :deep(.menu-leaf-label) {
+  display: inline;
+  max-width: none;
+  white-space: normal;
+  word-break: break-word;
+  vertical-align: middle;
 }
 
 /* el-menu 主题覆写：对齐深酒红规范 */

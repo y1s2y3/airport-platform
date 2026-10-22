@@ -1,4 +1,5 @@
 import { resolveQmInspectHandleRedirect } from '../mock/personalCenter.js'
+import { PHASE1_MENU_GROUPS, PHASE1_CATALOGS } from './phase1Menu.js'
 
 /**
  * 菜单配置 —— 唯一数据源（单文件）
@@ -23,8 +24,10 @@ export const MENU_SCOPE_PROJECT = 'project'
 
 /* ============================================================================
  * 1. 侧栏菜单树（唯一展示数据源）
+ *    rawMenuTree 为二期原有菜单；export 的 menuTree 由 `buildFusedMenuTree`
+ *    重排为「二期能力 + 一期系统跳转入口」融合结构（见 §1.5）。
  * ==========================================================================*/
-export const menuTree = [
+const rawMenuTree = [
   { key: 'workbench', label: '工作台', icon: 'Monitor', path: '/workbench', name: 'Workbench', component: 'WorkbenchView', levels: 'both' },
   /** 建管 APP：顶层全屏壳（router/index.js），不进 AdminLayout；buildRoutes 跳过 /app */
   {
@@ -364,6 +367,296 @@ export const menuTree = [
 ]
 
 /* ============================================================================
+ * 1.5 菜单融合：二期功能重排 + 一期系统跳转入口
+ *
+ * 背景（2026-10-21 用户裁决）：
+ * - 本期只做「页面跳转集成」：二期开菜单 → 新窗口打开一期对应页面；
+ *   不复制一期页面、不做数据/审批打通、术语暂不改。
+ * - 一期菜单过多，二期一级菜单重排为 12 个（含建管APP），一期 14 个业务域
+ *   全部挂到对应一级下（跳转项来自 config/phase1Menu.js，单一事实源）。
+ * - 只移动/合并既有节点，不改原节点 key（避免权限树已授权关系大面积失效）。
+ * ==========================================================================*/
+
+/** 深度查找菜单节点 */
+function findMenuNode(items, key) {
+  for (const item of items) {
+    if (item.key === key) return item
+    if (item.children?.length) {
+      const hit = findMenuNode(item.children, key)
+      if (hit) return hit
+    }
+  }
+  return null
+}
+
+function requireMenuNode(items, key) {
+  const node = findMenuNode(items, key)
+  if (!node) throw new Error(`[menu] 菜单融合失败：未找到菜单项 ${key}`)
+  return node
+}
+
+/** 一期跳转项 → 二期菜单叶子（伪路由 + 占位页兜底） */
+function toPhase1Leaf(item, group = {}) {
+  const slug = String(item.key || '').replace(/^p1-/, '')
+  const name =
+    'Phase1' +
+    slug
+      .split('-')
+      .map((part) => (part ? part.charAt(0).toUpperCase() + part.slice(1) : ''))
+      .join('')
+  return {
+    key: item.key,
+    label: item.label,
+    icon: item.icon || 'Link',
+    path: `/phase1/${slug}`,
+    name,
+    component: 'Phase1JumpView',
+    levels: item.levels || group.levels || 'both',
+    roles: item.roles || group.roles || [],
+    externalJump: { system: 'phase1', hashPath: item.hashPath, verified: item.verified !== false },
+    description: '跳转至一期系统（新窗口打开，二期不复制页面、不做数据打通）',
+  }
+}
+
+/** 一期分组 → 聚合页入口叶子（组内条目在聚合页按角色展示） */
+function toPhase1CatalogLeaf(group) {
+  const catalogKey = group.catalog
+  const catalog = PHASE1_CATALOGS[catalogKey] || {}
+  const name =
+    'Phase1Catalog' + catalogKey.split('-').map((p) => (p ? p.charAt(0).toUpperCase() + p.slice(1) : '')).join('')
+  return {
+    key: catalog.key || `p1-catalog-${catalogKey}`,
+    label: `${catalog.label || group.label}（${catalog.countLabel || `${(group.items || []).length} 项`}）`,
+    icon: catalog.icon || group.icon || 'Link',
+    path: `/phase1/catalog/${catalogKey}`,
+    name,
+    component: 'Phase1CatalogView',
+    levels: catalog.levels || group.levels || 'both',
+    roles: group.roles || [],
+    phase1Catalog: catalogKey,
+    description: '一期功能聚合入口：组内条目在页面中按角色过滤展示，点击仍新窗口跳转一期',
+  }
+}
+
+function buildPhase1LeafMap(groups) {
+  const map = new Map()
+  for (const group of groups) {
+    map.set(
+      group.key,
+      (group.items || []).map((item) => toPhase1Leaf(item, group)),
+    )
+  }
+  return map
+}
+
+/** 一期一级分组 → 二期二级分组（未 attachTo 的才新建分组；catalog 分组收敛为 1 个入口） */
+function collectPhase1Groups(groups, parentKey, leafMap) {
+  return groups
+    .filter((group) => group.parent === parentKey && !group.attachTo)
+    .map((group) => {
+      if (group.catalog) return toPhase1CatalogLeaf(group)
+      return {
+        key: group.key,
+        label: group.label,
+        icon: group.icon || 'Link',
+        levels: group.levels || 'both',
+        roles: group.roles || [],
+        children: leafMap.get(group.key) || [],
+      }
+    })
+}
+
+/** 把一期的补充入口挂到二期既有分组（如 人员管理 / 视频监控 / 施工作业管理） */
+function appendAttachedLeaves(groups, targetKey, targetNode, leafMap) {
+  const attached = groups.filter((group) => group.attachTo === targetKey)
+  if (!attached.length) return targetNode
+  const extra = attached.flatMap((group) => leafMap.get(group.key) || [])
+  return { ...targetNode, children: [...(targetNode.children || []), ...extra] }
+}
+
+/** 构建融合后的菜单树 */
+export function buildFusedMenuTree(raw = rawMenuTree) {
+  const leafMap = buildPhase1LeafMap(PHASE1_MENU_GROUPS)
+  const node = (key) => requireMenuNode(raw, key)
+  const groups = (parentKey) => collectPhase1Groups(PHASE1_MENU_GROUPS, parentKey, leafMap)
+
+  // 二期「档案管理」两级重复 → 合并为一条，并与一期「资料档案」合并成群
+  const archiveLinks = [
+    {
+      key: 'qm-archive-fill',
+      label: '档案管理（电子档案系统）',
+      icon: 'FolderChecked',
+      path: '/qm/inspect/archive-jump',
+      name: 'QmArchiveJump',
+      component: 'QmArchiveJumpView',
+      levels: 'both',
+      openInNewTab: true,
+    },
+    {
+      key: 'qm-provincial-form',
+      label: '省统表管理',
+      icon: 'Document',
+      path: '/qm/inspect/archive-jump',
+      name: 'QmProvincialFormJump',
+      component: 'QmArchiveJumpView',
+      levels: 'both',
+      openInNewTab: true,
+      query: { entry: 'provincial' },
+    },
+  ]
+
+  // 一期补充入口挂到二期既有分组
+  const workManage = appendAttachedLeaves(PHASE1_MENU_GROUPS, 'work-manage', node('work-manage'), leafMap)
+  const labor = appendAttachedLeaves(PHASE1_MENU_GROUPS, 'labor', node('labor'), leafMap)
+  const videoMonitor = appendAttachedLeaves(PHASE1_MENU_GROUPS, 'video-monitor', node('video-monitor'), leafMap)
+  const machineSupervise = appendAttachedLeaves(
+    PHASE1_MENU_GROUPS,
+    'machine-supervise',
+    node('machine-supervise'),
+    leafMap,
+  )
+  // 指挥部层「机械设备台账」并入机械设备监管分组
+  const machineEntryHq = node('machine-entry-manage')
+  const machineSuperviseWithLedger = {
+    ...machineSupervise,
+    children: [machineEntryHq, ...(machineSupervise.children || [])],
+  }
+
+  // 巡检管理中的「消息中心（移动端）」挪到综合办公
+  const inspectionNode = node('safety-inspection')
+  const messageCenterLeaf = (inspectionNode.children || []).find((c) => c.key === 'mobile-message-center')
+  const safetyInspection = {
+    ...inspectionNode,
+    children: (inspectionNode.children || []).filter((c) => c.key !== 'mobile-message-center'),
+  }
+
+  return [
+    node('workbench'),
+    {
+      key: 'project-control',
+      label: '项目管控',
+      icon: 'TrendCharts',
+      levels: 'both',
+      children: groups('project-control').map((group) =>
+        group.key === 'p1g-archive'
+          ? {
+              // 资料档案：二期电子档案（2 项）+ 一期资料档案（6 项）平铺在同一分组
+              key: 'p1g-archive',
+              label: '资料档案',
+              icon: 'FolderOpened',
+              levels: 'both',
+              roles: PHASE1_MENU_GROUPS.find((g) => g.key === 'p1g-archive')?.roles || [],
+              children: [...archiveLinks, ...(leafMap.get('p1g-archive') || [])],
+            }
+          : group,
+      ),
+    },
+    {
+      // 安全管理（2026-10-22 用户要求：「安全质量」拆分为安全管理 + 质量管理）
+      key: 'safety-manage',
+      label: '安全管理',
+      icon: 'Safety',
+      levels: 'both',
+      children: [
+        safetyInspection,
+        node('major-hazard-management'),
+        node('risk-manage-group'),
+        workManage,
+        // AI 应用：2026-10-22 由一级菜单下沉，归入安全管理
+        node('ai-app'),
+      ],
+    },
+    {
+      // 质量管理（含二期质量管控 + 一期质量巡检/技术专项入口）
+      key: 'quality-manage',
+      label: '质量管理',
+      icon: 'TrophyBase',
+      levels: 'both',
+      children: [
+        { ...node('construction-quality'), label: '质量管控' },
+        ...groups('security-quality'),
+      ],
+    },
+    {
+      key: 'smart-site',
+      label: '智慧工地',
+      icon: node('smart-site').icon,
+      levels: 'both',
+      children: [
+        labor,
+        node('vehicle'),
+        machineSuperviseWithLedger,
+        node('machine-ledger'),
+        node('major-hazard'),
+        node('alert-config'),
+        videoMonitor,
+        ...groups('smart-site'),
+      ],
+    },
+    { ...node('coc-admin'), label: '调度中心' },
+    node('assessment'),
+    {
+      key: 'data-board',
+      label: '数据看板',
+      icon: 'DataAnalysis',
+      levels: 'both',
+      children: [
+        {
+          key: 'board-safety',
+          label: '安全看板',
+          icon: 'DataLine',
+          levels: 'hq',
+          children: [
+            node('safety-dashboard'),
+            node('major-hazard-dashboard'),
+            node('video-monitor-stats'),
+            node('video-monitor-offline-notify-hq'),
+          ],
+        },
+        {
+          key: 'board-quality',
+          label: '质量看板',
+          icon: 'DataLine',
+          levels: 'hq',
+          children: [
+            node('qm-dashboard'),
+            node('brand-approval-stats'),
+            node('sample-ledger'),
+            node('mat-dashboard'),
+          ],
+        },
+        node('ai-alert-dashboard'),
+        ...groups('data-board'),
+      ],
+    },
+    {
+      key: 'office',
+      label: '综合办公',
+      icon: 'Tickets',
+      levels: 'both',
+      children: [messageCenterLeaf, ...groups('office')].filter(Boolean),
+    },
+    node('basic-data'),
+    {
+      key: 'sys-admin',
+      label: '系统管理',
+      icon: 'Setting',
+      levels: 'both',
+      children: [
+        { ...node('sys-settings'), label: '组织与权限' },
+        node('flow-manage'),
+        node('sys-config'),
+        node('sys-log'),
+        ...groups('sys-admin'),
+      ],
+    },
+    node('jg-app'),
+  ]
+}
+
+export const menuTree = buildFusedMenuTree()
+
+/* ============================================================================
  * 2. 隐藏子页路由（新增/编辑/详情等，不在侧栏显示，但要能跳转）
  *    sidebarKey 指向父菜单 key，用于高亮归属。
  * ==========================================================================*/
@@ -575,6 +868,10 @@ export const redirects = [
  * ==========================================================================*/
 export const viewLoaders = {
   WorkbenchView: () => import('../views/WorkbenchView.vue'),
+  /** 一期系统跳转占位页（跳转式集成兜底） */
+  Phase1JumpView: () => import('../views/phase1/Phase1JumpView.vue'),
+  /** 一期功能聚合页（支付管理/资料档案/一期系统管理等分组收敛入口） */
+  Phase1CatalogView: () => import('../views/phase1/Phase1CatalogView.vue'),
   AssessmentRankView: () => import('../views/assessment/AssessmentRankView.vue'),
   AssessmentConfigView: () => import('../views/assessment/AssessmentConfigView.vue'),
   PersonalCenterView: () => import('../views/PersonalCenterView.vue'),
@@ -806,6 +1103,30 @@ export function filterMenuByLevel(items = [], level = 'hq') {
     .filter((item) => !item.children || item.children.length > 0)
 }
 
+/**
+ * 一期入口按角色过滤（只影响一期跳转项/聚合入口；二期既有菜单不传 roles，保持全量可见）
+ * @param {Array} items 菜单树
+ * @param {string[]} roleIds 当前可用的定稿角色ID集合（如 ['HQ-02','PJ-01']）
+ */
+export function filterPhase1ByRole(items = [], roleIds = []) {
+  const set = new Set(roleIds || [])
+  const isPhase1 = (item) => Boolean(item.externalJump || item.phase1Catalog)
+  const visible = (item) => {
+    if (!isPhase1(item)) return true
+    const roles = item.roles || []
+    if (!roles.length) return true // 未配置角色 = 全部登录用户
+    return roles.some((role) => set.has(role))
+  }
+  return items
+    .filter(visible)
+    .map((item) =>
+      item.children?.length
+        ? { ...item, children: filterPhase1ByRole(item.children, roleIds) }
+        : item,
+    )
+    .filter((item) => !item.children || item.children.length > 0)
+}
+
 /** 按层级排序子项（sortByLevel[level] 覆盖自然顺序） */
 function sortChildren(items = [], level) {
   const hasOverride = items.some((item) => item.sortByLevel?.[level] != null)
@@ -930,7 +1251,13 @@ export function buildRoutes() {
         cocAdminKey: isCocAdmin ? item.key : undefined,
         videoMonitorKey: isVideoMonitor ? item.key : undefined,
       },
-      props: item.trackKind ? { kind: item.trackKind } : undefined,
+      props: item.phase1Catalog
+        ? { catalog: item.phase1Catalog, pageTitle: item.label }
+        : item.externalJump
+          ? { externalJump: item.externalJump, pageTitle: item.label }
+          : item.trackKind
+            ? { kind: item.trackKind }
+            : undefined,
     })
   }
 
