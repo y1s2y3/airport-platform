@@ -88,19 +88,27 @@ function viewDetail(row) {
 // 处置弹窗
 const disposeVisible = ref(false)
 const disposeItem = ref(null)
+const disposeResult = ref('已处置')
 const disposeContent = ref('')
 const disposeAttachments = ref([])
 
 function openDispose(row) {
   disposeItem.value = row
+  disposeResult.value = '已处置'
   disposeContent.value = ''
   disposeAttachments.value = []
   disposeVisible.value = true
 }
 
 function submitDispose() {
-  if (!disposeContent.value.trim()) { ElMessage.warning('请填写处置记录'); return }
-  handleAlertRecord(disposeItem.value.id, { content: disposeContent.value, attachments: disposeAttachments.value })
+  if (!disposeContent.value.trim()) { ElMessage.warning('请填写处置说明'); return }
+  const handled = handleAlertRecord(disposeItem.value.id, {
+    result: disposeResult.value,
+    content: disposeContent.value.trim(),
+    attachments: disposeAttachments.value,
+    handler: '张明',
+  })
+  if (!handled) { ElMessage.warning('该预警已处置或状态已变化'); return }
   ElMessage.success('处置完成')
   disposeVisible.value = false
   load()
@@ -208,9 +216,11 @@ function handleExport() {
         <div class="dr"><span class="dl">发生时间</span><span class="dv">{{ detailItem.time }}</span></div>
         <div class="dr"><span class="dl">处置状态</span><span class="dv"><span class="ap-status-tag" :class="detailItem.status === '未处置' ? 'ap-tag-high' : 'ap-tag-enabled'">{{ detailItem.status }}</span></span></div>
         <template v-if="detailItem.status === '已处置'">
-          <div class="dr"><span class="dl">负责人</span><span class="dv">{{ detailItem.handler || '-' }}</span></div>
-          <div class="dr"><span class="dl">处置记录</span><span class="dv">{{ detailItem.handlingContent || '-' }}</span></div>
+          <div class="dr"><span class="dl">处置结果</span><span class="dv">{{ detailItem.handlingResult || '已处置' }}</span></div>
+          <div class="dr"><span class="dl">处置人</span><span class="dv">{{ detailItem.handler || '-' }}</span></div>
           <div class="dr"><span class="dl">处置时间</span><span class="dv">{{ detailItem.handlingTime || '-' }}</span></div>
+          <div class="dr"><span class="dl">处置说明</span><span class="dv">{{ detailItem.handlingContent || '-' }}</span></div>
+          <div class="dr"><span class="dl">处置附件</span><span class="dv">{{ detailItem.handlingAttachments?.join('、') || '-' }}</span></div>
         </template>
       </div>
       <template #footer><el-button type="primary" class="ap-btn-primary" @click="detailVisible = false">关闭</el-button></template>
@@ -222,10 +232,17 @@ function handleExport() {
         预警：{{ disposeItem.alertType }}（{{ disposeItem.deviceName }}）
       </div>
       <el-form label-width="80px">
-        <el-form-item label="处置记录" required>
-          <el-input v-model="disposeContent" type="textarea" :rows="4" placeholder="请填写处置内容及措施..." aria-label="请填写处置内容及措施..."/>
+        <el-form-item label="处置结果" required>
+          <el-radio-group v-model="disposeResult">
+            <el-radio value="已处置">已处置</el-radio>
+            <el-radio value="误报">误报</el-radio>
+          </el-radio-group>
         </el-form-item>
-        <el-form-item label="上传附件">
+        <el-form-item label="处置说明" required>
+          <el-input v-model="disposeContent" type="textarea" :rows="4" maxlength="500" show-word-limit
+            :placeholder="disposeResult === '误报' ? '请说明判断为误报的原因' : '请填写处置说明'" aria-label="请填写处置说明"/>
+        </el-form-item>
+        <el-form-item label="处置附件">
           <AttachmentUpload v-model="disposeAttachments" preset="file" :min="0" :max="9" name-prefix="处置附件" />
         </el-form-item>
       </el-form>

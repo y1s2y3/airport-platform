@@ -1,4 +1,5 @@
 import { projectTree, getProjectLabel } from './laborRealName.js'
+import { findProjectById } from './projectBasicInfo.js'
 import { nowStr } from '../utils/datetime.js'
 import { notifyBizAlertDisposed } from './warningCenterBizHook.js'
 
@@ -43,8 +44,9 @@ const DB = {
   indicators: [], // { id, deviceId, name, unit, warningThreshold, alertThreshold }
   monitorData: [], // { id, deviceId, indicatorId, pointId, regionId, projectId, value, collectTime }
   alertRules: [],  // { id, name, hazardType, deviceIds[], indicatorIds[], handler, pushChannel, thresholdCondition, pushRule, enabled }
-  alertRecords: [], // { id, ruleId, hazardType, deviceName, region, point, indicatorName, currentValue, threshold, level, detail, time, status, handler, handlingContent, handlingTime }
+  alertRecords: [], // { id, ruleId, hazardType, deviceName, region, point, indicatorName, currentValue, threshold, level, detail, time, status, handler, handlingResult, handlingContent, handlingTime, handlingAttachments }
 }
+const seededAlertRecordProjects = new Set()
 
 let seq = 0
 function uid(prefix) { return `${prefix}-${++seq}` }
@@ -56,9 +58,14 @@ function seedProject(projectId) {
   const typeLabels = { pit: '深基坑', subway: '地铁铁路', formwork: '高支模' }
   const newDeviceTypes = { pit: '深基坑监测设备', subway: '地铁铁路安全监管监测设备', formwork: '高支模监测设备' }
   const deviceStatusOpts = ['已进场', '已安装', '使用中', '已拆除', '已退场']
+  const projectName = (findProjectById(projectId)?.shortName || getProjectLabel(projectId) || '当前项目').replace(/工程$/, '')
 
   types.forEach((hazardType) => {
-    const regions = regionTemplates[hazardType]
+    const regions = projectId === 'p-000' ? regionTemplates[hazardType] : {
+      pit: ['A', 'B', 'C', 'D', 'E'].map((area) => `${projectName}深基坑${area}区`),
+      subway: ['左线', '右线', '上行', '下行', '联络通道'].map((area) => `${projectName}轨道交通保护区-${area}`),
+      formwork: ['A', 'B', 'C', 'D', 'E'].map((area) => `${projectName}高支模${area}区`),
+    }[hazardType]
     const indicators = indicatorDefs[hazardType]
     const regionCount = 2 + (seed % 3)
 
@@ -425,9 +432,14 @@ export function removeAlertRule(id) {
 }
 
 // ----- 告警记录 -----
+function formatSampleTime(date) {
+  const pad = (value) => String(value).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+}
+
 export function getAlertRecords(projectId, hazardType, filters = {}) {
   ensureSeeded(projectId)
-  if (DB.alertRecords.length === 0) seedAlertRecords(projectId)
+  ensureAlertRecordsSeeded(projectId)
   
   let list = DB.alertRecords.filter(r => r.projectId === projectId && (!hazardType || r.hazardType === hazardType))
   if (filters.regionId) list = list.filter(r => r.regionId === filters.regionId)
@@ -481,18 +493,22 @@ function seedAlertRecords(projectId) {
       const daysAgo = [30, 20, 10][i] || 0
       const hoursAgo = [24, 12, 1][i - 3] || 1
       const time = new Date(now.getTime() - (isHandled ? daysAgo * 86400000 : hoursAgo * 3600000))
-      const timeStr = time.toISOString().slice(0, 19).replace('T', ' ')
+      const timeStr = formatSampleTime(time)
 
       const rule = DB.alertRules.find(r => r.projectId === projectId && r.hazardType === hazardType && r.indicatorName === indicator?.name)
       const alertType = rule?.name
         ? rule.name + '预警'
         : typeLabels[hazardType] + indicator.name + '超限预警'
 
-      const exceedPct = ((m.value / indicator.alertThreshold) * 100).toFixed(0)
+      const currentValue = +Math.max(
+        m.value,
+        indicator.alertThreshold * (1.08 + (i % 3) * 0.06),
+      ).toFixed(1)
+      const exceedPct = ((currentValue / indicator.alertThreshold - 1) * 100).toFixed(0)
       const details = [
-        indicator.name + '当前值' + m.value + indicator.unit + '，超过预警阈值' + indicator.alertThreshold + indicator.unit + '（超限' + exceedPct + '%），请立即安排人员现场核实处置。',
-        indicator.name + '监测数据异常，当前读数' + m.value + indicator.unit + '（阈值' + indicator.alertThreshold + indicator.unit + '），可能原因为施工扰动或传感器异常，建议现场复核。',
-        '预警：' + indicator.name + '达到' + m.value + indicator.unit + '，接近红色预警值' + indicator.alertThreshold + indicator.unit + '，请关注趋势变化，必要时采取加固措施。',
+        indicator.name + '当前值' + currentValue + indicator.unit + '，超过预警阈值' + indicator.alertThreshold + indicator.unit + '（超限' + exceedPct + '%），请立即安排人员现场核实处置。',
+        indicator.name + '监测数据异常，当前读数' + currentValue + indicator.unit + '（阈值' + indicator.alertThreshold + indicator.unit + '），可能原因为施工扰动或传感器异常，建议现场复核。',
+        '预警：' + indicator.name + '达到' + currentValue + indicator.unit + '，超过预警阈值' + indicator.alertThreshold + indicator.unit + '，请关注趋势变化，必要时采取加固措施。',
       ]
 
       const images = !isHandled ? ['现场照片_001.jpg', '仪表读数_001.jpg'] : []
@@ -505,7 +521,7 @@ function seedAlertRecords(projectId) {
         point: point?.name || '',
         deviceName: device?.name || '',
         indicatorName: indicator?.name || '',
-        currentValue: m.value,
+        currentValue,
         threshold: indicator.alertThreshold,
         unit: indicator.unit || '',
         level: levels[i % levels.length],
@@ -513,13 +529,21 @@ function seedAlertRecords(projectId) {
         time: timeStr,
         status: isHandled ? '已处置' : '未处置',
         handler: isHandled ? (rule?.handler || handlers[i % handlers.length]) : '',
+        handlingResult: isHandled ? '已处置' : '',
         handlingContent: isHandled ? handlingContents[i % handlingContents.length] : '',
-        handlingTime: isHandled ? timeStr : '',
+        handlingTime: isHandled ? formatSampleTime(new Date(time.getTime() + (i + 1) * 3600000)) : '',
+        handlingAttachments: [],
         handlerPhone: isHandled ? '138****5678' : '',
         images: images,
       })
     }
   })
+}
+
+function ensureAlertRecordsSeeded(projectId) {
+  if (seededAlertRecordProjects.has(projectId)) return
+  seedAlertRecords(projectId)
+  seededAlertRecordProjects.add(projectId)
 }
 
 function getLatestMonitorData(projectId, hazardType) {
@@ -537,17 +561,22 @@ function getLatestMonitorData(projectId, hazardType) {
   return Object.values(latest).filter(m => m.value > (DB.indicators.find(i => i.id === m.indicatorId)?.warningThreshold || Infinity))
 }
 
-export function handleAlertRecord(id, { content, handler } = {}) {
+export function handleAlertRecord(id, { result = '已处置', content, attachments = [], handler } = {}) {
   const rec = DB.alertRecords.find((r) => r.id === id)
   if (!rec || rec.status === '已处置') return false
+  if (!['已处置', '误报'].includes(result)) return false
+  const fileNames = attachments.map((file) => typeof file === 'string' ? file : file?.name || '').filter(Boolean)
   rec.status = '已处置'
+  rec.handlingResult = result
   rec.handlingContent = content || ''
   rec.handlingTime = nowStr()
-  if (handler) rec.handler = handler
+  rec.handlingAttachments = fileNames
+  rec.handler = handler || rec.handler || '张明'
   notifyBizAlertDisposed('major', id, {
-    operator: handler || rec.handler || '系统',
-    disposalResult: String(content || '').startsWith('误报') ? '误报' : '已处置',
+    operator: rec.handler,
+    disposalResult: result,
     disposalNote: content || '',
+    attachments: fileNames,
   })
   return true
 }
@@ -560,9 +589,7 @@ export const WC_DEMO_MAJOR_ALERT_ID = 'alr-wc-demo-001'
  */
 export function ensureWcDemoMajorAlert() {
   ensureSeeded('p-000')
-  if (!DB.alertRecords.some((r) => r.projectId === 'p-000')) {
-    seedAlertRecords('p-000')
-  }
+  ensureAlertRecordsSeeded('p-000')
   let rec = DB.alertRecords.find((r) => r.id === WC_DEMO_MAJOR_ALERT_ID)
   if (!rec) {
     rec = {
@@ -585,8 +612,10 @@ export function ensureWcDemoMajorAlert() {
       time: '2026-08-21 08:56:42',
       status: '未处置',
       handler: '',
+      handlingResult: '',
       handlingContent: '',
       handlingTime: '',
+      handlingAttachments: [],
       handlerPhone: '',
       images: ['现场照片_001.jpg'],
     }

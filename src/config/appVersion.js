@@ -17,6 +17,15 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.17.1.25',
+    date: '2026-10-21',
+    highlights: [
+      '危大工程监测·预警记录：按项目生成监测区域与点位（非首个项目不再沿用 T2 的示例区域），并修正当前值低于阈值的样例数据与超限比例算法',
+      '危大工程监测·预警记录：处置弹窗新增「处置结果（已处置 / 误报）」，支持处置附件；详情新增处置结果、处置说明、处置附件三项',
+      '危大工程监测·预警记录：处置时间改为本地时间格式化，修正示例数据时间偏 8 小时的问题',
+    ],
+  },
+  {
     version: 'v2.17.1.24',
     date: '2026-10-21',
     highlights: [
