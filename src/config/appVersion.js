@@ -17,6 +17,13 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.17.1.27',
+    date: '2026-10-23',
+    highlights: [
+      '机械设备台账：设备编辑表单去掉「退场日期」字段（退场日期仍由「退场登记」写入，列表与详情照常展示）',
+    ],
+  },
+  {
     version: 'v2.17.1.26',
     date: '2026-10-22',
     highlights: [

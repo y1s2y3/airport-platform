@@ -171,7 +171,7 @@ const editRow = ref(null)
 const editForm = reactive({
   name: '', spec: '', machineType: '', attr: '', entryType: '',
   supplier: '', supplierContact: '', supplierPhone: '', recordNo: '',
-  manufacturer: '', factoryNo: '', prodDate: '', entryDate: '', exitDate: '',
+  manufacturer: '', factoryNo: '', prodDate: '', entryDate: '',
   admin: '', address: '', status: '', attachments: []
 })
 
@@ -397,12 +397,6 @@ function toggleEnabled(row) {
           <el-col :span="12">
             <el-form-item label="进场日期" required><el-date-picker v-model="editForm.entryDate" type="date" placeholder="选择日期" style="width:100%" value-format="YYYY-MM-DD" aria-label="选择日期"/></el-form-item>
           </el-col>
-        </el-row>
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item label="退场日期"><el-date-picker v-model="editForm.exitDate" type="date" placeholder="选择日期" style="width:100%" value-format="YYYY-MM-DD" aria-label="选择日期"/></el-form-item>
-          </el-col>
-          <el-col :span="12" />
         </el-row>
         <el-form-item label="相关附件">
           <AttachmentUpload v-model="editForm.attachments" preset="file" :min="0" :max="9" name-prefix="相关附件" />
