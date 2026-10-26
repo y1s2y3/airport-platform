@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import { ref, computed, watch } from 'vue'
 import { Search, Plus, Delete, Edit } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -37,6 +37,33 @@ const regionPoints = computed(() => {
   return points.value.filter(p => p.regionId === selectedRegion.value.id)
 })
 
+// 监测点列表：模糊搜索（监测点位 / 设备名称 / 设备SN）+ 分页
+const pointKeyword = ref('')
+const pointPage = ref(1)
+const pointPageSize = ref(10)
+
+const filteredRegionPoints = computed(() => {
+  const kw = pointKeyword.value.trim().toLowerCase()
+  if (!kw) return regionPoints.value
+  return regionPoints.value.filter((p) => {
+    const dev = getDeviceForPoint(p.id)
+    const text = `${p.name || ''}${dev?.name || ''}${dev?.deviceNo || ''}`.toLowerCase()
+    return text.includes(kw)
+  })
+})
+
+const pagedRegionPoints = computed(() => {
+  const start = (pointPage.value - 1) * pointPageSize.value
+  return filteredRegionPoints.value.slice(start, start + pointPageSize.value)
+})
+
+// 搜索词或每页条数变化 → 回到第 1 页；结果变少时收敛当前页
+watch([pointKeyword, pointPageSize], () => { pointPage.value = 1 })
+watch([filteredRegionPoints, pointPageSize], () => {
+  const maxPage = Math.max(1, Math.ceil(filteredRegionPoints.value.length / pointPageSize.value))
+  if (pointPage.value > maxPage) pointPage.value = maxPage
+})
+
 // 可用设备列表（未绑定其他区域的设备 + 当前区域已绑定的设备）
 const availableDevices = computed(() => {
   const boundPointIds = points.value.filter(p => p.regionId !== selectedRegion.value?.id).map(p => p.id)
@@ -57,12 +84,16 @@ function loadData() {
 
 watch(scopeProjectId, () => {
   keyword.value = ''
+  pointKeyword.value = ''
+  pointPage.value = 1
   selectedRegion.value = null
   loadData()
 }, { immediate: true })
 
 function selectRegion(region) {
   selectedRegion.value = region
+  pointKeyword.value = ''
+  pointPage.value = 1
 }
 
 // ----- 区域 CRUD -----
@@ -225,16 +256,26 @@ const filteredRegions = computed(() => {
                 <span v-if="selectedRegion" style="font-weight:400;color:var(--ap-text-secondary)"> — {{ selectedRegion.name }}</span>
                 <span v-else style="font-weight:400;color:#999"> — 请先选择区域</span>
               </span>
-              <el-button size="small" type="primary" class="ap-btn-primary" :icon="Plus" :disabled="!selectedRegion" @click="openAddPoint" v-if="!isReadOnly">新增监测点</el-button>
+              <div style="display:flex;align-items:center;gap:8px">
+                <el-input
+                  v-model="pointKeyword"
+                  placeholder="搜索设备名称 / 监测点位 / 设备SN"
+                  clearable
+                  size="small"
+                  style="width:260px"
+                  :prefix-icon="Search"
+                  aria-label="搜索设备名称 / 监测点位 / 设备SN"
+                />
+                <el-button size="small" type="primary" class="ap-btn-primary" :icon="Plus" :disabled="!selectedRegion" @click="openAddPoint" v-if="!isReadOnly">新增监测点</el-button>
+              </div>
             </div>
 
-            <el-table :data="regionPoints" border stripe class="ap-table" style="width:100%">
+            <el-table :data="pagedRegionPoints" border stripe class="ap-table" style="width:100%">
               <el-table-column type="index" label="序号" width="50" align="center" />
               <el-table-column prop="name" label="监测点" min-width="160" />
               <el-table-column label="绑定设备" min-width="180">
                 <template #default="{ row }">
                   <template v-if="getDeviceForPoint(row.id)">
-                    <span class="ap-status-tag ap-tag-enabled" style="margin-right:4px">已绑定</span>
                     {{ getDeviceForPoint(row.id).name }}
                   </template>
                   <span v-else class="ap-muted">未绑定</span>
@@ -252,7 +293,23 @@ const filteredRegions = computed(() => {
                 </template>
               </el-table-column>
             </el-table>
-            <div v-if="selectedRegion && regionPoints.length === 0" class="empty-hint" style="margin-top:16px">该区域暂无监测点，请新增</div>
+            <div
+              v-if="filteredRegionPoints.length"
+              style="display:flex;justify-content:flex-end;margin-top:12px"
+            >
+              <el-pagination
+                v-model:current-page="pointPage"
+                v-model:page-size="pointPageSize"
+                :page-sizes="[10, 20, 50]"
+                :total="filteredRegionPoints.length"
+                layout="total, sizes, prev, pager, next, jumper"
+                small
+                background
+              />
+            </div>
+            <div v-if="selectedRegion && filteredRegionPoints.length === 0" class="empty-hint" style="margin-top:16px">
+              {{ pointKeyword.trim() ? '未找到匹配的监测点，请调整搜索条件' : '该区域暂无监测点，请新增' }}
+            </div>
           </div>
         </div>
       </section>

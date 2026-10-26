@@ -26,7 +26,7 @@ const viewMode = ref('table') // table | chart
 
 // 筛选条件
 const keyword = ref('')
-const filters = ref({ regionId: '', pointId: '', indicatorId: '', range: [] })
+const filters = ref({ regionId: '', pointId: '', range: [] })
 const dataList = ref([])
 const allData = ref([])
 
@@ -82,7 +82,6 @@ const pointOptions = computed(() => {
   if (!filters.value.regionId) return []
   return getPoints(scopeProjectId.value, props.hazardType).filter(p => p.regionId === filters.value.regionId)
 })
-const indicatorOptions = computed(() => indicatorDefs[props.hazardType] || [])
 
 const stats = computed(() => getMonitorStats(scopeProjectId.value, props.hazardType))
 
@@ -107,7 +106,6 @@ const filteredData = computed(() => {
   if (kw) list = list.filter(r => `${r.regionName}${r.pointName}${r.deviceName}${r.indicatorName}`.includes(kw))
   if (filters.value.regionId) list = list.filter(r => r.regionId === filters.value.regionId)
   if (filters.value.pointId) list = list.filter(r => r.pointId === filters.value.pointId)
-  if (filters.value.indicatorId) list = list.filter(r => r.indicatorId === filters.value.indicatorId)
   if (filters.value.range?.length === 2) {
     const [from, to] = filters.value.range
     list = list.filter(r => {
@@ -180,7 +178,7 @@ function buildChart() {
 
 watch(scopeProjectId, () => {
   keyword.value = ''
-  filters.value = { regionId: '', pointId: '', indicatorId: '', range: [] }
+  filters.value = { regionId: '', pointId: '', range: [] }
   page.value = 1
   loadData()
   loadHQStats()
@@ -188,7 +186,7 @@ watch(scopeProjectId, () => {
 
 function handleReset() {
   keyword.value = ''
-  filters.value = { regionId: '', pointId: '', indicatorId: '', range: [] }
+  filters.value = { regionId: '', pointId: '', range: [] }
   page.value = 1
 }
 
@@ -288,9 +286,6 @@ function viewProjectDetail(row) {
           </el-select>
           <el-select v-model="filters.pointId" placeholder="监测点" clearable style="width: 160px" aria-label="监测点">
             <el-option v-for="p in pointOptions" :key="p.id" :label="p.name" :value="p.id" />
-          </el-select>
-          <el-select v-model="filters.indicatorId" placeholder="监测指标" clearable style="width: 130px" aria-label="监测指标">
-            <el-option v-for="ind in indicatorOptions" :key="ind.name" :label="ind.name" :value="ind.name" />
           </el-select>
           <el-date-picker
             v-model="filters.range"

@@ -17,6 +17,14 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.17.1.30',
+    date: '2026-10-26',
+    highlights: [
+      '危大工程监测·各监测页面（深基坑 / 高支模 / 地铁铁路）：删除筛选栏的「监测指标」查询条件',
+      '危大工程监测·监测区域管理：监测点列表新增搜索框（模糊搜索设备名称、监测点位、设备SN）与分页，并去掉「已绑定」状态标签',
+    ],
+  },
+  {
     version: 'v2.17.1.29',
     date: '2026-10-26',
     highlights: [
