@@ -1,4 +1,5 @@
 <script setup>
+import HazardSamplingPanel from '../../components/HazardSamplingPanel.vue'
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getProjectRectifierLabel, getProjectReviewerLabel } from '../../composables/useInspectionPersonConfig'
@@ -133,6 +134,10 @@ const latestReviews = computed(() => {
 })
 
 function goBack() {
+  if (route.query.from === 'summary') {
+    router.push('/hazard-issues/summary')
+    return
+  }
   router.push(route.query.from === 'dashboard' ? '/safety-inspection/dashboard' : '/safety-inspection/hazard')
 }
 </script>
@@ -202,6 +207,7 @@ function goBack() {
       <div class="rf"><label>审批意见</label><span>{{ info.managerApproval.comment }}</span></div>
     </div>
 
+    <HazardSamplingPanel source="inspection" :record-id="String(route.params.id)" />
     <!-- ===== 流程记录（最底部） ===== -->
     <div class="sc">
       <div class="sct colps" @click="flowCollapsed = !flowCollapsed">

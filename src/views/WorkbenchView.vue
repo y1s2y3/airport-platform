@@ -1,4 +1,5 @@
 <script setup>
+import HazardSamplingControls from '../components/HazardSamplingControls.vue'
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -456,6 +457,7 @@ function dragOverClass(item) {
 
 <template>
   <div class="workbench-page">
+    <HazardSamplingControls compact />
     <section class="shortcut-panel">
       <div class="shortcut-head">
         <h2 class="shortcut-title">常用功能</h2>

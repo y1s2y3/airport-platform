@@ -182,6 +182,12 @@ const routes = [
     },
     children: [
       ...buildRoutes(),
+      {
+        path: 'hazard-issues/quality/:id',
+        name: 'ExternalQualityIssueDetail',
+        component: () => import('../views/hazard/ExternalQualityIssueDetailView.vue'),
+        meta: { title: '施工质量问题详情' },
+      },
       ...redirects.map((r) => ({
         path: r.path.replace(/^\//, ''),
         redirect: r.redirect,

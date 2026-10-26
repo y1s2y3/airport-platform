@@ -74,7 +74,6 @@ function delCheck(idx) { ElMessageBox.confirm('确认删除？','提示',{type:'
               <div class="dg-item"><span class="dl">机械属性</span><span class="dv">{{ machine.attr }}</span></div>
               <div class="dg-item"><span class="dl">进场类型</span><span class="dv">{{ machine.entryType }}</span></div>
               <div class="dg-item"><span class="dl">设备管理员</span><span class="dv">{{ machine.admin }}</span></div>
-              <div class="dg-item full"><span class="dl">详细地址</span><span class="dv">{{ machine.address }}</span></div>
               <div class="dg-item full"><span class="dl">备注</span><span class="dv" style="color:#999">-</span></div>
             </div>
           </div>

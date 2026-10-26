@@ -1,5 +1,7 @@
 <script setup>
+import HazardSamplingPanel from '../../components/HazardSamplingPanel.vue'
 import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { View } from '@element-plus/icons-vue'
 import { useCurrentProject } from '../../composables/useCurrentProject.js'
 import {
@@ -17,6 +19,8 @@ defineProps({
 })
 
 const { isHqSelected, headerProjectLabel } = useCurrentProject()
+const route = useRoute()
+const router = useRouter()
 
 const keyword = ref('')
 const statusFilter = ref('')
@@ -38,6 +42,8 @@ function load() {
   list.value = scopeProjectName.value
     ? getDispatchHazardsByProject(scopeProjectName.value)
     : getDispatchHazards()
+  const focused = list.value.find((row) => row.id === route.query.hazardId)
+  if (focused) openDetail(focused)
 }
 
 const filtered = computed(() => {
@@ -92,6 +98,10 @@ function openDetail(row) {
 }
 
 watch([isHqSelected, headerProjectLabel], () => load())
+watch(() => route.query.hazardId, () => {
+  if (!route.query.hazardId) detailVisible.value = false
+  load()
+})
 
 onMounted(load)
 </script>
@@ -108,8 +118,11 @@ onMounted(load)
           }}
         </p>
       </div>
-      <el-tag v-if="readonly" size="small" type="info">指挥部 · 只读查看全部项目</el-tag>
-      <el-tag v-else size="small" type="success">项目层级 · {{ scopeProjectName || '当前项目' }}</el-tag>
+      <div class="page-head-actions">
+        <el-button v-if="route.query.from === 'summary'" link type="primary" @click="router.push('/hazard-issues/summary')">返回汇总</el-button>
+        <el-tag v-if="readonly" size="small" type="info">指挥部 · 只读查看全部项目</el-tag>
+        <el-tag v-else size="small" type="success">项目层级 · {{ scopeProjectName || '当前项目' }}</el-tag>
+      </div>
     </div>
 
     <div class="tab-toolbar">
@@ -234,6 +247,7 @@ onMounted(load)
             </el-timeline-item>
           </el-timeline>
         </div>
+        <HazardSamplingPanel v-if="current" source="dispatch" :record-id="current.id" />
         <PersonalCenterReadonlyHint
           v-if="current.rectifyStatus === '待整改' || current.rectifyStatus === '待验收'"
           title="整改提交与验收请在「个人中心 → 我的待办」中处理；本页仅查看详情。"
@@ -257,6 +271,8 @@ onMounted(load)
   margin-bottom: 14px;
   flex-wrap: wrap;
 }
+
+.page-head-actions { display: flex; align-items: center; gap: 10px; }
 
 .page-title {
   margin: 0 0 6px;

@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Edit, View, Upload, Download } from '@element-plus/icons-vue'
 import { buildProjects } from '../../coc/mock/data.js'
@@ -29,7 +30,9 @@ defineProps({
 
 const { isHqSelected, headerProjectLabel, selectedProjectId } = useCurrentProject()
 
-const activeTab = ref('meeting')
+const route = useRoute()
+const router = useRouter()
+const activeTab = ref(route.query.hazardId ? 'hazard' : 'meeting')
 const keyword = ref('')
 const list = ref([])
 const formVisible = ref(false)
@@ -451,6 +454,9 @@ function handleDownloadTemplate() {
 watch(selectedProjectId, () => {
   load()
 })
+watch(() => route.query.hazardId, (id) => {
+  if (id) activeTab.value = 'hazard'
+})
 
 onMounted(load)
 </script>
@@ -459,6 +465,7 @@ onMounted(load)
   <div class="panel-card admin-page">
     <div class="panel-title simple-title">
       <span>{{ title }}</span>
+      <el-button v-if="route.query.from === 'summary'" link type="primary" @click="router.push('/hazard-issues/summary')">返回汇总</el-button>
       <el-tag v-if="isHqSelected" size="small" type="info">企业级 · 只读查看</el-tag>
       <el-tag v-else size="small" type="success">项目层级 · 登记会议</el-tag>
     </div>

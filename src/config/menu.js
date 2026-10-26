@@ -559,6 +559,16 @@ export function buildFusedMenuTree(raw = rawMenuTree) {
       levels: 'both',
       children: [
         safetyInspection,
+        // 隐患清单汇总（2026-10-26 用户要求：由一级菜单归入安全管理，二级带三级）
+        {
+          key: 'hazard-issue-summary-group',
+          label: '隐患清单汇总',
+          icon: 'Warning',
+          levels: 'both',
+          children: [
+            { key: 'hazard-issue-summary', label: '隐患问题清单汇总', icon: 'Warning', path: '/hazard-issues/summary', name: 'HazardIssueSummary', component: 'HazardIssueSummaryView', levels: 'both' },
+          ],
+        },
         node('major-hazard-management'),
         node('risk-manage-group'),
         workManage,
@@ -905,6 +915,7 @@ export const viewLoaders = {
   InspectionTaskManageView: () => import('../views/safety/InspectionTaskManageView.vue'),
   InspectionTaskDetailView: () => import('../views/safety/InspectionTaskDetailView.vue'),
   SafetyHazardListView: () => import('../views/safety/SafetyHazardListView.vue'),
+  HazardIssueSummaryView: () => import('../views/hazard/HazardIssueSummaryView.vue'),
   SafetyHazardDetailView: () => import('../views/safety/SafetyHazardDetailView.vue'),
 
   MobileTaskListView: () => import('../views/mobile/MobileTaskListView.vue'),

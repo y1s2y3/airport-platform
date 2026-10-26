@@ -1,5 +1,7 @@
 <script setup>
+import HazardSamplingPanel from '../../components/HazardSamplingPanel.vue'
 import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { View, Plus } from '@element-plus/icons-vue'
 import {
@@ -21,6 +23,7 @@ const props = defineProps({
   projectId: { type: String, default: '' },
   meetingId: { type: String, default: '' },
 })
+const route = useRoute()
 
 const keyword = ref('')
 const statusFilter = ref('')
@@ -54,6 +57,8 @@ function load() {
     rows = rows.filter((item) => item.meetingId === props.meetingId)
   }
   list.value = rows
+  const focused = rows.find((item) => item.id === route.query.hazardId)
+  if (focused) openDetail(focused)
 }
 
 const filtered = computed(() => {
@@ -187,6 +192,10 @@ watch(
 )
 
 onMounted(load)
+watch(() => route.query.hazardId, (id) => {
+  if (!id) detailVisible.value = false
+  load()
+})
 
 defineExpose({ reload: load })
 </script>
@@ -323,6 +332,7 @@ defineExpose({ reload: load })
           </el-timeline>
         </div>
 
+        <HazardSamplingPanel v-if="current" source="supervision" :record-id="current.id" />
         <div v-if="canConfirmClose(current)" class="detail-actions">
           <el-button type="success" @click="handleConfirmClose(current)">确认关闭</el-button>
         </div>
