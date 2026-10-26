@@ -17,6 +17,13 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.17.1.28',
+    date: '2026-10-26',
+    highlights: [
+      '危大监测预警（指挥部级）：新增「预警规则配置」按钮，与机械设备预警为同一个弹窗、同一份规则数据（任一页提交后另一页即为改后值）',
+    ],
+  },
+  {
     version: 'v2.17.1.27',
     date: '2026-10-23',
     highlights: [

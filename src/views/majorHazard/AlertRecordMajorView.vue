@@ -1,13 +1,21 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { Search, Download, View } from '@element-plus/icons-vue'
+import { Search, Download, View, Setting } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useLaborProjectScope } from '../../composables/useCurrentProject'
 import { projectTree, getAlertRecords, handleAlertRecord, getRegions } from '../../mock/majorHazard'
 import AttachmentUpload from '../../components/common/AttachmentUpload.vue'
+import AlertRuleConfigDialog from '../../components/alert/AlertRuleConfigDialog.vue'
 
 const { isHqSelected, treeProjectId, scopeProjectId, scopeProjectLabel, onTreeNodeClick } = useLaborProjectScope()
 const isReadOnly = computed(() => isHqSelected.value)
+
+/**
+ * 预警规则配置弹窗（用户 2026-10-26）：
+ * 与「机械设备预警」同一个公共组件、同一份规则数据（src/mock/alertRuleConfig.js），
+ * 仅指挥部级页面提供入口。
+ */
+const ruleDialogVisible = ref(false)
 
 const keyword = ref('')
 const filters = ref({ regionId: '', level: '', status: '', startTime: '', endTime: '', hazardType: '' })
@@ -135,6 +143,13 @@ function handleExport() {
       </div>
       <div class="page-heading">
         <h1 class="page-title">{{ isHqSelected ? '危大监测预警' : '预警记录' }}</h1>
+        <el-button
+          v-if="isHqSelected"
+          class="ap-btn-primary"
+          type="primary"
+          :icon="Setting"
+          @click="ruleDialogVisible = true"
+        >预警规则配置</el-button>
       </div>
       <p v-if="!isHqSelected" class="page-scope">当前项目：{{ scopeProjectLabel }}</p>
       <p class="page-tip">查看、处置预警记录。设备监测值超出配置阈值时自动生成预警并按配置推送。</p>
@@ -251,6 +266,9 @@ function handleExport() {
         <el-button type="primary" class="ap-btn-primary" @click="submitDispose">确认处置</el-button>
       </template>
     </el-dialog>
+
+    <!-- 预警推送规则配置弹窗（公共组件，与机械设备预警共用同一份数据源） -->
+    <AlertRuleConfigDialog v-model="ruleDialogVisible" />
   </div>
 </template>
 

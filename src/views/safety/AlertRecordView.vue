@@ -1,11 +1,12 @@
 <script setup>
 import { ref, reactive, computed, watch } from 'vue'
-import { InfoFilled, Search, Setting } from '@element-plus/icons-vue'
+import { Search, Setting } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useLaborProjectScope } from '../../composables/useCurrentProject'
 import { projectTree } from '../../mock/laborRealName.js'
 import { machineAlerts, disposeMachineAlert } from '../../mock/machineAlert.js'
 import AttachmentUpload from '../../components/common/AttachmentUpload.vue'
+import AlertRuleConfigDialog from '../../components/alert/AlertRuleConfigDialog.vue'
 
 const { isHqSelected, treeProjectId, onTreeNodeClick: _treeClick } = useLaborProjectScope()
 const treeSearch = ref('')
@@ -94,31 +95,12 @@ watch([filteredData, pageSize], () => { page.value = 1 })
 
 const ruleDialogVisible = ref(false)
 const alertTypeOptions = ['塔吊预警', '升降机预警', '桩基预警', '复合地基预警', '高支模预警', '深基坑预警', '地铁铁路安全监管预警']
-const hqPushOptions = ['是', '否']
-const receiverOptions = ['测试工程指挥部推送预警接收人', '工程指挥部安全负责人', '工程指挥部值班人员']
-const pushMethodOptions = ['短信', '站内信']
-const upgradeEnableOptions = ['是', '否']
-const pushRuleRows = ref([
-  { alertLevel: '重大预警', pushToHq: '是', receivers: ['测试工程指挥部推送预警接收人'], methods: ['短信', '站内信'] },
-  { alertLevel: '较大预警', pushToHq: '是', receivers: ['工程指挥部安全负责人'], methods: ['站内信', '短信'] },
-  { alertLevel: '一般预警', pushToHq: '否', receivers: [], methods: [] },
-])
-const upgradeRuleRows = ref([
-  { alertLevel: '较大预警', overdueDays: 2, upgradeLevel: '重大预警', enabled: '是' },
-  { alertLevel: '一般预警', overdueDays: 1, upgradeLevel: '较大预警', enabled: '否' },
-])
 
+/**
+ * 预警推送规则弹窗（用户 2026-10-26）：抽成公共组件 AlertRuleConfigDialog，
+ * 与危大监测预警共用同一份规则数据（src/mock/alertRuleConfig.js）。
+ */
 function openRuleConfig() { ruleDialogVisible.value = true }
-function handleHqPushChange(row) {
-  if (row.pushToHq === '否') {
-    row.receivers = []
-    row.methods = []
-  }
-}
-function submitRuleConfig() {
-  ruleDialogVisible.value = false
-  ElMessage.success('预警推送规则配置已提交')
-}
 </script>
 
 <template>
@@ -234,84 +216,8 @@ function submitRuleConfig() {
       </template>
     </el-dialog>
 
-    <!-- 预警规则配置弹窗 -->
-    <el-dialog v-model="ruleDialogVisible" title="预警推送规则配置" width="796px" :close-on-click-modal="false" class="rule-config-dialog">
-      <div class="rule-section">
-        <div class="rule-section-title">
-          <span>分级推送配置</span>
-          <el-icon class="rule-info"><InfoFilled /></el-icon>
-        </div>
-        <el-table :data="pushRuleRows" border class="rule-table" size="default">
-          <el-table-column prop="alertLevel" label="预警等级" width="120" align="center" />
-          <el-table-column label="是否推送工程指挥部" width="170" align="center">
-            <template #default="{ row }">
-              <el-select v-model="row.pushToHq" class="enable-select" placeholder="请选择" @change="handleHqPushChange(row)" aria-label="请选择">
-                <el-option v-for="item in hqPushOptions" :key="item" :label="item" :value="item" />
-              </el-select>
-            </template>
-          </el-table-column>
-          <el-table-column label="预警接收人" min-width="250" align="center">
-            <template #default="{ row }">
-              <el-select
-                v-model="row.receivers"
-                class="rule-select"
-                multiple
-                collapse-tags
-                collapse-tags-tooltip
-                :disabled="row.pushToHq === '否'"
-                placeholder="请选择" aria-label="请选择">
-                <el-option v-for="item in receiverOptions" :key="item" :label="item" :value="item" />
-              </el-select>
-            </template>
-          </el-table-column>
-          <el-table-column label="推送方式" min-width="190" align="center">
-            <template #default="{ row }">
-              <el-select
-                v-model="row.methods"
-                class="rule-select"
-                multiple
-                collapse-tags
-                collapse-tags-tooltip
-                :disabled="row.pushToHq === '否'"
-                placeholder="请选择" aria-label="请选择">
-                <el-option v-for="item in pushMethodOptions" :key="item" :label="item" :value="item" />
-              </el-select>
-            </template>
-          </el-table-column>
-        </el-table>
-      </div>
-
-      <div class="rule-section upgrade-section">
-        <div class="rule-section-title">
-          <span>预警超期未处理自动升级配置</span>
-        </div>
-        <el-table :data="upgradeRuleRows" border class="rule-table" size="default">
-          <el-table-column prop="alertLevel" label="预警等级" width="150" align="center" />
-          <el-table-column label="超期未处理天数" min-width="230" align="center">
-            <template #default="{ row }">
-              <div class="overdue-cell">
-                <span>超过</span>
-                <el-input-number v-model="row.overdueDays" :min="1" :controls="false" class="days-input" />
-                <span>天未处理</span>
-              </div>
-            </template>
-          </el-table-column>
-          <el-table-column prop="upgradeLevel" label="升级后等级" min-width="180" align="center" />
-          <el-table-column label="是否启用升级" min-width="160" align="center">
-            <template #default="{ row }">
-              <el-select v-model="row.enabled" class="enable-select" placeholder="请选择" aria-label="请选择">
-                <el-option v-for="item in upgradeEnableOptions" :key="item" :label="item" :value="item" />
-              </el-select>
-            </template>
-          </el-table-column>
-        </el-table>
-      </div>
-
-      <template #footer>
-        <el-button @click="ruleDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitRuleConfig">提交</el-button>
-      </template>
-    </el-dialog>
+    <!-- 预警推送规则配置弹窗（公共组件，与危大监测预警共用同一份数据源） -->
+    <AlertRuleConfigDialog v-model="ruleDialogVisible" />
   </div>
 </template>
 
@@ -342,20 +248,6 @@ function submitRuleConfig() {
 .el-table { width:100% !important; }
 .el-table__header-wrapper table, .el-table__body-wrapper table { table-layout:fixed; width:100% !important; }
 
-.rule-section { margin-bottom:22px; }
-.upgrade-section { margin-bottom:0; }
-.rule-section-title { display:flex; align-items:center; gap:6px; margin-bottom:12px; font-size:14px; font-weight:600; color:#1f2329; }
-.rule-info { color:#909399; font-size:16px; }
-.rule-table { font-size:13px; }
-.rule-table :deep(.el-table__header th) { background:#f5f7fa; color:#606266; font-weight:600; }
-.rule-table :deep(.el-table__cell) { padding:11px 0; }
-.rule-select { width:100%; }
-.overdue-cell { display:flex; align-items:center; justify-content:center; gap:8px; }
-.days-input { width:64px; }
-.days-input :deep(.el-input__wrapper) { padding:0 8px; }
-.days-input :deep(.el-input__inner) { text-align:center; }
-.enable-select { width:96px; }
-.rule-config-dialog :deep(.el-dialog__body) { padding-top:10px; }
 .el-form-item__label::before {
   content: '' !important;
 }
