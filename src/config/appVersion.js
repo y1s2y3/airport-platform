@@ -17,6 +17,13 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.17.1.31',
+    date: '2026-10-26',
+    highlights: [
+      '危大工程监测·图表视图：去掉原有搜索 / 区域 / 监测点 / 日期等筛选，改为「选择设备」下拉，固定展示所选设备近 24 小时的各指标采集趋势（横轴为月-日 时:分）',
+    ],
+  },
+  {
     version: 'v2.17.1.30',
     date: '2026-10-26',
     highlights: [

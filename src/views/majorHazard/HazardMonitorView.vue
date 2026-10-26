@@ -157,24 +157,63 @@ function loadData() {
   const raw = getMonitorData(scopeProjectId.value, props.hazardType, {})
   allData.value = enrichMonitorData(raw)
   dataList.value = allData.value
+  ensureDefaultDevice()
   buildChart()
 }
 
+// ===== 图表视图：固定「近 24 小时」+ 按设备查看（无其它筛选）=====
+const CHART_HOURS = 24
+const deviceOptions = computed(() => getDevices(scopeProjectId.value, props.hazardType))
+const selectedDeviceId = ref('')
+const selectedDevice = computed(() => deviceOptions.value.find(d => d.id === selectedDeviceId.value) || null)
+const selectedDevicePointName = computed(() => {
+  const dev = selectedDevice.value
+  if (!dev) return ''
+  const pts = getPoints(scopeProjectId.value, props.hazardType)
+  return pts.find(p => p.id === dev.pointId)?.name || ''
+})
+const chartRangeText = computed(() => `近 ${CHART_HOURS} 小时`)
+
+/** 本地时间字符串（与 mock 的 collectTime 同格式，便于字符串比较与截取横轴） */
+function toLocalTimeStr(d) {
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
+
+function ensureDefaultDevice() {
+  const list = deviceOptions.value
+  const exists = list.some(d => d.id === selectedDeviceId.value)
+  if (!exists) selectedDeviceId.value = list[0]?.id || ''
+}
+
 function buildChart() {
-  const data = allData.value.slice(0, 100)
-  if (data.length === 0) { chartSeries.value = []; chartCategories.value = []; return }
-  const grouped = {}
-  data.forEach(d => {
-    const key = d.indicatorName || '未知'
-    if (!grouped[key]) grouped[key] = []
-    grouped[key].push({ time: d.collectTime.slice(11, 16), value: d.value })
+  const dev = selectedDevice.value
+  if (!dev) { chartSeries.value = []; chartCategories.value = []; return }
+  const cutoff = toLocalTimeStr(new Date(Date.now() - CHART_HOURS * 3600 * 1000))
+  const raw = getMonitorData(scopeProjectId.value, props.hazardType, { pointId: dev.pointId })
+    .filter(r => r.collectTime >= cutoff)
+    .sort((a, b) => a.collectTime.localeCompare(b.collectTime)) // 升序：左旧右新
+  const enriched = enrichMonitorData(raw)
+  if (!enriched.length) { chartSeries.value = []; chartCategories.value = []; return }
+  // 横轴：月-日 时:分（近 24 小时可能跨天，不能只取时分）
+  chartCategories.value = [...new Set(enriched.map(r => r.collectTime.slice(5, 16)))]
+  const byIndicator = {}
+  enriched.forEach(r => {
+    const key = r.indicatorName || '未知指标'
+    if (!byIndicator[key]) byIndicator[key] = []
+    byIndicator[key].push({ t: r.collectTime.slice(5, 16), v: r.value })
   })
-  chartCategories.value = [...new Set(data.map(d => d.collectTime.slice(11, 16)))].sort()
-  chartSeries.value = Object.entries(grouped).map(([name, pts]) => ({
+  chartSeries.value = Object.entries(byIndicator).map(([name, pts]) => ({
     name,
-    data: chartCategories.value.map(t => pts.find(p => p.time === t)?.value ?? null),
+    data: chartCategories.value.map(t => pts.find(p => p.t === t)?.v ?? null),
   }))
 }
+
+watch(selectedDeviceId, () => buildChart())
+watch(deviceOptions, () => {
+  ensureDefaultDevice()
+  buildChart()
+})
 
 watch(scopeProjectId, () => {
   keyword.value = ''
@@ -279,7 +318,7 @@ function viewProjectDetail(row) {
             </div>
           </div>
 
-        <div class="filter-bar">
+        <div class="filter-bar" v-if="viewMode === 'table'">
           <el-input v-model="keyword" placeholder="搜索区域/点/设备/指标" clearable style="width: 200px" :prefix-icon="Search" aria-label="搜索区域/点/设备/指标"/>
           <el-select v-model="filters.regionId" placeholder="监测区域" clearable style="width: 180px" @change="handleRegionChange" aria-label="监测区域">
             <el-option v-for="r in regionOptions" :key="r.id" :label="r.name" :value="r.id" />
@@ -328,15 +367,38 @@ function viewProjectDetail(row) {
           </div>
         </template>
 
-        <!-- 图表视图（折线图） -->
+        <!-- 图表视图（折线图）：固定近 24 小时，只按设备查看 -->
         <template v-if="viewMode === 'chart'">
+          <div class="chart-toolbar">
+            <span class="chart-toolbar-label">选择设备</span>
+            <el-select
+              v-model="selectedDeviceId"
+              placeholder="请选择设备"
+              filterable
+              style="width: 320px"
+              aria-label="选择设备"
+            >
+              <el-option
+                v-for="d in deviceOptions"
+                :key="d.id"
+                :label="`${d.name}（${d.deviceNo}）`"
+                :value="d.id"
+              />
+            </el-select>
+            <span v-if="selectedDevice" class="chart-toolbar-meta">
+              监测点：{{ selectedDevicePointName || '--' }}
+              ｜ 设备SN：{{ selectedDevice.deviceNo || '--' }}
+              ｜ 状态：{{ selectedDevice.online ? '在线' : '离线' }}
+            </span>
+            <span v-else class="chart-toolbar-meta">当前项目暂无监测设备</span>
+          </div>
           <div class="chart-container">
             <div class="chart-header">
-              <h4>监测数据趋势图</h4>
-              <span class="chart-hint">各指标监测值变化趋势（折线图，可悬浮查看数值）</span>
+              <h4>设备监测趋势（{{ chartRangeText }}）</h4>
+              <span class="chart-hint">固定展示所选设备近 24 小时的各指标采集值，横轴为采集时刻（月-日 时:分）</span>
             </div>
             <div v-if="chartSeries.length > 0" ref="chartRef" class="chart-canvas"></div>
-            <div v-else class="chart-empty">暂无数据</div>
+            <div v-else class="chart-empty">{{ selectedDevice ? '该设备近 24 小时暂无采集数据' : '请选择设备' }}</div>
           </div>
         </template>
         </template>
@@ -367,6 +429,9 @@ function viewProjectDetail(row) {
 
 /* 图表 */
 .chart-container { background: #fafafa; border: 1px solid #eee; border-radius: 8px; padding: 16px; }
+.chart-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; }
+.chart-toolbar-label { font-size: 13px; color: #1f2329; font-weight: 600; }
+.chart-toolbar-meta { font-size: 12px; color: var(--ap-text-muted); }
 .chart-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
 .chart-header h4 { margin: 0; font-size: 14px; }
 .chart-hint { font-size: 12px; color: var(--ap-text-muted); }
