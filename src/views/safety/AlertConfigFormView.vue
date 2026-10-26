@@ -172,6 +172,7 @@ if (route.query.type) {
         <el-divider style="margin:20px 0 12px" />
         <div class="section-title">触发条件设置</div>
         <div style="margin-bottom:10px;font-size:12px;color:#999">配置预警指标的触发条件</div>
+<div class="config-rule-tip">说明：同一个设备的同一个指标只允许存在一条配置（含编辑保存），请勿重复添加同一设备的相同指标。</div>
         <el-table :data="thresholdRows" border size="small" style="width:100%">
           <el-table-column type="index" label="序号" width="50" align="center" />
           <el-table-column min-width="130">
@@ -240,6 +241,7 @@ if (route.query.type) {
 </template>
 
 <style scoped>
+.config-rule-tip { margin:0 0 12px; padding:8px 12px; border-left:3px solid #8F0045; background:#fdf3f7; color:#8F0045; font-size:12px; line-height:1.6; }
 .form-page { padding:0; }
 .form-head { display:flex; align-items:center; gap:12px; margin-bottom:20px; }
 .form-title { font-size:18px; font-weight:600; color:#1f2329; margin:0; }

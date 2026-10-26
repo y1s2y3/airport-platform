@@ -151,6 +151,7 @@ function handleReset() { filterForm.keyword = ''; filterForm.alertType = '' }
       <span class="total-count">共 {{ filteredData.length }} 条</span>
       
     </div>
+    <div class="config-rule-tip">说明：同一个设备的同一个指标只允许存在一条预警配置，请勿重复配置。</div>
     <div class="filter-bar">
       <el-select v-model="filterForm.alertType" placeholder="预警类型" clearable style="width:130px" aria-label="预警类型">
         <el-option v-for="t in alertTypeOptions" :key="t" :label="t" :value="t" />
@@ -220,6 +221,7 @@ function handleReset() { filterForm.keyword = ''; filterForm.alertType = '' }
 .page { padding:0; }
 .page-head { display:flex; align-items:center; gap:12px; margin-bottom:16px; }
 .page-title { font-size:18px; font-weight:600; color:#1f2329; margin:0; }
+.config-rule-tip { margin:0 0 12px; padding:8px 12px; border-left:3px solid #8F0045; background:#fdf3f7; color:#8F0045; font-size:12px; line-height:1.6; }
 .total-count { font-size:12px; color:#999; margin-right:auto; }
 .filter-bar { display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap; align-items:center; }
 .data-table { font-size:13px; }

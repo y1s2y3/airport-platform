@@ -140,8 +140,6 @@ const pivotData = computed(() => {
     }
     // 以指标名称为列名存储值
     grouped[key][r.indicatorName] = r.value
-    grouped[key][r.indicatorName + '_unit'] = r.unit
-    grouped[key][r.indicatorName + '_alert'] = r.value >= r.alertThreshold
     if (r.collectTime > grouped[key]._latestTime) {
       grouped[key]._latestTime = r.collectTime
     }
@@ -149,8 +147,12 @@ const pivotData = computed(() => {
   return Object.entries(grouped).map(([pointId, row]) => ({ pointId, ...row }))
 })
 
+// 表头带单位：指标名称（单位）
 const indicatorColumns = computed(() => {
-  return (indicatorDefs[props.hazardType] || []).map(ind => ind.name)
+  return (indicatorDefs[props.hazardType] || []).map(ind => ({
+    name: ind.name,
+    label: ind.unit ? `${ind.name}（${ind.unit}）` : ind.name,
+  }))
 })
 
 function loadData() {
@@ -161,23 +163,22 @@ function loadData() {
   buildChart()
 }
 
-// ===== 图表视图：固定「近 24 小时」+ 按设备查看（无其它筛选）=====
-const CHART_HOURS = 24
+// ===== 图表视图：固定「当天 24 小时」+ 按设备查看（无其它筛选）=====
 const deviceOptions = computed(() => getDevices(scopeProjectId.value, props.hazardType))
 const selectedDeviceId = ref('')
 const selectedDevice = computed(() => deviceOptions.value.find(d => d.id === selectedDeviceId.value) || null)
-const selectedDevicePointName = computed(() => {
-  const dev = selectedDevice.value
-  if (!dev) return ''
-  const pts = getPoints(scopeProjectId.value, props.hazardType)
-  return pts.find(p => p.id === dev.pointId)?.name || ''
-})
-const chartRangeText = computed(() => `近 ${CHART_HOURS} 小时`)
+const chartRangeText = computed(() => '当天 24 小时')
 
 /** 本地时间字符串（与 mock 的 collectTime 同格式，便于字符串比较与截取横轴） */
 function toLocalTimeStr(d) {
   const pad = (n) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
+
+/** 当天窗口：今日 00:00:00 ~ 23:59:59 */
+function todayRange() {
+  const day = toLocalTimeStr(new Date()).slice(0, 10)
+  return { start: `${day} 00:00:00`, end: `${day} 23:59:59` }
 }
 
 function ensureDefaultDevice() {
@@ -189,19 +190,19 @@ function ensureDefaultDevice() {
 function buildChart() {
   const dev = selectedDevice.value
   if (!dev) { chartSeries.value = []; chartCategories.value = []; return }
-  const cutoff = toLocalTimeStr(new Date(Date.now() - CHART_HOURS * 3600 * 1000))
+  const { start, end } = todayRange()
   const raw = getMonitorData(scopeProjectId.value, props.hazardType, { pointId: dev.pointId })
-    .filter(r => r.collectTime >= cutoff)
+    .filter(r => r.collectTime >= start && r.collectTime <= end)
     .sort((a, b) => a.collectTime.localeCompare(b.collectTime)) // 升序：左旧右新
   const enriched = enrichMonitorData(raw)
   if (!enriched.length) { chartSeries.value = []; chartCategories.value = []; return }
-  // 横轴：月-日 时:分（近 24 小时可能跨天，不能只取时分）
-  chartCategories.value = [...new Set(enriched.map(r => r.collectTime.slice(5, 16)))]
+  // 横轴：仅时分（当天范围内不会跨天）
+  chartCategories.value = [...new Set(enriched.map(r => r.collectTime.slice(11, 16)))]
   const byIndicator = {}
   enriched.forEach(r => {
     const key = r.indicatorName || '未知指标'
     if (!byIndicator[key]) byIndicator[key] = []
-    byIndicator[key].push({ t: r.collectTime.slice(5, 16), v: r.value })
+    byIndicator[key].push({ t: r.collectTime.slice(11, 16), v: r.value })
   })
   chartSeries.value = Object.entries(byIndicator).map(([name, pts]) => ({
     name,
@@ -350,12 +351,10 @@ function viewProjectDetail(row) {
             <el-table-column prop="pointName" label="监测点" min-width="120" show-overflow-tooltip />
             <el-table-column prop="deviceName" label="设备名称" min-width="130" show-overflow-tooltip />
             <el-table-column prop="deviceSN" label="设备SN" width="110" />
-            <el-table-column v-for="ind in indicatorColumns" :key="ind" :label="ind" width="100" align="center">
+            <el-table-column v-for="ind in indicatorColumns" :key="ind.name" :label="ind.label" width="120" align="center">
               <template #default="{ row }">
-                <span v-if="row[ind] != null" :class="row[ind + '_alert'] ? 'text-alert' : ''">
-                  {{ row[ind] }} {{ row[ind + '_unit'] || '' }}
-                </span>
-                <span v-else class="ap-muted">-</span>
+                <span v-if="row[ind.name] != null">{{ row[ind.name] }}</span>
+                <span v-else class="ap-muted">--</span>
               </template>
             </el-table-column>
           </el-table>
@@ -381,24 +380,18 @@ function viewProjectDetail(row) {
               <el-option
                 v-for="d in deviceOptions"
                 :key="d.id"
-                :label="`${d.name}（${d.deviceNo}）`"
+                :label="d.name"
                 :value="d.id"
               />
             </el-select>
-            <span v-if="selectedDevice" class="chart-toolbar-meta">
-              监测点：{{ selectedDevicePointName || '--' }}
-              ｜ 设备SN：{{ selectedDevice.deviceNo || '--' }}
-              ｜ 状态：{{ selectedDevice.online ? '在线' : '离线' }}
-            </span>
-            <span v-else class="chart-toolbar-meta">当前项目暂无监测设备</span>
           </div>
           <div class="chart-container">
             <div class="chart-header">
               <h4>设备监测趋势（{{ chartRangeText }}）</h4>
-              <span class="chart-hint">固定展示所选设备近 24 小时的各指标采集值，横轴为采集时刻（月-日 时:分）</span>
+              <span class="chart-hint">固定展示所选设备当天各指标采集值，横轴为采集时刻（时:分）</span>
             </div>
             <div v-if="chartSeries.length > 0" ref="chartRef" class="chart-canvas"></div>
-            <div v-else class="chart-empty">{{ selectedDevice ? '该设备近 24 小时暂无采集数据' : '请选择设备' }}</div>
+            <div v-else class="chart-empty">{{ selectedDevice ? '该设备当天暂无采集数据' : '请选择设备' }}</div>
           </div>
         </template>
         </template>
@@ -431,7 +424,6 @@ function viewProjectDetail(row) {
 .chart-container { background: #fafafa; border: 1px solid #eee; border-radius: 8px; padding: 16px; }
 .chart-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; }
 .chart-toolbar-label { font-size: 13px; color: #1f2329; font-weight: 600; }
-.chart-toolbar-meta { font-size: 12px; color: var(--ap-text-muted); }
 .chart-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
 .chart-header h4 { margin: 0; font-size: 14px; }
 .chart-hint { font-size: 12px; color: var(--ap-text-muted); }
