@@ -120,9 +120,6 @@ function worksSummary(row) {
 
       <el-table :data="pagedList" stripe border empty-text="暂无工程作业申报单">
         <el-table-column prop="biz_no" label="申报单号" width="150" />
-        <el-table-column label="申报人" width="120" show-overflow-tooltip>
-          <template #default="{ row }">{{ emptyCell(row.applicant_name) }}</template>
-        </el-table-column>
         <el-table-column label="关联作业" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">{{ emptyCell(worksSummary(row)) }}</template>
         </el-table-column>
@@ -144,6 +141,9 @@ function worksSummary(row) {
         </el-table-column>
         <el-table-column label="监理审批人" min-width="180" show-overflow-tooltip>
           <template #default="{ row }">{{ formatSupervisorDisplay(row) }}</template>
+        </el-table-column>
+        <el-table-column label="申报人" width="120" show-overflow-tooltip>
+          <template #default="{ row }">{{ emptyCell(row.applicant_name) }}</template>
         </el-table-column>
         <el-table-column label="提交时间" width="170">
           <template #default="{ row }">{{ emptyCell(row.submit_time) }}</template>

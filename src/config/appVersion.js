@@ -17,6 +17,13 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.17.1.34',
+    date: '2026-10-27',
+    highlights: [
+      '工程作业申报·申报列表：列顺序调整——「申报人」列移至「提交时间」列之前（新顺序：申报单号 / 关联作业 / 作业项数 / 资质说明 / 状态 / 当前节点 / 监理审批人 / 申报人 / 提交时间 / 操作）',
+    ],
+  },
+  {
     version: 'v2.17.1.33',
     date: '2026-10-27',
     highlights: [
