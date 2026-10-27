@@ -1,6 +1,6 @@
 /** 只引用原台账单据的演示场景；不改变原单据的业务状态。 */
 import { getSamplingPeople } from './samplingPeople.js'
-export const SAMPLING_EXAMPLE_VERSION = 6
+export const SAMPLING_EXAMPLE_VERSION = 7
 
 export function buildSamplingExamples(rows, projects, eligible, reviewedAt) {
   const tasks = []
@@ -20,7 +20,8 @@ export function buildSamplingExamples(rows, projects, eligible, reviewedAt) {
   }
   function task(stage, project, pool, ids, batchId, scenario, time) {
     const dates = pool.map(reviewedAt).filter(Boolean).map(value => value.slice(0, 10)).sort()
-    const entry = { id: `EX-${stage === 'supervisor' ? 'CJ' : 'FC'}-${project.key}-${scenario}`, stage, projectKey: project.key, projectName: project.label, batchId, start: dates[0] || time.slice(0, 10), end: dates.at(-1) || time.slice(0, 10), poolIds: pool.map(row => row.id), ids: [...ids], results: {}, recipient: stage === 'supervisor' ? '责任监理' : '项目经理', createdAt: time, submittedAt: '', discrepancy: false, resolution: '', example: true, exampleRule: { days: dates.length ? Math.ceil((new Date(dates.at(-1)) - new Date(dates[0])) / 86400000) + 1 : 1, percent: 30, minimum: Math.min(3, pool.length) } }
+    const parent = stage === 'manager' ? tasks.find(item => item.stage === 'supervisor' && item.batchId === batchId) : null
+    const entry = { id: `EX-${stage === 'supervisor' ? 'CJ' : 'FC'}-${project.key}-${scenario}`, stage, projectKey: project.key, projectName: project.label, batchId, start: dates[0] || time.slice(0, 10), end: dates.at(-1) || time.slice(0, 10), poolIds: pool.map(row => row.id), ids: [...ids], results: {}, recipient: stage === 'supervisor' ? '责任监理' : '项目经理', parentTaskId: parent?.id || '', createdAt: time, submittedAt: '', discrepancy: false, resolution: '', example: true, exampleRule: { days: dates.length ? Math.ceil((new Date(dates.at(-1)) - new Date(dates[0])) / 86400000) + 1 : 1, percent: 30, minimum: Math.min(3, pool.length) } }
     tasks.push(entry)
     return entry
   }
@@ -34,7 +35,7 @@ export function buildSamplingExamples(rows, projects, eligible, reviewedAt) {
     const sampleIds = rotated.map(row => row.id)
     // 未复核单不写指挥部历史；通过单、不通过单分别保持最新判定。
     log(pass, 'hq', '合格', null, '整改前后照片齐全，现场防护及复查意见一致。', at(1))
-    const scenarios = ['pending', 'progress', 'ready', 'manager-progress', 'manager-ready', 'complete', 'difference', 'resolved']
+    const scenarios = ['pending', 'progress', 'ready', 'manager-progress', 'manager-ready', 'complete', 'difference', 'resolved', 'progress-follow', 'dual']
     scenarios.forEach((scenario, index) => {
       const time = at(index * 120 + 5)
       const target = scenario === 'resolved' ? pass : fail
@@ -47,6 +48,32 @@ export function buildSamplingExamples(rows, projects, eligible, reviewedAt) {
       if (scenario === 'progress') {
         const first = pool.find(row => row.id === ids.find(id => id !== fail.id))
         log(first, 'supervisor', '合格', supervisor, '已核对原整改照片及现场情况，符合要求；其余单据待逐项复查。', at(index * 120 + 15))
+        return
+      }
+      // 原抽检办理中，已因不合格触发全面复查
+      if (scenario === 'progress-follow') {
+        const people = getSamplingPeople(project.key)
+        const reviewer = people.find(person => person.role !== '项目经理') || people[1] || people[0]
+        const supervisorPerson = people.find(person => person.id !== reviewer?.id) || people[0]
+        supervisor.assigneeId = supervisorPerson?.id || ''; supervisor.assigneeName = supervisorPerson?.name || ''; supervisor.recipient = supervisorPerson?.label || supervisor.recipient
+        log(fail, 'supervisor', '不合格', supervisor, '复查发现现场措施未落实到位，已记录问题证据；其余单据待逐项复查。', at(index * 120 + 15))
+        const follow = task('manager', project, pool, pool.map(row => row.id), batchId, scenario, at(index * 120 + 16))
+        if (reviewer) { follow.assigneeId = reviewer.id; follow.assigneeName = reviewer.name; follow.recipient = reviewer.label }
+        follow.sender = supervisor.recipient
+        return
+      }
+      // 同一人既是被指定抽检人，也是全面复查接收人
+      if (scenario === 'dual') {
+        const person = getSamplingPeople(project.key)[0]
+        supervisor.assigneeId = person.id; supervisor.assigneeName = person.name; supervisor.recipient = person.label
+        ids.forEach((id, order) => {
+          const row = pool.find(item => item.id === id)
+          log(row, 'supervisor', id === fail.id ? '不合格' : '合格', supervisor, id === fail.id ? '复查发现现场措施未落实到位，已选择本人继续开展全面复查。' : '已重新核对整改措施与现场，复查合格。', at(index * 120 + 20 + order))
+        })
+        supervisor.submittedAt = at(index * 120 + 30)
+        const follow = task('manager', project, pool, pool.map(row => row.id), batchId, scenario, at(index * 120 + 31))
+        follow.assigneeId = person.id; follow.assigneeName = person.name; follow.recipient = person.label
+        follow.sender = person.label
         return
       }
       for (const id of ids) {

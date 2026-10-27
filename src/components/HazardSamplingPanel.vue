@@ -80,7 +80,7 @@ function submit() {
     const result = submitReview(row.value, role.value, { ...form, result: role.value === 'manager' ? '合格' : form.result, files: [...form.files] }, editingTaskId.value)
     editorVisible.value = false
     resetForm()
-    ElMessage.success(result.followTaskCreated ? `已向${result.followTaskCreated.recipient}下发完整范围的${result.followTaskCreated.ids.length}张单据${result.completedTask ? '；本次抽检也已完成' : ''}` : result.completedTask ? '本批次单据已全部完成，任务已自动归入已办' : result.task ? '抽查已保存，任务已下发给指定抽检人' : '检查结果已保存')
+    ElMessage.success(result.followTaskCreated ? `已向${result.followTaskCreated.recipient}下发完整范围的${result.followTaskCreated.ids.length}张单据${result.completedTask ? '；本次抽检任务也已办理' : ''}` : result.completedTask ? '本批次单据已全部完成，任务已自动归入已办理' : result.task ? '抽查已保存，任务已下发给指定抽检人' : '检查结果已保存')
   } catch (error) { ElMessage.error(error.message) } finally { submitting.value = false }
 }
 </script>

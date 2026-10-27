@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useCurrentProject } from '../../composables/useCurrentProject.js'
-import { sampling, useSamplingRole, visibleTasks, ensureSamplingExamples } from '../../mock/hazardSampling.js'
+import { sampling, useSamplingRole, visibleTasks, ensureSamplingExamples, linkedReviewTasks, taskProgress } from '../../mock/hazardSampling.js'
 import { getHazardIssueRows } from '../../utils/hazardIssueSummary.js'
 import { rememberSupervisorTask, restoreSupervisorTaskContext, samplingSourceLocation, supervisorTaskLocation } from '../../utils/hazardSamplingTaskNavigation.js'
 
@@ -19,7 +19,11 @@ const isManager = computed(() => task.value?.stage === 'manager')
 const keyword = ref('')
 const resultFilter = ref('')
 const resolution = ref('')
-const stateLabel = computed(() => !task.value ? '' : task.value.submittedAt ? '已完成' : Object.keys(task.value.results).length ? '办理中' : '待办理')
+const stateLabel = computed(() => !task.value ? '' : task.value.submittedAt ? '已办理' : Object.keys(task.value.results).length ? '办理中' : '待办理')
+/** 指挥部追踪：关联的全面复查任务（多个关联项全部展示，不静默丢弃历史）。 */
+const linkedReviews = computed(() => isHq.value && task.value?.stage === 'supervisor' ? linkedReviewTasks(task.value) : [])
+const followProgress = follow => taskProgress(follow)
+const followState = follow => !follow ? '' : follow.submittedAt ? '已办理' : Object.keys(follow.results).length ? '办理中' : '待办理'
 const formatTime = value => value ? new Date(value).toLocaleString('sv-SE') : '--'
 const rows = computed(() => {
   if (!task.value) return []
@@ -49,6 +53,7 @@ function resolveDifference() {
     <template v-else>
       <div class="task-detail-heading"><h2>{{ isManager ? '全面复查任务详情' : '抽检任务详情' }}</h2></div>
       <section class="task-detail-card">
+        <h3 v-if="isHq && task.stage === 'supervisor'" class="task-stage-title">本次抽检</h3>
         <el-descriptions :column="2" border>
           <el-descriptions-item label="任务编号">{{ task.id }}</el-descriptions-item>
           <el-descriptions-item label="任务状态"><span class="task-state-pill" :class="{complete:task.submittedAt}">{{ stateLabel }}</span></el-descriptions-item>
@@ -62,7 +67,7 @@ function resolveDifference() {
           <el-descriptions-item label="完成进度">{{ Object.keys(task.results).length }} / {{ task.ids.length }} 张</el-descriptions-item>
           <el-descriptions-item v-if="task.submittedAt" label="完成时间" :span="2">{{ formatTime(task.submittedAt) }}</el-descriptions-item>
         </el-descriptions>
-        <p class="task-detail-hint">{{ task.submittedAt ? '本任务已完成，可查看本批次各单据的办理记录。' : isManager ? '请逐单完成现场复查及线下整改，确认已复查并上传复查照片；全部单据保存后，任务自动进入已办。' : '请逐单重新核对整改及复查资料；全部单据保存后，任务自动进入已办。' }}</p>
+        <p class="task-detail-hint">{{ task.submittedAt ? '本任务已办理，可查看本批次各单据的办理记录。' : isManager ? '请逐单完成现场复查及线下整改，确认已复查并上传复查照片；全部单据保存后，任务自动进入已办理。' : '请逐单重新核对整改及复查资料；全部单据保存后，任务自动进入已办理。' }}</p>
       </section>
       <section class="task-detail-card">
         <div class="task-record-filters"><el-input v-model="keyword" clearable placeholder="单据编号、隐患内容或来源" style="width:280px"/><el-select v-model="resultFilter" clearable :placeholder="isManager ? '本次复查状态' : '本次抽查结果'" style="width:170px"><el-option v-for="result in isManager ? ['待复查','已复查'] : ['待抽查','合格','不合格']" :key="result" :label="result" :value="result"/></el-select><el-button @click="keyword='';resultFilter=''">重置</el-button></div>
@@ -82,9 +87,24 @@ function resolveDifference() {
           <p v-if="task.resolution">核查意见：{{ task.resolution }}</p>
           <div v-else class="difference-review"><el-input v-model="resolution" type="textarea" :rows="3" placeholder="填写结论差异核查意见"/><el-button type="primary" @click="resolveDifference">保存核查意见</el-button></div>
         </template>
-        <h3>后续全面复查</h3>
-        <div v-for="follow in sampling.tasks.filter(item => item.batchId === task.batchId && item.stage === 'manager')" :key="follow.id" class="follow-review"><span>{{ follow.recipient }} · {{ Object.keys(follow.results).length }} / {{ follow.ids.length }} 张 · {{ follow.submittedAt ? '已完成' : '办理中' }}</span><el-button link type="primary" @click="router.push(supervisorTaskLocation(follow.id))">查看</el-button></div>
-        <p v-if="!sampling.tasks.some(item => item.batchId === task.batchId && item.stage === 'manager')" class="task-detail-hint">尚未下发全面复查任务。</p>
+        <h3 class="task-stage-title">后续全面复查</h3>
+        <template v-if="linkedReviews.length">
+          <div v-for="follow in linkedReviews" :key="follow.id" class="follow-review">
+            <el-descriptions :column="2" border size="small">
+              <el-descriptions-item label="任务编号">{{ follow.id }}</el-descriptions-item>
+              <el-descriptions-item label="任务状态">{{ followState(follow) }}</el-descriptions-item>
+              <el-descriptions-item label="下发人">{{ follow.sender || '--' }}</el-descriptions-item>
+              <el-descriptions-item label="复查人">{{ follow.recipient || '--' }}</el-descriptions-item>
+              <el-descriptions-item label="下发时间">{{ formatTime(follow.createdAt) }}</el-descriptions-item>
+              <el-descriptions-item label="完成时间">{{ formatTime(follow.submittedAt) }}</el-descriptions-item>
+              <el-descriptions-item label="检查时间范围" :span="2">{{ follow.start }} 至 {{ follow.end }}</el-descriptions-item>
+              <el-descriptions-item label="范围单据数量">{{ follow.poolIds.length }} 张</el-descriptions-item>
+              <el-descriptions-item label="已复查数量">{{ followProgress(follow).done }} / {{ follow.ids.length }} 张</el-descriptions-item>
+            </el-descriptions>
+            <el-button link type="primary" @click="router.push(supervisorTaskLocation(follow.id))">查看复查单据与附件</el-button>
+          </div>
+        </template>
+        <p v-else class="task-detail-hint">尚未下发全面复查任务。</p>
       </section>
     </template>
   </div>
@@ -103,4 +123,7 @@ function resolveDifference() {
 .task-result-pass { color:#278450; }
 .task-state-pill { display:inline-block; padding:2px 8px; border-radius:4px; line-height:22px; color:#9b690f; background:#fff5df; white-space:nowrap; }
 .task-state-pill.complete { color:#278450; background:#edf8ef; }
+.task-stage-title { margin:0 0 14px; font-size:15px; font-weight:600; }
+.follow-review { margin-bottom:14px; }
+.follow-review:last-child { margin-bottom:0; }
 </style>

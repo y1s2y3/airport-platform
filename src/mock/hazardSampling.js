@@ -71,7 +71,12 @@ function enrichExampleTasks() {
     const people = getSamplingPeople(task.projectKey)
     const person = task.stage === 'manager' ? getSamplingManager(task.projectKey) : people[task.id.endsWith('-pending') || task.id.endsWith('-complete') ? Math.min(1, people.length - 1) : 0]
     if (person) { task.assigneeId = person.id; task.assigneeName = person.name; task.recipient = person.label }
-    task.sender ||= '指挥部检查人'
+    if (task.stage === 'manager') {
+      const parent = sampling.value.tasks.find(item => item.stage === 'supervisor' && (item.id === task.parentTaskId || (!task.parentTaskId && item.batchId === task.batchId && item.projectKey === task.projectKey)))
+      task.sender = parent?.recipient || '指挥部检查人'
+    } else {
+      task.sender ||= '指挥部检查人'
+    }
     task.percent ||= task.exampleRule?.percent || 30
     task.rangeBasis ||= '历史检查范围'
   }
@@ -82,6 +87,33 @@ export function visibleHistory(rowId, role) {
 export function visibleTasks(role, projectId) {
   const key = getCurrentHazardIssueProjectKey(projectId)
   return sampling.value.tasks.filter(task => role === 'hq' || (task.projectKey === key && (task.assigneeId ? task.assigneeId === samplingActorId(key, role) : task.stage === role)))
+}
+/** 指挥部主列表：一行对应一项指挥部直接下发的原抽检任务，全面复查通过关联展示。 */
+export function hqMainTasks() {
+  return sampling.value.tasks.filter(task => task.stage === 'supervisor')
+}
+/** 关联的全面复查任务：新数据用 parentTaskId，历史数据按同项目同批次补关联；多个关联项全部保留。 */
+export function linkedReviewTasks(task) {
+  if (!task) return []
+  const byParent = sampling.value.tasks.filter(item => item.stage === 'manager' && item.parentTaskId === task.id)
+  if (byParent.length) return byParent
+  return sampling.value.tasks.filter(item => item.stage === 'manager' && !item.parentTaskId && item.batchId === task.batchId && item.projectKey === task.projectKey)
+}
+export function linkedReviewTask(task) { return linkedReviewTasks(task)[0] || null }
+/** 找不到有效父任务的后续任务：保留只读入口，不伪造父任务、不隐藏历史。 */
+export function unlinkedReviewTasks() {
+  return sampling.value.tasks.filter(task => task.stage === 'manager' && !sampling.value.tasks.some(parent => parent.stage === 'supervisor' && (parent.id === task.parentTaskId || (!task.parentTaskId && parent.batchId === task.batchId && parent.projectKey === task.projectKey))))
+}
+/** 有效逐单结果：必须同任务、同单据、同阶段，避免无效或无关历史记录计入进度。 */
+function validLog(task, rowId) {
+  const logId = task.results?.[rowId]
+  if (!logId) return null
+  return sampling.value.history.find(log => log.id === logId && log.taskId === task.id && log.rowId === rowId && log.stage === task.stage) || null
+}
+export function taskProgress(task) {
+  if (!task) return { total: 0, done: 0, failed: 0, complete: false }
+  const logs = task.ids.map(id => validLog(task, id)).filter(Boolean)
+  return { total: task.ids.length, done: logs.length, failed: task.stage === 'supervisor' ? logs.filter(log => log.result === '不合格').length : 0, complete: Boolean(task.submittedAt) }
 }
 export function taskComplete(task) {
   return Boolean(task?.ids.length) && task.ids.every(id => sampling.value.history.some(log => log.id === task.results[id] && log.taskId === task.id && log.rowId === id && log.stage === task.stage && ['合格','不合格'].includes(log.result) && (task.stage !== 'manager' || log.completed && log.files?.length)))
