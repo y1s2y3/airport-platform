@@ -1,11 +1,13 @@
 <script setup>
 import HazardSamplingPanel from '../../components/HazardSamplingPanel.vue'
+import { samplingReturnLocation, restoreSupervisorTaskContext } from '../../utils/hazardSamplingTaskNavigation.js'
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getProjectRectifierLabel, getProjectReviewerLabel } from '../../composables/useInspectionPersonConfig'
 import { getInspectionHazardDetail } from '../../mock/inspectionHazardQuery'
 
 const route = useRoute()
+if (route.query.from === 'sampling-task' && route.query.viewer !== 'hq') restoreSupervisorTaskContext(String(route.query.samplingTask || ''))
 const router = useRouter()
 const rid = route.params.id
 
@@ -134,6 +136,7 @@ const latestReviews = computed(() => {
 })
 
 function goBack() {
+  if (route.query.from === 'sampling-task') { router.push(samplingReturnLocation(route.query)); return }
   if (route.query.from === 'summary') {
     router.push('/hazard-issues/summary')
     return
@@ -192,7 +195,7 @@ function goBack() {
           <div class="rv-top">
             <span class="rv-round">复查</span>
             <span class="rv-date">{{ rv.date }}</span>
-            <span class="rv-result" :class="{ 'rv-result-pass': rv.result==='通过' }">{{ rv.result==='通过' ? '✅ 通过' : '❌ 不通过' }}</span>
+            <span class="rv-result" :class="{ 'rv-result-pass': rv.result==='通过' }">{{ rv.result==='通过' ? '✅ 通过' : rv.result==='不通过' ? '❌ 不通过' : '--' }}</span>
           </div>
           <div class="rv-comment">{{ rv.comment }}</div>
         </div>
@@ -207,8 +210,7 @@ function goBack() {
       <div class="rf"><label>审批意见</label><span>{{ info.managerApproval.comment }}</span></div>
     </div>
 
-    <HazardSamplingPanel source="inspection" :record-id="String(route.params.id)" />
-    <!-- ===== 流程记录（最底部） ===== -->
+    <!-- ===== 原业务流程记录 ===== -->
     <div class="sc">
       <div class="sct colps" @click="flowCollapsed = !flowCollapsed">
         <span>流程记录</span>
@@ -225,6 +227,7 @@ function goBack() {
         </div>
       </div>
     </div>
+    <HazardSamplingPanel source="inspection" :record-id="String(route.params.id)" />
   </div>
 </template>
 

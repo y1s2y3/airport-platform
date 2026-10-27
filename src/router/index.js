@@ -183,6 +183,12 @@ const routes = [
     children: [
       ...buildRoutes(),
       {
+        path: 'hazard-issues/sampling-task/:id',
+        name: 'SupervisorSamplingTaskDetail',
+        component: () => import('../views/hazard/SupervisorSamplingTaskDetailView.vue'),
+        meta: { title: '抽查复查任务详情', sidebarKey: 'hazard-sampling-tasks' },
+      },
+      {
         path: 'hazard-issues/quality/:id',
         name: 'ExternalQualityIssueDetail',
         component: () => import('../views/hazard/ExternalQualityIssueDetailView.vue'),

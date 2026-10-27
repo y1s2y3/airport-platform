@@ -358,6 +358,7 @@ function skipToMain(e) {
           placeholder="选择组织/项目"
           aria-label="选择组织/项目"
         >
+          <template #label="{ label, value }">{{ allProjectOptions.find(item => item.id === value)?.label || label }}</template>
           <el-option :label="HQ_PROJECT_OPTION.label" :value="HQ_PROJECT_OPTION.id">
             <div class="project-option">
               <span class="project-option-label">{{ HQ_PROJECT_OPTION.label }}</span>

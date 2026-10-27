@@ -1,8 +1,7 @@
 <script setup>
 import { computed, nextTick, onActivated, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import HazardSamplingControls from '../../components/HazardSamplingControls.vue'
-import { eligible, hqSamplingStatus, SAMPLING_STATUS, sampling, useSamplingRole, visibleHistory, visibleTasks } from '../../mock/hazardSampling.js'
+import { hqSamplingStatus, SAMPLING_STATUS, ensureSamplingExamples } from '../../mock/hazardSampling.js'
 import { Search } from '@element-plus/icons-vue'
 import { useCurrentProject } from '../../composables/useCurrentProject.js'
 import {
@@ -15,26 +14,19 @@ import {
 
 const router = useRouter()
 const route = useRoute()
-const activeTab = ref(route.query.tab || sessionStorage.getItem('hazard-summary-tab') || 'all')
-const samplingTask = ref(route.query.task || '')
-const samplingRole = useSamplingRole()
-watch(activeTab, value => { sessionStorage.setItem('hazard-summary-tab', value); filters.status = ''; currentPage.value = 1 })
-watch(() => route.query, value => { if (value.tab) activeTab.value = value.tab; samplingTask.value = value.task || '' })
-const selectedSamplingTask = computed(() => visibleTasks(samplingRole.value, selectedProjectId.value).find(t => t.id === samplingTask.value))
 const { isHqSelected, selectedProjectId } = useCurrentProject()
 const rows = ref([])
 const projectTreeRef = ref(null)
 const projectSearch = ref('')
 const selectedTreeProjectId = ref('all')
-const filters = reactive({ keyword: '', source: '', category: '', status: '' })
+const filters = reactive({ keyword: '', source: '', category: '', status: '', samplingStatus: '' })
 const dateRange = ref([])
 const currentPage = ref(1)
 const pageSize = ref(20)
 
 const projectOptions = computed(() => getHazardIssueProjectOptions())
-/** 抽检页：可抽检单据 + 待验收单据（仅可查看，不可抽检判定）。 */
-const inSamplingScope = (row) => eligible(row) || row.status === '待验收'
-const treeRows = computed(() => activeTab.value === 'sampling' ? rows.value.filter(inSamplingScope) : rows.value)
+/** 汇总始终展示全部原业务状态。 */
+const treeRows = computed(() => rows.value)
 const projectTreeData = computed(() => [{
   id: 'all',
   label: '全部项目',
@@ -48,6 +40,7 @@ const projectTreeData = computed(() => [{
 
 function loadRows() {
   rows.value = getHazardIssueRows()
+  ensureSamplingExamples(rows.value)
 }
 
 function selectProject(node) {
@@ -61,16 +54,18 @@ function filterProjectNode(value, node) {
 
 watch(projectSearch, (value) => projectTreeRef.value?.filter(value))
 watch([selectedProjectId, isHqSelected], async () => {
+  filters.samplingStatus = ''
   selectedTreeProjectId.value = 'all'
   currentPage.value = 1
   loadRows()
   await nextTick()
   projectTreeRef.value?.setCurrentKey('all')
 })
-watch([() => filters.keyword, () => filters.source, () => filters.category, () => filters.status, dateRange], () => {
+watch([() => filters.keyword, () => filters.source, () => filters.category, () => filters.status, () => filters.samplingStatus, dateRange], () => {
   currentPage.value = 1
 })
 onMounted(async () => {
+  if (route.query.tab || route.query.taskView || route.query.task) router.replace({path:route.path,query:{}})
   loadRows()
   await nextTick()
   projectTreeRef.value?.setCurrentKey('all')
@@ -88,8 +83,6 @@ const scopedRows = computed(() => {
 })
 
 const baseRows = computed(() => scopedRows.value.filter((row) => {
-  if (activeTab.value === 'sampling' && !inSamplingScope(row)) return false
-  if (activeTab.value === 'sampling' && samplingTask.value && !selectedSamplingTask.value?.ids.includes(row.id)) return false
   if (filters.source && row.source !== filters.source) return false
   if (filters.category && !row.categories.includes(filters.category)) return false
   if (dateRange.value?.length === 2) {
@@ -113,12 +106,11 @@ const stats = computed(() => ({
 }))
 
 const rawStatuses = computed(() => [...new Set(rows.value.map((row) => row.status).filter(Boolean))])
-/** 抽检页处理状态固定三项；「全部」页签仍按数据现有状态生成。 */
-const SAMPLING_STATUS_OPTIONS = ['已复查', '已关闭', '待验收']
-const statusOptions = computed(() => activeTab.value === 'sampling' ? SAMPLING_STATUS_OPTIONS : rawStatuses.value)
+const statusOptions = rawStatuses
 const filteredRows = computed(() => baseRows.value.filter((row) => {
-  if (!filters.status) return true
-  return row.status === filters.status
+  if (filters.status && row.status !== filters.status) return false
+  if (isHqSelected.value && filters.samplingStatus && hqSamplingStatus(row) !== filters.samplingStatus) return false
+  return true
 }))
 const pagedRows = computed(() => filteredRows.value.slice(
   (currentPage.value - 1) * pageSize.value,
@@ -126,7 +118,7 @@ const pagedRows = computed(() => filteredRows.value.slice(
 ))
 
 function resetFilters() {
-  Object.assign(filters, { keyword: '', source: '', category: '', status: '' })
+  Object.assign(filters, { keyword: '', source: '', category: '', status: '', samplingStatus: '' })
   dateRange.value = []
   currentPage.value = 1
 }
@@ -139,12 +131,10 @@ function openOriginal(row) {
       : row.source === 'dispatch'
         ? { path: '/coc-admin/dispatch-hazard', query: { from: 'summary', hazardId: row.sourceId } }
         : { path: `/hazard-issues/quality/${encodeURIComponent(row.sourceId)}`, query: { from: 'summary' } }
-  target.query.samplingTask = activeTab.value === 'sampling' ? samplingTask.value : ''
   router.push(target)
 }
 
-function samplingTags(row) { return [...new Set(visibleHistory(row.id, samplingRole.value).filter(h => h.stage !== 'hq').map(h => h.stage === 'supervisor' ? `监理复查${h.result}` : '已完成复查 · 合格'))] }
-function samplingStatusTag(row) { return hqSamplingStatus(row) }
+const samplingStatusTag = hqSamplingStatus
 function samplingStatusType(row) { const status = hqSamplingStatus(row); return status === SAMPLING_STATUS.PASS ? 'success' : status === SAMPLING_STATUS.FAIL ? 'danger' : 'info' }
 
 function statusTagType(row) {
@@ -157,8 +147,6 @@ function statusTagType(row) {
 
 <template>
   <div class="hazard-summary-page">
-    <el-tabs v-model="activeTab"><el-tab-pane label="全部" name="all"/><el-tab-pane label="抽检" name="sampling"/></el-tabs>
-    <HazardSamplingControls v-if="activeTab === 'sampling'" v-model="samplingTask" />
     <div class="summary-layout" :class="{ 'project-only': !isHqSelected }">
       <aside v-if="isHqSelected" class="project-panel">
         <div class="panel-heading">项目范围</div>
@@ -204,6 +192,9 @@ function statusTagType(row) {
             <el-select v-model="filters.status" clearable placeholder="处理状态" class="filter-select">
               <el-option v-for="status in statusOptions" :key="status" :label="status" :value="status" />
             </el-select>
+            <el-select v-if="isHqSelected" v-model="filters.samplingStatus" clearable placeholder="抽查状态" aria-label="抽查状态" class="filter-select sampling-status-filter">
+              <el-option v-for="status in SAMPLING_STATUS" :key="status" :label="status" :value="status" />
+            </el-select>
             <el-date-picker v-model="dateRange" type="daterange" value-format="YYYY-MM-DD" start-placeholder="开始日期" end-placeholder="结束日期" style="width: 230px" />
             <el-button @click="resetFilters">重置</el-button>
           </div>
@@ -216,12 +207,12 @@ function statusTagType(row) {
             <el-table-column v-if="isHqSelected" prop="projectName" label="项目" min-width="90" show-overflow-tooltip />
             <el-table-column prop="categoryLabel" label="类别" width="66" align="center" />
             <el-table-column label="隐患／问题内容" min-width="220">
-              <template #default="{ row }"><div class="issue-title" :title="row.title">{{ row.title || '--' }}</div><div class="issue-number" :title="row.originalNo">{{ row.originalNo }}</div><el-tag v-for="tag in samplingTags(row)" :key="tag" size="small" :type="tag.includes('不合格') ? 'danger' : 'success'">{{ tag }}</el-tag></template>
+              <template #default="{ row }"><div class="issue-title" :title="row.title">{{ row.title || '--' }}</div><div class="issue-number" :title="row.originalNo">{{ row.originalNo }}</div></template>
             </el-table-column>
             <el-table-column label="原业务状态" width="96" align="center">
               <template #default="{ row }"><el-tag :type="statusTagType(row)" size="small">{{ row.status || '--' }}</el-tag></template>
             </el-table-column>
-            <el-table-column v-if="activeTab === 'sampling'" label="抽检状态" width="96" align="center">
+            <el-table-column v-if="isHqSelected" label="抽查状态" width="96" align="center">
               <template #default="{ row }"><el-tag :type="samplingStatusType(row)" size="small" effect="plain">{{ samplingStatusTag(row) }}</el-tag></template>
             </el-table-column>
             <el-table-column label="整改人" min-width="88" show-overflow-tooltip>

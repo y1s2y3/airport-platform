@@ -66,6 +66,12 @@ function resolveProject(source, projectId, projectName) {
   }
 }
 
+/** 原台账与汇总共用同一项目归属，兼容主数据简称和 COC 目录简称。 */
+export function matchesHazardIssueProject(source, record, masterId) {
+  const key = getCurrentHazardIssueProjectKey(masterId)
+  return Boolean(key) && resolveProject(source, record.projectId, record.projectName).projectKey === key
+}
+
 function summaryRow(source, record, values) {
   const project = resolveProject(source, values.projectId, values.projectName)
   return {
@@ -154,6 +160,14 @@ export function getHazardIssueRows() {
     ...getDispatchHazards().map(normalizeDispatch),
     ...externalQualityIssues.map(normalizeExternal),
   ].sort((a, b) => String(b.registeredAt).localeCompare(String(a.registeredAt)))
+}
+
+/** COC 项目 ID 属于目录序列，不能当成项目主数据 ID 直接比较。 */
+export function getCocHazardIssueRows(projectId) {
+  const rows = getHazardIssueRows()
+  if (!projectId || projectId === 'hq') return rows
+  const index = /^p-\d+$/.test(projectId) ? Number(projectId.slice(2)) : -1
+  return rows.filter(row => row.projectKey === `catalog:${index}`)
 }
 
 /** 无期限时返回 null，便于页面区分“未逾期”和“无法判断”。 */

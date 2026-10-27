@@ -1,12 +1,12 @@
 <script setup>
 import HazardSamplingPanel from '../../components/HazardSamplingPanel.vue'
+import { matchesHazardIssueProject } from '../../utils/hazardIssueSummary.js'
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { View, Plus } from '@element-plus/icons-vue'
 import {
   getSupervisionHazards,
-  getSupervisionHazardsByProject,
   SUPERVISION_HAZARD_RECTIFY_STATUSES,
   closeSupervisionHazard,
   saveSupervisionHazard,
@@ -51,7 +51,7 @@ function emptyManualForm() {
 
 function load() {
   let rows = props.projectName
-    ? getSupervisionHazardsByProject(props.projectName)
+    ? getSupervisionHazards().filter(row => row.projectName === props.projectName || matchesHazardIssueProject('supervision', row, props.projectId))
     : getSupervisionHazards()
   if (props.meetingId) {
     rows = rows.filter((item) => item.meetingId === props.meetingId)

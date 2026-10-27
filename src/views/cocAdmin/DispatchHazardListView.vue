@@ -1,12 +1,13 @@
 <script setup>
 import HazardSamplingPanel from '../../components/HazardSamplingPanel.vue'
+import { samplingReturnLocation, restoreSupervisorTaskContext } from '../../utils/hazardSamplingTaskNavigation.js'
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { View } from '@element-plus/icons-vue'
 import { useCurrentProject } from '../../composables/useCurrentProject.js'
+import { matchesHazardIssueProject } from '../../utils/hazardIssueSummary.js'
 import {
   getDispatchHazards,
-  getDispatchHazardsByProject,
   DISPATCH_HAZARD_RECTIFY_STATUSES,
   resolveDispatchHazardPhotoSrc,
   resolveDispatchHazardPhotoName,
@@ -18,8 +19,9 @@ defineProps({
   description: { type: String, default: '' },
 })
 
-const { isHqSelected, headerProjectLabel } = useCurrentProject()
+const { isHqSelected, headerProjectLabel, selectedProjectId } = useCurrentProject()
 const route = useRoute()
+if (route.query.from === 'sampling-task' && route.query.viewer !== 'hq') restoreSupervisorTaskContext(String(route.query.samplingTask || ''))
 const router = useRouter()
 
 const keyword = ref('')
@@ -40,7 +42,7 @@ const scopeProjectName = computed(() => (isHqSelected.value ? '' : headerProject
 
 function load() {
   list.value = scopeProjectName.value
-    ? getDispatchHazardsByProject(scopeProjectName.value)
+    ? getDispatchHazards().filter(row => row.projectName === scopeProjectName.value || matchesHazardIssueProject('dispatch', row, selectedProjectId.value))
     : getDispatchHazards()
   const focused = list.value.find((row) => row.id === route.query.hazardId)
   if (focused) openDetail(focused)
@@ -108,6 +110,7 @@ onMounted(load)
 
 <template>
   <div class="dispatch-hazard-page page-card">
+    <div v-if="['summary','sampling-task'].includes(route.query.from)" class="hazard-source-back"><el-button link type="primary" @click="router.push(samplingReturnLocation(route.query))">{{ route.query.from === 'sampling-task' ? '返回任务' : '返回汇总' }}</el-button></div>
     <div class="page-head">
       <div>
         <h2 class="page-title">{{ title }}</h2>
@@ -119,7 +122,6 @@ onMounted(load)
         </p>
       </div>
       <div class="page-head-actions">
-        <el-button v-if="route.query.from === 'summary'" link type="primary" @click="router.push('/hazard-issues/summary')">返回汇总</el-button>
         <el-tag v-if="readonly" size="small" type="info">指挥部 · 只读查看全部项目</el-tag>
         <el-tag v-else size="small" type="success">项目层级 · {{ scopeProjectName || '当前项目' }}</el-tag>
       </div>
@@ -258,6 +260,7 @@ onMounted(load)
 </template>
 
 <style scoped>
+.hazard-source-back { display:flex; justify-content:flex-start; margin-bottom:14px; }
 .dispatch-hazard-page {
   padding: 16px 20px 20px;
   min-height: calc(100vh - 120px);

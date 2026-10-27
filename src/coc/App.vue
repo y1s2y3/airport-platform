@@ -20,7 +20,8 @@ import { createCocInitialState } from './utils/cocBoot.js'
 const cocInitialState = createCocInitialState()
 const projects = ref(buildProjects())
 const selectedProjectId = ref(cocInitialState.selectedProjectId)
-const statusFilters = ref(['在建'])
+const initialProjectStatus = projects.value.find(project => project.id === cocInitialState.selectedProjectId)?.status
+const statusFilters = ref(['在建', ...(['前期','历史'].includes(initialProjectStatus) ? [initialProjectStatus] : [])])
 const homeProjectDispatchId = ref(cocInitialState.homeProjectDispatchId)
 const homeProjectDispatchLabel = ref(cocInitialState.homeProjectDispatchLabel)
 const homeProjectDispatchDeviceId = ref(cocInitialState.homeProjectDispatchDeviceId)

@@ -1,22 +1,24 @@
 <script setup>
 import HazardSamplingPanel from '../../components/HazardSamplingPanel.vue'
+import { samplingReturnLocation, restoreSupervisorTaskContext } from '../../utils/hazardSamplingTaskNavigation.js'
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { externalQualityIssues } from '../../mock/externalQualityIssues.js'
 
 const route = useRoute()
+if (route.query.from === 'sampling-task' && route.query.viewer !== 'hq') restoreSupervisorTaskContext(String(route.query.samplingTask || ''))
 const router = useRouter()
 const issue = computed(() => externalQualityIssues.find((item) => item.id === route.params.id))
 
 function goBack() {
-  router.push('/hazard-issues/summary')
+  router.push(samplingReturnLocation(route.query))
 }
 </script>
 
 <template>
   <div class="quality-issue-detail">
     <div class="detail-heading">
-      <el-button @click="goBack">返回汇总</el-button>
+      <el-button @click="goBack">{{ route.query.from === 'sampling-task' ? '返回任务' : '返回汇总' }}</el-button>
       <div class="detail-title">
         <h2>施工质量问题管理</h2>
         <p>问题记录详情 <el-tag size="small" type="info">原型示例</el-tag></p>
@@ -24,7 +26,7 @@ function goBack() {
     </div>
 
     <el-empty v-if="!issue" description="未找到该问题记录">
-      <el-button type="primary" @click="goBack">返回汇总</el-button>
+      <el-button type="primary" @click="goBack">{{ route.query.from === 'sampling-task' ? '返回任务' : '返回汇总' }}</el-button>
     </el-empty>
     <template v-else>
       <section class="detail-card">

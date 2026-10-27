@@ -1,361 +1,32 @@
 <script setup>
-import { ref, computed, inject, watch } from 'vue'
-import { getCocHazardListRows } from '../../../mock/hazardStats.js'
+import {ref,computed,inject,watch} from 'vue'
+import {getCocHazardIssueRows,HAZARD_ISSUE_SOURCES} from '../../../../utils/hazardIssueSummary.js'
+import {hqSamplingStatus,ensureSamplingExamples,sampling} from '../../../../mock/hazardSampling.js'
 import DispatchDraggablePanel from './DispatchDraggablePanel.vue'
-import DispatchRecordDetailBody from './DispatchRecordDetailBody.vue'
 import DispatchHqPanelTitle from './DispatchHqPanelTitle.vue'
-
-const dispatchHqUi = inject('dispatchHqUi', false)
-
-const props = defineProps({
-  projectId: { type: String, default: '' },
-})
-
-const hazardList = ref([])
-
-const CHANNEL_LABEL = {
-  inspection: '巡检',
-  supervision: '监理例会',
-  dispatch: '调度',
-}
-
-function reloadHazardList() {
-  hazardList.value = getCocHazardListRows(props.projectId)
-}
-
-reloadHazardList()
-watch(() => props.projectId, reloadHazardList)
-
-const hazardStatusFilter = ref('待整改')
-const hazardDateRange = ref(null)
-const hazardKeyword = ref('')
-const hazardSourceFilter = ref('')
-const hazardLevelFilter = ref('')
-const hazardMoreOpen = ref(false)
-const detailView = ref(null)
-
-const hazardStatusOptions = [
-  { label: '全部', value: '全部' },
-  { label: '待整改', value: '待整改' },
-  { label: '待复查/验收', value: '待复查/验收' },
-  { label: '已关闭', value: '已关闭' },
-]
-
-const hazardSourceOptions = [
-  { label: '巡检', value: 'inspection' },
-  { label: '监理例会', value: 'supervision' },
-  { label: '调度', value: 'dispatch' },
-]
-
-const hazardLevelOptions = ['重大', '较大', '一般']
-
-const HAZARD_LEVEL_ORDER = { 重大: 0, 较大: 1, 一般: 2 }
-
-const filteredHazardList = computed(() => {
-  const list =
-    hazardStatusFilter.value === '全部'
-      ? [...hazardList.value]
-      : hazardList.value.filter((row) => row.unifiedStatus === hazardStatusFilter.value)
-  return list.sort(
-    (a, b) => (HAZARD_LEVEL_ORDER[a.level] ?? 9) - (HAZARD_LEVEL_ORDER[b.level] ?? 9),
-  )
-})
-
-function matchHazardDateRange(row, range) {
-  if (!range?.[0]) return true
-  const rowDate = row.date
-  if (!rowDate) return true
-  const [start, end] = range
-  if (end) return rowDate >= start && rowDate <= end
-  return rowDate === start
-}
-
-const popupFilteredHazardList = computed(() => {
-  let list = filteredHazardList.value
-  if (hazardSourceFilter.value) {
-    list = list.filter((row) => (row.channel || row.source) === hazardSourceFilter.value)
-  }
-  if (hazardLevelFilter.value) {
-    list = list.filter((row) => row.level === hazardLevelFilter.value)
-  }
-  if (hazardDateRange.value?.[0]) {
-    list = list.filter((row) => matchHazardDateRange(row, hazardDateRange.value))
-  }
-  const kw = hazardKeyword.value.trim().toLowerCase()
-  if (!kw) return list
-  return list.filter((row) => {
-    const blob = [
-      row.hazardCategory,
-      row.desc,
-      row.status,
-      row.unifiedStatus,
-      row.date,
-      row.id,
-      row.detail?.ticketType,
-      row.ticketType,
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase()
-    return blob.includes(kw)
-  })
-})
-
-const previewList = computed(() => filteredHazardList.value.slice(0, 8))
-
-function openHazardMore() {
-  hazardKeyword.value = ''
-  hazardDateRange.value = null
-  hazardSourceFilter.value = ''
-  hazardLevelFilter.value = ''
-  hazardMoreOpen.value = true
-}
-
-const statusMap = {
-  待整改: 'pending',
-  '待复查/验收': 'doing',
-  待复查: 'doing',
-  待验收: 'doing',
-  已复查: 'doing',
-  已关闭: 'closed',
-}
-
-const detailTitle = computed(() => {
-  if (!detailView.value) return ''
-  const row = detailView.value.data
-  const cat = row.hazardCategory || '安质'
-  const src = CHANNEL_LABEL[row.channel] || ''
-  return src ? `${src}·${cat}隐患详情` : `${cat}隐患详情`
-})
-
-function levelClass(level) {
-  if (level === '重大') return 'major'
-  if (level === '较大') return 'medium'
-  return 'normal'
-}
-
-function sourceLabel(row) {
-  return CHANNEL_LABEL[row.channel] || CHANNEL_LABEL[row.source] || '--'
-}
-
-function openHazardDetail(row) {
-  detailView.value = { kind: 'hazard', data: { ...row } }
-}
-
-function closeDetail() {
-  detailView.value = null
-}
+import CocHazardIssueDetail from './CocHazardIssueDetail.vue'
+const dispatchHqUi=inject('dispatchHqUi',false)
+const props=defineProps({projectId:{type:String,default:''}})
+const hazardList=ref([]),hazardStatusFilter=ref(''),hazardSourceFilter=ref(''),hazardKeyword=ref(''),hazardDateRange=ref([]),hazardMoreOpen=ref(false),detailView=ref(null)
+function reload(){hazardList.value=getCocHazardIssueRows(props.projectId);ensureSamplingExamples()}
+reload();watch(()=>props.projectId,()=>{reload();detailView.value=null;hazardStatusFilter.value='';hazardSourceFilter.value=''})
+const hazardStatusOptions=computed(()=>[...new Set(hazardList.value.map(row=>row.status))])
+const filtered=computed(()=>{void sampling.value.history.length;return hazardList.value.filter(row=>(!hazardStatusFilter.value||row.status===hazardStatusFilter.value)&&(!hazardSourceFilter.value||row.source===hazardSourceFilter.value)&&(!hazardKeyword.value.trim()||[row.originalNo,row.title,row.rectifier,row.sourceLabel].join(' ').includes(hazardKeyword.value.trim()))&&(!hazardDateRange.value?.length||(row.registeredAt.slice(0,10)>=hazardDateRange.value[0]&&row.registeredAt.slice(0,10)<=hazardDateRange.value[1])))})
+const previewList=computed(()=>filtered.value.slice(0,8))
+function openDetail(row){detailView.value=row}
 </script>
-
 <template>
-  <div class="panel-card hazard-side-panel" :class="{ 'dispatch-hq-list-panel': dispatchHqUi }">
-    <DispatchHqPanelTitle v-if="dispatchHqUi" title="隐患清单">
-      <template #actions>
-        <div class="title-actions">
-          <el-select
-            v-model="hazardStatusFilter"
-            size="small"
-            class="hazard-status-select"
-          >
-            <el-option
-              v-for="opt in hazardStatusOptions"
-              :key="opt.value"
-              :label="opt.label"
-              :value="opt.value"
-            />
-          </el-select>
-          <button type="button" class="title-more-btn" @click="openHazardMore">
-            更多
-          </button>
-        </div>
-      </template>
-    </DispatchHqPanelTitle>
-    <div v-else class="panel-title compact hazard-title-row title-left">
-      <span class="hazard-title-text">隐患清单</span>
-      <div class="title-actions">
-        <el-select
-          v-model="hazardStatusFilter"
-          size="small"
-          class="hazard-status-select"
-        >
-          <el-option
-            v-for="opt in hazardStatusOptions"
-            :key="opt.value"
-            :label="opt.label"
-            :value="opt.value"
-          />
-        </el-select>
-        <button type="button" class="title-more-btn" @click="openHazardMore">
-          更多
-        </button>
-      </div>
-    </div>
-    <div class="panel-body panel-inner">
-      <div class="list-wrap">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>数据源</th>
-              <th>类别</th>
-              <th>描述</th>
-              <th>等级</th>
-              <th>状态</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="row in previewList"
-              :key="`${row.source || row.channel}-${row.id}`"
-              class="clickable-row"
-              @click="openHazardDetail(row)"
-            >
-              <td>
-                <span class="src-tag" :class="{ 'src-tag--sup': row.channel === 'supervision', 'src-tag--dispatch': row.channel === 'dispatch' }">
-                  {{ sourceLabel(row) }}
-                </span>
-              </td>
-              <td>
-                <span class="cat-tag" :class="row.hazardCategory === '安全' ? 'safety' : 'quality'">
-                  {{ row.hazardCategory || '--' }}
-                </span>
-              </td>
-              <td class="desc" :title="row.desc">{{ row.desc }}</td>
-              <td>
-                <span class="level-tag" :class="levelClass(row.level)">{{ row.level }}</span>
-              </td>
-              <td>
-                <span class="status-tag" :class="statusMap[row.unifiedStatus] || statusMap[row.status]">{{ row.unifiedStatus || row.status }}</span>
-              </td>
-            </tr>
-            <tr v-if="!previewList.length">
-              <td colspan="5" class="empty-row">暂无符合条件的隐患记录</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <DispatchDraggablePanel
-      v-if="hazardMoreOpen"
-      title="隐患清单"
-      :width="880"
-      placement="right"
-      @close="hazardMoreOpen = false"
-    >
-      <div class="more-dialog-toolbar">
-        <span class="more-count">共 {{ popupFilteredHazardList.length }} 条</span>
-        <div class="more-filters">
-          <el-input
-            v-model="hazardKeyword"
-            clearable
-            size="small"
-            class="more-search"
-            placeholder="搜索描述/类别"
-          />
-          <el-select
-            v-model="hazardSourceFilter"
-            clearable
-            size="small"
-            class="more-filter hazard-source-select"
-            placeholder="数据源"
-            aria-label="数据源"
-          >
-            <el-option
-              v-for="opt in hazardSourceOptions"
-              :key="opt.value"
-              :label="opt.label"
-              :value="opt.value"
-            />
-          </el-select>
-          <el-select
-            v-model="hazardLevelFilter"
-            clearable
-            size="small"
-            class="more-filter hazard-level-select"
-            placeholder="隐患等级"
-            aria-label="隐患等级"
-          >
-            <el-option v-for="lv in hazardLevelOptions" :key="lv" :label="lv" :value="lv" />
-          </el-select>
-          <el-date-picker
-            v-model="hazardDateRange"
-            type="daterange"
-            range-separator="至"
-            start-placeholder="开始日期"
-            end-placeholder="结束日期"
-            value-format="YYYY-MM-DD"
-            clearable
-            size="small"
-            class="hazard-date-filter"
-            aria-label="日期筛选"
-          />
-          <el-select v-model="hazardStatusFilter" size="small" class="hazard-status-select more-filter">
-            <el-option
-              v-for="opt in hazardStatusOptions"
-              :key="opt.value"
-              :label="opt.label"
-              :value="opt.value"
-            />
-          </el-select>
-        </div>
-      </div>
-      <div class="more-table-wrap">
-        <table class="mini-table more-table">
-          <thead>
-            <tr>
-              <th>数据源</th>
-              <th>类别</th>
-              <th>日期</th>
-              <th>描述</th>
-              <th>隐患等级</th>
-              <th>状态</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="row in popupFilteredHazardList"
-              :key="`more-${row.source || row.channel}-${row.id}`"
-              class="clickable-row"
-              @click="openHazardDetail(row)"
-            >
-              <td>
-                <span class="src-tag" :class="{ 'src-tag--sup': row.channel === 'supervision', 'src-tag--dispatch': row.channel === 'dispatch' }">
-                  {{ sourceLabel(row) }}
-                </span>
-              </td>
-              <td>
-                <span class="cat-tag" :class="row.hazardCategory === '安全' ? 'safety' : 'quality'">
-                  {{ row.hazardCategory || '--' }}
-                </span>
-              </td>
-              <td>{{ row.date }}</td>
-              <td class="desc col-desc" :title="row.desc">{{ row.desc }}</td>
-              <td>
-                <span class="level-tag" :class="levelClass(row.level)">{{ row.level }}</span>
-              </td>
-              <td><span class="status-tag" :class="statusMap[row.unifiedStatus] || statusMap[row.status]">{{ row.unifiedStatus || row.status }}</span></td>
-            </tr>
-            <tr v-if="!popupFilteredHazardList.length">
-              <td colspan="6" class="empty-row">暂无符合条件的隐患记录</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </DispatchDraggablePanel>
-
-    <DispatchDraggablePanel
-      v-if="detailView"
-      :title="detailTitle"
-      :width="560"
-      :z-index="120010"
-      placement="right"
-      @close="closeDetail"
-    >
-      <DispatchRecordDetailBody :kind="detailView.kind" :record="detailView.data" />
-    </DispatchDraggablePanel>
-  </div>
+ <div class="panel-card hazard-side-panel" :class="{'dispatch-hq-list-panel':dispatchHqUi}">
+  <DispatchHqPanelTitle v-if="dispatchHqUi" title="隐患清单"><template #actions><div class="title-actions"><el-select v-model="hazardStatusFilter" clearable size="small" placeholder="全部状态" class="hazard-status-select"><el-option v-for="status in hazardStatusOptions" :key="status" :label="status" :value="status"/></el-select><button class="title-more-btn" @click="hazardMoreOpen=true">更多</button></div></template></DispatchHqPanelTitle>
+  <div v-else class="panel-title compact hazard-title-row title-left"><span>隐患清单</span><div class="title-actions"><el-select v-model="hazardStatusFilter" clearable size="small" placeholder="全部状态" class="hazard-status-select"><el-option v-for="status in hazardStatusOptions" :key="status" :label="status" :value="status"/></el-select><button class="title-more-btn" @click="hazardMoreOpen=true">更多</button></div></div>
+  <div class="panel-body panel-inner"><div class="list-wrap"><table class="data-table"><thead><tr><th>数据源</th><th>类别</th><th>描述</th><th>抽查状态</th><th>业务状态</th></tr></thead><tbody><tr v-for="row in previewList" :key="row.id" class="clickable-row" @dblclick="openDetail(row)"><td><span class="src-tag">{{row.sourceLabel}}</span></td><td>{{row.categoryLabel}}</td><td class="desc" :title="row.title">{{row.title}}</td><td><span class="inspection-state">{{hqSamplingStatus(row)}}</span></td><td><span class="status-tag">{{row.status}}</span></td></tr><tr v-if="!previewList.length"><td colspan="5" class="empty-row">暂无符合条件的隐患记录</td></tr></tbody></table></div></div>
+  <DispatchDraggablePanel v-if="hazardMoreOpen" title="隐患清单汇总" :width="1000" :z-index="120010" placement="right" @close="hazardMoreOpen=false">
+   <div class="more-dialog-toolbar"><span>共 {{filtered.length}} 条</span><div class="more-filters"><el-input v-model="hazardKeyword" clearable placeholder="编号／隐患内容" size="small"/><el-select v-model="hazardSourceFilter" clearable placeholder="全部来源" size="small"><el-option v-for="source in HAZARD_ISSUE_SOURCES" :key="source.value" :label="source.label" :value="source.value"/></el-select><el-select v-model="hazardStatusFilter" clearable placeholder="全部状态" size="small"><el-option v-for="status in hazardStatusOptions" :key="status" :label="status" :value="status"/></el-select><el-date-picker v-model="hazardDateRange" type="daterange" value-format="YYYY-MM-DD" start-placeholder="登记开始日期" end-placeholder="登记结束日期" size="small"/></div></div>
+   <table class="mini-table more-table"><thead><tr><th>数据源</th><th>类别</th><th>登记时间</th><th>隐患／问题内容</th><th>原业务状态</th><th>抽查状态</th></tr></thead><tbody><tr v-for="row in filtered" :key="row.id" class="clickable-row" @dblclick="openDetail(row)"><td>{{row.sourceLabel}}</td><td>{{row.categoryLabel}}</td><td>{{row.registeredAt||'--'}}</td><td class="desc" :title="row.title">{{row.title}}</td><td>{{row.status}}</td><td>{{hqSamplingStatus(row)}}</td></tr><tr v-if="!filtered.length"><td colspan="6" class="empty-row">暂无符合条件的隐患记录</td></tr></tbody></table>
+  </DispatchDraggablePanel>
+  <DispatchDraggablePanel v-if="detailView" :title="detailView.sourceLabel+' · 隐患详情'" :width="940" :z-index="120030" placement="right" right-backdrop @close="detailView=null"><CocHazardIssueDetail :row="detailView" @back="detailView=null"/></DispatchDraggablePanel>
+ </div>
 </template>
-
 <style scoped>
 @import './dispatch-lower.css';
 
@@ -582,4 +253,8 @@ function closeDetail() {
 .hazard-level-select {
   width: 128px;
 }
+</style>
+
+<style scoped>
+.inspection-state{font-size:11px;color:#a9c7e3}.hazard-side-panel .status-tag{white-space:nowrap}.more-filters{flex-wrap:wrap}.more-filters :deep(.el-input){max-width:210px}.more-filters :deep(.el-select){width:150px}
 </style>

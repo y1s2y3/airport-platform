@@ -3,14 +3,13 @@ import {
   copyFileSync,
   existsSync,
   mkdirSync,
-  readdirSync,
+  mkdtempSync,
   rmSync,
 } from 'node:fs'
-import { resolve } from 'node:path'
+import { resolve, dirname, basename } from 'node:path'
 
 const root = resolve(import.meta.dirname, '..')
 const releaseDir = resolve(root, 'release')
-const buildTmpDir = resolve(releaseDir, '.build-tmp')
 const baseOutputName = '机场工程项目管理平台v2.html'
 
 function formatTimestamp(date = new Date()) {
@@ -37,15 +36,14 @@ function resolveUniqueOutputName(dir, preferredName) {
 }
 
 mkdirSync(releaseDir, { recursive: true })
-rmSync(buildTmpDir, { recursive: true, force: true })
-mkdirSync(buildTmpDir, { recursive: true })
+const buildTmpDir = mkdtempSync(resolve(releaseDir, '.build-tmp-'))
 
 const outputName = resolveUniqueOutputName(releaseDir, baseOutputName)
 const releaseOutput = resolve(releaseDir, outputName)
 
 console.log(`\n>>> 打包一体化平台 → ${outputName}`)
 if (outputName !== baseOutputName) {
-  console.log(`    （已存在 ${baseOutputName}，本次不覆盖，使用新文件名）`)
+  console.log(`    （保留本次快照，并同步更新固定入口 ${baseOutputName}）`)
 }
 
 execSync('npm run build -- --config vite.standalone.config.js --configLoader native', {
@@ -59,16 +57,18 @@ execSync('npm run build -- --config vite.standalone.config.js --configLoader nat
 
 const builtIndex = resolve(buildTmpDir, 'index.html')
 copyFileSync(builtIndex, releaseOutput)
+if (outputName !== baseOutputName) copyFileSync(builtIndex, resolve(releaseDir, baseOutputName))
 
-for (const name of readdirSync(buildTmpDir)) {
-  rmSync(resolve(buildTmpDir, name), { recursive: true, force: true })
+if (dirname(buildTmpDir) !== releaseDir || !basename(buildTmpDir).startsWith('.build-tmp-')) {
+  throw new Error('临时构建目录超出预期范围，停止清理')
 }
-rmSync(buildTmpDir, { recursive: true, force: true })
+try { rmSync(buildTmpDir, { recursive: true, force: true }) }
+catch (error) { console.warn(`临时目录清理未完成，预览文件已生成：${buildTmpDir}（${error.message}）`) }
 
 console.log(`\n✓ 单文件 HTML 已输出（后台 + COC 大屏）：`)
 console.log(`  ${releaseOutput}`)
 console.log('  使用 hash 路由，可直接双击用浏览器打开，无需启动服务器。')
 console.log('  进入大屏：顶栏「COC调度大屏」，或打开 #/coc')
 if (outputName !== baseOutputName) {
-  console.log(`  历史文件已保留，未覆盖 ${baseOutputName}`)
+  console.log(`  本次快照已保留；${baseOutputName} 已更新为本次构建，一键打开与源码保持一致。`)
 }

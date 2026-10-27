@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { samplingReturnLocation, restoreSupervisorTaskContext } from '../../utils/hazardSamplingTaskNavigation.js'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Edit, View, Upload, Download } from '@element-plus/icons-vue'
 import { buildProjects } from '../../coc/mock/data.js'
@@ -31,6 +32,7 @@ defineProps({
 const { isHqSelected, headerProjectLabel, selectedProjectId } = useCurrentProject()
 
 const route = useRoute()
+if (route.query.from === 'sampling-task' && route.query.viewer !== 'hq') restoreSupervisorTaskContext(String(route.query.samplingTask || ''))
 const router = useRouter()
 const activeTab = ref(route.query.hazardId ? 'hazard' : 'meeting')
 const keyword = ref('')
@@ -463,9 +465,9 @@ onMounted(load)
 
 <template>
   <div class="panel-card admin-page">
+    <div v-if="['summary','sampling-task'].includes(route.query.from)" class="hazard-source-back"><el-button link type="primary" @click="router.push(samplingReturnLocation(route.query))">{{ route.query.from === 'sampling-task' ? '返回任务' : '返回汇总' }}</el-button></div>
     <div class="panel-title simple-title">
       <span>{{ title }}</span>
-      <el-button v-if="route.query.from === 'summary'" link type="primary" @click="router.push('/hazard-issues/summary')">返回汇总</el-button>
       <el-tag v-if="isHqSelected" size="small" type="info">企业级 · 只读查看</el-tag>
       <el-tag v-else size="small" type="success">项目层级 · 登记会议</el-tag>
     </div>
@@ -710,6 +712,7 @@ onMounted(load)
 </template>
 
 <style scoped>
+.hazard-source-back { display:flex; justify-content:flex-start; padding:16px 20px 0; margin-bottom:14px; }
 .simple-title {
   display: flex;
   align-items: center;

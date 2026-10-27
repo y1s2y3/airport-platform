@@ -567,6 +567,7 @@ export function buildFusedMenuTree(raw = rawMenuTree) {
           levels: 'both',
           children: [
             { key: 'hazard-issue-summary', label: '隐患问题清单汇总', icon: 'Warning', path: '/hazard-issues/summary', name: 'HazardIssueSummary', component: 'HazardIssueSummaryView', levels: 'both' },
+            { key: 'hazard-sampling-tasks', label: '抽检任务', icon: 'List', path: '/hazard-issues/tasks', name: 'HazardSamplingTasks', component: 'HazardSamplingTasksView', levels: 'both' },
           ],
         },
         node('major-hazard-management'),
@@ -916,6 +917,7 @@ export const viewLoaders = {
   InspectionTaskDetailView: () => import('../views/safety/InspectionTaskDetailView.vue'),
   SafetyHazardListView: () => import('../views/safety/SafetyHazardListView.vue'),
   HazardIssueSummaryView: () => import('../views/hazard/HazardIssueSummaryView.vue'),
+  HazardSamplingTasksView: () => import('../views/hazard/HazardSamplingTasksView.vue'),
   SafetyHazardDetailView: () => import('../views/safety/SafetyHazardDetailView.vue'),
 
   MobileTaskListView: () => import('../views/mobile/MobileTaskListView.vue'),

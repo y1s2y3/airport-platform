@@ -136,6 +136,7 @@ function buildHazards(project, index) {
       rectificationPhotos: ['整改后照片1.jpg'],
       rectificationNote: '现场整改已完成，相关资料已补充归档。',
       reviewComment: '复查合格，同意提交项目经理审批。',
+      reviewResult: '通过',
     },
     {
       ...base,
@@ -152,6 +153,7 @@ function buildHazards(project, index) {
       rectificationPhotos: ['整改后照片1.jpg'],
       rectificationNote: '整改措施落实到位，现场已恢复正常。',
       reviewComment: '复查合格。',
+      reviewResult: '通过',
       approvalComment: '同意关闭。',
     },
   ]
