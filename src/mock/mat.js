@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 材料设备进场 Mock — 对齐 research-mat-eq V2.1
  * 审批入口：个人中心待办（仅监理）；申报须指定监理审批人
  */
@@ -11,6 +11,7 @@ import {
 import { nowStr } from '../utils/datetime.js'
 import { formatApproverCandidateLabel } from '../utils/approverDisplay.js'
 import { getProjectLabel } from './laborRealName.js'
+import { findProjectById } from './projectBasicInfo.js'
 import { COC_PROJECT_OPTIONS } from '../config/projectOptions.js'
 import { searchLedgerBrands } from './brand.js'
 import {
@@ -48,6 +49,7 @@ function normalizeAttachField(value, fallback) {
 /**
  * 监理审批人候选（原型暂用与品牌报审一致的监理人员池）
  * 岗位口径对齐质量验评「监理单位人员」常见岗位；后续岗位字典定稿可替换。
+ * 组织名对齐 projectBasicInfo 中各项目的「监理单位（supervisorUnit）」，用于按项目过滤候选。
  */
 export const MAT_SUPERVISOR_APPROVER_CANDIDATES = [
   {
@@ -55,35 +57,49 @@ export const MAT_SUPERVISOR_APPROVER_CANDIDATES = [
     name: '李总监',
     post: 'jl_chief',
     post_label: '总监理工程师',
-    org: '深圳某监理有限公司',
+    org: '深圳市政监理有限公司',
   },
   {
     user_id: 'u-jl-02',
     name: '王代总',
     post: 'jl_deputy',
     post_label: '总监理工程师代表',
-    org: '深圳某监理有限公司',
+    org: '深圳市政监理有限公司',
   },
   {
     user_id: 'u-jl-03',
     name: '赵专监',
     post: 'jl_pro',
     post_label: '专业监理工程师',
-    org: '深圳某监理有限公司',
+    org: '深圳监理公司',
   },
   {
     user_id: 'u-jl-04',
     name: '钱专监',
     post: 'jl_pro',
     post_label: '专业监理工程师',
-    org: '深圳某监理有限公司',
+    org: '深圳监理公司',
   },
   {
     user_id: 'u-jl-05',
     name: '孙监理',
     post: 'jl_site',
     post_label: '项目监理机构人员',
-    org: '深圳某监理有限公司',
+    org: '深圳市深水兆业工程顾问有限公司',
+  },
+  {
+    user_id: 'u-jl-06',
+    name: '周监理',
+    post: 'jl_pro',
+    post_label: '专业监理工程师',
+    org: '深圳市深水兆业工程顾问有限公司',
+  },
+  {
+    user_id: 'u-jl-07',
+    name: '吴总监',
+    post: 'jl_chief',
+    post_label: '总监理工程师',
+    org: '深圳监理公司',
   },
 ]
 
@@ -95,6 +111,24 @@ export function formatMatSupervisorApproverLabel(user) {
 export function listMatSupervisorApprovers(projectId) {
   if (!projectId) return []
   return MAT_SUPERVISOR_APPROVER_CANDIDATES.map((u) => ({ ...u }))
+}
+
+/** 项目主数据中的监理单位名称（用于按项目过滤监理候选） */
+export function projectSupervisorUnit(projectId) {
+  return String(findProjectById(projectId)?.supervisorUnit || '').trim()
+}
+
+/** 项目级监理岗位候选人：仅返回与当前项目「监理单位」一致的监理人员 */
+export function listProjectSupervisorApprovers(projectId) {
+  const unit = projectSupervisorUnit(projectId)
+  if (!unit) return []
+  return MAT_SUPERVISOR_APPROVER_CANDIDATES.filter((u) => u.org === unit).map((u) => ({ ...u }))
+}
+
+export function findProjectSupervisorApprover(projectId, userId) {
+  const key = String(userId || '').trim()
+  if (!key) return null
+  return listProjectSupervisorApprovers(projectId).find((u) => u.user_id === key) || null
 }
 
 export function findMatSupervisorApprover(userId) {

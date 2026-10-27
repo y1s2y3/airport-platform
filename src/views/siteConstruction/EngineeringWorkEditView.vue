@@ -3,6 +3,7 @@ import './engineering-work-page.css'
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { WarningFilled } from '@element-plus/icons-vue'
 import { useCurrentProject } from '../../composables/useCurrentProject'
 import { getCurrentUserSnapshot } from '../../mock/currentUser.js'
 import {
@@ -11,11 +12,13 @@ import {
 import { DANGER_WORK_CATEGORY_OPTIONS } from '../../coc/config/dailyWorkSchema.js'
 import EngineeringWorkFormBody from './EngineeringWorkFormBody.vue'
 import {
+  MAX_WORKS_PER_APPLICATION,
   buildCopyPayloadFromRejected,
   copyEngineeringWorkFromRejected,
   emptyCell,
-  findMatSupervisorApprover,
+  findProjectSupervisorApprover,
   getEngineeringWorkItems,
+  listOccupiedDailyWorkIds,
   listSelectableDangerWorks,
   submitEngineeringWork,
 } from '../../mock/engineeringWork.js'
@@ -32,6 +35,8 @@ const pickFilterDate = ref('')
 const pickFilterCategory = ref('')
 /** id → 行，跨筛选保留已勾选 */
 const selectedMap = ref(new Map())
+/** 超上限回退勾选时抑制 selection-change 处理 */
+let revertingSelection = false
 
 const categoryOptions = DANGER_WORK_CATEGORY_OPTIONS.filter((item) => item !== '不涉及危险作业')
 
@@ -63,6 +68,18 @@ const allSelectableWorks = computed(() =>
     : [],
 )
 
+/** 已被其他申报单（审批中/已通过）占用的危险作业标识（实时） */
+const occupiedWorkIds = computed(() => listOccupiedDailyWorkIds())
+/** 当前已选作业里被占用的行（重新申报时常见：原单作业被他人抢先报审） */
+const occupiedSelectedWorks = computed(() =>
+  form.works.filter((item) => item?.id && occupiedWorkIds.value.includes(item.id)),
+)
+
+function isWorkOccupied(id) {
+  const key = String(id || '')
+  return Boolean(key) && occupiedWorkIds.value.includes(key)
+}
+
 const filteredSelectableWorks = computed(() => {
   const date = String(pickFilterDate.value || '').trim()
   const category = String(pickFilterCategory.value || '').trim()
@@ -77,7 +94,7 @@ const selectedCount = computed(() => selectedMap.value.size)
 
 function applySupervisor(userId) {
   form.supervisor_approver_user_id = userId || ''
-  const user = findMatSupervisorApprover(userId)
+  const user = findProjectSupervisorApprover(laborProjectId.value, userId)
   form.supervisor_approver_name = user?.name || ''
 }
 
@@ -131,6 +148,7 @@ function openPick() {
 }
 
 function onPickSelectionChange(rows) {
+  if (revertingSelection) return
   const visibleIds = new Set(filteredSelectableWorks.value.map((row) => row.id))
   const next = new Map(selectedMap.value)
   for (const id of visibleIds) {
@@ -139,7 +157,23 @@ function onPickSelectionChange(rows) {
   for (const row of rows || []) {
     next.set(row.id, row)
   }
+  if (next.size > MAX_WORKS_PER_APPLICATION) {
+    ElMessage.warning(`单张申报单最多关联 ${MAX_WORKS_PER_APPLICATION} 条危险作业`)
+    const allowed = new Set(selectedMap.value.keys())
+    revertingSelection = true
+    for (const row of rows || []) {
+      if (!allowed.has(row.id)) pickTableRef.value?.toggleRowSelection(row, false)
+    }
+    revertingSelection = false
+    return
+  }
   selectedMap.value = next
+}
+
+/** 已达上限时，未勾选行置灰不可选 */
+function isPickSelectable(row) {
+  if (!row?.id) return false
+  return selectedMap.value.has(row.id) || selectedMap.value.size < MAX_WORKS_PER_APPLICATION
 }
 
 function resetPickFilter() {
@@ -197,12 +231,18 @@ function onSubmit() {
     return ElMessage.warning('请先切换到具体项目')
   }
   if (!form.daily_work_ids.length) return ElMessage.warning('请选择每日施工作业中的危险作业')
+  if (form.daily_work_ids.length > MAX_WORKS_PER_APPLICATION) {
+    return ElMessage.warning(`单张申报单最多关联 ${MAX_WORKS_PER_APPLICATION} 条危险作业`)
+  }
   if (!String(form.personnel_qual_desc || '').trim()) {
     return ElMessage.warning('请填写作业人员及特种作业资质说明')
   }
   if (!attachRequiredOk(form.scheme_files, 1)) return ElMessage.warning('请上传专项施工方案')
   if (!attachRequiredOk(form.cert_files, 1)) return ElMessage.warning('请上传人员资质证明')
   if (!form.supervisor_approver_user_id) return ElMessage.warning('请选择监理审批人')
+  if (occupiedSelectedWorks.value.length) {
+    return ElMessage.error('所选危险作业中含已申报项，请重新选择')
+  }
 
   const payload = {
     project_id: laborProjectId.value,
@@ -261,6 +301,25 @@ function onSubmit() {
     </div>
 
     <el-alert
+      v-if="occupiedSelectedWorks.length"
+      type="warning"
+      :closable="false"
+      show-icon
+      class="mb"
+      :title="`已选作业中有 ${occupiedSelectedWorks.length} 条已被其他申报单占用，需移除后才能提交`"
+    >
+      <template #default>
+        <span>
+          占用作业：{{
+            occupiedSelectedWorks
+              .map((item) => `${item.danger_work_category || '--'}（${item.report_date || '--'}）`)
+              .join('、')
+          }}。可直接在下方表格点「移除」，或重新选择其他危险作业。
+        </span>
+      </template>
+    </el-alert>
+
+    <el-alert
       v-if="isHqSelected"
       type="warning"
       :closable="false"
@@ -273,6 +332,7 @@ function onSubmit() {
       <EngineeringWorkFormBody
         :form="form"
         :project-id="laborProjectId"
+        :occupied-work-ids="occupiedWorkIds"
         @pick-work="openPick"
         @remove-work="removeWork"
         @supervisor-change="applySupervisor"
@@ -284,7 +344,7 @@ function onSubmit() {
     </el-form>
 
     <el-dialog v-model="pickVisible" title="选择危险作业" width="980px" destroy-on-close>
-      <p class="muted mb">可多选；审批中或已通过的不可再选。确定后覆盖当前已选列表。切换筛选时已勾选项会保留。</p>
+      <p class="muted mb">可多选，最多 {{ MAX_WORKS_PER_APPLICATION }} 条；审批中或已通过的不可再选。确定后覆盖当前已选列表。切换筛选时已勾选项会保留。</p>
       <div class="pick-filter-bar mb">
         <el-date-picker
           v-model="pickFilterDate"
@@ -316,12 +376,23 @@ function onSubmit() {
         empty-text="当前筛选下暂无可申报的危险作业"
         @selection-change="onPickSelectionChange"
       >
-        <el-table-column type="selection" width="48" align="center" />
+        <el-table-column type="selection" width="48" align="center" :selectable="isPickSelectable" />
         <el-table-column label="施工日期" width="120">
           <template #default="{ row }">{{ emptyCell(row.report_date) }}</template>
         </el-table-column>
-        <el-table-column label="作业类别" width="120">
-          <template #default="{ row }">{{ emptyCell(row.danger_work_category) }}</template>
+        <el-table-column label="作业类别" width="150">
+          <template #default="{ row }">
+            <span class="pick-category">
+              <el-icon
+                v-if="isWorkOccupied(row.id)"
+                class="occupied-icon"
+                title="已被其他申报单占用，提交将被拒绝"
+              >
+                <WarningFilled />
+              </el-icon>
+              {{ emptyCell(row.danger_work_category) }}
+            </span>
+          </template>
         </el-table-column>
         <el-table-column label="施工区域" min-width="140" show-overflow-tooltip>
           <template #default="{ row }">{{ emptyCell(row.work_area) }}</template>
@@ -341,7 +412,7 @@ function onSubmit() {
       </el-table>
       <template #footer>
         <div class="pick-footer">
-          <span class="muted">已勾选 {{ selectedCount }} 项</span>
+          <span class="muted">已勾选 {{ selectedCount }} / {{ MAX_WORKS_PER_APPLICATION }} 项</span>
           <div>
             <el-button @click="pickVisible = false">取消</el-button>
             <el-button type="primary" @click="confirmPick">确定</el-button>

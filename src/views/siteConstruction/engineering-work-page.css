@@ -171,6 +171,43 @@
   color: #909399;
 }
 
+/* 关联危险作业：被其他申报单占用（AC-EW-02-06） */
+.works-table .is-occupied-row > td {
+  background: #fef0f0 !important;
+}
+
+.work-occupied {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #f56c6c;
+  font-size: 12px;
+}
+
+/* 首列占用叹号（默认可见，不依赖横向滚动） */
+.occupied-mark {
+  color: #f56c6c;
+  font-size: 16px;
+  vertical-align: middle;
+}
+
+.pick-category {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pick-category .occupied-icon {
+  color: #f56c6c;
+}
+
+/* 列表分页条：与系统其它列表页一致，右对齐 */
+.ew-page .table-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 12px;
+}
+
 @media (max-width: 720px) {
   .field-grid,
   .create-form {

@@ -1,12 +1,13 @@
 <script setup>
 import { computed } from 'vue'
-import { Document, FolderOpened } from '@element-plus/icons-vue'
+import { Document, FolderOpened, WarningFilled } from '@element-plus/icons-vue'
 import AttachmentUpload from '../../components/common/AttachmentUpload.vue'
 import {
+  MAX_WORKS_PER_APPLICATION,
   emptyCell,
   formatSupervisorDisplay,
   getEngineeringWorkItems,
-  listMatSupervisorApprovers,
+  listProjectSupervisorApprovers,
   formatMatSupervisorApproverLabel,
 } from '../../mock/engineeringWork.js'
 
@@ -14,11 +15,22 @@ const props = defineProps({
   form: { type: Object, required: true },
   readonly: { type: Boolean, default: false },
   projectId: { type: String, default: '' },
+  /** 已被其他申报单（审批中/已通过）占用的危险作业标识，用于警示提示 */
+  occupiedWorkIds: { type: Array, default: () => [] },
 })
 
 const emit = defineEmits(['pick-work', 'remove-work', 'supervisor-change'])
 
 const workItems = computed(() => getEngineeringWorkItems(props.form))
+const occupiedSet = computed(() => new Set(props.occupiedWorkIds || []))
+
+function isWorkOccupied(row) {
+  return Boolean(row?.id) && occupiedSet.value.has(row.id)
+}
+
+function workRowClassName({ row }) {
+  return isWorkOccupied(row) ? 'is-occupied-row' : ''
+}
 </script>
 
 <template>
@@ -36,7 +48,7 @@ const workItems = computed(() => getEngineeringWorkItems(props.form))
           {{
             readonly
               ? '本申报单关联的多条每日危险作业（摘要）。'
-              : '可多选本项目「每日施工作业」中的危险作业；审批中或已通过的不可再选。'
+              : '可多选本项目「每日施工作业」中的危险作业（最多 30 条）；审批中或已通过的不可再选。'
           }}
         </p>
       </div>
@@ -45,7 +57,7 @@ const workItems = computed(() => getEngineeringWorkItems(props.form))
       <el-form-item v-if="!readonly" label="危险作业" required class="field-span-2">
         <div class="pick-row">
           <span class="pick-summary">
-            {{ workItems.length ? `已选 ${workItems.length} 项` : '尚未选择危险作业' }}
+            {{ workItems.length ? `已选 ${workItems.length} / ${MAX_WORKS_PER_APPLICATION} 项` : '尚未选择危险作业' }}
           </span>
           <el-button type="primary" @click="emit('pick-work')">选择</el-button>
         </div>
@@ -58,7 +70,19 @@ const workItems = computed(() => getEngineeringWorkItems(props.form))
         size="small"
         class="works-table"
         empty-text="暂未选择"
+        :row-class-name="workRowClassName"
       >
+        <el-table-column v-if="!readonly" label="" width="44" align="center">
+          <template #default="{ row }">
+            <el-tooltip
+              v-if="isWorkOccupied(row)"
+              content="该危险作业已被其他申报单占用，提交将被拒绝"
+              placement="top"
+            >
+              <el-icon class="occupied-mark"><WarningFilled /></el-icon>
+            </el-tooltip>
+          </template>
+        </el-table-column>
         <el-table-column label="施工日期" width="110">
           <template #default="{ row }">{{ emptyCell(row.report_date) }}</template>
         </el-table-column>
@@ -178,7 +202,7 @@ const workItems = computed(() => getEngineeringWorkItems(props.form))
           @update:model-value="emit('supervisor-change', $event)"
         >
           <el-option
-            v-for="u in listMatSupervisorApprovers(projectId)"
+            v-for="u in listProjectSupervisorApprovers(projectId)"
             :key="u.user_id"
             :label="formatMatSupervisorApproverLabel(u)"
             :value="u.user_id"

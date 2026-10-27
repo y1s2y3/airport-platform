@@ -1,6 +1,6 @@
 <script setup>
 import './engineering-work-page.css'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Plus, Search, Refresh } from '@element-plus/icons-vue'
 import { useCurrentProject } from '../../composables/useCurrentProject'
@@ -21,6 +21,8 @@ const keyword = ref('')
 const statusFilter = ref('')
 const appliedKeyword = ref('')
 const appliedStatus = ref('')
+const currentPage = ref(1)
+const pageSize = ref(10)
 
 const list = computed(() => {
   if (isHqSelected.value || !laborProjectId.value) return []
@@ -30,9 +32,21 @@ const list = computed(() => {
   })
 })
 
+const total = computed(() => list.value.length)
+const maxPage = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
+const pagedList = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  return list.value.slice(start, start + pageSize.value)
+})
+
+watch([total, pageSize], () => {
+  if (currentPage.value > maxPage.value) currentPage.value = maxPage.value
+})
+
 function onQuery() {
   appliedKeyword.value = keyword.value
   appliedStatus.value = statusFilter.value
+  currentPage.value = 1
 }
 
 function reset() {
@@ -40,6 +54,11 @@ function reset() {
   statusFilter.value = ''
   appliedKeyword.value = ''
   appliedStatus.value = ''
+  currentPage.value = 1
+}
+
+function onSizeChange() {
+  currentPage.value = 1
 }
 
 function goCreate() {
@@ -99,7 +118,7 @@ function worksSummary(row) {
         <el-button type="primary" :icon="Plus" @click="goCreate">新建申报</el-button>
       </div>
 
-      <el-table :data="list" stripe border empty-text="暂无工程作业申报单">
+      <el-table :data="pagedList" stripe border empty-text="暂无工程作业申报单">
         <el-table-column prop="biz_no" label="申报单号" width="150" />
         <el-table-column label="申报人" width="120" show-overflow-tooltip>
           <template #default="{ row }">{{ emptyCell(row.applicant_name) }}</template>
@@ -143,6 +162,18 @@ function worksSummary(row) {
           </template>
         </el-table-column>
       </el-table>
+
+      <div class="table-footer">
+        <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :total="total"
+          :page-sizes="[10, 20, 50]"
+          layout="total, sizes, prev, pager, next, jumper"
+          background
+          @size-change="onSizeChange"
+        />
+      </div>
     </template>
   </div>
 </template>

@@ -19,6 +19,9 @@ import {
   listMatSupervisorApprovers,
   findMatSupervisorApprover,
   formatMatSupervisorApproverLabel,
+  listProjectSupervisorApprovers,
+  findProjectSupervisorApprover,
+  projectSupervisorUnit,
 } from './mat.js'
 import {
   createEngineeringWorkSupervisorTodo,
@@ -27,7 +30,17 @@ import {
   upsertEngineeringWorkStarted,
 } from './personalCenter.js'
 
-export { listMatSupervisorApprovers, findMatSupervisorApprover, formatMatSupervisorApproverLabel }
+export {
+  listMatSupervisorApprovers,
+  findMatSupervisorApprover,
+  formatMatSupervisorApproverLabel,
+  listProjectSupervisorApprovers,
+  findProjectSupervisorApprover,
+  projectSupervisorUnit,
+}
+
+/** 单张申报单可关联危险作业条数上限（PRD V1.3 · Q8） */
+export const MAX_WORKS_PER_APPLICATION = 30
 
 export const STATUS_LABEL = {
   reviewing: '审批中',
@@ -481,6 +494,11 @@ function occupiedDailyWorkIds(exceptBizNo = '') {
   return set
 }
 
+/** 已被「审批中 / 已通过」申报单占用的危险作业标识（供原型提示与前端拦截用） */
+export function listOccupiedDailyWorkIds(exceptBizNo = '') {
+  return [...occupiedDailyWorkIds(exceptBizNo)]
+}
+
 /** 本项目每日施工作业中的全部危险作业（含已被工程作业申报占用的） */
 export function listAllDangerWorkSources(projectId) {
   if (!projectId) return []
@@ -535,7 +553,8 @@ export function getDangerWorkSource(id, projectId) {
 function resolveSupervisor(payload) {
   const supervisor_approver_user_id = String(payload.supervisor_approver_user_id || '').trim()
   if (!supervisor_approver_user_id) return { ok: false, msg: '请选择监理审批人' }
-  const user = findMatSupervisorApprover(supervisor_approver_user_id)
+  const project_id = String(payload.project_id || '').trim()
+  const user = findProjectSupervisorApprover(project_id, supervisor_approver_user_id)
   if (!user) return { ok: false, msg: '监理审批人不在本项目监理岗位人员范围内' }
   return {
     ok: true,
@@ -552,8 +571,8 @@ function demoFile(name) {
 }
 
 const store = reactive({
-  seq: 6,
-  approvalSeq: 12,
+  seq: 11,
+  approvalSeq: 20,
   list: [],
 })
 
@@ -588,7 +607,7 @@ function makeRow(partial) {
     applicant_name: partial.applicant_name || '施工-王工',
     supervisor_approver_user_id: partial.supervisor_approver_user_id || 'u-jl-01',
     supervisor_approver_name: partial.supervisor_approver_name || '李总监',
-    supervisor_approver_org: partial.supervisor_approver_org || '深圳某监理有限公司',
+    supervisor_approver_org: partial.supervisor_approver_org || '深圳市政监理有限公司',
     supervisor_approver_post: partial.supervisor_approver_post || 'jl_chief',
     supervisor_approver_post_label: partial.supervisor_approver_post_label || '总监理工程师',
     submit_time: partial.submit_time,
@@ -786,7 +805,259 @@ store.list = [
       },
     ],
   }),
+  makeRow({
+    id: 'EW-007',
+    biz_no: 'EW-202609-007',
+    project_id: 'p-000',
+    daily_work_id: 'seed-demo-007',
+    snapshot: snapshotFromDangerListItem(P000_EXTRA_SOURCES[6]),
+    personnel_qual_desc: '塔吊司机陈立持特种设备作业证，信号工两人持证；作业前完成吊索具检查。',
+    scheme_files: demoFile('吊装作业专项施工方案.pdf'),
+    briefing_files: demoFile('吊装安全技术交底.pdf'),
+    cert_files: demoFile('塔吊司机与信号工证件.pdf'),
+    status: 'approved',
+    current_node_key: 'none',
+    submit_time: '2026-09-12 09:10:00',
+    finish_time: '2026-09-12 10:35:00',
+    approvals: [
+      {
+        approval_id: 'AR-EW-011',
+        node: 'applicant',
+        action: 'submit',
+        operator_name: '施工-王工',
+        time: '2026-09-12 09:10:00',
+        opinion: '提交工程作业申报',
+      },
+      {
+        approval_id: 'AR-EW-012',
+        node: 'supervisor',
+        action: 'agree',
+        operator_name: '李总监',
+        time: '2026-09-12 10:35:00',
+        opinion: '吊装方案与人员证件齐全，同意作业。',
+      },
+    ],
+  }),
+  makeRow({
+    id: 'EW-008',
+    biz_no: 'EW-202609-008',
+    project_id: 'p-000',
+    daily_work_id: 'seed-demo-009',
+    snapshot: snapshotFromDangerListItem(P000_EXTRA_SOURCES[8]),
+    personnel_qual_desc: '受限空间作业人员 4 人，气体检测仪两台，监护人专职。',
+    scheme_files: demoFile('受限空间作业专项方案.pdf'),
+    briefing_files: [],
+    cert_files: demoFile('受限空间作业人员资质.pdf'),
+    status: 'rejected',
+    current_node_key: 'none',
+    submit_time: '2026-09-13 14:20:00',
+    finish_time: '2026-09-13 15:10:00',
+    approvals: [
+      {
+        approval_id: 'AR-EW-013',
+        node: 'applicant',
+        action: 'submit',
+        operator_name: '施工-王工',
+        time: '2026-09-13 14:20:00',
+        opinion: '提交工程作业申报',
+      },
+      {
+        approval_id: 'AR-EW-014',
+        node: 'supervisor',
+        action: 'reject',
+        operator_name: '李总监',
+        time: '2026-09-13 15:10:00',
+        opinion: '方案缺少通风与应急撤离措施，请补充后重新申报。',
+      },
+    ],
+  }),
+  makeRow({
+    id: 'EW-009',
+    biz_no: 'EW-202609-009',
+    project_id: 'p-000',
+    daily_work_id: 'seed-demo-010',
+    snapshot: snapshotFromDangerListItem(P000_EXTRA_SOURCES[9]),
+    personnel_qual_desc: '架子工 8 人持高处作业证，安全带、安全网已验收。',
+    scheme_files: demoFile('高处作业专项施工方案.pdf'),
+    briefing_files: demoFile('高处作业安全技术交底.pdf'),
+    cert_files: demoFile('架子工证件汇总.pdf'),
+    status: 'approved',
+    current_node_key: 'none',
+    submit_time: '2026-09-14 08:40:00',
+    finish_time: '2026-09-14 09:55:00',
+    approvals: [
+      {
+        approval_id: 'AR-EW-015',
+        node: 'applicant',
+        action: 'submit',
+        operator_name: '施工-王工',
+        time: '2026-09-14 08:40:00',
+        opinion: '提交工程作业申报',
+      },
+      {
+        approval_id: 'AR-EW-020',
+        node: 'supervisor',
+        action: 'agree',
+        operator_name: '李总监',
+        time: '2026-09-14 09:55:00',
+        opinion: '高处作业防护措施到位，同意作业。',
+      },
+    ],
+  }),
+  makeRow({
+    id: 'EW-010',
+    biz_no: 'EW-202609-010',
+    project_id: 'p-000',
+    daily_work_id: 'seed-demo-011',
+    snapshot: snapshotFromDangerListItem(P000_EXTRA_SOURCES[10]),
+    personnel_qual_desc: '动土作业采用机械开挖，管线交底完成，旁站人员到位。',
+    scheme_files: demoFile('动土作业专项施工方案.pdf'),
+    briefing_files: demoFile('管线保护交底.pdf'),
+    cert_files: demoFile('机械操作人员证件.pdf'),
+    status: 'approved',
+    current_node_key: 'none',
+    submit_time: '2026-09-15 11:05:00',
+    finish_time: '2026-09-15 13:20:00',
+    approvals: [
+      {
+        approval_id: 'AR-EW-016',
+        node: 'applicant',
+        action: 'submit',
+        operator_name: '施工-王工',
+        time: '2026-09-15 11:05:00',
+        opinion: '提交工程作业申报',
+      },
+      {
+        approval_id: 'AR-EW-017',
+        node: 'supervisor',
+        action: 'agree',
+        operator_name: '李总监',
+        time: '2026-09-15 13:20:00',
+        opinion: '管线交底与旁站安排到位，同意作业。',
+      },
+    ],
+  }),
+  makeRow({
+    id: 'EW-011',
+    biz_no: 'EW-202609-011',
+    project_id: 'p-000',
+    daily_work_id: 'seed-demo-012',
+    snapshot: snapshotFromDangerListItem(P000_EXTRA_SOURCES[11]),
+    personnel_qual_desc: '临时用电作业由持证电工实施，配电箱漏保已测试。',
+    scheme_files: demoFile('临时用电作业方案.pdf'),
+    briefing_files: [],
+    cert_files: demoFile('电工证件.pdf'),
+    status: 'rejected',
+    current_node_key: 'none',
+    submit_time: '2026-09-15 16:30:00',
+    finish_time: '2026-09-15 17:05:00',
+    approvals: [
+      {
+        approval_id: 'AR-EW-018',
+        node: 'applicant',
+        action: 'submit',
+        operator_name: '施工-王工',
+        time: '2026-09-15 16:30:00',
+        opinion: '提交工程作业申报',
+      },
+      {
+        approval_id: 'AR-EW-019',
+        node: 'supervisor',
+        action: 'reject',
+        operator_name: '李总监',
+        time: '2026-09-15 17:05:00',
+        opinion: '人员资质证明未包含复审记录，请补齐后重新申报。',
+      },
+    ],
+  }),
 ]
+
+/* —— 2号雨水泵站（p-pump-002）演示种子：覆盖列表分页、项目级监理审批人与待办 —— */
+function pumpSnapshot(seed) {
+  return {
+    report_date: seed.date,
+    danger_work_category: seed.category,
+    work_area: seed.area,
+    work_content: seed.content,
+    contractor: seed.contractor,
+    start_time: `${seed.date} ${seed.start}:00`,
+    end_time: `${seed.date} ${seed.end}:00`,
+    lead_unit: '深圳机场集团/建设工程指挥部',
+    project_name: '深圳宝安国际机场T2航站区及配套设施工程-新建2号雨水提升泵站工程',
+    owner_project_manager: '赵国强/13600001111',
+    owner_safety_manager: '孙磊/13500002222',
+    contractor_project_manager: '刘建军/13700003333',
+    contractor_safety_manager: '陈斌/13800004444',
+    supervisor_project_manager: '黄国栋/13900005555',
+    supervisor_safety_manager: '吴敏/13900006666',
+    danger_control_measures: '按专项方案落实临边防护、机械作业半径警戒与旁站监护。',
+  }
+}
+
+const PUMP_WORK_SEEDS = [
+  { date: '2026-10-20', time: '08:30', start: '08:00', end: '17:00', category: '动土作业', area: '泵站基坑东侧', content: '基坑土方开挖及边坡修整', contractor: '中建三局第一建设工程有限责任公司', status: 'reviewing', personnel: '挖掘机司机 2 人持证，基坑监护 1 人；边坡按 1:1.5 放坡。' },
+  { date: '2026-10-18', time: '09:10', start: '09:00', end: '16:00', category: '高处作业', area: '泵房主体结构区', content: '泵房二层模板与钢筋绑扎', contractor: '中建三局第一建设工程有限责任公司', status: 'approved', finishTime: '11:20', personnel: '架子工 6 人持高处作业证，安全带、安全网已验收。', opinion: '防护与人员证件齐全，同意作业。' },
+  { date: '2026-10-16', time: '14:00', start: '13:30', end: '18:00', category: '吊装作业', area: '泵站北侧吊装区', content: '水泵机组吊装就位', contractor: '上海建工集团股份有限公司', status: 'rejected', finishTime: '15:10', personnel: '起重指挥 1 人、司索 2 人、吊车司机 1 人，均持证。', opinion: '吊装方案未明确吊装半径内的警戒与指挥信号，请补充后重新申报。' },
+  { date: '2026-10-14', time: '08:20', start: '08:00', end: '12:00', category: '临时用电作业', area: '泵站配电间', content: '配电箱接线与漏保测试', contractor: '中建三局第一建设工程有限责任公司', status: 'approved', finishTime: '10:05', personnel: '电工 2 人持低压电工证，配电箱漏保已测试。', opinion: '临电措施到位，同意作业。' },
+  { date: '2026-10-12', time: '15:30', start: '15:00', end: '20:00', category: '有限空间作业', area: '进出水管廊', content: '管廊内壁清理与检查', contractor: '上海建工集团股份有限公司', status: 'reviewing', personnel: '受限空间作业人员 4 人，气体检测仪 2 台，专职监护人 1 人。' },
+  { date: '2026-10-10', time: '09:40', start: '09:30', end: '12:30', category: '动火作业', area: '泵站东侧管件加工区', content: '管道支架焊接', contractor: '中建三局第一建设工程有限责任公司', status: 'rejected', finishTime: '10:25', personnel: '焊工 2 人持特种作业证，灭火器与接火盆已配置。', opinion: '动火作业票与监护人名单未上传，请补齐。' },
+  { date: '2026-10-08', time: '08:00', start: '07:30', end: '18:00', category: '夜间作业', area: '沉井作业区', content: '沉井下沉与出土夜间连续作业', contractor: '上海建工集团股份有限公司', status: 'approved', finishTime: '11:30', personnel: '夜班班组 12 人，照明电工持证，带班队长现场值守。', opinion: '照明与交通疏导方案可行，同意夜间作业。' },
+  { date: '2026-10-06', time: '13:20', start: '13:00', end: '17:30', category: '动土作业', area: '泵站南侧道路', content: '进场道路管沟开挖', contractor: '中建三局第一建设工程有限责任公司', status: 'rejected', finishTime: '14:15', personnel: '挖掘机司机 1 人持证，管线监护 1 人。', opinion: '管线交底记录缺失，请补充管线保护措施。' },
+  { date: '2026-10-04', time: '09:00', start: '08:30', end: '16:30', category: '高处作业', area: '泵房外脚手架', content: '外脚手架搭设与验收', contractor: '中建三局第一建设工程有限责任公司', status: 'approved', finishTime: '10:40', personnel: '架子工 8 人持证，安全带、密目网已验收。', opinion: '脚手架搭设方案与人员证件齐全，同意作业。' },
+  { date: '2026-10-02', time: '10:10', start: '09:30', end: '17:00', category: '吊装作业', area: '进出水管廊吊装区', content: '管道吊装与就位', contractor: '上海建工集团股份有限公司', status: 'rejected', finishTime: '11:00', personnel: '吊车司机 1 人、司索 2 人持证。', opinion: '人员资质证明未包含信号工证件，请补齐。' },
+  { date: '2026-09-30', time: '08:50', start: '08:30', end: '12:00', category: '临时用电作业', area: '泵站南侧临电箱', content: '临电箱安装与线路敷设', contractor: '中建三局第一建设工程有限责任公司', status: 'approved', finishTime: '09:35', personnel: '电工 2 人持证，线路架空敷设并设警示标识。', opinion: '临电安装符合方案，同意作业。' },
+]
+
+PUMP_WORK_SEEDS.forEach((seed, index) => {
+  const seqNo = index + 12
+  const bizNo = `EW-202609-${String(seqNo).padStart(3, '0')}`
+  const submitTime = `${seed.date} ${seed.time}:00`
+  const approvalNo = (n) => `AR-EW-${String(n).padStart(3, '0')}`
+  const approvals = [
+    {
+      approval_id: approvalNo(21 + index * 2),
+      node: 'applicant',
+      action: 'submit',
+      operator_name: '施工-王工',
+      time: submitTime,
+      opinion: '提交工程作业申报',
+    },
+  ]
+  let finishTime = ''
+  if (seed.status !== 'reviewing') {
+    finishTime = `${seed.date} ${seed.finishTime}:00`
+    approvals.push({
+      approval_id: approvalNo(22 + index * 2),
+      node: 'supervisor',
+      action: seed.status === 'approved' ? 'agree' : 'reject',
+      operator_name: '孙监理',
+      time: finishTime,
+      opinion: seed.opinion || '',
+    })
+  }
+  store.list.push(makeRow({
+    id: `EWP-${String(index + 1).padStart(3, '0')}`,
+    biz_no: bizNo,
+    project_id: 'p-pump-002',
+    works: [{ id: `seed-pump-${String(index + 1).padStart(3, '0')}`, ...pumpSnapshot(seed) }],
+    personnel_qual_desc: seed.personnel,
+    scheme_files: demoFile(`${seed.category}专项施工方案.pdf`),
+    briefing_files: demoFile(`${seed.category}安全技术交底.pdf`),
+    cert_files: demoFile(`${seed.category}人员资质证明.pdf`),
+    status: seed.status,
+    current_node_key: seed.status === 'reviewing' ? 'supervisor' : 'none',
+    submit_time: submitTime,
+    finish_time: finishTime,
+    supervisor_approver_user_id: 'u-jl-05',
+    supervisor_approver_name: '孙监理',
+    supervisor_approver_org: '深圳市深水兆业工程顾问有限公司',
+    supervisor_approver_post: 'jl_site',
+    supervisor_approver_post_label: '项目监理机构人员',
+    approvals,
+  }))
+})
+store.seq = 22
+store.approvalSeq = 43
 
 function nextBizNo() {
   store.seq += 1
@@ -841,6 +1112,9 @@ function validatePayload(payload) {
   const fallbackId = String(payload.daily_work_id || '').trim()
   const daily_work_ids = ids.length ? [...new Set(ids)] : fallbackId ? [fallbackId] : []
   if (!daily_work_ids.length) return { ok: false, msg: '请选择每日施工作业中的危险作业' }
+  if (daily_work_ids.length > MAX_WORKS_PER_APPLICATION) {
+    return { ok: false, msg: `单张申报单最多关联 ${MAX_WORKS_PER_APPLICATION} 条危险作业` }
+  }
   const sources = []
   for (const id of daily_work_ids) {
     const source = getDangerWorkSource(id, payload.project_id)
