@@ -3,6 +3,7 @@
  * 模板定义（指挥部 · 流程管理 → 消息模板）
  * 各分类下的通知模板：筛选（模板名称 / 所属分类 / 启用状态）+ 台账 + 新增 / 编辑 / 删除 + 预览
  * 口径：所属消息分类只能选启用中的分类；标题与正文支持 ${变量} 占位
+ * 2026-10-28：支持 `embedded` 模式（作为「消息模板」页内 Tab 内容时隐藏自带页头与卡片内边距）
  */
 import { ref, computed } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
@@ -23,6 +24,11 @@ import {
 } from '../../mock/flowManage'
 
 const classifyOptions = computed(() => listEnabledMessageClassifies())
+
+defineProps({
+  /** 作为 Tab 内容嵌入时：隐藏自带页头、去掉卡片自身内边距 */
+  embedded: { type: Boolean, default: false },
+})
 
 const filterForm = ref({
   keyword: '',
@@ -149,8 +155,8 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <div class="message-template-page page-card">
-    <div class="page-head">
+  <div class="message-template-page" :class="embedded ? 'is-embedded' : 'page-card'">
+    <div v-if="!embedded" class="page-head">
       <h1 class="page-title">模板定义</h1>
       <p class="page-tip">维护各消息分类下的通知模板，标题与正文支持 ${变量} 占位；可预览示例渲染效果。</p>
     </div>
@@ -315,6 +321,12 @@ async function handleSubmit() {
   display: flex;
   flex-direction: column;
   min-height: calc(100vh - 120px);
+}
+
+/* Tab 内嵌模式：卡片与内边距由外层页提供 */
+.message-template-page.is-embedded {
+  padding: 0;
+  min-height: 0;
 }
 
 .page-head {

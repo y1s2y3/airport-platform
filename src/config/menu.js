@@ -196,7 +196,12 @@ const rawMenuTree = [
     ],
   },
 
-  /** 施工质量管控（仅项目层级） */
+  /**
+   * 施工质量管控条目容器（仅项目层级）
+   * 2026-10-27 用户要求：去掉「质量管控」分组菜单，其下 5 项（质量验评 / 品牌报审 / 样板管理 /
+   * 材料设备进场 / 实模一致验收）提升为二级菜单；本节点不再作为侧栏分组渲染，仅作条目容器，
+   * 由 buildFusedMenuTree 展开 children 挂到「质量管理」下。
+   */
   {
     key: 'construction-quality', label: '施工质量管控', icon: 'TrophyBase', levels: 'project',
     children: [
@@ -319,6 +324,7 @@ const rawMenuTree = [
    * 流程管理（仅指挥部）
    * 流程组件 / 流程表单 / 消息模板 为可交互原型页；流程分类 / 流程配置 / 流程定义 仍为正式工程入口说明页
    * （2026-10-14 按线上登记表补齐：流程组件、流程表单、消息模板→消息分类/模板定义）
+   * （2026-10-28 用户要求：消息模板不再分三级子页，收敛为一个二级页，页内两个 Tab：消息分类 / 模板定义）
    */
   {
     key: 'flow-manage', label: '流程管理', icon: 'Guide', levels: 'hq',
@@ -328,28 +334,19 @@ const rawMenuTree = [
       { key: 'flow-config', label: '流程配置', icon: 'SetUp', path: '/flow/config', name: 'FlowConfig', component: 'OfficialBizPlaceholderView', levels: 'hq' },
       { key: 'flow-definition', label: '流程定义', icon: 'Document', path: '/flow/definition', name: 'FlowDefinition', component: 'OfficialBizPlaceholderView', levels: 'hq' },
       { key: 'flow-form', label: '流程表单', icon: 'DocumentChecked', path: '/flow/form', name: 'FlowForm', component: 'FlowFormView', levels: 'hq', description: '维护流程绑定的业务表单模板。' },
-      {
-        key: 'flow-message-group', label: '消息模板', icon: 'ChatLineRound', levels: 'hq',
-        children: [
-          { key: 'flow-message-classify', label: '消息分类', icon: 'CollectionTag', path: '/flow/message/classify', name: 'FlowMessageClassify', component: 'MessageClassifyView', levels: 'hq', description: '维护通知消息的分类字典。' },
-          { key: 'flow-message-template', label: '模板定义', icon: 'Document', path: '/flow/message/template', name: 'FlowMessageTemplate', component: 'MessageTemplateView', levels: 'hq', description: '维护各分类下的通知模板正文与变量。' },
-        ],
-      },
+      { key: 'flow-message', label: '消息模板', icon: 'ChatLineRound', path: '/flow/message', name: 'FlowMessage', component: 'FlowMessageTabsView', levels: 'hq', description: '维护通知消息的分类字典与模板定义（页内两个 Tab：消息分类 / 模板定义）。' },
     ],
   },
 
-  /** 系统设置（仅指挥部；页面为正式工程入口说明） */
+  /**
+   * 系统设置（仅指挥部；页面为正式工程入口说明）
+   * 2026-10-28 用户要求：删除原「菜单管理 → web菜单 / App菜单」三级子页（占位页），
+   * 菜单管理统一保留「组织与权限 → 菜单管理」(/settings/menu，页内 Web端 / App端 两个 Tab）。
+   */
   {
     key: 'sys-config', label: '系统设置', icon: 'Setting', levels: 'hq',
     children: [
       { key: 'sys-api-permission', label: 'API权限', icon: 'Lock', path: '/sys-config/api-permission', name: 'SysApiPermission', component: 'OfficialBizPlaceholderView', levels: 'hq' },
-      {
-        key: 'sys-menu-group', label: '菜单管理', icon: 'Menu', levels: 'hq',
-        children: [
-          { key: 'sys-web-menu', label: 'web菜单', icon: 'Monitor', path: '/sys-config/menu/web', name: 'SysWebMenu', component: 'OfficialBizPlaceholderView', levels: 'hq' },
-          { key: 'sys-app-menu', label: 'App菜单', icon: 'Cellphone', path: '/sys-config/menu/app', name: 'SysAppMenu', component: 'OfficialBizPlaceholderView', levels: 'hq' },
-        ],
-      },
       { key: 'sys-dict', label: '数据字典', icon: 'Notebook', path: '/sys-config/dict', name: 'SysDict', component: 'OfficialBizPlaceholderView', levels: 'hq' },
       { key: 'sys-version-notice', label: '版本通知', icon: 'Tickets', path: '/sys-config/version-notice', name: 'SysVersionNotice', component: 'VersionNoticeView', levels: 'hq', description: '指挥部登记各机型已发布版本与强制更新要求，供两级查看最新版本。' },
     ],
@@ -578,13 +575,14 @@ export function buildFusedMenuTree(raw = rawMenuTree) {
       ],
     },
     {
-      // 质量管理（含二期质量管控 + 一期质量巡检/技术专项入口）
+      // 质量管理（二期质量管控 5 项直接挂在二级 + 一期质量巡检/技术专项入口）
+      // 2026-10-27 用户要求：去掉「质量管控」分组菜单，其下 5 项提升为二级，子页仍为三级。
       key: 'quality-manage',
       label: '质量管理',
       icon: 'TrophyBase',
       levels: 'both',
       children: [
-        { ...node('construction-quality'), label: '质量管控' },
+        ...(node('construction-quality').children || []),
         ...groups('security-quality'),
       ],
     },
@@ -872,6 +870,12 @@ export const redirects = [
       query: { ...to.query, entry_type: to.query.entry_type || 'equipment' },
     }),
   },
+
+  // 2026-10-28 菜单收敛：消息模板 / 菜单管理 由「三级分组 + 子页」改为页内 Tab，旧子页链接兼容
+  { path: '/flow/message/classify', redirect: '/flow/message?tab=classify' },
+  { path: '/flow/message/template', redirect: '/flow/message?tab=template' },
+  { path: '/sys-config/menu/web', redirect: '/settings/menu' },
+  { path: '/sys-config/menu/app', redirect: '/settings/menu?platform=app' },
 ]
 
 /* ============================================================================
@@ -1074,8 +1078,8 @@ export const viewLoaders = {
   OfficialBizPlaceholderView: () => import('../views/settings/OfficialBizPlaceholderView.vue'),
   FlowComponentView: () => import('../views/settings/FlowComponentView.vue'),
   FlowFormView: () => import('../views/settings/FlowFormView.vue'),
-  MessageClassifyView: () => import('../views/settings/MessageClassifyView.vue'),
-  MessageTemplateView: () => import('../views/settings/MessageTemplateView.vue'),
+  /** 消息模板：一个二级页，页内两个 Tab（消息分类 / 模板定义） */
+  FlowMessageTabsView: () => import('../views/settings/FlowMessageTabsView.vue'),
   SystemLogView: () => import('../views/logs/SystemLogView.vue'),
   LoginLogView: () => import('../views/logs/LoginLogView.vue'),
   OperationLogView: () => import('../views/logs/OperationLogView.vue'),

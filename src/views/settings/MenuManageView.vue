@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import {
   Aim,
   AlarmClock,
@@ -113,6 +113,7 @@ import {
   WindPower,
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useRoute, useRouter } from 'vue-router'
 import {
   webMenuTree,
   appMenuTree,
@@ -130,7 +131,34 @@ import { permissionList } from '../../mock/rbac'
 import AiScreenIcon from '../../components/icons/AiScreenIcon.vue'
 import SafetyScreenIcon from '../../components/icons/SafetyScreenIcon.vue'
 
-const activePlatform = ref('web')
+const route = useRoute()
+const router = useRouter()
+
+/**
+ * 2026-10-28：菜单管理由「三级分组 + web菜单/App菜单 两个子页」收敛为本页两个 Tab，
+ * 支持 ?platform=web|app 深链（旧 /sys-config/menu/web|app 由 menu.js redirects 兜底过来）。
+ */
+const PLATFORM_NAMES = ['web', 'app']
+const initialPlatform = String(route.query.platform || '')
+const activePlatform = ref(PLATFORM_NAMES.includes(initialPlatform) ? initialPlatform : 'web')
+
+watch(activePlatform, (value) => {
+  const current = String(route.query.platform || '')
+  if (current === value) return
+  // 默认 Web 端且 URL 未带 platform 时不写 query，保持 /settings/menu 干净
+  if (!current && value === 'web') return
+  router.replace({ path: route.path, query: { ...route.query, platform: value } })
+})
+
+// URL 反向同步（侧栏点菜单 / 浏览器前进后退 / 带 ?platform= 的旧链接跳转）
+watch(
+  () => route.query.platform,
+  (value) => {
+    const next = PLATFORM_NAMES.includes(String(value || '')) ? String(value) : 'web'
+    if (next !== activePlatform.value) activePlatform.value = next
+  },
+)
+
 const levelFilter = ref('')
 const nameFilter = ref('')
 const dialogVisible = ref(false)

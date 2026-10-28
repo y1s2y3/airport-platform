@@ -183,7 +183,7 @@ function onSubmit() {
   <div class="qm-page page-card">
     <div class="page-header">
       <div class="page-breadcrumb">
-        施工质量管控 / 实模一致验收 / {{ copyFromLabel ? '重新申报' : '新建' }}
+        质量管理 / 实模一致验收 / {{ copyFromLabel ? '重新申报' : '新建' }}
       </div>
       <div class="title-row">
         <h1 class="page-title">{{ pageTitle }}</h1>

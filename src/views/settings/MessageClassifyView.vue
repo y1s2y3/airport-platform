@@ -3,6 +3,7 @@
  * 消息分类（指挥部 · 流程管理 → 消息模板）
  * 通知消息的分类字典：筛选（分类名称 / 消息渠道 / 启用状态）+ 台账 + 新增 / 编辑 / 删除
  * 删除前校验：若已被消息模板引用则拦截
+ * 2026-10-28：支持 `embedded` 模式（作为「消息模板」页内 Tab 内容时隐藏自带页头与卡片内边距）
  */
 import { ref, computed } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
@@ -18,6 +19,11 @@ import {
   joinOptions,
   MESSAGE_CHANNEL_OPTIONS,
 } from '../../mock/flowManage'
+
+defineProps({
+  /** 作为 Tab 内容嵌入时：隐藏自带页头、去掉卡片自身内边距 */
+  embedded: { type: Boolean, default: false },
+})
 
 const filterForm = ref({
   keyword: '',
@@ -123,8 +129,8 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <div class="message-classify-page page-card">
-    <div class="page-head">
+  <div class="message-classify-page" :class="embedded ? 'is-embedded' : 'page-card'">
+    <div v-if="!embedded" class="page-head">
       <h1 class="page-title">消息分类</h1>
       <p class="page-tip">维护通知消息的分类字典，供消息模板归属；已被模板引用的分类不可删除。</p>
     </div>
@@ -239,6 +245,12 @@ async function handleSubmit() {
   display: flex;
   flex-direction: column;
   min-height: calc(100vh - 120px);
+}
+
+/* Tab 内嵌模式：卡片与内边距由外层页提供 */
+.message-classify-page.is-embedded {
+  padding: 0;
+  min-height: 0;
 }
 
 .page-head {

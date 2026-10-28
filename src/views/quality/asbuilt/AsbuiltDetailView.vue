@@ -57,7 +57,7 @@ function actionTagType(action) {
 <template>
   <div class="qm-page page-card asbuilt-detail">
     <div class="page-header">
-      <div class="page-breadcrumb">施工质量管控 / 实模一致验收 / 详情</div>
+      <div class="page-breadcrumb">质量管理 / 实模一致验收 / 详情</div>
       <div class="title-row">
         <h1 class="page-title">实模一致验收详情</h1>
         <div class="title-actions">

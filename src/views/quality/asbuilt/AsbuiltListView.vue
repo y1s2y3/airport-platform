@@ -52,7 +52,7 @@ function nodeSummary(row) {
 <template>
   <div class="qm-page page-card">
     <div class="page-header">
-      <div class="page-breadcrumb">施工质量管控 / 实模一致验收</div>
+      <div class="page-breadcrumb">质量管理 / 实模一致验收</div>
       <h1 class="page-title">实模一致验收</h1>
       <p class="page-tip">
         审批在个人中心待办处理 · 当前：{{
