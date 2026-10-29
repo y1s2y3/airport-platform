@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useCurrentProject } from '../../composables/useCurrentProject.js'
-import { sampling, useSamplingRole, visibleTasks, ensureSamplingExamples, linkedReviewTasks, taskProgress } from '../../mock/hazardSampling.js'
+import { sampling, useSamplingRole, visibleTasks, viewableTasks, canHandleTask, ensureSamplingExamples, linkedReviewTasks, taskProgress } from '../../mock/hazardSampling.js'
 import { getHazardIssueRows } from '../../utils/hazardIssueSummary.js'
 import { rememberSupervisorTask, restoreSupervisorTaskContext, samplingSourceLocation, supervisorTaskLocation } from '../../utils/hazardSamplingTaskNavigation.js'
 
@@ -14,14 +14,15 @@ if (route.query.viewer !== 'hq') restoreSupervisorTaskContext(String(route.param
 const role = useSamplingRole()
 const { selectedProjectId } = useCurrentProject()
 const isHq = computed(() => role.value === 'hq')
-const task = computed(() => visibleTasks(role.value, selectedProjectId.value).find(item => item.id === route.params.id))
+const task = computed(() => viewableTasks(role.value, selectedProjectId.value).find(item => item.id === route.params.id))
 const isManager = computed(() => task.value?.stage === 'manager')
+const canHandle = computed(() => canHandleTask(task.value, role.value, selectedProjectId.value))
 const keyword = ref('')
 const resultFilter = ref('')
 const resolution = ref('')
 const stateLabel = computed(() => !task.value ? '' : task.value.submittedAt ? '已办理' : Object.keys(task.value.results).length ? '办理中' : '待办理')
 /** 指挥部追踪：关联的全面复查任务（多个关联项全部展示，不静默丢弃历史）。 */
-const linkedReviews = computed(() => isHq.value && task.value?.stage === 'supervisor' ? linkedReviewTasks(task.value) : [])
+const linkedReviews = computed(() => task.value?.stage === 'supervisor' ? linkedReviewTasks(task.value) : [])
 const followProgress = follow => taskProgress(follow)
 const followState = follow => !follow ? '' : follow.submittedAt ? '已办理' : Object.keys(follow.results).length ? '办理中' : '待办理'
 const formatTime = value => value ? new Date(value).toLocaleString('sv-SE') : '--'
@@ -36,7 +37,12 @@ const rows = computed(() => {
 })
 const filtered = computed(() => rows.value.filter(row => (!resultFilter.value || row.reviewResult === resultFilter.value) && (!keyword.value.trim() || `${row.originalNo} ${row.title} ${row.sourceLabel}`.toLowerCase().includes(keyword.value.trim().toLowerCase()))))
 watch([() => route.params.id, () => route.query.viewer], ([id]) => { if (route.query.viewer !== 'hq') restoreSupervisorTaskContext(String(id)); keyword.value=''; resultFilter.value=''; resolution.value='' })
-function goBack() { router.push('/hazard-issues/tasks') }
+const backTaskId = computed(() => String(route.query.fromTask || ''))
+function goBack() {
+  if (backTaskId.value) { router.push({ path: `/hazard-issues/sampling-task/${encodeURIComponent(backTaskId.value)}`, query: { viewer: route.query.viewer === 'hq' ? 'hq' : 'project' } }); return }
+  router.push('/hazard-issues/tasks')
+}
+function openFollow(follow) { const location = supervisorTaskLocation(follow.id); router.push({ ...location, query: { ...location.query, fromTask: task.value.id } }) }
 function openRecord(row) { rememberSupervisorTask(task.value); router.push(samplingSourceLocation(row,task.value)) }
 function resolveDifference() {
   if (!isHq.value || !task.value?.discrepancy) return
@@ -48,7 +54,7 @@ function resolveDifference() {
 
 <template>
   <div class="supervisor-task-detail">
-    <div class="task-detail-back"><el-button @click="goBack">返回任务列表</el-button></div>
+    <div class="task-detail-back"><el-button @click="goBack">{{ backTaskId ? '返回抽检任务' : '返回任务列表' }}</el-button></div>
     <el-empty v-if="!task" description="当前身份无权查看该任务，或任务不属于当前项目" />
     <template v-else>
       <div class="task-detail-heading"><h2>{{ isManager ? '全面复查任务详情' : '抽检任务详情' }}</h2></div>
@@ -67,7 +73,7 @@ function resolveDifference() {
           <el-descriptions-item label="完成进度">{{ Object.keys(task.results).length }} / {{ task.ids.length }} 张</el-descriptions-item>
           <el-descriptions-item v-if="task.submittedAt" label="完成时间" :span="2">{{ formatTime(task.submittedAt) }}</el-descriptions-item>
         </el-descriptions>
-        <p class="task-detail-hint">{{ task.submittedAt ? '本任务已办理，可查看本批次各单据的办理记录。' : isManager ? '请逐单完成现场复查及线下整改，确认已复查并上传复查照片；全部单据保存后，任务自动进入已办理。' : '请逐单重新核对整改及复查资料；全部单据保存后，任务自动进入已办理。' }}</p>
+        <p class="task-detail-hint">{{ (!canHandle && !isHq) ? '当前为追踪查看：可查看复查进度、单据与支撑材料，不能替复查人提交结果。' : task.submittedAt ? '本任务已办理，可查看本批次各单据的办理记录。' : isManager ? '请逐单完成现场复查及线下整改，确认已复查并上传复查照片；全部单据保存后，任务自动进入已办理。' : '请逐单重新核对整改及复查资料；全部单据保存后，任务自动进入已办理。' }}</p>
       </section>
       <section class="task-detail-card">
         <div class="task-record-filters"><el-input v-model="keyword" clearable placeholder="单据编号、隐患内容或来源" style="width:280px"/><el-select v-model="resultFilter" clearable :placeholder="isManager ? '本次复查状态' : '本次抽查结果'" style="width:170px"><el-option v-for="result in isManager ? ['待复查','已复查'] : ['待抽查','合格','不合格']" :key="result" :label="result" :value="result"/></el-select><el-button @click="keyword='';resultFilter=''">重置</el-button></div>
@@ -78,11 +84,11 @@ function resolveDifference() {
           <el-table-column prop="status" label="原业务状态" width="110"/>
           <el-table-column :label="isManager ? '本次复查状态' : '本次抽查结果'" width="130"><template #default="{row}"><span :class="row.reviewResult === '不合格' ? 'task-result-fail' : ['合格','已复查'].includes(row.reviewResult) ? 'task-result-pass' : ''">{{ row.reviewResult }}</span></template></el-table-column>
           <el-table-column :label="isManager ? '复查日期' : '抽查日期'" width="170"><template #default="{row}">{{ formatTime(row.reviewTime) }}</template></el-table-column>
-          <el-table-column label="操作" width="100" fixed="right"><template #default="{row}"><el-button link type="primary" :disabled="row.missing" @click="openRecord(row)">{{ !isHq && !task.submittedAt && !row.reviewed ? isManager ? '去复查' : '去抽检' : '查看' }}</el-button></template></el-table-column>
+          <el-table-column label="操作" width="100" fixed="right"><template #default="{row}"><el-button link type="primary" :disabled="row.missing" @click="openRecord(row)">{{ canHandle && !task.submittedAt && !row.reviewed ? isManager ? '去复查' : '去抽检' : '查看' }}</el-button></template></el-table-column>
         </el-table>
       </section>
-      <section v-if="isHq && task.stage === 'supervisor'" class="task-detail-card">
-        <template v-if="task.discrepancy">
+      <section v-if="task.stage === 'supervisor'" class="task-detail-card">
+        <template v-if="isHq && task.discrepancy">
           <el-alert title="抽检人全部判为合格，与指挥部抽查结论存在差异，请核查。" type="warning" :closable="false"/>
           <p v-if="task.resolution">核查意见：{{ task.resolution }}</p>
           <div v-else class="difference-review"><el-input v-model="resolution" type="textarea" :rows="3" placeholder="填写结论差异核查意见"/><el-button type="primary" @click="resolveDifference">保存核查意见</el-button></div>
@@ -101,7 +107,7 @@ function resolveDifference() {
               <el-descriptions-item label="范围单据数量">{{ follow.poolIds.length }} 张</el-descriptions-item>
               <el-descriptions-item label="已复查数量">{{ followProgress(follow).done }} / {{ follow.ids.length }} 张</el-descriptions-item>
             </el-descriptions>
-            <el-button link type="primary" @click="router.push(supervisorTaskLocation(follow.id))">查看复查单据与附件</el-button>
+            <el-button link type="primary" @click="openFollow(follow)">查看复查单据与附件</el-button>
           </div>
         </template>
         <p v-else class="task-detail-hint">尚未下发全面复查任务。</p>

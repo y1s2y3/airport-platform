@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getHazardIssueRows, getCurrentHazardIssueProjectKey } from '../utils/hazardIssueSummary.js'
 import { useCurrentProject } from '../composables/useCurrentProject.js'
-import { useSamplingRole, eligible, submitReview, samplingPreview, registrationDay, visibleTasks, samplingPersonId, saveSamplingAttachment, downloadSamplingAttachment, ensureSamplingExamples, sampling } from '../mock/hazardSampling.js'
+import { useSamplingRole, eligible, submitReview, samplingPreview, registrationDay, visibleTasks, viewableTasks, canHandleTask, samplingPersonId, saveSamplingAttachment, downloadSamplingAttachment, ensureSamplingExamples, sampling } from '../mock/hazardSampling.js'
 import { getSamplingPeople } from '../mock/samplingPeople.js'
 import { buildSamplingRounds } from '../mock/hazardSamplingRounds.js'
 import { restoreSupervisorTaskContext, samplingReturnLocation } from '../utils/hazardSamplingTaskNavigation.js'
@@ -19,11 +19,12 @@ ensureSamplingExamples()
 const { selectedProjectId } = useCurrentProject()
 const row = computed(() => getHazardIssueRows().find(item => item.source === props.source && item.sourceId === props.recordId))
 const taskContext = computed(() => route.query.from === 'sampling-task')
-const contextTask = computed(() => taskContext.value ? visibleTasks(viewerRole.value, selectedProjectId.value).find(task => task.id === route.query.samplingTask && task.ids.includes(row.value?.id)) : null)
+const contextTask = computed(() => taskContext.value ? viewableTasks(viewerRole.value, selectedProjectId.value).find(task => task.id === route.query.samplingTask && task.ids.includes(row.value?.id)) : null)
+const canHandleContext = computed(() => canHandleTask(contextTask.value, viewerRole.value, selectedProjectId.value))
 const allowed = computed(() => row.value && (taskContext.value ? Boolean(contextTask.value) : role.value === 'hq' || row.value.projectKey === getCurrentHazardIssueProjectKey(selectedProjectId.value)))
 const rounds = computed(() => {
   if (!allowed.value) return []
-  const taskIds = new Set(visibleTasks(viewerRole.value, selectedProjectId.value).map(task => task.id))
+  const taskIds = new Set(viewableTasks(viewerRole.value, selectedProjectId.value).map(task => task.id))
   const records = buildSamplingRounds(sampling.value, row.value, role.value).filter(round => role.value === 'hq' || taskIds.has(round.taskId))
   return taskContext.value ? records.filter(round => round.id === contextTask.value.batchId) : records
 })
@@ -91,12 +92,12 @@ function submit() {
     <div class="sampling-panel-head">
       <h3>抽查记录</h3>
       <div class="sampling-panel-actions">
-        <el-button v-if="role === 'hq' && eligible(row)" type="primary" @click="openEditor()">抽查</el-button>
+        <el-button v-if="role === 'hq' && eligible(row) && !taskContext" type="primary" @click="openEditor()">抽查</el-button>
       </div>
     </div>
     <div v-for="round in pendingRounds" :key="round.id" class="sampling-pending-entry">
       <div><strong>{{ role === 'manager' ? '待办复查' : '待办抽查' }}</strong><span>任务编号：{{ round.actionTaskId }}</span></div>
-      <el-button v-if="eligible(row)" type="primary" @click="openEditor(round.actionTaskId)">办理</el-button>
+      <el-button v-if="eligible(row) && (!taskContext || canHandleContext)" type="primary" @click="openEditor(round.actionTaskId)">办理</el-button>
     </div>
     <div class="sampling-date-filter">
       <span>抽查日期</span>
@@ -149,10 +150,10 @@ function submit() {
           <el-form-item label="是否下发任务" required><el-radio-group v-model="form.dispatch"><el-radio :value="true">是</el-radio><el-radio :value="false">否</el-radio></el-radio-group></el-form-item>
           <template v-if="form.dispatch === true">
             <el-form-item label="本单登记时间"><span>{{ row.registeredAt || '--' }}</span></el-form-item>
-            <el-form-item label="检查时间范围" required><el-date-picker v-model="form.dates" type="daterange" value-format="YYYY-MM-DD" start-placeholder="检查开始日期" end-placeholder="检查结束日期"/><span class="sampling-hint">按本单所属项目的登记日期取单，含起止日；必须覆盖本单登记日期 {{ registrationDay(row) }}。</span></el-form-item>
+            <el-form-item label="检查时间范围" required><el-date-picker v-model="form.dates" type="daterange" value-format="YYYY-MM-DD" start-placeholder="检查开始日期" end-placeholder="检查结束日期"/><span class="sampling-hint">按本单所属项目、同一来源的登记日期取单，含起止日；必须覆盖本单登记日期 {{ registrationDay(row) }}。</span></el-form-item>
             <el-form-item label="抽检比例" required><el-input-number v-model="form.percent" :min="1" :max="100" :precision="0"/> <span style="margin-left:8px">%</span></el-form-item>
             <el-form-item label="抽检人" required><el-select v-model="form.assigneeId" filterable placeholder="请选择一名抽检人" style="width:100%"><el-option v-for="person in assignees" :key="person.id" :label="person.label" :value="person.id"/></el-select></el-form-item>
-            <el-alert v-if="dispatchPreview" :type="dispatchPreview.error ? 'warning' : 'info'" :closable="false" :title="dispatchPreview.error || `范围内共${dispatchPreview.pool.length}张，实际下发${dispatchPreview.count}张；本单必含，其余随机抽取。`"/>
+            <el-alert v-if="dispatchPreview" :type="dispatchPreview.error ? 'warning' : 'info'" :closable="false" :title="dispatchPreview.error || `本来源范围内共${dispatchPreview.pool.length}张，实际下发${dispatchPreview.count}张；本单必含，其余随机抽取。`"/>
           </template>
         </template>
       </el-form>

@@ -17,7 +17,7 @@ const projects=computed(()=>getHazardIssueProjectOptions())
 const rows=computed(()=>{
   const base=isHq.value?hqMainTasks():visibleTasks(role.value,selectedProjectId.value)
   return base.map(task=>{
-    const review=isHq.value&&task.stage==='supervisor'?linkedReviewTask(task):null
+    const review=task.stage==='supervisor'?linkedReviewTask(task):null
     return { task, review, progress:taskProgress(task), reviewProgress:review?taskProgress(review):null }
   })
 })
@@ -35,7 +35,8 @@ const filtered=computed(()=>rows.value.filter(row=>{
     const text=`${task.recipient} ${task.assigneeName || ''} ${row.review?.recipient || ''} ${row.review?.assigneeName || ''}`
     if(!text.includes(personFilter.value.trim()))return false
   }
-  if(isHq.value&&followFilter.value){
+  if(followFilter.value){
+    if(task.stage!=='supervisor')return false
     const has=Boolean(row.review)
     if(followFilter.value==='未下发'&&has)return false
     if(followFilter.value==='未完成'&&(!has||row.review.submittedAt))return false
@@ -60,7 +61,7 @@ function open(task){rememberSupervisorTask(task);router.push(supervisorTaskLocat
       <el-select v-if="isHq" v-model="projectFilter" clearable filterable placeholder="所属项目" style="width:170px"><el-option v-for="project in projects" :key="project.key" :label="project.label" :value="project.key"/></el-select>
       <el-input v-if="isHq" v-model="personFilter" clearable placeholder="抽检人／复查人" style="width:170px"/>
       <el-select v-model="stateFilter" clearable placeholder="任务状态" aria-label="任务状态" class="task-state-filter" style="width:140px"><el-option v-for="state in stateOptions" :key="state" :label="state" :value="state"/></el-select>
-      <el-select v-if="isHq" v-model="followFilter" clearable placeholder="后续全面复查" aria-label="后续全面复查" style="width:150px"><el-option v-for="state in followOptions" :key="state" :label="state" :value="state"/></el-select>
+      <el-select v-model="followFilter" clearable placeholder="后续全面复查" aria-label="后续全面复查" style="width:150px"><el-option v-for="state in followOptions" :key="state" :label="state" :value="state"/></el-select>
       <span>下发日期</span><el-date-picker v-model="dates" type="daterange" value-format="YYYY-MM-DD" start-placeholder="开始日期" end-placeholder="结束日期" style="max-width:320px"/><el-button @click="reset">重置</el-button>
     </div>
     <el-table :data="paged" border stripe class="supervisor-tasks" empty-text="暂无符合条件的任务">
@@ -75,7 +76,7 @@ function open(task){rememberSupervisorTask(task);router.push(supervisorTaskLocat
       <el-table-column v-else label="单据（张）" width="95"><template #default="{row}">{{ row.progress.total }}</template></el-table-column>
       <el-table-column v-if="!isHq" label="完成进度（张）" width="125"><template #default="{row}">{{ row.progress.done }} / {{ row.progress.total }}</template></el-table-column>
       <el-table-column v-if="isHq" label="原任务状态" width="95"><template #default="{row}"><span class="task-state-pill" :class="{complete:row.task.submittedAt}">{{ stateLabel(row.task) }}</span></template></el-table-column>
-      <el-table-column v-if="isHq" label="后续全面复查" min-width="205"><template #default="{row}"><span :class="{ 'task-follow-empty': !row.review }">{{ followLabel(row.review, row.reviewProgress || { done: 0, total: 0 }) }}</span></template></el-table-column>
+      <el-table-column label="后续全面复查" min-width="205"><template #default="{row}"><span v-if="row.task.stage!=='supervisor'" class="task-follow-empty">--</span><span v-else :class="{ 'task-follow-empty': !row.review }">{{ followLabel(row.review, row.reviewProgress || { done: 0, total: 0 }) }}</span></template></el-table-column>
       <el-table-column v-if="!isHq&&stateFilter==='已办理'" label="完成时间" width="170"><template #default="{row}">{{ formatTime(row.task.submittedAt) }}</template></el-table-column>
       <el-table-column v-if="!isHq&&stateFilter==='已办理'" label="合格／已复查（张）" width="155"><template #default="{row}">{{ resultCount(row.task,'合格') }}</template></el-table-column>
       <el-table-column v-if="!isHq&&stateFilter==='已办理'" label="不合格（张）" width="112"><template #default="{row}">{{ resultCount(row.task,'不合格') }}</template></el-table-column>

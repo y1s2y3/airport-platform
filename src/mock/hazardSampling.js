@@ -20,9 +20,9 @@ watch(projectSamplingRole, value => sessionStorage.setItem('hazard-sampling-role
 export const samplingPersonId = ref(sessionStorage.getItem('hazard-sampling-person') || '')
 watch(samplingPersonId, value => sessionStorage.setItem('hazard-sampling-person', value))
 export function samplingActorId(projectKey, role) {
-  if (role === 'manager') return getSamplingManager(projectKey)?.id || ''
   const people = getSamplingPeople(projectKey)
-  return people.some(person => person.id === samplingPersonId.value) ? samplingPersonId.value : people[0]?.id || ''
+  if (people.some(person => person.id === samplingPersonId.value)) return samplingPersonId.value
+  return role === 'manager' ? getSamplingManager(projectKey)?.id || '' : people[0]?.id || ''
 }
 export function useSamplingRole() {
   const { isHqSelected } = useCurrentProject()
@@ -44,7 +44,7 @@ export function reviewedAt(row) {
 }
 /** 版本标记实现一次补入；手工任务、检查记录和配置优先保留。 */
 export function ensureSamplingExamples(rows = getHazardIssueRows()) {
-  if (sampling.value.exampleVersion === SAMPLING_EXAMPLE_VERSION) { enrichExampleTasks(); sampling.value.tasks.forEach(completeTaskIfReady); return }
+  if (sampling.value.exampleVersion === SAMPLING_EXAMPLE_VERSION) { enrichExampleTasks(); normalizeExamplePools(); sampling.value.tasks.forEach(completeTaskIfReady); return }
   const examples = buildSamplingExamples(rows, getHazardIssueProjectOptions(), exampleEligible, reviewedAt)
   const manualExamples = buildManualSamplingExamples(rows, getHazardIssueProjectOptions())
   examples.tasks.push(...manualExamples.tasks)
@@ -62,6 +62,7 @@ export function ensureSamplingExamples(rows = getHazardIssueRows()) {
   sampling.value.history = [...examples.history.filter(log => !logIds.has(log.id)), ...sampling.value.history]
   sampling.value.exampleVersion = SAMPLING_EXAMPLE_VERSION
   enrichExampleTasks()
+  normalizeExamplePools()
   sampling.value.tasks.forEach(completeTaskIfReady)
 }
 const uid = prefix => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
@@ -81,12 +82,74 @@ function enrichExampleTasks() {
     task.rangeBasis ||= '历史检查范围'
   }
 }
+/** 示例任务按来源收敛：指挥部在哪类来源发现问题，下发的抽检就只含该类来源单据。 */
+function normalizeExamplePools() {
+  const byId = new Map(getHazardIssueRows().map(row => [row.id, row]))
+  const sourceOf = id => byId.get(id)?.source || ''
+  const originSource = task => {
+    if (task.originRowId && sourceOf(task.originRowId)) return sourceOf(task.originRowId)
+    const ownFail = sampling.value.history.find(log => log.taskId === task.id && log.result === '不合格')
+    if (ownFail && sourceOf(ownFail.rowId)) return sourceOf(ownFail.rowId)
+    const hqFail = sampling.value.history.find(log => log.roundId === task.batchId && log.stage === 'hq' && log.result === '不合格')
+    return hqFail ? sourceOf(hqFail.rowId) : ''
+  }
+  for (const task of sampling.value.tasks.filter(item => item.example && item.stage === 'supervisor')) {
+    if (new Set(task.poolIds.map(sourceOf).filter(Boolean)).size <= 1) continue
+    const source = originSource(task)
+    if (!source) continue
+    const poolIds = task.poolIds.filter(id => sourceOf(id) === source)
+    const ids = task.ids.filter(id => sourceOf(id) === source)
+    if (poolIds.length < 2 || !ids.length) continue
+    task.poolIds = poolIds
+    task.ids = ids
+    for (const key of Object.keys(task.results)) if (!ids.includes(key)) delete task.results[key]
+  }
+  const byBatch = new Map(sampling.value.tasks.filter(item => item.stage === 'supervisor').map(item => [item.batchId, item]))
+  for (const task of sampling.value.tasks.filter(item => item.example && item.stage === 'manager')) {
+    const parent = task.parentTaskId ? sampling.value.tasks.find(item => item.id === task.parentTaskId) : byBatch.get(task.batchId)
+    if (!parent) continue
+    const allowed = new Set(parent.poolIds)
+    const poolIds = task.poolIds.filter(id => allowed.has(id))
+    const ids = task.ids.filter(id => allowed.has(id))
+    if (poolIds.length < 2 || !ids.length) continue
+    task.poolIds = poolIds
+    task.ids = ids
+    for (const key of Object.keys(task.results)) if (!ids.includes(key)) delete task.results[key]
+  }
+}
 export function visibleHistory(rowId, role) {
   return sampling.value.history.filter(log => log.rowId === rowId && (role === 'hq' || (role === 'supervisor' && log.stage !== 'hq') || (role === 'manager' && log.stage === 'manager')))
 }
 export function visibleTasks(role, projectId) {
+  if (role === 'hq') return sampling.value.tasks
   const key = getCurrentHazardIssueProjectKey(projectId)
-  return sampling.value.tasks.filter(task => role === 'hq' || (task.projectKey === key && (task.assigneeId ? task.assigneeId === samplingActorId(key, role) : task.stage === role)))
+  if (!key) return []
+  const actor = samplingActorId(key, role)
+  return sampling.value.tasks.filter(task => task.projectKey === key && task.stage === role && (task.assigneeId ? task.assigneeId === actor : true))
+}/** 只读查看权限：本人收到的任务；抽检人可沿父任务追踪其下派的全面复查（仅查看，不计入本人待办）。 */
+export function canViewTask(task, role, projectId) {
+  if (!task) return false
+  if (role === 'hq') return true
+  const key = getCurrentHazardIssueProjectKey(projectId)
+  if (!key || task.projectKey !== key) return false
+  const actor = samplingActorId(key, role)
+  if (task.stage === role && (task.assigneeId ? task.assigneeId === actor : true)) return true
+  if (role === 'supervisor' && task.stage === 'manager') {
+    const parent = sampling.value.tasks.find(item => item.stage === 'supervisor' && (item.id === task.parentTaskId || (!task.parentTaskId && item.batchId === task.batchId && item.projectKey === task.projectKey)))
+    return Boolean(parent && parent.assigneeId === actor)
+  }
+  return false
+}
+/** 办理权限：只有本人实际收到的该阶段任务，指挥部与追踪查看者不能代办。 */
+export function canHandleTask(task, role, projectId) {
+  if (!task || role === 'hq') return false
+  const key = getCurrentHazardIssueProjectKey(projectId)
+  if (!key || task.projectKey !== key) return false
+  const actor = samplingActorId(key, role)
+  return task.stage === role && (task.assigneeId ? task.assigneeId === actor : true)
+}
+export function viewableTasks(role, projectId) {
+  return sampling.value.tasks.filter(task => canViewTask(task, role, projectId))
 }
 /** 指挥部主列表：一行对应一项指挥部直接下发的原抽检任务，全面复查通过关联展示。 */
 export function hqMainTasks() {
@@ -145,11 +208,11 @@ export function samplingPreview(row, dates, percent) {
   const [start,end] = dates
   if (start > end || anchor < start || anchor > end) throw new Error('检查时间范围必须包含本单登记时间')
   if (!Number.isInteger(percent) || percent < 1 || percent > 100) throw new Error('抽检比例须为1～100的整数（%）')
-  const pool = getHazardIssueRows().filter(item => item.projectKey === row.projectKey && registrationDay(item) >= start && registrationDay(item) <= end)
+  const pool = getHazardIssueRows().filter(item => item.projectKey === row.projectKey && item.source === row.source && registrationDay(item) >= start && registrationDay(item) <= end)
   if (!pool.some(item => item.id === row.id)) throw new Error('检查范围未包含本单')
   const count = Math.ceil(pool.length * percent / 100)
-  if (count < 2) throw new Error(`范围共${pool.length}张，按比例抽取${count}张；为保留盲抽请扩大范围或提高比例，至少下发2张`)
-  return { pool, count, start, end }
+  if (count < 2) throw new Error(`本来源范围共${pool.length}张，按比例抽取${count}张；为保留盲抽请扩大范围或提高比例，至少下发2张`)
+  return { pool, count, start, end, source: row.source }
 }
 
 export function submitReview(row, role, payload, taskId) {
