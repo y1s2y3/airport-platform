@@ -37,7 +37,13 @@ export function getInspectionHazardDetail(id) {
     dl: row.deadline,
     st: row.status,
     cd: row.closeDate,
-    hazard: { desc: row.desc, photos: [...(row.hazardPhotos || [])] },
+    hazard: {
+      category: row.hazardCategory,
+      level: row.hazardLevel || '',
+      rectifyRequirement: row.rectifyRequirement || '',
+      desc: row.desc,
+      photos: [...(row.hazardPhotos || [])],
+    },
     flow: [{ a: '下发整改单', d: `${row.issueDate || ''} 09:30`.trim() }],
   }
 

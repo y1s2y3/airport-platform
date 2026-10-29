@@ -124,8 +124,7 @@ export function visibleTasks(role, projectId) {
   if (role === 'hq') return sampling.value.tasks
   const key = getCurrentHazardIssueProjectKey(projectId)
   if (!key) return []
-  const actor = samplingActorId(key, role)
-  return sampling.value.tasks.filter(task => task.projectKey === key && task.stage === role && (task.assigneeId ? task.assigneeId === actor : true))
+  return sampling.value.tasks.filter(task => task.projectKey === key && task.stage === role)
 }/** 只读查看权限：本人收到的任务；抽检人可沿父任务追踪其下派的全面复查（仅查看，不计入本人待办）。 */
 export function canViewTask(task, role, projectId) {
   if (!task) return false
@@ -133,10 +132,10 @@ export function canViewTask(task, role, projectId) {
   const key = getCurrentHazardIssueProjectKey(projectId)
   if (!key || task.projectKey !== key) return false
   const actor = samplingActorId(key, role)
-  if (task.stage === role && (task.assigneeId ? task.assigneeId === actor : true)) return true
+  if (task.stage === role) return true
   if (role === 'supervisor' && task.stage === 'manager') {
     const parent = sampling.value.tasks.find(item => item.stage === 'supervisor' && (item.id === task.parentTaskId || (!task.parentTaskId && item.batchId === task.batchId && item.projectKey === task.projectKey)))
-    return Boolean(parent && parent.assigneeId === actor)
+    return Boolean(parent)
   }
   return false
 }
@@ -145,8 +144,7 @@ export function canHandleTask(task, role, projectId) {
   if (!task || role === 'hq') return false
   const key = getCurrentHazardIssueProjectKey(projectId)
   if (!key || task.projectKey !== key) return false
-  const actor = samplingActorId(key, role)
-  return task.stage === role && (task.assigneeId ? task.assigneeId === actor : true)
+  return task.stage === role
 }
 export function viewableTasks(role, projectId) {
   return sampling.value.tasks.filter(task => canViewTask(task, role, projectId))
@@ -179,7 +177,7 @@ export function taskProgress(task) {
   return { total: task.ids.length, done: logs.length, failed: task.stage === 'supervisor' ? logs.filter(log => log.result === '不合格').length : 0, complete: Boolean(task.submittedAt) }
 }
 export function taskComplete(task) {
-  return Boolean(task?.ids.length) && task.ids.every(id => sampling.value.history.some(log => log.id === task.results[id] && log.taskId === task.id && log.rowId === id && log.stage === task.stage && ['合格','不合格'].includes(log.result) && (task.stage !== 'manager' || log.completed && log.files?.length)))
+  return Boolean(task?.ids.length) && task.ids.every(id => sampling.value.history.some(log => log.id === task.results[id] && log.taskId === task.id && log.rowId === id && log.stage === task.stage && ['合格','不合格'].includes(log.result) && (task.stage !== 'manager' || log.completed)))
 }
 function completeTaskIfReady(task) {
   if (!task || task.submittedAt || !['supervisor','manager'].includes(task.stage) || !taskComplete(task)) return false
@@ -223,8 +221,7 @@ export function submitReview(row, role, payload, taskId) {
   const task = role === 'hq' ? null : actionableTask(row, role, taskId)
   if (role !== 'hq' && !task) throw new Error('该单据没有分配给当前角色的待办任务')
   if (!['合格', '不合格'].includes(payload.result) || (payload.result === '不合格' && !String(payload.note || '').trim())) throw new Error('请选择合格或不合格；不合格时必须填写说明')
-  if (role === 'manager' && !payload.files?.length) throw new Error('请上传复查照片')
-  if (role === 'manager' && payload.files.some(file => !/\.(jpe?g|png)$/i.test(file.name))) throw new Error('复查照片仅支持 JPG、JPEG、PNG 格式')
+  if (role === 'manager' && (payload.files || []).some(file => !/\.(jpe?g|png)$/i.test(file.name))) throw new Error('复查照片仅支持 JPG、JPEG、PNG 格式')
   if (role === 'manager' && (payload.result !== '合格' || !payload.completed)) throw new Error('请在线下整改完成后，确认已完成复查且合格')
   const prior = payload.submissionId && sampling.value.history.find(item => item.submissionId === payload.submissionId && item.rowId === row.id && item.stage === role)
   if (prior) return { log:prior, task:sampling.value.tasks.find(item => item.batchId === prior.roundId && item.stage === 'supervisor') }
@@ -242,12 +239,15 @@ export function submitReview(row, role, payload, taskId) {
     if (existingFollow) {
       if (payload.reviewAssigneeId && payload.reviewAssigneeId !== existingFollow.assigneeId) throw new Error('本批次已经下发全面复查任务，不能重复选择其他接收人')
     } else {
-      reviewer = getSamplingPeople(row.projectKey).find(person => person.id === payload.reviewAssigneeId)
-      if (!reviewer) throw new Error('请选择本项目的一名全面复查人')
-      if (!task.poolIds?.length || !task.poolIds.includes(row.id)) throw new Error('原任务完整检查范围不可用，请核对原任务')
+      if (typeof payload.dispatch !== 'boolean') throw new Error('请选择是否下发任务')
+      if (payload.dispatch) {
+        reviewer = getSamplingPeople(row.projectKey).find(person => person.id === payload.reviewAssigneeId)
+        if (!reviewer) throw new Error('请选择本项目的一名全面复查人')
+        if (!task.poolIds?.length || !task.poolIds.includes(row.id)) throw new Error('原任务完整检查范围不可用，请核对原任务')
+      }
     }
   }
-  const log = { id: uid('JL'), roundId: task?.batchId || uid('JC'), rowId: row.id, projectKey: row.projectKey, stage: role, taskId: task?.id || '', submissionId:payload.submissionId || '', dispatch:role === 'hq' && payload.result === '不合格' ? payload.dispatch : false, person: role === 'hq' ? '指挥部检查人' : task?.recipient || RECIPIENTS[role], time: new Date().toISOString(), result: payload.result, note: String(payload.note || '').trim(), files: role === 'manager' ? payload.files : [], completed: role === 'manager' }
+  const log = { id: uid('JL'), roundId: task?.batchId || uid('JC'), rowId: row.id, projectKey: row.projectKey, stage: role, taskId: task?.id || '', submissionId:payload.submissionId || '', dispatch:role === 'hq' ? payload.dispatch : role === 'supervisor' && payload.result === '不合格' ? Boolean(payload.dispatch) : false, person: role === 'hq' ? '指挥部检查人' : task?.recipient || RECIPIENTS[role], time: new Date().toISOString(), result: payload.result, note: String(payload.note || '').trim(), files: role === 'manager' ? payload.files : [], completed: role === 'manager' }
   if (existingFollow || reviewer) { log.reviewAssigneeId = existingFollow?.assigneeId || reviewer.id; log.reviewRecipient = existingFollow?.recipient || reviewer.label }
   sampling.value.history.push(log)
   if (task) task.results[row.id] = log.id

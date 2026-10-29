@@ -145,6 +145,9 @@ function displayPhotos(list) {
 
       <div class="sc">
         <div class="sct">隐患信息</div>
+        <div class="ir"><span class="il">隐患类别</span><span>{{ record.hazardCategory || '安全管理' }}</span></div>
+        <div class="ir"><span class="il">隐患等级</span><span>{{ record.hazardLevel || '未设置' }}</span></div>
+        <div class="ir"><span class="il">整改要求</span><span style="white-space:pre-wrap">{{ record.rectifyRequirement || '未填写' }}</span></div>
         <div class="ir"><span class="il">隐患说明</span><span>{{ record.hazard || '--' }}</span></div>
         <div class="ir"><span class="il">隐患照片</span><span>{{ displayPhotos(record.hazardPhotos) }}</span></div>
       </div>

@@ -5,11 +5,13 @@ import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getProjectRectifierLabel, getProjectReviewerLabel } from '../../composables/useInspectionPersonConfig'
 import { getInspectionHazardDetail } from '../../mock/inspectionHazardQuery'
+import { normalizeHazardCategory } from '../../config/inspectionManagement'
 
 const route = useRoute()
 if (route.query.from === 'sampling-task' && route.query.viewer !== 'hq') restoreSupervisorTaskContext(String(route.query.samplingTask || ''))
 const router = useRouter()
-const rid = route.params.id
+const props = defineProps({ recordId: String, embedded: Boolean })
+const rid = props.recordId || route.params.id
 
 const flowCollapsed = ref(false)
 
@@ -118,6 +120,10 @@ const info = computed(() => {
   const projectKey = source.project_id || source.pj
   return {
     ...source,
+    hazard: {
+      ...(source.hazard || {}),
+      category: normalizeHazardCategory(source.hazard?.category || source.hazardCategory),
+    },
     cat: source.cat || (['rec-003', 'rec-004'].includes(rid) ? '质量' : '安全'),
     rf: source.rf || getProjectRectifierLabel(projectKey),
     rv: source.rv || getProjectReviewerLabel(projectKey),
@@ -147,10 +153,16 @@ function goBack() {
 
 <template>
   <div class="pg">
-    <div class="hd">
+    <div v-if="!embedded" class="hd">
       <button class="bk" @click="goBack">‹ 返回</button>
       <h3 class="pt">隐患详情</h3>
     </div>
+    <!-- 隐患清单只展示隐患及整改闭环；抽查内容仅在抽查业务入口展示。 -->
+    <HazardSamplingPanel
+      v-if="!embedded && ['summary', 'sampling-task'].includes(route.query.from)"
+      source="inspection"
+      :record-id="String(rid)"
+    />
 
     <!-- ===== 基本信息 ===== -->
     <div class="ig">
@@ -168,6 +180,9 @@ function goBack() {
     <!-- ===== 隐患信息 ===== -->
     <div class="sc">
       <div class="sct">隐患信息</div>
+      <div class="rf"><label>隐患类别</label><span>{{ info.hazard.category }}</span></div>
+      <div class="rf"><label>隐患等级</label><span>{{ info.hazard.level || '未设置' }}</span></div>
+      <div class="rf"><label>整改要求</label><span style="white-space:pre-wrap">{{ info.hazard.rectifyRequirement || '未填写' }}</span></div>
       <div class="rf"><label>隐患说明</label><span>{{ info.hazard.desc }}</span></div>
       <div class="rf" v-if="info.hazard.photos?.length"><label>隐患照片</label><span>{{ info.hazard.photos.join('、') }}</span></div>
     </div>
@@ -227,7 +242,6 @@ function goBack() {
         </div>
       </div>
     </div>
-    <HazardSamplingPanel source="inspection" :record-id="String(route.params.id)" />
   </div>
 </template>
 

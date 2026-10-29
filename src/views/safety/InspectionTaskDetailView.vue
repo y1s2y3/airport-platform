@@ -33,6 +33,7 @@ const taskInfo = computed(() => {
     ...merged,
     inspectionCategories: normalizeInspectionCategories(merged.inspectionCategories || merged.inspectionCategory),
     inspectionCategory: formatInspectionCategories(merged.inspectionCategories || merged.inspectionCategory),
+    inspectionType: merged.inspectionType || '值班检查',
     companions: Array.isArray(merged.companions) ? merged.companions : [],
     hazardItems: merged.hazardItems || [],
     deadline: merged.deadline || '',
@@ -166,6 +167,7 @@ function goRectify(id) {
       <div class="info-row"><span class="il">项目名称</span><span class="iv">{{ taskInfo.project }}</span></div>
       <div class="info-row"><span class="il">执行人</span><span class="iv">{{ taskInfo.executor || '-' }}</span></div>
       <div class="info-row"><span class="il">巡检分类</span><span class="iv">{{ taskInfo.inspectionCategory }}</span></div>
+      <div class="info-row"><span class="il">检查类型</span><span class="iv">{{ taskInfo.inspectionType }}</span></div>
       <div class="info-row"><span class="il">危大工程现场巡视</span><span class="iv">{{ majorHazardPatrolText }}</span></div>
       <div v-if="taskInfo.isMajorHazardPatrol === '是'" class="info-row"><span class="il">危大工程名称</span><span class="iv">{{ taskInfo.majorHazardName || '—' }}</span></div>
       <div v-if="majorHazardSyncText" class="info-row"><span class="il">巡视台账同步</span><span class="iv major-hazard-sync" :class="{ completed: taskInfo.status === '已完成' }">{{ majorHazardSyncText }}</span></div>
@@ -228,6 +230,9 @@ function goRectify(id) {
         <div class="result-status hazard">⚠ 有隐患（{{ taskInfo.hazardItems.length }}项）</div>
         <div v-for="(hi, idx) in taskInfo.hazardItems" :key="idx" class="hazard-item">
           <div class="hazard-title">隐患 {{ idx + 1 }}</div>
+          <div class="hazard-desc">隐患类别：{{ hi.hazardCategory || '安全管理' }}</div>
+          <div class="hazard-desc">隐患等级：{{ hi.hazardLevel || '未设置' }}</div>
+          <div class="hazard-desc" style="white-space:pre-wrap">整改要求：{{ hi.rectifyRequirement || '未填写' }}</div>
           <div class="hazard-desc">{{ hi.desc }}</div>
           <div v-if="hi.photos?.length" class="hazard-photos">隐患照片：{{ hi.photos.join('、') }}</div>
           <div v-if="hi.hasRectify" class="rectify-mini">

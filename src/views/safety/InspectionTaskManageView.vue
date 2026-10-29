@@ -5,7 +5,7 @@ import { Search, View, ArrowLeft } from '@element-plus/icons-vue'
 import { useLaborProjectScope, selectedProjectId } from '../../composables/useCurrentProject'
 import { HQ_PROJECT_OPTION } from '../../config/projectOptions'
 import { getProjectInspectorLabel } from '../../composables/useInspectionPersonConfig'
-import { DEFAULT_INSPECTOR_LABEL, hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
+import { DEFAULT_INSPECTOR_LABEL, INSPECTION_TYPES, hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
 import { listMobileInspectionTasks } from '../../mock/mobileInspectionTasks'
 import { INSPECTION_DEMO_TODAY, inspectionProjectTree } from '../../mock/inspectionDemoData'
 
@@ -55,7 +55,7 @@ const taskData = computed(() => listMobileInspectionTasks().map(task => ({
 const treeData = computed(() => inspectionProjectTree)
 
 // ===== 筛选 =====
-const filterForm = reactive({ keyword: '', category: '', status: '', source: '', result: '', overdue: '' })
+const filterForm = reactive({ keyword: '', category: '', inspectionType: '', status: '', source: '', result: '', overdue: '' })
 
 const hqProjectKeyword = ref('')
 const hqProjectStats = computed(() => inspectionProjectTree[0].children.map(project => {
@@ -91,6 +91,7 @@ const filteredTasks = computed(() => {
   if (!isHqSelected.value && scopeProjectId.value) list = list.filter(t => t.project_id === scopeProjectId.value)
   return list.filter(t => {
     if (filterForm.category && !hasInspectionCategory(t.inspectionCategories || t.inspectionCategory, filterForm.category)) return false
+    if (filterForm.inspectionType && t.inspectionType !== filterForm.inspectionType) return false
     if (filterForm.status && t.status !== filterForm.status) return false
     if (filterForm.source && t.source !== filterForm.source) return false
     if (filterForm.result === '正常' && (t.status !== '已完成' || t.hazardCount > 0)) return false
@@ -200,6 +201,9 @@ function goBackToHQ() {
           <el-select v-model="filterForm.category" placeholder="巡检分类" clearable style="width:100px">
             <el-option label="安全" value="安全" /><el-option label="质量" value="质量" />
           </el-select>
+          <el-select v-model="filterForm.inspectionType" placeholder="检查类型" clearable style="width:120px">
+            <el-option v-for="type in INSPECTION_TYPES" :key="type" :label="type" :value="type" />
+          </el-select>
           <el-select v-model="filterForm.status" placeholder="任务状态" clearable style="width:100px">
             <el-option label="未完成" value="未完成" /><el-option label="已完成" value="已完成" />
           </el-select>
@@ -223,6 +227,7 @@ function goBackToHQ() {
           <el-table-column prop="inspectionCategory" label="巡检分类" min-width="120" align="center">
             <template #default="{ row }"><el-tag v-for="category in normalizeInspectionCategories(row.inspectionCategories || row.inspectionCategory)" :key="category" size="small" :type="category === '质量' ? 'warning' : 'success'" style="margin:1px 2px">{{ category }}</el-tag></template>
           </el-table-column>
+          <el-table-column prop="inspectionType" label="检查类型" min-width="110" align="center" />
           <el-table-column label="危大工程现场巡视" min-width="172" align="center">
             <template #default="{ row }">
               <el-tag :type="row.isMajorHazardPatrol === '是' ? 'danger' : (row.status === '已完成' ? 'info' : 'warning')" size="small" effect="plain">

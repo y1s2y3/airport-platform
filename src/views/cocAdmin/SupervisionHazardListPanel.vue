@@ -302,6 +302,7 @@ defineExpose({ reload: load })
 
     <el-dialog v-model="detailVisible" title="监理隐患详情" width="640px">
       <template v-if="current">
+          <HazardSamplingPanel v-if="current" source="supervision" :record-id="current.id" />
         <el-descriptions :column="1" border>
           <el-descriptions-item label="项目名称">{{ current.projectName || '--' }}</el-descriptions-item>
           <el-descriptions-item label="隐患类型">{{ hazardTypeLabel(current.hazardType) }}</el-descriptions-item>
@@ -332,7 +333,6 @@ defineExpose({ reload: load })
           </el-timeline>
         </div>
 
-        <HazardSamplingPanel v-if="current" source="supervision" :record-id="current.id" />
         <div v-if="canConfirmClose(current)" class="detail-actions">
           <el-button type="success" @click="handleConfirmClose(current)">确认关闭</el-button>
         </div>

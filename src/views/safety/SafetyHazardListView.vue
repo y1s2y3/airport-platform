@@ -9,7 +9,7 @@ import {
   inspectionProjectTree,
 } from '../../mock/inspectionDemoData'
 import { listInspectionHazards } from '../../mock/inspectionHazardQuery'
-import { hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
+import { HAZARD_CATEGORIES, HAZARD_LEVELS, hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
 
 const router = useRouter()
 const route = useRoute()
@@ -47,7 +47,7 @@ const treeDataWithCount = computed(() => {
 // 整改单状态：待整改 → 待复查 → 已复查（项目经理审批中）→ 已关闭
 const rectifyData = computed(() => listInspectionHazards())
 
-const filterForm = reactive({ keyword: '', category: '', status: '', overdue: '' })
+const filterForm = reactive({ keyword: '', category: '', hazardCategory: '', hazardLevel: '', status: '', overdue: '' })
 
 const hqProjectKeyword = ref('')
 const hqProjectStats = computed(() => inspectionProjectTree[0].children.map(project => {
@@ -82,6 +82,8 @@ const filteredData = computed(() => {
   if (!isHqSelected.value && scopeProjectId.value) list = list.filter(d => d.project_id === scopeProjectId.value)
   return list.filter(d => {
     if (filterForm.category && !hasInspectionCategory(d.inspectionCategories || d.inspectionCategory, filterForm.category)) return false
+    if (filterForm.hazardCategory && d.hazardCategory !== filterForm.hazardCategory) return false
+    if (filterForm.hazardLevel && d.hazardLevel !== filterForm.hazardLevel) return false
     if (filterForm.status && d.status !== filterForm.status) return false
     if (filterForm.overdue === '是') {
       if (!d.deadline) return false
@@ -95,7 +97,7 @@ const filteredData = computed(() => {
     }
     if (filterForm.keyword) {
       const kw = filterForm.keyword
-      if (!d.rectifyNo.includes(kw) && !d.taskNo.includes(kw) && !d.project.includes(kw)) return false
+      if (!d.rectifyNo.includes(kw) && !d.taskNo.includes(kw) && !d.project.includes(kw) && !d.desc?.includes(kw)) return false
     }
     return true
   })
@@ -169,8 +171,14 @@ function goBackToHQ() {
           <el-select v-model="filterForm.category" placeholder="巡检分类" clearable style="width:100px">
             <el-option label="安全" value="安全" /><el-option label="质量" value="质量" />
           </el-select>
+          <el-select v-model="filterForm.hazardCategory" placeholder="隐患类别" clearable filterable style="width:150px">
+            <el-option v-for="category in HAZARD_CATEGORIES" :key="category" :label="category" :value="category" />
+          </el-select>
           <el-select v-model="filterForm.status" placeholder="整改状态" clearable style="width:110px">
             <el-option label="待整改" value="待整改" /><el-option label="待复查" value="待复查" /><el-option label="已复查" value="已复查" /><el-option label="已关闭" value="已关闭" />
+          </el-select>
+          <el-select v-model="filterForm.hazardLevel" placeholder="隐患等级" clearable style="width:200px">
+            <el-option v-for="level in HAZARD_LEVELS" :key="level" :label="level" :value="level" />
           </el-select>
           <el-select v-model="filterForm.overdue" placeholder="是否逾期" clearable style="width:100px">
             <el-option label="是" value="是" /><el-option label="否" value="否" />
@@ -192,6 +200,10 @@ function goBackToHQ() {
                 style="margin:1px 2px"
               >{{ category }}</el-tag>
             </template>
+          </el-table-column>
+          <el-table-column prop="hazardCategory" label="隐患类别" min-width="130" show-overflow-tooltip />
+          <el-table-column label="隐患等级" min-width="180" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.hazardLevel || '未设置' }}</template>
           </el-table-column>
           <el-table-column prop="rectifier" label="整改人" min-width="55" align="center" />
           <el-table-column prop="reviewer" label="复查人" min-width="55" align="center" />

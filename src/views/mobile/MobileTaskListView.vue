@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { listMobileInspectionTasks } from '../../mock/mobileInspectionTasks'
-import { hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
+import { INSPECTION_TYPES, hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
 import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
 
 const router = useRouter()
@@ -15,6 +15,7 @@ const activeTab = ref('全部')
 const searchKeyword = ref('')
 const sourceFilter = ref('')
 const categoryFilter = ref('')
+const inspectionTypeFilter = ref('')
 const tabs = computed(() => {
   const counts = { '全部': tasks.value.length }
   for (const t of tasks.value) {
@@ -28,6 +29,7 @@ const filteredTasks = computed(() => {
   if (activeTab.value !== '全部') list = list.filter(t => t.status === activeTab.value)
   if (sourceFilter.value) list = list.filter(t => t.source === sourceFilter.value)
   if (categoryFilter.value) list = list.filter(t => hasInspectionCategory(t.inspectionCategories || t.inspectionCategory, categoryFilter.value))
+  if (inspectionTypeFilter.value) list = list.filter(t => t.inspectionType === inspectionTypeFilter.value)
   if (searchKeyword.value.trim()) {
     const kw = searchKeyword.value.trim()
     list = list.filter(t => t.taskNo.includes(kw) || (t.taskName || '').includes(kw) || t.project.includes(kw) || (t.majorHazardName || '').includes(kw))
@@ -71,6 +73,10 @@ function goBack() { router.push(bizHome.value) }
         <button class="m-chip" :class="{ active: categoryFilter === '安全' }" @click="categoryFilter = '安全'">安全</button>
         <button class="m-chip" :class="{ active: categoryFilter === '质量' }" @click="categoryFilter = '质量'">质量</button>
       </div>
+      <select v-model="inspectionTypeFilter" class="m-type-select">
+        <option value="">全部检查类型</option>
+        <option v-for="type in INSPECTION_TYPES" :key="type" :value="type">{{ type }}</option>
+      </select>
     </div>
 
     <div class="m-list">
@@ -91,6 +97,7 @@ function goBack() { router.push(bizHome.value) }
             </div>
             <span class="m-task-project">{{ task.project }}</span>
             <div v-if="task.taskName" style="font-size:11px;color:#666;margin-top:2px">{{ task.taskName }}</div>
+            <span class="m-inspection-type">检查类型：{{ task.inspectionType || '值班检查' }}</span>
             <span v-if="task.isMajorHazardPatrol === '是'" class="m-major-hazard">危大巡视 · {{ task.majorHazardName || '已关联' }}</span>
             <span v-if="task.hasRectify" class="m-rectify-badge">📋 已发整改单</span>
           </div>
@@ -122,6 +129,7 @@ function goBack() { router.push(bizHome.value) }
 .m-search-input:focus { border-color:#8f0045; background:#fff; }
 .m-source-chips { display:flex; gap:6px; margin-top:8px; }
 .m-type-chips { display:flex; gap:6px; margin-top:6px; }
+.m-type-select { width:100%; margin-top:7px; padding:7px 10px; border:1px solid #ddd; border-radius:8px; background:#fff; color:#555; font-size:12px; }
 .m-chip { padding:4px 12px; border:1px solid #ddd; border-radius:12px; background:#fff; font-size:12px; color:#666; cursor:pointer; }
 .m-chip.active { background:#fceef4; color:#8f0045; border-color:#8f0045; font-weight:500; }
 
@@ -150,6 +158,7 @@ function goBack() { router.push(bizHome.value) }
 .m-rectify-badge { font-size:10px; color:#8f0045; background:#fceef4; padding:1px 6px; border-radius:3px; display:inline-block; margin-top:2px; }
 .m-major-hazard { display:inline-block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:10px; color:#c45656; background:#fef0f0; padding:1px 6px; border-radius:3px; margin-top:2px; }
 .m-task-project { font-size:12px; color:#999; }
+.m-inspection-type { font-size:11px; color:#666; margin-top:2px; }
 .m-task-mid { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
 .m-type-tag { font-size:10px; padding:1px 6px; border-radius:3px; font-weight:500; }
 .m-task-status-label { font-size:11px; font-weight:500; }

@@ -3,7 +3,7 @@ import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { FolderOpened } from '@element-plus/icons-vue'
-import { INSPECTION_CATEGORIES, formatInspectionCategories, normalizeInspectionCategories } from '../../config/inspectionManagement'
+import { INSPECTION_CATEGORIES, INSPECTION_TYPES, formatInspectionCategories, normalizeInspectionCategories } from '../../config/inspectionManagement'
 import {
   projectOptions, activeProjects, userOptions,
   checkCategoryTree, getCategoryLabel, getItemLabel,
@@ -24,6 +24,7 @@ const form = reactive({
   name: '',
   // 巡检分类不手动选择：由“选择检查项”的结果自动确定（见 derivedCategories）
   inspectionCategories: [],
+  inspectionType: '值班检查',
   projectIds: [],
   responsiblePerson: '',
   ccPersons: [],
@@ -196,6 +197,7 @@ onMounted(() => {
     if (plan) {
       form.name = plan.name
       form.inspectionCategories = normalizeInspectionCategories(plan.inspectionCategories || plan.inspectionCategory)
+      form.inspectionType = plan.inspectionType || '值班检查'
       form.projectIds = [...(plan.projectIds || [])]
       form.responsiblePerson = plan.responsiblePerson
       form.ccPersons = [...plan.ccPersons]
@@ -214,6 +216,7 @@ function handleSave() {
     ElMessage.warning('请先在“选择检查项”中选择检查项，巡检分类由所选检查项自动确定')
     return
   }
+  if (!form.inspectionType) { ElMessage.warning('请选择检查类型'); return }
   if (form.projectIds.length === 0) { ElMessage.warning('请选择所属项目'); return }
   const incompleteProject = projectOptions.find(project =>
     form.projectIds.includes(project.id) && !hasCompleteInspectionPersonConfig(project.id),
@@ -229,6 +232,7 @@ function handleSave() {
     name: form.name.trim(),
     inspectionCategories: [...form.inspectionCategories],
     inspectionCategory: formatInspectionCategories(form.inspectionCategories),
+    inspectionType: form.inspectionType,
     projects: selectedProjects.map(project => project.label), projectIds: selectedProjects.map(project => project.id),
     checkConfig: form.checkConfig.map(c => ({ categoryId: c.categoryId, itemIds: [...c.itemIds] })),
     responsiblePerson: form.responsiblePerson, ccPersons: [...form.ccPersons],
@@ -267,6 +271,11 @@ function handleCancel() { router.push('/safety-inspection/plan') }
           </el-checkbox>
         </el-checkbox-group>
         <div class="form-tip">不支持手动修改：在“选择检查项”中勾选安全类检查项即为安全、勾选质量类即为质量，两者都选则为安全+质量，系统据此确定任务编号前缀与检查范围。</div>
+      </el-form-item>
+      <el-form-item label="检查类型" required>
+        <el-select v-model="form.inspectionType" placeholder="请选择检查类型" style="width: 100%">
+          <el-option v-for="type in INSPECTION_TYPES" :key="type" :label="type" :value="type" />
+        </el-select>
       </el-form-item>
       <el-form-item label="所属项目" required>
         <el-select v-model="form.projectIds" multiple collapse-tags collapse-tags-tooltip placeholder="请选择项目（可多选）" style="width: 100%" :disabled="isEdit">

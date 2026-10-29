@@ -104,6 +104,7 @@ function goBack() {
               {{ category }}
             </el-tag>
           </el-descriptions-item>
+          <el-descriptions-item label="检查类型">{{ plan.inspectionType || '值班检查' }}</el-descriptions-item>
           <el-descriptions-item label="关联项目" :span="2">{{ getProjLabels.join('、') }}</el-descriptions-item>
           <el-descriptions-item label="危大工程现场巡视关联" :span="2">在移动端执行巡检时按本任务所属项目选择；下发任务不预先关联。</el-descriptions-item>
           <!-- 任务执行状态（用户 2026-10-20）：值域固定 未完成 / 已完成，与列表页同口径 -->

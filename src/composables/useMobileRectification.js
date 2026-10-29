@@ -1,6 +1,7 @@
 import { computed, reactive } from 'vue'
 import { getProjectRectifierLabel, getProjectReviewerLabel } from './useInspectionPersonConfig'
 import { mobileInspectionTasks } from '../mock/mobileInspectionTasks'
+import { normalizeHazardCategory } from '../config/inspectionManagement'
 
 const nowText = () => new Date().toLocaleString('zh-CN', { hour12: false }).replaceAll('/', '-')
 
@@ -21,6 +22,9 @@ export function mapMobileRecordToHazardRow(record) {
     rectifyNo: record.rectifyNo,
     taskNo: record.taskNo,
     inspectionCategory: record.inspectionCategory,
+    hazardCategory: normalizeHazardCategory(record.hazardCategory),
+    hazardLevel: record.hazardLevel || '',
+    rectifyRequirement: record.rectifyRequirement || '',
     project: record.project,
     projectFullName: record.project,
     project_id: record.projectId,
@@ -65,6 +69,7 @@ export const mobileRectificationRecords = reactive([
     applicant: '陈工（监理工程师）',
     applyDate: '2026-07-25 09:00:00',
     overdue: false,
+    hazardCategory: '施工用电',
     hazard: '五芯电缆破损，线路未按规范敷设',
     hazardPhotos: ['隐患照片1.jpg', '隐患照片2.jpg'],
   },
@@ -86,6 +91,7 @@ export const mobileRectificationRecords = reactive([
     overdue: true,
     isRejected: true,
     rejectReason: '整改不彻底，脚手架专项方案仍未按要求补报并通过审核',
+    hazardCategory: '脚手架与操作平台',
     hazard: '脚手架施工方案未报审即施工',
     hazardPhotos: ['隐患照片1.jpg'],
     rectificationDate: '2026-07-20',
@@ -112,6 +118,7 @@ export const mobileRectificationRecords = reactive([
     applyDate: '2026-07-25 10:30:00',
     submitDate: '2026-07-25',
     overdue: false,
+    hazardCategory: '施工用电',
     hazard: '五芯电缆破损，线路未按规范敷设',
     hazardPhotos: ['隐患照片1.jpg'],
     rectificationDate: '2026-07-25',
@@ -136,6 +143,7 @@ export const mobileRectificationRecords = reactive([
     submitDate: '2026-07-27',
     overdue: false,
     isSecondRound: true,
+    hazardCategory: '脚手架与操作平台',
     hazard: '脚手架施工方案未报审即施工',
     hazardPhotos: ['隐患照片1.jpg'],
     rectificationDate: '2026-07-27',
@@ -160,6 +168,7 @@ export const mobileRectificationRecords = reactive([
     applyDate: '2026-07-30 17:20:00',
     submitDate: '2026-07-30',
     overdue: false,
+    hazardCategory: '临边洞口',
     hazard: '临边防护栏杆局部缺失',
     hazardPhotos: ['临边防护隐患照片.jpg'],
     rectificationDate: '2026-07-30',
@@ -188,6 +197,7 @@ export const mobileRectificationRecords = reactive([
     overdue: false,
     approvalRejected: true,
     approvalReason: '复查依据不充分，请补充现场核验意见',
+    hazardCategory: '文明施工',
     hazard: '混凝土外观存在蜂窝麻面',
     hazardPhotos: ['隐患照片1.jpg'],
     rectificationDate: '2026-07-30',
@@ -214,6 +224,7 @@ export const mobileRectificationRecords = reactive([
     applyDate: '2026-07-18 09:00:00',
     closeDate: '2026-07-25',
     overdue: false,
+    hazardCategory: '施工用电',
     hazard: '电缆破损，存在安全隐患',
     hazardPhotos: ['隐患照片1.jpg', '隐患照片2.jpg'],
     rectificationDate: '2026-07-22',
@@ -243,6 +254,7 @@ export const mobileRectificationRecords = reactive([
     closeDate: '2026-07-30',
     overdue: false,
     isSecondRound: true,
+    hazardCategory: '施工消防',
     hazard: '消防器材过期未更换',
     hazardPhotos: ['隐患照片1.jpg', '隐患照片2.jpg'],
     rectificationDate: '2026-07-28',
@@ -254,9 +266,43 @@ export const mobileRectificationRecords = reactive([
     approvalDate: '2026-07-30',
     approvalComment: '同意关闭',
   },
-])
+].map((record) => ({
+  ...record,
+  hazardCategory: normalizeHazardCategory(record.hazardCategory),
+})))
 
 export const getMobileRectification = (id) => mobileRectificationRecords.find((item) => item.id === id)
+
+/** 将巡检中逐条生成的整改单同步进整改复查台账。 */
+export function createMobileRectificationsFromTask(task = {}, hazardItems = []) {
+  hazardItems.forEach((hazard, index) => {
+    const id = hazard.rectifyId || `rectify-${task.id || Date.now()}-${index + 1}`
+    if (getMobileRectification(id)) return
+    mobileRectificationRecords.unshift({
+      id,
+      rectifyNo: hazard.rectifyNo || id,
+      taskNo: task.taskNo || '--',
+      inspectionCategories: task.inspectionCategories,
+      inspectionCategory: task.inspectionCategory || '安全',
+      hazardCategory: normalizeHazardCategory(hazard.hazardCategory),
+      hazardLevel: hazard.hazardLevel || '',
+      rectifyRequirement: String(hazard.rectifyRequirement || '').trim(),
+      projectId: task.projectId || task.project_id || '',
+      project: task.project || '--',
+      rectifier: hazard.rectifyPerson || hazard.rectifier || getProjectRectifierLabel(task.projectId || task.project),
+      reviewer: hazard.reviewPerson || hazard.reviewer || getProjectReviewerLabel(task.projectId || task.project),
+      manager: '项目经理',
+      deadline: hazard.rectifyDeadline || '',
+      status: '待整改',
+      currentNode: '整改人整改',
+      applicant: task.inspector || task.executor || '巡检人',
+      applyDate: task.submittedAt || nowText(),
+      overdue: false,
+      hazard: hazard.desc || '',
+      hazardPhotos: photoLabels(hazard.photos || [], '隐患照片'),
+    })
+  })
+}
 
 export function listMobileHazardsAsInspectionRows() {
   return mobileRectificationRecords.map(mapMobileRecordToHazardRow)

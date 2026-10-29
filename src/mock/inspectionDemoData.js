@@ -1,4 +1,5 @@
 import { COC_PROJECT_OPTIONS } from '../config/projectOptions.js'
+import { HAZARD_CATEGORIES } from '../config/inspectionManagement.js'
 import { getDemoInspectionPeople, inspectionPeoplePool } from './inspectionPeople.js'
 
 export { getDemoInspectionPeople, inspectionPeoplePool }
@@ -95,6 +96,7 @@ function buildHazards(project, index) {
   return [
     {
       ...base,
+      hazardCategory: HAZARD_CATEGORIES[(index * 4) % HAZARD_CATEGORIES.length],
       id: hazardId(index, 0),
       rectifyNo: rectifyNo(index, 0),
       issueDate: '2026-08-24',
@@ -108,6 +110,7 @@ function buildHazards(project, index) {
     },
     {
       ...base,
+      hazardCategory: HAZARD_CATEGORIES[(index * 4 + 1) % HAZARD_CATEGORIES.length],
       id: hazardId(index, 1),
       rectifyNo: rectifyNo(index, 1),
       issueDate: '2026-08-20',
@@ -123,6 +126,7 @@ function buildHazards(project, index) {
     },
     {
       ...base,
+      hazardCategory: HAZARD_CATEGORIES[(index * 4 + 2) % HAZARD_CATEGORIES.length],
       id: hazardId(index, 2),
       rectifyNo: rectifyNo(index, 2),
       issueDate: '2026-08-18',
@@ -140,6 +144,7 @@ function buildHazards(project, index) {
     },
     {
       ...base,
+      hazardCategory: HAZARD_CATEGORIES[(index * 4 + 3) % HAZARD_CATEGORIES.length],
       id: hazardId(index, 3),
       rectifyNo: rectifyNo(index, 3),
       issueDate: '2026-08-10',
@@ -166,6 +171,9 @@ function buildTasks(project, index) {
   const projectHazards = inspectionHazards.filter(item => item.project_id === project.id)
   const hazardCategory = index % 3 === 0 ? '质量' : '安全'
   const completedHazardItems = projectHazards.map(item => ({
+    hazardCategory: item.hazardCategory,
+    hazardLevel: item.hazardLevel || '',
+    rectifyRequirement: item.rectifyRequirement || '',
     desc: item.desc,
     photos: [...item.hazardPhotos],
     hasRectify: true,

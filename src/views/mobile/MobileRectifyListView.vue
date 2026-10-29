@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { mobileRectificationRecords } from '../../composables/useMobileRectification'
-import { normalizeInspectionCategories } from '../../config/inspectionManagement'
+import { HAZARD_CATEGORIES, HAZARD_LEVELS, normalizeInspectionCategories } from '../../config/inspectionManagement'
 import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
 
 defineProps({
@@ -20,6 +20,8 @@ const activeTab = ref('全部')
 if (route.query.tab) activeTab.value = route.query.tab
 
 const searchKeyword = ref('')
+const hazardCategory = ref('')
+const hazardLevel = ref('')
 const tabs = computed(() => {
   const counts = { '全部': rectifyList.value.length }
   for (const t of rectifyList.value) {
@@ -35,8 +37,10 @@ const filteredList = computed(() => {
   }
   if (searchKeyword.value.trim()) {
     const kw = searchKeyword.value.trim()
-    list = list.filter(t => t.rectifyNo?.includes(kw) || t.taskNo?.includes(kw) || t.project?.includes(kw))
+    list = list.filter(t => t.rectifyNo?.includes(kw) || t.taskNo?.includes(kw) || t.project?.includes(kw) || t.hazard?.includes(kw))
   }
+  if (hazardCategory.value) list = list.filter(t => t.hazardCategory === hazardCategory.value)
+  if (hazardLevel.value) list = list.filter(t => t.hazardLevel === hazardLevel.value)
   return list
 })
 
@@ -75,6 +79,14 @@ function onCardClick(item) {
     </div>
     <div class="m-filter">
       <input v-model="searchKeyword" class="m-search-input" placeholder="搜索整改单编号/巡检单编号..." />
+      <select v-model="hazardCategory" class="m-category-select">
+        <option value="">全部隐患类别</option>
+        <option v-for="category in HAZARD_CATEGORIES" :key="category" :value="category">{{ category }}</option>
+      </select>
+      <select v-model="hazardLevel" class="m-category-select" aria-label="隐患等级筛选">
+        <option value="">全部隐患等级</option>
+        <option v-for="level in HAZARD_LEVELS" :key="level" :value="level">{{ level }}</option>
+      </select>
     </div>
     <div class="m-list">
       <div v-for="item in filteredList" :key="item.id" class="rec-card"
@@ -97,6 +109,8 @@ function onCardClick(item) {
                 :class="category === '质量' ? 'quality' : 'safety'"
               >{{ category }}</span>
             </span>
+            <span class="rec-project">隐患类别：{{ item.hazardCategory }}</span>
+            <span class="rec-project">隐患等级：{{ item.hazardLevel || '未设置' }}</span>
           </div>
           <span class="rec-status" :style="{ color: statusStyles[item.status]?.color, background: statusStyles[item.status]?.bg }">{{ item.status }}</span>
         </div>
@@ -129,9 +143,10 @@ function onCardClick(item) {
 .m-tab.active { background:#fceef4; color:#8f0045; font-weight:600; }
 .m-tab-count { font-size:11px; min-width:18px; height:18px; border-radius:9px; display:inline-flex; align-items:center; justify-content:center; background:#f0f0f0; padding:0 5px; }
 .m-tab.active .m-tab-count { background:rgba(143,0,69,0.12); }
-.m-filter { padding:8px 16px; background:#fff; border-bottom:1px solid #eee; }
+.m-filter { padding:8px 16px; background:#fff; border-bottom:1px solid #eee; display:flex; flex-wrap:wrap; gap:8px; }
 .m-search-input { width:100%; padding:8px 12px; border:1px solid #ddd; border-radius:8px; font-size:13px; background:#fafafa; box-sizing:border-box; outline:none; }
 .m-search-input:focus { border-color:#8f0045; background:#fff; }
+.m-category-select { flex:1; min-width:0; padding:8px; border:1px solid #ddd; border-radius:8px; font-size:12px; color:#555; background:#fafafa; outline:none; }
 .m-list { padding:12px 16px; display:flex; flex-direction:column; gap:10px; }
 .rec-card { background:#fff; border-radius:12px; padding:14px 16px; cursor:pointer; box-shadow:0 1px 4px rgba(0,0,0,0.04); }
 .rec-top { display:flex; align-items:flex-start; gap:10px; margin-bottom:6px; }

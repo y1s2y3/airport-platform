@@ -135,6 +135,7 @@ function normalizeTaskDetail(raw) {
     taskName: raw.taskName || '巡检任务',
     inspectionCategories: normalizeInspectionCategories(raw.inspectionCategories || raw.inspectionCategory),
     inspectionCategory: formatInspectionCategories(raw.inspectionCategories || raw.inspectionCategory),
+    inspectionType: raw.inspectionType || '值班检查',
     project: raw.project || '—',
     executor: raw.executor || '—',
     source: raw.source || '任务下发',
@@ -239,6 +240,7 @@ function goBack() {
       <div class="sc-row"><span class="sc-lbl">项目名称</span><span>{{ taskInfo.project }}</span></div>
       <div class="sc-row"><span class="sc-lbl">执行人</span><span>{{ taskInfo.executor || '-' }}</span></div>
       <div class="sc-row"><span class="sc-lbl">巡检分类</span><span>{{ taskInfo.inspectionCategory }}</span></div>
+      <div class="sc-row"><span class="sc-lbl">检查类型</span><span>{{ taskInfo.inspectionType }}</span></div>
       <div class="sc-row"><span class="sc-lbl">危大工程现场巡视</span><span>{{ majorHazardPatrolText }}</span></div>
       <div v-if="taskInfo.isMajorHazardPatrol === '是'" class="sc-row"><span class="sc-lbl">危大工程名称</span><span>{{ taskInfo.majorHazardName || '—' }}</span></div>
       <div v-if="majorHazardSyncText" class="sc-row"><span class="sc-lbl">巡视台账同步</span><span :class="{ 'sync-completed': taskInfo.status === '已完成' }">{{ majorHazardSyncText }}</span></div>
@@ -305,6 +307,9 @@ function goBack() {
       </div>
       <div v-for="(hi, i) in taskInfo.hazardItems" :key="i" class="hazard-card">
         <div class="hazard-header">⚠ 隐患 {{ i + 1 }}</div>
+        <div class="sc-row"><span class="sc-lbl">隐患类别</span><span>{{ hi.hazardCategory || '安全管理' }}</span></div>
+        <div class="sc-row"><span class="sc-lbl">隐患等级</span><span>{{ hi.hazardLevel || '未设置' }}</span></div>
+        <div class="sc-row"><span class="sc-lbl">整改要求</span><span style="white-space:pre-wrap">{{ hi.rectifyRequirement || '未填写' }}</span></div>
         <div class="sc-row"><span class="sc-lbl">隐患说明</span><span>{{ hi.desc }}</span></div>
         <div class="sc-row" v-if="hi.photos?.length"><span class="sc-lbl">隐患照片</span><span>{{ hi.photos.join('、') }}</span></div>
         <div v-if="hi.hasRectify" class="rectify-card">

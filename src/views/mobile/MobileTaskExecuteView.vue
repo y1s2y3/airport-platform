@@ -3,8 +3,9 @@ import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getMobileInspectionTask, updateMobileInspectionTask } from '../../mock/mobileInspectionTasks'
+import { createMobileRectificationsFromTask } from '../../composables/useMobileRectification'
 import { checkCategoryTree, getItemLabel } from '../../composables/useInspectionPlan'
-import { hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
+import { HAZARD_CATEGORIES, HAZARD_LEVELS, hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
 import { COC_PROJECT_OPTIONS } from '../../config/projectOptions'
 import { getMajorHazardLedgerOptions } from '../../utils/inspectionMajorHazardLink'
 import {
@@ -135,6 +136,9 @@ const hazardItems = ref([])
 
 function addHazard() {
   hazardItems.value.push({
+    hazardCategory: '',
+    hazardLevel: '',
+    rectifyRequirement: '',
     desc: '',
     photos: [],
     rectifyPerson: getProjectRectifierLabel(taskInfo.project),
@@ -204,6 +208,9 @@ function submitCheck() {
   if (inspectResult.value === 'hazard') {
     if (hazardItems.value.length === 0) { ElMessage.warning('请至少新增一条隐患'); return }
     for (const [i, item] of hazardItems.value.entries()) {
+      if (!item.hazardCategory) { ElMessage.warning(`第 ${i+1} 条隐患请选择隐患类别`); return }
+      if (!item.hazardLevel) { ElMessage.warning(`第 ${i+1} 条隐患请选择隐患等级`); return }
+      if (!item.rectifyRequirement.trim()) { ElMessage.warning(`第 ${i+1} 条隐患请填写整改要求`); return }
       if (!item.desc.trim()) { ElMessage.warning(`第 ${i+1} 条隐患请填写说明`); return }
       if (!item.photos?.length) { ElMessage.warning(`第 ${i+1} 条隐患请至少上传一张照片`); return }
       if (!item.rectifyPerson) { ElMessage.warning(`第 ${i+1} 条隐患请选择整改人`); return }
@@ -219,6 +226,9 @@ function submitCheck() {
     ? hazardItems.value.map((item, index) => {
         const rectifyNo = `ZG${dateKey}${String(now).slice(-4)}${String(index + 1).padStart(2, '0')}`
         return {
+          hazardCategory: item.hazardCategory,
+          hazardLevel: item.hazardLevel,
+          rectifyRequirement: item.rectifyRequirement.trim(),
           desc: item.desc,
           photos: [...item.photos],
           hasRectify: true,
@@ -250,7 +260,7 @@ function submitCheck() {
         majorHazardName: '',
       }
 
-  updateMobileInspectionTask(taskId, {
+  const savedTask = updateMobileInspectionTask(taskId, {
     status: '已完成',
     overdue: false,
     companions: [...companions.value],
@@ -264,6 +274,7 @@ function submitCheck() {
     rectifyCount,
     ...majorHazardPatch,
   })
+  if (savedTask) createMobileRectificationsFromTask(savedTask, savedHazards)
 
   ElMessage.success(
     inspectResult.value === 'hazard'
@@ -293,6 +304,7 @@ function goBack() { router.push(tasksBase.value) }
         <span>任务来源：{{ taskInfo.source }}</span>
         <span>项目名称：{{ taskInfo.project }}</span>
         <span>巡检分类：{{ taskInfo.inspectionCategory }}</span>
+        <span>检查类型：{{ taskInfo.inspectionType || '值班检查' }}</span>
         <span>执行人：{{ taskInfo.executor }}</span>
         <span>截止日期：{{ taskInfo.deadline }}</span>
         <span>状态：{{ taskInfo.status }}</span>
@@ -394,8 +406,26 @@ function goBack() { router.push(tasksBase.value) }
               <button v-if="hazardItems.length > 1" class="hc-del" @click="removeHazard(idx)">✕</button>
             </div>
             <div class="form-row">
+              <span class="form-label">隐患类别 <i class="req">*</i></span>
+              <select v-model="item.hazardCategory" class="rf-select">
+                <option value="" disabled>请选择隐患类别</option>
+                <option v-for="category in HAZARD_CATEGORIES" :key="category" :value="category">{{ category }}</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <span class="form-label">隐患等级 <i class="req">*</i></span>
+              <select v-model="item.hazardLevel" class="rf-select">
+                <option value="" disabled>请选择隐患等级</option>
+                <option v-for="level in HAZARD_LEVELS" :key="level" :value="level">{{ level }}</option>
+              </select>
+            </div>
+            <div class="form-row">
               <span class="form-label">说明 <i class="req">*</i></span>
               <textarea v-model="item.desc" class="form-ta" placeholder="请描述隐患情况..." rows="2"></textarea>
+            </div>
+            <div class="form-row">
+              <span class="form-label">整改要求 <i class="req">*</i></span>
+              <textarea v-model="item.rectifyRequirement" class="form-ta" placeholder="请输入整改要求" rows="3"></textarea>
             </div>
             <div class="form-row">
               <span class="form-label">照片 <i class="req">*</i></span>

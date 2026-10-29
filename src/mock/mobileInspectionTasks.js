@@ -5,6 +5,7 @@ import { reactive } from 'vue'
 import {
   DEFAULT_INSPECTOR_LABEL,
   formatInspectionCategories,
+  normalizeInspectionType,
   normalizeInspectionCategories,
 } from '../config/inspectionManagement'
 import { inspectionTaskSeeds } from './inspectionDemoData'
@@ -84,8 +85,8 @@ const seedTasks = [
     result: 'hazard',
     normalPhotos: [],
     hazardItems: [
-      { desc:'五芯电缆破损，线路未按规范敷设', photos:['隐患照片1.jpg'], hasRectify:true, rectifyNo:'ZG202607001', rectifyId:'rec-001', rectifier:'刘工（专职安全员）', rectifyDeadline:'2026-07-30' },
-      { desc:'电缆线路沿地明敷未做保护', photos:['隐患照片2.jpg'], hasRectify:true, rectifyNo:'ZG202607002', rectifyId:'rec-002', rectifier:'刘工（专职安全员）', rectifyDeadline:'2026-07-30' },
+      { hazardCategory:'施工用电', desc:'五芯电缆破损，线路未按规范敷设', photos:['隐患照片1.jpg'], hasRectify:true, rectifyNo:'ZG202607001', rectifyId:'rec-001', rectifier:'刘工（专职安全员）', rectifyDeadline:'2026-07-30' },
+      { hazardCategory:'施工用电', desc:'电缆线路沿地明敷未做保护', photos:['隐患照片2.jpg'], hasRectify:true, rectifyNo:'ZG202607002', rectifyId:'rec-002', rectifier:'刘工（专职安全员）', rectifyDeadline:'2026-07-30' },
     ],
   },
   {
@@ -156,7 +157,7 @@ const seedTasks = [
     result: 'hazard',
     normalPhotos: [],
     hazardItems: [
-      { desc:'电缆破损，存在安全隐患', photos:['隐患照片1.jpg'], hasRectify:true, rectifyNo:'ZG202607007', rectifyId:'rec-007', rectifier:'赵工', rectifyDeadline:'2026-08-05' },
+      { hazardCategory:'施工用电', desc:'电缆破损，存在安全隐患', photos:['隐患照片1.jpg'], hasRectify:true, rectifyNo:'ZG202607007', rectifyId:'rec-007', rectifier:'赵工', rectifyDeadline:'2026-08-05' },
     ],
   },
 ]
@@ -168,6 +169,7 @@ export function normalizeInspectionTask(task = {}) {
     inspectionCategories,
     // 保留旧字段，供既有列表、详情与统计组件平滑兼容。
     inspectionCategory: formatInspectionCategories(inspectionCategories),
+    inspectionType: normalizeInspectionType(task.inspectionType),
     isMajorHazardPatrol: task.isMajorHazardPatrol || '否',
   }
 }

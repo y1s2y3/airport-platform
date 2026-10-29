@@ -3,8 +3,12 @@ import { ref, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { addMobileInspectionTask } from '../../mock/mobileInspectionTasks'
+import { createMobileRectificationsFromTask } from '../../composables/useMobileRectification'
 import {
   INSPECTION_CATEGORIES,
+  INSPECTION_TYPES,
+  HAZARD_CATEGORIES,
+  HAZARD_LEVELS,
   buildInspectionTaskNo,
   formatInspectionCategories,
   resolveInspectionProjectId,
@@ -25,6 +29,7 @@ const { selectedProjectId: currentProjectId, isHqSelected, headerProjectLabel } 
 
 const form = ref({
   inspectionCategories: ['安全'],
+  inspectionType: '值班检查',
   inspDate: new Date().toISOString().slice(0, 10),
   project: '',
   isMajorHazardPatrol: '是',
@@ -92,6 +97,9 @@ function addHazard() {
   const defaultRectifier = getProjectRectifierLabel(form.value.project)
   const defaultReviewer = getProjectReviewerLabel(form.value.project)
   form.value.hazardItems.push({
+    hazardCategory: '',
+    hazardLevel: '',
+    rectifyRequirement: '',
     desc: '',
     photos: [],
     rectifyPerson: defaultRectifier,
@@ -145,6 +153,7 @@ function removePhoto(i) { form.value.photos.splice(i, 1) }
 
 function submitInspection() {
   if (!form.value.inspectionCategories.length) { ElMessage.warning('请选择至少一个巡检分类'); return }
+  if (!form.value.inspectionType) { ElMessage.warning('请选择检查类型'); return }
   if (!form.value.inspDate) { ElMessage.warning('请选择巡检日期'); return }
   if (!form.value.project) { ElMessage.warning('请选择所属项目'); return }
   if (form.value.isMajorHazardPatrol === '是' && !form.value.majorHazardLedgerId) {
@@ -159,6 +168,9 @@ function submitInspection() {
   if (form.value.result === 'hazard') {
     if (form.value.hazardItems.length === 0) { ElMessage.warning('请至少添加一条隐患'); return }
     for (const [i,item] of form.value.hazardItems.entries()) {
+      if (!item.hazardCategory) { ElMessage.warning(`第 ${i+1} 条隐患请选择隐患类别`); return }
+      if (!item.hazardLevel) { ElMessage.warning(`第 ${i+1} 条隐患请选择隐患等级`); return }
+      if (!item.rectifyRequirement.trim()) { ElMessage.warning(`第 ${i+1} 条隐患请填写整改要求`); return }
       if (!item.desc.trim()) { ElMessage.warning(`第 ${i+1} 条隐患请填写说明`); return }
       if (!item.photos?.length) { ElMessage.warning(`第 ${i+1} 条隐患请至少上传一张照片`); return }
       if (!item.rectifyPerson) {
@@ -182,6 +194,9 @@ function submitInspection() {
   const hazardItems = form.value.hazardItems.map((item, index) => {
     const rectifyNo = `ZG${dateKey}${String(now).slice(-4)}${String(index + 1).padStart(2, '0')}`
     return {
+      hazardCategory: item.hazardCategory,
+      hazardLevel: item.hazardLevel,
+      rectifyRequirement: item.rectifyRequirement.trim(),
       desc: item.desc,
       photos: [...item.photos],
       hasRectify: true,
@@ -200,6 +215,7 @@ function submitInspection() {
     source: '系统自建',
     inspectionCategories: [...form.value.inspectionCategories],
     inspectionCategory: formatInspectionCategories(form.value.inspectionCategories),
+    inspectionType: form.value.inspectionType,
     taskName: `${form.value.project}${formatInspectionCategories(form.value.inspectionCategories)}检查`,
     project: form.value.project,
     projectId: selectedProjectId.value,
@@ -225,6 +241,7 @@ function submitInspection() {
   }
 
   addMobileInspectionTask(newTask)
+  createMobileRectificationsFromTask(newTask, hazardItems)
   ElMessage.success(`巡检记录已提交${rectifyCount ? `，已下发 ${rectifyCount} 份整改单` : ''}`)
   router.push(tasksBase.value)
 }
@@ -248,6 +265,14 @@ function goBack() { router.push(tasksBase.value) }
           <div class="form-tags">
             <button v-for="category in INSPECTION_CATEGORIES" :key="category" class="tag-btn" :class="{ active: form.inspectionCategories.includes(category) }" @click="toggleInspectionCategory(category)">{{ category }}</button>
           </div>
+        </div>
+
+        <div class="form-row">
+          <span class="form-label">检查类型<span class="required-mark">*</span></span>
+          <select v-model="form.inspectionType" class="form-input">
+            <option value="" disabled>请选择检查类型</option>
+            <option v-for="type in INSPECTION_TYPES" :key="type" :value="type">{{ type }}</option>
+          </select>
         </div>
 
         <div class="form-row">
@@ -325,8 +350,26 @@ function goBack() { router.push(tasksBase.value) }
               <button v-if="form.hazardItems.length > 1" class="hi-remove" @click="removeHazard(idx)">✕</button>
             </div>
             <div class="form-row">
+              <span class="form-label">隐患类别<span class="required-mark">*</span></span>
+              <select v-model="item.hazardCategory" class="form-input">
+                <option value="" disabled>请选择隐患类别</option>
+                <option v-for="category in HAZARD_CATEGORIES" :key="category" :value="category">{{ category }}</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <span class="form-label">隐患等级<span class="required-mark">*</span></span>
+              <select v-model="item.hazardLevel" class="form-input">
+                <option value="" disabled>请选择隐患等级</option>
+                <option v-for="level in HAZARD_LEVELS" :key="level" :value="level">{{ level }}</option>
+              </select>
+            </div>
+            <div class="form-row">
               <span class="form-label" style="width:56px">说明<span class="required-mark">*</span></span>
               <textarea v-model="item.desc" class="form-textarea" placeholder="请描述隐患情况..." rows="2"></textarea>
+            </div>
+            <div class="form-row">
+              <span class="form-label">整改要求<span class="required-mark">*</span></span>
+              <textarea v-model="item.rectifyRequirement" class="form-textarea" placeholder="请输入整改要求" rows="3"></textarea>
             </div>
             <div class="form-row">
               <span class="form-label" style="width:56px">照片<span class="required-mark">*</span></span>

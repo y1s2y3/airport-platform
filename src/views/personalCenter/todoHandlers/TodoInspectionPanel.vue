@@ -2,7 +2,7 @@
 import { computed, reactive, ref, toRef, watch } from 'vue'
 import DispatchImageAttachments from '../../../coc/components/DispatchImageAttachments.vue'
 import { userOptions, getUserLabel, checkCategoryTree, getItemLabel } from '../../../composables/useInspectionPlan.js'
-import { normalizeInspectionCategories, resolveInspectionProjectId } from '../../../config/inspectionManagement.js'
+import { HAZARD_CATEGORIES, HAZARD_LEVELS, normalizeInspectionCategories, resolveInspectionProjectId } from '../../../config/inspectionManagement.js'
 import { COC_PROJECT_OPTIONS } from '../../../config/projectOptions.js'
 import { getMajorHazardLedgerOptions } from '../../../utils/inspectionMajorHazardLink.js'
 import { usePersonalTodoSubmit } from '../composables/usePersonalTodoSubmit.js'
@@ -27,6 +27,9 @@ const { submitInspectionHandle } = usePersonalTodoSubmit({
 /** 单条隐患结构：与移动端执行巡检的 hazardItems 保持一致（有隐患即生成整改单，无需开关） */
 function createHazardItem() {
   return {
+    hazardCategory: '',
+    hazardLevel: '',
+    rectifyRequirement: '',
     desc: '',
     photos: [],
     rectifier: '',
@@ -229,6 +232,7 @@ function onSubmit() {
           style="margin-right:4px"
         >{{ category }}</el-tag>
       </el-descriptions-item>
+      <el-descriptions-item label="检查类型">{{ todo.detail?.inspectionType || '值班检查' }}</el-descriptions-item>
       <el-descriptions-item v-if="todo.detail?.isMajorHazardPatrol === '是'" label="危大工程名称">{{ todo.detail?.majorHazardName || '—' }}</el-descriptions-item>
       <el-descriptions-item v-if="todo.detail?.isMajorHazardPatrol === '是'" label="巡视台账同步" :span="todo.detail?.majorHazardName ? 1 : 2">
         {{ todo.detail?.status === '已完成' ? '已自动同步至危大工程现场巡视台账' : '完成巡检后自动同步至危大工程现场巡视台账' }}
@@ -261,6 +265,9 @@ function onSubmit() {
     </el-descriptions>
     <div v-if="todo.inspectionBizType !== '巡检' && todo.detail?.hazard" class="inspection-detail-block">
       <div class="inspection-section-title">隐患信息</div>
+      <div class="inspection-kv"><span>隐患类别</span><b>{{ todo.detail.hazardCategory || '安全管理' }}</b></div>
+      <div class="inspection-kv"><span>隐患等级</span><b>{{ todo.detail.hazardLevel || '未设置' }}</b></div>
+      <div class="inspection-kv"><span>整改要求</span><b style="white-space:pre-wrap">{{ todo.detail.rectifyRequirement || '未填写' }}</b></div>
       <div class="inspection-kv"><span>隐患说明</span><b>{{ todo.detail.hazard }}</b></div>
       <div v-if="todo.detail?.hazardPhotos?.length" class="inspection-kv">
         <span>隐患照片</span><b>{{ todo.detail.hazardPhotos.join('、') }}</b>
@@ -358,7 +365,10 @@ function onSubmit() {
         class="inspection-hazard-card"
       >
         <strong>隐患 {{ index + 1 }}</strong>
+        <span>类别：{{ hazard.hazardCategory || '安全管理' }}</span>
+        <span>等级：{{ hazard.hazardLevel || '未设置' }}</span>
         <span>说明：{{ hazard.desc }}</span>
+        <span style="white-space:pre-wrap">整改要求：{{ hazard.rectifyRequirement || '未填写' }}</span>
         <span v-if="hazard.photos?.length">照片：{{ hazard.photos.join('、') }}</span>
         <span>下发整改单：{{ hazard.issueRectify || hazard.hasRectify ? '是' : '否' }}</span>
         <span v-if="hazard.issueRectify || hazard.hasRectify">
@@ -474,6 +484,29 @@ function onSubmit() {
                   >删除</el-button>
                 </div>
                 <div class="hazard-row">
+                  <span class="hazard-label">隐患类别<i>*</i></span>
+                  <el-select
+                    v-model="hazard.hazardCategory"
+                    filterable
+                    placeholder="请选择隐患类别"
+                    style="width: 100%"
+                    :aria-label="`隐患${index + 1}类别`"
+                  >
+                    <el-option
+                      v-for="category in HAZARD_CATEGORIES"
+                      :key="category"
+                      :label="category"
+                      :value="category"
+                    />
+                  </el-select>
+                </div>
+                <div class="hazard-row">
+                  <span class="hazard-label">隐患等级<i>*</i></span>
+                  <el-select v-model="hazard.hazardLevel" placeholder="请选择隐患等级" style="width: 100%" :aria-label="`隐患${index + 1}等级`">
+                    <el-option v-for="level in HAZARD_LEVELS" :key="level" :label="level" :value="level" />
+                  </el-select>
+                </div>
+                <div class="hazard-row">
                   <span class="hazard-label">隐患说明<i>*</i></span>
                   <el-input
                     v-model="hazard.desc"
@@ -491,6 +524,10 @@ function onSubmit() {
                     :max="9"
                     :name-prefix="`隐患${index + 1}照片`"
                   />
+                </div>
+                <div class="hazard-row">
+                  <span class="hazard-label">整改要求<i>*</i></span>
+                  <el-input v-model="hazard.rectifyRequirement" type="textarea" :rows="3" placeholder="请输入整改要求" :aria-label="`隐患${index + 1}整改要求`" />
                 </div>
                 <div class="hazard-rectify">
                   <div class="rectify-tip">发现隐患后系统将自动生成整改单，请完善整改信息</div>

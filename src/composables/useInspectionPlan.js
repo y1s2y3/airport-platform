@@ -4,6 +4,7 @@ import {
   DEFAULT_INSPECTOR_LABEL,
   formatInspectionCategories,
   getInspectionTaskPrefix,
+  normalizeInspectionType,
   normalizeInspectionCategories,
 } from '../config/inspectionManagement'
 import { addMobileInspectionTask, listMobileInspectionTasks, updateMobileInspectionTaskByNo } from '../mock/mobileInspectionTasks'
@@ -176,6 +177,7 @@ export function normalizeInspectionPlan(plan = {}) {
     inspectionCategories,
     // 旧字段继续输出，避免已有详情、筛选和导出页面出现兼容问题。
     inspectionCategory: formatInspectionCategories(inspectionCategories),
+    inspectionType: normalizeInspectionType(plan.inspectionType),
     // 危大工程现场巡视在移动端执行时关联；保留旧字段仅用于历史数据兼容。
     isMajorHazardPatrol: plan.isMajorHazardPatrol || '否',
   }
@@ -276,6 +278,7 @@ function createMobileTask(plan, project, taskNo, itemCount, index = 0) {
     source: '任务下发',
     inspectionCategories: plan.inspectionCategories,
     inspectionCategory: plan.inspectionCategory,
+    inspectionType: plan.inspectionType,
     // WEB 下发不预先关联危大工程；执行人在移动端按本任务项目选择后再写入。
     isMajorHazardPatrol: '否',
     majorHazardProjectId: '',
@@ -352,6 +355,7 @@ export function updatePlan(id, data) {
       taskName: item.name,
       inspectionCategories: item.inspectionCategories,
       inspectionCategory: item.inspectionCategory,
+      inspectionType: item.inspectionType,
       // 编辑 WEB 下发任务时不覆盖移动端执行后产生的危大工程关联。
       project: primaryProject.label,
       projectId: primaryProject.id,

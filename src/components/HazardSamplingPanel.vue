@@ -7,6 +7,7 @@ import { useCurrentProject } from '../composables/useCurrentProject.js'
 import { useSamplingRole, eligible, submitReview, samplingPreview, registrationDay, visibleTasks, viewableTasks, canHandleTask, samplingPersonId, saveSamplingAttachment, downloadSamplingAttachment, ensureSamplingExamples, sampling } from '../mock/hazardSampling.js'
 import { getSamplingPeople } from '../mock/samplingPeople.js'
 import { buildSamplingRounds } from '../mock/hazardSamplingRounds.js'
+import SamplingRoundsTable from './hazard/SamplingRoundsTable.vue'
 import { restoreSupervisorTaskContext, samplingReturnLocation } from '../utils/hazardSamplingTaskNavigation.js'
 
 const props = defineProps({ source: String, recordId: String, coc:Boolean })
@@ -30,16 +31,6 @@ const rounds = computed(() => {
 })
 const inspectionDates = ref([])
 const pendingRounds = computed(() => rounds.value.filter(round => round.actionTaskId))
-const tableRows = computed(() => rounds.value.filter(round => round.logs.some(item => item.stage === role.value)).map(round => {
-  const log = round.logs.filter(item => item.stage === role.value).at(-1)
-  return { ...round, inspectionTime: log.time, inspectionResult: role.value === 'manager' ? '已复查' : log.result, inspectionNote: log.result === '不合格' ? log.note || '--' : '--', inspector: log.person || '--' }
-}))
-const filteredRounds = computed(() => tableRows.value.filter(round => {
-  if (inspectionDates.value?.length !== 2) return true
-  if (!round.inspectionTime) return false
-  const day = formatTime(round.inspectionTime).slice(0, 10)
-  return day >= inspectionDates.value[0] && day <= inspectionDates.value[1]
-}))
 const editorVisible = ref(false)
 const detailsVisible = ref(false)
 const editingTaskId = ref('')
@@ -61,14 +52,13 @@ const isPhoto = file => /\.(jpe?g|png)$/i.test(file.name)
 const formatTime = value => value ? new Date(value).toLocaleString('sv-SE') : '--'
 
 function resetForm() { Object.assign(form, { result: '', note: '', files: [], completed: false, dispatch:null, dates:[], percent:undefined, assigneeId:'', reviewAssigneeId:'', submissionId:crypto.randomUUID() }) }
-watch([role, samplingPersonId, () => props.recordId, () => route.query.samplingTask], () => { editorVisible.value = false; detailsVisible.value = false; inspectionDates.value = []; resetForm() })
+watch([role, samplingPersonId, () => props.recordId, () => route.query.samplingTask], () => { editorVisible.value = false; inspectionDates.value = []; resetForm() })
 watch(() => form.result, value => { if (role.value !== 'manager' && value === '合格') { form.note = ''; form.dispatch=null; form.dates=[]; form.percent=undefined; form.assigneeId=''; form.reviewAssigneeId='' } })
 watch(() => form.dispatch, value => { if (value !== true) { form.dates=[]; form.percent=undefined; form.assigneeId='' } })
 function openEditor(taskId = '') {
   if (role.value !== 'hq' && taskContext.value && (!contextTask.value || contextTask.value.submittedAt || contextTask.value.id !== taskId)) return
   resetForm(); editingTaskId.value = taskId; editorVisible.value = true
 }
-function showDetails(round) { detailRoundId.value = round.id; detailsVisible.value = true }
 async function upload(file) {
   if (!isPhoto(file) || file.size > 50 * 1024 * 1024 || form.files.length + uploading.value >= 9) return ElMessage.error('复查照片仅支持 JPG、JPEG、PNG，最多9张，单张不超过50MB')
   uploading.value++
@@ -104,24 +94,7 @@ function submit() {
       <el-date-picker v-model="inspectionDates" type="daterange" value-format="YYYY-MM-DD" start-placeholder="开始日期" end-placeholder="结束日期" clearable />
       <el-button @click="inspectionDates=[]">重置</el-button>
     </div>
-    <el-table :data="filteredRounds" border class="sampling-round-table" :empty-text="inspectionDates?.length ? '暂无符合日期条件的抽查记录' : '尚未提交本身份的抽查记录'">
-      <el-table-column label="抽查日期" width="172">
-        <template #default="{ row: round }">{{ formatTime(round.inspectionTime) }}</template>
-      </el-table-column>
-      <el-table-column label="抽查结果" width="100">
-        <template #default="{ row: round }">
-          <span :class="round.inspectionResult === '不合格' ? 'inspection-fail' : ['合格','已复查'].includes(round.inspectionResult) ? 'inspection-pass' : 'sampling-hint'">{{ round.inspectionResult }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column prop="inspectionNote" label="不合格说明" min-width="180" show-overflow-tooltip />
-      <el-table-column prop="inspector" label="抽查人" width="110" />
-      <el-table-column label="操作" width="100" align="center" fixed="right">
-        <template #default="{ row: round }">
-          <el-button link type="primary" @click="showDetails(round)">查看</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
-
+    <SamplingRoundsTable :rounds="rounds" :role="role" :date-range="inspectionDates" :coc="coc" />
     <el-dialog v-model="editorVisible" :title="editorTitle" width="680px" :z-index="coc ? 220000 : undefined" append-to-body destroy-on-close>
       <el-config-provider :z-index="coc ? 230000 : 2000">
       <el-form label-width="128px" class="sampling-entry-form">
@@ -130,10 +103,10 @@ function submit() {
         </el-form-item>
         <template v-else>
           <el-form-item label="复查确认" required><el-checkbox v-model="form.completed">已复查</el-checkbox></el-form-item>
-          <el-form-item label="复查照片" required>
+          <el-form-item label="复查照片（可选）">
             <div class="sampling-photo-upload">
               <el-upload :auto-upload="false" :show-file-list="false" :on-change="upload" accept=".jpg,.jpeg,.png"><el-button :loading="uploading > 0">上传复查照片</el-button></el-upload>
-              <span class="sampling-hint">最多9张，支持 JPG、JPEG、PNG，单张≤50MB</span>
+              <span class="sampling-hint">可选，最多9张，支持 JPG、JPEG、PNG，单张≤50MB</span>
               <div v-for="(file,index) in form.files" :key="file.id">{{ file.name }} <el-button link @click="form.files.splice(index,1)">移除</el-button></div>
             </div>
           </el-form-item>
@@ -142,7 +115,10 @@ function submit() {
           <el-input v-model="form.note" type="textarea" :rows="4" :placeholder="role === 'manager' ? '填写现场复查和线下整改情况' : '请填写不合格说明（必填）'" />
         </el-form-item>
         <template v-if="role === 'supervisor' && form.result === '不合格'">
-          <el-form-item v-if="!existingFollow" label="全面复查人" required><el-select v-model="form.reviewAssigneeId" filterable placeholder="请选择一名全面复查人" style="width:100%"><el-option v-for="person in assignees" :key="person.id" :label="person.label" :value="person.id"/></el-select></el-form-item>
+          <template v-if="!existingFollow">
+            <el-form-item label="是否下发任务" required><el-radio-group v-model="form.dispatch"><el-radio :value="true">是</el-radio><el-radio :value="false">否</el-radio></el-radio-group></el-form-item>
+            <el-form-item v-if="form.dispatch === true" label="全面复查人" required><el-select v-model="form.reviewAssigneeId" filterable placeholder="请选择一名全面复查人" style="width:100%"><el-option v-for="person in assignees" :key="person.id" :label="person.label" :value="person.id"/></el-select></el-form-item>
+          </template>
           <el-form-item v-else label="已下发至"><span>{{ existingFollow.recipient }}</span></el-form-item>
           <el-alert v-if="editingTask" type="info" :closable="false" :title="existingFollow ? `本批次已有全面复查任务，共${existingFollow.ids.length}张，不再重复下发。` : `将下发原任务${editingTask.start}至${editingTask.end}完整时间范围的全部${editingTask.poolIds.length}张单据。`"/>
         </template>
@@ -158,33 +134,9 @@ function submit() {
         </template>
       </el-form>
       </el-config-provider>
-      <template #footer><el-button @click="editorVisible=false">取消</el-button><el-button type="primary" :disabled="uploading > 0" :loading="submitting" @click="submit">{{ role === 'hq' && form.result === '不合格' && form.dispatch === true ? '保存并下发' : role === 'supervisor' && form.result === '不合格' && !existingFollow ? '保存并下发全面复查' : '保存' }}</el-button></template>
+      <template #footer><el-button @click="editorVisible=false">取消</el-button><el-button type="primary" :disabled="uploading > 0" :loading="submitting" @click="submit">{{ role === 'hq' && form.result === '不合格' && form.dispatch === true ? '保存并下发' : role === 'supervisor' && form.result === '不合格' && !existingFollow && form.dispatch === true ? '保存并下发全面复查' : '保存' }}</el-button></template>
     </el-dialog>
 
-    <el-dialog v-model="detailsVisible" title="抽查记录详情" width="650px" :z-index="coc ? 220000 : undefined" append-to-body destroy-on-close>
-      <template v-if="currentDetails">
-        <div v-for="stage in currentDetails.stages" :key="stage.stage" class="sampling-stage-detail">
-          <h4>{{ stage.name }}</h4>
-          <p v-if="stage.restricted" class="sampling-hint">当前身份不展示该阶段的检查结论与资料。</p>
-          <template v-else>
-            <template v-if="!currentDetails.logs.some(log => log.stage === stage.stage)">
-              <p class="sampling-hint">{{ stage.status }} · 办结日期：{{ formatTime(stage.time) }}</p>
-              <p v-if="stage.status === '批次发起'" class="sampling-hint">该单据随批次纳入检查范围，未单独记录指挥部合格或不合格结论。</p>
-            </template>
-            <div v-for="log in currentDetails.logs.filter(item => item.stage === stage.stage)" :key="log.id" class="sampling-stage-log">
-              <p>{{ log.person }} · {{ stage.stage === 'manager' ? '已复查' : log.result }}</p>
-              <p>办结日期：{{ formatTime(log.time) }}</p>
-              <p>说明：{{ log.note || '--' }}</p>
-              <p v-if="log.reviewRecipient">全面复查下发至：{{ log.reviewRecipient }}</p>
-              <div v-if="log.files?.length"><el-button v-for="file in log.files" :key="file.id || file.name" link type="primary" @click="downloadSamplingAttachment(file).catch(error => ElMessage.error(error.message))">{{ file.name }}</el-button></div>
-              <p v-if="role === 'hq' && log.pendingReason">历史任务未生成：{{ log.pendingReason }}</p>
-              <p v-if="role === 'hq' && log.stage === 'hq' && typeof log.dispatch === 'boolean'">是否下发任务：{{ log.dispatch ? '是' : '否' }}</p>
-            </div>
-          </template>
-        </div>
-      </template>
-      <template #footer><el-button @click="detailsVisible=false">关闭</el-button></template>
-    </el-dialog>
   </section>
   <el-alert v-else-if="taskContext" title="当前身份无权办理该任务，或该单据不在任务范围内" type="warning" :closable="false" />
 </template>

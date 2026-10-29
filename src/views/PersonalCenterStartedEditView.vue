@@ -146,6 +146,9 @@ function handleSubmit() {
         <div class="block-head">
           <div class="block-title">隐患信息</div>
         </div>
+        <div class="inspection-kv"><span>隐患类别</span><b>{{ record.detail.hazardCategory || '安全管理' }}</b></div>
+        <div class="inspection-kv"><span>隐患等级</span><b>{{ record.detail.hazardLevel || '未设置' }}</b></div>
+        <div class="inspection-kv"><span>整改要求</span><b style="white-space:pre-wrap">{{ record.detail.rectifyRequirement || '未填写' }}</b></div>
         <div class="inspection-kv"><span>隐患说明</span><b>{{ record.detail.hazard }}</b></div>
         <div v-if="record.detail?.hazardPhotos?.length" class="inspection-kv">
           <span>隐患照片</span><b>{{ record.detail.hazardPhotos.join('、') }}</b>

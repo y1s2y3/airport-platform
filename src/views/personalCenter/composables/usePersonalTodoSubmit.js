@@ -25,6 +25,7 @@ import {
   PENALTY_STATUSES,
 } from '../../../coc/utils/dispatchMeetingStorage.js'
 import {
+  createMobileRectificationsFromTask,
   submitManagerApproval,
   submitRectification,
   submitRectificationReview,
@@ -37,6 +38,7 @@ import {
 } from '../../../utils/dispatchHazardStorage.js'
 import { getMajorHazardLedgerOptions, syncInspectionTaskToMajorHazard } from '../../../utils/inspectionMajorHazardLink.js'
 import { COC_PROJECT_OPTIONS } from '../../../config/projectOptions.js'
+import { resolveInspectionProjectId } from '../../../config/inspectionManagement.js'
 
 /**
  * 个人中心待办提交逻辑（与 UI 面板解耦，供 handle 页与各 TodoXxxPanel 复用）。
@@ -403,6 +405,15 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
         const hazards = inspectionForm.hazardItems || []
         if (!hazards.length) return ElMessage.warning('请至少新增一条隐患')
         for (const [index, hazard] of hazards.entries()) {
+          if (!hazard.hazardCategory) {
+            return ElMessage.warning(`隐患 ${index + 1} 请选择隐患类别`)
+          }
+          if (!hazard.hazardLevel) {
+            return ElMessage.warning(`隐患 ${index + 1} 请选择隐患等级`)
+          }
+          if (!String(hazard.rectifyRequirement || '').trim()) {
+            return ElMessage.warning(`隐患 ${index + 1} 请填写整改要求`)
+          }
           if (!String(hazard.desc || '').trim()) {
             return ElMessage.warning(`请填写隐患 ${index + 1} 的隐患说明`)
           }
@@ -488,6 +499,9 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
               // 有隐患即直接生成整改单信息（与移动端执行巡检一致），编号规则同为 ZG+日期+序号
               const rectifyNo = `ZG${hazardDateKey}${String(stamp).slice(-4)}${String(index + 1).padStart(2, '0')}`
               return {
+                hazardCategory: hazard.hazardCategory,
+                hazardLevel: hazard.hazardLevel,
+                rectifyRequirement: String(hazard.rectifyRequirement || '').trim(),
                 desc: String(hazard.desc || '').trim(),
                 photos: (hazard.photos || []).map((item) => item.name),
                 hasRectify: true,
@@ -525,6 +539,19 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
       majorHazardLedgerId: bizType === '巡检' ? (patrolLink?.ledgerId || '') : row.detail?.majorHazardLedgerId,
       majorHazardSourceId: bizType === '巡检' ? (patrolLink?.sourceId || '') : row.detail?.majorHazardSourceId,
       majorHazardName: bizType === '巡检' ? (patrolLink?.name || '') : row.detail?.majorHazardName,
+    }
+
+    if (bizType === '巡检' && inspectionForm.inspectionResult === 'hazard') {
+      createMobileRectificationsFromTask(
+        {
+          ...row.detail,
+          id: row.id,
+          taskNo: row.detail.taskNo || row.businessNo,
+          projectId: row.detail.projectId || row.detail.project_id || resolveInspectionProjectId(row.detail.project),
+          submittedAt: now,
+        },
+        row.detail.hazardItems,
+      )
     }
 
     // 与移动端执行巡检一致：判定为现场巡视时归档到危大工程现场巡视台账

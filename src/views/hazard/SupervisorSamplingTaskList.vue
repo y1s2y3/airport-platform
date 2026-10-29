@@ -8,6 +8,7 @@ import { rememberSupervisorTask, supervisorTaskLocation } from '../../utils/haza
 const route=useRoute(), router=useRouter()
 const {selectedProjectId}=useCurrentProject()
 const role=useSamplingRole(), isHq=computed(()=>role.value==='hq')
+const isReviewMenu=computed(()=>route.path.startsWith('/hazard-issues/review'))
 ensureSamplingExamples()
 const stateOptions=['待办理','办理中','已办理']
 const followOptions=['未下发','未完成','已办理']
@@ -52,7 +53,7 @@ watch([number,stateFilter,followFilter,dates,projectFilter,personFilter],()=>{pa
 watch([role,selectedProjectId,samplingPersonId],reset)
 watch(()=>route.query.taskView,syncRoute)
 onMounted(syncRoute)
-function open(task){rememberSupervisorTask(task);router.push(supervisorTaskLocation(task.id))}
+function open(task){rememberSupervisorTask(task);const location=supervisorTaskLocation(task.id);router.push({...location,query:{...location.query,from:route.path}})}
 </script>
 <template>
   <section class="supervisor-task-list">
@@ -61,27 +62,27 @@ function open(task){rememberSupervisorTask(task);router.push(supervisorTaskLocat
       <el-select v-if="isHq" v-model="projectFilter" clearable filterable placeholder="所属项目" style="width:170px"><el-option v-for="project in projects" :key="project.key" :label="project.label" :value="project.key"/></el-select>
       <el-input v-if="isHq" v-model="personFilter" clearable placeholder="抽检人／复查人" style="width:170px"/>
       <el-select v-model="stateFilter" clearable placeholder="任务状态" aria-label="任务状态" class="task-state-filter" style="width:140px"><el-option v-for="state in stateOptions" :key="state" :label="state" :value="state"/></el-select>
-      <el-select v-model="followFilter" clearable placeholder="后续全面复查" aria-label="后续全面复查" style="width:150px"><el-option v-for="state in followOptions" :key="state" :label="state" :value="state"/></el-select>
+      <el-select v-if="!isReviewMenu" v-model="followFilter" clearable placeholder="后续全面复查" aria-label="后续全面复查" style="width:150px"><el-option v-for="state in followOptions" :key="state" :label="state" :value="state"/></el-select>
       <span>下发日期</span><el-date-picker v-model="dates" type="daterange" value-format="YYYY-MM-DD" start-placeholder="开始日期" end-placeholder="结束日期" style="max-width:320px"/><el-button @click="reset">重置</el-button>
     </div>
     <el-table :data="paged" border stripe class="supervisor-tasks" empty-text="暂无符合条件的任务">
       <el-table-column label="任务编号" min-width="185" show-overflow-tooltip><template #default="{row}">{{ row.task.id }}</template></el-table-column>
       <el-table-column v-if="isHq" label="项目" min-width="95"><template #default="{row}">{{ row.task.projectName }}</template></el-table-column>
-      <el-table-column :label="isHq ? '抽检人' : '办理人'" min-width="150" show-overflow-tooltip><template #default="{row}">{{ row.task.recipient || '--' }}</template></el-table-column>
+      <el-table-column :label="isReviewMenu ? '复查人' : (isHq ? '抽检人' : '办理人')" min-width="150" show-overflow-tooltip><template #default="{row}">{{ row.task.recipient || '--' }}</template></el-table-column>
       <el-table-column v-if="isHq" label="下发人" min-width="105"><template #default="{row}">{{ row.task.sender || '指挥部检查人' }}</template></el-table-column>
       <el-table-column label="下发时间" width="145"><template #default="{row}">{{ formatTime(row.task.createdAt) }}</template></el-table-column>
       <el-table-column label="检查时间范围" min-width="175"><template #default="{row}">{{ row.task.start }} 至 {{ row.task.end }}</template></el-table-column>
       <el-table-column label="比例（%）" width="80"><template #default="{row}">{{ row.task.percent ?? '--' }}</template></el-table-column>
-      <el-table-column v-if="isHq" label="抽检进度（张）" width="140"><template #default="{row}">{{ row.progress.done }}/{{ row.progress.total }}<span v-if="row.progress.failed" class="task-fail-count">，不合格{{ row.progress.failed }}张</span></template></el-table-column>
+      <el-table-column v-if="isHq" :label="isReviewMenu ? '复查进度（张）' : '抽检进度（张）'" width="140"><template #default="{row}">{{ row.progress.done }}/{{ row.progress.total }}<span v-if="row.progress.failed" class="task-fail-count">，不合格{{ row.progress.failed }}张</span></template></el-table-column>
       <el-table-column v-else label="单据（张）" width="95"><template #default="{row}">{{ row.progress.total }}</template></el-table-column>
       <el-table-column v-if="!isHq" label="完成进度（张）" width="125"><template #default="{row}">{{ row.progress.done }} / {{ row.progress.total }}</template></el-table-column>
-      <el-table-column v-if="isHq" label="原任务状态" width="95"><template #default="{row}"><span class="task-state-pill" :class="{complete:row.task.submittedAt}">{{ stateLabel(row.task) }}</span></template></el-table-column>
-      <el-table-column label="后续全面复查" min-width="205"><template #default="{row}"><span v-if="row.task.stage!=='supervisor'" class="task-follow-empty">--</span><span v-else :class="{ 'task-follow-empty': !row.review }">{{ followLabel(row.review, row.reviewProgress || { done: 0, total: 0 }) }}</span></template></el-table-column>
+      <el-table-column v-if="isHq" :label="isReviewMenu ? '任务状态' : '原任务状态'" width="95"><template #default="{row}"><span class="task-state-pill" :class="{complete:row.task.submittedAt}">{{ stateLabel(row.task) }}</span></template></el-table-column>
+      <el-table-column v-if="!isReviewMenu" label="后续全面复查" min-width="205"><template #default="{row}"><span v-if="row.task.stage!=='supervisor'" class="task-follow-empty">--</span><span v-else :class="{ 'task-follow-empty': !row.review }">{{ followLabel(row.review, row.reviewProgress || { done: 0, total: 0 }) }}</span></template></el-table-column>
       <el-table-column v-if="!isHq&&stateFilter==='已办理'" label="完成时间" width="170"><template #default="{row}">{{ formatTime(row.task.submittedAt) }}</template></el-table-column>
       <el-table-column v-if="!isHq&&stateFilter==='已办理'" label="合格／已复查（张）" width="155"><template #default="{row}">{{ resultCount(row.task,'合格') }}</template></el-table-column>
       <el-table-column v-if="!isHq&&stateFilter==='已办理'" label="不合格（张）" width="112"><template #default="{row}">{{ resultCount(row.task,'不合格') }}</template></el-table-column>
       <el-table-column v-if="!isHq" label="状态" width="100" fixed="right"><template #default="{row}"><span class="task-state-pill" :class="{complete:row.task.submittedAt}">{{ stateLabel(row.task) }}</span></template></el-table-column>
-      <el-table-column label="操作" width="72" fixed="right"><template #default="{row}"><el-button link type="primary" @click="open(row.task)">{{isHq||row.task.submittedAt?'查看':row.task.stage==='manager'?row.progress.done?'继续复查':'开始复查':row.progress.done?'继续抽检':'开始抽检'}}</el-button></template></el-table-column>
+      <el-table-column label="操作" width="72" fixed="right"><template #default="{row}"><el-button link type="primary" @click="open(row.task)">打开</el-button></template></el-table-column>
     </el-table>
     <el-collapse v-if="isHq && unlinked.length" class="unlinked-history">
       <el-collapse-item name="unlinked">

@@ -106,6 +106,9 @@ function goBack() {
 
       <div class="section">
         <div class="section-title">隐患与整改复查结果</div>
+        <div class="info-row"><span>隐患类别</span><p>{{ record.hazardCategory || '安全管理' }}</p></div>
+        <div class="info-row"><span>隐患等级</span><p>{{ record.hazardLevel || '未设置' }}</p></div>
+        <div class="info-row"><span>整改要求</span><p style="white-space:pre-wrap">{{ record.rectifyRequirement || '未填写' }}</p></div>
         <div class="info-row"><span>隐患说明</span><p>{{ record.hazard || '--' }}</p></div>
         <div class="info-row"><span>整改日期</span><p>{{ record.rectificationDate || record.submitDate || '--' }}</p></div>
         <div class="info-row"><span>整改照片</span><p>{{ displayPhotos(record.rectificationPhotos) }}</p></div>

@@ -8,7 +8,8 @@ import { externalQualityIssues } from '../../mock/externalQualityIssues.js'
 const route = useRoute()
 if (route.query.from === 'sampling-task' && route.query.viewer !== 'hq') restoreSupervisorTaskContext(String(route.query.samplingTask || ''))
 const router = useRouter()
-const issue = computed(() => externalQualityIssues.find((item) => item.id === route.params.id))
+const props = defineProps({ recordId: String, embedded: Boolean })
+const issue = computed(() => externalQualityIssues.find((item) => item.id === (props.recordId || route.params.id)))
 
 function goBack() {
   router.push(samplingReturnLocation(route.query))
@@ -17,7 +18,7 @@ function goBack() {
 
 <template>
   <div class="quality-issue-detail">
-    <div class="detail-heading">
+    <div v-if="!embedded" class="detail-heading">
       <el-button @click="goBack">{{ route.query.from === 'sampling-task' ? '返回任务' : '返回汇总' }}</el-button>
       <div class="detail-title">
         <h2>施工质量问题管理</h2>
@@ -29,6 +30,7 @@ function goBack() {
       <el-button type="primary" @click="goBack">{{ route.query.from === 'sampling-task' ? '返回任务' : '返回汇总' }}</el-button>
     </el-empty>
     <template v-else>
+      <HazardSamplingPanel v-if="!embedded" source="externalQuality" :record-id="String(props.recordId || route.params.id)" />
       <section class="detail-card">
         <div class="section-title">基础信息</div>
         <el-descriptions :column="2" border>
@@ -73,7 +75,7 @@ function goBack() {
         </el-timeline>
       </section>
 
-      <HazardSamplingPanel source="externalQuality" :record-id="String(route.params.id)" />
+
     </template>
   </div>
 </template>

@@ -186,6 +186,7 @@ onMounted(load)
 
     <el-dialog v-model="detailVisible" title="调度隐患详情" width="720px" destroy-on-close>
       <template v-if="current">
+          <HazardSamplingPanel v-if="current" source="dispatch" :record-id="current.id" />
         <el-descriptions :column="2" border size="small">
           <el-descriptions-item label="项目名称">{{ current.projectName || '--' }}</el-descriptions-item>
           <el-descriptions-item label="隐患类型">{{ hazardTypeLabel(current.hazardType) }}</el-descriptions-item>
@@ -249,7 +250,6 @@ onMounted(load)
             </el-timeline-item>
           </el-timeline>
         </div>
-        <HazardSamplingPanel v-if="current" source="dispatch" :record-id="current.id" />
         <PersonalCenterReadonlyHint
           v-if="current.rectifyStatus === '待整改' || current.rectifyStatus === '待验收'"
           title="整改提交与验收请在「个人中心 → 我的待办」中处理；本页仅查看详情。"

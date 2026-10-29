@@ -3,6 +3,60 @@ import { COC_PROJECT_OPTIONS } from './projectOptions.js'
 /** 巡检管理公共配置 */
 export const INSPECTION_CATEGORIES = ['安全', '质量']
 
+/** 隐患等级独立于隐患类别，每条隐患单独选择。 */
+export const HAZARD_LEVELS = ['Ⅰ重大隐患', 'Ⅱ重点关注的一般隐患', 'Ⅲ一般隐患']
+
+/** 巡检业务检查类型（与安全/质量“巡检分类”相互独立）。 */
+export const INSPECTION_TYPES = [
+  '第三方检查',
+  '值班检查',
+  '部门检查',
+  '联合检查',
+  '上级检查',
+  '视频检查',
+  '复查',
+  '第三方飞检',
+]
+
+/** 巡检发现隐患时使用的统一隐患类别。 */
+export const HAZARD_CATEGORIES = [
+  '跑道侵入',
+  '净空安全',
+  '空防安全',
+  '三防',
+  'FOD',
+  '个人安全防护',
+  '临边洞口',
+  '安全管理',
+  '攀登作业',
+  '文明施工',
+  '施工升降机',
+  '施工_安全资料',
+  '施工机具',
+  '施工消防',
+  '施工用电',
+  '模板支撑',
+  '监理安全资料',
+  '脚手架与操作平台',
+  '起重吊装',
+  '动火作业',
+  '鸟防',
+  '基坑工程',
+  '有限空间',
+  '高处作业',
+  '交通安全',
+]
+
+/** 兼容未保存隐患类别的历史记录。 */
+export function normalizeHazardCategory(value) {
+  return HAZARD_CATEGORIES.includes(value) ? value : '安全管理'
+}
+
+/** 兼容历史任务：旧数据未保存检查类型时按“值班检查”展示。 */
+export function normalizeInspectionType(value) {
+  return INSPECTION_TYPES.includes(value) ? value : '值班检查'
+}
+
 /** 项目巡检任务默认推送给监理，表单仍允许修改。 */
 export const DEFAULT_INSPECTOR = {
   id: 'insp-supervisor',

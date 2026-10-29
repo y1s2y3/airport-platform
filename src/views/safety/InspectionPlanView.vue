@@ -5,15 +5,16 @@ import { Plus } from '@element-plus/icons-vue'
 import { planData, userOptions, getPlanExecutionStatus } from '../../composables/useInspectionPlan'
 import { listMobileInspectionTasks } from '../../mock/mobileInspectionTasks'
 import { getProjectInspectorLabel } from '../../composables/useInspectionPersonConfig'
-import { hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
+import { INSPECTION_TYPES, hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
 
 const router = useRouter()
 
-const filterForm = reactive({ category: '', keyword: '' })
+const filterForm = reactive({ category: '', inspectionType: '', keyword: '' })
 
 const filteredPlans = computed(() => {
   return planData.filter(p => {
     if (filterForm.category && !hasInspectionCategory(p.inspectionCategories || p.inspectionCategory, filterForm.category)) return false
+    if (filterForm.inspectionType && p.inspectionType !== filterForm.inspectionType) return false
     if (filterForm.keyword && !p.name.includes(filterForm.keyword)) return false
     return true
   })
@@ -63,6 +64,9 @@ function goTaskDetail(row) {
         <el-option label="安全" value="安全" />
         <el-option label="质量" value="质量" />
       </el-select>
+      <el-select v-model="filterForm.inspectionType" placeholder="检查类型" clearable style="width: 130px">
+        <el-option v-for="type in INSPECTION_TYPES" :key="type" :label="type" :value="type" />
+      </el-select>
       <el-input v-model="filterForm.keyword" placeholder="搜索任务名称..." clearable style="width: 240px" />
     </div>
     <div class="table-wrap">
@@ -83,6 +87,7 @@ function goTaskDetail(row) {
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column prop="inspectionType" label="检查类型" min-width="110" align="center" />
         <el-table-column prop="projects" label="项目" min- show-overflow-tooltip>
           <template #default="{ row }">{{ row.projects.join('、') }}</template>
         </el-table-column>
