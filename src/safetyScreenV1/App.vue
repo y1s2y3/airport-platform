@@ -508,7 +508,7 @@ const equipmentAlertRows = computed(() => equipmentFocusRows.value.flatMap((focu
   alertContent: record.detail || record.desc || `${focus.label}监测数据异常`,
   status: record.status,
   level: focus.kind === 'major'
-    ? (record.level === '一级' ? '重大' : '一般')
+    ? (record.level === '重大预警' ? '重大' : record.level === '较大预警' ? '较大' : '一般')
     : (record.type === '限位失效' ? '重大' : '一般'),
 }))))
 

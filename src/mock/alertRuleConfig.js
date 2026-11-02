@@ -8,7 +8,7 @@
  * 保存方式：内存级（与项目其它 mock 一致）——同一会话内两页共享，刷新页面恢复默认值。
  *
  * 预警等级沿用「重大预警 / 较大预警 / 一般预警」口径（裁决 1A），
- * 与危大记录自身的一级 / 二级 / 三级预警等级并存，互不替代。
+ * 危大监测与机械设备预警的等级口径统一为「重大预警 / 较大预警 / 一般预警」。
  */
 
 export const ALERT_HQ_PUSH_OPTIONS = ['是', '否']
@@ -19,15 +19,13 @@ export const ALERT_RECEIVER_OPTIONS = [
   '工程指挥部值班人员',
 ]
 
-export const ALERT_PUSH_METHOD_OPTIONS = ['短信', '站内信']
-
 export const ALERT_UPGRADE_ENABLE_OPTIONS = ['是', '否']
 
 /** 分级推送配置默认值 */
 const DEFAULT_PUSH_RULES = [
-  { alertLevel: '重大预警', pushToHq: '是', receivers: ['测试工程指挥部推送预警接收人'], methods: ['短信', '站内信'] },
-  { alertLevel: '较大预警', pushToHq: '是', receivers: ['工程指挥部安全负责人'], methods: ['站内信', '短信'] },
-  { alertLevel: '一般预警', pushToHq: '否', receivers: [], methods: [] },
+  { alertLevel: '重大预警', pushToHq: '是', receivers: ['测试工程指挥部推送预警接收人'] },
+  { alertLevel: '较大预警', pushToHq: '是', receivers: ['工程指挥部安全负责人'] },
+  { alertLevel: '一般预警', pushToHq: '否', receivers: [] },
 ]
 
 /** 预警超期未处理自动升级配置默认值 */
@@ -41,7 +39,6 @@ function cloneRules(rows) {
   return (rows || []).map((row) => ({
     ...row,
     receivers: Array.isArray(row.receivers) ? [...row.receivers] : [],
-    methods: Array.isArray(row.methods) ? [...row.methods] : [],
   }))
 }
 

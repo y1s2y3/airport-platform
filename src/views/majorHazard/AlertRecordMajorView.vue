@@ -36,7 +36,7 @@ const typeOptions = [
   { label: '高支模', value: 'formwork' },
 ]
 
-const levelOptions = ['一级', '二级', '三级']
+const levelOptions = ['重大预警', '较大预警', '一般预警']
 const statusOptions = ['未处置', '已处置']
 
 const regionOpts = computed(() => {

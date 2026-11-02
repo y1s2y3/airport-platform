@@ -17,6 +17,7 @@ import {
   ensureQmPersonalCenterSeeds,
   ensureLaborWarningCenterSeeds,
   ensureInspectionOverdueReminders,
+  ensureAlertPushNotices,
   listPersonalWarningCenter,
   markWarningCenterRead,
   batchDisposeWarningCenter,
@@ -40,6 +41,7 @@ const router = useRouter()
 const TAB_NAMES = ['todo', 'done', 'started', 'cc', 'warning-center', 'notice']
 
 onMounted(() => {
+  ensureAlertPushNotices()
   ensureQmPersonalCenterSeeds()
   ensureLaborWarningCenterSeeds()
   ensureInspectionOverdueReminders()

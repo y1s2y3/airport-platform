@@ -11,7 +11,6 @@ import { ElMessage } from 'element-plus'
 import {
   ALERT_HQ_PUSH_OPTIONS,
   ALERT_RECEIVER_OPTIONS,
-  ALERT_PUSH_METHOD_OPTIONS,
   ALERT_UPGRADE_ENABLE_OPTIONS,
   getAlertPushRules,
   saveAlertPushRules,
@@ -46,11 +45,10 @@ watch(
   { immediate: true },
 )
 
-/** 选择「不推送」时清空接收人与推送方式 */
+/** 选择「不推送」时清空接收人 */
 function handleHqPushChange(row) {
   if (row.pushToHq === '否') {
     row.receivers = []
-    row.methods = []
   }
 }
 
@@ -102,22 +100,6 @@ function submit() {
               aria-label="请选择"
             >
               <el-option v-for="item in ALERT_RECEIVER_OPTIONS" :key="item" :label="item" :value="item" />
-            </el-select>
-          </template>
-        </el-table-column>
-        <el-table-column label="推送方式" min-width="190" align="center">
-          <template #default="{ row }">
-            <el-select
-              v-model="row.methods"
-              class="rule-select"
-              multiple
-              collapse-tags
-              collapse-tags-tooltip
-              :disabled="row.pushToHq === '否'"
-              placeholder="请选择"
-              aria-label="请选择"
-            >
-              <el-option v-for="item in ALERT_PUSH_METHOD_OPTIONS" :key="item" :label="item" :value="item" />
             </el-select>
           </template>
         </el-table-column>

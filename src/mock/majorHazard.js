@@ -452,7 +452,7 @@ export function getAlertRecords(projectId, hazardType, filters = {}) {
 
 function seedAlertRecords(projectId) {
   const types = ['pit', 'subway', 'formwork']
-  const levels = ['一级', '二级', '三级']
+  const levels = ['重大预警', '较大预警', '一般预警']
   const typeLabels = { pit: '深基坑', subway: '地铁铁路', formwork: '高支模' }
   const handlers = ['张伟', '李强', '王磊', '陈明']
   const handlingContents = [
@@ -606,7 +606,7 @@ export function ensureWcDemoMajorAlert() {
       currentValue: 18.5,
       threshold: 15,
       unit: 'mm',
-      level: '一级',
+      level: '重大预警',
       detail:
         '深基坑水平位移超限：基坑东侧监测点当前数值超过预警阈值，请立即安排人员现场核实处置。',
       time: '2026-08-21 08:56:42',

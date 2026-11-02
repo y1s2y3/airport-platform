@@ -22,13 +22,19 @@ import {
   WC_DEMO_MACHINE_ALERT_ID,
   getMachineAlertById,
   disposeMachineAlert,
+  machineAlerts,
 } from './machineAlert.js'
 import {
   WC_DEMO_MAJOR_ALERT_ID,
   ensureWcDemoMajorAlert,
   getMajorAlertById,
   handleAlertRecord,
+  getAlertRecords,
 } from './majorHazard.js'
+import { getAlertPushRules } from './alertRuleConfig.js'
+import { findProjectById } from './projectBasicInfo.js'
+import { projectTree } from './laborRealName.js'
+
 import {
   notifyBizAlertDisposed,
   registerWarningCenterBizDisposedHook,
@@ -72,6 +78,8 @@ export const NOTICE_MODULE_OPTIONS = [
   '巡检管理',
   '人员实名',
   '风险管理',
+  '危大工程监测',
+  '机械设备监管',
   '系统通知',
 ]
 export const INSPECTION_BIZ_TYPE_OPTIONS = ['巡检', '整改', '复查', '审批']
@@ -3669,6 +3677,85 @@ export const personalNotices = reactive([
     readStatus: '已读',
   },
 ])
+// ===== 分级预警推送 → 通知信息（用户 2026-11-02：推一次留档，仅查看）=====
+let alertPushNoticesGenerated = false
+
+/** 消息正文模板：XXX项目，XX设备触发XX预警，XX指标当前值X，阈值X，请及时处理 */
+function buildAlertPushContent({ projectName, deviceName, alertType, indicatorName, currentValue, threshold, unit }) {
+  const u = unit ? String(unit) : ''
+  const value = currentValue === undefined || currentValue === null || currentValue === '' ? '--' : currentValue
+  const limit = threshold === undefined || threshold === null || threshold === '' ? '--' : threshold
+  return `${projectName || '—'}，${deviceName || '—'}触发${alertType || '预警'}，${indicatorName || '监测指标'}当前值${value}${u}，阈值${limit}${u}，请及时处理`
+}
+
+/** 生成分级推送通知（只生成「推送工程指挥部=是」的等级；每个模块最多 5 条；同一进程内只生成一次） */
+export function ensureAlertPushNotices() {
+  if (alertPushNoticesGenerated) return
+  alertPushNoticesGenerated = true
+  const rules = getAlertPushRules() || []
+  const ruleByLevel = new Map(rules.map((r) => [r.alertLevel, r]))
+  const pushTime = nowStr()
+  const added = []
+
+  // 机械设备预警（未处置优先）
+  const machineRows = (machineAlerts.value || [])
+    .filter((a) => a.status !== '已处置')
+    .sort((a, b) => String(b.alertTime).localeCompare(String(a.alertTime)))
+    .slice(0, 5)
+  for (const a of machineRows) {
+    const rule = ruleByLevel.get(a.level)
+    if (!rule || rule.pushToHq !== '是') continue
+    added.push({
+      id: `nt-push-machine-${a.id}`,
+      module: '机械设备监管',
+      title: `${a.level}提醒`,
+      content: buildAlertPushContent({
+        projectName: a.project,
+        deviceName: a.deviceName,
+        alertType: a.alertType,
+        indicatorName: a.indicatorName,
+        currentValue: a.currentValue,
+        threshold: a.threshold,
+        unit: a.unit,
+      }),
+      time: pushTime,
+      readStatus: '未读',
+    })
+  }
+
+  // 危大监测预警（跨项目、三类工程）
+  const projectIds = [...new Set(projectTree.flatMap((g) => (g.children?.length ? g.children.map((c) => c.id) : [g.id])))]
+  const majorPool = []
+  for (const pid of projectIds) for (const type of ['pit', 'subway', 'formwork']) {
+    for (const r of getAlertRecords(pid, type, {})) {
+      if (r.status !== '未处置') continue
+      majorPool.push(r)
+    }
+  }
+  majorPool.sort((a, b) => String(b.time).localeCompare(String(a.time)))
+  for (const r of majorPool.slice(0, 5)) {
+    const rule = ruleByLevel.get(r.level)
+    if (!rule || rule.pushToHq !== '是') continue
+    added.push({
+      id: `nt-push-major-${r.id}`,
+      module: '危大工程监测',
+      title: `${r.level}提醒`,
+      content: buildAlertPushContent({
+        projectName: findProjectById(r.projectId)?.projectName || "",
+        deviceName: r.deviceName,
+        alertType: r.alertType,
+        indicatorName: r.indicatorName,
+        currentValue: r.currentValue,
+        threshold: r.threshold,
+        unit: r.unit,
+      }),
+      time: pushTime,
+      readStatus: '未读',
+    })
+  }
+
+  if (added.length) personalNotices.unshift(...added)
+}
 
 let riskNoticeSeq = 1
 
@@ -3951,6 +4038,7 @@ export function listLaborPersonalDone() {
 }
 
 export function listLaborPersonalNotices() {
+  ensureAlertPushNotices()
   return personalNotices
 }
 
