@@ -17,6 +17,14 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.17.1.40',
+    date: '2026-11-02',
+    highlights: [
+      '顶栏新增「建管App」扫码下载入口：鼠标移入手机图标（或键盘聚焦）即弹出二维码与下载地址，手机扫码可直接下载安装安卓版建管App，也可点击弹层内链接在电脑上下载',
+      '入口样式与前端框架保持一致：裸图标入口铺满顶栏高度、悬停有灰底提示，弹层为二维码 +「建管App（安卓）」+ 下载地址',
+    ],
+  },
+  {
     version: 'v2.17.1.39',
     date: '2026-10-29',
     highlights: [

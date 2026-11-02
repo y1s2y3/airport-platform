@@ -2,7 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown, SwitchButton, Fold, Expand, Lock } from '@element-plus/icons-vue'
+import { ArrowDown, SwitchButton, Fold, Expand, Lock, Cellphone } from '@element-plus/icons-vue'
 import {
   menuTree,
   filterMenuByLevel,
@@ -31,6 +31,10 @@ import { logoutWeb, webLoginAccount } from '../mock/webSession.js'
 import { getCurrentUserSnapshot } from '../mock/currentUser.js'
 import ChangePasswordDialog from '../components/common/ChangePasswordDialog.vue'
 import SidebarMenuNode from './SidebarMenuNode.vue'
+import appQrImage from '../assets/app-qr.png'
+
+/** 建管App（安卓）下载地址：与前端框架顶栏入口保持同一口径（fir.im 分发页） */
+const APP_DOWNLOAD_URL = 'https://fir.xcxwo.com/qnjm6918'
 
 const route = useRoute()
 const router = useRouter()
@@ -432,6 +436,35 @@ function skipToMain(e) {
         >
           安全态势大屏
         </button>
+        <el-popover
+          placement="bottom"
+          :width="220"
+          :trigger="['hover', 'focus']"
+          popper-class="app-qr-popover"
+        >
+          <template #reference>
+            <button
+              class="header-icon-item"
+              type="button"
+              title="建管App（安卓）"
+              aria-label="扫码下载建管App（安卓）"
+            >
+              <el-icon><Cellphone /></el-icon>
+            </button>
+          </template>
+          <div class="app-qr">
+            <img class="app-qr__img" :src="appQrImage" alt="建管 App 二维码" />
+            <p class="app-qr__title">建管App（安卓）</p>
+            <a
+              class="app-qr__link"
+              :href="APP_DOWNLOAD_URL"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              下载地址：{{ APP_DOWNLOAD_URL }}
+            </a>
+          </div>
+        </el-popover>
         <el-dropdown trigger="click" placement="bottom-end" @command="onUserCommand">
           <div class="user-block" role="button" tabindex="0" aria-label="账号操作">
             <el-avatar :size="32" class="user-avatar">调</el-avatar>
@@ -873,6 +906,29 @@ function skipToMain(e) {
   color: #fff;
 }
 
+/* 顶栏图标入口：对齐前端框架 NavbarRight 的 setting-item（裸图标、整栏高、hover 10% 黑底） */
+.header-icon-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  /* 顶栏为 56px 且带 1px 下边框（box-sizing: border-box），减 1px 让 hover 底色正好铺满内容区 */
+  height: calc(var(--ap-header-h) - 1px);
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--ap-text);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.header-icon-item:hover,
+.header-icon-item:focus-visible {
+  background: rgb(0 0 0 / 10%);
+  outline: none;
+}
+
 .user-block {
   display: flex;
   align-items: center;
@@ -1286,5 +1342,44 @@ function skipToMain(e) {
   color: var(--ap-text-muted, #909399);
   white-space: normal;
   word-break: break-all;
+}
+
+/* ---------- 建管App 二维码弹层：对齐前端框架 NavbarRight 的 .app-qr（teleport 到 body，须用全局样式块） ---------- */
+.app-qr-popover .app-qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 2px 2px;
+}
+
+.app-qr-popover .app-qr__img {
+  display: block;
+  width: 180px;
+  height: 180px;
+  object-fit: contain;
+}
+
+.app-qr-popover .app-qr__title {
+  margin: 0;
+  color: var(--ap-text, #1f2329);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.app-qr-popover .app-qr__link {
+  display: block;
+  width: 100%;
+  color: var(--ap-primary, #8f0045);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
+.app-qr-popover .app-qr__link:hover {
+  text-decoration: underline;
 }
 </style>
