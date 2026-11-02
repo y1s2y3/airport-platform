@@ -6,7 +6,6 @@
  * 界面一致、数据同源（src/mock/alertRuleConfig.js），任一页提交后另一页即为改后值。
  */
 import { ref, watch } from 'vue'
-import { InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import {
   ALERT_HQ_PUSH_OPTIONS,
@@ -76,7 +75,6 @@ function submit() {
     <div class="rule-section">
       <div class="rule-section-title">
         <span>分级推送配置</span>
-        <el-icon class="rule-info"><InfoFilled /></el-icon>
       </div>
       <el-table :data="pushRuleRows" border class="rule-table" size="default">
         <el-table-column prop="alertLevel" label="预警等级" width="120" align="center" />
@@ -143,7 +141,6 @@ function submit() {
 .rule-section { margin-bottom: 22px; }
 .upgrade-section { margin-bottom: 0; }
 .rule-section-title { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; font-size: 14px; font-weight: 600; color: #1f2329; }
-.rule-info { color: #909399; font-size: 16px; }
 .rule-table { font-size: 13px; }
 .rule-table :deep(.el-table__header th) { background: #f5f7fa; color: #606266; font-weight: 600; }
 .rule-table :deep(.el-table__cell) { padding: 11px 0; }

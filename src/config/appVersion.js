@@ -17,6 +17,13 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.17.1.42',
+    date: '2026-11-02',
+    highlights: [
+      '预警推送规则配置：「分级推送配置」标题右侧的信息提示图标已移除，仅保留标题文字',
+    ],
+  },
+  {
     version: 'v2.17.1.41',
     date: '2026-11-02',
     highlights: [
