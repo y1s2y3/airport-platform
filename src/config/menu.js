@@ -719,6 +719,7 @@ export const hiddenRoutes = [
   { key: 'mobile-major-hazard-process', path: '/mobile/hazard/process', name: 'MobileHazardProcess', component: 'MobileHazardProcessView', label: '过程管理（移动端）', sidebarKey: 'mobile-major-hazard-list' },
 
   // 机械设备子页
+  { key: 'inspection-record-create', path: '/safety-inspection/task/create', name: 'InspectionRecordCreate', component: 'InspectionRecordCreateView', label: '新增巡检记录', sidebarKey: 'safety-task-manage' },
   { key: 'alert-config-add', path: '/machine-supervise/alert-config/add', name: 'AlertConfigAdd', component: 'AlertConfigFormView', label: '新增预警配置', sidebarKey: 'alert-config' },
   { key: 'ai-unsafe-behavior-detail', path: '/ai-app/unsafe-behavior/:id', name: 'AiUnsafeBehaviorDetail', component: 'AiAlertDetailView', label: '预警查看', sidebarKey: 'ai-unsafe-behavior' },
   { key: 'ai-hazard-event-detail', path: '/ai-app/hazard-event/:id', name: 'AiHazardEventDetail', component: 'AiAlertDetailView', label: '预警查看', sidebarKey: 'ai-hazard-event' },
@@ -945,6 +946,7 @@ export const viewLoaders = {
   AlertRecordView: () => import('../views/safety/AlertRecordView.vue'),
   AlertConfigView: () => import('../views/safety/AlertConfigView.vue'),
   AlertConfigFormView: () => import('../views/safety/AlertConfigFormView.vue'),
+  InspectionRecordCreateView: () => import('../views/safety/InspectionRecordCreateView.vue'),
 
   MachineryLedgerView: () => import('../views/safety/MachineryLedgerView.vue'),
   MachineTypeMaintainView: () => import('../views/safety/MachineTypeMaintainView.vue'),

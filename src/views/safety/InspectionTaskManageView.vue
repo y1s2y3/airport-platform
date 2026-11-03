@@ -136,6 +136,10 @@ function getMajorHazardPatrolText(row) {
 
 function viewDetail(row) { router.push(`/safety-inspection/task/${row.id}`) }
 function goRectify(id) { router.push(`/safety-inspection/hazard/${id}`) }
+function goCreateRecord() {
+  router.push('/safety-inspection/task/create')
+}
+
 function handleReset() { Object.keys(filterForm).forEach(k => filterForm[k] = '') }
 function viewProjectDetail(row) {
   router.push({ path:'/safety-inspection/task', query:{ from:'hq' } }).then(() => {
@@ -167,6 +171,7 @@ function goBackToHQ() {
           <div class="stat-card"><div class="sc-value text-danger">{{ hqTotalStats.hazardCount }}</div><div class="sc-label">隐患总数</div></div>
         </div>
         <div class="hq-filter-bar">
+          <el-button type="primary" @click="goCreateRecord">新增巡检记录</el-button>
           <el-input v-model="hqProjectKeyword" placeholder="搜索项目名称..." clearable style="width:240px" :prefix-icon="Search" />
         </div>
         <el-table :data="filteredHQProjects" border stripe style="width:100%;margin-top:12px" class="hq-table">
@@ -217,6 +222,7 @@ function goBackToHQ() {
             <el-option label="是" value="是" /><el-option label="否" value="否" />
           </el-select>
           <el-button @click="handleReset">重置</el-button>
+          <el-button type="primary" @click="goCreateRecord">新增巡检记录</el-button>
         </div>
 
         <!-- 台账表格 -->
@@ -328,7 +334,7 @@ function goBackToHQ() {
 .text-danger { color:#e53935; }
 .rate-low { color:#e53935; font-weight:600; }
 .overdue-count { color:#e53935; font-weight:600; }
-.hq-filter-bar { display:flex; justify-content:flex-end; }
+.hq-filter-bar { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
 .back-bar { display:flex; align-items:center; gap:10px; margin-bottom:12px; padding:8px 12px; background:#f5f7fa; border-radius:6px; font-size:14px; font-weight:600; }
 .major-hazard-cell { display:flex; flex-direction:column; align-items:center; gap:2px; margin-top:4px; color:#606266; font-size:12px; }
 .major-hazard-cell > span { max-width:155px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }

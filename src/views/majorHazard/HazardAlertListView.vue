@@ -20,6 +20,9 @@ const pageSize = ref(10)
 const disposeVisible = ref(false)
 const submitting = ref(false)
 const disposeForm = reactive({ note: '', files: [] })
+/** 本次处置的目标行（单条或批量） */
+const disposeTargets = ref([])
+const disposeMode = ref('batch')
 const filters = reactive({ status: '', keyword: '' })
 
 const sourceRows = computed(() => {
@@ -78,29 +81,43 @@ function selectable(row) {
   return row.status === '待处理'
 }
 
+/** 打开处置弹窗（row 为空表示批量） */
+function openDisposeDialog(rows, mode) {
+  disposeForm.note = ''
+  disposeForm.files = []
+  disposeTargets.value = rows
+  disposeMode.value = mode
+  disposeVisible.value = true
+}
+
+function openDispose(row) {
+  if (row.status === '已关闭') return ElMessage.warning('该异常已关闭，无需重复处置')
+  openDisposeDialog([row], 'single')
+}
+
 function openBatchDispose() {
   const pending = selection.value.filter((row) => row.status === '待处理')
   if (!pending.length) return ElMessage.warning('请先勾选需要处置的待处理异常')
-  disposeForm.note = ''
-  disposeForm.files = []
-  disposeVisible.value = true
+  openDisposeDialog(pending, 'batch')
 }
 
 function onFileChange(_file, files) {
   disposeForm.files = files
 }
 
-async function confirmBatchDispose() {
+async function confirmDispose() {
   const note = disposeForm.note.trim()
   if (!note) return ElMessage.warning('请填写处置说明')
-  await ElMessageBox.confirm('确认将所选异常批量处置并关闭？', '批量处置异常', {
-    type: 'warning',
-    confirmButtonText: '确认处置',
-    cancelButtonText: '取消',
-  })
+  const isBatch = disposeMode.value === 'batch'
+  await ElMessageBox.confirm(
+    isBatch ? '确认将所选异常批量处置并关闭？' : '确认将该异常处置并关闭？',
+    isBatch ? '批量处置异常' : '处置异常',
+    { type: 'warning', confirmButtonText: '确认处置', cancelButtonText: '取消' },
+  )
   submitting.value = true
   try {
-    const count = batchDisposeWarningCenter(selection.value.map((row) => row.id), {
+    const ids = disposeTargets.value.map((row) => row.id)
+    const count = batchDisposeWarningCenter(ids, {
       disposal_result: '已关闭',
       content: note,
       attachments: disposeForm.files.map((file) => file.name || file),
@@ -108,10 +125,11 @@ async function confirmBatchDispose() {
     })
     disposeVisible.value = false
     selection.value = []
+    disposeTargets.value = []
     syncMajorHazardWarningCenter()
     refreshTick.value += 1
     if (!count) return ElMessage.warning('没有可处置的待处理异常')
-    ElMessage.success(`已批量处置 ${count} 条异常`)
+    ElMessage.success(isBatch ? `已批量处置 ${count} 条异常` : '已处置该异常并关闭')
   } finally {
     submitting.value = false
   }
@@ -172,8 +190,11 @@ watch(projectId, () => {
           <template #default="{ row }"><el-tag :type="statusType(row)" size="small">{{ displayStatus(row) }}</el-tag></template>
         </el-table-column>
         <el-table-column prop="time" label="产生时间" width="170" />
-        <el-table-column label="操作" width="88" fixed="right" align="center">
-          <template #default="{ row }"><el-button link type="primary" @click="openDetail(row)">详情</el-button></template>
+        <el-table-column label="操作" width="132" fixed="right" align="center">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="openDetail(row)">详情</el-button>
+            <el-button v-if="row.status === '待处理'" link type="primary" @click="openDispose(row)">处置</el-button>
+          </template>
         </el-table-column>
       </el-table>
 
@@ -187,7 +208,7 @@ watch(projectId, () => {
         />
       </div>
 
-      <el-dialog v-model="disposeVisible" title="批量处置异常" width="540px" destroy-on-close>
+      <el-dialog v-model="disposeVisible" :title="disposeMode === 'batch' ? '批量处置异常' : '处置异常'" width="540px" destroy-on-close>
         <el-form label-width="88px">
           <el-form-item label="处置结果"><el-tag type="success">已关闭</el-tag></el-form-item>
           <el-form-item label="处置说明" required>
@@ -201,7 +222,7 @@ watch(projectId, () => {
         </el-form>
         <template #footer>
           <el-button @click="disposeVisible = false">取消</el-button>
-          <el-button type="primary" :loading="submitting" @click="confirmBatchDispose">确认处置并关闭</el-button>
+          <el-button type="primary" :loading="submitting" @click="confirmDispose">确认处置并关闭</el-button>
         </template>
       </el-dialog>
     </template>
