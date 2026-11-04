@@ -322,6 +322,21 @@ defineExpose({ reload: load })
       </el-table-column>
       <el-table-column prop="description" label="隐患描述" min-width="190" show-overflow-tooltip />
       <el-table-column prop="hazardLevel" label="隐患等级" width="88" align="center" />
+      <el-table-column label="图片" width="84" align="center">
+        <template #default="{ row }">
+          <el-image
+            v-if="hazardPhotos(row).length"
+            :src="photoSrc(hazardPhotos(row)[0])"
+            :preview-src-list="hazardPreviewList(row)"
+            :z-index="3000"
+            preview-teleported
+            fit="cover"
+            class="cell-photo"
+            :alt="`隐患图片 1`"
+          />
+          <span v-else>--</span>
+        </template>
+      </el-table-column>
       <el-table-column label="备注" min-width="110" show-overflow-tooltip>
         <template #default="{ row }">{{ row.remark || '--' }}</template>
       </el-table-column>
@@ -515,6 +530,16 @@ defineExpose({ reload: load })
   overflow: hidden;
   border: 1px solid #ebeef5;
   cursor: zoom-in;
+}
+
+.cell-photo {
+  width: 46px;
+  height: 46px;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid #ebeef5;
+  cursor: zoom-in;
+  vertical-align: middle;
 }
 
 .close-tip {

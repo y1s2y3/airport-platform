@@ -210,6 +210,11 @@ watch(activeCheckCategories, (categories) => {
 }, { immediate: true })
 
 function goBack() {
+  // 从危大工程过程管控跳转而来：返回上一页（过程管控）
+  if (route.query.from === 'hazard-process') {
+    router.back()
+    return
+  }
   router.push(tasksBase.value)
 }
 </script>

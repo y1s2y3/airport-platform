@@ -11,6 +11,9 @@ import {
   getLedgerStartDate,
   getLedgerStatus,
   getMajorHazardData,
+  getLedgerControlPointChecklist,
+  getLedgerControlPointStats,
+  setLedgerControlPointDone,
 } from '../../utils/majorHazardManualStorage.js'
 
 const router = useRouter()
@@ -64,7 +67,6 @@ const pagedRows = computed(() => {
   const start = (page.value - 1) * pageSize.value
   return ledgerRows.value.slice(start, start + pageSize.value)
 })
-const selectedControlPointRows = computed(() => selectedLedger.value ? aggregateControlPointRows(selectedLedger.value) : [])
 
 function load() {
   if (!projectId.value) {
@@ -108,41 +110,42 @@ function progressPercent(row) {
   if (!parts.length) return 0
   return Math.round(parts.reduce((sum, part) => sum + partProgressPercent(part), 0) / parts.length)
 }
-function aggregateControlPointRows(row) {
-  const definitions = row.controlPoints || []
-  return (row.parts || []).flatMap((part) => definitions.map((point) => {
-    const latest = [...(part.process?.controlPoints?.records || [])].reverse().find((record) => record.controlPointId === point.id)
-    const currentStatus = latest?.displayStatus === 'green'
-      ? '已落实'
-      : latest?.displayStatus === 'red'
-      ? '需整改'
-      : latest?.status === '已落实'
-      ? '已落实'
-      : latest?.status === '需整改'
-      ? '需整改'
-      : '未确认'
-    const currentStatusText = currentStatus === '未确认'
-      ? '未确认'
-      : latest?.displayStatusText || (currentStatus === '已落实' ? point.greenStatusText || '已落实' : point.redStatusText || '未落实')
-    return {
-      ...point,
-      partId: part.id,
-      partName: part.wbsPath || part.name || '—',
-      handlingStatus: currentStatus,
-      currentStatus,
-      currentStatusText,
-    }
-  }))
+/** 清单级管控要点统计（整条清单所有部位共用一份，用户 2026-11-04） */
+function controlPointStatsOf(row) {
+  return getLedgerControlPointStats(data.value, row)
 }
 function implementedPointCount(row) {
-  return aggregateControlPointRows(row).filter((point) => point.handlingStatus === '已落实').length
+  return controlPointStatsOf(row).done
 }
 function totalPointCount(row) {
-  return aggregateControlPointRows(row).length
+  return controlPointStatsOf(row).total
 }
 function controlPointPercent(row) {
-  const total = totalPointCount(row)
-  return total ? Math.round(implementedPointCount(row) / total * 100) : 0
+  return controlPointStatsOf(row).percent
+}
+
+/** 弹窗用：按分类分组后的勾选清单 */
+const selectedChecklist = computed(() => (selectedLedger.value ? getLedgerControlPointChecklist(data.value, selectedLedger.value) : []))
+const selectedChecklistGroups = computed(() => {
+  const map = new Map()
+  selectedChecklist.value.forEach((item) => {
+    const key = item.classification || '其他'
+    if (!map.has(key)) map.set(key, [])
+    map.get(key).push(item)
+  })
+  return [...map.entries()].map(([name, items]) => ({ name, items }))
+})
+const selectedStats = computed(() => ({
+  total: selectedChecklist.value.length,
+  done: selectedChecklist.value.filter((item) => item.done).length,
+}))
+function toggleChecklistPoint(item, value) {
+  if (!selectedLedger.value) return
+  setLedgerControlPointDone(projectId.value, selectedLedger.value.sourceId, item.id, value)
+  const sourceId = selectedLedger.value.sourceId
+  const next = { ...(data.value.controlPointChecks || {}) }
+  next[sourceId] = { ...(next[sourceId] || {}), [item.id]: Boolean(value) }
+  data.value = { ...data.value, controlPointChecks: next }
 }
 function openControlPoints(row) {
   selectedLedger.value = row
@@ -215,7 +218,7 @@ watch(projectId, load, { immediate: true })
                   <template #default="{ row: part }"><div class="part-progress"><span>{{ partProgressPercent(part) }}%</span><el-progress :percentage="partProgressPercent(part)" :show-text="false" :stroke-width="5" /></div></template>
                 </el-table-column>
                 <el-table-column label="管控要点" width="105">
-                  <template #default="{ row: part }">{{ aggregateControlPointRows(row).filter((item) => item.partId === part.id && item.handlingStatus === '已落实').length }}/{{ aggregateControlPointRows(row).filter((item) => item.partId === part.id).length }}</template>
+                  <template #default="{ row: part }">{{ implementedPointCount(row) }}/{{ totalPointCount(row) }}</template>
                 </el-table-column>
                 <el-table-column label="施工情况" width="110">
                   <template #default="{ row: part }">
@@ -264,15 +267,22 @@ watch(projectId, load, { immediate: true })
       </div>
       </section>
 
-      <el-dialog v-model="controlPointDialogVisible" :title="`${selectedLedger?.name || '危大工程'}—管控要点`" width="1080px" destroy-on-close>
-        <el-table :data="selectedControlPointRows" border stripe max-height="480" empty-text="暂无管控要点">
-          <el-table-column type="index" label="序号" width="58" />
-          <el-table-column prop="partName" label="施工部位" min-width="220" show-overflow-tooltip />
-          <el-table-column prop="content" label="管控内容" min-width="330" />
-          <el-table-column label="显示状态（红）" width="150"><template #default="{ row }"><el-tag type="danger">{{ row.redStatusText || '未落实' }}</el-tag></template></el-table-column>
-          <el-table-column label="显示状态（绿）" width="150"><template #default="{ row }"><el-tag type="success">{{ row.greenStatusText || '已落实' }}</el-tag></template></el-table-column>
-          <el-table-column label="当前状态" min-width="150"><template #default="{ row }"><el-tag size="small" :type="row.currentStatus === '已落实' ? 'success' : row.currentStatus === '需整改' ? 'danger' : 'info'">{{ row.currentStatusText }}</el-tag></template></el-table-column>
-        </el-table>
+      <el-dialog v-model="controlPointDialogVisible" :title="`${selectedLedger?.name || '危大工程'}—管控要点`" width="880px" destroy-on-close>
+        <div class="checklist-summary">
+          <span>合格：<b>{{ selectedStats.done }}/{{ selectedStats.total }}</b></span>
+          <small>针对整条危大清单的全部施工部位，切换即保存</small>
+        </div>
+        <div v-if="selectedChecklistGroups.length" class="checklist-wrap">
+          <div v-for="group in selectedChecklistGroups" :key="group.name" class="checklist-group">
+            <div class="checklist-group-title">{{ group.name }}</div>
+            <div v-for="item in group.items" :key="item.id" class="checklist-row">
+              <span class="checklist-text">{{ item.content }}</span>
+              <span class="checklist-state" :class="{ done: item.done }">{{ item.done ? '已完成' : '未完成' }}</span>
+              <el-switch :model-value="item.done" @change="(val) => toggleChecklistPoint(item, val)" />
+            </div>
+          </div>
+        </div>
+        <el-empty v-else :image-size="60" description="该危大工程暂无管控要点" />
         <template #footer><el-button type="primary" @click="controlPointDialogVisible = false">关闭</el-button></template>
       </el-dialog>
     </template>
@@ -281,6 +291,16 @@ watch(projectId, load, { immediate: true })
 </template>
 
 <style scoped>
+.checklist-summary{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding:8px 12px;border-radius:6px;background:#f6f8fa}
+.checklist-summary b{color:var(--ap-primary,#8f0045);font-size:16px}
+.checklist-summary small{color:var(--ap-text-muted);font-size:12px}
+.checklist-wrap{max-height:480px;overflow:auto}
+.checklist-group{margin-bottom:14px}
+.checklist-group-title{margin-bottom:6px;padding-left:8px;border-left:3px solid var(--ap-primary,#8f0045);font-weight:600;font-size:13px;color:#1f2329}
+.checklist-row{display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid #f0f2f5}
+.checklist-text{flex:1;line-height:1.6;font-size:13px;color:#1f2329}
+.checklist-state{min-width:52px;text-align:right;font-size:12px;color:#8a94a6}
+.checklist-state.done{color:#3f9c58}
 .back-bar{display:flex;align-items:center;margin-bottom:10px}
 .ledger-page{min-height:100%;padding:20px 22px 34px;border:0;border-radius:0;background:#f5f7fa}
 .page-header{margin-bottom:18px}

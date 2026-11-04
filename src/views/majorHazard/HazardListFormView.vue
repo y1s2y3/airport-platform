@@ -19,6 +19,8 @@ import {
   getLedgerStartDate,
   getLedgerStatus,
   getMajorHazardData,
+  getLedgerControlPointChecklist,
+  setLedgerControlPointDone,
   getNodeState,
   normalizeLedger,
   saveLedger,
@@ -76,7 +78,7 @@ const linkedDangerWorks = computed(() => {
 const basicReadonly = computed(() => routeMode.value === 'view' || isControlMode.value || (form.value && getLedgerStatus(form.value) === '完工'))
 const canEditBasic = computed(() => !basicReadonly.value)
 // 现场巡视由巡检管理完成任务后自动写入，不再需要回到危大工程手工关联巡检单。
-const canAddProcessRecord = computed(() => isControlMode.value && activeProcessTab.value !== 'patrol')
+const canAddProcessRecord = computed(() => isControlMode.value && activeProcessTab.value !== 'patrol' && activeProcessTab.value !== 'controlPoints')
 const pageTitle = computed(() => isControlMode.value ? '危大工程过程管控' : routeMode.value === 'view' ? '查看危大清单' : '编辑危大清单')
 const currentTab = computed(() => PROCESS_TABS.find((item) => item.key === activeProcessTab.value) || PROCESS_TABS[0])
 const currentConfig = computed(() => PROCESS_CONFIGS[activeProcessTab.value])
@@ -98,8 +100,8 @@ const inspectionTaskOptions = computed(() => listMobileInspectionTasks()
 const selectedRealNamePersonnel = computed(() => realNamePersonnel.value.filter((person) => (recordForm.value.personIds || []).includes(person.id)))
 const selectedInspectionTasks = computed(() => {
   const ids = recordForm.value.inspectionTaskIds || []
-  const snapshots = recordForm.value.inspectionTasks || []
-  return ids.map((id) => snapshots.find((item) => item.id === id) || inspectionTaskOptions.value.find((item) => item.id === id)).filter(Boolean)
+  const inline = recordForm.value.inspectionTasks || []
+  return ids.map((id) => inline.find((task) => task.id === id) || inspectionTaskOptions.value.find((task) => task.id === id)).filter(Boolean)
 })
 const recordAttachmentLabel = computed(() => ['conditionAcceptance', 'progress', 'acceptance'].includes(activeProcessTab.value) ? '现场照片' : '附件')
 const recordPartLabel = computed(() => ['conditionAcceptance', 'progress', 'acceptance'].includes(activeProcessTab.value) ? '验收部位' : '施工部位')
@@ -116,6 +118,31 @@ const controlPointStatusRows = computed(() => {
 })
 const entityTree = computed(() => decorateEntityTree(buildEntityBreakdownTree(projectId.value)))
 const entityNodes = computed(() => flattenEntityTree(entityTree.value).filter((item) => item.node_type !== 9))
+/** 管控要点：整条清单（全部施工部位）共用一份勾选清单（用户 2026-11-04） */
+const controlChecklist = computed(() => (form.value ? getLedgerControlPointChecklist(data.value, form.value) : []))
+const controlChecklistGroups = computed(() => {
+  const map = new Map()
+  controlChecklist.value.forEach((item) => {
+    const key = item.classification || '其他'
+    if (!map.has(key)) map.set(key, [])
+    map.get(key).push(item)
+  })
+  return [...map.entries()].map(([name, items]) => ({ name, items }))
+})
+const controlChecklistStats = computed(() => ({
+  total: controlChecklist.value.length,
+  done: controlChecklist.value.filter((item) => item.done).length,
+}))
+function toggleChecklistPoint(item, value) {
+  if (!form.value?.sourceId) return
+  setLedgerControlPointDone(projectId.value, form.value.sourceId, item.id, value)
+  // 只更新本地勾选缓存，不整页重载（重载会把页签重置为第一个）
+  const sourceId = form.value.sourceId
+  const next = { ...(data.value.controlPointChecks || {}) }
+  next[sourceId] = { ...(next[sourceId] || {}), [item.id]: Boolean(value) }
+  data.value = { ...data.value, controlPointChecks: next }
+}
+
 const processRows = computed(() => {
   if (!form.value) return []
   return form.value.parts.flatMap((part) => {
@@ -189,7 +216,7 @@ const recordDetailFields = computed(() => {
     .map((field) => ({
       label: field.label,
       value: field.type === 'inspectionTasks'
-        ? selectedInspectionTasks.value.map((item) => item.taskName || item.taskNo).join('、')
+        ? selectedInspectionTasks.value.map((item) => item.taskNo || item.taskName).join('、')
         : field.key === 'executionRate' && recordForm.value[field.key] !== ''
         ? `${recordForm.value[field.key]}%`
         : Array.isArray(recordForm.value[field.key]) ? recordForm.value[field.key].join('、') : recordForm.value[field.key],
@@ -812,6 +839,25 @@ watch([projectId, sourceId, routeMode], load, { immediate: true })
             </template>
           </el-tab-pane>
         </el-tabs>
+        <template v-if="activeProcessTab === 'controlPoints'">
+          <div class="table-meta"><span>管控要点</span><small>针对整条危大清单的全部施工部位，切换即保存</small></div>
+          <div class="checklist-summary">
+            <span>合格：<b>{{ controlChecklistStats.done }}/{{ controlChecklistStats.total }}</b></span>
+            <small>无需新增记录，直接切换开关即可登记落实状态</small>
+          </div>
+          <div v-if="controlChecklistGroups.length" class="checklist-wrap">
+            <div v-for="group in controlChecklistGroups" :key="group.name" class="checklist-group">
+              <div class="checklist-group-title">{{ group.name }}</div>
+              <div v-for="item in group.items" :key="item.id" class="checklist-row">
+                <span class="checklist-text">{{ item.content }}</span>
+                <span class="checklist-state" :class="{ done: item.done }">{{ item.done ? '已完成' : '未完成' }}</span>
+                <el-switch :model-value="item.done" @change="(val) => toggleChecklistPoint(item, val)" />
+              </div>
+            </div>
+          </div>
+          <el-empty v-else :image-size="60" description="该危大工程暂无管控要点" />
+        </template>
+        <template v-else>
         <div class="table-meta"><span>{{ currentTab.label }}台账</span><small>共 {{ processRows.length }} 条记录</small></div>
         <el-table :data="processRows" border stripe empty-text="暂无记录" class="business-table process-ledger-table">
           <el-table-column type="index" label="序号" width="56" />
@@ -825,13 +871,13 @@ watch([projectId, sourceId, routeMode], load, { immediate: true })
           <el-table-column v-if="activeProcessTab === 'progress'" label="危险作业数量" width="120">
             <template #default="{ row }">{{ dangerWorkCount(row) }}</template>
           </el-table-column>
-          <el-table-column v-else-if="!['workerRegistration', 'patrol'].includes(activeProcessTab)" label="附件" width="80"><template #default="{ row }">{{ String(row.attachmentInfo || '').split('\n').filter(Boolean).length }}</template></el-table-column>
-          <el-table-column prop="createdBy" label="创建人" width="100" />
+                    <el-table-column prop="createdBy" label="创建人" width="100" />
           <el-table-column prop="createdAt" label="创建时间" width="170" />
           <el-table-column label="操作" width="80" fixed="right"><template #default="{ row }"><el-button link type="primary" @click="openViewRecord(row)">查看</el-button></template></el-table-column>
         </el-table>
+        </template>
 
-        <div v-if="!['workerRegistration', 'patrol'].includes(activeProcessTab)" class="process-files">
+        <div v-if="!['workerRegistration', 'patrol', 'controlPoints'].includes(activeProcessTab)" class="process-files">
           <div class="table-meta"><span>附件资料</span><small>共 {{ tabAttachmentRows.length }} 个文件</small></div>
           <el-table :data="tabAttachmentRows" border empty-text="暂无数据" class="process-file-table">
             <el-table-column type="index" label="序号" width="70" align="center" />
@@ -852,7 +898,6 @@ watch([projectId, sourceId, routeMode], load, { immediate: true })
           <div class="record-detail-head">
             <div>
               <h3>{{ currentTab.label }}记录详情</h3>
-              <p>记录编号：{{ recordForm.id || '—' }}</p>
             </div>
           </div>
 
@@ -860,7 +905,6 @@ watch([projectId, sourceId, routeMode], load, { immediate: true })
             <div class="record-detail-title">记录概况</div>
             <el-descriptions :column="2" border>
               <el-descriptions-item label="施工部位" :span="2">{{ recordDetailPartName }}</el-descriptions-item>
-              <el-descriptions-item label="记录类型">{{ currentTab.label }}</el-descriptions-item>
               <el-descriptions-item label="创建人">{{ recordForm.createdBy || '—' }}</el-descriptions-item>
               <el-descriptions-item label="创建时间">{{ recordForm.createdAt || recordForm.date || '—' }}</el-descriptions-item>
             </el-descriptions>
@@ -1036,6 +1080,16 @@ watch([projectId, sourceId, routeMode], load, { immediate: true })
 .stage-steps{width:100%}
 .stage-steps :deep(.el-step__title){font-size:13px}
 .stage-steps :deep(.el-step__icon){width:24px;height:24px;font-size:12px}
+.checklist-summary{display:flex;align-items:center;justify-content:space-between;margin:8px 0 12px;padding:8px 12px;border-radius:6px;background:#f6f8fa}
+.checklist-summary b{color:var(--ap-primary,#8f0045);font-size:16px}
+.checklist-summary small{color:var(--ap-text-muted);font-size:12px}
+.checklist-wrap{max-height:560px;overflow:auto}
+.checklist-group{margin-bottom:14px}
+.checklist-group-title{margin-bottom:6px;padding-left:8px;border-left:3px solid var(--ap-primary,#8f0045);font-weight:600;font-size:13px;color:#1f2329}
+.checklist-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border-bottom:1px solid #f0f2f5}
+.checklist-text{flex:1;line-height:1.6;font-size:13px;color:#1f2329}
+.checklist-state{min-width:52px;text-align:right;font-size:12px;color:#8a94a6}
+.checklist-state.done{color:#3f9c58}
 .section-card{margin-top:16px;padding:20px 22px;border:1px solid #e5e9f0;border-radius:10px;background:#fff;box-shadow:0 2px 8px rgba(31,41,55,.025)}
 .section-heading{min-width:0}
 .section-title{padding-left:10px;border-left:3px solid var(--ap-primary,#8f0045);color:#273142;font-size:16px;font-weight:650;line-height:20px}

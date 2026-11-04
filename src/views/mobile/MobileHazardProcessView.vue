@@ -2,7 +2,7 @@
 /**
  * APP · 危大工程过程管理（九个过程模块切页，无分页；填报口径对齐 Web）
  */
-import { computed, inject, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, inject, onActivated, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
@@ -11,6 +11,7 @@ import { DEFAULT_PROJECT_ID, HQ_PROJECT_OPTION } from '../../config/projectOptio
 import { selectedProjectId } from '../../composables/useCurrentProject.js'
 import { getProjectPersonnel, maskIdCard, maskPhone } from '../../mock/laborRealName.js'
 import { listApprovedSubcontractors } from '../../mock/subcontractorManagement.js'
+import { getMobileInspectionTask, listMobileInspectionTasks } from '../../mock/mobileInspectionTasks.js'
 import { DANGER_WORK_CATEGORY_OPTIONS } from '../../coc/config/dailyWorkSchema.js'
 import { listAllDangerWorkSources } from '../../mock/engineeringWork.js'
 import {
@@ -19,6 +20,8 @@ import {
   getMajorHazardData,
   normalizeLedger,
   saveLedger,
+  getLedgerControlPointChecklist,
+  setLedgerControlPointDone,
 } from '../../utils/majorHazardManualStorage.js'
 import {
   PROCESS_CONFIGS,
@@ -34,6 +37,8 @@ const appBizPageChrome = inject('appBizPageChrome', null)
 const isAppEmbed = computed(() => route.path.startsWith('/app/'))
 const sourceId = computed(() => String(route.query.sourceId || ''))
 const form = ref(null)
+/** 当前项目的危大工程数据（清单级管控要点勾选需要） */
+const data = ref({})
 const activeTab = ref('scheme')
 const processPartFilter = ref('')
 const recordDialogVisible = ref(false)
@@ -56,7 +61,7 @@ function resolveProjectId() {
 const projectId = computed(() => resolveProjectId())
 const currentConfig = computed(() => PROCESS_CONFIGS[activeTab.value])
 const currentTab = computed(() => PROCESS_TABS.find((item) => item.key === activeTab.value) || PROCESS_TABS[0])
-const canAdd = computed(() => activeTab.value !== 'patrol')
+const canAdd = computed(() => activeTab.value !== 'patrol' && activeTab.value !== 'controlPoints')
 const recordAttachmentLabel = computed(() => ['conditionAcceptance', 'progress', 'acceptance'].includes(activeTab.value) ? '现场照片' : '附件')
 const realNamePersonnel = computed(() => getProjectPersonnel(projectId.value).filter((person) => person.entry_status === '在岗'))
 const responsibleOptions = computed(() => realNamePersonnel.value.map((person) => {
@@ -64,6 +69,89 @@ const responsibleOptions = computed(() => realNamePersonnel.value.map((person) =
   const position = person.unit?.work_type || person.basic?.category || '人员'
   return `${name}（${String(position).replace(/^特种-/, '')}）`
 }))
+/** 巡检单选项（现场巡视「关联巡检单」多选） */
+const inspectionTaskOptions = computed(() => (projectId.value ? listMobileInspectionTasks().filter((task) => (task.projectId || task.project_id) === projectId.value || !task.projectId) : []))
+const selectedInspectionTasks = computed(() => {
+  const ids = recordForm.value.inspectionTaskIds || []
+  const inline = recordForm.value.inspectionTasks || []
+  return ids.map((id) => inline.find((task) => task.id === id) || inspectionTaskOptions.value.find((task) => task.id === id)).filter(Boolean)
+})
+
+/** 作业人员登记：实名人员对象 */
+const selectedRealNamePersonnel = computed(() => {
+  const ids = recordForm.value.personIds || []
+  return ids.map((id) => realNamePersonnel.value.find((person) => person.id === id)).filter(Boolean)
+})
+
+/** 详情：施工部位名称 */
+const recordDetailPartName = computed(() => {
+  if (recordForm.value.partName) return recordForm.value.partName
+  const part = form.value?.parts?.find((item) => item.id === recordForm.value.partId)
+  return part?.wbsPath || part?.name || '--'
+})
+
+/** 详情：业务字段（与 WEB 详情同源、同顺序） */
+const recordDetailFields = computed(() => {
+  if (activeTab.value === 'workerRegistration') {
+    const item = recordForm.value
+    return [
+      { label: '姓名', value: item.workerName },
+      { label: '身份证号', value: item.idNumber, maskKey: 'idNumber', fullValue: item.idNumberFull },
+      { label: '手机号', value: item.phone, maskKey: 'phone', fullValue: item.phoneFull },
+      { label: '参建单位', value: item.employer },
+      { label: '工种/职务', value: item.jobType },
+      { label: '工人类型', value: item.workerType },
+      { label: '进场日期', value: item.entryDate },
+      { label: '是否特种作业人员', value: item.isSpecialWorker },
+      { label: '资格证号', value: item.certificateNo },
+      { label: '证书有效期', value: item.certificateExpiry },
+    ]
+  }
+  return (currentConfig.value.fields || [])
+    .filter((field) => field.type !== 'realNamePeople')
+    .map((field) => ({
+      key: field.key,
+      label: field.label,
+      tasks: field.type === 'inspectionTasks' ? selectedInspectionTasks.value : null,
+      value: field.type === 'inspectionTasks'
+        ? selectedInspectionTasks.value.map((item) => item.taskNo || item.taskName).join('、')
+        : field.key === 'executionRate' && recordForm.value[field.key] !== '' && recordForm.value[field.key] !== undefined
+          ? `${recordForm.value[field.key]}%`
+          : Array.isArray(recordForm.value[field.key]) ? recordForm.value[field.key].join('、') : recordForm.value[field.key],
+      wide: field.span === 24 || field.type === 'textarea',
+    }))
+})
+
+/** 详情：三级安全教育进度（作业人员登记） */
+const safetyEducationProgress = computed(() => {
+  const done = Number(recordForm.value.safetyEducationDone) || 0
+  const total = Number(recordForm.value.safetyEducationTotal) || 3
+  return { done, total, percent: total ? Math.round((done / total) * 100) : 0 }
+})
+
+/** 详情：脱敏查看 */
+const revealedKeys = ref(new Set())
+function isRevealed(key) { return revealedKeys.value.has(key) }
+function toggleReveal(key) {
+  const next = new Set(revealedKeys.value)
+  if (next.has(key)) next.delete(key); else next.add(key)
+  revealedKeys.value = next
+}
+
+/** 详情：附件预览与下载（与 WEB 一致：有地址直接打开，演示附件给说明页/说明文件） */
+function previewAttachment(name) {
+  const html = '<!doctype html><meta charset="utf-8"><div style="font-family:system-ui;padding:48px"><h2>' + name + '</h2><p style="color:#5f6b7a">当前为演示附件，尚未接入文件服务，文件原文暂不可预览。</p></div>'
+  window.open(URL.createObjectURL(new Blob([html], { type: 'text/html' })), '_blank', 'noopener')
+}
+function downloadAttachment(name) {
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(new Blob(['演示附件：' + name], { type: 'text/plain;charset=utf-8' }))
+  a.download = name
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+}
+
 const subcontractorOptions = computed(() => listApprovedSubcontractors(projectId.value).map((item) => ({
   value: item.name,
   label: `${item.name}${item.unitType ? `（${item.unitType}）` : ''}`,
@@ -80,6 +168,30 @@ const filteredDangerWorks = computed(() => {
 })
 const linkedDangerWorks = computed(() => recordForm.value.dangerWorks || [])
 const recordAttachmentNames = computed(() => String(recordForm.value.attachmentInfo || '').split('\n').map((item) => item.trim()).filter(Boolean))
+
+/** 管控要点：整条清单（全部部位）共用一份勾选清单（用户 2026-11-04） */
+const controlChecklist = computed(() => (form.value ? getLedgerControlPointChecklist(data.value, form.value) : []))
+const controlChecklistGroups = computed(() => {
+  const map = new Map()
+  controlChecklist.value.forEach((item) => {
+    const key = item.classification || '其他'
+    if (!map.has(key)) map.set(key, [])
+    map.get(key).push(item)
+  })
+  return [...map.entries()].map(([name, items]) => ({ name, items }))
+})
+const controlChecklistStats = computed(() => ({
+  total: controlChecklist.value.length,
+  done: controlChecklist.value.filter((item) => item.done).length,
+}))
+function toggleChecklistPoint(item, value) {
+  if (!form.value?.sourceId) return
+  setLedgerControlPointDone(projectId.value, form.value.sourceId, item.id, value)
+  const sourceId = form.value.sourceId
+  const next = { ...(data.value.controlPointChecks || {}) }
+  next[sourceId] = { ...(next[sourceId] || {}), [item.id]: Boolean(value) }
+  data.value = { ...data.value, controlPointChecks: next }
+}
 
 const processRows = computed(() => {
   if (!form.value) return []
@@ -116,9 +228,10 @@ function load() {
     return
   }
   ensureMajorHazardData(id)
-  const data = getMajorHazardData(id)
-  const row = buildLedgerRows(data).find((item) => item.sourceId === sourceId.value)
-  form.value = row ? normalizeLedger(row, data) : null
+  const projectData = getMajorHazardData(id)
+  data.value = projectData
+  const row = buildLedgerRows(projectData).find((item) => item.sourceId === sourceId.value)
+  form.value = row ? normalizeLedger(row, projectData) : null
   activeTab.value = 'scheme'
   processPartFilter.value = ''
 }
@@ -391,12 +504,95 @@ function submitRecord() {
   ElMessage.success(`${currentTab.value.label}记录新增成功`)
 }
 
+/** ===== 记录卡片：按页签取主标题 / 状态 / 关键字段（用户 2026-11-04） ===== */
+function cardConfigOf() {
+  return currentConfig.value?.card || {}
+}
+function pickCardValue(row, keys) {
+  for (const key of keys || []) {
+    const value = row?.[key]
+    if (value !== '' && value !== undefined && value !== null) return Array.isArray(value) ? value.join('、') : value
+  }
+  return ''
+}
+function cardTitleOf(row) {
+  const cfg = cardConfigOf()
+  return pickCardValue(row, cfg.titleFields) || cfg.titleFallback || currentTab.value.label
+}
+function cardStatusOf(row) {
+  const cfg = cardConfigOf()
+  if (cfg.statusMode === 'acceptance') {
+    const result = row?.acceptanceResult || row?.result || ''
+    if (result === '合格') return { text: '合格', type: 'success' }
+    if (result === '不合格') return { text: '不合格', type: 'danger' }
+    return null
+  }
+  if (cfg.statusMode === 'inPost') return { text: '在岗', type: 'info' }
+  if (row?.status && row.status !== '已完成') return { text: row.status, type: 'warning' }
+  return { text: '已完成', type: 'success' }
+}
+function cardMetaOf(row) {
+  const cfg = cardConfigOf()
+  const list = (cfg.metaFields || [])
+    .map((key) => {
+      if (key === 'dangerWorkCount') return `危险作业 ${dangerWorkCount(row)} 条`
+      const raw = row?.[key]
+      if (raw === '' || raw === undefined || raw === null) return ''
+      let text = Array.isArray(raw) ? raw.join('、') : String(raw)
+      if (cfg.clip && text.length > cfg.clip) text = `${text.slice(0, cfg.clip)}…`
+      return key === 'executionRate' ? `执行率 ${text}%` : text
+    })
+    .filter((item) => item !== '')
+  if (!list.length && cfg.metaFallback) return [cfg.metaFallback]
+  return list
+}
+function cardMetaText(row) {
+  const cfg = cardConfigOf()
+  return cardMetaOf(row).join(cfg.joinArrow ? ' → ' : ' · ')
+}
+function cardDateOf(row) {
+  const key = currentConfig.value?.dateField
+  const raw = (key && row?.[key]) || row?.date || row?.createdAt || ''
+  const text = String(raw || '').trim()
+  if (!text) return '--'
+  return text.slice(0, 10)
+}
+
 function summaryText(row) {
   if (activeTab.value === 'progress') return `执行率 ${row.executionRate ?? '--'}% · 危险作业 ${dangerWorkCount(row)} 条`
   if (activeTab.value === 'workerRegistration') return `${row.workerName || '--'} · ${row.jobType || '--'}`
   if (activeTab.value === 'controlPoints') return row.controlPointContent || row.content || '--'
   const key = currentConfig.value.summaryField
   return row[key] || row.content || '--'
+}
+
+/** 跳转到巡检管理（移动端）的巡检单详情；返回时回到过程管控 */
+/** 从巡检单详情返回后，自动重新打开刚才那条记录详情（用户 2026-11-04） */
+function restoreProcessRecordAfterTask() {
+  let raw = ''
+  try { raw = sessionStorage.getItem('mhProcessReturnRecord') || '' } catch { return }
+  if (!raw) return
+  try { sessionStorage.removeItem('mhProcessReturnRecord') } catch { /* 忽略 */ }
+  let payload = null
+  try { payload = JSON.parse(raw) } catch { payload = { id: raw, tab: '' } }
+  const recordId = payload?.id || ''
+  if (!recordId) return
+  if (payload?.tab) activeTab.value = payload.tab
+  const row = processRows.value.find((item) => item.id === recordId)
+  if (row) openView(row)
+}
+
+function goInspectionTask(task) {
+  if (!task?.id) return
+  const taskBase = route.path.startsWith('/app/') ? '/app/tasks' : '/mobile/tasks'
+  try {
+    sessionStorage.setItem('mhProcessReturnRecord', JSON.stringify({ id: recordForm.value.id || '', tab: activeTab.value }))
+  } catch { /* 忽略存储异常 */ }
+  recordDialogVisible.value = false
+  router.push({
+    path: `${taskBase}/${task.id}`,
+    query: { from: 'hazard-process', sourceId: sourceId.value, projectId: projectId.value },
+  })
 }
 
 function goBack() {
@@ -429,6 +625,8 @@ function syncAppChrome() {
 }
 
 watch([projectId, sourceId], load, { immediate: true })
+onMounted(restoreProcessRecordAfterTask)
+onActivated(restoreProcessRecordAfterTask)
 watch([recordDialogVisible, dangerPickVisible, recordDialogMode, activeTab, form], syncAppChrome, { immediate: true })
 onBeforeUnmount(() => {
   appBizPageChrome?.clear?.()
@@ -466,6 +664,24 @@ onBeforeUnmount(() => {
         </button>
       </div>
 
+      <template v-if="activeTab === 'controlPoints'">
+        <div class="toolbar">
+          <span>合格：{{ controlChecklistStats.done }}/{{ controlChecklistStats.total }}</span>
+          <span class="tip">针对整条清单全部部位，切换即保存</span>
+        </div>
+        <div v-if="controlChecklistGroups.length" class="checklist-wrap">
+          <div v-for="group in controlChecklistGroups" :key="group.name" class="checklist-group">
+            <div class="checklist-group-title">{{ group.name }}</div>
+            <div v-for="item in group.items" :key="item.id" class="checklist-row">
+              <span class="checklist-text">{{ item.content }}</span>
+              <span class="checklist-state" :class="{ done: item.done }">{{ item.done ? '已完成' : '未完成' }}</span>
+              <el-switch :model-value="item.done" @change="(val) => toggleChecklistPoint(item, val)" />
+            </div>
+          </div>
+        </div>
+        <div v-else class="empty">暂无管控要点</div>
+      </template>
+      <template v-else>
       <div class="toolbar">
         <span>共 {{ processRows.length }} 条</span>
         <button v-if="canAdd" type="button" class="add-btn" @click="openAdd"><el-icon><Plus /></el-icon>新增</button>
@@ -486,16 +702,20 @@ onBeforeUnmount(() => {
 
       <div class="list-body">
         <div v-if="!processRows.length" class="empty">暂无{{ currentTab.label }}记录</div>
-        <button v-for="row in processRows" :key="row.id" type="button" class="card" @click="openView(row)">
+                <button v-for="row in processRows" :key="row.id" type="button" class="card" @click="openView(row)">
           <div class="card-top">
             <span class="part-name">{{ row.partName }}</span>
-            <span class="time">{{ row.createdAt || row.date || '--' }}</span>
+            <span class="time">{{ cardDateOf(row) }}</span>
           </div>
-          <div class="card-title">{{ summaryText(row) }}</div>
+          <div class="card-title">
+            <el-tag v-if="cardStatusOf(row)" size="small" :type="cardStatusOf(row).type" class="card-status">{{ cardStatusOf(row).text }}</el-tag>
+            <span>{{ cardTitleOf(row) }}</span>
+          </div>
+          <div v-if="cardMetaText(row)" class="card-meta">{{ cardMetaText(row) }}</div>
           <div class="card-meta">创建人：{{ row.createdBy || row.responsible || '--' }}</div>
         </button>
       </div>
-    </template>
+      </template>    </template>
     <div v-else class="empty">未找到该危大工程</div>
 
     <!-- APP 样式：新增/查看记录（全屏页式） -->
@@ -512,6 +732,80 @@ onBeforeUnmount(() => {
         <span v-else class="app-sheet-action ghost" />
       </header>
       <div class="app-sheet-bd">
+      <!-- 只读详情：与 WEB 详情一致（记录概况 / 业务详情 / 附件 / 特殊区） -->
+      <div v-if="recordDialogMode === 'view'" class="detail-body">
+        <section class="detail-card">
+          <div class="detail-card-title">记录概况</div>
+          <div class="detail-kv"><span>施工部位</span><b>{{ recordDetailPartName }}</b></div>
+          <div class="detail-kv"><span>创建人</span><b>{{ recordForm.createdBy || '--' }}</b></div>
+          <div class="detail-kv"><span>创建时间</span><b>{{ recordForm.createdAt || recordForm.date || '--' }}</b></div>
+        </section>
+
+        <section class="detail-card">
+          <div class="detail-card-title">{{ activeTab === 'workerRegistration' ? '实名制人员信息' : '业务详情' }}</div>
+          <div v-for="field in recordDetailFields" :key="field.label" class="detail-kv" :class="{ wide: field.wide }">
+            <span>{{ field.label }}</span>
+            <b v-if="field.tasks && field.tasks.length" class="detail-links">
+              <template v-for="(task, index) in field.tasks" :key="task.id">
+                <button type="button" class="link-btn" @click="goInspectionTask(task)">{{ task.taskNo || task.taskName }}</button>
+              </template>
+            </b>
+            <b v-else-if="field.maskKey">
+              {{ isRevealed(field.maskKey) ? (field.fullValue || field.value || '--') : (field.value || '--') }}
+              <button type="button" class="link-btn" @click="toggleReveal(field.maskKey)">{{ isRevealed(field.maskKey) ? '隐藏' : '查看' }}</button>
+            </b>
+            <b v-else>{{ field.value === '' || field.value === undefined || field.value === null ? '--' : field.value }}</b>
+          </div>
+          <div v-if="activeTab === 'workerRegistration'" class="detail-kv">
+            <span>三级安全教育完成情况</span>
+            <b>
+              <el-progress :percentage="safetyEducationProgress.percent" :stroke-width="8" :format="() => `${safetyEducationProgress.done}/${safetyEducationProgress.total}`" />
+            </b>
+          </div>
+        </section>
+
+        <section v-if="activeTab === 'progress'" class="detail-card">
+          <div class="detail-card-title">关联危险作业（{{ linkedDangerWorks.length }}）</div>
+          <div v-if="linkedDangerWorks.length" class="danger-list">
+            <div v-for="row in linkedDangerWorks" :key="row.id" class="detail-danger">
+              <div class="detail-kv"><span>施工日期</span><b>{{ emptyCell(row.report_date) }}</b></div>
+              <div class="detail-kv"><span>作业类别</span><b>{{ emptyCell(row.danger_work_category) }}</b></div>
+              <div class="detail-kv"><span>施工区域</span><b>{{ emptyCell(row.work_area) }}</b></div>
+              <div class="detail-kv"><span>当日施工具体内容</span><b>{{ emptyCell(row.work_content) }}</b></div>
+              <div class="detail-kv"><span>施工单位</span><b>{{ emptyCell(row.contractor) }}</b></div>
+            </div>
+          </div>
+          <div v-else class="muted">暂无关联危险作业</div>
+        </section>
+
+        <section v-if="activeTab === 'workerRegistration' && selectedRealNamePersonnel.length" class="detail-card">
+          <div class="detail-card-title">实名制人员（{{ selectedRealNamePersonnel.length }}）</div>
+          <div v-for="person in selectedRealNamePersonnel" :key="person.id" class="detail-danger">
+            <div class="detail-kv"><span>姓名</span><b>{{ person.basic?.name || '--' }}</b></div>
+            <div class="detail-kv"><span>参建单位</span><b>{{ person.unit?.unit_name || '--' }}</b></div>
+            <div class="detail-kv"><span>工人类型</span><b>{{ person.unit?.personnel_category || '--' }}</b></div>
+            <div class="detail-kv"><span>工种/职务</span><b>{{ person.unit?.work_type || '--' }}</b></div>
+            <div class="detail-kv"><span>资格证号</span><b>{{ person.cert_no || '--' }}</b></div>
+          </div>
+        </section>
+
+
+        <section v-if="!['workerRegistration', 'patrol', 'controlPoints'].includes(activeTab)" class="detail-card">
+          <div class="detail-card-title">{{ recordAttachmentLabel }}（{{ recordAttachmentNames.length }}）</div>
+          <div v-if="recordAttachmentNames.length">
+            <div v-for="name in recordAttachmentNames" :key="name" class="detail-attach">
+              <span>{{ name }}</span>
+              <span class="detail-attach-ops">
+                <button type="button" class="link-btn" @click="previewAttachment(name)">查看</button>
+                <button type="button" class="link-btn" @click="downloadAttachment(name)">下载</button>
+              </span>
+            </div>
+          </div>
+          <div v-else class="muted">暂无附件资料</div>
+        </section>
+      </div>
+
+      <div v-else>
         <div class="form-block">
           <label class="form-label required">施工部位</label>
           <el-select
@@ -598,7 +892,8 @@ onBeforeUnmount(() => {
           </div>
         </div>
       </div>
-      <div class="app-sheet-ft">
+      </div>
+    <div class="app-sheet-ft">
         <button type="button" class="ft-btn" @click="recordDialogVisible = false">关闭</button>
         <button v-if="recordDialogMode === 'add'" type="button" class="ft-btn primary" @click="submitRecord">提交</button>
       </div>
@@ -793,7 +1088,8 @@ onBeforeUnmount(() => {
 .card-top { display: flex; justify-content: space-between; gap: 8px; color: #98a2b3; font-size: 10px; }
 .part-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .time { flex: 0 0 auto; }
-.card-title { margin-top: 4px; color: #1f2329; font-size: 12px; font-weight: 600; line-height: 1.35; }
+.card-title { display: flex; align-items: center; gap: 6px; margin-top: 4px; color: #1f2329; font-size: 12px; font-weight: 600; line-height: 1.35; }
+.card-status { flex: 0 0 auto; }
 .card-meta { margin-top: 3px; color: #667085; font-size: 11px; }
 .empty { padding: 40px 16px; text-align: center; color: #98a2b3; font-size: 12px; }
 .danger-block, .attach-list { width: 100%; }
@@ -1006,4 +1302,29 @@ onBeforeUnmount(() => {
   font-size: 10px;
   line-height: 18px;
 }
+.checklist-wrap{padding:0 16px 24px}
+.checklist-group{margin-bottom:14px}
+.checklist-group-title{margin-bottom:6px;padding-left:8px;border-left:3px solid #37a2f6;font-weight:600;font-size:13px;color:#1f2329}
+.checklist-row{display:flex;align-items:center;gap:10px;padding:12px 14px;margin-bottom:8px;border-radius:10px;background:#fff}
+.checklist-text{flex:1;line-height:1.6;font-size:13px;color:#1f2329}
+.checklist-state{min-width:48px;text-align:right;font-size:12px;color:#8a94a6}
+.checklist-state.done{color:#3f9c58}
+.detail-body{padding:12px 16px 24px}
+.detail-card{margin-bottom:12px;padding:14px 16px;border-radius:12px;background:#fff}
+.detail-card-title{margin-bottom:10px;padding-left:8px;border-left:3px solid #37a2f6;font-weight:600;font-size:14px;color:#1f2329}
+.detail-kv{display:flex;gap:12px;padding:8px 0;border-bottom:1px solid #f2f4f7;font-size:13px;line-height:1.6}
+.detail-kv:last-child{border-bottom:none}
+.detail-kv>span{flex:0 0 96px;color:#8a94a6}
+.detail-kv>b{flex:1;font-weight:500;color:#1f2329;word-break:break-all}
+.detail-kv.wide{flex-direction:column;gap:4px}
+.detail-kv.wide>span{flex:0 0 auto;white-space:nowrap}
+.detail-kv.wide>b{flex:0 0 auto}
+.detail-links{display:flex;flex-direction:column;align-items:flex-start;gap:6px;flex:0 0 auto}
+.detail-danger{padding:10px 0;border-bottom:1px dashed #eef1f5}
+.detail-danger:last-child{border-bottom:none}
+.detail-attach{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid #f2f4f7;font-size:13px}
+.detail-attach:last-child{border-bottom:none}
+.detail-attach-ops{display:flex;gap:12px}
+.link-btn{border:none;background:none;padding:0;color:#8f0045;font-size:13px}
+.detail-links .link-btn{text-decoration:underline;text-align:left;padding:0}
 </style>

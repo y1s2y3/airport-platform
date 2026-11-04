@@ -1,6 +1,8 @@
 import { COC_PROJECT_OPTIONS } from '../config/projectCatalog.js'
 
 const STORAGE_KEY = 'airport-major-hazard-manual-v3'
+import { listMobileInspectionTasks } from '../mock/mobileInspectionTasks.js'
+import { RECORD_DETAIL_EXAMPLES } from './majorHazardProcessConfig.js'
 export const MAJOR_HAZARD_CHANGE_EVENT = 'major-hazard-manual-change'
 
 /** 仅前 10 个项目生成危大工程示例数据，避免看板按项目汇总时铺开全部项目 */
@@ -309,6 +311,52 @@ function backfillDemoWbsParts(data) {
   return changed
 }
 
+/** ===== 现场巡视记录补关联巡检单（旧/演示数据也要能显示巡检单详情） ===== */
+function resolvePatrolTaskPool(projectId) {
+  const projectTasks = (projectId ? listMobileInspectionTasks() : []).filter((task) => {
+    const pid = task.projectId || task.project_id || ''
+    return !pid || pid === projectId
+  })
+  if (projectTasks.length) return projectTasks.slice(0, 2)
+  return Array.isArray(RECORD_DETAIL_EXAMPLES?.patrol?.inspectionTasks) ? RECORD_DETAIL_EXAMPLES.patrol.inspectionTasks : []
+}
+
+function migratePatrolTaskLinks(data, projectId) {
+  if (!data) return false
+  const pool = resolvePatrolTaskPool(projectId)
+  if (!pool.length) return false
+  const validIds = new Set(pool.map((task) => task.id))
+  let changed = false
+  ;(data.ledgers || []).forEach((ledger) => {
+    ;(ledger.parts || []).forEach((part) => {
+      const records = part?.process?.patrol?.records || []
+      records.forEach((record) => {
+        const inline = Array.isArray(record.inspectionTasks) ? record.inspectionTasks : []
+        const ids = Array.isArray(record.inspectionTaskIds) ? record.inspectionTaskIds : []
+        const resolvable = ids.length && ids.every((id) => validIds.has(id) || inline.some((task) => task.id === id))
+        if (resolvable) return
+        record.inspectionTaskIds = pool.map((task) => task.id)
+        record.inspectionTasks = pool.map((task) => ({
+          id: task.id,
+          taskNo: task.taskNo || task.task_no || '',
+          taskName: task.taskName || task.task_name || '',
+          inspectionCategory: task.inspectionCategory || task.inspection_category || '',
+          source: task.source || '',
+          projectId: task.projectId || task.project_id || projectId,
+          project: task.project || '',
+        }))
+        record.inspectionTaskCount = pool.length
+        record.inspectionTaskNo = pool.map((task) => task.taskNo || task.task_no || '').filter(Boolean).join('、')
+        record.inspectionTaskName = pool.map((task) => task.taskName || task.task_name || '').filter(Boolean).join('、')
+        record.inspectors = record.inspectors || record.responsible || '当前用户'
+        record.inspectionDate = record.inspectionDate || record.date || part.startDate || ''
+        changed = true
+      })
+    })
+  })
+  return changed
+}
+
 function blankData(projectId) {
   const withDemo = DEMO_PROJECT_IDS.has(projectId)
   const demo = withDemo ? buildDemoBusinessData(projectId) : { identifications: [], ledgers: [], plans: [] }
@@ -423,6 +471,7 @@ export function ensureMajorHazardData(projectId) {
     if (all[projectId].demoSeeded && backfillDemoWbsParts(all[projectId])) changed = true
     if (changed) writeAll(all)
   }
+  if (migratePatrolTaskLinks(all[projectId], projectId)) writeAll(all)
   return readProject(projectId)
 }
 
@@ -874,4 +923,61 @@ export function savePlan(projectId, payload) {
 
 export function formatCategoryLabel(data, categoryId) {
   return findCategory(data, categoryId)?.name || ''
+}
+
+/* ==================================================================
+ * 危大清单级「管控要点」勾选（用户 2026-11-04）
+ * - 整条清单（所有施工部位）共用一份要点清单，不再按部位逐条新增记录
+ * - 存储：data.controlPointChecks[sourceId][pointId] = true/false
+ * - 兼容旧数据：旧记录中任一部位最新状态为「绿/已落实」→ 迁移为已完成
+ * ================================================================== */
+
+/** 清单涉及的全部管控要点（按 id 去重，跨施工部位合并） */
+export function collectLedgerControlPoints(ledger) {
+  const map = new Map()
+  ;(ledger?.controlPoints || []).forEach((point) => {
+    if (point?.id && !map.has(point.id)) map.set(point.id, point)
+  })
+  return [...map.values()]
+}
+
+/** 旧记录迁移口径：任一部位最新记录为绿/已落实 → 视为已完成 */
+function legacyControlPointDone(ledger, pointId) {
+  for (const part of ledger?.parts || []) {
+    const records = part?.process?.controlPoints?.records || []
+    const latest = [...records].reverse().find((record) => record.controlPointId === pointId)
+    if (!latest) continue
+    if (latest.displayStatus === 'green' || latest.status === '已落实') return true
+    if (latest.displayStatus === 'red' || latest.status === '需整改') return false
+  }
+  return false
+}
+
+/** 清单级管控要点勾选清单：[{ ...point, done }] */
+export function getLedgerControlPointChecklist(data, ledger) {
+  if (!data || !ledger) return []
+  const checks = (data.controlPointChecks || {})[ledger.sourceId] || {}
+  return collectLedgerControlPoints(ledger).map((point) => {
+    const stored = checks[point.id]
+    const done = typeof stored === 'boolean' ? stored : legacyControlPointDone(ledger, point.id)
+    return { ...point, done }
+  })
+}
+
+/** 清单级管控要点统计：{ total, done, percent } */
+export function getLedgerControlPointStats(data, ledger) {
+  const list = getLedgerControlPointChecklist(data, ledger)
+  const done = list.filter((item) => item.done).length
+  return { total: list.length, done, percent: list.length ? Math.round((done / list.length) * 100) : 0 }
+}
+
+/** 切换某个管控要点的完成状态（切换即保存） */
+export function setLedgerControlPointDone(projectId, sourceId, pointId, done) {
+  if (!projectId || !sourceId || !pointId) return false
+  const data = readProject(projectId)
+  data.controlPointChecks = data.controlPointChecks || {}
+  data.controlPointChecks[sourceId] = data.controlPointChecks[sourceId] || {}
+  data.controlPointChecks[sourceId][pointId] = Boolean(done)
+  writeProject(projectId, data)
+  return true
 }

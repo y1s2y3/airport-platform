@@ -14,6 +14,7 @@ export const PROCESS_CONFIGS = {
       { key: 'schemeCode', label: '方案编号', width: 130 }, { key: 'schemeName', label: '方案名称', minWidth: 200 },
       { key: 'preparedBy', label: '编制人', width: 100 }, { key: 'preparedAt', label: '编制日期', width: 120 },
     ],
+    card: { titleFields: ['schemeName'], titleFallback: '专项施工方案', metaFields: ['schemeCode', 'preparedBy'] },
   },
   schemeDisclosure: {
     label: '方案交底', dateField: 'disclosureDate', responsibleField: 'discloser', summaryField: 'schemeName',
@@ -30,6 +31,7 @@ export const PROCESS_CONFIGS = {
       { key: 'discloser', label: '交底人员', width: 160 }, { key: 'disclosureDate', label: '交底时间', width: 170 },
       { key: 'disclosureRemark', label: '交底备注', minWidth: 200 },
     ],
+    card: { titleFields: ['schemeName'], titleFallback: '方案交底', metaFields: ['discloser', 'receiver'], joinArrow: true },
   },
   safetyDisclosure: {
     label: '安全技术交底', dateField: 'disclosureDate', responsibleField: 'siteManager', summaryField: 'title',
@@ -50,6 +52,7 @@ export const PROCESS_CONFIGS = {
       { key: 'receiver', label: '接受人', minWidth: 180 },
       { key: 'disclosureContent', label: '交底内容', minWidth: 220 },
     ],
+    card: { titleFields: ['title'], titleFallback: '安全技术交底', metaFields: ['disclosureLocation', 'siteManager'] },
   },
   workerRegistration: {
     label: '作业人员登记', dateField: 'entryDate', responsibleField: 'workerName', summaryField: 'jobType',
@@ -64,6 +67,7 @@ export const PROCESS_CONFIGS = {
       { key: 'workerType', label: '工人类型', width: 110 },
       { key: 'certificateNo', label: '资格证号', width: 150 }, { key: 'certificateExpiry', label: '证书有效期', width: 120 },
     ],
+    card: { titleFields: ['workerName', 'jobType'], titleFallback: '作业人员登记', statusMode: 'inPost', metaFields: ['employer', 'workerType', 'certificateNo'] },
   },
   conditionAcceptance: {
     label: '施工条件验收', dateField: 'acceptanceDate', responsibleField: '', summaryField: 'acceptanceDescription',
@@ -76,6 +80,7 @@ export const PROCESS_CONFIGS = {
       { key: 'acceptanceResult', label: '验收结果', width: 110 }, { key: 'acceptanceDate', label: '验收时间', width: 165 },
       { key: 'acceptanceDescription', label: '验收描述', minWidth: 240 },
     ],
+    card: { titleFields: [], titleFallback: '施工条件验收', statusMode: 'acceptance', metaFields: ['acceptanceDescription'], metaFallback: '--', clip: 40 },
   },
   progress: {
     label: '施工进度', dateField: 'recordDate', responsibleField: '', summaryField: 'progressDescription',
@@ -88,6 +93,7 @@ export const PROCESS_CONFIGS = {
       { key: 'recordDate', label: '记录日期', width: 120 }, { key: 'executionRate', label: '执行率', width: 100, suffix: '%' },
       { key: 'progressDescription', label: '进度描述', minWidth: 320 },
     ],
+    card: { titleFields: ['progressDescription'], titleFallback: '施工进度记录', metaFields: ['executionRate', 'dangerWorkCount'], numberSuffix: { executionRate: '%' } },
   },
   patrol: {
     label: '现场巡视', dateField: 'inspectionDate', responsibleField: 'inspectors', summaryField: 'inspectionTaskName',
@@ -99,6 +105,7 @@ export const PROCESS_CONFIGS = {
       { key: 'inspectionTaskName', label: '巡检单名称', minWidth: 220 }, { key: 'inspectors', label: '巡检人员', width: 150 },
       { key: 'hazardCount', label: '隐患数', width: 90 },
     ],
+    card: { titleFields: ['inspectionTaskName'], titleFallback: '现场巡视', metaFields: ['inspectionTaskNo', 'inspectors', 'hazardCount'] },
   },
   acceptance: {
     label: '危大工程验收', dateField: 'acceptanceDate', responsibleField: '', summaryField: 'acceptanceDescription',
@@ -111,6 +118,7 @@ export const PROCESS_CONFIGS = {
       { key: 'acceptanceResult', label: '验收结果', width: 110 }, { key: 'acceptanceDate', label: '验收时间', width: 165 },
       { key: 'acceptanceDescription', label: '验收描述', minWidth: 240 },
     ],
+    card: { titleFields: [], titleFallback: '危大工程验收', statusMode: 'acceptance', metaFields: ['acceptanceDescription'], metaFallback: '--', clip: 40 },
   },
   controlPoints: {
     label: '管控要点', dateField: 'date', responsibleField: 'responsible', summaryField: 'content', fields: [],
@@ -160,12 +168,12 @@ export const RECORD_DETAIL_EXAMPLES = {
     ],
   },
   patrol: {
-    inspectionTaskIds: ['mt-demo-patrol-1', 'mt-demo-patrol-2'], inspectionTaskCount: 2,
-    inspectionTaskNo: 'AQXJ20260824001、ZLXJ20260824002', inspectionTaskName: '深基坑临边防护专项巡检、钢支撑安装质量巡检',
+    inspectionTaskIds: ['mt-000', 'mt-001'], inspectionTaskCount: 2,
+    inspectionTaskNo: 'AZXJ20260730001、AQXJ20260728001', inspectionTaskName: '高处作业安全与质量检查、防台防汛安全检查',
     inspectionDate: '2026-08-24', inspectors: '王安全、陈监理', hazardCount: 1,
     inspectionTasks: [
-      { id: 'mt-demo-patrol-1', taskNo: 'AQXJ20260824001', taskName: '深基坑临边防护专项巡检', inspectionCategory: '安全', source: '任务下发', project: '深圳机场扩建工程', inspectionDate: '2026-08-24', deadline: '2026-08-24', status: '已完成', inspector: '王安全', executor: '王安全', itemCount: 8, hazardCount: 1, result: 'hazard', hazardItems: [{ desc: '西侧临边一处警示标识松动', rectifier: '赵班长', rectifyDeadline: '2026-08-28', photos: ['隐患照片01.jpg'] }] },
-      { id: 'mt-demo-patrol-2', taskNo: 'ZLXJ20260824002', taskName: '钢支撑安装质量巡检', inspectionCategory: '质量', source: '系统自建', project: '深圳机场扩建工程', inspectionDate: '2026-08-24', deadline: '2026-08-24', status: '已完成', inspector: '陈监理', executor: '陈监理', itemCount: 6, hazardCount: 0, result: 'normal', normalPhotos: ['巡检照片01.jpg'] },
+      { id: 'mt-000', taskNo: 'AZXJ20260730001', taskName: '高处作业安全与质量检查', inspectionCategory: '安全', source: '任务下发', projectId: 'p-000', project: 'T2项目' },
+      { id: 'mt-001', taskNo: 'AQXJ20260728001', taskName: '防台防汛安全检查', inspectionCategory: '安全', source: '任务下发', projectId: 'p-000', project: 'T2项目' },
     ],
     attachmentInfo: '监理专项巡视记录.pdf\n巡视现场照片.jpg',
   },
