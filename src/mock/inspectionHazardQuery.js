@@ -94,7 +94,7 @@ export function getInspectionHazardDetail(id) {
       detail.flow.push({ a: '复查人复查通过', d: row.reviewDate ? `${row.reviewDate} 10:10` : '', by: row.reviewer || '' })
     }
   }
-  if (row.status === '已复查') {
+  if (row.status === '待复查') {
     detail.managerApproval = { manager: row.manager, status: '审批中', comment: '--' }
     detail.flow.push({ a: '待项目经理审批', d: '', cur: true, by: row.manager || '' })
   } else if (row.status === '已关闭') {
@@ -105,7 +105,7 @@ export function getInspectionHazardDetail(id) {
       comment: row.approvalComment || '--',
     }
     detail.flow.push({ a: '项目经理审批通过，整改单关闭', d: row.closeDate ? `${row.closeDate} 11:00` : '', by: row.manager || '' })
-  } else if (row.status === '待复查') {
+  } else if (row.status === '待验收') {
     if (row.approvalRejected) {
       detail.flow.push({
         a: '项目经理审批不通过，退回复查',
@@ -114,7 +114,7 @@ export function getInspectionHazardDetail(id) {
         by: row.manager || '',
       })
     }
-    detail.flow.push({ a: '待复查人审核', d: '', cur: true, by: row.reviewer || '' })
+    detail.flow.push({ a: '待监理复查', d: '', cur: true, by: row.reviewer || '' })
   } else if (row.isRejected) {
     detail.flow.push({ a: '等待整改人重新整改', d: '', cur: true, by: row.rectifier || '' })
   } else {

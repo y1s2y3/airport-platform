@@ -7,7 +7,7 @@ import { getSamplingPeople, getSamplingManager } from './samplingPeople.js'
 const KEY = 'airport-hazard-sampling-v2'
 /** 抽检规则：全局一套，仅保留取单时间范围、抽取比例、最少抽取数量。 */
 export const DEFAULT_RULE = { days: 90, percent: 30, minimum: 3 }
-export const SAMPLING_STATUS = { PASS: '已通过', FAIL: '未通过', PENDING: '未复核' }
+export const SAMPLING_STATUS = { PASS: '合格', FAIL: '不合格', PENDING: '未复核' }
 const RECIPIENTS = { supervisor: '责任监理', manager: '项目经理' }
 const emptyState = () => ({ rule: { ...DEFAULT_RULE }, tasks: [], history: [] })
 let saved
@@ -30,7 +30,7 @@ export function useSamplingRole() {
 }
 /** 所有原业务状态均可抽查；历史演示种子另保留原场景范围。 */
 export function eligible(row) { return Boolean(row?.id && row.projectKey) }
-const exampleEligible = row => row.source === 'inspection' ? ['已复查','已关闭'].includes(row.status) : ['已关闭','已完成'].includes(row.status)
+const exampleEligible = row => row.source === 'inspection' ? ['待复查','已关闭'].includes(row.status) : ['已关闭','已完成'].includes(row.status)
 /** 抽检状态：以最近一次指挥部抽检结论为准；监理、项目经理的结论不改变它。 */
 export function hqSamplingStatus(row) {
   const logs = sampling.value.history.filter(log => log.rowId === row.id && log.stage === 'hq')

@@ -1,6 +1,6 @@
 /**
  * COC 隐患统计口径（与 PRD 对齐）
- * - 统一展示态：待整改｜待复查/验收｜已关闭
+ * - 统一展示态：待整改｜待验收｜待复查｜已关闭
  * - 来源：巡检（安全/质量）｜监理例会登记｜调度隐患清单
  * - 本期不含随手拍
  */
@@ -16,7 +16,8 @@ import { getSupervisionHazards } from '../../utils/cocAdminDeviceStorage.js'
 /** 统计/筛选用统一整改状态 */
 export const HAZARD_UNIFIED_STATUS_SEGMENTS = [
   { name: '待整改', color: '#F56C6C' },
-  { name: '待复查/验收', color: '#E6A23C' },
+  { name: '待验收', color: '#E6A23C' },
+  { name: '待复查', color: '#409EFF' },
   { name: '已关闭', color: '#67C23A' },
 ]
 
@@ -34,23 +35,13 @@ export const HAZARD_CHANNEL_OPTIONS = HAZARD_SOURCE_CARD_OPTIONS.filter((c) => c
 /** @deprecated 兼容旧四态命名；统计请用 HAZARD_UNIFIED_STATUS_SEGMENTS */
 export const HAZARD_STATUS_SEGMENTS = HAZARD_UNIFIED_STATUS_SEGMENTS
 
-const MID_STATUSES = new Set(['待验收', '待复查', '已复查', '整改中'])
-const CLOSED_STATUSES = new Set(['已关闭', '已闭合'])
-
-/**
- * 将各来源原始状态映射为统一展示态
- * - 待整改：一致
- * - 待复查/验收：含待验收、待复查、已复查（及历史「整改中」）
- * - 已关闭：一致（含已闭合）
- */
+/** 巡检保留四态；其他来源按自身原状态兼容映射，不重写原业务状态。 */
 export function mapHazardUnifiedStatus(rawStatus) {
-  const s = String(rawStatus || '').trim()
-  if (!s) return '待整改'
-  if (s === '待整改') return '待整改'
-  if (CLOSED_STATUSES.has(s)) return '已关闭'
-  if (MID_STATUSES.has(s)) return '待复查/验收'
-  if (s === '待复查/验收') return '待复查/验收'
-  return '待复查/验收'
+  const status = String(rawStatus || '').trim()
+  if (!status || status === '待整改') return '待整改'
+  if (['已关闭', '已闭合'].includes(status)) return '已关闭'
+  if (status === '待复查' || status === '已复查') return '待复查'
+  return '待验收'
 }
 
 export function resolveHazardTicketType(item) {

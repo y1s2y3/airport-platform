@@ -507,7 +507,7 @@ onUnmounted(() => {
             </button>
             <button type="button" class="overview-item overview-item--hazard is-drillable" title="点击查看该项目隐患整改明细" @click="openDetail('inspection', 'hazard')">
               <div class="overview-icon">!</div><strong>隐患</strong>
-              <div class="overview-metrics overview-metrics--four"><div><span>待整改</span><b class="warn">{{ hazardBreakdown.pending }}</b></div><div><span>待复查</span><b>{{ hazardBreakdown.review }}</b></div><div><span>逾期隐患</span><b class="danger">{{ hazardBreakdown.overdue }}</b></div><div><span>隐患闭环率</span><b>{{ scope.hazardClosureRate }}%</b></div></div>
+              <div class="overview-metrics overview-metrics--four"><div><span>待整改</span><b class="warn">{{ hazardBreakdown.pending }}</b></div><div><span>待验收</span><b>{{ hazardBreakdown.review }}</b></div><div><span>逾期隐患</span><b class="danger">{{ hazardBreakdown.overdue }}</b></div><div><span>隐患闭环率</span><b>{{ scope.hazardClosureRate }}%</b></div></div>
             </button>
           </div>
         </section>
@@ -574,7 +574,7 @@ onUnmounted(() => {
         <section class="screen-panel layout-right-top hq-detail-panel">
           <div class="panel-heading"><span>全机场工程 / 当前安全详情</span><small>指挥部级</small></div>
           <button class="hq-detail-block is-drillable" @click="openHqDetail('inspection')">
-            <h3>巡检隐患</h3><div class="detail-metric-row"><div><span>巡检隐患总数</span><b>{{ hazardBreakdown.total }}</b></div><div><span>待整改隐患</span><b class="warn">{{ hazardBreakdown.pending }}</b></div><div><span>待复查隐患</span><b>{{ hazardBreakdown.review }}</b></div><div><span>逾期隐患</span><b class="danger">{{ hazardBreakdown.overdue }}</b></div><div><span>隐患闭环率</span><b>{{ scope.hazardClosureRate }}%</b></div></div>
+            <h3>巡检隐患</h3><div class="detail-metric-row"><div><span>巡检隐患总数</span><b>{{ hazardBreakdown.total }}</b></div><div><span>待整改隐患</span><b class="warn">{{ hazardBreakdown.pending }}</b></div><div><span>待验收隐患</span><b>{{ hazardBreakdown.review }}</b></div><div><span>逾期隐患</span><b class="danger">{{ hazardBreakdown.overdue }}</b></div><div><span>隐患闭环率</span><b>{{ scope.hazardClosureRate }}%</b></div></div>
           </button>
           <button class="hq-detail-block is-drillable" @click="openHqDetail('major')">
             <h3>危大工程监测</h3><div class="detail-metric-row"><div><span>监测区域</span><b>{{ scope.majorRegions }}</b></div><div><span>监测点</span><b>{{ scope.majorPoints }}</b></div><div><span>当前超阈值</span><b class="danger">{{ scope.majorUnhandled }}</b></div><div><span>在线设备率</span><b>{{ scope.majorOnlineRate }}%</b></div></div>
@@ -617,7 +617,7 @@ onUnmounted(() => {
               <div class="stacked-bar-row__chart"><div class="stacked-track"><i class="stacked-segment stacked-segment--done" :style="{ width: `${scope.inspectionTotal ? scope.inspectionDone / scope.inspectionTotal * 100 : 0}%` }">{{ scope.inspectionDone }}</i><i class="stacked-segment stacked-segment--pending" :style="{ width: `${scope.inspectionTotal ? scope.inspectionPending / scope.inspectionTotal * 100 : 0}%` }">{{ scope.inspectionPending }}</i></div><b>{{ scope.inspectionTotal }}</b></div>
             </div>
             <div class="stacked-bar-row">
-              <div class="stacked-bar-row__head"><strong>隐患状态</strong><div class="stacked-bar-legend"><span class="danger-text">待整改</span><span class="warn-text">待复查</span><span class="blue-text">已复查</span><span class="done-text">已关闭</span></div></div>
+              <div class="stacked-bar-row__head"><strong>隐患状态</strong><div class="stacked-bar-legend"><span class="danger-text">待整改</span><span class="warn-text">待验收</span><span class="blue-text">待复查</span><span class="done-text">已关闭</span></div></div>
               <div class="stacked-bar-row__chart"><div class="stacked-track"><i class="stacked-segment stacked-segment--danger" :style="{ width: `${hazardBreakdown.total ? hazardBreakdown.pending / hazardBreakdown.total * 100 : 0}%` }">{{ hazardBreakdown.pending }}</i><i class="stacked-segment stacked-segment--warn" :style="{ width: `${hazardBreakdown.total ? hazardBreakdown.review / hazardBreakdown.total * 100 : 0}%` }">{{ hazardBreakdown.review }}</i><i class="stacked-segment stacked-segment--blue" :style="{ width: `${hazardBreakdown.total ? hazardBreakdown.reviewed / hazardBreakdown.total * 100 : 0}%` }">{{ hazardBreakdown.reviewed }}</i><i class="stacked-segment stacked-segment--closed" :style="{ width: `${hazardBreakdown.total ? hazardBreakdown.closed / hazardBreakdown.total * 100 : 0}%` }">{{ hazardBreakdown.closed }}</i></div><b>{{ hazardBreakdown.total }}</b></div>
             </div>
           </div>
@@ -665,7 +665,7 @@ onUnmounted(() => {
             <thead><tr><th v-for="column in projectDrillColumns" :key="column.key">{{ column.label }}</th></tr></thead>
             <tbody>
               <tr v-for="row in projectDrillRows" :key="row.id">
-                <td v-for="column in projectDrillColumns" :key="column.key" :class="{ 'detail-cell--danger': column.key === 'status' && (row.status === '待执行' && row.overdue || row.status === '待整改'), 'detail-cell--warn': column.key === 'status' && row.status === '待复查' }" :title="String(row[column.key] ?? '')">{{ detailValue(row, column) }}</td>
+                <td v-for="column in projectDrillColumns" :key="column.key" :class="{ 'detail-cell--danger': column.key === 'status' && (row.status === '待执行' && row.overdue || row.status === '待整改'), 'detail-cell--warn': column.key === 'status' && row.status === '待验收' }" :title="String(row[column.key] ?? '')">{{ detailValue(row, column) }}</td>
               </tr>
             </tbody>
           </table>

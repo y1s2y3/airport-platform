@@ -83,7 +83,7 @@ const fields = computed(() => props.kind === 'hazard' ? hazardFields.value : dan
 /**
  * 流程记录：巡检 / 监理例会 / 调度 三类隐患统一展示。
  * - 调度隐患、后台登记的监理例会隐患：取写入时记录的 statusLogs（最新在前 → 反转成时间正序）
- * - 巡检隐患、安质隐患池导入的监理例会隐患：无状态日志，按整改四态（待整改→待复查→已复查→已关闭）
+ * - 巡检隐患、安质隐患池导入的监理例会隐患：无状态日志，按整改四态（待整改→待验收→待复查→已关闭）
  *   派生节点，节点措辞与「巡检管理·整改详情」既有流程记录一致
  */
 const flowLogs = computed(() => {
@@ -121,8 +121,8 @@ const flowLogs = computed(() => {
     { title: '复查人复查通过', user: '', time: '', remark: '' },
     { title: '项目经理审批通过，整改单关闭', user: '', time: '', remark: '' },
   ]
-  const doneCount = status === '已关闭' ? 4 : status === '已复查' ? 3 : status === '待复查' ? 2 : 1
-  const currentTitle = { 待整改: '等待整改人执行', 待复查: '待复查人审核', 已复查: '待项目经理审批' }[status]
+  const doneCount = status === '已关闭' ? 4 : status === '待复查' ? 3 : status === '待验收' ? 2 : 1
+  const currentTitle = { 待整改: '等待整改人执行', 待验收: '待监理复查', 待复查: '待项目经理审批' }[status]
   const currentUser = status === '待整改' ? rectifier : ''
   const logs = steps.slice(0, doneCount).map((step) => ({ ...step, status: 'done' }))
   if (status !== '已关闭' && currentTitle) {

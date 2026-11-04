@@ -120,7 +120,7 @@ export function buildInspectionTaskProcessName(taskName) {
 
 /**
  * 巡检隐患整改待办的流程名称。
- * 需求：流程名称里不再拼接状态（待整改/待复查/已复查），状态由待办/已办分组与详情体现。
+ * 需求：流程名称里不再拼接状态（待整改/待验收/待复查），状态由待办/已办分组与详情体现。
  * 保留第二参数以兼容既有调用方。
  */
 export function buildHazardRectifyProcessName(hazardDesc) {
@@ -1006,7 +1006,7 @@ const inspectionBaseDetails = {
       taskNo: 'AQXJ20260728001',
       rectifyNo: 'ZG202607002',
       currentNode: '复查人复查',
-      status: '待复查',
+      status: '待验收',
       hazard: '五芯电缆破损，线路未按规范敷设',
       hazardPhotos: ['隐患照片1.jpg'],
       rectifier: '王工（项目安全员）',
@@ -1028,7 +1028,7 @@ const inspectionBaseDetails = {
       taskNo: 'AQXJ20260730001',
       rectifyNo: 'ZG202607007',
       currentNode: '项目经理审批',
-      status: '已复查',
+      status: '待复查',
       hazard: '临边防护栏杆局部缺失。',
       hazardPhotos: ['临边防护隐患照片.jpg'],
       rectifier: '王工（项目安全员）',
@@ -1091,7 +1091,7 @@ function buildInspectionExample(bizType, listType, index) {
       rectificationPhotos: ['配电箱整改照片1.jpg'],
       rectificationNote: '已补设接地连接和临时用电标识。',
       processResult: '提交整改',
-      status: '待复查',
+      status: '待验收',
     })
   }
   if (listType === 'done' && bizType === '复查') {
@@ -1100,7 +1100,7 @@ function buildInspectionExample(bizType, listType, index) {
       reviewResult: '通过',
       reviewComment: '现场复查合格，同意提交项目经理审批。',
       processResult: '复查通过',
-      status: '已复查',
+      status: '待复查',
     })
   }
   if (listType === 'done' && bizType === '审批') {
@@ -2064,7 +2064,7 @@ export function resubmitInspectionStarted(id, payload = {}) {
     reviewDate: '',
     reviewResult: '',
     reviewComment: '',
-    status: '待复查',
+    status: '待验收',
     currentNode: '复查人复查',
   }
 
@@ -2087,7 +2087,7 @@ export function resubmitInspectionStarted(id, payload = {}) {
     title: '复查人复查',
     time: '',
     user: detail.reviewer || '复查人',
-    remark: '待复查',
+    remark: '待验收',
     status: 'current',
   })
 
@@ -2100,7 +2100,7 @@ export function resubmitInspectionStarted(id, payload = {}) {
     rectifyId: rectifyId || row.rectifyId,
     processName:
       payload.processName ||
-      buildHazardRectifyProcessName(detail.hazard || detail.rectifyNo || '隐患', '待复查'),
+      buildHazardRectifyProcessName(detail.hazard || detail.rectifyNo || '隐患', '待验收'),
     detail,
     approvalFlow: flow,
   })
@@ -2115,14 +2115,14 @@ export function resubmitInspectionStarted(id, payload = {}) {
     bizType: '复查',
     inspectionBizType: '复查',
     rectifyId: rectifyId || undefined,
-    processName: buildHazardRectifyProcessName(hazardDesc, '待复查'),
+    processName: buildHazardRectifyProcessName(hazardDesc, '待验收'),
     applicant: '当前用户',
     dept: '工程管理部',
     applyTime: now,
     detail: {
       ...detail,
       currentNode: '复查人复查',
-      status: '待复查',
+      status: '待验收',
     },
     approvalFlow: flow.map((step) => ({ ...step })),
   }
@@ -3812,7 +3812,7 @@ function buildInspectionReminder(type, rows) {
 export function ensureInspectionOverdueReminders() {
   const overdueTasks = mobileInspectionTasks.filter((item) => isInspectionOverdue(item, ['已完成']))
   const overdueRectifications = inspectionHazards.filter((item) =>
-    isInspectionOverdue(item, ['已复查', '已关闭']),
+    isInspectionOverdue(item, ['待复查', '已关闭']),
   )
   for (const [type, rows] of [
     ['task', overdueTasks],

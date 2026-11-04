@@ -206,7 +206,7 @@ export const METRIC_APPENDIX = [
   { name: '数据截止与冻结', unit: '—', rule: '统计周日 24:00 状态快照；生成后冻结，后续补录不改已生成周报', source: '周报通用' },
   { name: '跨项目汇总', unit: '—', rule: '计数类各项目相加；比率类 ∑分子 ÷ ∑分母（加权）', source: '数据大屏 §0.3' },
   { name: '空值', unit: '—', rule: '无数据或分母为 0 显示「--」，不显示 0', source: '周报通用' },
-  { name: '隐患闭环', unit: '—', rule: '安全巡检「已关闭」计闭环；「已复查」仍算未闭环（项目经理审批中）；质量问题「已完成/已关闭」计闭环', source: '隐患四源统一池' },
+  { name: '隐患闭环', unit: '—', rule: '安全巡检「已关闭」计闭环；「待复查」仍算未闭环（项目经理审批中）；质量问题「已完成/已关闭」计闭环', source: '隐患四源统一池' },
   { name: '逾期', unit: '—', rule: '有整改期限且未闭环、截止日早于统计截止日即逾期；无期限单列「无期限」不计入逾期', source: '隐患四源统一池' },
   { name: '隐患整改率', unit: '%', rule: '已闭环数 ÷ 需整改数；与考核评分第 2 项同口径（周报为过程值，考核以考核模块固化结果为准）', source: '考核评分十项指标' },
   { name: '验收通过率', unit: '%', rule: '已通过 ÷ 验收任务数（原型演示按通过率展示；接正式数据后可按「重新申报来源为空」计算一次性通过率）', source: '质量验评看板' },
@@ -549,7 +549,7 @@ function buildSafetyHazard(weekKey) {
     title: '3.2 隐患整治',
     summary:
       `本周发现隐患 ${sum('created')} 条、闭环 ${sum('closed')} 条（闭环率 ${fmtPct(pct(sum('closed'), sum('created')))}）、` +
-      `未闭环存量 ${sum('open')} 条（待整改 ${sum('pendingFix')}、待复查 ${sum('pendingReview')}、已复查 ${sum('reviewed')}）、` +
+      `未闭环存量 ${sum('open')} 条（待整改 ${sum('pendingFix')}、待验收 ${sum('pendingReview')}、待复查 ${sum('reviewed')}）、` +
       `逾期 ${sum('overdue')} 条；本周闭环隐患平均整改时长 ${avgDays} 天。`,
     columns: [
       COL_PROJECT,
@@ -557,8 +557,8 @@ function buildSafetyHazard(weekKey) {
       { prop: 'closed', label: '闭环', unit: '条', width: 76, align: 'center' },
       { prop: 'open', label: '未闭环', unit: '条', width: 84, align: 'center' },
       { prop: 'pendingFix', label: '待整改', unit: '条', width: 84, align: 'center' },
-      { prop: 'pendingReview', label: '待复查', unit: '条', width: 84, align: 'center' },
-      { prop: 'reviewed', label: '已复查', unit: '条', width: 84, align: 'center' },
+      { prop: 'pendingReview', label: '待验收', unit: '条', width: 84, align: 'center' },
+      { prop: 'reviewed', label: '待复查', unit: '条', width: 84, align: 'center' },
       { prop: 'overdue', label: '逾期', unit: '条', width: 76, align: 'center' },
       { prop: 'rate', label: '整改率', unit: '%', width: 88, align: 'center', format: 'pct' },
       { prop: 'avgDays', label: '平均整改天数', unit: '天', width: 116, align: 'center' },
@@ -630,7 +630,7 @@ function buildSafetyOverdue(weekKey, hazardSection) {
         owner: project.owner,
         deadline,
         overdueDays,
-        status: i === 0 ? '待整改' : '待复查',
+        status: i === 0 ? '待整改' : '待验收',
         isLegacy: i === 0 && seed > 0.5 ? '是' : '否',
       })
     }

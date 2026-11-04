@@ -633,7 +633,7 @@ function projectInspectionHazardRows(filter = 'all') {
   return inspectionHazards
     .filter((item) => (item.project_id || item.projectId) === currentProjectId())
     .filter((item) => {
-      const overdue = item.deadline < INSPECTION_DEMO_TODAY && !['已复查', '已关闭'].includes(item.status)
+      const overdue = item.deadline < INSPECTION_DEMO_TODAY && !['待复查', '已关闭'].includes(item.status)
       if (filter === 'pending') return item.status === '待整改'
       if (filter === 'overdue') return overdue
       if (filter === 'closed') return item.status === '已关闭'
@@ -649,7 +649,7 @@ function projectInspectionHazardRows(filter = 'all') {
       rectDate: item.rectDate,
       reviewDate: item.reviewDate,
       deadline: item.deadline,
-      overdue: item.deadline < INSPECTION_DEMO_TODAY && !['已复查', '已关闭'].includes(item.status) ? '是' : '否',
+      overdue: item.deadline < INSPECTION_DEMO_TODAY && !['待复查', '已关闭'].includes(item.status) ? '是' : '否',
       status: item.status,
     }))
 }

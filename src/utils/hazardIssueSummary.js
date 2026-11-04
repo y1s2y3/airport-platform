@@ -7,7 +7,7 @@ import { normalizeInspectionCategories } from '../config/inspectionManagement.js
 import { PROJECT_NAMES, PROJECT_SHORT_NAMES } from '../config/projectCatalog.js'
 
 export const HAZARD_ISSUE_SOURCES = [
-  { value: 'inspection', label: '安全巡检' },
+  { value: 'inspection', label: '安质巡检' },
   { value: 'supervision', label: '监理会议' },
   { value: 'dispatch', label: '调度隐患' },
   { value: 'externalQuality', label: '施工质量问题' },
@@ -174,7 +174,7 @@ export function getCocHazardIssueRows(projectId) {
 export function isHazardIssueOverdue(row, now = new Date()) {
   if (!row.deadline) return null
   if (row.closed) return false
-  if (row.source === 'inspection' && row.status === '已复查') return false
+  if (row.source === 'inspection' && row.status === '待复查') return false
   const raw = String(row.deadline).trim()
   const timestamp = /^\d{4}-\d{2}-\d{2}$/.test(raw)
     ? new Date(`${raw}T23:59:59`)

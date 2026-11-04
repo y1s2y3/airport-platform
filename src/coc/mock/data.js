@@ -1400,7 +1400,7 @@ function withHazardDetail(item, type) {
 
 export const HAZARD_LEVELS = ['一般', '较大', '重大']
 /** 与安全巡检整改单四态对齐 */
-const HAZARD_STATUSES = ['待整改', '待复查', '已复查', '已关闭']
+const HAZARD_STATUSES = ['待整改', '待验收', '待复查', '已关闭']
 export const HAZARD_REPORTERS = ['张安全', '李巡检', '王强', '赵军', '陈磊', '刘洋', '周质量', '吴检', '郑伟', '孙涛', '钱鹏', '马检']
 export const HAZARD_RECTIFIERS = ['王强', '赵军', '陈磊', '刘洋', '周质量', '吴检', '郑伟', '孙涛', '钱鹏', '马检', '张安全', '李巡检']
 /** 隐患单号类型（调度隐患走调度隐患清单，不在本池混票） */
@@ -1468,7 +1468,7 @@ function buildIssuesForType(type, projectsCount = 36) {
   const templates = type === 'safety' ? SAFETY_DESC_TEMPLATES : QUALITY_DESC_TEMPLATES
   const parts = CONSTRUCTION_PARTS.filter((p) => p.id !== 'all')
   const levelWeights = ['一般', '一般', '一般', '较大', '较大', '重大', '一般']
-  const statusWeights = ['待整改', '待整改', '待复查', '待复查', '已复查', '已关闭', '已关闭']
+  const statusWeights = ['待整改', '待整改', '待验收', '待验收', '待复查', '已关闭', '已关闭']
   const issues = []
   let seq = 1
   for (let pIdx = 0; pIdx < projectsCount; pIdx++) {

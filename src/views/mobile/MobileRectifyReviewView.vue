@@ -27,7 +27,7 @@ const flowRecords = computed(() => {
       { a: '整改人提交整改结果', d: '--' },
       { a: '复查不通过，退回继续整改', d: '--', dt: row.rejectReason || '整改不彻底' },
       { a: '整改人重新提交整改结果', d: row.rectificationDate || row.submitDate || '--' },
-      { a: '待复查人审核', d: '', cur: true },
+      { a: '待监理复查', d: '', cur: true },
     ]
   }
   if (row.approvalRejected) {
@@ -42,7 +42,7 @@ const flowRecords = computed(() => {
   return [
     { a: '下发整改单', d: row.applyDate || '--' },
     { a: '整改人提交整改结果', d: row.rectificationDate || row.submitDate || '--' },
-    { a: '待复查人审核', d: '', cur: true },
+    { a: '待监理复查', d: '', cur: true },
   ]
 })
 
@@ -74,7 +74,7 @@ function handleReview(pass) {
   }
   ElMessage.success(
     pass
-      ? '复查通过，状态已更新为“已复查”，已流转至项目经理审批'
+      ? '复查通过，状态已更新为“待复查”，已流转至项目经理审批'
       : '复查不通过，已退回整改人重新整改',
   )
   const tab = route.query.tab

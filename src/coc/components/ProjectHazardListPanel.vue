@@ -12,17 +12,16 @@ const hazardStatusFilter = ref('待整改')
 const hazardStatusOptions = [
   { label: '全部', value: '全部' },
   { label: '待整改', value: '待整改' },
-  { label: '待复查/验收', value: '待复查/验收' },
+  { label: '待验收', value: '待验收' },
+  { label: '待复查', value: '待复查' },
   { label: '已关闭', value: '已关闭' },
 ]
 
 const HAZARD_LEVEL_ORDER = { 重大: 0, 较大: 1, 一般: 2 }
 const statusMap = {
   待整改: 'pending',
-  '待复查/验收': 'doing',
   待复查: 'doing',
   待验收: 'doing',
-  已复查: 'doing',
   已关闭: 'closed',
 }
 const CHANNEL_LABEL = {

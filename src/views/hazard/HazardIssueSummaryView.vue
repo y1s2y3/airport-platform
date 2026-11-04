@@ -189,10 +189,10 @@ function statusTagType(row) {
             <el-select v-model="filters.category" clearable placeholder="问题类别" class="filter-select">
               <el-option label="安全" value="安全" /><el-option label="质量" value="质量" />
             </el-select>
-            <el-select v-model="filters.status" clearable placeholder="处理状态" class="filter-select">
+            <el-select v-model="filters.status" clearable placeholder="整改状态" class="filter-select">
               <el-option v-for="status in statusOptions" :key="status" :label="status" :value="status" />
             </el-select>
-            <el-select v-if="isHqSelected" v-model="filters.samplingStatus" clearable placeholder="抽查状态" aria-label="抽查状态" class="filter-select sampling-status-filter">
+            <el-select v-if="isHqSelected" v-model="filters.samplingStatus" clearable placeholder="抽查结果" aria-label="抽查结果" class="filter-select sampling-status-filter">
               <el-option v-for="status in SAMPLING_STATUS" :key="status" :label="status" :value="status" />
             </el-select>
             <el-date-picker v-model="dateRange" type="daterange" value-format="YYYY-MM-DD" start-placeholder="开始日期" end-placeholder="结束日期" style="width: 230px" />
@@ -209,10 +209,10 @@ function statusTagType(row) {
             <el-table-column label="隐患／问题内容" min-width="220">
               <template #default="{ row }"><div class="issue-title" :title="row.title">{{ row.title || '--' }}</div><div class="issue-number" :title="row.originalNo">{{ row.originalNo }}</div></template>
             </el-table-column>
-            <el-table-column label="原业务状态" width="96" align="center">
+            <el-table-column label="整改状态" width="96" align="center">
               <template #default="{ row }"><el-tag :type="statusTagType(row)" size="small">{{ row.status || '--' }}</el-tag></template>
             </el-table-column>
-            <el-table-column v-if="isHqSelected" label="抽查状态" width="96" align="center">
+            <el-table-column v-if="isHqSelected" label="抽查结果" width="96" align="center">
               <template #default="{ row }"><el-tag :type="samplingStatusType(row)" size="small" effect="plain">{{ samplingStatusTag(row) }}</el-tag></template>
             </el-table-column>
             <el-table-column label="整改人" min-width="88" show-overflow-tooltip>

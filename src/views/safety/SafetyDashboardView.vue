@@ -82,7 +82,7 @@ function isWithinSelectedTime(dateValue) {
 }
 
 function calcOverdue(d) {
-  if (d.status === '已完成' || d.status === '已复查' || d.status === '已关闭') return { overdue: false, days: 0 }
+  if (d.status === '已完成' || d.status === '待复查' || d.status === '已关闭') return { overdue: false, days: 0 }
   if (!d.deadline) return { overdue: false, days: 0 }
   const diff = Math.floor((TODAY - new Date(d.deadline)) / 86400000)
   return { overdue: diff > 0, days: diff > 0 ? diff : 0 }
@@ -103,8 +103,8 @@ const hazardStats = computed(() => {
   const data = scopedHazardData.value
   const total = data.length
   const pending = data.filter(d => d.status === '待整改').length
-  const review = data.filter(d => d.status === '待复查').length
-  const reviewed = data.filter(d => d.status === '已复查').length
+  const review = data.filter(d => d.status === '待验收').length
+  const reviewed = data.filter(d => d.status === '待复查').length
   const closed = data.filter(d => d.status === '已关闭').length
   const overdue = data.filter(d => calcOverdue(d).overdue).length
   return { total, pending, review, reviewed, closed, overdue, rate: total ? Math.round(closed / total * 100) : 0 }
@@ -140,7 +140,7 @@ const taskChartData = computed(() => projectNames.map((name, i) => {
 
 const hazardChartData = computed(() => projectNames.map((name, i) => {
   const items = filteredHazardChartItems.value.filter(d => d.project === name)
-  return { name: projectShort[i], pending: items.filter(d => d.status === '待整改').length, review: items.filter(d => d.status === '待复查').length, reviewed: items.filter(d => d.status === '已复查').length, closed: items.filter(d => d.status === '已关闭').length, rate: items.length ? Math.round(items.filter(d=>d.status==='已关闭').length / items.length * 100) : 0 }
+  return { name: projectShort[i], pending: items.filter(d => d.status === '待整改').length, review: items.filter(d => d.status === '待验收').length, reviewed: items.filter(d => d.status === '待复查').length, closed: items.filter(d => d.status === '已关闭').length, rate: items.length ? Math.round(items.filter(d=>d.status==='已关闭').length / items.length * 100) : 0 }
 }))
 
 // ===== 逾期清单 =====
@@ -189,8 +189,8 @@ function initCharts() {
           label: { show:true, formatter:'{d}%', fontSize:11 },
           data: [
             { value:s.pending, name:'待整改', itemStyle:{color:'#f5a623'} },
-            { value:s.review, name:'待复查', itemStyle:{color:'#4285f4'} },
-            { value:s.reviewed, name:'已复查', itemStyle:{color:'#8f0045'} },
+            { value:s.review, name:'待验收', itemStyle:{color:'#4285f4'} },
+            { value:s.reviewed, name:'待复查', itemStyle:{color:'#8f0045'} },
             { value:s.closed, name:'已关闭', itemStyle:{color:'#34a853'} },
           ],
         }],
@@ -224,16 +224,16 @@ function initCharts() {
         title: { text: 'TOP10', left: 6, top: 2, textStyle: { fontSize: 11, color: '#8f959e', fontWeight: 'normal' } },
         tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: (ps) => {
           const nm = ps[0]?.name || ''; const row = dh.find((v) => v.name === nm) || {}
-          return nm + '<br/>隐患总数：' + ((row.pending||0)+(row.review||0)+(row.reviewed||0)+(row.closed||0)) + ' 条<br/>待整改：' + (row.pending||0) + '　待复查：' + (row.review||0) + '<br/>已复查：' + (row.reviewed||0) + '　已关闭：' + (row.closed||0) + '<br/>整改率：' + (row.rate||0) + '%'
+          return nm + '<br/>隐患总数：' + ((row.pending||0)+(row.review||0)+(row.reviewed||0)+(row.closed||0)) + ' 条<br/>待整改：' + (row.pending||0) + '　待验收：' + (row.review||0) + '<br/>待复查：' + (row.reviewed||0) + '　已关闭：' + (row.closed||0) + '<br/>整改率：' + (row.rate||0) + '%'
         } },
-        legend: { data: ['待整改','待复查','已复查','已关闭'], bottom: 0, itemWidth: 10, itemHeight: 10, textStyle: { fontSize: 11 } },
+        legend: { data: ['待整改','待验收','待复查','已关闭'], bottom: 0, itemWidth: 10, itemHeight: 10, textStyle: { fontSize: 11 } },
         grid: { left: 8, right: 56, top: 24, bottom: 28, containLabel: true },
         xAxis: { type: 'value', name: '隐患数', axisLabel: { fontSize: 10 }, splitLine: { lineStyle: { type: 'dashed' } } },
         yAxis: { type: 'category', inverse: true, data: dh.map((v) => v.name), axisLabel: { fontSize: 11, width: 150, overflow: 'truncate' } },
         series: [
           { name: '已关闭', type: 'bar', stack: 'total', barMaxWidth: 16, data: dh.map((v) => v.closed), itemStyle: { color: '#34a853' } },
-          { name: '已复查', type: 'bar', stack: 'total', barMaxWidth: 16, data: dh.map((v) => v.reviewed), itemStyle: { color: '#8f0045' } },
-          { name: '待复查', type: 'bar', stack: 'total', data: dh.map((v) => v.review), itemStyle: { color: '#4285f4' } },
+          { name: '待复查', type: 'bar', stack: 'total', barMaxWidth: 16, data: dh.map((v) => v.reviewed), itemStyle: { color: '#8f0045' } },
+          { name: '待验收', type: 'bar', stack: 'total', data: dh.map((v) => v.review), itemStyle: { color: '#4285f4' } },
           { name: '待整改', type: 'bar', stack: 'total', barMaxWidth: 16, data: dh.map((v) => v.pending), itemStyle: { color: '#f5a623' } },
         ],
       })
@@ -254,8 +254,8 @@ function updateTimeFilteredCharts() {
     chPieHazard?.setOption({
       series: [{ data: [
         { value:hazardSummary.pending, name:'待整改', itemStyle:{color:'#f5a623'} },
-        { value:hazardSummary.review, name:'待复查', itemStyle:{color:'#4285f4'} },
-        { value:hazardSummary.reviewed, name:'已复查', itemStyle:{color:'#8f0045'} },
+        { value:hazardSummary.review, name:'待验收', itemStyle:{color:'#4285f4'} },
+        { value:hazardSummary.reviewed, name:'待复查', itemStyle:{color:'#8f0045'} },
         { value:hazardSummary.closed, name:'已关闭', itemStyle:{color:'#34a853'} },
       ] }],
     })
@@ -274,8 +274,8 @@ function updateTimeFilteredCharts() {
       yAxis: { data: hazardItems.map(item => item.name) },
       series: [
         { name:'已关闭', data:hazardItems.map(item => item.closed) },
-        { name:'已复查', data:hazardItems.map(item => item.reviewed) },
-        { name:'待复查', data:hazardItems.map(item => item.review) },
+        { name:'待复查', data:hazardItems.map(item => item.reviewed) },
+        { name:'待验收', data:hazardItems.map(item => item.review) },
         { name:'待整改', data:hazardItems.map(item => item.pending) },
       ],
     })
@@ -315,8 +315,8 @@ function goDetail(type, id) {
       <el-col :span="4" v-for="s in [
         { val:hazardStats.total, lbl:'总隐患', cls:'' },
         { val:hazardStats.pending, lbl:'待整改', cls:'warn' },
-        { val:hazardStats.review, lbl:'待复查', cls:'info' },
-        { val:hazardStats.reviewed, lbl:'已复查', cls:'reviewed' },
+        { val:hazardStats.review, lbl:'待验收', cls:'info' },
+        { val:hazardStats.reviewed, lbl:'待复查', cls:'reviewed' },
         { val:hazardStats.closed, lbl:'已关闭', cls:'success' },
         { val:hazardStats.overdue, lbl:'逾期隐患', cls:'danger' },
       ]" :key="s.lbl">

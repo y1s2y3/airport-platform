@@ -44,7 +44,7 @@ const treeDataWithCount = computed(() => {
   return [{ ...root, label: treeSearch.value ? '搜索结果' : root.label, children }]
 })
 
-// 整改单状态：待整改 → 待复查 → 已复查（项目经理审批中）→ 已关闭
+// 整改单状态：待整改 → 待验收 → 待复查（项目经理审批中）→ 已关闭
 const rectifyData = computed(() => listInspectionHazards())
 
 const filterForm = reactive({ keyword: '', category: '', hazardCategory: '', hazardLevel: '', status: '', overdue: '' })
@@ -57,8 +57,8 @@ const hqProjectStats = computed(() => inspectionProjectTree[0].children.map(proj
     project_name: project.label,
     totalCount: rows.length,
     pendingCount: rows.filter(item => item.status === '待整改').length,
-    reviewCount: rows.filter(item => item.status === '待复查').length,
-    reviewedCount: rows.filter(item => item.status === '已复查').length,
+    reviewCount: rows.filter(item => item.status === '待验收').length,
+    reviewedCount: rows.filter(item => item.status === '待复查').length,
     closedCount: rows.filter(item => item.status === '已关闭').length,
     overdueCount: rows.filter(item => isOverdue(item)).length,
   }
@@ -87,12 +87,12 @@ const filteredData = computed(() => {
     if (filterForm.status && d.status !== filterForm.status) return false
     if (filterForm.overdue === '是') {
       if (!d.deadline) return false
-      if (['已复查', '已关闭'].includes(d.status)) return false
+      if (['待复查', '已关闭'].includes(d.status)) return false
       if (new Date(d.deadline) >= new Date(INSPECTION_DEMO_TODAY)) return false
     }
     if (filterForm.overdue === '否') {
       if (!d.deadline) return true
-      if (['已复查', '已关闭'].includes(d.status)) return true
+      if (['待复查', '已关闭'].includes(d.status)) return true
       if (new Date(d.deadline) >= new Date(INSPECTION_DEMO_TODAY)) return true
     }
     if (filterForm.keyword) {
@@ -104,7 +104,7 @@ const filteredData = computed(() => {
 })
 
 function isOverdue(row) {
-  if (['已复查', '已关闭'].includes(row.status)) return false
+  if (['待复查', '已关闭'].includes(row.status)) return false
   if (!row.deadline) return false
   return new Date(row.deadline) < new Date(INSPECTION_DEMO_TODAY)
 }
@@ -134,8 +134,8 @@ function goBackToHQ() {
         <div class="stat-cards">
           <div class="stat-card"><div class="sc-value">{{ hqTotalStats.totalCount }}</div><div class="sc-label">隐患总数</div></div>
           <div class="stat-card"><div class="sc-value text-warn">{{ hqTotalStats.pendingCount }}</div><div class="sc-label">待整改</div></div>
-          <div class="stat-card"><div class="sc-value text-info">{{ hqTotalStats.reviewCount }}</div><div class="sc-label">待复查</div></div>
-          <div class="stat-card"><div class="sc-value text-reviewed">{{ hqTotalStats.reviewedCount }}</div><div class="sc-label">已复查</div></div>
+          <div class="stat-card"><div class="sc-value text-info">{{ hqTotalStats.reviewCount }}</div><div class="sc-label">待验收</div></div>
+          <div class="stat-card"><div class="sc-value text-reviewed">{{ hqTotalStats.reviewedCount }}</div><div class="sc-label">待复查</div></div>
           <div class="stat-card"><div class="sc-value text-success">{{ hqTotalStats.closedCount }}</div><div class="sc-label">已关闭</div></div>
           <div class="stat-card"><div class="sc-value text-danger">{{ hqTotalStats.overdueCount }}</div><div class="sc-label">逾期隐患</div></div>
         </div>
@@ -147,8 +147,8 @@ function goBackToHQ() {
           <el-table-column prop="project_name" label="项目名称" min-width="180" />
           <el-table-column prop="totalCount" label="隐患数量" align="center" />
           <el-table-column prop="pendingCount" label="待整改数量" align="center" />
-          <el-table-column prop="reviewCount" label="待复查数量" align="center" />
-          <el-table-column prop="reviewedCount" label="已复查数量" align="center" />
+          <el-table-column prop="reviewCount" label="待验收数量" align="center" />
+          <el-table-column prop="reviewedCount" label="待复查数量" align="center" />
           <el-table-column prop="closedCount" label="已关闭数量" align="center" />
           <el-table-column label="逾期数量" align="center">
             <template #default="{ row }"><span :class="{ 'overdue-count': row.overdueCount > 0 }">{{ row.overdueCount }}</span></template>
@@ -175,7 +175,7 @@ function goBackToHQ() {
             <el-option v-for="category in HAZARD_CATEGORIES" :key="category" :label="category" :value="category" />
           </el-select>
           <el-select v-model="filterForm.status" placeholder="整改状态" clearable style="width:110px">
-            <el-option label="待整改" value="待整改" /><el-option label="待复查" value="待复查" /><el-option label="已复查" value="已复查" /><el-option label="已关闭" value="已关闭" />
+            <el-option label="待整改" value="待整改" /><el-option label="待验收" value="待验收" /><el-option label="待复查" value="待复查" /><el-option label="已关闭" value="已关闭" />
           </el-select>
           <el-select v-model="filterForm.hazardLevel" placeholder="隐患等级" clearable style="width:200px">
             <el-option v-for="level in HAZARD_LEVELS" :key="level" :label="level" :value="level" />

@@ -18,7 +18,7 @@ onMounted(() => document.querySelector('.page-viewport')?.scrollTo({ top: 0 }))
 const statusText = computed(() => record.value?.status || '--')
 const managerApproval = computed(() => {
   const row = record.value
-  if (!row?.manager || !['已复查', '已关闭'].includes(row.status)) return null
+  if (!row?.manager || !['待复查', '已关闭'].includes(row.status)) return null
   const closed = row.status === '已关闭'
   return {
     manager: row.manager,
@@ -67,7 +67,7 @@ const flowRecords = computed(() => {
       action: '整改人提交整改结果',
       date: row.rectificationDate || row.submitDate || row.applyDate || '--',
     })
-    if (row.status === '待复查') {
+    if (row.status === '待验收') {
       if (row.approvalRejected) {
         items.push({
           action: '复查人复查通过，提交项目经理审批',
@@ -79,9 +79,9 @@ const flowRecords = computed(() => {
           detail: row.approvalReason,
         })
       }
-      items.push({ action: row.currentNode || '待复查人审核', date: '', current: true })
+      items.push({ action: row.currentNode || '待监理复查', date: '', current: true })
     }
-    if (row.status === '已复查') {
+    if (row.status === '待复查') {
       items.push({ action: '复查通过，提交项目经理审批', date: row.reviewDate || row.applyDate || '--' })
       items.push({ action: '待项目经理审批', date: '', current: true })
     }
@@ -94,7 +94,7 @@ const flowCollapsed = ref(false)
 const reviewRecords = computed(() => {
   const row = record.value
   if (!row) return []
-  if (!(row.reviewDate || row.reviewComment || ['已复查', '已关闭'].includes(row.status))) return []
+  if (!(row.reviewDate || row.reviewComment || ['待复查', '已关闭'].includes(row.status))) return []
   return [{
     round: 1,
     date: row.reviewDate || '--',
@@ -186,7 +186,7 @@ function goBack() {
         </div>
       </div>
 
-      <div v-if="reviewRecords.length && ['已复查', '已关闭'].includes(statusText)" class="sc">
+      <div v-if="reviewRecords.length && ['待复查', '已关闭'].includes(statusText)" class="sc">
         <div class="sct">复查信息</div>
         <div v-for="(r, i) in reviewRecords" :key="i" class="ic">
           <div class="ir"><span class="il">复查日期</span><span>{{ r.date }}</span></div>
@@ -215,8 +215,8 @@ function goBack() {
 .ib { background:#fff; padding:14px 16px; border-bottom:1px solid #eee; }
 .ibn { font-size:15px; font-weight:600; color:#1f2329; margin-bottom:6px; }
 .ibm { font-size:12px; line-height:1.7; color:#666; }
-.st-待整改,.st-待复查 { color:#f5a623; }
-.st-已复查 { color:#8f0045; }
+.st-待整改,.st-待验收 { color:#f5a623; }
+.st-待复查 { color:#8f0045; }
 .st-已关闭 { color:#34a853; }
 .sc { background:#fff; border-radius:10px; padding:14px 16px; margin:12px 16px; box-shadow:0 1px 3px rgba(0,0,0,0.04); }
 .sct { font-size:13px; font-weight:600; color:#1f2329; margin-bottom:10px; padding-left:8px; border-left:3px solid #8f0045; }

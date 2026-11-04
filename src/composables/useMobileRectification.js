@@ -112,7 +112,7 @@ export const mobileRectificationRecords = reactive([
     reviewer: getProjectReviewerLabel('p-000'),
     manager: '赵经理（项目经理）',
     deadline: '2026-07-28',
-    status: '待复查',
+    status: '待验收',
     currentNode: '复查人复查',
     applicant: '王工（项目安全员）',
     applyDate: '2026-07-25 10:30:00',
@@ -136,7 +136,7 @@ export const mobileRectificationRecords = reactive([
     reviewer: getProjectReviewerLabel('p-001'),
     manager: '李经理（项目经理）',
     deadline: '2026-07-28',
-    status: '待复查',
+    status: '待验收',
     currentNode: '复查人复查',
     applicant: '刘工（专职安全员）',
     applyDate: '2026-07-27 16:30:00',
@@ -162,7 +162,7 @@ export const mobileRectificationRecords = reactive([
     reviewer: getProjectReviewerLabel('p-000'),
     manager: '赵经理（项目经理）',
     deadline: '2026-07-31',
-    status: '已复查',
+    status: '待复查',
     currentNode: '项目经理审批',
     applicant: '陈工（监理工程师）',
     applyDate: '2026-07-30 17:20:00',
@@ -189,7 +189,7 @@ export const mobileRectificationRecords = reactive([
     reviewer: getProjectReviewerLabel('p-001'),
     manager: '李经理（项目经理）',
     deadline: '2026-08-01',
-    status: '待复查',
+    status: '待验收',
     currentNode: '复查人重新复查',
     applicant: '李经理（项目经理）',
     applyDate: '2026-07-30 18:10:00',
@@ -310,7 +310,7 @@ export function listMobileHazardsAsInspectionRows() {
 
 export function submitRectification(id, payload = {}) {
   const record = getMobileRectification(id)
-  if (!record) return false
+  if (!record || record.status !== '待整改') return false
   const rectificationDate = payload.rectificationDate || payload.rectDate || nowText().slice(0, 10)
   const rectificationNote = payload.rectificationNote || payload.rectNote || ''
   const rectificationPhotos = photoLabels(
@@ -321,7 +321,7 @@ export function submitRectification(id, payload = {}) {
     rectificationDate,
     rectificationNote,
     rectificationPhotos,
-    status: '待复查',
+    status: '待验收',
     currentNode: '复查人复查',
     submitDate: rectificationDate,
     applyDate: nowText(),
@@ -338,7 +338,7 @@ export function submitRectification(id, payload = {}) {
 
 export function submitRectificationReview(id, pass, payload = {}) {
   const record = getMobileRectification(id)
-  if (!record) return false
+  if (!record || record.status !== '待验收') return false
   const reviewDate = payload.reviewDate || nowText().slice(0, 10)
   const reviewComment = payload.reviewComment || ''
   if (pass) {
@@ -346,7 +346,7 @@ export function submitRectificationReview(id, pass, payload = {}) {
       reviewDate,
       reviewComment,
       reviewResult: '通过',
-      status: '已复查',
+      status: '待复查',
       currentNode: '项目经理审批',
       applicant: record.reviewer,
       applyDate: nowText(),
@@ -373,7 +373,7 @@ export function submitRectificationReview(id, pass, payload = {}) {
 
 export function submitManagerApproval(id, pass, payload = {}) {
   const record = getMobileRectification(id)
-  if (!record) return false
+  if (!record || record.status !== '待复查') return false
   const approvalDate = payload.approvalDate || nowText().slice(0, 10)
   const approvalComment = payload.approvalComment || ''
   if (pass) {
@@ -394,7 +394,7 @@ export function submitManagerApproval(id, pass, payload = {}) {
       approvalDate,
       approvalComment,
       approvalResult: '不通过',
-      status: '待复查',
+      status: '待验收',
       currentNode: '复查人重新复查',
       applicant: record.manager,
       applyDate: nowText(),
@@ -420,7 +420,7 @@ export const mobileWorkflowMessages = computed(() => {
       action: 'task-execute',
     }))
   const rectifyTodo = mobileRectificationRecords
-    .filter((item) => item.status === '待整改' || item.status === '待复查' || item.status === '已复查')
+    .filter((item) => item.status === '待整改' || item.status === '待验收' || item.status === '待复查')
     .map((item) => ({
       id: `todo-${item.id}`,
       recordId: item.id,
@@ -429,14 +429,14 @@ export const mobileWorkflowMessages = computed(() => {
       owner:
         item.status === '待整改'
           ? item.rectifier
-          : item.status === '待复查'
+          : item.status === '待验收'
             ? item.reviewer
             : item.manager,
       applicant: item.applicant,
       applyDate: item.applyDate,
       status: '待办',
       action:
-        item.status === '待整改' ? 'execute' : item.status === '待复查' ? 'review' : 'approve',
+        item.status === '待整改' ? 'execute' : item.status === '待验收' ? 'review' : 'approve',
     }))
   const todo = [...inspectionTodo, ...rectifyTodo]
   const initiated = mobileRectificationRecords.slice(0, 5).map((item) => ({
@@ -447,9 +447,9 @@ export const mobileWorkflowMessages = computed(() => {
     owner:
       item.status === '待整改'
         ? item.rectifier
-        : item.status === '待复查'
+        : item.status === '待验收'
           ? item.reviewer
-          : item.status === '已复查'
+          : item.status === '待复查'
             ? item.manager
             : '-',
     applicant: item.applicant,

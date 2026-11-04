@@ -15,7 +15,7 @@ const fields = computed(() => {
     ['项目', row.projectName],
     ['来源', row.sourceLabel],
     ['类别', row.categoryLabel],
-    ['原业务状态', row.status],
+    ['整改状态', row.status],
     ['检查／登记时间', row.registeredAt],
     ['整改人', row.rectifier],
     ['完成期限', row.deadline],

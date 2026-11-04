@@ -58,7 +58,7 @@ function handleApproval(pass) {
   }
   ElMessage.success(pass ? '审批通过，整改流程已闭环' : '审批不通过，已退回复查人重新复查')
   const tab = route.query.tab
-  router.push(tab ? `${rectifyBase.value}?tab=${pass ? '已关闭' : '待复查'}` : rectifyBase.value)
+  router.push(tab ? `${rectifyBase.value}?tab=${pass ? '已关闭' : '待验收'}` : rectifyBase.value)
 }
 
 function goBack() {

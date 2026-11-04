@@ -11,7 +11,7 @@ const route = useRoute()
 if (route.query.from === 'sampling-task' && route.query.viewer !== 'hq') restoreSupervisorTaskContext(String(route.query.samplingTask || ''))
 const router = useRouter()
 const props = defineProps({ recordId: String, embedded: Boolean })
-const rid = props.recordId || route.params.id
+const rid = computed(() => props.recordId || route.params.id)
 
 const flowCollapsed = ref(false)
 
@@ -38,20 +38,20 @@ const d = {
       { a:'等待整改人重新整改', d:'', cur:true },
     ],
   },
-  // ===== 待复查 =====
+  // ===== 待验收 =====
   'rec-002': {
-    rn:'ZG202607002', tn:'AQXJ20260728001', pj:'飞行区跑道延长工程', rf:'李工', rv:'张工', dl:'2026-07-28', st:'待复查',
+    rn:'ZG202607002', tn:'AQXJ20260728001', pj:'飞行区跑道延长工程', rf:'李工', rv:'张工', dl:'2026-07-28', st:'待验收',
     hazard:{ desc:'五芯电缆破损，线路未按规范敷设', photos:['📷 隐患照片1'] },
     rectification:{ date:'2026-07-25', photos:['📷 整改照片1'], note:'已更换合规电缆' },
     flow:[
       { a:'下发整改单', d:'2026-07-20 14:00' },
       { a:'整改人提交整改结果', d:'2026-07-25 10:30' },
-      { a:'待复查人审核', d:'', cur:true },
+      { a:'待监理复查', d:'', cur:true },
     ],
   },
-  // ===== 待复查（曾退回） =====
+  // ===== 待验收（曾退回） =====
   'rec-003': {
-    rn:'ZG202607003', tn:'ZLXJ20260721003', pj:'T3航站楼扩建工程', rf:'王工', rv:'张工', dl:'2026-07-28', st:'待复查',
+    rn:'ZG202607003', tn:'ZLXJ20260721003', pj:'T3航站楼扩建工程', rf:'王工', rv:'张工', dl:'2026-07-28', st:'待验收',
     hazard:{ desc:'脚手架施工方案未报审即施工', photos:['📷 隐患照片1'] },
     prevRect:{ date:'2026-07-23', photos:['📷 整改照片1'], note:'已补报方案' },
     prevReview:{ date:'2026-07-25', comment:'整改不彻底', result:'不通过' },
@@ -61,12 +61,12 @@ const d = {
       { a:'整改人提交整改结果', d:'2026-07-23 10:30' },
       { a:'复查不通过，退回继续整改', d:'2026-07-25 09:00', dt:'整改不彻底' },
       { a:'整改人重新提交整改结果', d:'2026-07-27 16:30' },
-      { a:'待复查人审核', d:'', cur:true },
+      { a:'待监理复查', d:'', cur:true },
     ],
   },
-  // ===== 已复查·等待项目经理审批 =====
+  // ===== 待复查·等待项目经理审批 =====
   'rec-007': {
-    rn:'ZG202607007', tn:'AQXJ20260730001', pj:'飞行区跑道延长工程', rf:'赵工', rv:'张工', dl:'2026-07-31', st:'已复查',
+    rn:'ZG202607007', tn:'AQXJ20260730001', pj:'飞行区跑道延长工程', rf:'赵工', rv:'张工', dl:'2026-07-31', st:'待复查',
     hazard:{ desc:'临边防护栏杆局部缺失', photos:['临边防护隐患照片.jpg'] },
     rectification:{ date:'2026-07-30', photos:['临边防护整改后照片.jpg'], note:'已恢复缺失栏杆并加固连接节点。' },
     reviews:[{ round:1, date:'2026-07-30', comment:'整改到位，同意提交项目经理审批。', result:'通过' }],
@@ -116,7 +116,7 @@ const d = {
   },
 }
 const info = computed(() => {
-  const source = getInspectionHazardDetail(rid) || d[rid] || d['rec-001']
+  const source = getInspectionHazardDetail(rid.value) || d[rid.value] || d['rec-001']
   const projectKey = source.project_id || source.pj
   return {
     ...source,
@@ -124,7 +124,7 @@ const info = computed(() => {
       ...(source.hazard || {}),
       category: normalizeHazardCategory(source.hazard?.category || source.hazardCategory),
     },
-    cat: source.cat || (['rec-003', 'rec-004'].includes(rid) ? '质量' : '安全'),
+    cat: source.cat || (['rec-003', 'rec-004'].includes(rid.value) ? '质量' : '安全'),
     rf: source.rf || getProjectRectifierLabel(projectKey),
     rv: source.rv || getProjectReviewerLabel(projectKey),
   }
@@ -173,7 +173,7 @@ function goBack() {
       <div class="ic"><label>整改人</label><span>{{ info.rf }}</span></div>
       <div class="ic"><label>复查人</label><span>{{ info.rv }}</span></div>
       <div class="ic"><label>截止日期</label><span>{{ info.dl }}</span></div>
-      <div class="ic"><label>状态</label><span :style="{color:info.st==='已关闭'?'#34a853':info.st==='已复查'?'#8f0045':'#f5a623',fontWeight:600}">{{ info.st }}</span></div>
+      <div class="ic"><label>状态</label><span :style="{color:info.st==='已关闭'?'#34a853':info.st==='待复查'?'#8f0045':'#f5a623',fontWeight:600}">{{ info.st }}</span></div>
       <div class="ic" v-if="info.cd"><label>关闭日期</label><span>{{ info.cd }}</span></div>
     </div>
 
@@ -187,8 +187,8 @@ function goBack() {
       <div class="rf" v-if="info.hazard.photos?.length"><label>隐患照片</label><span>{{ info.hazard.photos.join('、') }}</span></div>
     </div>
 
-    <!-- ===== 整改信息（待复查/已复查/已关闭展示） ===== -->
-    <template v-if="['待复查', '已复查', '已关闭'].includes(info.st)">
+    <!-- ===== 整改信息（待验收/待复查/已关闭展示） ===== -->
+    <template v-if="['待验收', '待复查', '已关闭'].includes(info.st)">
       <div class="sc">
         <div class="sct">整改信息</div>
         <div v-for="rct in latestRectifications" :key="rct.date" class="sc-inner">
@@ -203,7 +203,7 @@ function goBack() {
     </template>
 
     <!-- ===== 复查信息（复查通过后展示） ===== -->
-    <template v-if="['已复查', '已关闭'].includes(info.st)">
+    <template v-if="['待复查', '已关闭'].includes(info.st)">
       <div class="sc">
         <div class="sct">复查信息</div>
         <div v-for="rv in latestReviews" :key="rv.date" class="rv-item" :class="{ 'rv-pass': rv.result==='通过' }">

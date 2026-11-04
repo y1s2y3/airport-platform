@@ -27,7 +27,7 @@ const tabs = computed(() => {
   for (const t of rectifyList.value) {
     counts[t.status] = (counts[t.status] || 0) + 1
   }
-  return ['全部','待整改','待复查','已复查','已关闭'].filter(t => (counts[t]||0) > 0 || t === '全部').map(t => ({ label: t, count: counts[t]||0 }))
+  return ['全部','待整改','待验收','待复查','已关闭'].filter(t => (counts[t]||0) > 0 || t === '全部').map(t => ({ label: t, count: counts[t]||0 }))
 })
 
 const filteredList = computed(() => {
@@ -46,8 +46,8 @@ const filteredList = computed(() => {
 
 const statusStyles = {
   '待整改': { color:'#f5a623', bg:'#fff8e6' },
-  '待复查': { color:'#4285f4', bg:'#e8f0fe' },
-  '已复查': { color:'#8f0045', bg:'#fceef4' },
+  '待验收': { color:'#4285f4', bg:'#e8f0fe' },
+  '待复查': { color:'#8f0045', bg:'#fceef4' },
   '已关闭': { color:'#34a853', bg:'#e8f5e9' },
 }
 
@@ -59,8 +59,8 @@ function goBack() { router.push(tasksBase.value) }
 
 function onCardClick(item) {
   if (item.status === '待整改') return goExecute(item.id)
-  if (item.status === '待复查') return goReview(item.id)
-  if (item.status === '已复查') return goApproval(item.id)
+  if (item.status === '待验收') return goReview(item.id)
+  if (item.status === '待复查') return goApproval(item.id)
   return goDetail(item.id)
 }
 </script>
@@ -122,8 +122,8 @@ function onCardClick(item) {
         <div v-if="item.approvalRejected&&item.approvalReason" class="rec-reject">❌ 审批退回：{{ item.approvalReason }}</div>
         <div class="rec-bottom">
           <span v-if="item.status==='待整改'">截止：{{ item.deadline }}</span>
-          <span v-else-if="item.status==='待复查'">提交：{{ item.submitDate }}</span>
-          <span v-else-if="item.status==='已复查'">复查已通过，待 {{ item.manager }} 审批</span>
+          <span v-else-if="item.status==='待验收'">提交：{{ item.submitDate }}</span>
+          <span v-else-if="item.status==='待复查'">复查已通过，待 {{ item.manager }} 审批</span>
           <span v-else>已关闭：{{ item.closeDate }}</span>
         </div>
       </div>

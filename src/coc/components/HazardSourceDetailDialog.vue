@@ -43,7 +43,7 @@ const title = computed(() => TITLE_MAP[props.channel] || '隐患明细')
 const statusOptions = computed(() => {
   if (props.channel === 'dispatch') return DISPATCH_HAZARD_RECTIFY_STATUSES
   if (props.channel === 'supervision') return SUPERVISION_HAZARD_RECTIFY_STATUSES
-  return ['待整改', '待复查', '已复查', '已关闭']
+  return ['待整改', '待验收', '待复查', '已关闭']
 })
 
 const searchPlaceholder = computed(() => {

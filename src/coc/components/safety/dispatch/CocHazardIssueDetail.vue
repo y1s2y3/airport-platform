@@ -9,7 +9,7 @@ const raw=computed(()=>props.row.raw)
 const inspection=computed(()=>props.row.source==='inspection'?getInspectionHazardDetail(props.row.sourceId):null)
 const fields=computed(()=>{
  const r=props.row,d=raw.value
- const common=[['单据编号',r.originalNo],['项目',r.projectName],['来源',r.sourceLabel],['类别',r.categoryLabel],['原业务状态',r.status],['检查／登记时间',r.registeredAt],['整改人',r.rectifier],['完成期限',r.deadline]]
+ const common=[['单据编号',r.originalNo],['项目',r.projectName],['来源',r.sourceLabel],['类别',r.categoryLabel],['整改状态',r.status],['检查／登记时间',r.registeredAt],['整改人',r.rectifier],['完成期限',r.deadline]]
  if(r.source==='inspection')common.push(['巡检任务编号',d.taskNo],['复查人',d.reviewer],['项目经理',d.manager])
  if(r.source==='supervision')common.push(['会议编号',d.meetingId],['隐患等级',d.hazardLevel],['备注',d.remark])
  if(r.source==='dispatch')common.push(['隐患等级',d.hazardLevel],['摄像头',d.cameraName],['摄像头位置',d.cameraLocation],['截图来源',d.sourceType])

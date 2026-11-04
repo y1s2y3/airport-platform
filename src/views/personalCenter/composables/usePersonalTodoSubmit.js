@@ -469,14 +469,14 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
       bizType === '巡检'
         ? '已完成'
         : bizType === '整改'
-          ? '待复查'
+          ? '待验收'
           : bizType === '复查'
             ? approved
-              ? '已复查'
+              ? '待复查'
               : '待整改'
             : approved
               ? '已关闭'
-              : '待复查'
+              : '待验收'
     row.detail = {
       ...(row.detail || {}),
       status: nextStatus,

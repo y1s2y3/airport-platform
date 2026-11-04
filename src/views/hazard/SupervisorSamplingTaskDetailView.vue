@@ -33,7 +33,12 @@ const reviewTask = computed(() => !task.value ? null : task.value.stage === 'man
 const supervisorProgress = computed(() => taskProgress(supervisorTask.value))
 const reviewProgress = computed(() => taskProgress(reviewTask.value))
 
-const activeTab = ref('')
+const reviewOnly = computed(() => !isHq.value && role.value === 'manager')
+const selectedTab = ref('')
+const activeTab = computed({
+  get: () => reviewOnly.value ? 'review' : selectedTab.value,
+  set: value => { selectedTab.value = reviewOnly.value ? 'review' : value },
+})
 watch(task, value => {
   activeTab.value = value?.stage === 'manager' ? 'review' : 'supervisor'
 }, { immediate: true })
@@ -137,24 +142,25 @@ const formatTime = value => value ? new Date(value).toLocaleString('sv-SE') : '-
 </script>
 
 <template>
-  <div class="task-workspace">
+  <div class="task-workspace" :class="{ 'review-only': reviewOnly }">
     <div class="ws-back"><el-button @click="goBack">返回任务列表</el-button></div>
     <el-empty v-if="!task" description="当前身份无权查看该任务，或任务不属于当前项目" />
     <template v-else>
       <section class="ws-header">
-        <div class="ws-title"><h2>抽检任务工作台</h2><span class="ws-id">{{ task.id }}</span><span class="task-state-pill" :class="{ complete: task.submittedAt }">{{ stageLabel(task) }}</span></div>
+        <div class="ws-title"><h2>{{ reviewOnly ? '施工隐患复查' : '抽检任务工作台' }}</h2><span class="ws-id">{{ task.id }}</span><span class="task-state-pill" :class="{ complete: task.submittedAt }">{{ stageLabel(task) }}</span></div>
         <div class="ws-meta">
           <span>项目：{{ task.projectName }}</span>
-          <span>抽检人：{{ supervisorTask?.recipient || '--' }}</span>
+          <span v-if="!reviewOnly">抽检人：{{ supervisorTask?.recipient || '--' }}</span>
           <span>复查人：{{ reviewTask?.recipient || '未下发' }}</span>
           <span>检查范围：{{ task.start }} 至 {{ task.end }}</span>
           <span>比例：{{ task.percent ?? '--' }}%</span>
-          <span>单据：{{ supervisorTask?.ids.length || 0 }} 张 / 复查 {{ reviewTask?.ids.length || 0 }} 张</span>
+          <span v-if="!reviewOnly">单据：{{ supervisorTask?.ids.length || 0 }} 张 / 复查 {{ reviewTask?.ids.length || 0 }} 张</span>
+          <span v-else>复查进度：{{ reviewProgress.done }} / {{ reviewProgress.total }} 张</span>
         </div>
 
       </section>
 
-      <el-tabs v-model="activeTab" class="ws-tabs">
+      <el-tabs v-if="!reviewOnly" v-model="activeTab" class="ws-tabs">
         <el-tab-pane :label="`监理抽检（${supervisorProgress.done}/${supervisorProgress.total}）`" name="supervisor" />
         <el-tab-pane :label="`施工复查（${reviewTask ? reviewProgress.done + '/' + reviewProgress.total : '未下发'}）`" name="review" :disabled="!reviewTask" />
       </el-tabs>
@@ -226,6 +232,7 @@ const formatTime = value => value ? new Date(value).toLocaleString('sv-SE') : '-
 .ws-meta { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 10px; font-size: 13px; color: #697180; }
 .ws-links { margin-top: 8px; }
 .ws-tabs { margin: 14px 0 0; }
+.review-only .ws-body { margin-top: 14px; }
 .ws-body { display: grid; grid-template-columns: 248px minmax(0, 1fr); gap: 14px; align-items: stretch; }
 .ws-list { display: flex; flex-direction: column; overflow: visible; padding: 10px; background: #fff; border: 1px solid #e5e9ef; border-radius: 8px; }
 .ws-filters { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }

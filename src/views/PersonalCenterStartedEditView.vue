@@ -26,7 +26,7 @@ const inspectionRetryMode = computed(() => {
   if (detail.status === '待整改' && (
     detail.reviewDate || detail.reviewResult || detail.reviewComment || /重新整改/.test(detail.currentNode || '')
   )) return 'rectify'
-  if (detail.status === '待复查' && (
+  if (detail.status === '待验收' && (
     detail.reviewDate || detail.reviewResult || detail.reviewComment || /重新复查/.test(detail.currentNode || '') || detail.approvalRejected
   )) return 'review'
   return ''

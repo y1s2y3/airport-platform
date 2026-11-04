@@ -90,7 +90,7 @@ export function buildProjectRows() {
     const inspectionHazardTotal = projectHazards.length
     const hazardClosed = projectHazards.filter((item) => item.status === '已关闭').length
     const hazardPending = projectHazards.filter((item) => item.status === '待整改').length
-    const hazardOverdue = projectHazards.filter((item) => item.deadline < INSPECTION_DEMO_TODAY && !['已复查', '已关闭'].includes(item.status)).length
+    const hazardOverdue = projectHazards.filter((item) => item.deadline < INSPECTION_DEMO_TODAY && !['待复查', '已关闭'].includes(item.status)).length
     const machineDevices = 12 + ((seed * 5) % 22)
     const machineOffline = seed % 4
     const machineOnline = Math.max(0, machineDevices - machineOffline)
