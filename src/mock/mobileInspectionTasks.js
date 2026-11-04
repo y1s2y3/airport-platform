@@ -174,7 +174,30 @@ export function normalizeInspectionTask(task = {}) {
   }
 }
 
-export const mobileInspectionTasks = reactive([...seedTasks, ...inspectionTaskSeeds].map(normalizeInspectionTask))
+// 现场巡视仍由巡检模块持有原单；危大清单只保存任务引用。
+const PATROL_TASK_ARCHIVE_KEY = 'airport-inspection-patrol-tasks-v1'
+function readPatrolTaskArchive() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PATROL_TASK_ARCHIVE_KEY) || '[]')
+    return Array.isArray(saved) ? saved.filter((task) => task?.id) : []
+  } catch { return [] }
+}
+const taskEntries = new Map([...seedTasks, ...inspectionTaskSeeds, ...readPatrolTaskArchive()].map((task) => [task.id, normalizeInspectionTask(task)]))
+export const mobileInspectionTasks = reactive([...taskEntries.values()])
+
+/** 保留原巡检单供刷新后查看；历史内联原单只在任务不存在时恢复，不覆盖现行单据。 */
+export function retainPatrolInspectionTask(task) {
+  if (!task?.id) return null
+  let stored = getMobileInspectionTask(task.id)
+  if (!stored) {
+    stored = normalizeInspectionTask(task)
+    mobileInspectionTasks.push(stored)
+  }
+  const archive = new Map(readPatrolTaskArchive().map((item) => [item.id, item]))
+  archive.set(stored.id, JSON.parse(JSON.stringify(stored)))
+  localStorage.setItem(PATROL_TASK_ARCHIVE_KEY, JSON.stringify([...archive.values()]))
+  return stored
+}
 
 export function listMobileInspectionTasks() {
   return mobileInspectionTasks
@@ -196,6 +219,7 @@ export function updateMobileInspectionTask(id, patch) {
   const target = mobileInspectionTasks.find((t) => t.id === id)
   if (!target) return null
   Object.assign(target, normalizeInspectionTask({ ...target, ...patch }))
+  if (target.isMajorHazardPatrol === '是' || readPatrolTaskArchive().some((item) => item.id === target.id)) retainPatrolInspectionTask(target)
   syncInspectionTaskToMajorHazard(target)
   return target
 }
@@ -205,6 +229,7 @@ export function updateMobileInspectionTaskByNo(taskNo, patch) {
   const target = mobileInspectionTasks.find((task) => task.taskNo === taskNo)
   if (!target) return null
   Object.assign(target, normalizeInspectionTask({ ...target, ...patch }))
+  if (target.isMajorHazardPatrol === '是' || readPatrolTaskArchive().some((item) => item.id === target.id)) retainPatrolInspectionTask(target)
   syncInspectionTaskToMajorHazard(target)
   return target
 }

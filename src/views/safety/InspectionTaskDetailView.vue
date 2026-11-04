@@ -137,6 +137,11 @@ watch(activeInspectionCategory, (category) => {
 const activeItems = computed(() => activeCat.value?.items || [])
 
 function goBack() {
+  if (route.query.from === 'hazard-process' && route.query.sourceId) {
+    router.push({ name: 'MajorHazardListDetail', params: { sourceId: route.query.sourceId },
+      query: { mode: route.query.mode || 'control', processTab: 'patrol' } })
+    return
+  }
   if (route.query.from === 'dashboard') {
     router.push('/safety-inspection/dashboard')
     return

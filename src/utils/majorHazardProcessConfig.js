@@ -96,16 +96,15 @@ export const PROCESS_CONFIGS = {
     card: { titleFields: ['progressDescription'], titleFallback: '施工进度记录', metaFields: ['executionRate', 'dangerWorkCount'], numberSuffix: { executionRate: '%' } },
   },
   patrol: {
-    label: '现场巡视', dateField: 'inspectionDate', responsibleField: 'inspectors', summaryField: 'inspectionTaskName',
-    fields: [
-      { key: 'inspectionTaskIds', label: '关联巡检单', type: 'inspectionTasks', span: 24, required: true },
-    ],
+    label: '现场巡视', dateField: 'inspectionDate', responsibleField: 'executor', summaryField: 'inspectionTaskNo',
+    fields: [],
     columns: [
-      { key: 'inspectionTaskCount', label: '巡检单数量', width: 110 }, { key: 'inspectionTaskNo', label: '巡检单编号', minWidth: 190 },
-      { key: 'inspectionTaskName', label: '巡检单名称', minWidth: 220 }, { key: 'inspectors', label: '巡检人员', width: 150 },
-      { key: 'hazardCount', label: '隐患数', width: 90 },
+      { key: 'inspectionTaskNo', label: '巡检单编号', minWidth: 210 },
+      { key: 'executor', label: '执行人', minWidth: 170 },
+      { key: 'hazardCount', label: '隐患数', width: 100 },
+      { key: 'inspectionDate', label: '巡检日期', width: 150 },
     ],
-    card: { titleFields: ['inspectionTaskName'], titleFallback: '现场巡视', metaFields: ['inspectionTaskNo', 'inspectors', 'hazardCount'] },
+    card: { titleFields: ['inspectionTaskNo'], titleFallback: '巡检单', metaFields: ['executor', 'hazardCount'] },
   },
   acceptance: {
     label: '危大工程验收', dateField: 'acceptanceDate', responsibleField: '', summaryField: 'acceptanceDescription',
@@ -166,16 +165,6 @@ export const RECORD_DETAIL_EXAMPLES = {
       { id: 'dw-demo-progress-1', reportDate: '2026-08-28', dangerWorkCategory: '动土作业', workArea: 'A区基坑东侧', workContent: '第二层土方开挖', startTime: '2026-08-28 08:00', endTime: '2026-08-28 18:00', contractor: '深圳市政集团有限公司' },
       { id: 'dw-demo-progress-2', reportDate: '2026-08-28', dangerWorkCategory: '吊装作业', workArea: 'A区基坑东侧', workContent: '钢支撑吊装就位', startTime: '2026-08-28 09:00', endTime: '2026-08-28 16:00', contractor: '深圳市政集团有限公司' },
     ],
-  },
-  patrol: {
-    inspectionTaskIds: ['mt-000', 'mt-001'], inspectionTaskCount: 2,
-    inspectionTaskNo: 'AZXJ20260730001、AQXJ20260728001', inspectionTaskName: '高处作业安全与质量检查、防台防汛安全检查',
-    inspectionDate: '2026-08-24', inspectors: '王安全、陈监理', hazardCount: 1,
-    inspectionTasks: [
-      { id: 'mt-000', taskNo: 'AZXJ20260730001', taskName: '高处作业安全与质量检查', inspectionCategory: '安全', source: '任务下发', projectId: 'p-000', project: 'T2项目' },
-      { id: 'mt-001', taskNo: 'AQXJ20260728001', taskName: '防台防汛安全检查', inspectionCategory: '安全', source: '任务下发', projectId: 'p-000', project: 'T2项目' },
-    ],
-    attachmentInfo: '监理专项巡视记录.pdf\n巡视现场照片.jpg',
   },
   acceptance: {
     acceptanceDate: '2026-09-05 15:00', acceptanceResult: '合格', acceptanceDescription: '危大工程实体质量、安全设施和现场施工状态验收合格。',

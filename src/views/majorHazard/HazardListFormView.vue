@@ -10,12 +10,12 @@ import { listApprovedSubcontractors } from '../../mock/subcontractorManagement.j
 import { listMobileInspectionTasks } from '../../mock/mobileInspectionTasks.js'
 import { DANGER_WORK_CATEGORY_OPTIONS } from '../../coc/config/dailyWorkSchema.js'
 import { listAllDangerWorkSources } from '../../mock/engineeringWork.js'
-import InspectionTaskDetailView from '../safety/InspectionTaskDetailView.vue'
 import {
   buildLedgerRows,
   createConstructionPart,
   ensureMajorHazardData,
   getLedgerEndDate,
+  getLedgerPatrolRecords,
   getLedgerStartDate,
   getLedgerStatus,
   getMajorHazardData,
@@ -42,6 +42,7 @@ const routeMode = computed(() => String(route.query.mode || 'edit'))
 const isControlMode = computed(() => routeMode.value === 'control')
 const data = ref({ ledgers: [], identifications: [], controlPoints: [], wbsNodes: [] })
 const form = ref(null)
+const originalParts = ref([])
 const activeProcessTab = ref('scheme')
 const processPartFilter = ref('')
 const recordDialogVisible = ref(false)
@@ -145,6 +146,7 @@ function toggleChecklistPoint(item, value) {
 
 const processRows = computed(() => {
   if (!form.value) return []
+  if (activeProcessTab.value === 'patrol') return getLedgerPatrolRecords(form.value)
   return form.value.parts.flatMap((part) => {
     if (processPartFilter.value && part.id !== processPartFilter.value) return []
     const storedRecords = part.process?.[activeProcessTab.value]?.records || []
@@ -370,8 +372,9 @@ function load() {
       part.wbsPath = entity.path
     }
   })
+  originalParts.value = JSON.parse(JSON.stringify(form.value.parts))
   processPartFilter.value = ''
-  activeProcessTab.value = 'scheme'
+  activeProcessTab.value = route.query.processTab === 'patrol' ? 'patrol' : 'scheme'
 }
 function back() { router.push('/major-hazard/hazard-list') }
 function stateTagType(status) { return status === '完工' ? 'success' : status === '在施' ? 'primary' : 'info' }
@@ -381,10 +384,38 @@ function partStatus(part) {
   if (part.process?.acceptance?.status === '已完成' && part.process?.acceptance?.result === '合格') return '完工'
   return part.startDate ? '在施' : '未开工'
 }
+const PART_LOCK_MESSAGE = '已有过程管控数据，不可编辑或删除'
+function hasPartProcessData(part) {
+  return Object.entries(part?.process || {}).some(([key, node]) => {
+    if (key === 'patrol') return false
+    // 旧清单会自动补出未确认的管控要点行，不把这些占位行当作已填报记录。
+    if (key === 'controlPoints') return (node?.records || []).some((record) => (
+      Boolean(record.displayStatus) || ['已落实', '需整改', '已完成'].includes(record.status)
+    ))
+    return Boolean(node?.records?.length || node?.date || node?.responsible || node?.content || node?.attachmentInfo || node?.result
+      || (node?.executionRate !== undefined && node?.executionRate !== null && node.executionRate !== '')
+      || (node?.status && !['未完成', '未开始', '未确认'].includes(node.status)))
+  })
+}
+function partLocked(part) {
+  return hasPartProcessData(part) || hasPartProcessData(originalParts.value.find((item) => item.id === part.id))
+}
+function lockedPartChanged(original, current) {
+  return !current || ['wbsNodeId', 'safetyResponsible', 'startDate', 'plannedEndDate'].some((key) => (
+    String(key === 'safetyResponsible' ? migrateResponsibleLabel(original[key]) : original[key] || '')
+      !== String(key === 'safetyResponsible' ? migrateResponsibleLabel(current[key]) : current[key] || '')
+  ))
+}
+function latestStoredParts() {
+  const latestData = getMajorHazardData(projectId.value)
+  const ledger = buildLedgerRows(latestData).find((item) => item.sourceId === sourceId.value)
+  return ledger ? normalizeLedger(ledger, latestData).parts : []
+}
 function addPart() {
   form.value.parts.push(createConstructionPart())
 }
 function chooseEntityPart(part, id) {
+  if (basicReadonly.value || partLocked(part)) return ElMessage.warning(PART_LOCK_MESSAGE)
   const node = entityNodes.value.find((item) => item.id === id)
   part.wbsNodeId = id || ''
   part.name = node?.label || ''
@@ -408,8 +439,10 @@ function chooseInspectionTasks(ids = []) {
   if (!ids.includes(inspectionTaskDetailTab.value)) inspectionTaskDetailTab.value = ids[0] || ''
 }
 function removePart(part) {
+  if (basicReadonly.value || partLocked(part)) return ElMessage.warning(PART_LOCK_MESSAGE)
   ElMessageBox.confirm(`确定删除施工部位“${part.name || '未选择'}”？`, '删除确认', { type: 'warning' })
     .then(() => {
+      if (partLocked(part) || hasPartProcessData(latestStoredParts().find((item) => item.id === part.id))) return ElMessage.warning(PART_LOCK_MESSAGE)
       form.value.parts = form.value.parts.filter((item) => item.id !== part.id)
       ElMessage.success('已删除施工部位')
     })
@@ -559,6 +592,11 @@ function buildRecordDisplayData(row) {
   return detail
 }
 function openViewRecord(row) {
+  if (activeProcessTab.value === 'patrol') {
+    router.push({ name: 'InspectionTaskDetail', params: { id: row.inspectionTaskId },
+      query: { from: 'hazard-process', sourceId: sourceId.value, mode: routeMode.value } })
+    return
+  }
   const detail = buildRecordDisplayData(row)
   recordForm.value = detail
   inspectionTaskDetailTab.value = detail.inspectionTaskIds?.[0] || ''
@@ -743,6 +781,11 @@ function submitRecord() {
   ElMessage.success(`${currentTab.value.label}记录新增成功`)
 }
 function saveBasicInfo() {
+  const storedParts = latestStoredParts()
+  const protectedParts = [...originalParts.value, ...storedParts].filter(hasPartProcessData)
+  if (protectedParts.some((part) => lockedPartChanged(part, form.value.parts.find((item) => item.id === part.id)))) {
+    return ElMessage.warning(PART_LOCK_MESSAGE)
+  }
   if (!form.value.name?.trim()) return ElMessage.warning('请填写危大工程名称')
   if (!form.value.overview?.trim()) return ElMessage.warning('请填写危大工程概况')
   if (!form.value.subcontractor?.trim() || !form.value.responsible?.trim()) return ElMessage.warning('请选择责任分包单位和责任人')
@@ -755,6 +798,11 @@ function saveBasicInfo() {
     duplicate.add(part.wbsNodeId)
     if (hasCrossLedgerOverlap(part)) return ElMessage.warning('同一类别描述在相同施工部位存在重叠计划时间，不能重复保存')
   }
+  // 基本信息保存时保留其他入口刚写入的过程数据。
+  form.value.parts.forEach((part) => {
+    const stored = storedParts.find((item) => item.id === part.id)
+    if (hasPartProcessData(stored)) part.process = stored.process
+  })
   saveLedger(projectId.value, form.value)
   ElMessage.success('危大工程清单已保存')
   back()
@@ -812,12 +860,12 @@ watch([projectId, sourceId, routeMode], load, { immediate: true })
         <div class="section-head"><div class="section-heading"><div class="section-title">施工部位</div><p>从基础数据管理的实体工程分解选择，明确每个部位的责任人与施工时间</p></div><el-button v-if="canEditBasic" type="primary" :icon="Plus" @click="addPart">添加施工部位</el-button></div>
         <el-table :data="form.parts" border stripe empty-text="暂无施工部位" class="business-table">
           <el-table-column type="index" label="序号" width="56" />
-          <el-table-column label="施工部位" min-width="320"><template #default="{ row }"><span v-if="basicReadonly">{{ row.wbsPath || row.name || '—' }}</span><div v-else class="part-wbs-cell"><el-tree-select :model-value="row.wbsNodeId" :data="entityTree" node-key="id" :props="{ value: 'id', label: 'label', children: 'children', disabled: 'disabled' }" check-strictly filterable placeholder="请选择实体工程分解节点" @update:model-value="chooseEntityPart(row, $event)" /><small v-if="row.wbsPath">{{ row.wbsPath }}</small></div></template></el-table-column>
-          <el-table-column label="安全管控责任人" width="190"><template #default="{ row }"><span v-if="basicReadonly">{{ row.safetyResponsible || '—' }}</span><el-select v-else v-model="row.safetyResponsible" filterable placeholder="人员姓名（岗位）"><el-option v-for="item in responsibleOptions" :key="item" :label="item" :value="item" /></el-select></template></el-table-column>
-          <el-table-column label="开工时间" width="150"><template #default="{ row }"><span v-if="basicReadonly">{{ row.startDate || '—' }}</span><el-date-picker v-else v-model="row.startDate" type="date" value-format="YYYY-MM-DD" style="width:130px" /></template></el-table-column>
-          <el-table-column label="计划完工时间" width="150"><template #default="{ row }"><span v-if="basicReadonly">{{ row.plannedEndDate || '—' }}</span><el-date-picker v-else v-model="row.plannedEndDate" type="date" value-format="YYYY-MM-DD" style="width:130px" /></template></el-table-column>
+          <el-table-column label="施工部位" min-width="320"><template #default="{ row }"><span v-if="basicReadonly">{{ row.wbsPath || row.name || '—' }}</span><div v-else class="part-wbs-cell"><el-tree-select :model-value="row.wbsNodeId" :disabled="partLocked(row)" :data="entityTree" node-key="id" :props="{ value: 'id', label: 'label', children: 'children', disabled: 'disabled' }" check-strictly filterable placeholder="请选择实体工程分解节点" @update:model-value="chooseEntityPart(row, $event)" /><small v-if="row.wbsPath">{{ row.wbsPath }}</small><small v-if="partLocked(row)">{{ PART_LOCK_MESSAGE }}</small></div></template></el-table-column>
+          <el-table-column label="安全管控责任人" width="190"><template #default="{ row }"><span v-if="basicReadonly">{{ row.safetyResponsible || '—' }}</span><el-select v-else v-model="row.safetyResponsible" :disabled="partLocked(row)" filterable placeholder="人员姓名（岗位）"><el-option v-for="item in responsibleOptions" :key="item" :label="item" :value="item" /></el-select></template></el-table-column>
+          <el-table-column label="开工时间" width="150"><template #default="{ row }"><span v-if="basicReadonly">{{ row.startDate || '—' }}</span><el-date-picker v-else v-model="row.startDate" :disabled="partLocked(row)" type="date" value-format="YYYY-MM-DD" style="width:130px" /></template></el-table-column>
+          <el-table-column label="计划完工时间" width="150"><template #default="{ row }"><span v-if="basicReadonly">{{ row.plannedEndDate || '—' }}</span><el-date-picker v-else v-model="row.plannedEndDate" :disabled="partLocked(row)" type="date" value-format="YYYY-MM-DD" style="width:130px" /></template></el-table-column>
           <el-table-column label="施工情况" width="100"><template #default="{ row }"><el-tag size="small" :type="stateTagType(partStatus(row))">{{ partStatus(row) }}</el-tag></template></el-table-column>
-          <el-table-column v-if="canEditBasic" label="操作" width="80" fixed="right"><template #default="{ row }"><el-button link type="danger" @click="removePart(row)">删除</el-button></template></el-table-column>
+          <el-table-column v-if="canEditBasic" label="操作" width="80" fixed="right"><template #default="{ row }"><el-tooltip :content="PART_LOCK_MESSAGE" :disabled="!partLocked(row)"><span><el-button link type="danger" :disabled="partLocked(row)" @click="removePart(row)">删除</el-button></span></el-tooltip></template></el-table-column>
         </el-table>
       </section>
 
@@ -825,7 +873,7 @@ watch([projectId, sourceId, routeMode], load, { immediate: true })
         <div class="section-head">
           <div class="section-heading"><div class="section-title">过程管控</div><p>按业务阶段维护过程记录和附件资料</p></div>
           <div class="process-actions">
-            <el-select v-model="processPartFilter" clearable size="small" placeholder="全部施工部位" style="width:260px"><el-option v-for="part in form.parts" :key="part.id" :label="part.name || part.wbsPath" :value="part.id" /></el-select>
+            <el-select v-if="activeProcessTab !== 'patrol'" v-model="processPartFilter" clearable size="small" placeholder="全部施工部位" style="width:260px"><el-option v-for="part in form.parts" :key="part.id" :label="part.name || part.wbsPath" :value="part.id" /></el-select>
             <span v-if="activeProcessTab === 'patrol'" class="auto-sync-tip">现场巡视记录由巡检管理的危大工程现场巡视任务自动同步</span>
             <el-button v-if="canAddProcessRecord" type="primary" size="small" :icon="Plus" @click="openAddRecord">新增{{ currentTab.label }}记录</el-button>
           </div>
@@ -861,7 +909,7 @@ watch([projectId, sourceId, routeMode], load, { immediate: true })
         <div class="table-meta"><span>{{ currentTab.label }}台账</span><small>共 {{ processRows.length }} 条记录</small></div>
         <el-table :data="processRows" border stripe empty-text="暂无记录" class="business-table process-ledger-table">
           <el-table-column type="index" label="序号" width="56" />
-          <el-table-column prop="partName" label="施工部位" min-width="230" show-overflow-tooltip />
+          <el-table-column v-if="activeProcessTab !== 'patrol'" prop="partName" label="施工部位" min-width="230" show-overflow-tooltip />
           <template v-if="activeProcessTab === 'controlPoints'">
             <el-table-column prop="controlPointContent" label="管控要点" min-width="320" show-overflow-tooltip />
             <el-table-column prop="date" label="记录日期" width="120" />
@@ -871,8 +919,8 @@ watch([projectId, sourceId, routeMode], load, { immediate: true })
           <el-table-column v-if="activeProcessTab === 'progress'" label="危险作业数量" width="120">
             <template #default="{ row }">{{ dangerWorkCount(row) }}</template>
           </el-table-column>
-                    <el-table-column prop="createdBy" label="创建人" width="100" />
-          <el-table-column prop="createdAt" label="创建时间" width="170" />
+                    <el-table-column v-if="activeProcessTab !== 'patrol'" prop="createdBy" label="创建人" width="100" />
+          <el-table-column v-if="activeProcessTab !== 'patrol'" prop="createdAt" label="创建时间" width="170" />
           <el-table-column label="操作" width="80" fixed="right"><template #default="{ row }"><el-button link type="primary" @click="openViewRecord(row)">查看</el-button></template></el-table-column>
         </el-table>
         </template>
@@ -1008,14 +1056,7 @@ watch([projectId, sourceId, routeMode], load, { immediate: true })
           </el-form-item>
           <el-form-item v-if="!['workerRegistration', 'patrol'].includes(activeProcessTab)" :label="recordAttachmentLabel" required><div class="record-attachments"><div v-for="name in recordAttachmentNames" :key="name" class="attachment-item"><span>{{ name }}</span><el-button v-if="recordDialogMode !== 'view'" link type="danger" @click="removeRecordAttachment(name)">删除</el-button></div><el-upload v-if="recordDialogMode !== 'view'" :auto-upload="false" :show-file-list="false" :accept="recordAttachmentLabel === '现场照片' ? '.jpg,.jpeg,.png,.webp' : undefined" @change="addRecordAttachment"><el-button :icon="UploadFilled">{{ recordAttachmentLabel === '现场照片' ? '添加图片' : '上传附件' }}</el-button></el-upload><span v-if="recordDialogMode === 'view' && !recordAttachmentNames.length" class="muted">无附件</span></div></el-form-item>
         </el-form>
-        <section v-if="activeProcessTab === 'patrol' && selectedInspectionTasks.length" class="record-detail-section patrol-task-section">
-          <div class="record-detail-title">巡检单详情</div>
-          <el-tabs v-model="inspectionTaskDetailTab" type="border-card" class="inspection-task-tabs">
-            <el-tab-pane v-for="task in selectedInspectionTasks" :key="task.id" :name="task.id" :label="task.taskNo || task.taskName">
-              <InspectionTaskDetailView :key="task.id" :task="task" embedded />
-            </el-tab-pane>
-          </el-tabs>
-        </section>
+
         <template #footer><el-button @click="recordDialogVisible = false">关闭</el-button><el-button v-if="recordDialogMode === 'add'" type="primary" @click="submitRecord">提交</el-button></template>
       </el-dialog>
 

@@ -18,6 +18,7 @@ import {
   buildLedgerRows,
   ensureMajorHazardData,
   getMajorHazardData,
+  getLedgerPatrolRecords,
   normalizeLedger,
   saveLedger,
   getLedgerControlPointChecklist,
@@ -195,6 +196,7 @@ function toggleChecklistPoint(item, value) {
 
 const processRows = computed(() => {
   if (!form.value) return []
+  if (activeTab.value === 'patrol') return getLedgerPatrolRecords(form.value)
   const partFilter = String(processPartFilter.value || '')
   return form.value.parts.flatMap((part) => {
     if (partFilter && part.id !== partFilter) return []
@@ -287,6 +289,10 @@ function openAdd() {
 }
 
 function openView(row) {
+  if (activeTab.value === 'patrol') {
+    goInspectionTask({ id: row.inspectionTaskId })
+    return
+  }
   recordForm.value = {
     ...createBlankRecord(),
     ...row,
@@ -535,6 +541,8 @@ function cardMetaOf(row) {
   const cfg = cardConfigOf()
   const list = (cfg.metaFields || [])
     .map((key) => {
+      if (activeTab.value === 'patrol' && key === 'hazardCount') return '隐患数：' + row.hazardCount
+      if (activeTab.value === 'patrol' && key === 'executor') return '执行人：' + row.executor
       if (key === 'dangerWorkCount') return `危险作业 ${dangerWorkCount(row)} 条`
       const raw = row?.[key]
       if (raw === '' || raw === undefined || raw === null) return ''
@@ -575,6 +583,7 @@ function restoreProcessRecordAfterTask() {
   try { sessionStorage.removeItem('mhProcessReturnRecord') } catch { /* 忽略 */ }
   let payload = null
   try { payload = JSON.parse(raw) } catch { payload = { id: raw, tab: '' } }
+  if (payload?.tab === 'patrol') { activeTab.value = 'patrol'; return }
   const recordId = payload?.id || ''
   if (!recordId) return
   if (payload?.tab) activeTab.value = payload.tab
@@ -688,7 +697,7 @@ onBeforeUnmount(() => {
         <span v-else class="tip">现场巡视由巡检任务自动同步</span>
       </div>
 
-      <div class="part-switch">
+      <div v-if="activeTab !== 'patrol'" class="part-switch">
         <span class="part-switch-label">施工部位</span>
         <el-select v-model="processPartFilter" clearable placeholder="全部部位" class="part-switch-select">
           <el-option
@@ -704,7 +713,7 @@ onBeforeUnmount(() => {
         <div v-if="!processRows.length" class="empty">暂无{{ currentTab.label }}记录</div>
                 <button v-for="row in processRows" :key="row.id" type="button" class="card" @click="openView(row)">
           <div class="card-top">
-            <span class="part-name">{{ row.partName }}</span>
+            <span class="part-name">{{ activeTab === 'patrol' ? '巡检日期' : row.partName }}</span>
             <span class="time">{{ cardDateOf(row) }}</span>
           </div>
           <div class="card-title">
@@ -712,7 +721,7 @@ onBeforeUnmount(() => {
             <span>{{ cardTitleOf(row) }}</span>
           </div>
           <div v-if="cardMetaText(row)" class="card-meta">{{ cardMetaText(row) }}</div>
-          <div class="card-meta">创建人：{{ row.createdBy || row.responsible || '--' }}</div>
+          <div v-if="activeTab !== 'patrol'" class="card-meta">创建人：{{ row.createdBy || row.responsible || '--' }}</div>
         </button>
       </div>
       </template>    </template>

@@ -1,8 +1,7 @@
 import { COC_PROJECT_OPTIONS } from '../config/projectCatalog.js'
 
 const STORAGE_KEY = 'airport-major-hazard-manual-v3'
-import { listMobileInspectionTasks } from '../mock/mobileInspectionTasks.js'
-import { RECORD_DETAIL_EXAMPLES } from './majorHazardProcessConfig.js'
+import { getMobileInspectionTask, listMobileInspectionTasks, retainPatrolInspectionTask } from '../mock/mobileInspectionTasks.js'
 export const MAJOR_HAZARD_CHANGE_EVENT = 'major-hazard-manual-change'
 
 /** 仅前 10 个项目生成危大工程示例数据，避免看板按项目汇总时铺开全部项目 */
@@ -311,48 +310,85 @@ function backfillDemoWbsParts(data) {
   return changed
 }
 
-/** ===== 现场巡视记录补关联巡检单（旧/演示数据也要能显示巡检单详情） ===== */
-function resolvePatrolTaskPool(projectId) {
-  const projectTasks = (projectId ? listMobileInspectionTasks() : []).filter((task) => {
-    const pid = task.projectId || task.project_id || ''
-    return !pid || pid === projectId
-  })
-  if (projectTasks.length) return projectTasks.slice(0, 2)
-  return Array.isArray(RECORD_DETAIL_EXAMPLES?.patrol?.inspectionTasks) ? RECORD_DETAIL_EXAMPLES.patrol.inspectionTasks : []
+/** 清单级现场巡视：一张巡检单一条引用，巡检模块保存和提供原单。 */
+export function getLedgerPatrolRecords(ledger) {
+  const seen = new Set()
+  return (ledger?.patrolRecords || []).flatMap((link) => {
+    const taskId = link.inspectionTaskId
+    if (!taskId || seen.has(taskId)) return []
+    seen.add(taskId)
+    const task = getMobileInspectionTask(taskId)
+    return [{
+      id: link.id || 'mh-patrol-' + taskId,
+      inspectionTaskId: taskId,
+      inspectionTaskNo: task?.taskNo || link.inspectionTaskNo || '--',
+      executor: task?.executor || task?.inspector || '--',
+      hazardCount: Number(task?.hazardCount || 0),
+      inspectionDate: String(task?.inspectionDate || task?.inspDate || '').slice(0, 10),
+      status: task?.status || '',
+    }]
+  }).sort((a, b) => b.inspectionDate.localeCompare(a.inspectionDate) || a.inspectionTaskNo.localeCompare(b.inspectionTaskNo))
 }
 
 function migratePatrolTaskLinks(data, projectId) {
-  if (!data) return false
-  const pool = resolvePatrolTaskPool(projectId)
-  if (!pool.length) return false
-  const validIds = new Set(pool.map((task) => task.id))
   let changed = false
-  ;(data.ledgers || []).forEach((ledger) => {
+  ;(data.ledgers || []).forEach((ledger, ledgerIndex) => {
+    const before = JSON.stringify(ledger)
+    const links = new Map((ledger.patrolRecords || []).filter((link) => link.inspectionTaskId).map((link) => [link.inspectionTaskId, link]))
+    const addLink = (task) => {
+      if (!task?.id) return
+      if (!getMobileInspectionTask(task.id)) retainPatrolInspectionTask(task)
+      links.set(task.id, { id: 'mh-patrol-' + task.id, inspectionTaskId: task.id })
+    }
     ;(ledger.parts || []).forEach((part) => {
-      const records = part?.process?.patrol?.records || []
-      records.forEach((record) => {
-        const inline = Array.isArray(record.inspectionTasks) ? record.inspectionTasks : []
-        const ids = Array.isArray(record.inspectionTaskIds) ? record.inspectionTaskIds : []
-        const resolvable = ids.length && ids.every((id) => validIds.has(id) || inline.some((task) => task.id === id))
-        if (resolvable) return
-        record.inspectionTaskIds = pool.map((task) => task.id)
-        record.inspectionTasks = pool.map((task) => ({
-          id: task.id,
-          taskNo: task.taskNo || task.task_no || '',
-          taskName: task.taskName || task.task_name || '',
-          inspectionCategory: task.inspectionCategory || task.inspection_category || '',
-          source: task.source || '',
-          projectId: task.projectId || task.project_id || projectId,
-          project: task.project || '',
-        }))
-        record.inspectionTaskCount = pool.length
-        record.inspectionTaskNo = pool.map((task) => task.taskNo || task.task_no || '').filter(Boolean).join('、')
-        record.inspectionTaskName = pool.map((task) => task.taskName || task.task_name || '').filter(Boolean).join('、')
-        record.inspectors = record.inspectors || record.responsible || '当前用户'
-        record.inspectionDate = record.inspectionDate || record.date || part.startDate || ''
-        changed = true
-      })
+      const node = part.process?.patrol
+      if (!node) return
+      const hasLegacy = node.records?.length || node.date || node.responsible || node.content || node.attachmentInfo || node.result
+      if (hasLegacy) {
+        // 保留旧原始记录，包含原部位信息仅供历史追溯，不再作为部位过程数据使用。
+        ledger.legacyPatrolArchive ||= []
+        ledger.legacyPatrolArchive.push({ partId: part.id, process: clone(node) })
+        const records = node.records?.length ? node.records : [node]
+        records.forEach((record) => {
+          const inline = Array.isArray(record.inspectionTasks) ? record.inspectionTasks : []
+          const ids = [...new Set([record.inspectionTaskId, ...(record.inspectionTaskIds || []), ...inline.map((task) => task.id)].filter(Boolean))]
+          ids.forEach((id) => {
+            const task = getMobileInspectionTask(id) || inline.find((item) => item.id === id)
+            if (task) addLink(task)
+          })
+          // 旧记录只有单号时，按单号恢复原巡检单，不再随意关联其他巡检任务。
+          if (!ids.length) String(record.inspectionTaskNo || '').split(/[、,，]/).filter(Boolean).forEach((taskNo) => {
+            const task = listMobileInspectionTasks().find((item) => item.taskNo === taskNo)
+            if (task) addLink(task)
+          })
+        })
+      }
+      part.process.patrol = createProcessNode()
     })
+    listMobileInspectionTasks().filter((task) => task.status === '已完成' && task.isMajorHazardPatrol === '是'
+      && (task.majorHazardProjectId || task.projectId || task.project_id) === projectId
+      && (task.majorHazardSourceId === ledger.sourceId || (ledger.id && task.majorHazardLedgerId === ledger.id)))
+      .forEach(addLink)
+    if (!links.size && String(ledger.id).startsWith('mh-demo-ledger-')) {
+      const taskId = 'mh-patrol-example-' + projectId + '-' + ledger.id
+      const hazardCount = ledgerIndex % 2
+      const date = dateOffset(-1)
+      const task = retainPatrolInspectionTask({
+        id: taskId, taskNo: 'AZXJ' + date.replaceAll('-', '') + String([...DEMO_PROJECT_IDS].indexOf(projectId) + 1).padStart(2, '0') + String(ledgerIndex + 1).padStart(2, '0'),
+        taskName: ledger.name + '现场巡视（示例）', source: '系统自建', projectId, project_id: projectId,
+        project: COC_PROJECT_OPTIONS.find((item) => item.id === projectId)?.label || projectId,
+        executor: ledger.responsible || '张工', inspector: ledger.responsible || '张工', companions: [],
+        inspectionCategories: ['安全'], inspectionDate: date, deadline: date, status: '已完成',
+        isMajorHazardPatrol: '是', majorHazardProjectId: projectId, majorHazardLedgerId: ledger.id,
+        majorHazardSourceId: ledger.sourceId, majorHazardName: ledger.name,
+        hazardCount, result: hazardCount ? 'hazard' : 'normal', isExample: true,
+        normalPhotos: hazardCount ? [] : ['现场巡视照片_示例.jpg'],
+        hazardItems: hazardCount ? [{ desc: '【示例】现场临边防护局部缺失', photos: ['巡视隐患照片_示例.jpg'], hasRectify: false }] : [],
+      })
+      addLink(task)
+    }
+    ledger.patrolRecords = [...links.values()]
+    if (before !== JSON.stringify(ledger)) changed = true
   })
   return changed
 }
@@ -634,6 +670,7 @@ export function createLedgerFromSource(source, data) {
     isSuperMajor: source.isSuperMajor,
     controlPoints: getControlPointsForDescription(data, source).map((item) => ({ ...item, handlingStatus: '未确认' })),
     parts: [],
+    patrolRecords: [],
     createdAt: '',
     updatedAt: '',
   }
@@ -684,6 +721,7 @@ export function normalizeLedger(ledger, data) {
       ...blank,
       ...part,
       process: Object.fromEntries(Object.keys(blank.process).map((key) => {
+        if (key === 'patrol') return [key, createProcessNode()]
         const legacy = part.process?.[key] || {}
         let records = Array.isArray(legacy.records) ? legacy.records : []
         const hasLegacyRecord = Boolean(legacy.date || legacy.content || legacy.attachmentInfo || legacy.responsible || legacy.result)
@@ -756,7 +794,10 @@ export function normalizeLedger(ledger, data) {
 export function saveLedger(projectId, payload) {
   const data = readProject(projectId)
   const now = new Date().toISOString()
-  const ledger = normalizeLedger(payload, data)
+  const previous = data.ledgers.find((item) => item.sourceId === payload.sourceId)
+  const patrolRecords = [...new Map([...(previous?.patrolRecords || []), ...(payload.patrolRecords || [])]
+    .filter((link) => link.inspectionTaskId).map((link) => [link.inspectionTaskId, link])).values()]
+  const ledger = normalizeLedger({ ...payload, patrolRecords, legacyPatrolArchive: previous?.legacyPatrolArchive || payload.legacyPatrolArchive }, data)
   const item = { ...ledger, id: ledger.id || createId('mh-ledger'), createdAt: ledger.createdAt || now, updatedAt: now }
   upsert(data.ledgers, item)
   data.deletedLedgerSourceIds = data.deletedLedgerSourceIds.filter((id) => id !== item.sourceId)
@@ -809,11 +850,11 @@ export function buildCalendarAlerts(data, ledgerRows = buildLedgerRows(data)) {
   const weekAgo = dateOffset(-7)
   const rows = ledgerRows.flatMap((ledger) => {
     if (getLedgerStatus(ledger) !== '在施') return []
-    return (ledger.parts || []).flatMap((part) => {
+    const patrolDate = getLedgerPatrolRecords(ledger).map((record) => record.inspectionDate).filter(Boolean).sort().at(-1) || ''
+    return (ledger.parts || []).flatMap((part, partIndex) => {
       const alerts = []
-      const patrolDate = part.process?.patrol?.date || ''
-      if (ledger.isSuperMajor === '是' && patrolDate !== today) alerts.push({ type: '现场巡视', content: '超危工程当日现场巡视未完成', part })
-      if (ledger.isSuperMajor !== '是' && (!patrolDate || patrolDate < weekAgo)) alerts.push({ type: '现场巡视', content: '危大工程上周现场巡视未完成', part })
+      if (partIndex === 0 && ledger.isSuperMajor === '是' && patrolDate !== today) alerts.push({ type: '现场巡视', content: '超危工程当日现场巡视未完成', part: null })
+      if (partIndex === 0 && ledger.isSuperMajor !== '是' && (!patrolDate || patrolDate < weekAgo)) alerts.push({ type: '现场巡视', content: '危大工程上周现场巡视未完成', part: null })
       if (part.plannedEndDate && part.plannedEndDate < today && !(part.process?.acceptance?.status === '已完成' && part.process?.acceptance?.result === '合格')) alerts.push({ type: '工程验收', content: '施工部位超过计划完工时间仍未完成危大工程验收', part })
       ;[
         ['scheme', '专项施工方案'],
@@ -827,7 +868,7 @@ export function buildCalendarAlerts(data, ledgerRows = buildLedgerRows(data)) {
         }
       })
       return alerts.map((alert) => {
-        const id = `${ledger.sourceId}:${part.id}:${alert.type}:${alert.content}`
+        const id = `${ledger.sourceId}:${alert.type === '现场巡视' ? 'ledger' : part.id}:${alert.type}:${alert.content}`
         const action = data.alertActions?.[id] || {}
         return {
           ...alert,
@@ -861,10 +902,10 @@ export function buildCalendarAlerts(data, ledgerRows = buildLedgerRows(data)) {
     for (const [key, type, content] of examples) {
       if (rows.some((row) => row.content === content)) continue
       const ledger = key === 'patrol-normal' ? ledgerRows.find((item) => item.id === 'mh-demo-ledger-formwork') || demoLedger : demoLedger
-      const part = ledger.parts[0]
-      const id = `mh-example:${ledger.sourceId}:${part.id}:${key}`
+      const part = key.startsWith('patrol-') ? null : ledger.parts[0]
+      const id = `mh-example:${ledger.sourceId}:${part?.id || 'ledger'}:${key}`
       const action = data.alertActions?.[id] || {}
-      rows.push({ id, type, content, part, ledgerId: ledger.id, ledgerSourceId: ledger.sourceId, ledgerName: ledger.name, categoryName: ledger.categoryName, handler: part.safetyResponsible || ledger.responsible, isExample: true, status: action.status === '已处理' ? '已关闭' : action.status || '待处理', occurredAt: action.occurredAt || '', handledAt: action.handledAt || '', disposalResult: action.disposalResult || '', disposalNote: action.disposalNote || '', disposalAttachments: action.disposalAttachments || [] })
+      rows.push({ id, type, content, part, ledgerId: ledger.id, ledgerSourceId: ledger.sourceId, ledgerName: ledger.name, categoryName: ledger.categoryName, handler: part?.safetyResponsible || ledger.responsible, isExample: true, status: action.status === '已处理' ? '已关闭' : action.status || '待处理', occurredAt: action.occurredAt || '', handledAt: action.handledAt || '', disposalResult: action.disposalResult || '', disposalNote: action.disposalNote || '', disposalAttachments: action.disposalAttachments || [] })
     }
   }
   return rows.map((row) => ({ ...row, isExample: row.isExample || String(row.ledgerId).startsWith('mh-demo-ledger-') }))

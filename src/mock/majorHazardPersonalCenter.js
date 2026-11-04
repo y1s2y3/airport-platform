@@ -34,7 +34,7 @@ function majorHazardWarningCenterItem(project, alert) {
     alertType: alert.type,
     location: alert.part?.name || '—',
     sourceName: alert.ledgerName,
-    description: `${alert.content}（${alert.ledgerName} / ${alert.part?.name || '未填写施工部位'}）`,
+    description: alert.part ? `${alert.content}（${alert.ledgerName} / ${alert.part.name || '未填写施工部位'}）` : `${alert.content}（${alert.ledgerName}）`,
     handler: alert.handler || '项目安全负责人',
     requiresDisposal: true,
     warnType: '处置任务',
