@@ -80,6 +80,59 @@ const dangerFields = computed(() => {
 
 const fields = computed(() => props.kind === 'hazard' ? hazardFields.value : dangerFields.value)
 
+/**
+ * 流程记录：巡检 / 监理例会 / 调度 三类隐患统一展示。
+ * - 调度隐患、后台登记的监理例会隐患：取写入时记录的 statusLogs（最新在前 → 反转成时间正序）
+ * - 巡检隐患、安质隐患池导入的监理例会隐患：无状态日志，按整改四态（待整改→待复查→已复查→已关闭）
+ *   派生节点，节点措辞与「巡检管理·整改详情」既有流程记录一致
+ */
+const flowLogs = computed(() => {
+  if (props.kind !== 'hazard') return []
+  const record = props.record || {}
+  const raw = record.raw || {}
+
+  if (Array.isArray(raw.statusLogs) && raw.statusLogs.length) {
+    const logs = [...raw.statusLogs].reverse().map((log) => {
+      const operator = String(log.operator || '').trim()
+      const role = String(log.operatorRole || '').trim()
+      return {
+        title: log.action || log.toStatus || '流程节点',
+        user: operator && role && role !== operator ? `${operator}（${role}）` : operator,
+        time: log.time || '',
+        remark: log.remark || '',
+        status: 'done',
+      }
+    })
+    // 未关闭的隐患：日志只记到已完成动作，末尾补「当前停留节点」（标题取业务整改状态，不另造词）
+    const rawStatus = String(record.status || raw.rectifyStatus || '待整改')
+    if (!rawStatus.includes('关闭')) {
+      logs.push({ title: rawStatus, user: '', time: '', remark: '', status: 'current' })
+    }
+    return logs
+  }
+
+  const detail = record.detail || {}
+  const status = String(record.status || record.unifiedStatus || '待整改')
+  const reporter = detail.reporter || record.reporter || ''
+  const rectifier = detail.rectifier || record.rectifier || ''
+  const steps = [
+    { title: '下发整改单', user: reporter, time: detail.reportTime || '', remark: '' },
+    { title: '整改人提交整改结果', user: rectifier, time: '', remark: '' },
+    { title: '复查人复查通过', user: '', time: '', remark: '' },
+    { title: '项目经理审批通过，整改单关闭', user: '', time: '', remark: '' },
+  ]
+  const doneCount = status === '已关闭' ? 4 : status === '已复查' ? 3 : status === '待复查' ? 2 : 1
+  const currentTitle = { 待整改: '等待整改人执行', 待复查: '待复查人审核', 已复查: '待项目经理审批' }[status]
+  const currentUser = status === '待整改' ? rectifier : ''
+  const logs = steps.slice(0, doneCount).map((step) => ({ ...step, status: 'done' }))
+  if (status !== '已关闭' && currentTitle) {
+    logs.push({ title: currentTitle, user: currentUser, time: '', remark: '', status: 'current' })
+  }
+  return logs
+})
+
+const flowItemType = (status) => (status === 'done' ? 'success' : status === 'current' ? 'primary' : 'info')
+
 /* ---------- 参建单位管理人员（危险作业详情） ---------- */
 const PERSONNEL_GROUPS = [
   {
@@ -212,6 +265,29 @@ const personnelGroups = computed(() => {
           <span v-if="img.url && img.label" class="image-card__caption">{{ img.label }}</span>
         </div>
       </div>
+    </div>
+
+    <div v-if="kind === 'hazard' && flowLogs.length" class="detail-section">
+      <div class="section-label">流程记录</div>
+      <el-timeline class="hazard-flow">
+        <el-timeline-item
+          v-for="(item, index) in flowLogs"
+          :key="`${item.title}-${index}`"
+          :type="flowItemType(item.status)"
+          :hollow="item.status === 'pending'"
+          :timestamp="item.time || (item.status === 'current' ? '待进行' : '--')"
+          placement="top"
+        >
+          <div class="flow-card" :class="item.status">
+            <div class="flow-card-title">
+              {{ item.title }}
+              <el-tag v-if="item.status === 'current'" size="small" type="warning" effect="dark">当前</el-tag>
+            </div>
+            <div class="flow-card-meta">处理人：{{ item.user || '--' }}</div>
+            <div v-if="item.remark" class="flow-card-remark">备注：{{ item.remark }}</div>
+          </div>
+        </el-timeline-item>
+      </el-timeline>
     </div>
   </div>
 </template>
@@ -398,5 +474,90 @@ const personnelGroups = computed(() => {
   background: rgba(0, 0, 0, 0.45);
   font-size: calc(11px + var(--coc-font-boost));
   text-align: center;
+}
+
+/* ---------- 流程记录（巡检 / 监理例会 / 调度 三类隐患统一） ---------- */
+.hazard-flow {
+  padding-top: 2px;
+}
+
+.hazard-flow :deep(.el-timeline-item) {
+  padding-bottom: 14px;
+}
+
+.hazard-flow :deep(.el-timeline-item:last-child) {
+  padding-bottom: 0;
+}
+
+.hazard-flow :deep(.el-timeline-item__tail) {
+  border-left-color: rgba(94, 238, 255, 0.18);
+}
+
+.hazard-flow :deep(.el-timeline-item__timestamp) {
+  font-size: calc(12px + var(--coc-font-boost));
+  color: var(--coc-text-muted);
+}
+
+.hazard-flow :deep(.el-timeline-item__timestamp.is-top) {
+  margin-bottom: 5px;
+}
+
+.hazard-flow :deep(.el-timeline-item__node) {
+  background: rgba(148, 170, 197, 0.55);
+}
+
+.hazard-flow :deep(.el-timeline-item__node--success) {
+  background: #3fae6a;
+}
+
+.hazard-flow :deep(.el-timeline-item__node--primary) {
+  background: #e6a23c;
+  box-shadow: 0 0 0 3px rgba(230, 162, 60, 0.22);
+}
+
+.hazard-flow :deep(.el-timeline-item__node.is-hollow) {
+  background: transparent;
+  border-color: rgba(148, 170, 197, 0.55);
+}
+
+.flow-card {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(94, 238, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.flow-card.done {
+  border-color: rgba(63, 174, 106, 0.35);
+  background: rgba(63, 174, 106, 0.08);
+}
+
+.flow-card.current {
+  border-color: rgba(230, 162, 60, 0.55);
+  background: rgba(230, 162, 60, 0.12);
+}
+
+.flow-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: calc(13px + var(--coc-font-boost));
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--coc-text);
+}
+
+.flow-card-meta,
+.flow-card-remark {
+  margin-top: 3px;
+  font-size: calc(12px + var(--coc-font-boost));
+  line-height: 1.5;
+  color: var(--coc-text-secondary);
+}
+
+.flow-card-remark {
+  color: var(--coc-text);
+  opacity: 0.82;
+  overflow-wrap: anywhere;
 }
 </style>

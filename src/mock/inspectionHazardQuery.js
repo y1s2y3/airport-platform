@@ -7,6 +7,7 @@ import {
   getMobileRectification,
   listMobileHazardsAsInspectionRows,
 } from '../composables/useMobileRectification.js'
+import { getInspectionPersonConfig, getInspectorById } from '../composables/useInspectionPersonConfig.js'
 
 /** Web 批量种子 + 移动端整改记录（同一 id 以移动端为准） */
 export function listInspectionHazards() {
@@ -22,9 +23,21 @@ export function getInspectionHazard(id) {
   return inspectionHazards.find((item) => item.id === id) || null
 }
 
+/**
+ * 「下发整改单」处理人：取巡检管理「人员配置」中该项目的巡检人。
+ * 依据：人员配置页说明「保存后任务和隐患将默认带入巡检人、整改人及复查人」。
+ * 未配置巡检人时返回空串（页面显示 --），不用兜底值冒充。
+ */
+function resolveConfiguredInspector(row) {
+  const config = getInspectionPersonConfig(row.project_id || row.projectId || '')
+  const person = getInspectorById(config?.inspectorId)
+  return person ? `${person.name}（${person.role}）` : ''
+}
+
 export function getInspectionHazardDetail(id) {
   const row = getInspectionHazard(id)
   if (!row) return null
+  const inspector = resolveConfiguredInspector(row)
 
   const detail = {
     rn: row.rectifyNo,
@@ -44,7 +57,7 @@ export function getInspectionHazardDetail(id) {
       desc: row.desc,
       photos: [...(row.hazardPhotos || [])],
     },
-    flow: [{ a: '下发整改单', d: `${row.issueDate || ''} 09:30`.trim() }],
+    flow: [{ a: '下发整改单', d: `${row.issueDate || ''} 09:30`.trim(), by: inspector }],
   }
 
   if (row.isRejected && row.rejectReason) {
@@ -61,7 +74,7 @@ export function getInspectionHazardDetail(id) {
       photos: [...(row.rectificationPhotos || [])],
       note: row.rectificationNote || '--',
     }
-    detail.flow.push({ a: '整改人提交整改结果', d: row.rectDate ? `${row.rectDate} 16:20` : '' })
+    detail.flow.push({ a: '整改人提交整改结果', d: row.rectDate ? `${row.rectDate} 16:20` : '', by: row.rectifier || '' })
   }
   if (row.reviewDate || row.reviewComment || row.reviewResult) {
     detail.reviews = [{
@@ -75,14 +88,15 @@ export function getInspectionHazardDetail(id) {
         a: '复查不通过，退回继续整改',
         d: row.reviewDate ? `${row.reviewDate} 10:10` : '',
         dt: row.rejectReason || row.reviewComment,
+        by: row.reviewer || '',
       })
     } else if (row.reviewResult === '通过' || (!row.isRejected && row.reviewDate)) {
-      detail.flow.push({ a: '复查人复查通过', d: row.reviewDate ? `${row.reviewDate} 10:10` : '' })
+      detail.flow.push({ a: '复查人复查通过', d: row.reviewDate ? `${row.reviewDate} 10:10` : '', by: row.reviewer || '' })
     }
   }
   if (row.status === '已复查') {
     detail.managerApproval = { manager: row.manager, status: '审批中', comment: '--' }
-    detail.flow.push({ a: '待项目经理审批', d: '', cur: true })
+    detail.flow.push({ a: '待项目经理审批', d: '', cur: true, by: row.manager || '' })
   } else if (row.status === '已关闭') {
     detail.managerApproval = {
       manager: row.manager,
@@ -90,20 +104,21 @@ export function getInspectionHazardDetail(id) {
       status: '通过',
       comment: row.approvalComment || '--',
     }
-    detail.flow.push({ a: '项目经理审批通过，整改单关闭', d: row.closeDate ? `${row.closeDate} 11:00` : '' })
+    detail.flow.push({ a: '项目经理审批通过，整改单关闭', d: row.closeDate ? `${row.closeDate} 11:00` : '', by: row.manager || '' })
   } else if (row.status === '待复查') {
     if (row.approvalRejected) {
       detail.flow.push({
         a: '项目经理审批不通过，退回复查',
         d: '',
         dt: row.approvalReason || '',
+        by: row.manager || '',
       })
     }
-    detail.flow.push({ a: '待复查人审核', d: '', cur: true })
+    detail.flow.push({ a: '待复查人审核', d: '', cur: true, by: row.reviewer || '' })
   } else if (row.isRejected) {
-    detail.flow.push({ a: '等待整改人重新整改', d: '', cur: true })
+    detail.flow.push({ a: '等待整改人重新整改', d: '', cur: true, by: row.rectifier || '' })
   } else {
-    detail.flow.push({ a: '等待整改人执行', d: '', cur: true })
+    detail.flow.push({ a: '等待整改人执行', d: '', cur: true, by: row.rectifier || '' })
   }
   return detail
 }
