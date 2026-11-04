@@ -2,52 +2,30 @@
  * 考核评分原型数据。
  * 计分：满分 100，未达标扣分，不涉及扣 0 且不转移扣分上限。
  * 排名按自然月，每月 1 日统计上月。任务、隐患、预警只计上月新建记录。
- * 出勤和摄像头按已结束日期求平均；塔吊、升降机按月累计；每日施工作业统计填报天数。
+ * 出勤和摄像头按已结束日期求平均；塔吊按月累计；每日施工作业统计填报率。
  * 已结束月份冻结。
  */
 import { buildCocProjectOptions } from './projectBasicInfo.js'
 
 export const INDICATOR_FIELDS = [
-  { id: 'inspect_should', name: '月度应完成巡检任务数', module: '巡检管理', grain: '月度' },
   { id: 'inspect_created', name: '月度生成巡检任务数', module: '巡检管理', grain: '月度' },
   { id: 'inspect_done', name: '月度已完成巡检任务数', module: '巡检管理', grain: '月度' },
-  { id: 'inspect_overdue', name: '月度逾期未完成巡检任务数', module: '巡检管理', grain: '月度' },
-  { id: 'hazard_should', name: '月度应整改隐患数', module: '隐患清单', grain: '月度' },
   { id: 'hazard_due', name: '月度创建隐患数', module: '隐患清单', grain: '月度' },
   { id: 'hazard_closed', name: '月度已关闭隐患数', module: '隐患清单', grain: '月度' },
-  { id: 'hazard_overdue', name: '月度逾期未关闭隐患数', module: '隐患清单', grain: '月度' },
-  { id: 'manage_actual', name: '当日管理人员实际出勤人次', module: '人员实名制', grain: '当日' },
-  { id: 'manage_due', name: '当日管理人员应出勤人次', module: '人员实名制', grain: '当日' },
   { id: 'manage_rate_month', name: '月度管理人员出勤率', module: '人员实名制', grain: '月度' },
-  { id: 'labor_actual', name: '当日建筑工人实际出勤人次', module: '人员实名制', grain: '当日' },
-  { id: 'labor_due', name: '当日建筑工人应出勤人次', module: '人员实名制', grain: '当日' },
-  { id: 'labor_rate_month', name: '月度劳务人员出勤率', module: '人员实名制', grain: '月度' },
-  { id: 'labor_created', name: '月度生成实名制预警条数', module: '人员实名制', grain: '月度' },
-  { id: 'labor_pending', name: '月度仍待处理实名制预警条数', module: '人员实名制', grain: '月度' },
-  { id: 'labor_closed', name: '月度已关闭实名制预警条数', module: '人员实名制', grain: '月度' },
-  { id: 'crane_alarm', name: '当日塔吊报警次数', module: '塔吊运行监管', grain: '当日' },
-  { id: 'crane_count', name: '当日在场塔吊台数', module: '塔吊运行监管', grain: '当日' },
   { id: 'crane_alarm_month', name: '月累计塔吊报警次数', module: '塔吊运行监管', grain: '月累计' },
   { id: 'crane_machine_days', name: '月累计塔吊在场台日', module: '塔吊运行监管', grain: '月累计' },
-  { id: 'lift_alarm', name: '当日升降机报警次数', module: '升降机运行监管', grain: '当日' },
-  { id: 'lift_count', name: '当日在场升降机台数', module: '升降机运行监管', grain: '当日' },
-  { id: 'lift_alarm_month', name: '月累计升降机报警次数', module: '升降机运行监管', grain: '月累计' },
-  { id: 'lift_machine_days', name: '月累计升降机在场台日', module: '升降机运行监管', grain: '月累计' },
-  { id: 'major_done', name: '月度已处置危大预警数', module: '危大工程监测', grain: '月度' },
-  { id: 'major_total', name: '月度生成危大预警数', module: '危大工程监测', grain: '月度' },
-  { id: 'major_pending', name: '月度未处置危大预警数', module: '危大工程监测', grain: '月度' },
-  { id: 'camera_online', name: '当日在线摄像头数量', module: '视频监控', grain: '当日' },
-  { id: 'camera_total', name: '当日摄像头总数', module: '视频监控', grain: '当日' },
   { id: 'camera_rate_month', name: '月度摄像头在线率', module: '视频监控', grain: '月度' },
   { id: 'ai_done', name: '月度已处置AI预警数', module: 'AI应用', grain: '月度' },
   { id: 'ai_total', name: '月度生成AI预警数', module: 'AI应用', grain: '月度' },
-  { id: 'ai_unsafe', name: '月度生成不安全行为预警数', module: 'AI应用', grain: '月度' },
-  { id: 'ai_hazard', name: '月度生成现场隐患预警数', module: 'AI应用', grain: '月度' },
-  { id: 'ai_fence', name: '月度生成围栏入侵预警数', module: 'AI应用', grain: '月度' },
-  { id: 'report_today', name: '当日是否已填报', module: '每日施工作业', grain: '当日' },
-  { id: 'report_days', name: '月度填报天数', module: '每日施工作业', grain: '月度' },
+  { id: 'report_days', name: '月度已填报天数', module: '每日施工作业', grain: '月度' },
   { id: 'ended_days', name: '月度已结束自然日天数', module: '每日施工作业', grain: '月度' },
-  { id: 'miss_days', name: '月度缺报天数', module: '每日施工作业', grain: '月度' },
+  { id: 'duty_done', name: '月度已完整上报值班表周数', module: '值班表', grain: '月度' },
+  { id: 'duty_due', name: '月度应报值班表周数', module: '值班表', grain: '月度' },
+  { id: 'meeting_done', name: '月度已上报监理例会次数', module: '监理例会', grain: '月度' },
+  { id: 'meeting_due', name: '月度应召开监理例会次数', module: '监理例会', grain: '月度' },
+  { id: 'labor_total', name: '月度生成实名制预警数', module: '人员实名制', grain: '月度' },
+  { id: 'labor_closed', name: '月度已关闭实名制预警数', module: '人员实名制', grain: '月度' },
 ]
 
 const FORMULA_OP_LABEL = { add: '+', sub: '−', mul: '×', div: '÷' }
@@ -253,25 +231,9 @@ export const ASSESSMENT_INDICATORS = [
     ],
   },
   {
-    id: 'labor_att',
-    name: '劳务人员出勤率',
-    cap: 10,
-    value_unit: '百分比',
-    calc_rule: '每个自然日日终统计当天出勤率。月得分取该月已结束日期出勤率的算术平均。出勤率 = 实际出勤人次 / 应出勤人次',
-    not_involved: '应出勤人次为 0',
-    bands: [
-      { min: 85, max: null, min_inclusive: false, max_inclusive: true, deduct: 0 },
-      { min: 80, max: 85, min_inclusive: false, max_inclusive: true, deduct: 1 },
-      { min: 70, max: 80, min_inclusive: false, max_inclusive: true, deduct: 2 },
-      { min: 65, max: 70, min_inclusive: false, max_inclusive: true, deduct: 3 },
-      { min: 60, max: 65, min_inclusive: false, max_inclusive: true, deduct: 4 },
-      { min: null, max: 60, min_inclusive: false, max_inclusive: true, deduct: 7 },
-    ],
-  },
-  {
     id: 'crane',
     name: '塔吊报警强度',
-    cap: 8,
+    cap: 10,
     value_unit: '次/台·日',
     calc_rule: '每个自然日日终固化当天报警次数和在场台数。月报警强度按全月累计计算：累计报警次数 / 累计在场台日。不按各日强度再平均。台数事后不回写',
     not_involved: '在场台数为 0',
@@ -282,38 +244,6 @@ export const ASSESSMENT_INDICATORS = [
       { min: 40, max: 60, min_inclusive: false, max_inclusive: true, deduct: 2.4 },
       { min: 60, max: 100, min_inclusive: false, max_inclusive: true, deduct: 3.2 },
       { min: 100, max: null, min_inclusive: false, max_inclusive: true, deduct: 5.6 },
-    ],
-  },
-  {
-    id: 'lift',
-    name: '升降机报警强度',
-    cap: 6,
-    value_unit: '次/台·日',
-    calc_rule: '每个自然日日终固化当天报警次数和在场台数。月报警强度按全月累计计算：累计报警次数 / 累计在场台日。不按各日强度再平均。台数事后不回写',
-    not_involved: '在场台数为 0',
-    bands: [
-      { min: null, max: 10, min_inclusive: false, max_inclusive: true, deduct: 0 },
-      { min: 10, max: 20, min_inclusive: false, max_inclusive: true, deduct: 0.6 },
-      { min: 20, max: 40, min_inclusive: false, max_inclusive: true, deduct: 1.2 },
-      { min: 40, max: 60, min_inclusive: false, max_inclusive: true, deduct: 1.8 },
-      { min: 60, max: 100, min_inclusive: false, max_inclusive: true, deduct: 2.4 },
-      { min: 100, max: null, min_inclusive: false, max_inclusive: true, deduct: 4.2 },
-    ],
-  },
-  {
-    id: 'major',
-    name: '危大监测预警处置率',
-    cap: 6,
-    value_unit: '百分比',
-    calc_rule: '每月 1 日统计上月。只计入上月生成的危大监测预警。处置率 = 已处置数 / 上月生成预警数',
-    not_involved: '预警总数为 0',
-    bands: [
-      { min: 100, max: 100, min_inclusive: true, max_inclusive: true, deduct: 0 },
-      { min: 90, max: 100, min_inclusive: true, max_inclusive: false, deduct: 0.6 },
-      { min: 80, max: 90, min_inclusive: true, max_inclusive: false, deduct: 1.2 },
-      { min: 70, max: 80, min_inclusive: true, max_inclusive: false, deduct: 1.8 },
-      { min: 60, max: 70, min_inclusive: true, max_inclusive: false, deduct: 2.4 },
-      { min: null, max: 60, min_inclusive: false, max_inclusive: false, deduct: 4.2 },
     ],
   },
   {
@@ -349,33 +279,66 @@ export const ASSESSMENT_INDICATORS = [
   },
   {
     id: 'daily_work',
-    name: '每日施工作业填报',
+    name: '每日施工作业填报率',
     cap: 10,
-    value_unit: '天',
-    band_unit: '天',
-    calc_rule: '每个自然日日终记录当天是否已填报。月统计值为填报天数，即已结束自然日中已填报的天数。不按缺报率',
-    not_involved: '不单设。未纳入评分的项目不进入本项',
+    value_unit: '百分比',
+    calc_rule: '每月 1 日统计上月。填报率 = 已填报天数 / 应填报天数（已结束自然日天数）。不免除周末、节假日、停工日',
+    not_involved: '上月应填报天数为 0',
     bands: [
-      { min: null, max: 15, min_inclusive: false, max_inclusive: false, deduct: 10 },
-      { min: 15, max: 21, min_inclusive: true, max_inclusive: false, deduct: 8 },
-      { min: 21, max: 25, min_inclusive: true, max_inclusive: false, deduct: 5 },
-      { min: 25, max: 28, min_inclusive: true, max_inclusive: false, deduct: 2 },
-      { min: 28, max: null, min_inclusive: true, max_inclusive: false, deduct: 0 },
+      { min: 100, max: 100, min_inclusive: true, max_inclusive: true, deduct: 0 },
+      { min: 90, max: 100, min_inclusive: false, max_inclusive: false, deduct: 1 },
+      { min: 80, max: 90, min_inclusive: false, max_inclusive: true, deduct: 2 },
+      { min: 70, max: 80, min_inclusive: false, max_inclusive: true, deduct: 3 },
+      { min: 60, max: 70, min_inclusive: false, max_inclusive: true, deduct: 4 },
+      { min: null, max: 60, min_inclusive: false, max_inclusive: true, deduct: 7 },
+    ],
+  },
+  {
+    id: 'duty_report',
+    name: '值班表上报完成率',
+    cap: 10,
+    value_unit: '百分比',
+    calc_rule: '每月 1 日统计上月。按自然周（周一至周日）统计；项目每周 7 天 × 4 个班次全部排满值班表记为已上报。完成率 = 已完整上报周数 / 应报周数；跨月周按周一所在月归属',
+    not_involved: '应报值班周数为 0',
+    bands: [
+      { min: 100, max: 100, min_inclusive: true, max_inclusive: true, deduct: 0 },
+      { min: 90, max: 100, min_inclusive: false, max_inclusive: false, deduct: 1 },
+      { min: 80, max: 90, min_inclusive: false, max_inclusive: true, deduct: 2 },
+      { min: 70, max: 80, min_inclusive: false, max_inclusive: true, deduct: 3 },
+      { min: 60, max: 70, min_inclusive: false, max_inclusive: true, deduct: 4 },
+      { min: null, max: 60, min_inclusive: false, max_inclusive: true, deduct: 7 },
+    ],
+  },
+  {
+    id: 'meeting_report',
+    name: '监理例会上报完成率',
+    cap: 10,
+    value_unit: '百分比',
+    calc_rule: '每月 1 日统计上月。监理例会每周 1 次，应召开次数 = 当月自然周数（周一至周日为一周，跨月周按周一所在月归属）；已上报 = 当月已提交监理例会纪要的次数。完成率 = 已上报次数 / 应召开次数',
+    not_involved: '应召开例会次数为 0',
+    bands: [
+      { min: 100, max: 100, min_inclusive: true, max_inclusive: true, deduct: 0 },
+      { min: 90, max: 100, min_inclusive: false, max_inclusive: false, deduct: 1 },
+      { min: 80, max: 90, min_inclusive: false, max_inclusive: true, deduct: 2 },
+      { min: 70, max: 80, min_inclusive: false, max_inclusive: true, deduct: 3 },
+      { min: 60, max: 70, min_inclusive: false, max_inclusive: true, deduct: 4 },
+      { min: null, max: 60, min_inclusive: false, max_inclusive: true, deduct: 7 },
     ],
   },
   {
     id: 'labor_warn',
-    name: '实名制预警未处置',
+    name: '实名制预警处置率',
     cap: 10,
-    value_unit: '条',
-    calc_rule: '每月 1 日统计上月。只计入上月生成、且截至次月 1 日仍为「待处理」的预警条数。已关闭、已读、未读不计入',
-    not_involved: '项目未接入人员实名制',
+    value_unit: '百分比',
+    calc_rule: '每月 1 日统计上月。处置率 = 已处置（已关闭）预警数 / 上月生成实名制预警数；已读、未读、待处理均不算处置',
+    not_involved: '上月生成实名制预警数为 0（含未接入实名制）',
     bands: [
-      { min: 0, max: 0, min_inclusive: true, max_inclusive: true, deduct: 0 },
-      { min: 1, max: 2, min_inclusive: true, max_inclusive: true, deduct: 2 },
-      { min: 3, max: 5, min_inclusive: true, max_inclusive: true, deduct: 5 },
-      { min: 6, max: 10, min_inclusive: true, max_inclusive: true, deduct: 8 },
-      { min: 10, max: null, min_inclusive: false, max_inclusive: true, deduct: 10 },
+      { min: 100, max: 100, min_inclusive: true, max_inclusive: true, deduct: 0 },
+      { min: 90, max: 100, min_inclusive: false, max_inclusive: false, deduct: 1 },
+      { min: 80, max: 90, min_inclusive: false, max_inclusive: true, deduct: 2 },
+      { min: 70, max: 80, min_inclusive: false, max_inclusive: true, deduct: 3 },
+      { min: 60, max: 70, min_inclusive: false, max_inclusive: true, deduct: 4 },
+      { min: null, max: 60, min_inclusive: false, max_inclusive: true, deduct: 7 },
     ],
   },
 ]
@@ -394,23 +357,10 @@ const DEFAULT_FORMULAS = {
   manage_att: [
     { kind: 'field', field: 'manage_rate_month' },
   ],
-  labor_att: [
-    { kind: 'field', field: 'labor_rate_month' },
-  ],
   crane: [
     { kind: 'field', field: 'crane_alarm_month' },
     { kind: 'op', op: 'div' },
     { kind: 'field', field: 'crane_machine_days' },
-  ],
-  lift: [
-    { kind: 'field', field: 'lift_alarm_month' },
-    { kind: 'op', op: 'div' },
-    { kind: 'field', field: 'lift_machine_days' },
-  ],
-  major: [
-    { kind: 'field', field: 'major_done' },
-    { kind: 'op', op: 'div' },
-    { kind: 'field', field: 'major_total' },
   ],
   camera: [
     { kind: 'field', field: 'camera_rate_month' },
@@ -422,9 +372,23 @@ const DEFAULT_FORMULAS = {
   ],
   daily_work: [
     { kind: 'field', field: 'report_days' },
+    { kind: 'op', op: 'div' },
+    { kind: 'field', field: 'ended_days' },
+  ],
+  duty_report: [
+    { kind: 'field', field: 'duty_done' },
+    { kind: 'op', op: 'div' },
+    { kind: 'field', field: 'duty_due' },
+  ],
+  meeting_report: [
+    { kind: 'field', field: 'meeting_done' },
+    { kind: 'op', op: 'div' },
+    { kind: 'field', field: 'meeting_due' },
   ],
   labor_warn: [
-    { kind: 'field', field: 'labor_pending' },
+    { kind: 'field', field: 'labor_closed' },
+    { kind: 'op', op: 'div' },
+    { kind: 'field', field: 'labor_total' },
   ],
 }
 
@@ -464,20 +428,22 @@ const DEFAULT_GRADES = [
 
 /** 扣分为 null 表示不涉及。顺序与 ASSESSMENT_INDICATORS 一致。 */
 const WEEK_DEDUCT = {
-  0: [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
-  1: [0, 2, 0, 0, null, null, 0, 1, 0, 2, 0],
-  2: [7, 7, 4, 4, 3.2, 1.2, 1.8, 3, 2, 10, 2],
-  3: [7, 7, 7, 7, 5.6, 4.2, 4.2, 7, 7, 8, 10],
-  4: [2, 2, 1, 1, 0.8, 0, 0.6, 7, 2, 2, 2],
-  5: [2, 7, 2, 2, 1.6, 1.2, 1.2, 2, 3, 5, 5],
-  6: [0, 1, 3, 4, 0, 0.6, 0, 1, 1, 0, 2],
-  7: [2, 1, 2, 2, 0, 0, null, 2, 1, 0, 0],
+  0: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  1: [0, 2, 0, null, 1, 0, 2, 0, 2, 0],
+  2: [7, 7, 4, 3.2, 3, 2, 7, 8, 4, 2],
+  3: [7, 7, 7, 5.6, 7, 7, 7, 10, 10, 7],
+  4: [2, 2, 1, 0.8, 7, 2, 2, 2, 0, 2],
+  5: [2, 7, 2, 1.6, 2, 3, 5, 5, 3, 5],
+  6: [0, 1, 3, 0, 1, 1, 0, 0, 1, 2],
+  7: [2, 1, 2, 0, 2, 1, 0, 2, 2, 0],
 }
 
 const NOT_INVOLVED_NOTE = {
   crane: '本周期无在场塔吊',
-  lift: '本周期无在场升降机',
-  major: '本周期无危大监测预警',
+  duty_report: '本周期无应报值班表',
+  meeting_report: '本周期无应召开监理例会',
+  daily_work: '本周期无可填报日期',
+  labor_warn: '本周期无实名制预警',
 }
 
 const catalog = buildCocProjectOptions().slice(0, 9)
@@ -503,7 +469,7 @@ function projectUsesIndicator(projectId, indicatorId) {
   return !!projectMatrix[projectId]?.[indicatorId]
 }
 
-function isProjectIncluded(projectId) {
+export function isProjectIncluded(projectId) {
   return indicatorState.some((indicator) => indicator.enabled && projectUsesIndicator(projectId, indicator.id))
 }
 function cloneIndicator(item, enabled = item.enabled) {
@@ -569,6 +535,41 @@ function gradeName(score) {
   return hit ? hit.name : ''
 }
 
+function rawMetricText(item, deduct) {
+  if (item.value_unit === '百分比') {
+    const rate = Math.max(0, 100 - deduct * 4)
+    const count = (base) => `${Math.round((base * rate) / 100)}`
+    const pct = rate.toFixed(1)
+    switch (item.id) {
+      case 'inspect':
+        return `本月巡检任务 40 项，已完成 ${count(40)} 项，完成比例 ${pct}%`
+      case 'hazard':
+        return `本月创建隐患 30 项，已关闭 ${count(30)} 项，整改率 ${pct}%`
+      case 'manage_att':
+        return `本月应出勤 312 人次，实际出勤 ${count(312)} 人次，平均出勤率 ${pct}%`
+      case 'camera':
+        return `本月已结束日期 30 天，日均在线率 ${pct}%`
+      case 'ai':
+        return `本月生成 AI 预警 25 条，已处置 ${count(25)} 条，处置率 ${pct}%`
+      case 'daily_work':
+        return `本月应填报 30 天，已填报 ${count(30)} 天，填报率 ${pct}%`
+      case 'duty_report':
+        return `本月应报值班表 4 周，已完整上报 ${count(4)} 周，完成率 ${pct}%`
+      case 'meeting_report':
+        return `本月应召开监理例会 4 次，已上报 ${count(4)} 次，完成率 ${pct}%`
+      case 'labor_warn':
+        return `本月生成实名制预警 20 条，已关闭 ${count(20)} 条，处置率 ${pct}%`
+      default:
+        return `指标值 ${pct}%`
+    }
+  }
+  if (item.value_unit === '次/台·日') {
+    const intensity = deduct === 0 ? 0 : deduct * 2
+    return `本月塔吊累计报警 ${Math.round(intensity * 30)} 次，累计在场 30 台日，报警强度 ${intensity.toFixed(1)} 次/台·日`
+  }
+  return ''
+}
+
 function buildLines(projectIndex, periodId, projectId) {
   return indicatorState
     .filter((item) => item.enabled && projectUsesIndicator(projectId, item.id))
@@ -583,7 +584,8 @@ function buildLines(projectIndex, periodId, projectId) {
         indicator_name: item.name,
         cap: item.cap,
         involved,
-        value_text: involved ? valueText(item, deduct) : '',
+        value_text: custom ? '--' : (involved ? valueText(item, deduct) : ''),
+        raw_text: custom ? '--' : (involved ? rawMetricText(item, deduct) : (NOT_INVOLVED_NOTE[item.id] || '不涉及')),
         deduct,
         note: custom ? '公式不重算，本项扣 0 分' : (involved ? (deduct > 0 ? '未达标' : '达标') : (NOT_INVOLVED_NOTE[item.id] || '不涉及')),
       }
@@ -772,6 +774,7 @@ export function saveIndicatorConfigs(rows) {
   for (const row of rows) {
     if (builtinIds.includes(row.id)) continue
     if (!String(row.rule_desc || '').trim()) return { ok: false, msg: `${String(row.name).trim() || '未命名指标'}：请填写考核规则说明` }
+    if (!String(row.value_unit || '').trim()) return { ok: false, msg: `${String(row.name).trim() || '未命名指标'}：请填写单位` }
     const check = validateIndicatorRule(row.rule_text)
     if (!check.ok) return { ok: false, msg: `${String(row.name).trim()}：${check.msg}` }
   }
@@ -790,7 +793,9 @@ export function saveIndicatorConfigs(rows) {
       rule_text: builtin ? '' : String(row.rule_text || '').trim(),
       rule_desc: builtin ? (preset?.calc_rule || origin?.rule_desc || '') : String(row.rule_desc || '').trim(),
       cap: origin ? origin.cap : 0,
-      value_unit: origin?.value_unit || '',
+      value_unit: builtin
+        ? (preset?.value_unit || origin?.value_unit || '')
+        : String(row.value_unit ?? origin?.value_unit ?? '').trim(),
       band_unit: origin?.band_unit,
       not_involved: origin?.not_involved || '',
       bands: origin?.bands || [],

@@ -1650,27 +1650,34 @@
   border-left-color: #5eeeff;
 }
 
+/* 任务单 / 提示函 / 处罚单 三个标签页：不要底色，仅靠描边与字色区分选中
+   （与同面板「工作类型（安全/质量）」标签一致） */
 .coc-hq-mode .project-dispatch-layout .doc-tab-btn {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.18);
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.22);
   color: rgba(255, 255, 255, 0.72);
 }
 
+.coc-hq-mode .project-dispatch-layout .doc-tab-btn:hover {
+  border-color: rgba(94, 238, 255, 0.6);
+  color: #fff;
+}
+
 .coc-hq-mode .project-dispatch-layout .doc-tab-btn.active.notice {
-  border-color: rgba(94, 238, 255, 0.55);
-  background: rgba(64, 158, 255, 0.2);
+  border-color: rgba(94, 238, 255, 0.8);
+  background: transparent;
   color: #5eeeff;
 }
 
 .coc-hq-mode .project-dispatch-layout .doc-tab-btn.active.reminder {
-  border-color: rgba(255, 255, 255, 0.35);
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.92);
+  border-color: rgba(255, 255, 255, 0.62);
+  background: transparent;
+  color: #fff;
 }
 
 .coc-hq-mode .project-dispatch-layout .doc-tab-btn.active.penalty {
-  border-color: rgba(246, 197, 117, 0.55);
-  background: rgba(246, 197, 117, 0.12);
+  border-color: rgba(246, 197, 117, 0.75);
+  background: transparent;
   color: #f6c575;
 }
 

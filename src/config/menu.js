@@ -638,6 +638,16 @@ export function buildFusedMenuTree(raw = rawMenuTree) {
           ],
         },
         node('ai-alert-dashboard'),
+        {
+          key: 'weekly-report',
+          label: '数字周报',
+          icon: 'Document',
+          path: '/weekly-report',
+          name: 'WeeklyReportList',
+          component: 'WeeklyReportListView',
+          levels: 'hq',
+          description: '按自然周汇总 COC 调度、安全管理、质量管理运行数据，生成后冻结存档并支持导出 Word。',
+        },
         ...groups('data-board'),
       ],
     },
@@ -691,6 +701,7 @@ export const hiddenRoutes = [
   { key: 'safety-plan-detail', path: '/safety-inspection/plan/:id', name: 'InspectionPlanDetail', component: 'InspectionPlanDetailView', label: '巡检任务详情', sidebarKey: 'safety-plan' },
   { key: 'safety-task-detail', path: '/safety-inspection/task/:id', name: 'InspectionTaskDetail', component: 'InspectionTaskDetailView', label: '巡检任务详情', sidebarKey: 'safety-task-manage' },
   { key: 'safety-hazard-detail', path: '/safety-inspection/hazard/:id', name: 'SafetyHazardDetail', component: 'SafetyHazardDetailView', label: '隐患详情', sidebarKey: 'safety-hazard' },
+  { key: 'weekly-report-detail', path: '/weekly-report/:id', name: 'WeeklyReportDetail', component: 'WeeklyReportDetailView', label: '周报详情', sidebarKey: 'weekly-report' },
 
   // 移动巡检子页
   { key: 'mobile-task-create', path: '/mobile/tasks/create', name: 'MobileTaskCreate', component: 'MobileTaskCreateView', label: '新建巡检', sidebarKey: 'mobile-safety-inspection' },
@@ -893,6 +904,8 @@ export const viewLoaders = {
   Phase1CatalogView: () => import('../views/phase1/Phase1CatalogView.vue'),
   AssessmentRankView: () => import('../views/assessment/AssessmentRankView.vue'),
   AssessmentConfigView: () => import('../views/assessment/AssessmentConfigView.vue'),
+  WeeklyReportListView: () => import('../views/weekly/WeeklyReportListView.vue'),
+  WeeklyReportDetailView: () => import('../views/weekly/WeeklyReportDetailView.vue'),
   PersonalCenterView: () => import('../views/PersonalCenterView.vue'),
   PersonalCenterTodoHandleView: () => import('../views/PersonalCenterTodoHandleView.vue'),
   PersonalCenterStartedEditView: () => import('../views/PersonalCenterStartedEditView.vue'),

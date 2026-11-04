@@ -30,7 +30,7 @@ import {
   riskRunStatus,
   riskRunStatusLabel,
   riskTypeName,
-  severityTagType,
+  severityTagClass,
 } from '../../mock/riskManage.js'
 import { formatRiskPersonLabelById } from '../../utils/riskPersonDisplay.js'
 
@@ -196,7 +196,7 @@ function handleReactivate() {
       <el-descriptions-item label="风险细分">{{ formatRiskCell(detail.risk_segment) }}</el-descriptions-item>
       <el-descriptions-item label="发生频率">{{ formatRiskFrequency(detail) }}</el-descriptions-item>
       <el-descriptions-item label="严重程度">
-        <el-tag size="small" :type="severityTagType(detail.severity)">{{ formatRiskCell(detail.severity) }}</el-tag>
+        <el-tag size="small" :class="severityTagClass(detail.severity)">{{ formatRiskCell(detail.severity) }}</el-tag>
       </el-descriptions-item>
       <el-descriptions-item label="受影响区域" :span="2">{{ riskLocationLabel(detail) }}</el-descriptions-item>
       <el-descriptions-item label="风险因素" :span="2">{{ formatRiskCell(detail.risk_factor) }}</el-descriptions-item>

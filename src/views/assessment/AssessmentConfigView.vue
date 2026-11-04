@@ -2,9 +2,9 @@
 /**
  * 考核配置。指标配置、等级配置、考核项目仅指挥部。考核指标项目级只读。
  */
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { Plus, Delete } from '@element-plus/icons-vue'
 import { useCurrentProject } from '../../composables/useCurrentProject'
 import { projectStatusOptions } from '../../mock/projectBasicInfo'
@@ -13,19 +13,20 @@ import {
   getAssessmentIndicators,
   formatIndicatorFormula,
   getExcludeHistorical,
-  INDICATOR_FIELDS,
+  isProjectIncluded,
   listAssessmentProjects,
   listIndicatorConfigs,
   saveAssessmentGrades,
   saveAssessmentProjects,
   saveIndicatorBands,
   saveIndicatorConfigs,
-  validateIndicatorRule,
 } from '../../mock/assessmentScore'
 
-const { isHqSelected } = useCurrentProject()
+const { isHqSelected, selectedProjectId } = useCurrentProject()
 const route = useRoute()
 const canSave = computed(() => true)
+/** 项目级：该项目在考核项目矩阵中是否有任一已启用指标为开 */
+const projectIncluded = computed(() => isHqSelected.value || isProjectIncluded(selectedProjectId.value))
 const section = computed(() => {
   if (route.path.includes('/indicator-config')) return 'indicator-config'
   if (route.path.includes('/indicators')) return 'indicators'
@@ -105,227 +106,6 @@ watch(() => route.path, () => {
   projects.value = listAssessmentProjects()
 })
 
-const RULE_OPS = ['+', '−', '×', '÷', '(', ')', '，']
-const RULE_FUNCS = ['求和', '求平均']
-const ruleEditorRef = ref(null)
-const ruleCheck = ref({ ok: null, msg: '' })
-let lastRuleRange = null
-
-function rememberRuleRange() {
-  const editor = ruleEditorRef.value
-  const selection = window.getSelection()
-  if (!editor || !selection?.rangeCount) return
-  if (!editor.contains(selection.anchorNode)) return
-  lastRuleRange = selection.getRangeAt(0).cloneRange()
-}
-const fieldGroups = computed(() => {
-  const groups = []
-  INDICATOR_FIELDS.forEach((field) => {
-    let group = groups.find((item) => item.module === field.module)
-    if (!group) {
-      group = { module: field.module, fields: [] }
-      groups.push(group)
-    }
-    group.fields.push(field)
-  })
-  return groups
-})
-
-function placeRuleCaret() {
-  const editor = ruleEditorRef.value
-  if (!editor) return null
-  editor.focus()
-  const selection = window.getSelection()
-  if (selection && selection.rangeCount && editor.contains(selection.anchorNode)) {
-    return selection.getRangeAt(0)
-  }
-  if (lastRuleRange && editor.contains(lastRuleRange.startContainer)) {
-    selection?.removeAllRanges()
-    selection?.addRange(lastRuleRange)
-    return lastRuleRange
-  }
-  const range = document.createRange()
-  range.selectNodeContents(editor)
-  range.collapse(false)
-  selection?.removeAllRanges()
-  selection?.addRange(range)
-  return range
-}
-
-function insertRuleCall(name) {
-  const range = placeRuleCaret()
-  if (!range) return
-  range.deleteContents()
-  const open = document.createTextNode(`${name}(`)
-  const gap = document.createTextNode('\u200B')
-  const close = document.createTextNode(')')
-  const fragment = document.createDocumentFragment()
-  fragment.append(open, gap, close)
-  range.insertNode(fragment)
-  range.setStartAfter(gap)
-  range.collapse(true)
-  const selection = window.getSelection()
-  selection?.removeAllRanges()
-  selection?.addRange(range)
-  lastRuleRange = range.cloneRange()
-  ruleCheck.value = { ok: null, msg: '' }
-}
-
-function insertRuleText(text) {
-  const range = placeRuleCaret()
-  if (!range) return
-  range.deleteContents()
-  const node = document.createTextNode(text)
-  range.insertNode(node)
-  range.setStartAfter(node)
-  range.collapse(true)
-  const selection = window.getSelection()
-  selection?.removeAllRanges()
-  selection?.addRange(range)
-  lastRuleRange = range.cloneRange()
-  ruleCheck.value = { ok: null, msg: '' }
-}
-
-function insertFieldTag(field) {
-  const range = placeRuleCaret()
-  if (!range) return
-  range.deleteContents()
-  const tag = document.createElement('span')
-  tag.className = 'rule-tag'
-  tag.setAttribute('contenteditable', 'false')
-  tag.dataset.field = field.id
-  tag.textContent = field.name
-  const gap = document.createTextNode('\u200B')
-  range.insertNode(gap)
-  range.insertNode(tag)
-  range.setStartAfter(gap)
-  range.collapse(true)
-  const selection = window.getSelection()
-  selection?.removeAllRanges()
-  selection?.addRange(range)
-  lastRuleRange = range.cloneRange()
-  ruleCheck.value = { ok: null, msg: '' }
-}
-
-function serializeRule() {
-  const editor = ruleEditorRef.value
-  if (!editor) return ''
-  let text = ''
-  const walk = (node) => {
-    node.childNodes.forEach((child) => {
-      if (child.nodeType === Node.TEXT_NODE) {
-        text += String(child.textContent || '').replace(/\u200B/g, '')
-        return
-      }
-      if (child.nodeType !== Node.ELEMENT_NODE) return
-      if (child.dataset?.field) {
-        text += child.textContent || ''
-        return
-      }
-      if (child.tagName === 'BR') return
-      walk(child)
-    })
-  }
-  walk(editor)
-  return text
-}
-
-function clearRuleEditor() {
-  if (ruleEditorRef.value) ruleEditorRef.value.innerHTML = ''
-}
-
-function fillRuleEditor(text) {
-  const editor = ruleEditorRef.value
-  if (!editor) return
-  editor.innerHTML = ''
-  const source = String(text || '')
-  const names = [...INDICATOR_FIELDS].sort((left, right) => right.name.length - left.name.length)
-  let index = 0
-  let buffer = ''
-  const flush = () => {
-    if (!buffer) return
-    editor.appendChild(document.createTextNode(buffer))
-    buffer = ''
-  }
-  while (index < source.length) {
-    const field = names.find((item) => source.startsWith(item.name, index))
-    if (field) {
-      flush()
-      const tag = document.createElement('span')
-      tag.className = 'rule-tag'
-      tag.setAttribute('contenteditable', 'false')
-      tag.dataset.field = field.id
-      tag.textContent = field.name
-      editor.appendChild(tag)
-      index += field.name.length
-      continue
-    }
-    buffer += source[index]
-    index += 1
-  }
-  flush()
-}
-
-function onFieldDragStart(event, field) {
-  event.dataTransfer?.setData('text/plain', `field:${field.id}`)
-  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'copy'
-}
-
-function onRuleDrop(event) {
-  const raw = event.dataTransfer?.getData('text/plain') || ''
-  const field = INDICATOR_FIELDS.find((item) => raw === `field:${item.id}`)
-  if (!field) return
-  insertFieldTag(field)
-}
-
-function onRulePaste(event) {
-  event.preventDefault()
-  const text = event.clipboardData?.getData('text/plain') || ''
-  if (text) insertRuleText(text)
-}
-
-function checkRule() {
-  const result = validateIndicatorRule(serializeRule())
-  ruleCheck.value = result
-  if (result.ok) ElMessage.success(result.msg)
-  else ElMessage.warning(result.msg)
-}
-
-const configVisible = ref(false)
-const configMode = ref('create')
-const configForm = ref(null)
-
-function openCreateConfig() {
-  configMode.value = 'create'
-  ruleCheck.value = { ok: null, msg: '' }
-  lastRuleRange = null
-  configForm.value = {
-    id: `ind-${Date.now()}`,
-    name: '',
-    rule_desc: '',
-    builtin: false,
-    enabled: true,
-  }
-  configVisible.value = true
-  nextTick(() => clearRuleEditor())
-}
-
-function openEditConfig(row) {
-  if (row.builtin) return
-  configMode.value = 'edit'
-  ruleCheck.value = { ok: null, msg: '' }
-  lastRuleRange = null
-  configForm.value = {
-    id: row.id,
-    name: row.name,
-    rule_desc: row.rule_desc || '',
-    builtin: false,
-    enabled: !!row.enabled,
-  }
-  configVisible.value = true
-  nextTick(() => fillRuleEditor(row.rule_text || row.calc_rule || ''))
-}
-
 function snapshotConfigs() {
   return indicatorConfigs.value.map((item) => ({
     ...item,
@@ -338,7 +118,7 @@ function toggleIndicatorEnabled(row, value) {
   const next = snapshotConfigs().map((item) => (
     item.id === row.id ? { ...item, enabled: value } : item
   ))
-  applyConfigSave(next, value ? '指标已启用。已结束月份不改名次，出勤和摄像头次日纳入月平均；塔吊、升降机按月累计，每日施工作业计填报天数，任务、隐患、预警在次月 1 日统计' : '指标已停用。已结束月份不改名次，出勤和摄像头次日纳入月平均；塔吊、升降机按月累计，每日施工作业计填报天数，任务、隐患、预警在次月 1 日统计')
+  applyConfigSave(next, value ? '指标已启用。已结束月份不改名次，出勤和摄像头次日纳入月平均；塔吊按月累计，每日施工作业计填报率，任务、隐患、预警在次月 1 日统计' : '指标已停用。已结束月份不改名次，出勤和摄像头次日纳入月平均；塔吊按月累计，每日施工作业计填报率，任务、隐患、预警在次月 1 日统计')
 }
 
 function applyConfigSave(rows, successText) {
@@ -354,56 +134,6 @@ function applyConfigSave(rows, successText) {
   return true
 }
 
-function saveConfigForm() {
-  if (!configForm.value || configForm.value.builtin) return
-  if (!String(configForm.value.rule_desc || '').trim()) {
-    ElMessage.warning('请填写考核规则说明')
-    return
-  }
-  const ruleText = serializeRule()
-  const check = validateIndicatorRule(ruleText)
-  ruleCheck.value = check
-  if (!check.ok) {
-    ElMessage.warning(check.msg)
-    return
-  }
-  const draft = {
-    id: configForm.value.id,
-    name: configForm.value.name,
-    rule_desc: String(configForm.value.rule_desc || '').trim(),
-    builtin: false,
-    enabled: configMode.value === 'create' ? true : !!configForm.value.enabled,
-    rule_text: ruleText.trim(),
-    formula: [],
-  }
-  const next = snapshotConfigs()
-  if (configMode.value === 'create') {
-    next.push(draft)
-  } else {
-    const index = next.findIndex((item) => item.id === draft.id)
-    if (index < 0) {
-      ElMessage.warning('未找到该指标')
-      return
-    }
-    next[index] = { ...next[index], name: draft.name, rule_text: draft.rule_text, rule_desc: draft.rule_desc }
-  }
-  const ok = applyConfigSave(next, configMode.value === 'create' ? '指标已新增。已结束月份不改名次，出勤和摄像头次日纳入月平均；塔吊、升降机按月累计，每日施工作业计填报天数，任务、隐患、预警在次月 1 日统计' : '指标已保存。已结束月份不改名次，出勤和摄像头次日纳入月平均；塔吊、升降机按月累计，每日施工作业计填报天数，任务、隐患、预警在次月 1 日统计')
-  if (ok) configVisible.value = false
-}
-
-async function removeIndicatorConfig(row) {
-  if (row.builtin) return
-  try {
-    await ElMessageBox.confirm(`确认删除指标「${row.name || '未命名'}」？`, '提示', { type: 'warning' })
-  } catch {
-    return
-  }
-  const next = indicatorConfigs.value
-    .filter((item) => item.id !== row.id)
-    .map((item) => ({ ...item, formula: (item.formula || []).map((token) => ({ ...token })), rule_text: item.rule_text || '' }))
-  applyConfigSave(next, '指标已删除。已结束月份不改名次，出勤和摄像头次日纳入月平均；塔吊、升降机按月累计，每日施工作业计填报天数，任务、隐患、预警在次月 1 日统计')
-}
-
 function saveProjects() {
   const result = saveAssessmentProjects(projects.value, { excludeHistorical: excludeHistorical.value })
   if (!result.ok) {
@@ -412,7 +142,7 @@ function saveProjects() {
   }
   projects.value = listAssessmentProjects()
   excludeHistorical.value = getExcludeHistorical()
-  ElMessage.success('考核项目已保存。历史项目不参与评分打开时，历史项目不计分。已结束月份不改名次，出勤和摄像头次日纳入月平均；塔吊、升降机按月累计，每日施工作业计填报天数，任务、隐患、预警在次月 1 日统计')
+  ElMessage.success('考核项目已保存。历史项目不参与评分打开时，历史项目不计分。已结束月份不改名次，出勤和摄像头次日纳入月平均；塔吊按月累计，每日施工作业计填报率，任务、隐患、预警在次月 1 日统计')
 }
 
 function saveGrades() {
@@ -422,7 +152,7 @@ function saveGrades() {
     return
   }
   grades.value = gradeRowsFromState(getAssessmentGrades())
-  ElMessage.success('等级已保存。已结束月份不改等级，出勤和摄像头次日纳入月平均；塔吊、升降机按月累计，每日施工作业计填报天数，任务、隐患、预警在次月 1 日统计')
+  ElMessage.success('等级已保存。已结束月份不改等级，出勤和摄像头次日纳入月平均；塔吊按月累计，每日施工作业计填报率，任务、隐患、预警在次月 1 日统计')
 }
 
 function resetGrades() {
@@ -486,6 +216,14 @@ const bandUnitText = computed(() => {
   return unit || '--'
 })
 
+/** 列表/详情展示单位：内置「百分比」显示为 %，自定义指标按录入文本展示。 */
+function displayUnitText(value) {
+  const unit = String(value || '').trim()
+  if (!unit) return '--'
+  if (unit === '百分比') return '%'
+  return unit
+}
+
 function sortBands(bands) {
   return [...bands].sort((left, right) => {
     const leftMin = left.min === null || left.min === undefined || left.min === '' ? Number.NEGATIVE_INFINITY : Number(left.min)
@@ -507,31 +245,101 @@ function scoreRuleUnit(row) {
   return unit
 }
 
-function formatScoreRule(row) {
-  const bands = sortBands(row.bands || [])
-  if (!bands.length && !row.not_involved) return '--'
-  const unit = scoreRuleUnit(row)
-  const lines = bands.map((band) => {
-    const left = band.min_inclusive ? '≤' : '<'
-    const right = band.max_inclusive ? '≤' : '<'
-    return `${formatBound(band.min)} ${unit} ${left} ${row.name} ${right} ${formatBound(band.max)} ${unit}，扣 ${formatBound(band.deduct)} 分`
-  })
-  if (row.not_involved) lines.push(`不涉及：${row.not_involved}`)
-  return lines.join('\n') || '--'
+/** 比率与强度类单位保留 1 位小数；计数类（条/个/人次/次/台/天）取整。 */
+function isDecimalUnit(unit) {
+  const text = String(unit || '')
+  return text === '%' || text.includes('%') || text.includes('台·日') || text.includes('台日') || text.includes('/')
 }
+
+/** 考核成绩句式中的数值：比率与报警强度保留 1 位，其余按整数。 */
+function formatRuleNumber(value, unit) {
+  const number = Number(value)
+  if (Number.isNaN(number)) return '--'
+  if (isDecimalUnit(unit)) return number.toFixed(1)
+  return Number.isInteger(number) ? String(number) : String(Math.round(number * 10) / 10)
+}
+
+/** 本档扣分统一保留 1 位小数（与综合得分/扣分合计同口径）。 */
+function formatRuleDeduct(value) {
+  const number = Number(value)
+  if (Number.isNaN(number)) return '--'
+  return number.toFixed(1)
+}
+
+/** 分档边界是否为空（空表示该侧不限）：为空时对应单位与比较符不展示，保持句式可读。 */
+function isBoundEmpty(value) {
+  return value === null || value === undefined || value === ''
+}
+
+/**
+ * 组装一档成绩句式（列表摘要与规则配置预览共用）：
+ * 40.0%＜巡检任务完成率≤60.0%，扣4.0分（无下限/上限时省略该侧；上下限相等写作「指标名称＝值」）。
+ */
+function buildBandSentenceParts(band) {
+  const unit = band.unit || ''
+  const left = band.minInclusive ? '≤' : '＜'
+  const right = band.maxInclusive ? '≤' : '＜'
+  const minEmpty = band.min === null || band.min === undefined || band.min === ''
+  const maxEmpty = band.max === null || band.max === undefined || band.max === ''
+  const sameBound = !minEmpty && !maxEmpty && Number(band.min) === Number(band.max)
+  let prefix = ''
+  if (minEmpty && maxEmpty) {
+    prefix = `${band.name}不限`
+  } else if (sameBound && band.minInclusive && band.maxInclusive) {
+    prefix = `${band.name}＝${formatRuleNumber(band.min, unit)}${unit}`
+  } else if (minEmpty) {
+    prefix = `${band.name}${right}${formatRuleNumber(band.max, unit)}${unit}`
+  } else if (maxEmpty) {
+    prefix = `${formatRuleNumber(band.min, unit)}${unit}${left}${band.name}`
+  } else {
+    prefix = `${formatRuleNumber(band.min, unit)}${unit}${left}${band.name}${right}${formatRuleNumber(band.max, unit)}${unit}`
+  }
+  return [
+    { text: prefix },
+    { text: '，扣' },
+    { text: formatRuleDeduct(band.deduct), deduct: true },
+    { text: '分' },
+  ]
+}
+
+/**
+ * 考核成绩（分档摘要）逐档展示，扣分数字单独成段以便标红。
+ */
+function formatScoreRuleLines(row) {
+  const bands = sortBands(row.bands || [])
+  const unit = scoreRuleUnit(row)
+  const name = String(row.name || '').trim() || '指标值'
+  const lines = bands.map((band) => buildBandSentenceParts({
+    min: band.min,
+    max: band.max,
+    minInclusive: band.min_inclusive,
+    maxInclusive: band.max_inclusive,
+    deduct: band.deduct,
+    name,
+    unit,
+  }))
+  if (row.not_involved) lines.push([{ text: `不涉及：${row.not_involved}` }])
+  return lines.length ? lines : [[{ text: '--' }]]
+}
+
+/** 规则配置弹窗「考核成绩」分档行在扣分输入框前显示「，扣」。 */
 
 function openBands(row) {
   bandTarget.value = row
+  const storedBands = sortBands(row.bands || []).map((item) => ({
+    min: item.min,
+    max: item.max,
+    min_cmp: item.min_inclusive ? 'gte' : 'gt',
+    max_cmp: item.max_inclusive ? 'lte' : 'lt',
+    deduct: item.deduct,
+  }))
   bandForm.value = {
     cap: row.cap,
     not_involved: row.not_involved || '',
-    bands: sortBands(row.bands || []).map((item) => ({
-      min: item.min,
-      max: item.max,
-      min_cmp: item.min_inclusive ? 'gte' : 'gt',
-      max_cmp: item.max_inclusive ? 'lte' : 'lt',
-      deduct: item.deduct,
-    })),
+    // 尚未配置分档时给一档空白行，避免弹窗里无法新增分档
+    bands: storedBands.length
+      ? storedBands
+      : [{ min: null, max: null, min_cmp: 'gte', max_cmp: 'lte', deduct: 0 }],
   }
   bandVisible.value = true
 }
@@ -571,7 +379,10 @@ function bandRowError(index) {
   }
   const prev = bandForm.value.bands[index - 1]
   if (prev && !maxEmpty && prev.max !== null && prev.max !== undefined && prev.max !== '' && Number(row.max) <= Number(prev.max)) {
-    return '需大于前一项的值'
+    // 单点档（上下限相等且两端闭合，如「＝100%」）允许与前一项上限相同
+    const singlePoint = !minEmpty && Number(row.min) === Number(row.max)
+      && row.min_cmp === 'gte' && row.max_cmp === 'lte'
+    if (!singlePoint) return '需大于前一项的值'
   }
   return ''
 }
@@ -602,7 +413,7 @@ function saveBands() {
     row.cap = result.indicator.cap
   }
   bandVisible.value = false
-  ElMessage.success('分数分档已保存。已结束月份不改名次，出勤和摄像头次日纳入月平均；塔吊、升降机按月累计，每日施工作业计填报天数，任务、隐患、预警在次月 1 日统计')
+  ElMessage.success('分数分档已保存。已结束月份不改名次，出勤和摄像头次日纳入月平均；塔吊按月累计，每日施工作业计填报率，任务、隐患、预警在次月 1 日统计')
 }
 </script>
 
@@ -612,13 +423,6 @@ function saveBands() {
       <div class="page-breadcrumb">考核评分 / {{ pageTitle }}</div>
       <div class="page-heading">
         <h1 class="page-title">{{ pageTitle }}</h1>
-        <el-button
-          v-if="isHqSelected && section === 'indicator-config'"
-          type="primary"
-          :icon="Plus"
-          :disabled="!canSave"
-          @click="openCreateConfig"
-        >新增</el-button>
       </div>
     </div>
 
@@ -663,31 +467,35 @@ function saveBands() {
           <el-table-column label="指标名称" min-width="180" show-overflow-tooltip>
             <template #default="{ row }">{{ row.name || '--' }}</template>
           </el-table-column>
-          <el-table-column label="指标规则" min-width="280" show-overflow-tooltip>
+          <el-table-column label="指标规则" min-width="240" show-overflow-tooltip>
             <template #default="{ row }">{{ row.builtin ? (formatIndicatorFormula(row.formula) || '--') : (row.rule_text || '--') }}</template>
           </el-table-column>
-          <el-table-column label="考核规则说明" min-width="280" show-overflow-tooltip>
+          <el-table-column label="考核规则说明" min-width="240" show-overflow-tooltip>
             <template #default="{ row }">{{ row.rule_desc || '--' }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="220" align="center" fixed="right">
+          <el-table-column label="单位" width="100" align="center">
+            <template #default="{ row }">{{ displayUnitText(row.value_unit) }}</template>
+          </el-table-column>
+          <el-table-column label="启用" width="100" align="center" fixed="right">
             <template #default="{ row }">
-              <div class="row-actions">
-                <el-switch
-                  :model-value="row.enabled"
-                  :disabled="!canSave"
-                  aria-label="启用指标"
-                  @change="(value) => toggleIndicatorEnabled(row, value)"
-                />
-                <el-button v-if="!row.builtin" link type="primary" :disabled="!canSave" @click="openEditConfig(row)">编辑</el-button>
-                <el-button v-if="!row.builtin" link type="danger" :disabled="!canSave" @click="removeIndicatorConfig(row)">删除</el-button>
-              </div>
+              <el-switch
+                :model-value="row.enabled"
+                :disabled="!canSave"
+                aria-label="启用指标"
+                @change="(value) => toggleIndicatorEnabled(row, value)"
+              />
             </template>
           </el-table-column>
         </el-table>
       </template>
 
       <template v-else-if="section === 'indicators'">
-        <el-table :data="indicators" stripe border empty-text="暂无已启用指标">
+        <el-empty
+          v-if="!projectIncluded"
+          :image-size="150"
+          description="该项目不参与信息化考核评分"
+        />
+        <el-table v-else :data="indicators" stripe border empty-text="暂无已启用指标">
           <el-table-column label="指标" min-width="160" prop="name" />
           <el-table-column label="考核规则" min-width="280">
             <template #default="{ row }">
@@ -696,7 +504,15 @@ function saveBands() {
           </el-table-column>
           <el-table-column label="分数计算规则" min-width="360">
             <template #default="{ row }">
-              <span class="rule-text score-rule">{{ formatScoreRule(row) }}</span>
+              <span class="rule-text score-rule">
+                <span v-for="(line, lineIndex) in formatScoreRuleLines(row)" :key="lineIndex" class="score-rule-line">
+                  <span
+                    v-for="(part, partIndex) in line"
+                    :key="partIndex"
+                    :class="{ 'score-rule-deduct': part.deduct }"
+                  >{{ part.text }}</span>
+                </span>
+              </span>
             </template>
           </el-table-column>
           <el-table-column label="扣分上限" width="120" align="center">
@@ -790,6 +606,10 @@ function saveBands() {
         <span class="rule-form-value">{{ bandTarget?.rule_desc || '--' }}</span>
       </div>
       <div class="rule-form-row">
+        <span class="rule-form-label">单位</span>
+        <span class="rule-form-value">{{ bandUnitText }}</span>
+      </div>
+      <div class="rule-form-row">
         <span class="rule-form-label required">扣分上限</span>
         <div class="rule-form-value">
           <el-input-number
@@ -821,13 +641,13 @@ function saveBands() {
               :controls="false"
               :disabled="!canSave"
             />
-            <span class="band-unit">{{ bandUnitText }}</span>
-            <el-select v-model="row.min_cmp" class="band-op" :disabled="!canSave">
+            <span v-if="!isBoundEmpty(row.min)" class="band-unit">{{ bandUnitText }}</span>
+            <el-select v-if="!isBoundEmpty(row.min)" v-model="row.min_cmp" class="band-op" :disabled="!canSave">
               <el-option label="≤" value="gte" />
               <el-option label="<" value="gt" />
             </el-select>
             <span class="band-name">{{ bandTarget?.name || '指标值' }}</span>
-            <el-select v-model="row.max_cmp" class="band-op" :disabled="!canSave">
+            <el-select v-if="!isBoundEmpty(row.max)" v-model="row.max_cmp" class="band-op" :disabled="!canSave">
               <el-option label="≤" value="lte" />
               <el-option label="<" value="lt" />
             </el-select>
@@ -842,9 +662,11 @@ function saveBands() {
               />
               <span v-if="bandRowError(index)" class="band-error">{{ bandRowError(index) }}</span>
             </div>
-            <span class="band-unit">{{ bandUnitText }}</span>
+            <span v-if="!isBoundEmpty(row.max)" class="band-unit">{{ bandUnitText }}</span>
+            <span class="band-punct">，扣</span>
             <el-input-number
               v-model="row.deduct"
+              class="band-deduct"
               :min="0"
               :max="bandForm.cap ?? 100"
               :precision="1"
@@ -873,103 +695,6 @@ function saveBands() {
         <el-button type="primary" :disabled="!canSave" @click="saveBands">保存</el-button>
       </template>
     </el-dialog>
-
-    <el-dialog v-model="configVisible" :title="configMode === 'create' ? '新增指标' : '编辑指标'" width="1080px">
-      <template v-if="configForm">
-        <div class="formula-editor" :class="{ 'is-locked': configForm.builtin }">
-          <div class="formula-editor-main">
-            <div class="rule-form-row">
-              <span class="rule-form-label required">指标名称</span>
-              <div class="rule-form-value">
-                <el-input
-                  v-model="configForm.name"
-                  maxlength="20"
-                  :disabled="!canSave"
-                  :class="{ 'grade-input-error': !String(configForm.name || '').trim() }"
-                  aria-label="指标名称"
-                />
-                <span v-if="!String(configForm.name || '').trim()" class="band-error">请输入</span>
-              </div>
-            </div>
-            <div class="rule-form-row">
-              <span class="rule-form-label required">指标规则</span>
-              <div class="rule-form-value">
-                <div class="rule-box" :class="{ 'is-error': ruleCheck.ok === false }">
-                  <div class="rule-ops">
-                    <el-button
-                      v-for="op in RULE_OPS"
-                      :key="op"
-                      size="small"
-                      :disabled="!canSave"
-                      @click="insertRuleText(op)"
-                    >{{ op }}</el-button>
-                    <el-button
-                      v-for="fn in RULE_FUNCS"
-                      :key="fn"
-                      size="small"
-                      :disabled="!canSave"
-                      @click="insertRuleCall(fn)"
-                    >{{ fn }}</el-button>
-                    <el-button size="small" type="primary" plain :disabled="!canSave" @click="checkRule">校验</el-button>
-                  </div>
-                  <div
-                    ref="ruleEditorRef"
-                    class="rule-editor"
-                    contenteditable="true"
-                    aria-label="指标规则"
-                    @dragover.prevent
-                    @drop.prevent="onRuleDrop"
-                    @paste="onRulePaste"
-                    @mouseup="rememberRuleRange"
-                    @keyup="rememberRuleRange"
-                  />
-                </div>
-                <p v-if="ruleCheck.ok === false" class="band-error">{{ ruleCheck.msg }}</p>
-                <p v-else-if="ruleCheck.ok" class="rule-ok">{{ ruleCheck.msg }}</p>
-              </div>
-            </div>
-            <div class="rule-form-row">
-              <span class="rule-form-label required">考核规则说明</span>
-              <div class="rule-form-value">
-                <el-input
-                  v-model="configForm.rule_desc"
-                  type="textarea"
-                  :rows="3"
-                  maxlength="200"
-                  show-word-limit
-                  :disabled="!canSave"
-                  placeholder="用文字说明这项指标怎么考核"
-                  :class="{ 'grade-input-error': !String(configForm.rule_desc || '').trim() }"
-                  aria-label="考核规则说明"
-                />
-                <span v-if="!String(configForm.rule_desc || '').trim()" class="band-error">请输入</span>
-              </div>
-            </div>
-          </div>
-          <aside v-if="!configForm.builtin" class="formula-editor-side">
-            <div class="field-side-title">统计字段</div>
-            <p class="field-side-note">每个字段都带时间。月度按考核月，当日按已结束自然日，月累计为全月合计。</p>
-            <div v-for="group in fieldGroups" :key="group.module" class="field-group">
-              <div class="field-group-title">{{ group.module }}</div>
-              <button
-                v-for="field in group.fields"
-                :key="field.id"
-                type="button"
-                class="field-chip"
-                draggable="true"
-                :disabled="!canSave"
-                @dragstart="onFieldDragStart($event, field)"
-                @click="insertFieldTag(field)"
-              ><span class="field-grain">{{ field.grain }}</span>{{ field.name.startsWith(field.grain) ? field.name.slice(field.grain.length) : field.name }}</button>
-            </div>
-          </aside>
-        </div>
-      </template>
-      <template #footer>
-        <el-button @click="configVisible = false">取消</el-button>
-        <el-button type="primary" :disabled="!canSave" @click="saveConfigForm">保存</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
@@ -981,7 +706,9 @@ function saveBands() {
 .save-bar { margin-top: 16px; }
 .unit { margin-left: 6px; }
 .rule-text { display: inline-block; line-height: 1.6; color: var(--ap-text, #303133); }
-.score-rule { white-space: pre-line; }
+.score-rule { white-space: normal; }
+.score-rule-line { display: block; }
+.score-rule-deduct { color: #f56c6c; }
 .formula-editor { display: flex; gap: 16px; align-items: flex-start; }
 .formula-editor-main { flex: 1; min-width: 0; }
 .formula-editor.is-locked .formula-editor-main { width: 100%; }
@@ -1008,9 +735,13 @@ function saveBands() {
 .rule-form-label.required::before { content: '*'; color: #f56c6c; margin-right: 4px; }
 .rule-form-value { flex: 1; min-width: 0; line-height: 32px; }
 .band-line { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; margin-bottom: 14px; }
+.band-punct { line-height: 32px; white-space: nowrap; }
+.band-deduct :deep(.el-input__inner) { color: #f56c6c; }
 .band-op { width: 72px; }
 .band-name { line-height: 32px; white-space: nowrap; }
 .band-unit { line-height: 32px; color: #606266; }
+.unit-input { display: flex; flex-direction: column; align-items: flex-start; }
+.unit-input :deep(.el-input) { width: 220px; }
 .band-max { display: flex; flex-direction: column; }
 .band-error { color: #f56c6c; font-size: 12px; line-height: 1.4; margin-top: 2px; }
 .band-actions { display: flex; align-items: center; gap: 8px; height: 32px; }

@@ -22,7 +22,7 @@ import {
   listRiskControlMetrics,
   listRiskPointControls,
   riskTypeName,
-  severityTagType,
+  severityTagClass,
 } from '../../mock/riskManage.js'
 import { formatRiskPersonLabelById } from '../../utils/riskPersonDisplay.js'
 
@@ -189,7 +189,7 @@ function goResubmit(row) {
         </el-table-column>
         <el-table-column prop="severity" label="严重程度" width="100" align="center">
           <template #default="{ row }">
-            <el-tag size="small" :type="severityTagType(row.severity)">{{ formatRiskCell(row.severity) }}</el-tag>
+            <el-tag size="small" :class="severityTagClass(row.severity)">{{ formatRiskCell(row.severity) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="管控责任人" min-width="180" show-overflow-tooltip>

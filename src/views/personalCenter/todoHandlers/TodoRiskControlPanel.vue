@@ -13,7 +13,7 @@ import {
   riskLocationLabel,
   riskRunStatusLabel,
   riskTypeName,
-  severityTagType,
+  severityTagClass,
 } from '../../../mock/riskManage.js'
 import { formatRiskPersonLabelById } from '../../../utils/riskPersonDisplay.js'
 import TodoApprovalFlowSection from '../components/TodoApprovalFlowSection.vue'
@@ -57,7 +57,7 @@ const approvalFlow = computed(() => riskApprovalFlow(row.value))
         <el-descriptions-item label="风险细分">{{ formatRiskCell(row.risk_segment) }}</el-descriptions-item>
         <el-descriptions-item label="发生频率">{{ formatRiskFrequency(row) }}</el-descriptions-item>
         <el-descriptions-item label="严重程度">
-          <el-tag size="small" :type="severityTagType(row.severity)">{{ formatRiskCell(row.severity) }}</el-tag>
+          <el-tag size="small" :class="severityTagClass(row.severity)">{{ formatRiskCell(row.severity) }}</el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="受影响区域" :span="2">{{ riskLocationLabel(row) }}</el-descriptions-item>
         <el-descriptions-item label="风险因素" :span="2">{{ formatRiskCell(row.risk_factor) }}</el-descriptions-item>

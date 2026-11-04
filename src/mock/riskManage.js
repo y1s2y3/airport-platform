@@ -140,17 +140,18 @@ export function approvalStatusTagType(status) {
 
 /**
  * 严重程度 Tag 颜色（统一色口径）：
- * 低＝success（绿）/ 中＝primary（蓝）/ 高＝warning（橙）/ 超高＝danger（红）/ 未知或空＝info（灰）。
- * 注：本工程 Element Plus 2.14 的 el-tag 未传 type 时会回落 primary（蓝），
- * 达不到「默认灰」，故未知/空在此显式回落 info（灰），色口径只在此一处维护。
+ * 低＝绿 / 中＝蓝 / 高＝橙 / 超高＝红 / 未知或空＝灰。
+ * 注：本工程主题把 --el-color-primary 改成品牌玫红（src/styles/theme.css），
+ * 若「中」继续用 el-tag type="primary" 会显示成玫红而非蓝色，
+ * 故改为返回自定义 class，具体色值只在 theme.css 的 .ap-severity-tag--* 维护。
  */
-export function severityTagType(value) {
+export function severityTagClass(value) {
   const level = String(value ?? '').trim()
-  if (level === '低') return 'success'
-  if (level === '中') return 'primary'
-  if (level === '高') return 'warning'
-  if (level === '超高') return 'danger'
-  return 'info'
+  if (level === '低') return 'ap-severity-tag--low'
+  if (level === '中') return 'ap-severity-tag--medium'
+  if (level === '高') return 'ap-severity-tag--high'
+  if (level === '超高') return 'ap-severity-tag--ultra'
+  return 'ap-severity-tag--unknown'
 }
 
 /**
