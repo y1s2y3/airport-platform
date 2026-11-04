@@ -29,6 +29,12 @@ const rounds = computed(() => {
   const records = buildSamplingRounds(sampling.value, row.value, role.value).filter(round => role.value === 'hq' || taskIds.has(round.taskId))
   return taskContext.value ? records.filter(round => round.id === contextTask.value.batchId) : records
 })
+/** COC 大屏：抽查记录不按身份过滤，项目内统一展示全部阶段（操作/待办仍按当前身份） */
+const displayRounds = computed(() => {
+  if (!props.coc || !allowed.value) return rounds.value
+  const records = buildSamplingRounds(sampling.value, row.value, 'hq')
+  return taskContext.value ? records.filter(round => round.id === contextTask.value.batchId) : records
+})
 const inspectionDates = ref([])
 const pendingRounds = computed(() => rounds.value.filter(round => round.actionTaskId))
 const editorVisible = ref(false)
@@ -91,11 +97,11 @@ function submit() {
     </div>
     <div class="sampling-date-filter">
       <span>抽查日期</span>
-      <el-date-picker v-model="inspectionDates" type="daterange" value-format="YYYY-MM-DD" start-placeholder="开始日期" end-placeholder="结束日期" clearable />
+      <el-date-picker v-model="inspectionDates" type="daterange" value-format="YYYY-MM-DD" start-placeholder="开始日期" end-placeholder="结束日期" clearable :popper-class="coc ? 'sampling-coc-popper' : undefined" />
       <el-button @click="inspectionDates=[]">重置</el-button>
     </div>
-    <SamplingRoundsTable :rounds="rounds" :role="role" :date-range="inspectionDates" :coc="coc" />
-    <el-dialog v-model="editorVisible" :title="editorTitle" width="680px" :z-index="coc ? 220000 : undefined" append-to-body destroy-on-close>
+    <SamplingRoundsTable :rounds="displayRounds" :role="role" :date-range="inspectionDates" :coc="coc" :empty-text="coc ? '暂无抽查记录' : '尚未提交本身份的抽查记录'" />
+    <el-dialog v-model="editorVisible" :title="editorTitle" width="680px" :z-index="coc ? 220000 : undefined" :class="coc ? 'sampling-coc-dialog' : ''" append-to-body destroy-on-close>
       <el-config-provider :z-index="coc ? 230000 : 2000">
       <el-form label-width="128px" class="sampling-entry-form">
         <el-form-item v-if="role !== 'manager'" label="抽查结果" required>
@@ -117,7 +123,7 @@ function submit() {
         <template v-if="role === 'supervisor' && form.result === '不合格'">
           <template v-if="!existingFollow">
             <el-form-item label="是否下发任务" required><el-radio-group v-model="form.dispatch"><el-radio :value="true">是</el-radio><el-radio :value="false">否</el-radio></el-radio-group></el-form-item>
-            <el-form-item v-if="form.dispatch === true" label="全面复查人" required><el-select v-model="form.reviewAssigneeId" filterable placeholder="请选择一名全面复查人" style="width:100%"><el-option v-for="person in assignees" :key="person.id" :label="person.label" :value="person.id"/></el-select></el-form-item>
+            <el-form-item v-if="form.dispatch === true" label="全面复查人" required><el-select v-model="form.reviewAssigneeId" filterable placeholder="请选择一名全面复查人" style="width:100%" :teleported="coc ? false : true" :popper-class="coc ? 'sampling-coc-popper' : undefined"><el-option v-for="person in assignees" :key="person.id" :label="person.label" :value="person.id"/></el-select></el-form-item>
           </template>
           <el-form-item v-else label="已下发至"><span>{{ existingFollow.recipient }}</span></el-form-item>
           <el-alert v-if="editingTask" type="info" :closable="false" :title="existingFollow ? `本批次已有全面复查任务，共${existingFollow.ids.length}张，不再重复下发。` : `将下发原任务${editingTask.start}至${editingTask.end}完整时间范围的全部${editingTask.poolIds.length}张单据。`"/>
@@ -126,9 +132,9 @@ function submit() {
           <el-form-item label="是否下发任务" required><el-radio-group v-model="form.dispatch"><el-radio :value="true">是</el-radio><el-radio :value="false">否</el-radio></el-radio-group></el-form-item>
           <template v-if="form.dispatch === true">
             <el-form-item label="本单登记时间"><span>{{ row.registeredAt || '--' }}</span></el-form-item>
-            <el-form-item label="检查时间范围" required><el-date-picker v-model="form.dates" type="daterange" value-format="YYYY-MM-DD" start-placeholder="检查开始日期" end-placeholder="检查结束日期"/><span class="sampling-hint">按本单所属项目、同一来源的登记日期取单，含起止日；必须覆盖本单登记日期 {{ registrationDay(row) }}。</span></el-form-item>
+            <el-form-item label="检查时间范围" required><el-date-picker v-model="form.dates" type="daterange" value-format="YYYY-MM-DD" start-placeholder="检查开始日期" end-placeholder="检查结束日期" :popper-class="coc ? 'sampling-coc-popper' : undefined"/><span class="sampling-hint">按本单所属项目、同一来源的登记日期取单，含起止日；必须覆盖本单登记日期 {{ registrationDay(row) }}。</span></el-form-item>
             <el-form-item label="抽检比例" required><el-input-number v-model="form.percent" :min="1" :max="100" :precision="0"/> <span style="margin-left:8px">%</span></el-form-item>
-            <el-form-item label="抽检人" required><el-select v-model="form.assigneeId" filterable placeholder="请选择一名抽检人" style="width:100%"><el-option v-for="person in assignees" :key="person.id" :label="person.label" :value="person.id"/></el-select></el-form-item>
+            <el-form-item label="抽检人" required><el-select v-model="form.assigneeId" filterable placeholder="请选择一名抽检人" style="width:100%" :teleported="coc ? false : true" :popper-class="coc ? 'sampling-coc-popper' : undefined"><el-option v-for="person in assignees" :key="person.id" :label="person.label" :value="person.id"/></el-select></el-form-item>
             <el-alert v-if="dispatchPreview" :type="dispatchPreview.error ? 'warning' : 'info'" :closable="false" :title="dispatchPreview.error || `本来源范围内共${dispatchPreview.pool.length}张，实际下发${dispatchPreview.count}张；本单必含，其余随机抽取。`"/>
           </template>
         </template>
