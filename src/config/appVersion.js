@@ -17,6 +17,14 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.17.1.45',
+    date: '2026-11-04',
+    highlights: [
+      '危大工程看板·各项目危大工程台账：「查看」改为直接下钻到该项目的危大清单台账（不再在看板内弹抽屉），台账页左上提供「返回危大工程看板」',
+      '下钻打开的危大清单为只读视图：操作列仅保留「查看」，隐藏「编辑」与「过程管控」；从菜单正常进入时按钮不变',
+    ],
+  },
+  {
     version: 'v2.17.1.44',
     date: '2026-11-04',
     highlights: [

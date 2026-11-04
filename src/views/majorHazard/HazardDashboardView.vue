@@ -2,9 +2,12 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import * as echarts from 'echarts'
 import { Refresh, Search } from '@element-plus/icons-vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { COC_PROJECT_OPTIONS } from '../../config/projectOptions.js'
 import { useCurrentProject } from '../../composables/useCurrentProject.js'
+
+const router = useRouter()
 import {
   MAJOR_HAZARD_CHANGE_EVENT,
   getCalendarAlerts,
@@ -374,9 +377,13 @@ function openDetail(row) {
   detailVisible.value = true
 }
 
+/** 查看：直接下钻到该项目的危大清单台账（清单页左上提供返回看板） */
 function openProjectLedgerDetail(row) {
-  // 正式工程不恢复台账页「返回看板」条：项目明细留在看板抽屉内，避免指挥部下钻后无法回看板
-  showProject(row.projectName)
+  if (!row?.projectId) return ElMessage.warning('未获取到项目信息，无法下钻')
+  router.push({
+    path: '/major-hazard/hazard-list',
+    query: { projectId: row.projectId, from: 'hazard-dashboard' },
+  })
 }
 
 const detailParts = computed(() => {

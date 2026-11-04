@@ -1,8 +1,9 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
-import { ArrowRight, Search, Refresh } from '@element-plus/icons-vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ArrowLeft, ArrowRight, Search, Refresh } from '@element-plus/icons-vue'
 import { useCurrentProject } from '../../composables/useCurrentProject.js'
+import { COC_PROJECT_OPTIONS } from '../../config/projectOptions.js'
 import {
   buildLedgerRows,
   ensureMajorHazardData,
@@ -13,8 +14,23 @@ import {
 } from '../../utils/majorHazardManualStorage.js'
 
 const router = useRouter()
+const route = useRoute()
+
+/** 从危大工程看板下钻：query 带项目与来源 */
+const drillProjectId = computed(() => String(route.query.projectId || ''))
+const fromDashboard = computed(() => route.query.from === 'hazard-dashboard')
 const { selectedProjectId, headerProjectLabel, isHqSelected } = useCurrentProject()
-const projectId = computed(() => (isHqSelected.value ? '' : selectedProjectId.value))
+const projectId = computed(() => drillProjectId.value || (isHqSelected.value ? '' : selectedProjectId.value))
+/** 下钻时按 query 项目显示名称；否则用顶栏当前项目 */
+const scopeProjectLabel = computed(() => {
+  if (drillProjectId.value) return COC_PROJECT_OPTIONS.find((item) => item.id === drillProjectId.value)?.label || headerProjectLabel.value
+  return headerProjectLabel.value
+})
+
+function backToDashboard() {
+  router.push('/major-hazard/dashboard')
+}
+
 const data = ref({ ledgers: [], identifications: [], controlPoints: [], wbsNodes: [] })
 const dateRange = ref([])
 const categoryId = ref('')
@@ -153,11 +169,14 @@ watch(projectId, load, { immediate: true })
 <template>
   <div class="ledger-page page-card">
     <template v-if="projectId">
+      <div v-if="fromDashboard" class="back-bar">
+        <el-button text :icon="ArrowLeft" @click="backToDashboard">返回危大工程看板</el-button>
+      </div>
       <div class="page-header">
         <div class="page-breadcrumb">施工现场管理 / 危大工程管理 / 危大清单</div>
         <div class="header-row">
           <div><h1 class="page-title">危大工程台账</h1><p class="page-scope">集中查看项目危大工程、施工部位、进度及安全管控状态</p></div>
-          <div class="project-chip"><span>当前项目</span><strong>{{ headerProjectLabel }}</strong></div>
+          <div class="project-chip"><span>当前项目</span><strong>{{ scopeProjectLabel }}</strong></div>
         </div>
       </div>
 
@@ -234,9 +253,9 @@ watch(projectId, load, { immediate: true })
         <el-table-column label="施工进度" width="105"><template #default="{ row }"><div class="progress-cell"><div><span>{{ progressText(row) }}</span><b>{{ progressPercent(row) }}%</b></div><el-progress :percentage="progressPercent(row)" :show-text="false" :stroke-width="6" /></div></template></el-table-column>
         <el-table-column label="安全状态" width="100"><template #default="{ row }"><button class="control-rate" type="button" @click="openControlPoints(row)"><strong>{{ implementedPointCount(row) }}/{{ totalPointCount(row) }}</strong><small>管控要点</small></button></template></el-table-column>
         <el-table-column label="施工情况" width="78"><template #default="{ row }"><el-tag size="small" :type="tagType(state(row))">{{ state(row) }}</el-tag></template></el-table-column>
-        <el-table-column label="操作" width="125">
+        <el-table-column label="操作" :width="fromDashboard ? 80 : 125">
           <template #default="{ row }">
-            <div class="row-actions"><el-button link type="primary" @click="openLedger(row, 'view')">查看</el-button><el-button v-if="state(row) !== '完工'" link type="primary" @click="openLedger(row)">编辑</el-button><el-button class="control-action" link type="primary" @click="openLedger(row, 'control')">过程管控</el-button></div>
+            <div class="row-actions"><el-button link type="primary" @click="openLedger(row, 'view')">查看</el-button><el-button v-if="!fromDashboard && state(row) !== '完工'" link type="primary" @click="openLedger(row)">编辑</el-button><el-button v-if="!fromDashboard" class="control-action" link type="primary" @click="openLedger(row, 'control')">过程管控</el-button></div>
           </template>
         </el-table-column>
       </el-table>
@@ -262,6 +281,7 @@ watch(projectId, load, { immediate: true })
 </template>
 
 <style scoped>
+.back-bar{display:flex;align-items:center;margin-bottom:10px}
 .ledger-page{min-height:100%;padding:20px 22px 34px;border:0;border-radius:0;background:#f5f7fa}
 .page-header{margin-bottom:18px}
 .page-breadcrumb{margin:0 0 11px;color:#98a2b3;font-size:13px}
