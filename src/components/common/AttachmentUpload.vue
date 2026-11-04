@@ -27,6 +27,10 @@ const props = defineProps({
   sizeKey: { type: String, default: 'size' },
   hint: { type: String, default: '' },
   compact: { type: Boolean, default: false },
+  /** 图片入库前压缩（默认关；开启后按 maxEdge/maxKb 缩放重绘，避免 mock/base64 存储爆量） */
+  compress: { type: Boolean, default: false },
+  maxEdge: { type: Number, default: 1600 },
+  maxKb: { type: Number, default: 1024 },
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -71,6 +75,51 @@ function buildItem(file, url, index) {
   }
 }
 
+function readAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = (event) => resolve(String(event.target?.result || ''))
+    reader.onerror = () => reject(new Error('read failed'))
+    reader.readAsDataURL(file)
+  })
+}
+
+function loadImage(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = () => reject(new Error('load failed'))
+    img.src = url
+  })
+}
+
+/** 长边缩放到 maxEdge 内、按质量递减压到 maxKb 内；SVG/GIF 原样返回 */
+async function compressImage(file, { maxEdge = 1600, maxKb = 1024 } = {}) {
+  const raw = await readAsDataUrl(file)
+  const type = String(file.type || '')
+  if (type === 'image/svg+xml' || type === 'image/gif') return raw
+  const img = await loadImage(raw)
+  const scale = Math.min(1, maxEdge / Math.max(img.width || 1, img.height || 1))
+  const width = Math.max(1, Math.round((img.width || 1) * scale))
+  const height = Math.max(1, Math.round((img.height || 1) * scale))
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return raw
+  ctx.fillStyle = '#fff'
+  ctx.fillRect(0, 0, width, height)
+  ctx.drawImage(img, 0, 0, width, height)
+  const limit = maxKb * 1024
+  let quality = 0.86
+  let out = canvas.toDataURL('image/jpeg', quality)
+  while (out.length * 0.75 > limit && quality > 0.4) {
+    quality -= 0.12
+    out = canvas.toDataURL('image/jpeg', quality)
+  }
+  return out
+}
+
 function handleUpload(uploadFile) {
   const file = uploadFile.raw || uploadFile
   const err = validateAttachFile(file, props.preset, {
@@ -82,6 +131,19 @@ function handleUpload(uploadFile) {
     return false
   }
   const current = asAttachList(props.modelValue)
+  const kind = detectAttachKind(file, props.preset) || (props.preset === 'image' ? 'image' : 'file')
+  if (props.compress && kind === 'image') {
+    compressImage(file, { maxEdge: props.maxEdge, maxKb: props.maxKb })
+      .then((url) => emitList([...current, buildItem(file, url, current.length)]))
+      .catch(() => {
+        const reader = new FileReader()
+        reader.onload = (event) => {
+          emitList([...current, buildItem(file, event.target?.result || '', current.length)])
+        }
+        reader.readAsDataURL(file)
+      })
+    return false
+  }
   const reader = new FileReader()
   reader.onload = (event) => {
     const url = event.target?.result || ''

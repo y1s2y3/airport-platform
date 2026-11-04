@@ -308,7 +308,7 @@ function handleSave() {
     </div>
     <div class="panel-body penalty-body">
       <div class="penalty-upper">
-        <div class="section-head draft-head">
+        <div class="doc-tabs-row">
           <div class="doc-tabs">
             <button
               v-for="opt in docTabOptions"
@@ -634,9 +634,19 @@ function handleSave() {
   gap: 8px;
 }
 
-.draft-head {
+/* 任务单/提示函/处罚单 标签行：
+   用本组件独有的类名，避免与平台共享壳类 .section-head 撞名
+   （siteConstruction/engineering-work-page.css 里的 .section-head 是裸全局规则，
+   单文件构建会把浅色渐变底 + 16/18/12 内边距套到 COC 深色面板上） */
+.doc-tabs-row {
+  display: flex;
   align-items: center;
+  justify-content: space-between;
   flex-shrink: 0;
+  gap: 12px;
+  font-size: calc(13px + var(--coc-font-boost));
+  font-weight: 600;
+  color: var(--coc-text-secondary);
 }
 
 .doc-tabs {

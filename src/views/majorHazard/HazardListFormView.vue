@@ -10,7 +10,6 @@ import { listApprovedSubcontractors } from '../../mock/subcontractorManagement.j
 import { listMobileInspectionTasks } from '../../mock/mobileInspectionTasks.js'
 import { DANGER_WORK_CATEGORY_OPTIONS } from '../../coc/config/dailyWorkSchema.js'
 import { listAllDangerWorkSources } from '../../mock/engineeringWork.js'
-import FileAttachmentPreview from '../../components/basicData/FileAttachmentPreview.vue'
 import InspectionTaskDetailView from '../safety/InspectionTaskDetailView.vue'
 import {
   buildLedgerRows,
@@ -47,8 +46,6 @@ const recordDialogVisible = ref(false)
 const recordDialogMode = ref('add')
 const recordForm = ref(createBlankRecord())
 const inspectionTaskDetailTab = ref('')
-const attachmentPreviewVisible = ref(false)
-const selectedAttachment = ref(null)
 const dangerPickVisible = ref(false)
 const dangerPickTableRef = ref(null)
 const dangerPickFilterDate = ref('')
@@ -541,9 +538,42 @@ function openViewRecord(row) {
   recordDialogMode.value = 'view'
   recordDialogVisible.value = true
 }
-function openTabAttachment(row) {
-  selectedAttachment.value = row
-  attachmentPreviewVisible.value = true
+/** 附件预览：有真实地址直接新窗口打开；演示附件生成可预览的占位页面 */
+function previewTabAttachment(row) {
+  if (!row) return
+  if (row.fileUrl) {
+    window.open(row.fileUrl, '_blank', 'noopener')
+    return
+  }
+  const html = [
+    '<!doctype html><meta charset="utf-8">',
+    `<title>${row.fileName}</title>`,
+    '<div style="font-family:system-ui,-apple-system,"Segoe UI",sans-serif;padding:48px;color:#1f2329">',
+    `<h2 style="margin:0 0 12px">${row.fileName}</h2>`,
+    '<p style="color:#5f6b7a;line-height:1.8">当前为演示附件，尚未接入文件服务，文件原文暂不可预览。<br/>正式上线后，此处将直接加载文件原文（PDF / 图片在线预览）。</p>',
+    '</div>',
+  ].join('')
+  const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }))
+  window.open(url, '_blank', 'noopener')
+}
+
+/** 附件下载：有真实地址直接下载；演示附件下载同名的说明文件，保证流程可用 */
+function downloadTabAttachment(row) {
+  if (!row) return
+  const a = document.createElement('a')
+  a.style.display = 'none'
+  if (row.fileUrl) {
+    a.href = row.fileUrl
+    a.download = row.fileName || ''
+  } else {
+    const text = `演示附件：${row.fileName}\n上传人：${row.uploader || '—'}\n上传时间：${row.uploadTime || '—'}\n\n正式接入文件服务后，此处下载文件原文。\n`
+    a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }))
+    a.download = row.fileName || '附件.txt'
+  }
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  if (!row.fileUrl) ElMessage.success(`已下载演示附件：${row.fileName}`)
 }
 function realNamePersonRecord(person) {
   const idNumberFull = person.basic?.id_number_raw || person.basic?.id_number || ''
@@ -808,8 +838,8 @@ watch([projectId, sourceId, routeMode], load, { immediate: true })
             <el-table-column prop="fileName" label="文件名称" min-width="320" show-overflow-tooltip />
             <el-table-column prop="uploader" label="上传人" min-width="180" />
             <el-table-column prop="uploadTime" label="上传时间" min-width="200" />
-            <el-table-column label="操作" width="100" fixed="right">
-              <template #default="{ row }"><el-button link type="primary" @click="openTabAttachment(row)">查看</el-button></template>
+            <el-table-column label="操作" width="140" fixed="right">
+              <template #default="{ row }"><el-button link type="primary" @click="previewTabAttachment(row)">查看</el-button><el-button link type="primary" @click="downloadTabAttachment(row)">下载</el-button></template>
             </el-table-column>
           </el-table>
         </div>
@@ -945,18 +975,6 @@ watch([projectId, sourceId, routeMode], load, { immediate: true })
         <template #footer><el-button @click="recordDialogVisible = false">关闭</el-button><el-button v-if="recordDialogMode === 'add'" type="primary" @click="submitRecord">提交</el-button></template>
       </el-dialog>
 
-      <el-dialog v-model="attachmentPreviewVisible" title="文件查看" width="680px" destroy-on-close>
-        <div v-if="selectedAttachment" class="file-preview-panel">
-          <FileAttachmentPreview :name="selectedAttachment.fileName" :url="selectedAttachment.fileUrl" size="lg" />
-          <el-descriptions :column="2" border>
-            <el-descriptions-item label="文件名称" :span="2">{{ selectedAttachment.fileName }}</el-descriptions-item>
-            <el-descriptions-item label="上传人">{{ selectedAttachment.uploader }}</el-descriptions-item>
-            <el-descriptions-item label="上传时间">{{ selectedAttachment.uploadTime }}</el-descriptions-item>
-          </el-descriptions>
-          <div v-if="!selectedAttachment.fileUrl" class="file-preview-tip">当前为演示附件，正式接入文件服务后将在此处加载文件原文。</div>
-        </div>
-        <template #footer><el-button type="primary" @click="attachmentPreviewVisible = false">关闭</el-button></template>
-      </el-dialog>
       <el-dialog v-model="dangerPickVisible" title="选择危险作业" width="980px" destroy-on-close>
         <p class="muted mb-danger-tip">可多选本项目「每日施工作业」中的危险作业；默认按记录日期筛选，切换筛选时已勾选项会保留。</p>
         <div class="pick-filter-bar">

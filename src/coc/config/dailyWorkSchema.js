@@ -178,3 +178,62 @@ export function emptyDailyWorkRecord(reportDate = '') {
     majorControlMeasures: '',
   }
 }
+
+/**
+ * 危大工程信息登记 — 界面表单与独立 11 列导入/导出模板字段（A–K）
+ * 必填 8 项：管理单位、施工单位、危大工程作业类别、作业开始/结束时间、
+ *          建设/施工单位现场安全监管人及手机号、风险管控措施。
+ * 非必填：施工具体内容、监理单位现场安全监管人及手机号。
+ * 施工项目名称由页面按当前项目自动带出（导入可留空＝取当前项目）。
+ */
+export const MAJOR_WORK_REGISTER_FIELDS = [
+  { key: 'leadUnit', label: '管理单位', required: true, col: 'A', span: 24 },
+  { key: 'projectName', label: '施工项目名称', required: false, col: 'B', span: 24, readonly: true },
+  { key: 'contractor', label: '施工单位', required: true, col: 'C', span: 24 },
+  { key: 'majorWorkContent', label: '施工具体内容', required: false, col: 'D', span: 24, type: 'textarea' },
+  { key: 'majorProjectCategory', label: '危大工程作业类别', required: true, col: 'E', span: 12 },
+  { key: 'majorStartTime', label: '作业开始时间', required: true, col: 'F', span: 12, type: 'datetime' },
+  { key: 'majorEndTime', label: '作业结束时间', required: true, col: 'G', span: 12, type: 'datetime' },
+  {
+    key: 'majorOwnerSafetyManager',
+    label: '建设单位现场安全监管人及手机号',
+    required: true,
+    col: 'H',
+    span: 24,
+    contactMode: 'multi',
+  },
+  {
+    key: 'majorContractorSafetyManager',
+    label: '施工单位现场安全监管人及手机号',
+    required: true,
+    col: 'I',
+    span: 24,
+    contactMode: 'multi',
+  },
+  {
+    key: 'majorSupervisorSafetyManager',
+    label: '监理单位现场安全监管人及手机号',
+    required: false,
+    col: 'J',
+    span: 24,
+    contactMode: 'multi',
+  },
+  {
+    key: 'majorControlMeasures',
+    label: '风险管控措施',
+    required: true,
+    col: 'K',
+    span: 24,
+    type: 'textarea',
+    maxLength: 2000,
+  },
+]
+
+/** 危大工程信息登记导入/导出列号 → 字段 key */
+export const MAJOR_WORK_REGISTER_COL_MAP = MAJOR_WORK_REGISTER_FIELDS.reduce((map, field, index) => {
+  map[index + 1] = field.key
+  return map
+}, {})
+
+/** 危大工程信息登记模板：第 5 行表头、第 6 行起数据（与每日施工作业模板行结构一致） */
+export const MAJOR_WORK_REGISTER_DATA_START_ROW = 6

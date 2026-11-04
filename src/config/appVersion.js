@@ -17,6 +17,14 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.17.1.44',
+    date: '2026-11-04',
+    highlights: [
+      '危大工程管理·危大清单·过程管控：附件资料「查看」改为新窗口直接预览文件（不再弹窗），操作列新增「下载」按钮',
+      '个人中心·待办处理·危大工程辨识审批：辨识明细改为页签展示「全部 / 已辨识出危大工程（N）」，与危大辨识详情页口径一致',
+    ],
+  },
+  {
     version: 'v2.17.1.43',
     date: '2026-11-03',
     highlights: [

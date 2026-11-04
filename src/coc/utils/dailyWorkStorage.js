@@ -1,5 +1,6 @@
 import { findProjectIdByShortName, PROJECT_NAMES, DANGER_WORK_LIST, MAJOR_PROJECT_LIST } from '../mock/data.js'
 import dailyWorkSeed from '../mock/dailyWorkSeed.json'
+import { DAILY_WORK_DEFAULT_LEAD_UNIT } from '../config/dailyWorkSchema.js'
 import {
   classifyDailyWorkRecord,
   mapDangerCategoryToType,
@@ -213,6 +214,13 @@ export function toDangerWorkListItem(record) {
       measures: record.dangerControlMeasures,
       personnel: '--',
       cameraId: 'c05',
+      leadUnit: record.leadUnit,
+      ownerProjectManager: record.ownerProjectManager,
+      ownerSafetyManager: record.ownerSafetyManager,
+      contractorProjectManager: record.contractorProjectManager,
+      contractorSafetyManager: record.contractorSafetyManager,
+      supervisorProjectManager: record.supervisorProjectManager,
+      supervisorSafetyManager: record.supervisorSafetyManager,
       checkItems: [
         { name: '方案交底', ok: false },
         { name: '监护人员', ok: false },
@@ -319,3 +327,184 @@ export function getDerivedMajorProjectList() {
 }
 
 export { dangerWorkYesNoLabel, resolveDangerWork, classifyDailyWorkRecord }
+
+/* ---------- 危大工程信息登记（S1 同源：与每日施工作业共用记录，仅维护危大段） ---------- */
+
+const MAJOR_SEGMENT_KEYS = [
+  'majorWorkContent',
+  'majorProjectCategory',
+  'majorStartTime',
+  'majorEndTime',
+  'majorOwnerSafetyManager',
+  'majorContractorSafetyManager',
+  'majorSupervisorSafetyManager',
+  'majorControlMeasures',
+]
+
+/** 危大工程段是否有内容 */
+export function hasMajorWorkSegment(record) {
+  if (!record) return false
+  return MAJOR_SEGMENT_KEYS.some((key) => String(record[key] ?? '').trim())
+}
+
+/** 施工日期由作业开始时间派生（YYYY-MM-DD） */
+export function deriveReportDateFromMajorStart(majorStartTime) {
+  const text = String(majorStartTime || '').trim().replace(/\//g, '-')
+  const m = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)
+  if (!m) return ''
+  return `${m[1]}-${String(m[2]).padStart(2, '0')}-${String(m[3]).padStart(2, '0')}`
+}
+
+function normalizeProjectName(value) {
+  return String(value || '').replace(/\s+/g, '').trim()
+}
+
+/** 项目名是否匹配（记录里存全称、页面按项目简称筛选，双向包含兜底） */
+export function matchMajorWorkProject(recordProjectName, projectName) {
+  if (!projectName) return true
+  const a = normalizeProjectName(recordProjectName)
+  const b = normalizeProjectName(projectName)
+  if (!a || !b) return false
+  return a === b || a.includes(b) || b.includes(a)
+}
+
+function toMajorWorkRegisterItem(record) {
+  const cls = classifyDailyWorkRecord(record)
+  const overview = deriveDangerWorkStatus(record.majorStartTime, record.majorEndTime)
+  return {
+    id: record.id,
+    recordId: record.id,
+    projectId: record.projectId || '',
+    reportDate: deriveReportDateFromMajorStart(record.majorStartTime) || record.reportDate || '',
+    leadUnit: record.leadUnit || DAILY_WORK_DEFAULT_LEAD_UNIT,
+    projectName: record.projectName || '',
+    contractor: record.contractor || '',
+    workContent: record.majorWorkContent || '',
+    category: record.majorProjectCategory || '',
+    startTime: record.majorStartTime || '',
+    endTime: record.majorEndTime || '',
+    status: overview,
+    ownerSafety: record.majorOwnerSafetyManager || '',
+    contractorSafety: record.majorContractorSafetyManager || '',
+    supervisorSafety: record.majorSupervisorSafetyManager || '',
+    measures: record.majorControlMeasures || '',
+    source: record.source || 'manual',
+    hasDangerPart: cls.danger,
+    updatedAt: record.updatedAt || record.createdAt || '',
+  }
+}
+
+/**
+ * 查询危大工程登记记录（仅含危大段数据的记录）
+ * @param {{ projectId?: string, projectName?: string, dateStart?: string, dateEnd?: string }} filters
+ */
+export function getMajorWorkRegisterRecords(filters = {}) {
+  ensureDailyWorkSeed()
+  const { projectId = '', projectName = '', dateStart = '', dateEnd = '' } = filters
+  return getDailyWorkRecords()
+    .filter((record) => hasMajorWorkSegment(record))
+    .map(toMajorWorkRegisterItem)
+    .filter((item) => {
+      if (projectId && item.projectId !== projectId) return false
+      return matchMajorWorkProject(item.projectName, projectName)
+    })
+    .filter((item) => {
+      if (dateStart && item.reportDate && item.reportDate < dateStart) return false
+      if (dateEnd && item.reportDate && item.reportDate > dateEnd) return false
+      return true
+    })
+    .sort((a, b) => String(b.startTime || b.reportDate || '').localeCompare(String(a.startTime || a.reportDate || '')))
+}
+
+/** 危大工程去重业务键：施工项目 + 危大工程作业类别 + 作业开始时间 */
+export function majorWorkDuplicateKey(record) {
+  return [
+    normalizeProjectName(record?.projectName),
+    String(record?.majorProjectCategory || '').trim(),
+    String(record?.majorStartTime || '').trim().replace(/\//g, '-'),
+  ].join('|')
+}
+
+/** 查找重复的危大登记记录（可排除指定记录），重复记录不入库 */
+export function findDuplicateMajorWorkRegister(payload, excludeId = '') {
+  const key = majorWorkDuplicateKey(payload)
+  return (
+    getDailyWorkRecords().find(
+      (record) => record.id !== excludeId && hasMajorWorkSegment(record) && majorWorkDuplicateKey(record) === key,
+    ) || null
+  )
+}
+
+/**
+ * 保存危大工程登记记录（新增 / 编辑）
+ * 编辑时仅覆盖危大段与共享字段，保留同一记录上的危险作业段数据。
+ * 去重口径：施工项目 + 危大工程作业类别 + 作业开始时间 相同的记录不重复入库。
+ * @param {object} payload 表单值（MAJOR_WORK_REGISTER_FIELDS 的 key）+ 可选 id/source
+ * @returns {{ ok: boolean, record?: object, code?: string, msg?: string }}
+ */
+export function saveMajorWorkRegisterRecord(payload = {}) {
+  const list = readList()
+  const existing = payload.id ? list.find((item) => item.id === payload.id) : null
+  if (payload.id && !existing) return { ok: false, msg: '记录不存在或已被删除' }
+
+  const startTime = String(payload.majorStartTime || '').trim()
+  const endTime = String(payload.majorEndTime || '').trim()
+  if (!startTime || !endTime) return { ok: false, msg: '请填写作业开始时间与结束时间' }
+  if (endTime <= startTime) return { ok: false, msg: '作业结束时间必须晚于开始时间' }
+  const reportDate = deriveReportDateFromMajorStart(startTime)
+  if (!reportDate) return { ok: false, msg: '作业开始时间格式不正确' }
+
+  const majorValues = {}
+  MAJOR_SEGMENT_KEYS.forEach((key) => {
+    majorValues[key] = String(payload[key] ?? '').trim()
+  })
+
+  const record = {
+    ...(existing || {}),
+    ...majorValues,
+    leadUnit: String(payload.leadUnit || '').trim() || DAILY_WORK_DEFAULT_LEAD_UNIT,
+    projectName: String(payload.projectName || existing?.projectName || '').trim(),
+    projectId: String(payload.projectId || existing?.projectId || '').trim(),
+    contractor: String(payload.contractor || '').trim(),
+    reportDate,
+    source: existing?.source || payload.source || 'manual',
+  }
+  const duplicate = findDuplicateMajorWorkRegister(
+    {
+      projectName: record.projectName,
+      majorProjectCategory: record.majorProjectCategory,
+      majorStartTime: record.majorStartTime,
+    },
+    existing?.id || '',
+  )
+  if (duplicate) {
+    return {
+      ok: false,
+      code: 'duplicate',
+      msg: '已存在相同「施工项目 + 危大工程作业类别 + 作业开始时间」的危大作业记录，重复不入库',
+    }
+  }
+  const saved = saveDailyWorkRecord(record)
+  return { ok: true, record: saved }
+}
+
+/**
+ * 删除危大工程登记记录
+ * 若同一记录还含危险作业段数据，则只清空危大段、保留记录（避免误删危险作业）。
+ * @returns {{ ok: boolean, mode: 'removed' | 'major-cleared' | 'missing' }}
+ */
+export function removeMajorWorkRegisterRecord(id) {
+  const record = readList().find((item) => item.id === id)
+  if (!record) return { ok: false, mode: 'missing' }
+  const cls = classifyDailyWorkRecord(record)
+  if (cls.danger) {
+    const cleared = { ...record }
+    MAJOR_SEGMENT_KEYS.forEach((key) => {
+      cleared[key] = ''
+    })
+    saveDailyWorkRecord(cleared)
+    return { ok: true, mode: 'major-cleared' }
+  }
+  removeDailyWorkRecord(id)
+  return { ok: true, mode: 'removed' }
+}

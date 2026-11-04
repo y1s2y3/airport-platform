@@ -1690,6 +1690,33 @@ export const MAJOR_PROJECT_MONITOR_TREND = [
   { label: '6/12', value: 2.4 },
 ]
 
+/** 演示用参建单位管理人员（仅用于无每日填报项目的 mock 兜底危险作业；有填报的项目以填报数据为准） */
+const DANGER_DEMO_MANAGEMENT = [
+  { ownerPM: '陈志远', ownerSafety: ['李想', '杨秀峰'], contractorPM: '阮政鹏', contractorSafety: ['孙贯雨', '周雪聪'], supervisorPM: '胡庭怀', supervisorSafety: ['聂涵剑', '章建'] },
+  { ownerPM: '周敏', ownerSafety: ['熊良东', '郭大立'], contractorPM: '张海涛', contractorSafety: ['张昕', '徐万顺'], supervisorPM: '刘名源', supervisorSafety: ['杨常青', '王兴海'] },
+  { ownerPM: '黄立新', ownerSafety: ['李斌'], contractorPM: '王振宇', contractorSafety: ['郭洋', '孙丙昊'], supervisorPM: '孙先群', supervisorSafety: ['章建'] },
+]
+
+function demoContact(name = '', index = 0) {
+  const phone = `138${String(10000000 + index * 137).slice(0, 8)}`
+  return `${name}/${phone}`
+}
+
+function buildDangerDemoPersonnel(idx = 0) {
+  const base = DANGER_DEMO_MANAGEMENT[idx % DANGER_DEMO_MANAGEMENT.length]
+  const pair = (name, i) => demoContact(name, idx * 7 + i)
+  const multi = (names = [], offset = 1) =>
+    names.map((name, i) => pair(name, offset + i)).join('，')
+  return {
+    ownerProjectManager: pair(base.ownerPM, 0),
+    ownerSafetyManager: multi(base.ownerSafety, 1),
+    contractorProjectManager: pair(base.contractorPM, 3),
+    contractorSafetyManager: multi(base.contractorSafety, 4),
+    supervisorProjectManager: pair(base.supervisorPM, 6),
+    supervisorSafetyManager: multi(base.supervisorSafety, 7),
+  }
+}
+
 function withDangerWorkDetail(item) {
   const idx = parseInt(item.id.replace(/\D/g, ''), 10) || 0
   const hues = [8, 18, 28, 14, 24]
@@ -1702,6 +1729,7 @@ function withDangerWorkDetail(item) {
       measures: item.measures,
       personnel: item.personnel,
       cameraId: item.cameraId || 'c05',
+      ...buildDangerDemoPersonnel(idx),
       checkItems: [
         { name: '支护措施', ok: item.permitStatus === '已许可' },
         { name: '监测数据', ok: item.permitStatus === '已许可' },

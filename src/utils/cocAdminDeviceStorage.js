@@ -7,7 +7,7 @@ import { asAttachList } from '../constants/attachmentUpload.js'
 const PATROL_KEY = 'coc-admin-patrol-devices'
 const HELMET_KEY = 'coc-admin-smart-helmets'
 const SUPERVISION_KEY = 'coc-admin-supervision-meetings-v3'
-const SUPERVISION_HAZARD_KEY = 'coc-admin-supervision-hazards-v6'
+const SUPERVISION_HAZARD_KEY = 'coc-admin-supervision-hazards-v7'
 
 const defaultPatrolDevices = [
   {
@@ -329,6 +329,7 @@ export function emptySupervisionHazard(row = {}) {
     rectifyStatus,
     rectifyRemark: row.rectifyRemark || '',
     rectifyPhotos: Array.isArray(row.rectifyPhotos) ? row.rectifyPhotos : [],
+    hazardPhotos: Array.isArray(row.hazardPhotos) ? row.hazardPhotos : [],
     statusLogs,
     uploadTime,
   }
@@ -416,6 +417,72 @@ export function closeSupervisionHazard(id, payload = {}) {
       statusLogs: appendStatusLog(row.statusLogs, log),
     }
   })
+}
+
+/** 可编辑字段（项目名称/来源/登记时间不可改） */
+export const SUPERVISION_HAZARD_EDITABLE_FIELDS = [
+  'hazardType',
+  'description',
+  'hazardLevel',
+  'remark',
+  'hazardPhotos',
+]
+
+const SUPERVISION_HAZARD_FIELD_LABELS = {
+  hazardType: '隐患类型',
+  description: '隐患描述',
+  hazardLevel: '隐患等级',
+  remark: '备注',
+  hazardPhotos: '隐患图片',
+}
+
+function sameHazardFieldValue(a, b) {
+  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
+}
+
+/**
+ * 编辑隐患基础信息：仅「待整改」可编辑；只接受白名单字段；
+ * 有实际变更时追加一条「编辑」留痕（记录修改了哪些字段）。
+ * @returns {{ ok: boolean, msg: string, record: object|null, changedFields: string[] }}
+ */
+export function updateSupervisionHazard(id, patch = {}, payload = {}) {
+  const changedFields = []
+  let blockedMsg = ''
+  const next = updateSupervisionHazardRecord(id, (row) => {
+    if (row.rectifyStatus !== '待整改') {
+      blockedMsg = '仅「待整改」隐患可编辑'
+      return row
+    }
+    const merged = { ...row }
+    for (const field of SUPERVISION_HAZARD_EDITABLE_FIELDS) {
+      if (!(field in patch)) continue
+      const before = field === 'hazardPhotos' ? row.hazardPhotos || [] : row[field] || ''
+      const after =
+        field === 'hazardPhotos'
+          ? Array.isArray(patch[field])
+            ? patch[field]
+            : []
+          : String(patch[field] ?? '').trim()
+      if (sameHazardFieldValue(before, after)) continue
+      merged[field] = after
+      changedFields.push(field)
+    }
+    if (!changedFields.length) return row
+    const log = {
+      action: '编辑',
+      fromStatus: row.rectifyStatus,
+      toStatus: row.rectifyStatus,
+      operator: payload.operator || '监理用户',
+      operatorRole: payload.operatorRole || SUPERVISION_HAZARD_ACTOR_ROLES.SUPERVISOR,
+      remark: `修改${changedFields.map((field) => SUPERVISION_HAZARD_FIELD_LABELS[field] || field).join('、')}`,
+      photos: [],
+      time: hazardNow(),
+    }
+    return { ...merged, statusLogs: appendStatusLog(row.statusLogs, log) }
+  })
+  if (!next) return { ok: false, msg: '隐患不存在', record: null, changedFields: [] }
+  if (blockedMsg) return { ok: false, msg: blockedMsg, record: next, changedFields: [] }
+  return { ok: true, msg: '', record: next, changedFields }
 }
 
 /** 是否为监理会议隐患（COC 单号类型 / 后台清单关闭权限共用） */

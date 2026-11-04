@@ -1,24 +1,31 @@
 <script setup>
 import HazardSamplingPanel from '../../components/HazardSamplingPanel.vue'
+import AttachmentUpload from '../../components/common/AttachmentUpload.vue'
 import { matchesHazardIssueProject } from '../../utils/hazardIssueSummary.js'
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { View, Plus } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import { View, Plus, Edit } from '@element-plus/icons-vue'
 import {
   getSupervisionHazards,
   SUPERVISION_HAZARD_RECTIFY_STATUSES,
   closeSupervisionHazard,
   saveSupervisionHazard,
+  updateSupervisionHazard,
 } from '../../utils/cocAdminDeviceStorage.js'
 
 const props = defineProps({
   /** 兼容旧用法：true 时不可关闭 */
   readonly: { type: Boolean, default: true },
-  /** 仅指挥部层级可确认关闭；优先于 readonly */
+  /** 是否可确认关闭（指挥部与项目层级/监理均可关闭）；优先于 readonly */
   allowClose: { type: Boolean, default: undefined },
   /** 项目层级可手动新增隐患 */
   allowCreate: { type: Boolean, default: false },
+  /** 项目层级（监理）可编辑隐患；指挥部只读 */
+  allowEdit: { type: Boolean, default: false },
+  /** 操作留痕用：操作人 / 角色 */
+  operator: { type: String, default: '监理用户' },
+  operatorRole: { type: String, default: '监理' },
   projectName: { type: String, default: '' },
   projectId: { type: String, default: '' },
   meetingId: { type: String, default: '' },
@@ -31,8 +38,12 @@ const list = ref([])
 const detailVisible = ref(false)
 const current = ref(null)
 const formVisible = ref(false)
+const editingId = ref('')
 const form = ref(emptyManualForm())
 const hazardLevels = ['一般', '较大', '重大']
+
+const closeVisible = ref(false)
+const closeTarget = ref(null)
 
 const canOperateClose = computed(() =>
   typeof props.allowClose === 'boolean' ? props.allowClose : !props.readonly,
@@ -40,13 +51,38 @@ const canOperateClose = computed(() =>
 
 const canCreate = computed(() => props.allowCreate && Boolean(props.projectName))
 
+const toolbarScopeTag = computed(() => {
+  if (canOperateClose.value && canCreate.value) {
+    return { text: '项目级（监理）· 可新增 / 编辑 / 关闭', type: 'success' }
+  }
+  if (canOperateClose.value) return { text: '指挥部 · 可关闭（不可编辑）', type: 'success' }
+  if (canCreate.value) return { text: '项目级 · 可新增', type: 'success' }
+  return { text: '仅查看', type: 'info' }
+})
+
 function emptyManualForm() {
   return {
     hazardType: 'safety',
     description: '',
     hazardLevel: '一般',
     remark: '',
+    hazardPhotos: [],
   }
+}
+
+/** 隐患图片：兼容 { name, url } 对象与裸 dataURL 字符串 */
+function photoSrc(photo) {
+  if (!photo) return ''
+  if (typeof photo === 'string') return photo
+  return photo.url || ''
+}
+
+function hazardPhotos(row) {
+  return Array.isArray(row?.hazardPhotos) ? row.hazardPhotos.filter((item) => photoSrc(item)) : []
+}
+
+function hazardPreviewList(row) {
+  return hazardPhotos(row).map(photoSrc)
 }
 
 function load() {
@@ -102,6 +138,10 @@ function canConfirmClose(row) {
   return canOperateClose.value && row.rectifyStatus === '待整改'
 }
 
+function canEditRow(row) {
+  return props.allowEdit && row?.rectifyStatus === '待整改'
+}
+
 function openDetail(row) {
   current.value = row
   detailVisible.value = true
@@ -112,7 +152,24 @@ function openCreate() {
     ElMessage.warning('请先切换到具体项目后再新增隐患')
     return
   }
+  editingId.value = ''
   form.value = emptyManualForm()
+  formVisible.value = true
+}
+
+function openEdit(row) {
+  if (!canEditRow(row)) {
+    ElMessage.warning('仅「待整改」隐患可编辑')
+    return
+  }
+  editingId.value = row.id
+  form.value = {
+    hazardType: row.hazardType || 'safety',
+    description: row.description || '',
+    hazardLevel: row.hazardLevel || '一般',
+    remark: row.remark || '',
+    hazardPhotos: [...(row.hazardPhotos || [])],
+  }
   formVisible.value = true
 }
 
@@ -134,6 +191,29 @@ function validateForm() {
 
 function submitForm() {
   if (!validateForm()) return
+  if (editingId.value) {
+    const result = updateSupervisionHazard(
+      editingId.value,
+      {
+        hazardType: form.value.hazardType,
+        description: String(form.value.description).trim(),
+        hazardLevel: form.value.hazardLevel,
+        remark: String(form.value.remark || '').trim(),
+        hazardPhotos: form.value.hazardPhotos,
+      },
+      { operator: props.operator, operatorRole: props.operatorRole },
+    )
+    if (!result.ok) {
+      ElMessage.warning(result.msg || '保存失败')
+      load()
+      return
+    }
+    formVisible.value = false
+    load()
+    refreshDetail(editingId.value)
+    ElMessage.success(result.changedFields.length ? '隐患已更新' : '内容未变化')
+    return
+  }
   const now = new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-')
   saveSupervisionHazard({
     projectId: props.projectId || '',
@@ -150,6 +230,7 @@ function submitForm() {
     rectifyStatus: '待整改',
     rectifyRemark: '',
     rectifyPhotos: [],
+    hazardPhotos: form.value.hazardPhotos,
     uploadTime: now,
   })
   formVisible.value = false
@@ -162,23 +243,26 @@ function refreshDetail(id) {
   if (row && current.value?.id === id) current.value = row
 }
 
-async function handleConfirmClose(row) {
-  try {
-    await ElMessageBox.confirm('确认将该隐患关闭？关闭后状态将变为「已关闭」。', '确认关闭', {
-      type: 'warning',
-      confirmButtonText: '确认关闭',
-      cancelButtonText: '取消',
-    })
-  } catch {
+function openCloseDialog(row) {
+  if (!canConfirmClose(row)) {
+    ElMessage.warning('仅「待整改」隐患可确认关闭')
     return
   }
+  closeTarget.value = row
+  closeVisible.value = true
+}
+
+function submitClose() {
+  const row = closeTarget.value
+  if (!row) return
   const result = closeSupervisionHazard(row.id, {
-    operator: '指挥部用户',
-    operatorRole: '指挥部',
-    remark: '确认关闭',
+    operator: props.operator,
+    operatorRole: props.operatorRole,
   })
+  closeVisible.value = false
   if (!result || result.rectifyStatus !== '已关闭') {
     ElMessage.warning('关闭失败，请确认当前状态为待整改')
+    load()
     return
   }
   load()
@@ -217,9 +301,7 @@ defineExpose({ reload: load })
         clearable
         class="search-input" aria-label="搜索隐患描述、备注、项目…"/>
       <el-button v-if="canCreate" type="primary" :icon="Plus" @click="openCreate">新增隐患</el-button>
-      <el-tag v-if="canOperateClose" size="small" type="success">指挥部 · 可关闭</el-tag>
-      <el-tag v-else-if="canCreate" size="small" type="success">项目级 · 可新增</el-tag>
-      <el-tag v-else size="small" type="info">项目级 · 仅查看</el-tag>
+      <el-tag size="small" :type="toolbarScopeTag.type">{{ toolbarScopeTag.text }}</el-tag>
     </div>
 
     <el-table :data="filtered" stripe border empty-text="暂无监理隐患记录">
@@ -238,9 +320,9 @@ defineExpose({ reload: load })
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="description" label="隐患描述" min-width="200" show-overflow-tooltip />
+      <el-table-column prop="description" label="隐患描述" min-width="190" show-overflow-tooltip />
       <el-table-column prop="hazardLevel" label="隐患等级" width="88" align="center" />
-      <el-table-column label="备注" min-width="120" show-overflow-tooltip>
+      <el-table-column label="备注" min-width="110" show-overflow-tooltip>
         <template #default="{ row }">{{ row.remark || '--' }}</template>
       </el-table-column>
       <el-table-column label="整改状态" width="96" align="center">
@@ -252,14 +334,23 @@ defineExpose({ reload: load })
       </el-table-column>
       <el-table-column prop="source" label="来源" width="96" />
       <el-table-column prop="uploadTime" label="登记时间" width="148" />
-      <el-table-column label="操作" width="160" fixed="right">
+      <el-table-column label="操作" width="200" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" :icon="View" @click="openDetail(row)">详情</el-button>
+          <el-button
+            v-if="canEditRow(row)"
+            link
+            type="primary"
+            :icon="Edit"
+            @click="openEdit(row)"
+          >
+            编辑
+          </el-button>
           <el-button
             v-if="canConfirmClose(row)"
             link
             type="success"
-            @click="handleConfirmClose(row)"
+            @click="openCloseDialog(row)"
           >
             确认关闭
           </el-button>
@@ -267,7 +358,12 @@ defineExpose({ reload: load })
       </el-table-column>
     </el-table>
 
-    <el-dialog v-model="formVisible" title="新增监理隐患" width="560px" destroy-on-close>
+    <el-dialog
+      v-model="formVisible"
+      :title="editingId ? '编辑监理隐患' : '新增监理隐患'"
+      width="600px"
+      destroy-on-close
+    >
       <el-form label-width="96px">
         <el-form-item label="项目名称">
           <el-input :model-value="projectName" disabled />
@@ -290,6 +386,16 @@ defineExpose({ reload: load })
             <el-option v-for="lv in hazardLevels" :key="lv" :label="lv" :value="lv" />
           </el-select>
         </el-form-item>
+        <el-form-item label="隐患图片">
+          <AttachmentUpload
+            v-model="form.hazardPhotos"
+            preset="image"
+            :max="9"
+            compress
+            compact
+            hint="选填，最多 9 张，单张 ≤5MB（jpg/png 等图片）"
+          />
+        </el-form-item>
         <el-form-item label="备注">
           <el-input v-model="form.remark" type="textarea" :rows="2" placeholder="请输入" aria-label="请输入"/>
         </el-form-item>
@@ -300,14 +406,42 @@ defineExpose({ reload: load })
       </template>
     </el-dialog>
 
-    <el-dialog v-model="detailVisible" title="监理隐患详情" width="640px">
+    <el-dialog v-model="closeVisible" title="确认关闭隐患" width="440px" destroy-on-close>
+      <p class="close-tip">
+        关闭后该隐患状态将变为「已关闭」，且不可再编辑。确认关闭：
+        <strong>{{ closeTarget?.description || '--' }}</strong>
+      </p>
+      <template #footer>
+        <el-button @click="closeVisible = false">取消</el-button>
+        <el-button type="success" @click="submitClose">确认关闭</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="detailVisible" title="监理隐患详情" width="660px">
       <template v-if="current">
-          <HazardSamplingPanel v-if="current" source="supervision" :record-id="current.id" />
+        <HazardSamplingPanel v-if="current" source="supervision" :record-id="current.id" />
         <el-descriptions :column="1" border>
           <el-descriptions-item label="项目名称">{{ current.projectName || '--' }}</el-descriptions-item>
           <el-descriptions-item label="隐患类型">{{ hazardTypeLabel(current.hazardType) }}</el-descriptions-item>
           <el-descriptions-item label="隐患描述">{{ current.description || '--' }}</el-descriptions-item>
           <el-descriptions-item label="隐患等级">{{ current.hazardLevel || '--' }}</el-descriptions-item>
+          <el-descriptions-item label="隐患图片">
+            <div v-if="hazardPhotos(current).length" class="detail-photos">
+              <el-image
+                v-for="(photo, index) in hazardPhotos(current)"
+                :key="index"
+                :src="photoSrc(photo)"
+                :preview-src-list="hazardPreviewList(current)"
+                :initial-index="index"
+                :z-index="3000"
+                preview-teleported
+                fit="cover"
+                class="detail-photo"
+                :alt="`隐患图片 ${index + 1}`"
+              />
+            </div>
+            <span v-else>--</span>
+          </el-descriptions-item>
           <el-descriptions-item label="备注">{{ current.remark || '--' }}</el-descriptions-item>
           <el-descriptions-item label="整改状态">{{ current.rectifyStatus || '待整改' }}</el-descriptions-item>
           <el-descriptions-item label="来源">{{ current.source || '--' }}</el-descriptions-item>
@@ -333,8 +467,13 @@ defineExpose({ reload: load })
           </el-timeline>
         </div>
 
-        <div v-if="canConfirmClose(current)" class="detail-actions">
-          <el-button type="success" @click="handleConfirmClose(current)">确认关闭</el-button>
+        <div v-if="canEditRow(current) || canConfirmClose(current)" class="detail-actions">
+          <el-button v-if="canEditRow(current)" type="primary" :icon="Edit" @click="detailVisible = false; openEdit(current)">
+            编辑
+          </el-button>
+          <el-button v-if="canConfirmClose(current)" type="success" @click="openCloseDialog(current)">
+            确认关闭
+          </el-button>
         </div>
       </template>
     </el-dialog>
@@ -361,6 +500,32 @@ defineExpose({ reload: load })
 
 .search-input {
   width: 280px;
+}
+
+.detail-photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.detail-photo {
+  width: 96px;
+  height: 68px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid #ebeef5;
+  cursor: zoom-in;
+}
+
+.close-tip {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #606266;
+}
+
+.close-tip strong {
+  color: #303133;
 }
 
 .status-logs {

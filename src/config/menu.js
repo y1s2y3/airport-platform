@@ -141,6 +141,7 @@ const rawMenuTree = [
         key: 'work-manage', label: '施工作业管理', labelByLevel: { hq: '施工作业管理', project: '施工作业申报' }, icon: 'Calendar', levels: 'both',
         children: [
           { key: 'major-hazard-daily-work', label: '每日施工作业', icon: 'Sunrise', path: '/major-hazard/daily-work', name: 'MajorHazardDailyWork', component: 'DailyWorkView', levels: 'both' },
+          { key: 'major-work-register', label: '危大工程信息登记', icon: 'DocumentAdd', path: '/major-hazard/major-work', name: 'MajorWorkRegister', component: 'MajorWorkRegisterView', levels: 'both', description: '项目层级登记危大工程作业信息（管理单位、施工单位、危大工程作业类别、起止时间、三方现场安全监管人、风险管控措施），支持新增/编辑/删除与 Excel 导入导出；指挥部层级只读汇总。' },
           { key: 'engineering-work', label: '工程作业申报', icon: 'EditPen', path: '/site-construction/engineering-work', name: 'EngineeringWorkList', component: 'EngineeringWorkListView', levels: 'project' },
         ],
       },
@@ -954,6 +955,7 @@ export const viewLoaders = {
   MachineExitFormView: () => import('../views/safety/MachineExitFormView.vue'),
   MachineryLedgerDetailView: () => import('../views/safety/MachineryLedgerDetailView.vue'),
   DailyWorkView: () => import('../views/majorHazard/DailyWorkView.vue'),
+  MajorWorkRegisterView: () => import('../views/majorHazard/MajorWorkRegisterView.vue'),
   RiskPointControlView: () => import('../views/siteConstruction/RiskPointControlView.vue'),
   RiskPointLedgerView: () => import('../views/siteConstruction/RiskPointLedgerView.vue'),
   RiskPointControlFormView: () => import('../views/siteConstruction/RiskPointControlFormView.vue'),

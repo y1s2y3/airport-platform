@@ -2,7 +2,6 @@
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowRight, Search, Refresh } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
 import { useCurrentProject } from '../../composables/useCurrentProject.js'
 import {
   buildLedgerRows,
@@ -11,7 +10,6 @@ import {
   getLedgerStartDate,
   getLedgerStatus,
   getMajorHazardData,
-  removeLedger,
 } from '../../utils/majorHazardManualStorage.js'
 
 const router = useRouter()
@@ -141,19 +139,6 @@ function openLedger(row, mode = 'edit') {
     query: mode === 'edit' ? {} : { mode },
   })
 }
-function deleteLedger(row) {
-  if (state(row) !== '未开工') {
-    ElMessage.warning('仅施工状态为“未开工”的危大工程可删除')
-    return
-  }
-  ElMessageBox.confirm(`确定删除危大工程“${row.name}”？危大日历将同步删除。`, '删除确认', { type: 'warning' })
-    .then(() => {
-      removeLedger(projectId.value, row)
-      load()
-      ElMessage.success('删除成功')
-    })
-    .catch(() => {})
-}
 function search() { page.value = 1 }
 function reset() {
   dateRange.value = []
@@ -251,7 +236,7 @@ watch(projectId, load, { immediate: true })
         <el-table-column label="施工情况" width="78"><template #default="{ row }"><el-tag size="small" :type="tagType(state(row))">{{ state(row) }}</el-tag></template></el-table-column>
         <el-table-column label="操作" width="125">
           <template #default="{ row }">
-            <div class="row-actions"><el-button link type="primary" @click="openLedger(row, 'view')">查看</el-button><el-button v-if="state(row) !== '完工'" link type="primary" @click="openLedger(row)">编辑</el-button><el-button class="control-action" link type="primary" @click="openLedger(row, 'control')">过程管控</el-button><el-button v-if="state(row) === '未开工'" link type="danger" @click="deleteLedger(row)">删除</el-button></div>
+            <div class="row-actions"><el-button link type="primary" @click="openLedger(row, 'view')">查看</el-button><el-button v-if="state(row) !== '完工'" link type="primary" @click="openLedger(row)">编辑</el-button><el-button class="control-action" link type="primary" @click="openLedger(row, 'control')">过程管控</el-button></div>
           </template>
         </el-table-column>
       </el-table>

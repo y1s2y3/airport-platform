@@ -4,6 +4,10 @@ import {
   MAJOR_PROJECT_FIELDS,
   EXCEL_COL_MAP,
   DAILY_WORK_DATA_START_ROW,
+  DAILY_WORK_DEFAULT_LEAD_UNIT,
+  MAJOR_WORK_REGISTER_FIELDS,
+  MAJOR_WORK_REGISTER_COL_MAP,
+  MAJOR_WORK_REGISTER_DATA_START_ROW,
   emptyDailyWorkRecord,
 } from '../config/dailyWorkSchema.js'
 import { classifyDailyWorkRecord } from './dailyWorkClassifier.js'
@@ -351,4 +355,237 @@ export function exportDailyWorkRecords(records, options = {}) {
   const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '')
   XLSX.writeFile(wb, options.fileName || `每日施工作业导出_${stamp}.xlsx`)
   return { ok: true, count: list.length, sheetCount: groups.size }
+}
+
+/* ---------- 危大工程信息登记：独立 11 列模板下载 / 导入解析校验 / 导出 ---------- */
+
+const MAJOR_REGISTER_SHEET_NAME = '危大工程信息登记'
+const MAJOR_REGISTER_TITLE = '建设工程指挥部危大工程信息登记表'
+
+const MAJOR_REGISTER_INSTRUCTIONS = [
+  '填报说明：',
+  '1. 带 * 字段必填；施工项目名称可留空（默认取页面当前所选项目），填写时须为系统内项目全称。',
+  '2. 管理单位默认「深圳机场集团/建设工程指挥部」。',
+  '3. 危大工程作业类别为文本，按实际作业类别填写（如：深基坑、高支模、起重吊装等）。',
+  '4. 作业开始/结束时间为 yyyy-MM-dd HH:mm，结束时间须晚于开始时间；施工日期以开始时间为准。',
+  '5. 现场安全监管人格式：姓名/11位手机号，多人用英文逗号分隔。',
+].join('\n')
+
+const MAJOR_REGISTER_SAMPLE = {
+  leadUnit: DAILY_WORK_DEFAULT_LEAD_UNIT,
+  projectName: '三跑道扩建机场工程（软基工程）',
+  contractor: '中国电建集团航空港建设有限公司',
+  majorWorkContent: '土面区袖阀钻孔、袖阀注浆',
+  majorProjectCategory: '不停航施工',
+  majorStartTime: '2026-06-30 00:00',
+  majorEndTime: '2026-06-30 07:00',
+  majorOwnerSafetyManager: '李想/13713651799',
+  majorContractorSafetyManager: '孙贯雨/18759189257',
+  majorSupervisorSafetyManager: '聂涵剑/15974177662',
+  majorControlMeasures: '按不停航施工专项方案组织交底、旁站与巡视检查。',
+}
+
+function buildMajorRegisterHeaderRow() {
+  return MAJOR_WORK_REGISTER_FIELDS.map((field) => field.label)
+}
+
+function majorRegisterDataRow(record) {
+  return MAJOR_WORK_REGISTER_FIELDS.map((field) => {
+    const value = record?.[field.key]
+    return value == null ? '' : String(value)
+  })
+}
+
+function buildMajorRegisterSheetRows(dataRows = []) {
+  const padding = Array(MAJOR_WORK_REGISTER_DATA_START_ROW - 1)
+    .fill(null)
+    .map(() => Array(MAJOR_WORK_REGISTER_FIELDS.length).fill(''))
+  padding[1] = [MAJOR_REGISTER_TITLE]
+  padding[2] = [MAJOR_REGISTER_INSTRUCTIONS]
+  padding[3] = [MAJOR_REGISTER_TITLE]
+  padding[4] = buildMajorRegisterHeaderRow()
+  return [...padding, ...dataRows]
+}
+
+function writeMajorRegisterWorkbook(rows, fileName) {
+  const ws = XLSX.utils.aoa_to_sheet(rows)
+  ws['!cols'] = MAJOR_WORK_REGISTER_FIELDS.map((field) => ({ wch: field.type === 'textarea' ? 28 : 20 }))
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, MAJOR_REGISTER_SHEET_NAME)
+  XLSX.writeFile(wb, fileName)
+}
+
+/** 下载危大工程信息登记导入模版（11 列，第 6 行起数据） */
+export function downloadMajorWorkRegisterTemplate(options = {}) {
+  const rows = buildMajorRegisterSheetRows([majorRegisterDataRow(MAJOR_REGISTER_SAMPLE), Array(MAJOR_WORK_REGISTER_FIELDS.length).fill('')])
+  writeMajorRegisterWorkbook(rows, options.fileName || '危大工程信息登记导入模版.xlsx')
+}
+
+function normalizeDateTimeCell(value) {
+  if (value == null) return ''
+  if (value instanceof Date) {
+    const y = value.getFullYear()
+    const m = String(value.getMonth() + 1).padStart(2, '0')
+    const d = String(value.getDate()).padStart(2, '0')
+    const hh = String(value.getHours()).padStart(2, '0')
+    const mm = String(value.getMinutes()).padStart(2, '0')
+    return `${y}-${m}-${d} ${hh}:${mm}`
+  }
+  const text = String(value).trim().replace(/\//g, '-').replace(/[Tt]/g, ' ')
+  const full = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2})/)
+  if (full) {
+    return `${full[1]}-${String(full[2]).padStart(2, '0')}-${String(full[3]).padStart(2, '0')} ${String(full[4]).padStart(2, '0')}:${full[5]}`
+  }
+  const dateOnly = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
+  if (dateOnly) return `${dateOnly[1]}-${String(dateOnly[2]).padStart(2, '0')}-${String(dateOnly[3]).padStart(2, '0')} 00:00`
+  return ''
+}
+
+function validateContactCell(value) {
+  const text = String(value || '').trim()
+  if (!text) return false
+  return text.split(/[,，;；]/).every((part) => {
+    const item = part.trim()
+    if (!item) return false
+    const phone = item.includes('/') ? item.split('/').pop().trim() : item
+    return /\d{11}/.test(phone)
+  })
+}
+
+function normalizeNameKey(value) {
+  return String(value || '').replace(/\s+/g, '').trim()
+}
+
+function resolveImportProjectName(value, options) {
+  const text = String(value || '').trim()
+  if (!text) return { ok: true, name: options.defaultProjectName || '' }
+  const pool = Array.isArray(options.projectNames) ? options.projectNames.filter(Boolean) : []
+  const key = normalizeNameKey(text)
+  const exact = pool.find((name) => normalizeNameKey(name) === key)
+  if (exact) return { ok: true, name: exact }
+  const fuzzy = pool.find((name) => {
+    const poolKey = normalizeNameKey(name)
+    return poolKey.includes(key) || key.includes(poolKey)
+  })
+  if (!fuzzy) return { ok: false, name: '' }
+  // 模糊命中时保留用户填写的名称（避免把全称改写成简称）
+  return { ok: true, name: text }
+}
+
+/**
+ * 解析危大工程信息登记工作簿（11 列，自动定位表头行，兼容“表头在第 1 行”的简表）
+ * @param {ArrayBuffer} arrayBuffer
+ * @param {{ sheetName?: string, defaultProjectName?: string, projectNames?: string[] }} options
+ */
+export function parseMajorWorkRegisterWorkbook(arrayBuffer, options = {}) {
+  const wb = XLSX.read(arrayBuffer, { type: 'array', cellDates: true })
+  const sheetName = options.sheetName && wb.SheetNames.includes(options.sheetName)
+    ? options.sheetName
+    : wb.SheetNames[0]
+  const ws = wb.Sheets[sheetName]
+  if (!ws) return { records: [], errors: [{ row: 0, message: '未找到可解析的工作表' }], sheetName: '' }
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false })
+
+  let headerIndex = -1
+  for (let i = 0; i < rows.length; i += 1) {
+    const line = rows[i] || []
+    if (line.some((cell) => String(cell).includes('管理单位')) && line.some((cell) => String(cell).includes('施工单位'))) {
+      headerIndex = i
+      break
+    }
+  }
+  if (headerIndex < 0) {
+    return { records: [], errors: [{ row: 0, message: '未找到表头行（需包含「管理单位」「施工单位」等列名）' }], sheetName }
+  }
+
+  const header = (rows[headerIndex] || []).map((cell) => String(cell || '').trim())
+  const columnIndex = {}
+  MAJOR_WORK_REGISTER_FIELDS.forEach((field) => {
+    const idx = header.findIndex((label) => label === field.label)
+    if (idx >= 0) columnIndex[field.key] = idx
+  })
+  const missing = MAJOR_WORK_REGISTER_FIELDS
+    .filter((field) => columnIndex[field.key] === undefined)
+    .map((field) => field.label)
+  if (missing.length) {
+    return { records: [], errors: [{ row: headerIndex + 1, message: `模板缺少列：${missing.join('、')}` }], sheetName }
+  }
+
+  const records = []
+  const errors = []
+  const requiredLabels = MAJOR_WORK_REGISTER_FIELDS.filter((field) => field.required).map((field) => field.label)
+
+  for (let i = headerIndex + 1; i < rows.length; i += 1) {
+    const line = rows[i] || []
+    const excelRow = i + 1
+    const blank = line.every((cell) => String(cell == null ? '' : cell).trim() === '')
+    if (blank) continue
+
+    const values = {}
+    MAJOR_WORK_REGISTER_FIELDS.forEach((field) => {
+      values[field.key] = String(line[columnIndex[field.key]] ?? '').trim()
+    })
+
+    const rowErrors = []
+    requiredLabels.forEach((label) => {
+      const field = MAJOR_WORK_REGISTER_FIELDS.find((item) => item.label === label)
+      if (!values[field.key]) rowErrors.push(`【${label}】不能为空`)
+    })
+
+    const startTime = normalizeDateTimeCell(values.majorStartTime)
+    const endTime = normalizeDateTimeCell(values.majorEndTime)
+    if (values.majorStartTime && !startTime) rowErrors.push('【作业开始时间】格式应为 yyyy-MM-dd HH:mm')
+    if (values.majorEndTime && !endTime) rowErrors.push('【作业结束时间】格式应为 yyyy-MM-dd HH:mm')
+    if (startTime && endTime && endTime <= startTime) rowErrors.push('【作业结束时间】必须晚于开始时间')
+
+    ;['majorOwnerSafetyManager', 'majorContractorSafetyManager', 'majorSupervisorSafetyManager'].forEach((key) => {
+      const field = MAJOR_WORK_REGISTER_FIELDS.find((item) => item.key === key)
+      if (values[key] && !validateContactCell(values[key])) {
+        rowErrors.push(`【${field.label}】格式应为「姓名/11位手机号」`)
+      }
+    })
+
+    const project = resolveImportProjectName(values.projectName, options)
+    if (!project.ok) rowErrors.push('【施工项目名称】不在系统项目列表中，或页面未选择项目')
+    if (!values.projectName && !options.defaultProjectName) rowErrors.push('【施工项目名称】不能为空（页面未选择项目）')
+
+    if (rowErrors.length) {
+      errors.push({ row: excelRow, message: rowErrors.join('；') })
+      continue
+    }
+
+    records.push({
+      leadUnit: values.leadUnit || DAILY_WORK_DEFAULT_LEAD_UNIT,
+      projectName: project.name,
+      contractor: values.contractor,
+      majorWorkContent: values.majorWorkContent,
+      majorProjectCategory: values.majorProjectCategory,
+      majorStartTime: startTime,
+      majorEndTime: endTime,
+      majorOwnerSafetyManager: values.majorOwnerSafetyManager,
+      majorContractorSafetyManager: values.majorContractorSafetyManager,
+      majorSupervisorSafetyManager: values.majorSupervisorSafetyManager,
+      majorControlMeasures: values.majorControlMeasures,
+      reportDate: startTime.slice(0, 10),
+      source: 'import',
+    })
+  }
+
+  return { records, errors, sheetName, total: records.length + errors.length }
+}
+
+/** 读取上传的 Excel 文件并解析危大工程信息登记数据 */
+export async function parseMajorWorkRegisterFile(file, options = {}) {
+  const buffer = await file.arrayBuffer()
+  return parseMajorWorkRegisterWorkbook(buffer, options)
+}
+
+/** 导出危大工程信息登记（按当前筛选结果，单 Sheet 11 列） */
+export function exportMajorWorkRegisterRecords(records, options = {}) {
+  const list = Array.isArray(records) ? records : []
+  if (!list.length) return { ok: false, count: 0, error: '当前没有可导出的记录' }
+  const dataRows = list.map((record) => majorRegisterDataRow(record))
+  const rows = buildMajorRegisterSheetRows([...dataRows, Array(MAJOR_WORK_REGISTER_FIELDS.length).fill('')])
+  writeMajorRegisterWorkbook(rows, options.fileName || '危大工程信息登记.xlsx')
+  return { ok: true, count: list.length }
 }

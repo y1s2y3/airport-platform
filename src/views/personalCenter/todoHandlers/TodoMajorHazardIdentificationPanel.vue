@@ -66,6 +66,10 @@ const majorHazardIdentificationContext = computed(() => {
   }
 })
 
+/** 明细页签：全部 / 已辨识出危大工程（与危大辨识详情页一致） */
+const detailTab = ref('all')
+const identifiedItems = computed(() => (majorHazardIdentificationContext.value?.record?.items || []).filter((item) => item.conclusion === '√'))
+
 const pointDialogVisible = ref(false)
 const pointDialogRows = ref([])
 const pointDialogName = ref('')
@@ -137,31 +141,52 @@ function onSubmit() {
 
   <section class="block block--panel">
     <div class="block-head"><div class="block-title">危大工程辨识明细</div></div>
-    <el-table
-      :data="majorHazardIdentificationContext?.record?.items || []"
-      border
-      size="small"
-      empty-text="暂无危大工程辨识明细"
-    >
-      <el-table-column type="index" label="序号" width="56" />
-      <el-table-column prop="description" label="类别描述" min-width="300" show-overflow-tooltip />
-      <el-table-column prop="isSuperMajor" label="是否超危" width="100" />
-      <el-table-column label="本次辨识结论" width="120">
-        <template #default="{ row }">
-          <el-tag size="small" :type="row.conclusion === '√' ? 'success' : 'info'">{{ row.conclusion }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="计划施工起止时间" width="205">
-        <template #default="{ row }">
-          <span>{{ row.plannedStart || '—' }} 至 {{ row.plannedEnd || '—' }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="管控要点" width="100" align="center">
-        <template #default="{ row }">
-          <el-button link type="primary" @click="openPointDialog(row)">{{ pointsOf(row).length }}</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+    <el-tabs v-model="detailTab">
+      <el-tab-pane label="全部" name="all">
+        <el-table
+          :data="majorHazardIdentificationContext?.record?.items || []"
+          border
+          size="small"
+          empty-text="暂无危大工程辨识明细"
+        >
+          <el-table-column type="index" label="序号" width="56" />
+          <el-table-column prop="description" label="类别描述" min-width="300" show-overflow-tooltip />
+          <el-table-column prop="isSuperMajor" label="是否超危" width="100" />
+          <el-table-column label="本次辨识结论" width="120">
+            <template #default="{ row }">
+              <el-tag size="small" :type="row.conclusion === '√' ? 'success' : 'info'">{{ row.conclusion }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="计划施工起止时间" width="205">
+            <template #default="{ row }">
+              <span>{{ row.plannedStart || '—' }} 至 {{ row.plannedEnd || '—' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="管控要点" width="100" align="center">
+            <template #default="{ row }">
+              <el-button link type="primary" @click="openPointDialog(row)">{{ pointsOf(row).length }}</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-tab-pane>
+      <el-tab-pane :label="`已辨识出危大工程（${identifiedItems.length}）`" name="identified">
+        <el-table :data="identifiedItems" border size="small" empty-text="本次未辨识出危大工程">
+          <el-table-column type="index" label="序号" width="56" />
+          <el-table-column prop="description" label="类别描述" min-width="380" show-overflow-tooltip />
+          <el-table-column prop="isSuperMajor" label="是否超危" width="110" />
+          <el-table-column label="计划施工起止时间" width="240">
+            <template #default="{ row }">
+              <span>{{ row.plannedStart || '—' }} 至 {{ row.plannedEnd || '—' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="管控要点" width="100" align="center">
+            <template #default="{ row }">
+              <el-button link type="primary" @click="openPointDialog(row)">{{ pointsOf(row).length }}</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-tab-pane>
+    </el-tabs>
   </section>
 
   <el-dialog v-model="pointDialogVisible" :title="`${pointDialogName} · 管控要点`" width="980px" destroy-on-close>

@@ -306,6 +306,8 @@ export function buildSupervisionMeetingSeed() {
         rectifyStatus,
         rectifyRemark: rectifyStatus === '已关闭' ? '现场复核通过，资料齐全' : '',
         rectifyPhotos: [],
+        hazardPhotos:
+          h === 0 ? [demoImageDataUrl('隐患现场照片（示例）', template.description)] : [],
         statusLogs: buildSeedStatusLogs(rectifyStatus, uploadTime, '指挥部安质专责'),
         uploadTime,
       })
@@ -379,6 +381,8 @@ export function buildSupervisionMeetingSeed() {
           rectifyStatus: '已关闭',
           rectifyRemark: '已闭环',
           rectifyPhotos: [],
+          hazardPhotos:
+            h === 0 ? [demoImageDataUrl('隐患现场照片（示例）', template.description)] : [],
           statusLogs: buildSeedStatusLogs('已关闭', uploadTime),
           uploadTime,
         })

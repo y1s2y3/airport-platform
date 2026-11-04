@@ -1,6 +1,7 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { Camera } from '@element-plus/icons-vue'
+import { maskPhone } from '../../../../utils/mask.js'
 
 const props = defineProps({
   kind: { type: String, required: true, validator: (v) => ['hazard', 'danger'].includes(v) },
@@ -78,6 +79,83 @@ const dangerFields = computed(() => {
 })
 
 const fields = computed(() => props.kind === 'hazard' ? hazardFields.value : dangerFields.value)
+
+/* ---------- 参建单位管理人员（危险作业详情） ---------- */
+const PERSONNEL_GROUPS = [
+  {
+    unit: '建设单位',
+    fields: [
+      { key: 'ownerProjectManager', label: '项目负责人' },
+      { key: 'ownerSafetyManager', label: '现场安全监管人' },
+    ],
+  },
+  {
+    unit: '施工单位',
+    fields: [
+      { key: 'contractorProjectManager', label: '项目负责人' },
+      { key: 'contractorSafetyManager', label: '现场安全监管人' },
+    ],
+  },
+  {
+    unit: '监理单位',
+    fields: [
+      { key: 'supervisorProjectManager', label: '项目负责人' },
+      { key: 'supervisorSafetyManager', label: '现场安全监管人' },
+    ],
+  },
+]
+
+/** 解析「姓名/手机号，姓名/手机号…」为人员数组 */
+function splitPersonnel(raw) {
+  return String(raw || '')
+    .split(/[，,;；]/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const segments = part.split('/')
+      const name = String(segments[0] || '').replace(/\s+/g, ' ').trim()
+      const phones = segments.slice(1).map((item) => item.trim()).filter(Boolean)
+      return { name, phones }
+    })
+}
+
+/** 手机号默认脱敏，点「查看」后才显示明文 */
+const revealedKeys = ref(new Set())
+
+function isRevealed(key) {
+  return revealedKeys.value.has(key)
+}
+
+function toggleReveal(key) {
+  const next = new Set(revealedKeys.value)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
+  revealedKeys.value = next
+}
+
+function buildPersonnelRow(field) {
+  const people = splitPersonnel(detail.value[field.key])
+  const revealed = isRevealed(field.key)
+  return {
+    key: field.key,
+    label: field.label,
+    hasValue: people.length > 0,
+    revealed,
+    people: people.map((person, index) => ({
+      key: `${field.key}-${index}-${person.name}`,
+      name: person.name,
+      phones: person.phones.map((phone) => (revealed ? phone : maskPhone(phone))),
+    })),
+  }
+}
+
+const personnelGroups = computed(() => {
+  if (props.kind !== 'danger') return []
+  return PERSONNEL_GROUPS.map((group) => ({
+    unit: group.unit,
+    fields: group.fields.map(buildPersonnelRow),
+  }))
+})
 </script>
 
 <template>
@@ -91,6 +169,28 @@ const fields = computed(() => props.kind === 'hazard' ? hazardFields.value : dan
       >
         <span class="form-label">{{ field.label }}</span>
         <span class="form-value">{{ field.value || '--' }}</span>
+      </div>
+    </div>
+
+    <div v-if="kind === 'danger'" class="detail-section personnel-section">
+      <div class="section-label">参建单位管理人员</div>
+      <div class="personnel-group" v-for="group in personnelGroups" :key="group.unit">
+        <div class="personnel-unit">{{ group.unit }}</div>
+        <div v-for="row in group.fields" :key="row.key" class="personnel-row">
+          <span class="personnel-label">{{ row.label }}</span>
+          <span class="personnel-value">
+            <template v-if="row.hasValue">
+              <span v-for="person in row.people" :key="person.key" class="person-chip">
+                <span class="person-name">{{ person.name }}</span>
+                <span class="person-phones">{{ person.phones.join(' / ') }}</span>
+              </span>
+              <button type="button" class="reveal-btn" @click="toggleReveal(row.key)">
+                {{ row.revealed ? '隐藏' : '查看' }}
+              </button>
+            </template>
+            <span v-else class="personnel-empty">--</span>
+          </span>
+        </div>
       </div>
     </div>
 
@@ -168,6 +268,86 @@ const fields = computed(() => props.kind === 'hazard' ? hazardFields.value : dan
 .detail-section {
   border-top: 1px solid var(--coc-border);
   padding-top: 12px;
+}
+
+/* ---------- 参建单位管理人员 ---------- */
+.personnel-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.personnel-group + .personnel-group {
+  margin-top: 10px;
+}
+
+.personnel-unit {
+  font-size: calc(12px + var(--coc-font-boost));
+  font-weight: 600;
+  color: #5eeeff;
+  line-height: 1.4;
+}
+
+.personnel-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: calc(13px + var(--coc-font-boost));
+  line-height: 1.5;
+}
+
+.personnel-label {
+  flex: 0 0 120px;
+  white-space: nowrap;
+  color: var(--coc-text-muted);
+}
+
+.personnel-value {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  color: var(--coc-text);
+}
+
+.person-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(94, 238, 255, 0.24);
+  white-space: nowrap;
+}
+
+.person-name {
+  color: var(--coc-text);
+}
+
+.person-phones {
+  color: var(--coc-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.personnel-empty {
+  color: var(--coc-text-muted);
+}
+
+.reveal-btn {
+  border: none;
+  background: none;
+  padding: 0;
+  color: #5eeeff;
+  font-size: calc(12px + var(--coc-font-boost));
+  cursor: pointer;
+  line-height: 1.4;
+}
+
+.reveal-btn:hover {
+  text-decoration: underline;
 }
 
 .section-label {

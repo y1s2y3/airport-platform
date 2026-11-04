@@ -517,8 +517,11 @@ onMounted(load)
         <el-tab-pane label="监理隐患清单" name="hazard">
           <SupervisionHazardListPanel
             ref="hazardPanelRef"
-            :allow-close="isHqSelected"
+            :allow-close="true"
             :allow-create="!isHqSelected"
+            :allow-edit="!isHqSelected"
+            :operator="isHqSelected ? '指挥部用户' : '监理用户'"
+            :operator-role="isHqSelected ? '指挥部' : '监理'"
             :project-name="scopeProjectName"
             :project-id="isHqSelected ? '' : selectedProjectId"
           />
