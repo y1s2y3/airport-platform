@@ -3,7 +3,7 @@
  * 系统附件位：按档位校验类型/大小/个数，多文件用换行网格展示。
  * v-model 为数组；传入字符串会规范化后回写成数组。
  */
-import { computed } from 'vue'
+import { computed, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Document, Plus, VideoCamera, ZoomIn } from '@element-plus/icons-vue'
 import {
@@ -26,6 +26,7 @@ const props = defineProps({
   urlKey: { type: String, default: 'url' },
   sizeKey: { type: String, default: 'size' },
   hint: { type: String, default: '' },
+  uploadText: { type: String, default: '' },
   compact: { type: Boolean, default: false },
   /** 图片入库前压缩（默认关；开启后按 maxEdge/maxKb 缩放重绘，避免 mock/base64 存储爆量） */
   compress: { type: Boolean, default: false },
@@ -34,6 +35,8 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:modelValue'])
+let alive = true
+onBeforeUnmount(() => { alive = false })
 
 const conf = computed(() => getAttachPreset(props.preset))
 
@@ -120,7 +123,28 @@ async function compressImage(file, { maxEdge = 1600, maxKb = 1024 } = {}) {
   return out
 }
 
+// Read the latest list when a file finishes; parallel reads must not replace each other.
+function appendUploadedFile(file, url) {
+  if (!alive || props.readonly) return
+  const current = asAttachList(props.modelValue)
+  const error = validateAttachFile(file, props.preset, { currentCount: current.length, max: props.max })
+  if (error) {
+    ElMessage.warning(error)
+    return
+  }
+  emitList([...current, buildItem(file, url, current.length)])
+}
+
+function readAndAppendFile(file) {
+  if (!alive || props.readonly) return
+  const reader = new FileReader()
+  reader.onload = (event) => appendUploadedFile(file, event.target?.result || '')
+  reader.onerror = () => { if (alive && !props.readonly) ElMessage.error('附件读取失败，请重试') }
+  reader.readAsDataURL(file)
+}
+
 function handleUpload(uploadFile) {
+  if (!alive || props.readonly) return false
   const file = uploadFile.raw || uploadFile
   const err = validateAttachFile(file, props.preset, {
     currentCount: files.value.length,
@@ -130,26 +154,14 @@ function handleUpload(uploadFile) {
     ElMessage.warning(err)
     return false
   }
-  const current = asAttachList(props.modelValue)
   const kind = detectAttachKind(file, props.preset) || (props.preset === 'image' ? 'image' : 'file')
   if (props.compress && kind === 'image') {
     compressImage(file, { maxEdge: props.maxEdge, maxKb: props.maxKb })
-      .then((url) => emitList([...current, buildItem(file, url, current.length)]))
-      .catch(() => {
-        const reader = new FileReader()
-        reader.onload = (event) => {
-          emitList([...current, buildItem(file, event.target?.result || '', current.length)])
-        }
-        reader.readAsDataURL(file)
-      })
+      .then((url) => appendUploadedFile(file, url))
+      .catch(() => readAndAppendFile(file))
     return false
   }
-  const reader = new FileReader()
-  reader.onload = (event) => {
-    const url = event.target?.result || ''
-    emitList([...current, buildItem(file, url, current.length)])
-  }
-  reader.readAsDataURL(file)
+  readAndAppendFile(file)
   return false
 }
 
@@ -253,7 +265,7 @@ function openFile(file) {
       >
         <div class="ap-attach-add-inner">
           <el-icon :size="20"><Plus /></el-icon>
-          <span>{{ preset === 'image' ? '上传图片' : preset === 'media' ? '上传图片/视频' : '上传文件' }}</span>
+          <span>{{ uploadText || (preset === 'image' ? '上传图片' : preset === 'media' ? '上传图片/视频' : '上传文件') }}</span>
         </div>
       </el-upload>
     </div>

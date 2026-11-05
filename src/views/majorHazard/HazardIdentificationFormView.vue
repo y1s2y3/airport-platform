@@ -4,7 +4,7 @@ import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import { useCurrentProject } from '../../composables/useCurrentProject.js'
-import { getProjectPersonnel } from '../../mock/laborRealName.js'
+import { listSystemUserOptions, SYSTEM_USER_FALLBACKS } from '../../utils/personSources.js'
 import { createMajorHazardIdentificationTodo } from '../../mock/personalCenter.js'
 import {
   MAJOR_HAZARD_APPROVERS,
@@ -27,28 +27,21 @@ const pointDialogRows = ref([])
 const pointDialogName = ref('')
 const recordId = computed(() => String(route.params.id || ''))
 const isNew = computed(() => !recordId.value)
-const canEdit = computed(() => isNew.value || (route.query.mode === 'edit' && ['草稿', '已驳回'].includes(form.value.approvalStatus)))
+const canEdit = computed(() => isNew.value || (route.query.mode === 'edit' && form.value.approvalStatus === '已驳回'))
 const categories = computed(() => flattenCategories(data.value.categories))
 const selectedItems = computed(() => form.value.items.filter((item) => item.conclusion === '√'))
 const approverOptions = (kind) => MAJOR_HAZARD_APPROVERS.filter((item) => item.kind === kind).map((item) => ({ id: item.id, label: `${item.name}（${item.post}）` }))
 const supervisorApprovers = computed(() => approverOptions('supervisor'))
 const projectManagerApprovers = computed(() => approverOptions('pm'))
 
-/** 辨识人下拉：取本项目在岗实名制人员；无实名制数据的项目用默认人员兜底 */
-const FALLBACK_IDENTIFIERS = ['张工（项目技术负责人）', '王工（安全员）', '李工（施工员）', '陈静（安全员）', '吴敏（测量员）']
+/** 辨识人下拉：取系统用户（项目管理人员），展示「姓名（岗位）」 */
 const identifierOptions = computed(() => {
-  const list = getProjectPersonnel(projectId.value)
-    .filter((person) => person.entry_status === '在岗')
-    .map((person) => {
-      const name = person.basic?.name || '未命名人员'
-      const position = person.unit?.work_type || person.basic?.category || '人员'
-      return `${name}（${String(position).replace(/^特种-/, '')}）`
-    })
-  return list.length ? list : FALLBACK_IDENTIFIERS
+  const list = listSystemUserOptions()
+  return list.length ? list : SYSTEM_USER_FALLBACKS
 })
 
 function blankForm(row = {}) {
-  return { id: '', categoryId: '', categoryName: '', identifiedBy: '', identifiedAt: new Date().toISOString().slice(0, 10), approvalStatus: '草稿', remark: '', supervisorApproverId: '', projectManagerApproverId: '', items: [], ...row }
+  return { id: '', categoryId: '', categoryName: '', identifiedBy: '', identifiedAt: new Date().toISOString().slice(0, 10), approvalStatus: '审批中', remark: '', supervisorApproverId: '', projectManagerApproverId: '', items: [], ...row }
 }
 function load() {
   if (!projectId.value) { data.value = { categories: [], descriptions: [], controlPoints: [], identifications: [] }; return }

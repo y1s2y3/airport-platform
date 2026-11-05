@@ -1,0 +1,12 @@
+/* Scope the review's table hover treatment to this feature, including teleported drawers. */
+:is(.daily-dispatch-ledger, .daily-dispatch-detail, .daily-dispatch-drawer) .el-table {
+  --el-table-row-hover-bg-color: color-mix(in srgb, var(--ap-primary) 8%, var(--ap-card));
+}
+:is(.daily-dispatch-ledger, .daily-dispatch-detail, .daily-dispatch-drawer) .el-table__body tr.hover-row > td.el-table__cell,
+:is(.daily-dispatch-ledger, .daily-dispatch-detail, .daily-dispatch-drawer) .el-table__body tr:hover > td.el-table__cell {
+  background-color: var(--el-table-row-hover-bg-color);
+}
+
+/* Keep record counts and issue totals consistent within the ledger toolbar. */
+.daily-dispatch-ledger .daily-totals { display: flex; gap: 20px; flex-wrap: wrap; font-size: 14px; }
+.daily-dispatch-ledger .daily-totals strong { color: var(--ap-primary); }

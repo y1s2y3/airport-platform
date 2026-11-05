@@ -280,6 +280,7 @@ const rawMenuTree = [
       { key: 'coc-admin-supervision-meeting', label: '监理会议管理', icon: 'ChatLineRound', path: '/coc-admin/supervision-meeting', name: 'CocAdminSupervisionMeeting', component: 'SupervisionMeetingMinutesView', routeComponent: 'CocAdminPageView', levels: 'both', roles: ['COC调度室', '监理', '施工'], description: '项目层级按模版上传监理例会纪要并解析隐患。' },
       { key: 'coc-admin-dispatch-hazard', label: '调度隐患清单', icon: 'Notebook', path: '/coc-admin/dispatch-hazard', name: 'CocAdminDispatchHazard', component: 'DispatchHazardListView', routeComponent: 'CocAdminPageView', levels: 'both', roles: ['COC调度室', '安质部', '项目经理', '施工'], description: '汇集 COC 调度大屏问题截图登记的安全/质量隐患台账。' },
       { key: 'coc-admin-meeting-signin', label: '会议记录', icon: 'CircleCheck', path: '/coc-admin/meeting-signin', name: 'CocAdminMeetingSignIn', component: 'AdminMeetingSignInList', routeComponent: 'CocAdminPageView', levels: 'hq', roles: ['COC调度室'], description: '指挥部会议记录：会议时间、本次调度项目，以及各项目值班人员的已参会/未参会清单（数据源：大屏「项目值班」人员参会标注）。' },
+      { key: 'coc-admin-daily-dispatch-check', label: '每日调度检查', icon: 'DocumentChecked', path: '/coc-admin/daily-dispatch-check', name: 'CocAdminDailyDispatchCheck', component: 'DailyDispatchLedgerView', routeComponent: 'CocAdminPageView', levels: 'hq', roles: ['COC调度室', '安质部', '项目经理', '施工'], description: '指挥部每日检查台账及只读检查统计；同日统一调度独占填写，项目部独立保存、关联汇总。' },
       { key: 'coc-admin-duty-roster', label: '每周值班表', icon: 'Calendar', path: '/coc-admin/duty-roster', name: 'CocAdminDutyRoster', component: 'AdminDutyRosterView', routeComponent: 'CocAdminPageView', levels: 'both', roles: ['COC调度室', '项目经理', '施工', '监理'], description: '项目维护每周值班：先白班/夜班，再选施工与监理人员；指挥部按周汇总只读。排班保存即生效；白班/夜班照片分别补录（今天及更早）。' },
     ],
   },
@@ -785,6 +786,8 @@ export const hiddenRoutes = [
   { key: 'subcontractor-detail', path: '/basic-data/project/subcontractor/:id', name: 'SubcontractorDetail', component: 'SubcontractorDetailView', label: '分包单位详情', sidebarKey: 'bd-subcontractor' },
 
   // 调度后台隐藏子页（路由保留，不在侧栏）
+  { key: 'coc-admin-daily-dispatch-detail', path: '/coc-admin/daily-dispatch-check/records/:date', name: 'CocAdminDailyDispatchDetail', component: 'DailyDispatchDetailView', label: 'COC调度会检查记录表详情', tabTitle: route => route.query.entry === 'project' ? '项目部检查填写' : route.query.entry === 'unified' || route.query.mode === 'edit' ? '统一调度检查填写' : 'COC调度会检查记录表详情', preserveTabQuery: true, confirmTabClose: true, sidebarKey: 'coc-admin-daily-dispatch-check', levels: 'hq' },
+  { key: 'coc-admin-daily-dispatch-summary', path: '/coc-admin/daily-dispatch-check/summary', name: 'CocAdminDailyDispatchSummary', component: 'DailyDispatchSummaryView', label: '检查统计', sidebarKey: 'coc-admin-daily-dispatch-check', levels: 'hq' },
   { key: 'coc-admin-screenshot', path: '/coc-admin/screenshot', name: 'CocAdminScreenshot', component: 'AdminScreenshotList', routeComponent: 'CocAdminPageView', label: '问题截图', roles: ['COC调度室'], description: '保存问题截图及相关字段。' },
   { key: 'coc-admin-meeting', path: '/coc-admin/meeting', name: 'CocAdminMeeting', component: 'AdminDispatchMeetingList', routeComponent: 'CocAdminPageView', label: '会议纪要（演示）', roles: ['安质部', '项目经理', '施工'], description: '演示用调度会议纪要/录音资料，与签到台账「会议记录」分离。' },
   { key: 'coc-admin-smart-helmet', path: '/coc-admin/smart-helmet', name: 'CocAdminSmartHelmet', component: 'SmartHelmetManageView', routeComponent: 'CocAdminPageView', label: '智能安全帽管理', roles: ['COC调度室'], description: '管理智能安全帽设备台账。' },
@@ -909,6 +912,9 @@ export const viewLoaders = {
   PersonalCenterView: () => import('../views/PersonalCenterView.vue'),
   PersonalCenterTodoHandleView: () => import('../views/PersonalCenterTodoHandleView.vue'),
   PersonalCenterStartedEditView: () => import('../views/PersonalCenterStartedEditView.vue'),
+  DailyDispatchLedgerView: () => import('../views/cocAdmin/dailyDispatch/DailyDispatchLedgerView.vue'),
+  DailyDispatchDetailView: () => import('../views/cocAdmin/dailyDispatch/DailyDispatchDetailView.vue'),
+  DailyDispatchSummaryView: () => import('../views/cocAdmin/dailyDispatch/DailyDispatchSummaryView.vue'),
   CocAdminPageView: () => import('../views/cocAdmin/CocAdminPageView.vue'),
   VideoMonitorPageView: () => import('../views/videoMonitor/VideoMonitorPageView.vue'),
   TrackSystemListView: () => import('../views/track/TrackSystemListView.vue'),
@@ -1312,6 +1318,9 @@ export function buildRoutes() {
         sidebarKey: r.sidebarKey || r.key,
         tabKey: r.sidebarKey || r.key,
         title: r.label,
+        tabTitle: r.tabTitle,
+        preserveTabQuery: r.preserveTabQuery,
+        confirmTabClose: r.confirmTabClose,
         cocAdminKey: isCocAdmin ? r.key : undefined,
       },
     })

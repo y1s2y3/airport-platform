@@ -11,6 +11,7 @@ export const userStatusOptions = [
 ]
 
 const initialUsers = [
+  { id: 'inspection-dispatch-demo', name: '安质部示例调度员', loginAccount: 'inspection.dispatch.demo', status: true, orgId: 'org-quality', positions: [], remark: '每日调度检查原型示例账号' },
   {
     id: 'u-001',
     name: '刘付生',

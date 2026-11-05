@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, reactive, computed, watch, nextTick } from 'vue'
 import { Search, Setting } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useLaborProjectScope } from '../../composables/useCurrentProject'
@@ -31,6 +31,11 @@ function viewDetail(row) {
 const confirmDialogVisible = ref(false)
 const confirmTarget = ref(null)
 const confirmForm = reactive({ result: '已处置', remark: '', attachments: [] })
+const confirmFormRef = ref(null)
+const confirmRules = {
+  result: [{ required: true, message: '请选择处置结果', trigger: 'change' }],
+  remark: [{ required: true, whitespace: true, message: '请填写处置说明', trigger: 'blur' }],
+}
 
 function confirmAlert(row) {
   confirmTarget.value = row
@@ -38,10 +43,20 @@ function confirmAlert(row) {
   confirmForm.remark = ''
   confirmForm.attachments = []
   confirmDialogVisible.value = true
+  nextTick(() => confirmFormRef.value?.clearValidate?.())
 }
 
-function doConfirm() {
-  if (!confirmForm.result) { ElMessage.warning('请选择处理结果'); return }
+async function doConfirm() {
+  if (!String(confirmForm.remark || '').trim()) {
+    ElMessage.warning('请填写处置说明')
+    confirmFormRef.value?.validateField?.('remark').catch(() => {})
+    return
+  }
+  try {
+    await confirmFormRef.value?.validate?.()
+  } catch {
+    return
+  }
   const item = disposeMachineAlert(confirmTarget.value.id, {
     result: confirmForm.result,
     remark: confirmForm.remark,
@@ -150,7 +165,7 @@ function openRuleConfig() { ruleDialogVisible.value = true }
           <el-table-column label="操作" width="120" align="center">
             <template #default="{ row }">
               <el-button link type="primary" size="small" @click="viewDetail(row)">查看</el-button>
-              <el-button v-if="!isHqSelected && row.status === '未处置'" link type="primary" size="small" @click="confirmAlert(row)">预警确认</el-button>
+              <el-button v-if="!isHqSelected && row.status === '未处置'" link type="primary" size="small" @click="confirmAlert(row)">处置</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -191,28 +206,29 @@ function openRuleConfig() { ruleDialogVisible.value = true }
       <template #footer><el-button type="primary" @click="detailVisible = false">关闭</el-button></template>
     </el-dialog>
 
-    <!-- 预警确认弹窗 -->
-    <el-dialog v-model="confirmDialogVisible" title="预警确认" width="420px" :close-on-click-modal="false">
-      <div v-if="confirmTarget" style="margin-bottom:16px;font-size:13px;color:#666">
-        预警：{{ confirmTarget.content }}
+    <!-- 预警处置弹窗 -->
+    <el-dialog v-model="confirmDialogVisible" title="预警处置" width="480px" :close-on-click-modal="false">
+      <div v-if="confirmTarget" class="dispose-hint">
+        预警：{{ confirmTarget.content }}（{{ confirmTarget.deviceName }}）
       </div>
-      <el-form :model="confirmForm" label-width="80px">
-        <el-form-item label="处理结果" required>
-          <el-select v-model="confirmForm.result" style="width:100%">
-            <el-option label="已处置" value="已处置" />
-            <el-option label="误报" value="误报" />
-          </el-select>
+      <el-form ref="confirmFormRef" :model="confirmForm" :rules="confirmRules" label-width="80px">
+        <el-form-item label="处置结果" prop="result" required>
+          <el-radio-group v-model="confirmForm.result">
+            <el-radio value="已处置">已处置</el-radio>
+            <el-radio value="误报">误报</el-radio>
+          </el-radio-group>
         </el-form-item>
-        <el-form-item label="预警说明">
-          <el-input v-model="confirmForm.remark" type="textarea" :rows="3" placeholder="请输入预警说明" aria-label="请输入预警说明"/>
+        <el-form-item label="处置说明" prop="remark" required>
+          <el-input v-model="confirmForm.remark" type="textarea" :rows="4" maxlength="500" show-word-limit
+            :placeholder="confirmForm.result === '误报' ? '请说明判断为误报的原因' : '请填写处置说明'" aria-label="请填写处置说明"/>
         </el-form-item>
-        <el-form-item label="上传附件">
+        <el-form-item label="处置附件">
           <AttachmentUpload v-model="confirmForm.attachments" preset="file" :min="0" :max="9" name-prefix="处置附件" />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="confirmDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="doConfirm">确认处理</el-button>
+        <el-button type="primary" class="ap-btn-primary" @click="doConfirm">确认处置</el-button>
       </template>
     </el-dialog>
 
@@ -257,4 +273,5 @@ function openRuleConfig() { ruleDialogVisible.value = true }
   margin-left: 4px;
   font-weight: bold;
 }
+.dispose-hint { margin-bottom: 16px; font-size: 13px; color: #606266; line-height: 1.6; }
 </style>

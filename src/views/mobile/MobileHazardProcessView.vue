@@ -10,6 +10,7 @@ import { getAppSelectedOrg } from '../../mock/appSession.js'
 import { DEFAULT_PROJECT_ID, HQ_PROJECT_OPTION } from '../../config/projectOptions.js'
 import { selectedProjectId } from '../../composables/useCurrentProject.js'
 import { getProjectPersonnel, maskIdCard, maskPhone } from '../../mock/laborRealName.js'
+import { listSystemUserOptions, SYSTEM_USER_FALLBACKS } from '../../utils/personSources.js'
 import { listApprovedSubcontractors } from '../../mock/subcontractorManagement.js'
 import { getMobileInspectionTask, listMobileInspectionTasks } from '../../mock/mobileInspectionTasks.js'
 import { DANGER_WORK_CATEGORY_OPTIONS } from '../../coc/config/dailyWorkSchema.js'
@@ -65,6 +66,11 @@ const currentTab = computed(() => PROCESS_TABS.find((item) => item.key === activ
 const canAdd = computed(() => activeTab.value !== 'patrol' && activeTab.value !== 'controlPoints')
 const recordAttachmentLabel = computed(() => ['conditionAcceptance', 'progress', 'acceptance'].includes(activeTab.value) ? '现场照片' : '附件')
 const realNamePersonnel = computed(() => getProjectPersonnel(projectId.value).filter((person) => person.entry_status === '在岗'))
+/** 系统用户（项目管理人员）：编制人、交底人等 */
+const systemUserOptions = computed(() => {
+  const list = listSystemUserOptions()
+  return list.length ? list : SYSTEM_USER_FALLBACKS
+})
 const responsibleOptions = computed(() => realNamePersonnel.value.map((person) => {
   const name = person.basic?.name || '未命名人员'
   const position = person.unit?.work_type || person.basic?.category || '人员'
@@ -683,7 +689,7 @@ onBeforeUnmount(() => {
             <div class="checklist-group-title">{{ group.name }}</div>
             <div v-for="item in group.items" :key="item.id" class="checklist-row">
               <span class="checklist-text">{{ item.content }}</span>
-              <span class="checklist-state" :class="{ done: item.done }">{{ item.done ? '已完成' : '未完成' }}</span>
+              <span class="checklist-state" :class="{ done: item.done }" :title="item.done ? item.greenStatusText || '已落实' : item.redStatusText || '未落实'">{{ item.done ? (item.greenStatusText || '已落实') : (item.redStatusText || '未落实') }}</span>
               <el-switch :model-value="item.done" @change="(val) => toggleChecklistPoint(item, val)" />
             </div>
           </div>
@@ -852,7 +858,7 @@ onBeforeUnmount(() => {
               <el-option v-for="option in field.options" :key="option" :label="option" :value="option" />
             </el-select>
             <el-select v-else-if="field.type === 'person'" v-model="recordForm[field.key]" :disabled="recordDialogMode === 'view' || field.readonly" filterable style="width:100%" :teleported="false">
-              <el-option v-for="item in responsibleOptions" :key="item" :label="item" :value="item" />
+              <el-option v-for="item in systemUserOptions" :key="item" :label="item" :value="item" />
             </el-select>
             <el-select v-else-if="field.type === 'people'" v-model="recordForm[field.key]" multiple filterable :disabled="recordDialogMode === 'view'" style="width:100%" :teleported="false">
               <el-option v-for="item in responsibleOptions" :key="item" :label="item" :value="item" />
@@ -1316,7 +1322,7 @@ onBeforeUnmount(() => {
 .checklist-group-title{margin-bottom:6px;padding-left:8px;border-left:3px solid #37a2f6;font-weight:600;font-size:13px;color:#1f2329}
 .checklist-row{display:flex;align-items:center;gap:10px;padding:12px 14px;margin-bottom:8px;border-radius:10px;background:#fff}
 .checklist-text{flex:1;line-height:1.6;font-size:13px;color:#1f2329}
-.checklist-state{min-width:48px;text-align:right;font-size:12px;color:#8a94a6}
+.checklist-state{min-width:64px;text-align:right;font-size:12px;color:#c45656}
 .checklist-state.done{color:#3f9c58}
 .detail-body{padding:12px 16px 24px}
 .detail-card{margin-bottom:12px;padding:14px 16px;border-radius:12px;background:#fff}

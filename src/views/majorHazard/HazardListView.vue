@@ -277,7 +277,7 @@ watch(projectId, load, { immediate: true })
             <div class="checklist-group-title">{{ group.name }}</div>
             <div v-for="item in group.items" :key="item.id" class="checklist-row">
               <span class="checklist-text">{{ item.content }}</span>
-              <span class="checklist-state" :class="{ done: item.done }">{{ item.done ? '已完成' : '未完成' }}</span>
+              <span class="checklist-state" :class="{ done: item.done }" :title="item.done ? item.greenStatusText || '已落实' : item.redStatusText || '未落实'">{{ item.done ? (item.greenStatusText || '已落实') : (item.redStatusText || '未落实') }}</span>
               <el-switch :model-value="item.done" @change="(val) => toggleChecklistPoint(item, val)" />
             </div>
           </div>
@@ -299,7 +299,7 @@ watch(projectId, load, { immediate: true })
 .checklist-group-title{margin-bottom:6px;padding-left:8px;border-left:3px solid var(--ap-primary,#8f0045);font-weight:600;font-size:13px;color:#1f2329}
 .checklist-row{display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid #f0f2f5}
 .checklist-text{flex:1;line-height:1.6;font-size:13px;color:#1f2329}
-.checklist-state{min-width:52px;text-align:right;font-size:12px;color:#8a94a6}
+.checklist-state{min-width:64px;text-align:right;font-size:12px;color:#c45656}
 .checklist-state.done{color:#3f9c58}
 .back-bar{display:flex;align-items:center;margin-bottom:10px}
 .ledger-page{min-height:100%;padding:20px 22px 34px;border:0;border-radius:0;background:#f5f7fa}

@@ -1,6 +1,8 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { projectDispatchTag, updateProjectDispatchTag } from '../../composables/useProjectDispatchTags.js'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
 import {
   projectList,
@@ -45,6 +47,13 @@ const emptyText = computed(() =>
     ? '暂无项目信息，可点击「新增」维护'
     : '当前项目暂无项目信息',
 )
+
+function changeDispatchTag(row, enabled) {
+  try {
+    updateProjectDispatchTag(row.id, enabled)
+    ElMessage.success(enabled ? '调度标签已开启' : '调度标签已关闭')
+  } catch (error) { ElMessage.error(error.message || '调度标签保存失败，请重试') }
+}
 
 function handleSearch() {
   appliedFilters.value = { ...filters.value }
@@ -153,6 +162,12 @@ function formatPeriod(row) {
         <el-table-column label="项目经理" width="110" align="center" show-overflow-tooltip>
           <template #default="{ row }">
             {{ displayProjectManagerName(row) || '--' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="调度标签" width="96" align="center">
+          <template #default="{ row }">
+            <el-switch v-if="isHqSelected" :model-value="projectDispatchTag(row.id)" :aria-label="row.projectName + '调度标签'" @update:model-value="changeDispatchTag(row, $event)" />
+            <el-tag v-else size="small" :type="projectDispatchTag(row.id) ? 'success' : 'info'">{{ projectDispatchTag(row.id) ? '开启' : '关闭' }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column v-if="isHqSelected" label="是否隐藏" width="96" align="center">

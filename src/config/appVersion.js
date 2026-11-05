@@ -7,7 +7,7 @@
 export const APP_VERSION_BASE = '2.17.1'
 
 /** GitHub Pages 发布序号（从 0 开始；仓库内为「当前即将发布 / 下一版」序号） */
-export const APP_VERSION_PATCH = 52
+export const APP_VERSION_PATCH = 53
 
 export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
 
@@ -16,6 +16,16 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  * highlights 宜短句，便于页头问号弹窗快速阅读
  */
 export const VERSION_CHANGELOG = [
+  {
+    version: 'v2.17.1.53',
+    date: '2026-11-05',
+    highlights: [
+      '危大辨识删除「草稿」状态：审批状态仅保留审批中/已通过/已驳回，仅已驳回记录可在辨识记录页编辑后重新提交',
+      '人员取值口径拆分：仅「接受人」与作业人员登记取劳务实名登记；辨识人、责任人、安全管控责任人、方案编制人、交底人员等改取系统用户（姓名+岗位）',
+      '管控要点开关文案改为随状态动态显示字典红绿文案：打开显示绿色显示状态文案（视为已完成）、关闭显示红色显示状态文案（视为未完成），文案颜色同步',
+      '机械设备监管·预警记录：操作按钮「预警确认」改名「处置」，处置弹窗与危大监测预警统一（处置结果单选、处置说明必填且最多 500 字、处置附件）',
+    ],
+  },
   {
     version: "v2.17.1.51",
     date: "2026-11-04",

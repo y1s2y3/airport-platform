@@ -5,6 +5,7 @@ import { ArrowLeft, Plus, UploadFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useCurrentProject } from '../../composables/useCurrentProject.js'
 import { getProjectPersonnel, maskIdCard, maskPhone } from '../../mock/laborRealName.js'
+import { listSystemUserOptions, SYSTEM_USER_FALLBACKS } from '../../utils/personSources.js'
 import { buildEntityBreakdownTree } from '../../mock/constructionLocation.js'
 import { listApprovedSubcontractors } from '../../mock/subcontractorManagement.js'
 import { listMobileInspectionTasks } from '../../mock/mobileInspectionTasks.js'
@@ -85,6 +86,11 @@ const currentTab = computed(() => PROCESS_TABS.find((item) => item.key === activ
 const currentConfig = computed(() => PROCESS_CONFIGS[activeProcessTab.value])
 const visibleRecordFields = computed(() => currentConfig.value.fields.filter((field) => !field.show || field.show(recordForm.value)))
 const realNamePersonnel = computed(() => getProjectPersonnel(projectId.value).filter((person) => person.entry_status === '在岗'))
+/** 系统用户（项目管理人员）：责任人、编制人、交底人等 */
+const systemUserOptions = computed(() => {
+  const list = listSystemUserOptions()
+  return list.length ? list : SYSTEM_USER_FALLBACKS
+})
 const responsibleOptions = computed(() => realNamePersonnel.value.map((person) => {
   const name = person.basic?.name || '未命名人员'
   const position = person.unit?.work_type || person.basic?.category || '人员'
@@ -263,7 +269,7 @@ function flattenEntityTree(nodes = []) {
 }
 function migrateResponsibleLabel(value) {
   if (!value || String(value).includes('（')) return value
-  return responsibleOptions.value.find((item) => item.startsWith(`${value}（`)) || value
+  return systemUserOptions.value.find((item) => item.startsWith(`${value}（`)) || value
 }
 function recordFieldDisabled(field) {
   return recordDialogMode.value === 'view' || Boolean(field.readonly)
@@ -851,7 +857,7 @@ watch([projectId, sourceId, routeMode], load, { immediate: true })
             <el-col :span="12"><el-form-item label="施工时间"><span class="form-text">{{ constructionTime() }}</span></el-form-item></el-col>
             <el-col :span="24"><el-form-item label="类别描述"><span class="form-text description-text">{{ form.description || form.source?.description || '—' }}</span></el-form-item></el-col>
             <el-col :span="12"><el-form-item label="责任分包单位" required><el-select v-model="form.subcontractor" filterable :disabled="basicReadonly" placeholder="请选择已通过报审的分包单位" style="width:100%"><el-option v-for="item in subcontractorOptions" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item></el-col>
-            <el-col :span="12"><el-form-item label="责任人" required><el-select v-model="form.responsible" filterable :disabled="basicReadonly" placeholder="请选择人员姓名（岗位）" style="width:100%"><el-option v-for="item in responsibleOptions" :key="item" :label="item" :value="item" /></el-select></el-form-item></el-col>
+            <el-col :span="12"><el-form-item label="责任人" required><el-select v-model="form.responsible" filterable :disabled="basicReadonly" placeholder="请选择人员姓名（岗位）" style="width:100%"><el-option v-for="item in systemUserOptions" :key="item" :label="item" :value="item" /></el-select></el-form-item></el-col>
           </el-row>
         </el-form>
       </section>
@@ -861,7 +867,7 @@ watch([projectId, sourceId, routeMode], load, { immediate: true })
         <el-table :data="form.parts" border stripe empty-text="暂无施工部位" class="business-table">
           <el-table-column type="index" label="序号" width="56" />
           <el-table-column label="施工部位" min-width="320"><template #default="{ row }"><span v-if="basicReadonly">{{ row.wbsPath || row.name || '—' }}</span><div v-else class="part-wbs-cell"><el-tree-select :model-value="row.wbsNodeId" :disabled="partLocked(row)" :data="entityTree" node-key="id" :props="{ value: 'id', label: 'label', children: 'children', disabled: 'disabled' }" check-strictly filterable placeholder="请选择实体工程分解节点" @update:model-value="chooseEntityPart(row, $event)" /><small v-if="row.wbsPath">{{ row.wbsPath }}</small><small v-if="partLocked(row)">{{ PART_LOCK_MESSAGE }}</small></div></template></el-table-column>
-          <el-table-column label="安全管控责任人" width="190"><template #default="{ row }"><span v-if="basicReadonly">{{ row.safetyResponsible || '—' }}</span><el-select v-else v-model="row.safetyResponsible" :disabled="partLocked(row)" filterable placeholder="人员姓名（岗位）"><el-option v-for="item in responsibleOptions" :key="item" :label="item" :value="item" /></el-select></template></el-table-column>
+          <el-table-column label="安全管控责任人" width="190"><template #default="{ row }"><span v-if="basicReadonly">{{ row.safetyResponsible || '—' }}</span><el-select v-else v-model="row.safetyResponsible" :disabled="partLocked(row)" filterable placeholder="人员姓名（岗位）"><el-option v-for="item in systemUserOptions" :key="item" :label="item" :value="item" /></el-select></template></el-table-column>
           <el-table-column label="开工时间" width="150"><template #default="{ row }"><span v-if="basicReadonly">{{ row.startDate || '—' }}</span><el-date-picker v-else v-model="row.startDate" :disabled="partLocked(row)" type="date" value-format="YYYY-MM-DD" style="width:130px" /></template></el-table-column>
           <el-table-column label="计划完工时间" width="150"><template #default="{ row }"><span v-if="basicReadonly">{{ row.plannedEndDate || '—' }}</span><el-date-picker v-else v-model="row.plannedEndDate" :disabled="partLocked(row)" type="date" value-format="YYYY-MM-DD" style="width:130px" /></template></el-table-column>
           <el-table-column label="施工情况" width="100"><template #default="{ row }"><el-tag size="small" :type="stateTagType(partStatus(row))">{{ partStatus(row) }}</el-tag></template></el-table-column>
@@ -898,7 +904,7 @@ watch([projectId, sourceId, routeMode], load, { immediate: true })
               <div class="checklist-group-title">{{ group.name }}</div>
               <div v-for="item in group.items" :key="item.id" class="checklist-row">
                 <span class="checklist-text">{{ item.content }}</span>
-                <span class="checklist-state" :class="{ done: item.done }">{{ item.done ? '已完成' : '未完成' }}</span>
+                <span class="checklist-state" :class="{ done: item.done }" :title="item.done ? item.greenStatusText || '已落实' : item.redStatusText || '未落实'">{{ item.done ? (item.greenStatusText || '已落实') : (item.redStatusText || '未落实') }}</span>
                 <el-switch :model-value="item.done" @change="(val) => toggleChecklistPoint(item, val)" />
               </div>
             </div>
@@ -1015,7 +1021,7 @@ watch([projectId, sourceId, routeMode], load, { immediate: true })
             <el-col v-for="field in visibleRecordFields" :key="field.key" :span="field.span || 12">
               <el-form-item :label="field.label" :required="field.required">
                 <el-select v-if="field.type === 'select'" v-model="recordForm[field.key]" :disabled="recordFieldDisabled(field)" clearable :placeholder="field.placeholder || `请选择${field.label}`" style="width:100%"><el-option v-for="option in field.options" :key="option" :label="option" :value="option" /></el-select>
-                <el-select v-else-if="field.type === 'person'" v-model="recordForm[field.key]" :disabled="recordFieldDisabled(field)" filterable :placeholder="field.placeholder || `请选择${field.label}`" style="width:100%"><el-option v-for="item in responsibleOptions" :key="item" :label="item" :value="item" /></el-select>
+                <el-select v-else-if="field.type === 'person'" v-model="recordForm[field.key]" :disabled="recordFieldDisabled(field)" filterable :placeholder="field.placeholder || `请选择${field.label}`" style="width:100%"><el-option v-for="item in systemUserOptions" :key="item" :label="item" :value="item" /></el-select>
                 <el-select v-else-if="field.type === 'people'" v-model="recordForm[field.key]" multiple filterable clearable collapse-tags collapse-tags-tooltip placeholder="请选择接受人，可多选" style="width:100%"><el-option v-for="item in responsibleOptions" :key="item" :label="item" :value="item" /></el-select>
                 <el-select v-else-if="field.type === 'subcontractor'" v-model="recordForm[field.key]" filterable clearable placeholder="请选择接受分包单位" style="width:100%"><el-option v-for="item in subcontractorOptions" :key="item.value" :label="item.label" :value="item.value" /></el-select>
                 <el-select v-else-if="field.type === 'team'" v-model="recordForm[field.key]" filterable clearable placeholder="请选择接受班组" style="width:100%"><el-option v-for="item in teamOptions" :key="item" :label="item" :value="item" /></el-select>
@@ -1129,7 +1135,7 @@ watch([projectId, sourceId, routeMode], load, { immediate: true })
 .checklist-group-title{margin-bottom:6px;padding-left:8px;border-left:3px solid var(--ap-primary,#8f0045);font-weight:600;font-size:13px;color:#1f2329}
 .checklist-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border-bottom:1px solid #f0f2f5}
 .checklist-text{flex:1;line-height:1.6;font-size:13px;color:#1f2329}
-.checklist-state{min-width:52px;text-align:right;font-size:12px;color:#8a94a6}
+.checklist-state{min-width:64px;text-align:right;font-size:12px;color:#c45656}
 .checklist-state.done{color:#3f9c58}
 .section-card{margin-top:16px;padding:20px 22px;border:1px solid #e5e9f0;border-radius:10px;background:#fff;box-shadow:0 2px 8px rgba(31,41,55,.025)}
 .section-heading{min-width:0}

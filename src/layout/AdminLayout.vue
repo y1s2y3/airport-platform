@@ -175,6 +175,7 @@ const openTabs = ref([{ key: 'workbench', label: '工作台', path: '/workbench'
 const activeTab = computed(() => route.meta.tabKey || 'workbench')
 
 function resolveCurrentTabLabel() {
+  if (typeof route.meta?.tabTitle === 'function') return route.meta.tabTitle(route)
   const label = getMenuLabelByPath(route.path, currentLevel.value)
   return label || route.meta?.title || '页面'
 }
@@ -184,7 +185,7 @@ watch(
   () => {
     const key = route.meta?.tabKey || route.name || route.path
     const label = resolveCurrentTabLabel()
-    const path = route.path
+    const path = route.meta?.preserveTabQuery ? route.fullPath : route.path
     const existing = openTabs.value.find((t) => t.key === key)
     if (existing) {
       existing.label = label
@@ -196,8 +197,12 @@ watch(
   { immediate: true },
 )
 
-function closeTab(tab, e) {
+async function closeTab(tab, e) {
   e.stopPropagation()
+  if (activeTab.value === tab.key && route.meta?.confirmTabClose) {
+    const next = openTabs.value.filter(t => t.key !== tab.key).at(-1)
+    if (!next || await router.push(next.path)) return
+  }
   openTabs.value = openTabs.value.filter((t) => t.key !== tab.key)
   if (activeTab.value === tab.key && openTabs.value.length) {
     router.push(openTabs.value[openTabs.value.length - 1].path)

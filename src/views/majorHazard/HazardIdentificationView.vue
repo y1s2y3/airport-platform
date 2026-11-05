@@ -22,7 +22,7 @@ const pointDialogVisible = ref(false)
 const pointDialogRows = ref([])
 const pointDialogName = ref('')
 // 台账查询条件：危大工程类别 / 辨识时间范围 / 审批状态
-const APPROVAL_STATUS_OPTIONS = ['草稿', '审批中', '已通过', '已驳回']
+const APPROVAL_STATUS_OPTIONS = ['审批中', '已通过', '已驳回']
 const filterCategory = ref('')
 const filterStatus = ref('')
 const filterDateRange = ref([])
@@ -78,7 +78,7 @@ function openForm(row, mode = 'view') {
   router.push(row ? { path: `/major-hazard/identification/${row.id}`, query: { mode } } : '/major-hazard/identification/create')
 }
 function canEditRecord(row) {
-  return ['草稿', '已驳回'].includes(row?.approvalStatus)
+  return row?.approvalStatus === '已驳回'
 }
 function remove(row) {
   ElMessageBox.confirm('确定删除该危大工程辨识记录？', '删除确认', { type: 'warning' })

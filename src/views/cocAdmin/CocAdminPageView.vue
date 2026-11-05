@@ -23,10 +23,14 @@ const route = useRoute()
 const item = computed(() => getCocAdminItem(route.meta.cocAdminKey))
 
 /** viewLoaders 为 () => import(...)，须包一层 defineAsyncComponent 才能作为 :is 渲染 */
+const contentComponents = new WeakMap()
 const contentComponent = computed(() => {
   const loader = item.value?.component
   if (!loader) return null
-  return defineAsyncComponent(loader)
+  if (item.value.key !== 'coc-admin-daily-dispatch-check') return defineAsyncComponent(loader)
+  // Daily inspection retains its form when only the query changes.
+  if (!contentComponents.has(loader)) contentComponents.set(loader, defineAsyncComponent(loader))
+  return contentComponents.get(loader)
 })
 </script>
 
