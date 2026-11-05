@@ -390,7 +390,9 @@ function partStatus(part) {
   if (part.process?.acceptance?.status === '已完成' && part.process?.acceptance?.result === '合格') return '完工'
   return part.startDate ? '在施' : '未开工'
 }
-const PART_LOCK_MESSAGE = '已有过程管控数据，不可编辑或删除'
+const PART_LOCK_MESSAGE = '已有过程管控数据，施工部位不可修改或删除；安全管控责任人、开工时间和计划完工时间仍可修改'
+const PART_DELETE_MESSAGE = '已有过程管控数据，不可删除该施工部位'
+const PART_LOCK_HINT = '已有过程管控数据，仅可修改责任人、开工时间和计划完工时间'
 function hasPartProcessData(part) {
   return Object.entries(part?.process || {}).some(([key, node]) => {
     if (key === 'patrol') return false
@@ -407,10 +409,9 @@ function partLocked(part) {
   return hasPartProcessData(part) || hasPartProcessData(originalParts.value.find((item) => item.id === part.id))
 }
 function lockedPartChanged(original, current) {
-  return !current || ['wbsNodeId', 'safetyResponsible', 'startDate', 'plannedEndDate'].some((key) => (
-    String(key === 'safetyResponsible' ? migrateResponsibleLabel(original[key]) : original[key] || '')
-      !== String(key === 'safetyResponsible' ? migrateResponsibleLabel(current[key]) : current[key] || '')
-  ))
+  // 已有过程管控数据：施工部位（实体工程节点）不可变更；安全管控责任人、开工时间、计划完工时间允许修改。
+  if (!current) return true
+  return String(original.wbsNodeId || '') !== String(current.wbsNodeId || '')
 }
 function latestStoredParts() {
   const latestData = getMajorHazardData(projectId.value)
@@ -445,10 +446,10 @@ function chooseInspectionTasks(ids = []) {
   if (!ids.includes(inspectionTaskDetailTab.value)) inspectionTaskDetailTab.value = ids[0] || ''
 }
 function removePart(part) {
-  if (basicReadonly.value || partLocked(part)) return ElMessage.warning(PART_LOCK_MESSAGE)
+  if (basicReadonly.value || partLocked(part)) return ElMessage.warning(PART_DELETE_MESSAGE)
   ElMessageBox.confirm(`确定删除施工部位“${part.name || '未选择'}”？`, '删除确认', { type: 'warning' })
     .then(() => {
-      if (partLocked(part) || hasPartProcessData(latestStoredParts().find((item) => item.id === part.id))) return ElMessage.warning(PART_LOCK_MESSAGE)
+      if (partLocked(part) || hasPartProcessData(latestStoredParts().find((item) => item.id === part.id))) return ElMessage.warning(PART_DELETE_MESSAGE)
       form.value.parts = form.value.parts.filter((item) => item.id !== part.id)
       ElMessage.success('已删除施工部位')
     })
@@ -866,12 +867,12 @@ watch([projectId, sourceId, routeMode], load, { immediate: true })
         <div class="section-head"><div class="section-heading"><div class="section-title">施工部位</div><p>从基础数据管理的实体工程分解选择，明确每个部位的责任人与施工时间</p></div><el-button v-if="canEditBasic" type="primary" :icon="Plus" @click="addPart">添加施工部位</el-button></div>
         <el-table :data="form.parts" border stripe empty-text="暂无施工部位" class="business-table">
           <el-table-column type="index" label="序号" width="56" />
-          <el-table-column label="施工部位" min-width="320"><template #default="{ row }"><span v-if="basicReadonly">{{ row.wbsPath || row.name || '—' }}</span><div v-else class="part-wbs-cell"><el-tree-select :model-value="row.wbsNodeId" :disabled="partLocked(row)" :data="entityTree" node-key="id" :props="{ value: 'id', label: 'label', children: 'children', disabled: 'disabled' }" check-strictly filterable placeholder="请选择实体工程分解节点" @update:model-value="chooseEntityPart(row, $event)" /><small v-if="row.wbsPath">{{ row.wbsPath }}</small><small v-if="partLocked(row)">{{ PART_LOCK_MESSAGE }}</small></div></template></el-table-column>
-          <el-table-column label="安全管控责任人" width="190"><template #default="{ row }"><span v-if="basicReadonly">{{ row.safetyResponsible || '—' }}</span><el-select v-else v-model="row.safetyResponsible" :disabled="partLocked(row)" filterable placeholder="人员姓名（岗位）"><el-option v-for="item in systemUserOptions" :key="item" :label="item" :value="item" /></el-select></template></el-table-column>
-          <el-table-column label="开工时间" width="150"><template #default="{ row }"><span v-if="basicReadonly">{{ row.startDate || '—' }}</span><el-date-picker v-else v-model="row.startDate" :disabled="partLocked(row)" type="date" value-format="YYYY-MM-DD" style="width:130px" /></template></el-table-column>
-          <el-table-column label="计划完工时间" width="150"><template #default="{ row }"><span v-if="basicReadonly">{{ row.plannedEndDate || '—' }}</span><el-date-picker v-else v-model="row.plannedEndDate" :disabled="partLocked(row)" type="date" value-format="YYYY-MM-DD" style="width:130px" /></template></el-table-column>
+          <el-table-column label="施工部位" min-width="320"><template #default="{ row }"><span v-if="basicReadonly">{{ row.wbsPath || row.name || '—' }}</span><div v-else class="part-wbs-cell"><el-tree-select :model-value="row.wbsNodeId" :disabled="partLocked(row)" :data="entityTree" node-key="id" :props="{ value: 'id', label: 'label', children: 'children', disabled: 'disabled' }" check-strictly filterable placeholder="请选择实体工程分解节点" @update:model-value="chooseEntityPart(row, $event)" /><small v-if="row.wbsPath">{{ row.wbsPath }}</small><small v-if="partLocked(row)">{{ PART_LOCK_HINT }}</small></div></template></el-table-column>
+          <el-table-column label="安全管控责任人" width="190"><template #default="{ row }"><span v-if="basicReadonly">{{ row.safetyResponsible || '—' }}</span><el-select v-else v-model="row.safetyResponsible" filterable placeholder="人员姓名（岗位）"><el-option v-for="item in systemUserOptions" :key="item" :label="item" :value="item" /></el-select></template></el-table-column>
+          <el-table-column label="开工时间" width="150"><template #default="{ row }"><span v-if="basicReadonly">{{ row.startDate || '—' }}</span><el-date-picker v-else v-model="row.startDate" type="date" value-format="YYYY-MM-DD" style="width:130px" /></template></el-table-column>
+          <el-table-column label="计划完工时间" width="150"><template #default="{ row }"><span v-if="basicReadonly">{{ row.plannedEndDate || '—' }}</span><el-date-picker v-else v-model="row.plannedEndDate" type="date" value-format="YYYY-MM-DD" style="width:130px" /></template></el-table-column>
           <el-table-column label="施工情况" width="100"><template #default="{ row }"><el-tag size="small" :type="stateTagType(partStatus(row))">{{ partStatus(row) }}</el-tag></template></el-table-column>
-          <el-table-column v-if="canEditBasic" label="操作" width="80" fixed="right"><template #default="{ row }"><el-tooltip :content="PART_LOCK_MESSAGE" :disabled="!partLocked(row)"><span><el-button link type="danger" :disabled="partLocked(row)" @click="removePart(row)">删除</el-button></span></el-tooltip></template></el-table-column>
+          <el-table-column v-if="canEditBasic" label="操作" width="80" fixed="right"><template #default="{ row }"><el-tooltip :content="PART_DELETE_MESSAGE" :disabled="!partLocked(row)"><span><el-button link type="danger" :disabled="partLocked(row)" @click="removePart(row)">删除</el-button></span></el-tooltip></template></el-table-column>
         </el-table>
       </section>
 

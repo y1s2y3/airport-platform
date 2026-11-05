@@ -17,6 +17,14 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v2.17.1.54',
+    date: '2026-11-05',
+    highlights: [
+      '危大清单·施工部位锁定规则调整：已有过程管控数据的部位，施工部位（实体工程节点）不可更换、删除入口禁用，但安全管控责任人、开工时间、计划完工时间仍可修改',
+      '锁定提示文案拆分：编辑部位提示“已有过程管控数据，仅可修改责任人、开工时间和计划完工时间”，删除提示“已有过程管控数据，不可删除该施工部位”',
+    ],
+  },
+  {
     version: 'v2.17.1.53',
     date: '2026-11-05',
     highlights: [
