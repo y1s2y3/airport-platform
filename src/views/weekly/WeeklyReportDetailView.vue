@@ -1,20 +1,16 @@
 <script setup>
 /**
  * 数字周报 · 详情
- * 结构：报头 → 本周概览（指标卡）→ 二～五章（每章 总体说明 + 分项目统计表）→ 附录口径
- * 支持：导出 Word、重新生成（升版本）、历史版本切换、章节锚点导航。
+ * 结构：报头 → 本周概览（按 COC 调度 / 安质巡检 / 质量 三组指标卡）→ 二～五章（每章 总体说明 + 分项目统计表）→ 附录口径
+ * 支持：导出 Word、章节锚点导航。同一周只生成一份，不提供重新生成。
  */
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, Back, Download, Refresh } from '@element-plus/icons-vue'
-import {
-  getWeeklyReport,
-  listVersions,
-  regenerateWeeklyReport,
-  WEEKLY_REPORT_TODAY,
-} from '../../utils/weeklyReportStorage'
-import { WEEKLY_SECTION_ORDER, SECTION_CHAPTER } from '../../utils/weeklyReportBuilder'
+import { ElMessage } from 'element-plus'
+import { ArrowLeft, Back, Download } from '@element-plus/icons-vue'
+import { getWeeklyReport } from '../../utils/weeklyReportStorage'
+import { ensureReportRichData } from '../../utils/weeklyReportCompat'
+import { WEEKLY_SECTION_ORDER, SECTION_CHAPTER, CHAPTER_TITLES } from '../../utils/weeklyReportBuilder'
 import { exportWeeklyReportDocx } from '../../utils/weeklyReportDocx'
 import WeeklySummaryCard from './WeeklySummaryCard.vue'
 
@@ -22,64 +18,55 @@ const route = useRoute()
 const router = useRouter()
 
 const report = ref(null)
-const versions = ref([])
-const currentVersion = ref(null)
 const exporting = ref(false)
-const regenerating = ref(false)
 const activeAnchor = ref('overview')
 
-const CHAPTER_ORDER = [
-  { id: 'chapter-coc', title: '二、COC 调度' },
-  { id: 'chapter-safety', title: '三、安全管理' },
-  { id: 'chapter-quality', title: '四、质量管理' },
-  { id: 'chapter-overview', title: '五、综合运行' },
-]
+const CHAPTER_ORDER = ['chapter-coc', 'chapter-anzi', 'chapter-quality', 'chapter-next']
 
 const anchors = computed(() => [
   { id: 'overview', title: '一、本周概览' },
-  ...CHAPTER_ORDER.filter((chapter) => chapterGroups.value.some((group) => group.id === chapter.id)),
+  ...chapterGroups.value.map((group) => ({ id: group.id, title: group.title })),
   { id: 'appendix', title: '附：指标口径' },
 ])
 
 const chapterGroups = computed(() => {
   if (!report.value) return []
-  const groups = CHAPTER_ORDER.map((chapter) => ({ ...chapter, sections: [] }))
+  const groups = CHAPTER_ORDER.map((id) => ({ id, title: CHAPTER_TITLES[id] || id, sections: [] }))
   WEEKLY_SECTION_ORDER.forEach((key) => {
     const section = report.value.sections?.[key]
     if (!section) return
-    const chapterId = SECTION_CHAPTER[key]
-    const group = groups.find((item) => item.id === chapterId)
+    const group = groups.find((item) => item.id === (SECTION_CHAPTER[key] || ''))
     if (group) group.sections.push(section)
   })
   return groups.filter((group) => group.sections.length)
 })
 
-const cardDisplay = computed(() =>
-  (report.value?.overview?.cards || []).map((card) => ({
-    ...card,
-    valueText:
-      card.value === null || card.value === undefined
-        ? '--'
-        : `${card.value}${card.unit === '%' ? '%' : card.unit ? ` ${card.unit}` : ''}`,
-    prevText:
-      card.prevValue === null || card.prevValue === undefined
-        ? '--'
-        : `${card.prevValue}${card.unit === '%' ? '%' : card.unit ? ` ${card.unit}` : ''}`,
-    deltaText:
-      card.delta === null || card.delta === undefined
-        ? '--'
-        : card.delta === 0
-          ? '持平'
-          : `${card.delta > 0 ? '+' : ''}${card.delta}${card.unit === '%' ? ' 个百分点' : card.unit ? ` ${card.unit}` : ''}`,
-    deltaClass: card.delta > 0 ? 'is-up' : card.delta < 0 ? 'is-down' : '',
-  })),
-)
+function formatCardValue(card) {
+  if (card.value === null || card.value === undefined) return '--'
+  if (card.unit === '%') return `${card.value}%`
+  return card.unit ? `${card.value} ${card.unit}` : String(card.value)
+}
 
-function load(version) {
-  const found = getWeeklyReport(route.params.id, version)
-  report.value = found
-  versions.value = listVersions(route.params.id)
-  currentVersion.value = found?.version ?? null
+function formatDelta(card) {
+  if (card.delta === null || card.delta === undefined) return '--'
+  if (card.delta === 0) return '持平'
+  const suffix = card.unit === '%' ? ' 个百分点' : card.unit ? ` ${card.unit}` : ''
+  return `${card.delta > 0 ? '+' : ''}${card.delta}${suffix}`
+}
+
+function formatPrev(card) {
+  if (card.prevValue === null || card.prevValue === undefined) return '--'
+  if (card.unit === '%') return `${card.prevValue}%`
+  return card.unit ? `${card.prevValue} ${card.unit}` : String(card.prevValue)
+}
+
+function deltaClass(card) {
+  if (card.delta === null || card.delta === undefined || card.delta === 0) return ''
+  return card.delta > 0 ? 'is-up' : 'is-down'
+}
+
+function load() {
+  report.value = ensureReportRichData(getWeeklyReport(route.params.id))
 }
 
 function goBack() {
@@ -95,31 +82,6 @@ async function handleExport() {
     return
   }
   ElMessage.success(`已导出 ${result.fileName}`)
-}
-
-async function handleRegenerate() {
-  try {
-    await ElMessageBox.confirm(
-      `重新生成会重新取数并冻结为新版本（v${Number(report.value?.version || 1) + 1}），旧版本保留可查。是否继续？`,
-      '重新生成周报',
-      { confirmButtonText: '重新生成', cancelButtonText: '取消', type: 'warning' },
-    )
-  } catch (error) {
-    return
-  }
-  regenerating.value = true
-  const result = regenerateWeeklyReport(route.params.id)
-  regenerating.value = false
-  if (!result.ok) {
-    ElMessage.warning(result.msg || '重新生成失败')
-    return
-  }
-  load()
-  ElMessage.success(result.msg || '已重新生成')
-}
-
-function switchVersion(version) {
-  load(version)
 }
 
 function getScrollContainer() {
@@ -172,20 +134,6 @@ onUnmounted(() => {
   if (container) container.removeEventListener('scroll', onScroll)
   window.removeEventListener('scroll', onScroll)
 })
-
-watch(
-  () => route.params.id,
-  () => {
-    load()
-    backToTop()
-  },
-)
-watch(
-  () => currentVersion.value,
-  () => {
-    nextTick(backToTop)
-  },
-)
 </script>
 
 <template>
@@ -200,27 +148,16 @@ watch(
           <h1 class="page-title">{{ report.weekLabel }} 周报</h1>
           <div class="title-tags">
             <el-tag size="small" type="success" effect="plain">已冻结</el-tag>
-            <el-tag size="small" effect="plain">v{{ report.version }}</el-tag>
             <el-tag v-if="report.isDemo" size="small" type="info" effect="plain">演示数据</el-tag>
           </div>
         </div>
         <div class="title-actions">
-          <el-select
-            v-if="versions.length > 1"
-            :model-value="currentVersion"
-            style="width: 132px"
-            aria-label="版本"
-            @change="switchVersion"
-          >
-            <el-option v-for="item in versions" :key="item.version" :label="`v${item.version}${item.current ? '（当前）' : '（历史）'}`" :value="item.version" />
-          </el-select>
-          <el-button :icon="Refresh" :loading="regenerating" @click="handleRegenerate">重新生成</el-button>
           <el-button type="primary" :icon="Download" :loading="exporting" @click="handleExport">导出 Word</el-button>
         </div>
       </div>
       <p class="page-tip">
         统计周期 {{ report.rangeLabel }} · 数据截止 {{ report.weekEnd }} 24:00 · 生成时间 {{ report.generatedAt }} ·
-        统计范围：在建项目 {{ report.projectCount }} 个 · 关联上一周：{{ report.prevWeekId || '--' }}
+        统计范围：在建项目 {{ report.projectCount }} 个
       </p>
     </div>
 
@@ -238,24 +175,22 @@ watch(
             <h2 class="section-title">一、本周概览</h2>
           </div>
           <p class="overview-summary">{{ report.overview?.summary }}</p>
-          <div class="card-grid">
-            <div v-for="card in cardDisplay" :key="card.key" class="metric-card">
-              <div class="metric-label">{{ card.label }}</div>
-              <div class="metric-value">{{ card.valueText }}</div>
-              <div class="metric-foot">
-                <span class="metric-prev">上周 {{ card.prevText }}</span>
-                <span class="metric-delta" :class="card.deltaClass">{{ card.deltaText }}</span>
+
+          <div v-for="group in report.overview?.groups || []" :key="group.key" class="metric-group">
+            <div class="group-head">
+              <span class="group-title">{{ group.title }}</span>
+              <span class="group-count">{{ group.cards.length }} 项指标</span>
+            </div>
+            <div class="card-grid">
+              <div v-for="card in group.cards" :key="card.key" class="metric-card">
+                <div class="metric-label">{{ card.label }}</div>
+                <div class="metric-value">{{ formatCardValue(card) }}</div>
+                <div class="metric-foot">
+                  <span class="metric-prev">上周 {{ formatPrev(card) }}</span>
+                  <span class="metric-delta" :class="deltaClass(card)">{{ formatDelta(card) }}</span>
+                </div>
               </div>
             </div>
-          </div>
-          <div v-if="report.overview?.warnRows?.length" class="warn-block">
-            <h4 class="warn-title">项目预警清单</h4>
-            <el-table :data="report.overview.warnRows" stripe border size="small" empty-text="本周无项目预警">
-              <el-table-column prop="project" label="项目" min-width="140" />
-              <el-table-column prop="type" label="预警类型" width="140" />
-              <el-table-column prop="count" label="数量（天）" width="110" align="center" />
-              <el-table-column prop="detail" label="要点明细" min-width="260" show-overflow-tooltip />
-            </el-table>
           </div>
         </section>
 
@@ -271,14 +206,13 @@ watch(
             <h2 class="section-title">附：指标口径说明</h2>
           </div>
           <el-table :data="report.appendix || []" stripe border size="small" empty-text="暂无口径配置">
-            <el-table-column prop="name" label="指标" width="170" />
+            <el-table-column prop="name" label="指标" width="180" />
             <el-table-column prop="unit" label="单位" width="90" align="center" />
             <el-table-column prop="rule" label="口径说明" min-width="420" />
             <el-table-column prop="source" label="数据来源" min-width="170" />
           </el-table>
           <p class="appendix-note">
-            说明：周报由平台各业务模块台账汇总生成，生成后数据冻结；如需最新数据请使用「重新生成」创建新版本。
-            当前演示基准日：{{ WEEKLY_REPORT_TODAY }}。
+            说明：周报由平台各业务模块台账汇总生成，生成后数据冻结；同一周只生成一份，不支持重新生成。
           </p>
         </section>
       </div>
@@ -386,9 +320,32 @@ watch(
   line-height: 1.7;
   color: #4a4f57;
 }
+.metric-group {
+  margin-bottom: 16px;
+}
+.metric-group:last-child {
+  margin-bottom: 0;
+}
+.group-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding-left: 8px;
+  border-left: 3px solid #c9c9c9;
+}
+.group-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #303133;
+}
+.group-count {
+  font-size: 12px;
+  color: var(--ap-text-muted, #909399);
+}
 .card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 12px;
 }
 .metric-card {
@@ -421,14 +378,6 @@ watch(
 }
 .metric-delta.is-down {
   color: #f56c6c;
-}
-.warn-block {
-  margin-top: 16px;
-}
-.warn-title {
-  margin: 0 0 10px;
-  font-size: 14px;
-  font-weight: 600;
 }
 .chapter-block {
   margin-bottom: 18px;

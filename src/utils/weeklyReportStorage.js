@@ -4,16 +4,16 @@
  * 存储位置：localStorage（演示环境，与项目其它 mock 存储一致）
  * 规则：
  *  - 生成即冻结：已生成周报的数据快照不再随台账变化；
- *  - 重新生成产生新版本，旧版本归档保留（最多保留 2 个历史版本），可切换查看；
- *  - 首次进入自动补 W41～W44 演示周报，只补一次，刷新不重复。
+ *  - **不支持重新生成**：每个自然周只有一份周报，已生成的周次不可再生成（用户 2026-11-04 调整）；
+ *  - 首次进入自动补 W41～W44 演示周报，只补一次，刷新不重复；
+ *  - 进入列表时若上周尚未生成，自动补生成一份。
  */
 import { getWeekInfo, weekOfKey, addDays, isDemoWeek, DEMO_WEEK_KEYS } from '../mock/weeklyReport.js'
 import { buildWeeklyReport } from './weeklyReportBuilder.js'
 
-const STORAGE_KEY = 'airport-weekly-report-v1'
-const MAX_ARCHIVED_VERSIONS = 2
+const STORAGE_KEY = 'airport-weekly-report-v2'
 /** 演示环境“今天”：固定用于列表自动补生成判断，避免不同机器时钟差异 */
-export const WEEKLY_REPORT_TODAY = '2026-11-02'
+export const WEEKLY_REPORT_TODAY = '2026-11-04'
 
 function readRaw() {
   try {
@@ -41,17 +41,16 @@ function toSummary(report) {
     weekLabel: report.weekLabel,
     rangeLabel: report.rangeLabel,
     status: report.status,
-    version: report.version,
     generatedAt: report.generatedAt,
     generatedBy: report.generatedBy,
     isDemo: Boolean(report.isDemo),
-    archivedCount: (report.archivedVersions || []).length,
     metrics: (report.overview?.cards || []).map((card) => ({
       key: card.key,
       label: card.label,
       value: card.value,
       unit: card.unit,
       delta: card.delta,
+      group: card.group,
     })),
   }
 }
@@ -64,70 +63,15 @@ export function listWeeklyReports() {
     .map(toSummary)
 }
 
-/** 取完整周报；version 为空取当前版本，指定则取归档版本 */
-export function getWeeklyReport(id, version) {
-  const report = readRaw().reports.find((item) => item.id === id)
-  if (!report) return null
-  if (!version || Number(version) === report.version) return report
-  const archived = (report.archivedVersions || []).find((item) => Number(item.version) === Number(version))
-  if (!archived) return report
-  return {
-    ...report,
-    ...archived,
-    version: archived.version,
-    generatedAt: archived.generatedAt,
-    archivedVersions: report.archivedVersions,
-    currentVersion: report.version,
-  }
-}
-
-/** 可用版本列表（当前版本在前） */
-export function listVersions(id) {
-  const report = readRaw().reports.find((item) => item.id === id)
-  if (!report) return []
-  return [
-    { version: report.version, generatedAt: report.generatedAt, current: true },
-    ...(report.archivedVersions || []).map((item) => ({ version: item.version, generatedAt: item.generatedAt, current: false })),
-  ]
-}
-
-function archiveCurrent(report) {
-  const archived = report.archivedVersions || []
-  const snapshot = {
-    version: report.version,
-    generatedAt: report.generatedAt,
-    generatedBy: report.generatedBy,
-    status: report.status,
-    overview: report.overview,
-    sections: report.sections,
-    appendix: report.appendix,
-    projectCount: report.projectCount,
-  }
-  return [snapshot, ...archived].slice(0, MAX_ARCHIVED_VERSIONS)
-}
-
-/** 写入一份新生成的周报（同周存在则升版本并归档旧版） */
-export function saveGeneratedReport(report) {
-  const state = readRaw()
-  const index = state.reports.findIndex((item) => item.id === report.id)
-  if (index < 0) {
-    state.reports.push(report)
-  } else {
-    const existing = state.reports[index]
-    state.reports[index] = {
-      ...report,
-      version: existing.version + 1,
-      archivedVersions: archiveCurrent(existing),
-    }
-  }
-  writeRaw(state)
-  return state.reports.find((item) => item.id === report.id)
+/** 取完整周报 */
+export function getWeeklyReport(id) {
+  return readRaw().reports.find((item) => item.id === id) || null
 }
 
 /**
- * 生成/重算周报
- * @param {{ weekKey?: string, weekStart?: string, target?: 'last'|'this' }} options
- * @returns {{ ok: boolean, report?: object, created?: boolean, msg?: string }}
+ * 生成周报
+ * @param {{ weekKey?: string, weekStart?: string, target?: 'last'|'this', manual?: boolean }} options
+ * @returns {{ ok: boolean, report?: object, msg?: string }}
  */
 export function generateWeeklyReport(options = {}) {
   let weekInfo
@@ -143,18 +87,19 @@ export function generateWeeklyReport(options = {}) {
 
   const state = readRaw()
   const existing = state.reports.find((item) => item.id === `wkr-${weekInfo.weekKey}`)
-  if (existing && existing.status === 'frozen' && !options.force) {
-    return { ok: false, msg: `${weekInfo.label} 周报已生成，请使用「重新生成」创建新版本` }
+  if (existing) {
+    return { ok: false, msg: `${weekInfo.label} 周报已生成，同一周不支持重复生成` }
   }
 
   const prevInfo = getWeekInfo(addDays(weekInfo.weekStart, -7))
   const prevReport = state.reports.find((item) => item.id === `wkr-${prevInfo.weekKey}`)
-  const report = buildWeeklyReport({ weekInfo, prevReport })
+  const report = buildWeeklyReport({ weekInfo, prevReport, trendContext: buildTrendContext(state, weekInfo) })
   report.generatedAt = `${addDays(weekInfo.weekEnd, 1)} ${options.manual ? currentClock() : '08:00'}`
-  report.generatedBy = options.manual ? '人工重新生成' : '系统自动生成'
+  report.generatedBy = options.manual ? '人工生成' : '系统自动生成'
 
-  const saved = saveGeneratedReport(report)
-  return { ok: true, report: saved, created: !existing, msg: existing ? `${weekInfo.label} 周报已重新生成（v${saved.version}）` : `${weekInfo.label} 周报已生成` }
+  state.reports.push(report)
+  writeRaw(state)
+  return { ok: true, report, msg: `${weekInfo.label} 周报已生成` }
 }
 
 function currentClock() {
@@ -164,27 +109,63 @@ function currentClock() {
   return `${hh}:${mm}`
 }
 
-/** 重新生成指定周报（保留旧版本） */
-export function regenerateWeeklyReport(id) {
-  const report = readRaw().reports.find((item) => item.id === id)
-  if (!report) return { ok: false, msg: '周报不存在' }
-  return generateWeeklyReport({ weekKey: report.weekKey, force: true, manual: true })
+/**
+ * 近 6 周折线图上下文：读取已有周报的「新增隐患 / 闭环隐患」
+ * 缺失周为 null（图上断线），不伪造历史数据。
+ */
+function buildTrendContext(state, weekInfo) {
+  const list = []
+  for (let i = 5; i >= 1; i -= 1) {
+    const info = getWeekInfo(addDays(weekInfo.weekStart, -7 * i))
+    const prev = state.reports.find((item) => item.id === `wkr-${info.weekKey}`)
+    list.push({
+      label: `第 ${info.weekNo} 周`,
+      created: prev?.sections?.anziHazard?.totals?.created ?? null,
+      closed: prev?.sections?.anziHazard?.totals?.closed ?? null,
+    })
+  }
+  return list
+}
+
+/** 该周是否已有周报 */
+export function hasWeeklyReport(weekKey) {
+  return readRaw().reports.some((item) => item.id === `wkr-${weekKey}`)
+}
+
+/**
+ * 近 6 周趋势上下文（含本周）：供旧快照补图表 / 详情页兜底使用
+ * 已有周报取实际值，缺失周为 null（图上断线，不伪造历史）。
+ * @param {string|object} weekInfoOrKey 周次或周信息
+ * @param {{ created?: number, closed?: number }} current 本周实际值
+ */
+export function getHazardTrendContext(weekInfoOrKey, current = null) {
+  const weekInfo = typeof weekInfoOrKey === 'string' ? weekOfKey(weekInfoOrKey) : weekInfoOrKey
+  const state = readRaw()
+  const list = []
+  for (let i = 5; i >= 0; i -= 1) {
+    const info = getWeekInfo(addDays(weekInfo.weekStart, -7 * i))
+    if (i === 0) {
+      list.push({
+        label: `第 ${info.weekNo} 周`,
+        created: current?.created ?? null,
+        closed: current?.closed ?? null,
+      })
+      continue
+    }
+    const prev = state.reports.find((item) => item.id === `wkr-${info.weekKey}`)
+    list.push({
+      label: `第 ${info.weekNo} 周`,
+      created: prev?.sections?.anziHazard?.totals?.created ?? null,
+      closed: prev?.sections?.anziHazard?.totals?.closed ?? null,
+    })
+  }
+  return list
 }
 
 /** 演示种子：首次进入时补齐演示周报（只补一次） */
 export function ensureWeeklyReportSeeds() {
   const state = readRaw()
   if (state.reports.length) return state.reports
-  const reports = DEMO_WEEK_KEYS.map((weekKey) => {
-    const weekInfo = weekOfKey(weekKey)
-    const reportsForPrev = null
-    const report = buildWeeklyReport({ weekInfo, prevReport: reportsForPrev })
-    report.generatedAt = `${addDays(weekInfo.weekEnd, 1)} 08:00`
-    report.generatedBy = '系统自动生成（演示）'
-    report.isDemo = true
-    return report
-  })
-  // 逐周重算环比：前面已生成的作为后一周的对比基准
   const seeded = []
   for (const weekKey of DEMO_WEEK_KEYS) {
     const weekInfo = weekOfKey(weekKey)
@@ -199,25 +180,13 @@ export function ensureWeeklyReportSeeds() {
   return seeded
 }
 
-/** 列表页进入时调用：补种子 + 自动补生成“上周” */
+/** 列表页进入时调用：补种子 + 自动补生成“上周”（不存在时） */
 export function ensureLatestWeekGenerated() {
   ensureWeeklyReportSeeds()
   const lastWeekInfo = getWeekInfo(addDays(WEEKLY_REPORT_TODAY, -7))
-  const state = readRaw()
-  const exists = state.reports.some((item) => item.id === `wkr-${lastWeekInfo.weekKey}`)
-  if (exists) return { auto: false }
+  if (hasWeeklyReport(lastWeekInfo.weekKey)) return { auto: false }
   const result = generateWeeklyReport({ weekKey: lastWeekInfo.weekKey })
   return { auto: result.ok, weekInfo: lastWeekInfo, msg: result.msg }
-}
-
-/** 统计：已生成周报数量 */
-export function countWeeklyReports() {
-  return readRaw().reports.length
-}
-
-/** 该周是否已有周报 */
-export function hasWeeklyReport(weekKey) {
-  return readRaw().reports.some((item) => item.id === `wkr-${weekKey}`)
 }
 
 /** 可选周次（用于生成弹窗）：最近 8 周 */

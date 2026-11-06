@@ -200,6 +200,17 @@ const routes = [
       })),
     ],
   },
+  {
+    /**
+     * 全局 404 兜底：任何未登记的地址显示「页面不存在」。
+     * 必须放在 routes 最后——否则会抢先匹配正常路由。
+     * 没有这条时，未匹配地址会渲染成整页纯白、无任何提示，极易被误判为「服务挂了」。
+     */
+    path: '/:pathMatch(.*)*',
+    name: 'NotFound',
+    component: () => import('../views/error/NotFoundView.vue'),
+    meta: { title: '页面不存在' },
+  },
 ]
 
 const APP_DOC_TITLE = '工程建设智慧管控一体化平台'

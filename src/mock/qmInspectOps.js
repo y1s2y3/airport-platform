@@ -1330,7 +1330,7 @@ export function upsertWbsNode(payload, id = '') {
       let location_code = payload.location_code ?? exist.location_code
       // 实体分类（node_type=9）可维护编码：必填且英文数字最多10位
       if (exist.node_type === 9 && payload.location_code !== undefined) {
-        const codeCheck = validateWbsNodeCode(payload.location_code)
+        const codeCheck = validateWbsNodeCode(payload.location_code, exist.node_type)
         if (!codeCheck.ok) {
           return {
             ok: false,
@@ -1367,7 +1367,7 @@ export function upsertWbsNode(payload, id = '') {
     }
   }
 
-  const codeCheck = validateWbsNodeCode(payload.location_code)
+  const codeCheck = validateWbsNodeCode(payload.location_code, node_type)
   if (!codeCheck.ok) {
     return {
       ok: false,

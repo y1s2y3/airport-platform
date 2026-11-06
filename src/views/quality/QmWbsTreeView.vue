@@ -38,7 +38,7 @@ import {
   WBS_ENTITY_TYPE_LABEL,
   allowedEntityChildTypes,
 } from '../../constants/wbsEntityLabels.js'
-import { normalizeWbsNodeCode, validateWbsNodeCode } from '../../utils/wbsNodeCode.js'
+import { normalizeWbsNodeCode, validateWbsNodeCode, wbsEntityCodeSpec } from '../../utils/wbsNodeCode.js'
 import './qm-hq-stats.css'
 
 /** 实体工程分解同口径节点（单位～分项 + 实体分类）；检验批/专项不走此表单 */
@@ -99,6 +99,13 @@ const form = reactive({
 })
 
 const isEntityForm = computed(() => dialogKind.value === 'entity')
+
+/** 编码输入提示：单位工程～分项为纯数字定长，其余类型沿用英文数字 */
+const wbsCodeHint = computed(() => {
+  const spec = wbsEntityCodeSpec(form.node_type)
+  if (!spec) return '英文或数字，最多10位'
+  return `纯数字${spec.len}位，如 ${'0'.repeat(spec.len - 1)}1`
+})
 
 const rawTree = computed(() => {
   if (!canViewTree.value) return []
@@ -321,7 +328,7 @@ function submit() {
     if (specialties.length && !isValidWbsSpecialties(specialties)) {
       return ElMessage.warning('请选择有效的专业')
     }
-    const codeCheck = validateWbsNodeCode(form.location_code)
+    const codeCheck = validateWbsNodeCode(form.location_code, form.node_type)
     if (!codeCheck.ok) return ElMessage.warning(codeCheck.msg)
     form.location_code = codeCheck.code
 
@@ -412,7 +419,7 @@ function submit() {
 }
 
 function onCodeInput(val) {
-  const next = normalizeWbsNodeCode(val)
+  const next = normalizeWbsNodeCode(val, form.node_type)
   if (form.location_code !== next) form.location_code = next
 }
 
@@ -596,7 +603,7 @@ async function onRemove(row) {
           <el-input
             v-model="form.location_code"
             maxlength="10"
-            placeholder="英文或数字，最多10位"
+            :placeholder="wbsCodeHint"
             @input="onCodeInput"
           />
         </el-form-item>

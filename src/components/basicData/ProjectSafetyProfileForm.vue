@@ -33,6 +33,11 @@ import {
 import {
   subcontractorList,
 } from '../../mock/subcontractorManagement'
+import {
+  normalizeConstructionProjectCode,
+  normalizeSingleProjectCode,
+  normalizeSpecialtyProjectCode,
+} from '../../utils/projectCodeFields.js'
 
 const props = defineProps({
   model: {
@@ -88,14 +93,27 @@ const canEditHidden = computed(() => props.allowHiddenEdit && !props.readonly)
 /** 所属组织 / 项目编码：仅新增可填；编辑态锁定 */
 const canEditOrgAndCode = computed(() => !props.readonly && !props.lockBelongOrgAndCode)
 
-/** 工程代号仅允许英文与数字，自动转大写，最多 4 位 */
-function onEngineeringCodeInput(val) {
-  const next = String(val ?? '')
-    .replace(/[^A-Za-z0-9]/g, '')
-    .toUpperCase()
-    .slice(0, 4)
-  if (props.model.engineeringCode !== next) {
-    props.model.engineeringCode = next
+/** 建设项目代号（原工程代号）：4 位大写字母或数字，自动转大写 */
+function onConstructionProjectCodeInput(val) {
+  const next = normalizeConstructionProjectCode(val)
+  if (props.model.constructionProjectCode !== next) {
+    props.model.constructionProjectCode = next
+  }
+}
+
+/** 单项工程代号：2 位数字 */
+function onSingleProjectCodeInput(val) {
+  const next = normalizeSingleProjectCode(val)
+  if (props.model.singleProjectCode !== next) {
+    props.model.singleProjectCode = next
+  }
+}
+
+/** 专业工程代号：4 位大写字母或数字 */
+function onSpecialtyProjectCodeInput(val) {
+  const next = normalizeSpecialtyProjectCode(val)
+  if (props.model.specialtyProjectCode !== next) {
+    props.model.specialtyProjectCode = next
   }
 }
 
@@ -402,27 +420,53 @@ function openEquipmentRow(row) {
 
         <tr>
           <td colspan="2" class="cell-label">国家统一编码</td>
-          <td colspan="4" class="cell-value">
+          <td colspan="2" class="cell-value">
             <el-input v-model="model.projectCode" placeholder="请输入国家统一编码" aria-label="请输入国家统一编码"/>
           </td>
           <td colspan="2" class="cell-label">
-            工程代号<span v-if="!readonly" class="req-star">*</span>
+            建设项目代号<span v-if="!readonly" class="req-star">*</span>
           </td>
-          <td colspan="4" class="cell-value">
+          <td colspan="2" class="cell-value">
             <el-input
-              v-model="model.engineeringCode"
+              v-model="model.constructionProjectCode"
               :readonly="readonly"
               maxlength="4"
-              placeholder="4位英文或数字，如 TF01"
-              aria-label="工程代号"
-              @input="onEngineeringCodeInput"
+              placeholder="4位大写字母或数字，如 HZT2"
+              aria-label="建设项目代号"
+              @input="onConstructionProjectCodeInput"
+            />
+          </td>
+          <td colspan="2" class="cell-label">
+            单项工程代号<span v-if="!readonly" class="req-star">*</span>
+          </td>
+          <td colspan="2" class="cell-value">
+            <el-input
+              v-model="model.singleProjectCode"
+              :readonly="readonly"
+              maxlength="2"
+              placeholder="2位数字，如 02"
+              aria-label="单项工程代号"
+              @input="onSingleProjectCodeInput"
             />
           </td>
         </tr>
 
         <tr>
+          <td colspan="2" class="cell-label">
+            专业工程代号<span v-if="!readonly" class="req-star">*</span>
+          </td>
+          <td colspan="2" class="cell-value">
+            <el-input
+              v-model="model.specialtyProjectCode"
+              :readonly="readonly"
+              maxlength="4"
+              placeholder="4位大写字母或数字，如 MHCD"
+              aria-label="专业工程代号"
+              @input="onSpecialtyProjectCodeInput"
+            />
+          </td>
           <td colspan="2" class="cell-label">施工单位</td>
-          <td colspan="4" class="cell-value">
+          <td colspan="2" class="cell-value">
             <el-input
               v-model="model.contractorUnit"
               :readonly="readonly"
@@ -431,7 +475,7 @@ function openEquipmentRow(row) {
             />
           </td>
           <td colspan="2" class="cell-label">监理单位</td>
-          <td colspan="4" class="cell-value">
+          <td colspan="2" class="cell-value">
             <el-input
               v-model="model.supervisorUnit"
               :readonly="readonly"

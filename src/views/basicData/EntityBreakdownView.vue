@@ -45,7 +45,7 @@ import {
   allowedEntityParentTypes,
   displayEntityBreakdownNodeName,
 } from '../../constants/wbsEntityLabels.js'
-import { normalizeWbsNodeCode, validateWbsNodeCode } from '../../utils/wbsNodeCode.js'
+import { normalizeWbsNodeCode, validateWbsNodeCode, wbsEntityCodeSpec } from '../../utils/wbsNodeCode.js'
 
 const { isHqSelected, scopeProjectId, scopeProjectLabel } = useQmProjectScope()
 const keyword = ref('')
@@ -78,6 +78,13 @@ const locForm = reactive({
 })
 
 const canMaintain = computed(() => !isHqSelected.value && !!scopeProjectId.value)
+
+/** 编码输入提示：单位工程～分项为纯数字定长，其余类型沿用英文数字 */
+const wbsCodeHint = computed(() => {
+  const spec = wbsEntityCodeSpec(wbsForm.node_type)
+  if (!spec) return '英文或数字，最多10位'
+  return `纯数字${spec.len}位，如 ${'0'.repeat(spec.len - 1)}1`
+})
 
 const rawTree = computed(() => {
   if (!canMaintain.value) return []
@@ -359,7 +366,7 @@ function submitWbs() {
   if (specialties.length && !isValidWbsSpecialties(specialties)) {
     return ElMessage.warning('请选择有效的专业')
   }
-  const codeCheck = validateWbsNodeCode(wbsForm.location_code)
+  const codeCheck = validateWbsNodeCode(wbsForm.location_code, wbsForm.node_type)
   if (!codeCheck.ok) return ElMessage.warning(codeCheck.msg)
   wbsForm.location_code = codeCheck.code
 
@@ -431,7 +438,7 @@ function submitLocation() {
 }
 
 function onWbsCodeInput(val) {
-  const next = normalizeWbsNodeCode(val)
+  const next = normalizeWbsNodeCode(val, wbsForm.node_type)
   if (wbsForm.location_code !== next) wbsForm.location_code = next
 }
 
@@ -635,7 +642,7 @@ function addChildLabel(row) {
           <el-input
             v-model="wbsForm.location_code"
             maxlength="10"
-            placeholder="英文或数字，最多10位"
+            :placeholder="wbsCodeHint"
             @input="onWbsCodeInput"
           />
         </el-form-item>

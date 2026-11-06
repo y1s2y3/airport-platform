@@ -9,6 +9,7 @@ import { Search, Refresh } from '@element-plus/icons-vue'
 import { useCurrentProject } from '../../composables/useCurrentProject'
 import {
   buildRanking,
+  buildRankingConclusion,
   getAssessmentGrades,
   getProjectAssessment,
   listPeriodGroups,
@@ -19,7 +20,8 @@ const { isHqSelected, selectedProjectId, headerProjectLabel } = useCurrentProjec
 
 const monthGroup = listPeriodGroups().find((item) => item.id === 'month')
 const periodOptions = monthGroup?.options || []
-const periodId = ref(periodOptions[0]?.id || '')
+/** 默认选中当期（ongoing），首屏即可看到环比与同比对比 */
+const periodId = ref(periodOptions.find((item) => item.ongoing)?.id || periodOptions[periodOptions.length - 1]?.id || '')
 const keyword = ref('')
 const drawerVisible = ref(false)
 const drawerRow = ref(null)
@@ -29,6 +31,21 @@ const currentPeriod = computed(() => periodOptions.find((item) => item.id === pe
 const ranking = computed(() => buildRanking(periodId.value))
 const summary = computed(() => summarizeRanking(ranking.value))
 const grades = computed(() => getAssessmentGrades())
+/** 本期考核综述（指标卡下方的结论性内容，规则化自动生成） */
+const conclusion = computed(() => buildRankingConclusion(periodId.value))
+/** 综述一行展示项：短句 + 悬浮查看完整说明 */
+const conclusionItems = computed(() => {
+  const data = conclusion.value
+  if (!data || data.empty) return []
+  return [
+    { key: 'overall', label: '总体', value: data.overall?.short || '--', detail: data.overall?.text || '' },
+    { key: 'bottom', label: '尾部短板', value: data.bottom?.short || '--', detail: data.bottom?.text || '' },
+    { key: 'weak', label: '共性短板', value: data.weakShort || '--', detail: data.weakText || '' },
+    { key: 'alert', label: '重点提示', value: data.alertShort || '无', detail: (data.alerts || []).map((item) => item.text).join('；') },
+    { key: 'advice', label: '整改建议', value: data.suggestionsShort || '无', detail: (data.suggestions || []).map((item) => `${item.name}：${item.text}`).join('；') },
+  ]
+})
+const typeTagType = { pre: 'warning', build: 'primary', close: 'success' }
 
 const filtered = computed(() => {
   const text = keyword.value.trim()
@@ -116,10 +133,14 @@ function exportRank() {
     </div>
 
     <template v-if="isHqSelected">
-      <div class="stat-row">
+      <div class="stat-row is-eight">
         <div class="stat-card">
           <span class="stat-label">已纳入项目数</span>
           <span class="stat-value">{{ summary.count }}</span>
+        </div>
+        <div v-for="type in summary.typeStats" :key="type.id" class="stat-card is-type">
+          <span class="stat-label">{{ type.name }}类项目</span>
+          <span class="stat-value is-type-value">{{ type.count }} 个</span>
         </div>
         <div
           v-for="(item, index) in grades"
@@ -131,6 +152,22 @@ function exportRank() {
           <span class="stat-value" :style="{ color: gradeColorOf(item) }">{{ summary.grades[item.name] || 0 }} 个</span>
         </div>
       </div>
+
+      <!-- 本期考核综述（指标卡下方的结论性内容，规则化自动生成） -->
+      <section v-if="!conclusion.empty" class="conclusion-card">
+        <div class="conclusion-head">
+          <span class="conclusion-title">本期考核综述</span>
+          <span class="conclusion-sub">{{ conclusion.periodLabel }} · 按排名数据自动生成</span>
+        </div>
+        <div class="conclusion-line">
+          <div v-for="item in conclusionItems" :key="item.key" class="cl-item">
+            <span class="cl-label">{{ item.label }}</span>
+            <el-tooltip :content="item.detail" placement="top" effect="dark" :disabled="!item.detail">
+              <span class="cl-value">{{ item.value }}</span>
+            </el-tooltip>
+          </div>
+        </div>
+      </section>
 
       <div class="filter-bar">
         <el-input v-model="keyword" clearable placeholder="项目名称" style="width: 240px" :prefix-icon="Search" aria-label="项目名称" />
@@ -166,6 +203,11 @@ function exportRank() {
           <el-table :data="pagedRows" stripe border empty-text="暂无其他排名项目">
             <el-table-column label="名次" width="56" align="center" prop="rank" />
             <el-table-column label="项目名称" min-width="90" prop="project_name" show-overflow-tooltip />
+            <el-table-column label="类型" width="72" align="center">
+              <template #default="{ row }">
+                <el-tag size="small" effect="plain" :type="typeTagType[row.assessment_type] || 'info'">{{ row.assessment_type_name }}</el-tag>
+              </template>
+            </el-table-column>
             <el-table-column label="等级" width="56" align="center">
               <template #default="{ row }">
                 <el-tag v-if="row.grade" size="small" effect="plain" :style="gradeChipStyle(row.grade)">{{ row.grade }}</el-tag>
@@ -201,7 +243,19 @@ function exportRank() {
           <p class="drawer-score">
             综合得分 {{ formatScore(drawerRow.score) }} 分
             <el-tag v-if="drawerRow.grade" size="small" effect="plain" :style="gradeChipStyle(drawerRow.grade)">{{ drawerRow.grade }}</el-tag>
+            <el-tag size="small" effect="plain" :type="typeTagType[drawerRow.assessment_type] || 'info'">{{ drawerRow.assessment_type_name }}类型</el-tag>
           </p>
+          <div v-if="drawerRow.category_scores?.length" class="drawer-categories">
+            <span class="drawer-subtitle">分类小计</span>
+            <div class="category-grid">
+              <div v-for="item in drawerRow.category_scores" :key="item.category" class="category-card">
+                <span class="category-name">{{ item.name }}</span>
+                <span class="category-score">{{ formatScore(item.score) }} / {{ formatScore(item.cap) }} 分</span>
+                <span class="category-deduct">扣 {{ formatScore(item.deduct) }} 分 · {{ item.indicatorCount }} 项</span>
+              </div>
+            </div>
+          </div>
+          <span class="drawer-subtitle">指标明细</span>
           <el-table :data="drawerRow.lines" stripe border empty-text="暂无指标">
             <el-table-column label="指标" min-width="130" prop="indicator_name" />
             <el-table-column label="指标值" min-width="110">
@@ -272,6 +326,15 @@ function exportRank() {
 .page-title { margin: 4px 0; font-size: 20px; }
 .filter-bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 16px; }
 .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px; }
+/* 指挥部排名：8 张指标卡同排一行 */
+.stat-row.is-eight { grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 10px; }
+.stat-row.is-eight .stat-card { padding: 12px; gap: 4px; }
+.stat-row.is-eight .stat-label { font-size: 12px; white-space: nowrap; }
+.stat-row.is-eight .stat-value { font-size: 20px; }
+.stat-row.is-eight .stat-card.is-type .is-type-value { font-size: 18px; }
+@media (max-width: 1180px) {
+  .stat-row.is-eight { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
 .stat-card {
   border: 1px solid var(--ap-border, #ebeef5);
   border-radius: 8px;
@@ -282,6 +345,55 @@ function exportRank() {
   gap: 6px;
 }
 .stat-card.is-grade { border-top: 3px solid transparent; }
+.stat-card.is-type .is-type-value { color: #409eff; font-size: 20px; }
+.conclusion-card {
+  border: 1px solid var(--ap-border, #ebeef5);
+  border-radius: 10px;
+  background: linear-gradient(180deg, #fdf7fa 0%, #ffffff 60%);
+  padding: 14px 18px;
+  margin-bottom: 16px;
+}
+.conclusion-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+.conclusion-title { font-size: 16px; font-weight: 700; color: var(--ap-text, #303133); padding-left: 10px; border-left: 4px solid var(--ap-primary, #91003d); }
+.conclusion-sub { font-size: 12px; color: var(--ap-text-muted, #909399); }
+.conclusion-line { display: flex; align-items: stretch; }
+.cl-item {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 14px;
+  border-left: 1px solid #f0f2f5;
+}
+.cl-item:first-child { border-left: none; padding-left: 0; }
+.cl-label { font-size: 12px; color: var(--ap-text-muted, #909399); }
+.cl-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ap-text, #303133);
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.drawer-categories { margin-bottom: 14px; }
+.drawer-subtitle { display: block; font-size: 13px; font-weight: 600; color: var(--ap-text, #303133); margin: 0 0 8px; }
+.category-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+.category-card {
+  border: 1px solid var(--ap-border, #ebeef5);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #fafbfc;
+}
+.category-name { font-size: 13px; font-weight: 600; color: #303133; }
+.category-score { font-size: 18px; font-weight: 700; color: var(--ap-primary, #91003d); }
+.category-deduct { font-size: 12px; color: var(--ap-text-muted, #909399); }
 .stat-label { font-size: 13px; color: var(--ap-text-muted, #909399); }
 .stat-value { font-size: 22px; font-weight: 700; color: var(--ap-primary, #91003d); line-height: 1.2; }
 .stat-value.is-score { color: #67c23a; }

@@ -6,7 +6,7 @@
 import { computed, defineAsyncComponent, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-  import {
+import {
   findTask,
   inspectionTasks,
   markNodeDocFilled,
@@ -15,6 +15,11 @@ import { ElMessage } from 'element-plus'
   FILL_STATUS,
   wbsNodes,
 } from '../../mock/qm.js'
+import { projectList } from '../../mock/projectBasicInfo.js'
+import {
+  buildArchiveEngineeringCode,
+  resolveProjectByNode,
+} from '../../utils/archiveEngineeringCode.js'
 
 const QmArchivePanel = defineAsyncComponent(() =>
   import('./components/QmArchivePanel.vue'),
@@ -38,12 +43,23 @@ const task = computed(() => {
   )
 })
 
-const node = computed(() => wbsNodes.find((n) => n.id === nodeId.value))
-const docs = computed(() => (nodeId.value ? listNodeArchiveDocs(nodeId.value) : []))
+/** 节点 ID：优先路由 node_id，其次验收单关联的 WBS 节点 */
+const effectiveNodeId = computed(() => nodeId.value || String(task.value?.wbs_node_id || ''))
+const node = computed(() => wbsNodes.find((n) => n.id === effectiveNodeId.value))
+const docs = computed(() => (effectiveNodeId.value ? listNodeArchiveDocs(effectiveNodeId.value) : []))
+
+/** 向档案系统传输的工程代号（需求变更 CR-07：只到分项，同分项多检验批共用） */
+const archiveCode = computed(() =>
+  buildArchiveEngineeringCode({
+    project: resolveProjectByNode(node.value, projectList),
+    node: node.value,
+    nodes: wbsNodes,
+  }),
+)
 
 function onMarkFilled(row) {
-  if (!nodeId.value) return
-  markNodeDocFilled(nodeId.value, row.doc_key, true)
+  if (!effectiveNodeId.value) return
+  markNodeDocFilled(effectiveNodeId.value, row.doc_key, true)
   ElMessage.success(`已标记「${row.doc_name}」为已填报（演示）`)
 }
 
@@ -72,6 +88,26 @@ onMounted(() => {
       </p>
       <el-button size="small" @click="router.back()">返回</el-button>
     </div>
+
+    <el-card v-if="node" shadow="never" class="mb archive-code-card">
+      <template #header>向档案系统传输的工程代号（按规则自动拼接）</template>
+      <div v-if="archiveCode.ok" class="archive-code-row">
+        <code class="archive-code-value">{{ archiveCode.code }}</code>
+        <span class="muted">编码只到分项工程层；同一分项下的多个检验批共用此编码</span>
+      </div>
+      <el-alert
+        v-else
+        type="warning"
+        :closable="false"
+        show-icon
+        :title="`暂不生成编码，缺少：${archiveCode.missing.join('、')}`"
+      />
+      <el-table :data="archiveCode.segments" border size="small" class="archive-seg-table">
+        <el-table-column prop="key" label="编码段" width="200" />
+        <el-table-column prop="value" label="取值" width="200" />
+        <el-table-column prop="note" label="说明" min-width="240" />
+      </el-table>
+    </el-card>
 
     <el-card v-if="nodeId" shadow="never" class="mb">
       <template #header>节点档案清单（可演示标记已填报）</template>
@@ -117,4 +153,17 @@ onMounted(() => {
 .mb { margin-bottom: 12px; }
 .muted { color: #909399; font-size: 12px; }
 code { background: #f5f7fa; padding: 2px 6px; border-radius: 4px; }
+.archive-code-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.archive-code-value {
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 15px;
+  font-weight: 600;
+  color: #ab004e;
+  background: #fdf2f7;
+  border: 1px solid #f3d3e2;
+  padding: 4px 10px;
+  border-radius: 4px;
+  letter-spacing: 0.4px;
+}
+.archive-seg-table { margin-top: 4px; }
 </style>

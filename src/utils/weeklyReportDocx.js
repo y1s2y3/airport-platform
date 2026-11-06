@@ -8,7 +8,8 @@
  *  - 页边距上下左右 2.2 cm；表格总宽 100% 可排版宽度；行高至少 0.6 cm；单元格水平居左、垂直居中
  */
 import JSZip from 'jszip'
-import { WEEKLY_SECTION_ORDER, SECTION_CHAPTER } from './weeklyReportBuilder.js'
+import { WEEKLY_SECTION_ORDER, SECTION_CHAPTER, CHAPTER_TITLES } from './weeklyReportBuilder.js'
+import { renderChartToPng } from './weeklyReportChart.js'
 
 /** A4 纵向：21cm × 29.7cm；页边距 2.2cm 后的可排版宽度（twips，1cm = 567twips） */
 const PAGE_WIDTH = 11906
@@ -25,13 +26,6 @@ const SIZE_H1 = 32 // 16pt
 const SIZE_H2 = 28 // 14pt
 const SIZE_BODY = 21 // 10.5pt
 const SIZE_TABLE = 18 // 9pt
-
-const CHAPTER_TITLE = {
-  'chapter-coc': '二、COC 调度',
-  'chapter-safety': '三、安全管理',
-  'chapter-quality': '四、质量管理',
-  'chapter-overview': '五、综合运行',
-}
 
 /* ------------------------------------------------------------------ *
  * XML 基础工具
@@ -165,10 +159,76 @@ function tableXml(columns, rows, { includeHeader = true } = {}) {
 }
 
 /* ------------------------------------------------------------------ *
+ * 图表图片（Word 媒体部件）
+ * ------------------------------------------------------------------ */
+
+const EMU_PER_PX = 9525 // 96dpi 下 1px = 9525 EMU
+const CHART_DISPLAY_WIDTH_PX = 560 // Word 中的展示宽度（版心约 603px@96dpi）
+
+/**
+ * 收集周报中的图表并离屏渲染为 PNG
+ * @returns {{ images: Array, bySection: Record<string, number[]> }}
+ */
+function collectChartImages(report) {
+  const images = []
+  const bySection = {}
+  WEEKLY_SECTION_ORDER.forEach((key) => {
+    const charts = report?.sections?.[key]?.charts || []
+    if (!charts.length) return
+    bySection[key] = []
+    charts.forEach((chart) => {
+      try {
+        const sourceHeight = chart.type === 'line' ? 360 : 340
+        const dataUrl = renderChartToPng(chart, { width: 900, height: sourceHeight, pixelRatio: 2 })
+        const base64 = String(dataUrl || '').replace(/^data:image\/png;base64,/, '')
+        if (!base64) throw new Error('图表渲染结果为空')
+        images.push({
+          relId: `rIdChart${images.length + 1}`,
+          docPrId: 100 + images.length + 1,
+          fileName: `chart${images.length + 1}.png`,
+          base64,
+          widthPx: CHART_DISPLAY_WIDTH_PX,
+          heightPx: Math.round((CHART_DISPLAY_WIDTH_PX * sourceHeight) / 900),
+        })
+        bySection[key].push(images.length - 1)
+      } catch (error) {
+        // 单张图渲染失败不阻断整份导出
+        bySection[key].push(-1)
+      }
+    })
+  })
+  return { images, bySection }
+}
+
+/** 图片段落（居中、单倍行距；wp:inline 嵌入型，避免遮挡正文） */
+function imageParagraphXml(image) {
+  const cx = Math.round(image.widthPx * EMU_PER_PX)
+  const cy = Math.round(image.heightPx * EMU_PER_PX)
+  return (
+    '<w:p><w:pPr><w:jc w:val="center"/>' +
+    '<w:spacing w:before="80" w:after="120" w:line="240" w:lineRule="auto"/></w:pPr>' +
+    '<w:r><w:drawing>' +
+    `<wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/>` +
+    '<wp:effectExtent l="0" t="0" r="0" b="0"/>' +
+    `<wp:docPr id="${image.docPrId}" name="图表${image.docPrId}"/>` +
+    '<wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr>' +
+    '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">' +
+    '<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
+    '<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
+    `<pic:nvPicPr><pic:cNvPr id="${image.docPrId}" name="${image.fileName}"/><pic:cNvPicPr/></pic:nvPicPr>` +
+    `<pic:blipFill><a:blip r:embed="${image.relId}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>` +
+    '<pic:spPr><a:xfrm><a:off x="0" y="0"/>' +
+    `<a:ext cx="${cx}" cy="${cy}"/></a:xfrm>` +
+    '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>' +
+    '</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>'
+  )
+}
+
+/* ------------------------------------------------------------------ *
  * 文档内容拼装
  * ------------------------------------------------------------------ */
 
-function buildDocumentBody(report) {
+function buildDocumentBody(report, imageContext = { images: [], bySection: {} }) {
   const parts = []
   const addTitle = (text) => parts.push(paragraphXml(text, { bold: true, size: SIZE_TITLE, font: FONT_HEI, align: 'center', before: 0, after: 240 }))
   const addH1 = (text) => parts.push(paragraphXml(text, { bold: true, size: SIZE_H1, font: FONT_HEI, before: 120, after: 120 }))
@@ -195,7 +255,7 @@ function buildDocumentBody(report) {
   ]
   parts.push(tableXml(headerColumns, headerRows))
 
-  // 一、本周概览
+  // 一、本周概览（按 COC 调度 / 安质巡检 / 质量 三组展示）
   addH1(report.overview?.title || '一、本周概览')
   addBody(report.overview?.summary || '--')
   const cardColumns = [
@@ -205,17 +265,31 @@ function buildDocumentBody(report) {
     { prop: 'deltaText', label: '环比', minWidth: 100, align: 'center' },
     { prop: 'rule', label: '口径', minWidth: 420 },
   ]
-  const cardRows = (report.overview?.cards || []).map((card) => ({
+  const formatCardText = (value, unit) => {
+    if (value === null || value === undefined) return '--'
+    return `${value}${unit === '%' ? '%' : unit ? ` ${unit}` : ''}`
+  }
+  const toCardRow = (card) => ({
     label: card.label,
-    valueText: card.value === null || card.value === undefined ? '--' : `${card.value}${card.unit === '%' ? '%' : card.unit ? ` ${card.unit}` : ''}`,
-    prevText: card.prevValue === null || card.prevValue === undefined ? '--' : `${card.prevValue}${card.unit === '%' ? '%' : card.unit ? ` ${card.unit}` : ''}`,
+    valueText: formatCardText(card.value, card.unit),
+    prevText: formatCardText(card.prevValue, card.unit),
     deltaText:
       card.delta === null || card.delta === undefined
         ? '--'
-        : `${card.delta > 0 ? '+' : ''}${card.delta}${card.unit === '%' ? ' 个百分点' : card.unit ? ` ${card.unit}` : ''}`,
+        : card.delta === 0
+          ? '持平'
+          : `${card.delta > 0 ? '+' : ''}${card.delta}${card.unit === '%' ? ' 个百分点' : card.unit ? ` ${card.unit}` : ''}`,
     rule: card.rule || '--',
-  }))
-  parts.push(tableXml(cardColumns, cardRows))
+  })
+  const overviewGroups = report.overview?.groups || []
+  if (overviewGroups.length) {
+    overviewGroups.forEach((group) => {
+      addH2(group.title || '指标')
+      parts.push(tableXml(cardColumns, (group.cards || []).map(toCardRow)))
+    })
+  } else {
+    parts.push(tableXml(cardColumns, (report.overview?.cards || []).map(toCardRow)))
+  }
 
   if (report.overview?.warnRows?.length) {
     addH2('项目预警清单')
@@ -236,7 +310,7 @@ function buildDocumentBody(report) {
     const chapter = SECTION_CHAPTER[key] || ''
     if (chapter && chapter !== currentChapter) {
       currentChapter = chapter
-      addH1(CHAPTER_TITLE[chapter] || chapter)
+      addH1(CHAPTER_TITLES[chapter] || chapter)
     }
     addH2(section.title || key)
     addBody(section.summary || '--')
@@ -244,6 +318,29 @@ function buildDocumentBody(report) {
       parts.push(tableXml(section.columns, section.rows || []))
     }
     if (section.rows?.length === 0) addNote('本周该章节无数据（空值统一显示 --）。')
+    ;(section.extraTables || []).forEach((table) => {
+      addH2(table.title || '明细清单')
+      if (table.summary) addBody(table.summary)
+      if (table.columns?.length) parts.push(tableXml(table.columns, table.rows || []))
+    })
+    ;(imageContext.bySection?.[key] || []).forEach((imageIndex, chartIndex) => {
+      const image = imageIndex >= 0 ? imageContext.images?.[imageIndex] : null
+      if (!image) return
+      parts.push(imageParagraphXml(image))
+      const chartTitle = (section.charts || [])[chartIndex]?.title
+      if (chartTitle) {
+        parts.push(
+          paragraphXml(`图：${chartTitle}`, {
+            size: SIZE_TABLE,
+            font: FONT_SONG,
+            align: 'center',
+            color: '4a4f57',
+            before: 0,
+            after: 120,
+          }),
+        )
+      }
+    })
   })
 
   // 附录
@@ -257,7 +354,7 @@ function buildDocumentBody(report) {
   parts.push(tableXml(appendixColumns, (report.appendix || []).map((item) => ({ ...item, unit: item.unit || '—' }))))
 
   // 段尾说明
-  addNote('说明：本文件由工程建设智慧管控一体化平台根据各业务模块台账自动生成，周报生成后数据冻结；如需最新数据请使用「重新生成」创建新版本。')
+  addNote('说明：本文件由工程建设智慧管控一体化平台根据各业务模块台账自动生成，周报生成后数据冻结；同一周只生成一份周报，不支持重新生成。')
 
   return parts.join('')
 }
@@ -266,12 +363,13 @@ function buildDocumentBody(report) {
  * OOXML 包
  * ------------------------------------------------------------------ */
 
-function contentTypesXml() {
+function contentTypesXml(hasImages = false) {
   return (
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
     '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
     '<Default Extension="xml" ContentType="application/xml"/>' +
+    (hasImages ? '<Default Extension="png" ContentType="image/png"/>' : '') +
     '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' +
     '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' +
     '</Types>'
@@ -287,11 +385,18 @@ function packageRelsXml() {
   )
 }
 
-function documentRelsXml() {
+function documentRelsXml(images = []) {
+  const imageRels = images
+    .map(
+      (image) =>
+        `<Relationship Id="${image.relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/${image.fileName}"/>`,
+    )
+    .join('')
   return (
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
     '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
+    imageRels +
     '</Relationships>'
   )
 }
@@ -308,7 +413,7 @@ function stylesXml() {
   )
 }
 
-function documentXml(report) {
+function documentXml(report, imageContext = { images: [], bySection: {} }) {
   const sectPr =
     '<w:sectPr>' +
     `<w:pgSz w:w="${PAGE_WIDTH}" w:h="${PAGE_HEIGHT}"/>` +
@@ -319,8 +424,9 @@ function documentXml(report) {
   return (
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" ' +
-    'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
-    `<w:body>${buildDocumentBody(report)}${sectPr}</w:body>` +
+    'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ' +
+    'xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">' +
+    `<w:body>${buildDocumentBody(report, imageContext)}${sectPr}</w:body>` +
     '</w:document>'
   )
 }
@@ -353,11 +459,15 @@ export async function buildWeeklyReportDocxBlob(report) {
   if (!report) return { ok: false, msg: '周报数据不存在' }
   try {
     const zip = new JSZip()
-    zip.file('[Content_Types].xml', contentTypesXml())
+    const imageContext = collectChartImages(report)
+    zip.file('[Content_Types].xml', contentTypesXml(imageContext.images.length > 0))
     zip.file('_rels/.rels', packageRelsXml())
-    zip.file('word/document.xml', documentXml(report))
+    zip.file('word/document.xml', documentXml(report, imageContext))
     zip.file('word/styles.xml', stylesXml())
-    zip.file('word/_rels/document.xml.rels', documentRelsXml())
+    zip.file('word/_rels/document.xml.rels', documentRelsXml(imageContext.images))
+    imageContext.images.forEach((image) => {
+      zip.file(`word/media/${image.fileName}`, image.base64, { base64: true })
+    })
     const blob = await zip.generateAsync({
       type: 'blob',
       mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -403,17 +513,38 @@ export async function inspectWeeklyReportDocx(report) {
     '工程建设智慧管控一体化平台 · 数字周报',
     '一、本周概览',
     '二、COC 调度',
-    '三、安全管理',
-    '四、质量管理',
-    '五、综合运行',
+    '三、安质巡检',
+    '四、质量',
+    '五、下周关注事项',
     '附：指标口径说明',
-    '2.1 调度会议情况',
-    '3.3 项目排名（隐患整改率）',
-    '4.6 项目排名（质量问题整改率）',
+    '2.1 危险作业上报情况',
+    '2.2 值班表登记情况',
+    '2.3 监理例会登记情况',
+    '2.4 会议记录统计',
+    '3.1 巡检任务',
+    '3.2 隐患整改',
   ]
   const missing = keywords.filter((keyword) => !xml.includes(keyword))
   const mainStyles = ['SimHei', 'SimSun', 'D9E2F3', 'w:pgMar w:top="1247"']
   const missingStyles = mainStyles.filter((item) => !xml.includes(item))
+
+  // 图表图片自检：媒体部件、关系、drawing 节点三者数量应一致
+  const mediaFiles = Object.keys(zip.files).filter((name) => name.startsWith('word/media/') && name.endsWith('.png'))
+  const contentTypes = await zip.file('[Content_Types].xml').async('string')
+  const relsXml = await zip.file('word/_rels/document.xml.rels').async('string')
+  const drawings = doc.getElementsByTagName('w:drawing').length
+  const imageRels = (relsXml.match(/relationships\/image/g) || []).length
+  const chartIssues = []
+  if (mediaFiles.length !== drawings) chartIssues.push(`媒体部件 ${mediaFiles.length} 个 ≠ drawing 节点 ${drawings} 个`)
+  if (imageRels !== mediaFiles.length) chartIssues.push(`图片关系 ${imageRels} 条 ≠ 媒体部件 ${mediaFiles.length} 个`)
+  if (mediaFiles.length && !contentTypes.includes('ContentType="image/png"')) chartIssues.push('缺少 png 内容类型声明')
+  const invalidMedia = []
+  for (const name of mediaFiles) {
+    const bytes = await zip.file(name).async('uint8array')
+    const isPng = bytes.length > 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47
+    if (!isPng) invalidMedia.push(name)
+  }
+
   return {
     ok: true,
     fileName: result.fileName,
@@ -427,6 +558,14 @@ export async function inspectWeeklyReportDocx(report) {
     paragraphs,
     missingKeywords: missing,
     missingStyles,
+    charts: {
+      mediaFiles: mediaFiles.length,
+      drawings,
+      imageRels,
+      contentTypesPng: contentTypes.includes('ContentType="image/png"'),
+      invalidMedia,
+      issues: chartIssues,
+    },
   }
 }
 

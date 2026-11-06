@@ -303,8 +303,7 @@ const rawMenuTree = [
     levels: 'both',
     children: [
       { key: 'assessment-rank', label: '考核排名', icon: 'DataLine', path: '/assessment/rank', name: 'AssessmentRank', component: 'AssessmentRankView', levels: 'both', description: '指挥部看已纳入项目的月排名；项目只看本项目得分、扣分和自己的名次。' },
-      { key: 'assessment-indicators', label: '考核指标', icon: 'DataAnalysis', path: '/assessment/indicators', name: 'AssessmentIndicators', component: 'AssessmentConfigView', levels: 'both', description: '指挥部配置已启用指标的扣分上限和分数分档；项目只读查看。' },
-      { key: 'assessment-indicator-config', label: '指标配置', icon: 'EditPen', path: '/assessment/indicator-config', name: 'AssessmentIndicatorConfig', component: 'AssessmentConfigView', levels: 'hq', description: '指挥部配置指标名称、计算规则和启用开关。默认指标来自考核指标。' },
+      { key: 'assessment-indicators', label: '指标配置', icon: 'DataAnalysis', path: '/assessment/indicators', name: 'AssessmentIndicators', component: 'AssessmentTypeIndicatorView', levels: 'both', description: '按前期 / 施工 / 收尾三类分别配置考核指标的启用状态、扣分上限与扣分分档（三类各自独立，已启用指标合计须为 100 分）。' },
       { key: 'assessment-grades', label: '等级配置', icon: 'Star', path: '/assessment/grades', name: 'AssessmentGrades', component: 'AssessmentConfigView', levels: 'hq', description: '指挥部配置优、良、中、差的名称、颜色和分数区间。' },
       { key: 'assessment-projects', label: '考核项目', icon: 'Tickets', path: '/assessment/projects', name: 'AssessmentProjects', component: 'AssessmentConfigView', levels: 'hq', description: '指挥部勾选纳入月排名的项目。' },
     ],
@@ -907,6 +906,7 @@ export const viewLoaders = {
   Phase1CatalogView: () => import('../views/phase1/Phase1CatalogView.vue'),
   AssessmentRankView: () => import('../views/assessment/AssessmentRankView.vue'),
   AssessmentConfigView: () => import('../views/assessment/AssessmentConfigView.vue'),
+  AssessmentTypeIndicatorView: () => import('../views/assessment/AssessmentTypeIndicatorView.vue'),
   WeeklyReportListView: () => import('../views/weekly/WeeklyReportListView.vue'),
   WeeklyReportDetailView: () => import('../views/weekly/WeeklyReportDetailView.vue'),
   PersonalCenterView: () => import('../views/PersonalCenterView.vue'),
