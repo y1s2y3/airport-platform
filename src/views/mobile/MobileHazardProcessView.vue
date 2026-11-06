@@ -9,7 +9,7 @@ import { Plus } from '@element-plus/icons-vue'
 import { getAppSelectedOrg } from '../../mock/appSession.js'
 import { DEFAULT_PROJECT_ID, HQ_PROJECT_OPTION } from '../../config/projectOptions.js'
 import { selectedProjectId } from '../../composables/useCurrentProject.js'
-import { getProjectPersonnel, maskIdCard, maskPhone } from '../../mock/laborRealName.js'
+import { getProjectPersonnel, maskIdCard, maskPhone, educationTypeLabel } from '../../mock/laborRealName.js'
 import { listSystemUserOptions, SYSTEM_USER_FALLBACKS } from '../../utils/personSources.js'
 import { listApprovedSubcontractors } from '../../mock/subcontractorManagement.js'
 import { getMobileInspectionTask, listMobileInspectionTasks } from '../../mock/mobileInspectionTasks.js'
@@ -129,11 +129,13 @@ const recordDetailFields = computed(() => {
     }))
 })
 
-/** 详情：三级安全教育进度（作业人员登记） */
-const safetyEducationProgress = computed(() => {
-  const done = Number(recordForm.value.safetyEducationDone) || 0
-  const total = Number(recordForm.value.safetyEducationTotal) || 3
-  return { done, total, percent: total ? Math.round((done / total) * 100) : 0 }
+/** 详情：三级安全教育记录列表（作业人员登记） */
+const recordSafetyEducationRecords = computed(() => {
+  if (activeTab.value !== 'workerRegistration') return []
+  const name = String(recordForm.value.workerName || '').trim()
+  const person = realNamePersonnel.value.find((item) => item.id === recordForm.value.personId)
+    || (name ? realNamePersonnel.value.find((item) => String(item.basic?.name || '').trim() === name) : null)
+  return Array.isArray(person?.safety_education) ? person.safety_education : []
 })
 
 /** 详情：脱敏查看 */
@@ -540,8 +542,9 @@ function cardStatusOf(row) {
     return null
   }
   if (cfg.statusMode === 'inPost') return { text: '在岗', type: 'info' }
-  if (row?.status && row.status !== '已完成') return { text: row.status, type: 'warning' }
-  return { text: '已完成', type: 'success' }
+  // 用户 2026-11-06：普通过程页签不再显示「已完成」标签，仅异常状态（如需整改/未完成）才显示标签
+  if (row?.status && !['已完成', '完成', '已审核', '通过'].includes(row.status)) return { text: row.status, type: 'warning' }
+  return null
 }
 function cardMetaOf(row) {
   const cfg = cardConfigOf()
@@ -771,12 +774,29 @@ onBeforeUnmount(() => {
             </b>
             <b v-else>{{ field.value === '' || field.value === undefined || field.value === null ? '--' : field.value }}</b>
           </div>
-          <div v-if="activeTab === 'workerRegistration'" class="detail-kv">
-            <span>三级安全教育完成情况</span>
-            <b>
-              <el-progress :percentage="safetyEducationProgress.percent" :stroke-width="8" :format="() => `${safetyEducationProgress.done}/${safetyEducationProgress.total}`" />
-            </b>
+
+        </section>
+
+        <section v-if="activeTab === 'workerRegistration'" class="detail-card">
+          <div class="detail-card-title">三级安全教育完成情况</div>
+          <div v-if="recordSafetyEducationRecords.length">
+            <div v-for="(item, index) in recordSafetyEducationRecords" :key="index" class="detail-danger">
+              <div class="detail-kv"><span>教育类型</span><b>{{ educationTypeLabel(item.education_type) }}</b></div>
+              <div class="detail-kv"><span>培训日期</span><b>{{ item.train_date || '--' }}</b></div>
+              <div class="detail-kv"><span>培训时长</span><b>{{ item.duration || '--' }}</b></div>
+              <div class="detail-kv"><span>是否合格</span><b :style="{ color: item.passed ? '#3f9c58' : '#c45656' }">{{ item.passed ? '合格' : '不合格' }}</b></div>
+              <div class="detail-kv">
+                <span>培训证书</span>
+                <b v-if="item.certificate">
+                  {{ item.certificate }}
+                  <button type="button" class="link-btn" @click="previewAttachment(item.certificate)">查看</button>
+                  <button type="button" class="link-btn" @click="downloadAttachment(item.certificate)">下载</button>
+                </b>
+                <b v-else>--</b>
+              </div>
+            </div>
           </div>
+          <div v-else class="muted">暂无三级安全教育记录</div>
         </section>
 
         <section v-if="activeTab === 'progress'" class="detail-card">

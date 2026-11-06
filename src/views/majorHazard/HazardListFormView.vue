@@ -4,13 +4,14 @@ import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Plus, UploadFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useCurrentProject } from '../../composables/useCurrentProject.js'
-import { getProjectPersonnel, maskIdCard, maskPhone } from '../../mock/laborRealName.js'
+import { getProjectPersonnel, maskIdCard, maskPhone, educationTypeLabel } from '../../mock/laborRealName.js'
 import { listSystemUserOptions, SYSTEM_USER_FALLBACKS } from '../../utils/personSources.js'
 import { buildEntityBreakdownTree } from '../../mock/constructionLocation.js'
 import { listApprovedSubcontractors } from '../../mock/subcontractorManagement.js'
 import { listMobileInspectionTasks } from '../../mock/mobileInspectionTasks.js'
 import { DANGER_WORK_CATEGORY_OPTIONS } from '../../coc/config/dailyWorkSchema.js'
 import { listAllDangerWorkSources } from '../../mock/engineeringWork.js'
+import FileAttachmentPreview from '../../components/basicData/FileAttachmentPreview.vue'
 import {
   buildLedgerRows,
   createConstructionPart,
@@ -216,7 +217,7 @@ const recordDetailFields = computed(() => {
       { label: '是否特种作业人员', value: form.isSpecialWorker },
       { label: '资格证号', value: form.certificateNo },
       { label: '证书有效期', value: form.certificateExpiry },
-      { label: '三级安全教育完成情况', progress: { done: Number(form.safetyEducationDone) || 0, total: Number(form.safetyEducationTotal) || 3 } },
+      // 三级安全教育改为独立列表展示（用户 2026-11-06）
     ]
   }
   return visibleRecordFields.value
@@ -647,6 +648,15 @@ function downloadTabAttachment(row) {
   document.body.removeChild(a)
   if (!row.fileUrl) ElMessage.success(`已下载演示附件：${row.fileName}`)
 }
+/** 作业人员登记详情：该人员的三级安全教育记录（列表展示） */
+const recordSafetyEducationRecords = computed(() => {
+  if (activeProcessTab.value !== 'workerRegistration') return []
+  const name = String(recordForm.value.workerName || '').trim()
+  const person = realNamePersonnel.value.find((item) => item.id === recordForm.value.personId)
+    || (name ? realNamePersonnel.value.find((item) => String(item.basic?.name || '').trim() === name) : null)
+  return Array.isArray(person?.safety_education) ? person.safety_education : []
+})
+
 function realNamePersonRecord(person) {
   const idNumberFull = person.basic?.id_number_raw || person.basic?.id_number || ''
   const phoneFull = person.basic?.phone || ''
@@ -994,6 +1004,19 @@ watch([projectId, sourceId, routeMode], load, { immediate: true })
               <div v-for="(name, index) in recordAttachmentNames" :key="name" class="detail-attachment-item"><span class="attachment-index">{{ index + 1 }}</span><span>{{ name }}</span></div>
             </div>
             <el-empty v-else :image-size="54" description="暂无附件资料" />
+          </section>
+
+          <section v-if="activeProcessTab === 'workerRegistration'" class="record-detail-section">
+            <div class="record-detail-title">三级安全教育完成情况</div>
+            <el-table v-if="recordSafetyEducationRecords.length" :data="recordSafetyEducationRecords" border stripe size="small" empty-text="暂无三级安全教育记录">
+              <el-table-column type="index" label="序号" width="60" align="center" />
+              <el-table-column label="教育类型" width="110"><template #default="{ row }">{{ educationTypeLabel(row.education_type) }}</template></el-table-column>
+              <el-table-column prop="train_date" label="培训日期" width="115" />
+              <el-table-column prop="duration" label="培训时长" width="95" />
+              <el-table-column label="是否合格" width="95" align="center"><template #default="{ row }"><el-tag :type="row.passed ? 'success' : 'danger'" size="small" effect="plain">{{ row.passed ? '合格' : '不合格' }}</el-tag></template></el-table-column>
+              <el-table-column label="培训证书" min-width="200"><template #default="{ row }"><FileAttachmentPreview :name="row.certificate" empty-text="--" size="sm" /></template></el-table-column>
+            </el-table>
+            <el-empty v-else :image-size="54" description="暂无三级安全教育记录" />
           </section>
 
           <section v-if="activeProcessTab === 'progress'" class="record-detail-section">

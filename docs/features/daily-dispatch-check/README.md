@@ -10,7 +10,8 @@
 
 ## 需求及下载资料
 
-- [当前 Word PRD v1.1（项目范围与预填修订）](requirements/Daily_Dispatch_Check_PRD_v1.1_project_scope_revision.docx)
+- [当前 Word PRD v1.2](requirements/Daily_Dispatch_Check_PRD_v1.2.docx)
+- [此前 v1.1（项目范围与预填修订）](requirements/Daily_Dispatch_Check_PRD_v1.1_project_scope_revision.docx)
 - [此前 v1.1（项目范围补充前）](requirements/Daily_Dispatch_Check_PRD_v1.1.docx)
 - [v1.1预填修订与验证](revisions/prd-v1.1-prefill.md)
 - [历史 Word PRD v1.0](requirements/Daily_Dispatch_Check_PRD_v1.0.docx)
@@ -25,7 +26,7 @@
 - [MySQL 8 建表脚本](database/每日调度检查建表脚本_MySQL8.sql)
 - [查询、分页与加载方案](query-and-loading.md)
 
-各页面的原型说明仅提供当前 Word PRD 下载，下载配置仍支持扩展。Word 在工程内由 `src/config/dailyDispatchDocuments.js` 直接引用为二进制资源，下载文件与最终来源逐字节一致；旧资料保留供评审，不在下载列表展示。本轮没有执行数据库建表或接入后端。
+v1.2简化第5章模块功能架构，并校正验收编号、术语及空值说明；未改变功能规则。各页面的原型说明统一使用v1.2并仅提供当前 Word PRD 下载，下载配置仍支持扩展。Word 在工程内由 `src/config/dailyDispatchDocuments.js` 直接引用为二进制资源，下载文件与最终来源逐字节一致；旧资料保留供评审，不在下载列表展示。本轮没有执行数据库建表或接入后端。
 
 ## 已确认的默认值与异常处理
 

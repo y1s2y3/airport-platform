@@ -22,7 +22,7 @@ const selectedTreeProjectId = ref('all')
 const filters = reactive({ keyword: '', source: '', category: '', status: '', samplingStatus: '' })
 const dateRange = ref([])
 const currentPage = ref(1)
-const pageSize = ref(20)
+const pageSize = ref(10)
 
 const projectOptions = computed(() => getHazardIssueProjectOptions())
 /** 汇总始终展示全部原业务状态。 */
@@ -64,11 +64,24 @@ watch([selectedProjectId, isHqSelected], async () => {
 watch([() => filters.keyword, () => filters.source, () => filters.category, () => filters.status, () => filters.samplingStatus, dateRange], () => {
   currentPage.value = 1
 })
+watch(selectedTreeProjectId, () => { currentPage.value = 1 })
+
 onMounted(async () => {
   if (route.query.tab || route.query.taskView || route.query.task) router.replace({path:route.path,query:{}})
   loadRows()
   await nextTick()
-  projectTreeRef.value?.setCurrentKey('all')
+  let saved = null
+  try { saved = JSON.parse(sessionStorage.getItem('airport-hazard-summary-view') || 'null') } catch { /* 保留默认筛选 */ }
+  if (saved?.projectId === selectedProjectId.value) {
+    for (const key of Object.keys(filters)) filters[key] = typeof saved.filters?.[key] === 'string' ? saved.filters[key] : ''
+    dateRange.value = Array.isArray(saved.dateRange) ? saved.dateRange : []
+    pageSize.value = [10,20,50].includes(saved.pageSize) ? saved.pageSize : 10
+    selectedTreeProjectId.value = saved.tree === 'all' || projectOptions.value.some(p => p.key === saved.tree) ? saved.tree : 'all'
+    projectSearch.value = saved.search || ''
+    await nextTick()
+    currentPage.value = Math.min(Math.max(1, Number(saved.currentPage) || 1),Math.max(1, Math.ceil(filteredRows.value.length/pageSize.value)))
+  }
+  projectTreeRef.value?.setCurrentKey(selectedTreeProjectId.value)
 })
 onActivated(loadRows)
 
@@ -124,12 +137,13 @@ function resetFilters() {
 }
 
 function openOriginal(row) {
+  try { sessionStorage.setItem('airport-hazard-summary-view', JSON.stringify({projectId:selectedProjectId.value,filters:{...filters},dateRange:dateRange.value,currentPage:currentPage.value,pageSize:pageSize.value,tree:selectedTreeProjectId.value,search:projectSearch.value})) } catch { /* 不影响跳转 */ }
   const target = row.source === 'inspection'
     ? { path: `/safety-inspection/hazard/${encodeURIComponent(row.sourceId)}`, query: { from: 'summary' } }
     : row.source === 'supervision'
-      ? { path: '/coc-admin/supervision-meeting', query: { from: 'summary', hazardId: row.sourceId } }
+      ? { path: '/hazard-issues/supervision/'+encodeURIComponent(row.sourceId), query: { from: 'summary' } }
       : row.source === 'dispatch'
-        ? { path: '/coc-admin/dispatch-hazard', query: { from: 'summary', hazardId: row.sourceId } }
+        ? { path: '/hazard-issues/dispatch/'+encodeURIComponent(row.sourceId), query: { from: 'summary' } }
         : { path: `/hazard-issues/quality/${encodeURIComponent(row.sourceId)}`, query: { from: 'summary' } }
   router.push(target)
 }
@@ -179,7 +193,7 @@ function statusTagType(row) {
         <div class="list-panel">
           <div class="list-heading">
             <div><h3>问题清单</h3><span>共 {{ filteredRows.length }} 条</span></div>
-            <span class="demo-note">施工质量问题为原型示例数据</span>
+            <span class="demo-note">随手拍为原型示例数据</span>
           </div>
           <div class="filter-bar">
             <el-input v-model="filters.keyword" clearable :prefix-icon="Search" placeholder="搜索问题、编号、项目或整改人" class="keyword-input" />
@@ -232,7 +246,7 @@ function statusTagType(row) {
             </el-table-column>
           </el-table>
           <div class="pagination-row">
-            <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize" :total="filteredRows.length" :page-sizes="[10, 20, 50]" layout="total, sizes, prev, pager, next" />
+            <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize" :total="filteredRows.length" :page-sizes="[10, 20, 50]" layout="total, sizes, prev, pager, next, jumper" background />
           </div>
         </div>
       </section>

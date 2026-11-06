@@ -8,8 +8,8 @@ import { createServer, preview } from 'vite'
 const codeRoot = resolve(import.meta.dirname, '..')
 const built = process.argv.includes('--built')
 const mode = built ? 'built' : 'dev'
-const output = resolve(codeRoot, '../outputs/inspection-prd-v1.1-documents', mode)
-const sourceFile = resolve(codeRoot, 'docs/features/daily-dispatch-check/requirements/Daily_Dispatch_Check_PRD_v1.1_project_scope_revision.docx')
+const output = resolve(codeRoot, '../outputs/inspection-prd-v1.2-documents', mode)
+const sourceFile = resolve(codeRoot, 'docs/features/daily-dispatch-check/requirements/Daily_Dispatch_Check_PRD_v1.2.docx')
 const expected = readFileSync(sourceFile)
 const title = '每日调度检查需求文档（PRD）'
 const route = '/coc-admin/daily-dispatch-check'
@@ -73,7 +73,7 @@ try {
   const configuredCount = await dialog().locator('.daily-prototype-document').count()
   pass('Only the user-designated Word PRD is listed', configuredCount === 1 && await dialog().getByRole('button', { name: '下载' + title, exact: true }).count() === 1 && (await dialog().locator('.daily-document-format').first().innerText()).includes('.docx'))
   pass('The binary source is a Word ZIP container', expected[0] === 0x50 && expected[1] === 0x4b)
-  pass('Notes state the v1.1 source and distinguish unimplemented PRD requirements', (await dialog().innerText()).includes('v1.1') && (await dialog().innerText()).includes('标签关闭、无有效值或无法读取时全部默认“否”') && (await dialog().innerText()).includes('首次成功保存后以已保存内容为准'))
+  pass('Notes state the v1.2 source and retain the existing business rules', (await dialog().innerText()).includes('v1.2') && (await dialog().innerText()).includes('功能规则沿用v1.1') && (await dialog().innerText()).includes('标签关闭、无有效值或无法读取时全部默认“否”') && (await dialog().innerText()).includes('首次成功保存后以已保存内容为准'))
   await download(title, basename(sourceFile), expected, 'PRD')
   await page.screenshot({ path: resolve(output, '01-原型说明-1440.png'), fullPage: true })
   await closeNote()
@@ -109,7 +109,7 @@ try {
     await page.waitForFunction(() => !document.querySelector('.daily-dispatch-detail > .el-loading-mask'))
     const savedBefore = await snapshot(page)
     await openNote()
-    pass(entry + ' filling uses the shared v1.1 Word download', await dialog().getByRole('button', { name: '下载' + title, exact: true }).count() === 1)
+    pass(entry + ' filling uses the shared v1.2 Word download', await dialog().getByRole('button', { name: '下载' + title, exact: true }).count() === 1)
     await download(title, basename(sourceFile), expected, entry + '-PRD')
     await closeNote()
     pass(entry + ' note leaves stored form content and audit untouched', await snapshot(page) === savedBefore)

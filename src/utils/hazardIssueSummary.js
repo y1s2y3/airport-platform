@@ -10,8 +10,16 @@ export const HAZARD_ISSUE_SOURCES = [
   { value: 'inspection', label: '安质巡检' },
   { value: 'supervision', label: '监理会议' },
   { value: 'dispatch', label: '调度隐患' },
-  { value: 'externalQuality', label: '施工质量问题' },
+  { value: 'externalQuality', label: '随手拍' },
 ]
+
+/** 旧数据状态兼容：历史「已完成／完成／已整改」统一归并为「已关闭」（与系统口径一致） */
+export function normalizeExternalQualityStatus(status) {
+  const text = String(status || '').trim()
+  if (!text) return ''
+  if (text === '已完成' || text === '完成' || text === '已整改') return '已关闭'
+  return text
+}
 
 const PROJECT_NAME_ALIASES = {
   捷运线延长段: 'T2空侧捷运线',
@@ -85,7 +93,7 @@ function summaryRow(source, record, values) {
     projectName: project.projectName,
     raw: record,
     isDemo: source === 'externalQuality',
-    closed: source === 'externalQuality' ? record.status === '已完成' : values.status === '已关闭',
+    closed: source === 'externalQuality' ? normalizeExternalQualityStatus(values.status) === '已关闭' : values.status === '已关闭',
   }
 }
 
@@ -98,7 +106,7 @@ function normalizeInspection(record) {
     title: record.desc || '',
     categories,
     categoryLabel: categories.join('、') || '--',
-    status: record.status || '',
+    status: normalizeExternalQualityStatus(record.status),
     rectifier: record.rectifier || '',
     registeredAt: record.issueDate || '',
     deadline: record.deadline || '',
@@ -114,7 +122,7 @@ function normalizeSupervision(record) {
     title: record.description || '',
     categories: [category],
     categoryLabel: category,
-    status: record.rectifyStatus || '待整改',
+    status: normalizeExternalQualityStatus(record.rectifyStatus) || '待整改',
     rectifier: record.rectifier || '',
     registeredAt: record.uploadTime || '',
     deadline: record.hazardDeadline || '',
@@ -130,7 +138,7 @@ function normalizeDispatch(record) {
     title: record.description || '',
     categories: [category],
     categoryLabel: category,
-    status: record.rectifyStatus || '待整改',
+    status: normalizeExternalQualityStatus(record.rectifyStatus) || '待整改',
     rectifier: record.rectifier || '',
     registeredAt: record.uploadTime || '',
     deadline: record.hazardDeadline || '',
@@ -145,7 +153,7 @@ function normalizeExternal(record) {
     title: record.title || '',
     categories: ['质量'],
     categoryLabel: '质量',
-    status: record.status || '',
+    status: normalizeExternalQualityStatus(record.status),
     rectifier: record.rectifier || '',
     registeredAt: record.createdAt || '',
     deadline: record.dueAt || '',

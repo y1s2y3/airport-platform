@@ -567,7 +567,7 @@ export function buildFusedMenuTree(raw = rawMenuTree) {
           children: [
             { key: 'hazard-issue-summary', label: '隐患问题清单汇总', icon: 'Warning', path: '/hazard-issues/summary', name: 'HazardIssueSummary', component: 'HazardIssueSummaryView', levels: 'both' },
             { key: 'hazard-sampling-tasks', label: '抽检任务', icon: 'List', path: '/hazard-issues/tasks', name: 'HazardSamplingTasks', component: 'HazardSamplingTasksView', levels: 'hq' },
-            { key: 'hazard-sampling-supervisor', label: '监理隐患抽检', icon: 'List', path: '/hazard-issues/sampling', name: 'HazardSamplingSupervisor', component: 'HazardSamplingTasksView', levels: 'project' },
+            { key: 'hazard-sampling-supervisor', label: '隐患抽检', icon: 'List', path: '/hazard-issues/sampling', name: 'HazardSamplingSupervisor', component: 'HazardSamplingTasksView', levels: 'project' },
             { key: 'hazard-sampling-manager', label: '施工隐患复查', icon: 'List', path: '/hazard-issues/review', name: 'HazardSamplingManager', component: 'HazardSamplingTasksView', levels: 'project' },
           ],
         },

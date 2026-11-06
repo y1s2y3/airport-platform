@@ -43,7 +43,7 @@ const editingTaskId = ref('')
 const detailRoundId = ref('')
 const uploading = ref(0)
 const submitting = ref(false)
-const form = reactive({ result: '', note: '', files: [], completed: false, dispatch:null, dates:[], percent:undefined, assigneeId:'', reviewAssigneeId:'', submissionId:'' })
+const form = reactive({ result: '', note: '', files: [], completed: false, dispatch:true, dates:[], percent:undefined, assigneeId:'', reviewAssigneeId:'', submissionId:'' })
 const stageNames = { hq: '指挥部抽查', supervisor: '抽检人检查', manager: '全面复查' }
 const assignees = computed(() => getSamplingPeople(row.value?.projectKey))
 const editingTask = computed(() => visibleTasks(viewerRole.value, selectedProjectId.value).find(task => task.id === editingTaskId.value && task.stage === 'supervisor'))
@@ -69,7 +69,7 @@ function openFailureEditor() {
 const isPhoto = file => /\.(jpe?g|png)$/i.test(file.name)
 const formatTime = value => value ? new Date(value).toLocaleString('sv-SE') : '--'
 
-function resetForm() { Object.assign(form, { result: '', note: '', files: [], completed: false, dispatch:null, dates:[], percent:undefined, assigneeId:'', reviewAssigneeId:'', submissionId:crypto.randomUUID() }) }
+function resetForm() { Object.assign(form, { result: '', note: '', files: [], completed: false, dispatch:true, dates:[], percent:undefined, assigneeId:'', reviewAssigneeId:'', submissionId:crypto.randomUUID() }) }
 watch([role, samplingPersonId, () => props.recordId, () => route.query.samplingTask], () => { editorVisible.value = false; inspectionDates.value = []; resetForm() })
 watch(() => form.result, value => { if (role.value !== 'manager' && value === '合格') { form.note = ''; form.dispatch=null; form.dates=[]; form.percent=undefined; form.assigneeId=''; form.reviewAssigneeId='' } })
 watch(() => form.dispatch, value => { if (value !== true) { form.dates=[]; form.percent=undefined; form.assigneeId='' } })
@@ -155,8 +155,8 @@ async function submit(event) {
           <template v-if="form.dispatch === true">
             <el-form-item label="本单登记时间"><span>{{ row.registeredAt || '--' }}</span></el-form-item>
             <el-form-item label="检查时间范围" required><el-date-picker v-model="form.dates" type="daterange" value-format="YYYY-MM-DD" start-placeholder="检查开始日期" end-placeholder="检查结束日期" :popper-class="coc ? 'sampling-coc-popper' : undefined"/><span class="sampling-hint">按本单所属项目、同一来源的登记日期取单，含起止日；必须覆盖本单登记日期 {{ registrationDay(row) }}。</span></el-form-item>
-            <el-form-item label="抽检比例" required><el-input-number v-model="form.percent" :min="1" :max="100" :precision="0"/> <span style="margin-left:8px">%</span></el-form-item>
-            <el-form-item label="抽检人" required><el-select v-model="form.assigneeId" filterable placeholder="请选择一名抽检人" style="width:100%" :teleported="coc ? false : true" :popper-class="coc ? 'sampling-coc-popper' : undefined"><el-option v-for="person in assignees" :key="person.id" :label="person.label" :value="person.id"/></el-select></el-form-item>
+            <el-form-item label="抽检比例" required><el-input-number v-model="form.percent" :min="1" :max="100" :precision="0"/> <span style="margin-left:8px">%</span><span class="sampling-hint">按本单登记时间范围、同一来源的单据随机抽取；本单必含，且至少抽取 2 张。</span></el-form-item>
+            <el-form-item label="抽检人" required><el-select v-model="form.assigneeId" filterable placeholder="请选择监理人员" style="width:100%" :teleported="coc ? false : true" :popper-class="coc ? 'sampling-coc-popper' : undefined"><el-option v-for="person in assignees" :key="person.id" :label="person.label" :value="person.id"/></el-select></el-form-item>
             <el-alert v-if="dispatchPreview" :type="dispatchPreview.error ? 'warning' : 'info'" :closable="false" :title="dispatchPreview.error || `本来源范围内共${dispatchPreview.pool.length}张，实际下发${dispatchPreview.count}张；本单必含，其余随机抽取。`"/>
           </template>
         </template>

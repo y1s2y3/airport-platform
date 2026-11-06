@@ -17,7 +17,7 @@ export const externalQualityIssues = [
     reviewer: '刘国旗',
     createdAt: '2026-10-16 19:25:02',
     dueAt: '2026-10-23 19:09:56',
-    status: '已完成',
+    status: '已关闭',
     items: [
       {
         id: 'EQ-20261016-001-1',

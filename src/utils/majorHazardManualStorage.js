@@ -2,6 +2,7 @@ import { COC_PROJECT_OPTIONS } from '../config/projectCatalog.js'
 
 const STORAGE_KEY = 'airport-major-hazard-manual-v3'
 import { getMobileInspectionTask, listMobileInspectionTasks, retainPatrolInspectionTask } from '../mock/mobileInspectionTasks.js'
+import { buildDemoTabRecords } from '../mock/majorHazardDemoRecords.js'
 export const MAJOR_HAZARD_CHANGE_EVENT = 'major-hazard-manual-change'
 
 /** 仅前 10 个项目生成危大工程示例数据，避免看板按项目汇总时铺开全部项目 */
@@ -130,10 +131,30 @@ function buildDemoBusinessData(projectId) {
   const controlPointsOf = (descriptionId, handlingStatus) => CONTROL_POINT_SEED
     .filter((item) => item.descriptionId === descriptionId)
     .map((item) => ({ ...item, handlingStatus }))
-  const part = (id, name, wbsPath, startOffset, endOffset, process) => ({
-    id, wbsNodeId: `mh-demo-wbs-${id}`, wbsPath, name, safetyResponsible: '陈静（安全员）',
-    startDate: dateOffset(startOffset), plannedEndDate: dateOffset(endOffset), process,
-  })
+  const part = (id, name, wbsPath, startOffset, endOffset, process) => {
+    const built = {
+      id, wbsNodeId: `mh-demo-wbs-${id}`, wbsPath, name, safetyResponsible: '陈静（安全员）',
+      startDate: dateOffset(startOffset), plannedEndDate: dateOffset(endOffset), process,
+    }
+    // 用户 2026-11-06：每个过程页签补 3~5 条演示记录，点开即可看到内容
+    try {
+      const recordsByTab = buildDemoTabRecords(projectId, { id, name: name || '施工部位', startDate: built.startDate }, startOffset)
+      Object.entries(recordsByTab).forEach(([tabKey, records]) => {
+        if (!records?.length) return
+        const node = built.process[tabKey] || {}
+        built.process[tabKey] = {
+          ...node,
+          status: node.status && node.status !== '未完成' ? node.status : '已完成',
+          date: node.date || records[0].date,
+          responsible: node.responsible || records[0].responsible,
+          content: node.content || records[0].content,
+          attachmentInfo: node.attachmentInfo || records[0].attachmentInfo,
+          records,
+        }
+      })
+    } catch { /* 演示数据生成失败不影响主流程 */ }
+    return built
+  }
 
   return {
     identifications: [
@@ -330,6 +351,39 @@ export function getLedgerPatrolRecords(ledger) {
   }).sort((a, b) => b.inspectionDate.localeCompare(a.inspectionDate) || a.inspectionTaskNo.localeCompare(b.inspectionTaskNo))
 }
 
+/** ===== 演示清单补过程记录：每个页签至少 3 条，避免点开空白（用户 2026-11-06） ===== */
+function migrateDemoProcessRecords(data, projectId) {
+  if (!data) return false
+  let changed = false
+  ;(data.ledgers || []).forEach((ledger) => {
+    if (!String(ledger.id || '').startsWith('mh-demo-')) return
+    ;(ledger.parts || []).forEach((part) => {
+      if (!String(part.id || '').startsWith('mh-demo-part-')) return
+      try {
+        const offset = -(Number(String(part.wbsNodeId || '').length) % 10)
+        const recordsByTab = buildDemoTabRecords(projectId, { id: part.id, name: part.name, startDate: part.startDate }, offset)
+        Object.entries(recordsByTab).forEach(([tabKey, records]) => {
+          if (!records?.length) return
+          const node = part.process?.[tabKey]
+          if (node?.records?.length) return
+          part.process = part.process || {}
+          part.process[tabKey] = {
+            ...(node || {}),
+            status: node?.status && node.status !== '未完成' ? node.status : '已完成',
+            date: node?.date || records[0].date,
+            responsible: node?.responsible || records[0].responsible,
+            content: node?.content || records[0].content,
+            attachmentInfo: node?.attachmentInfo || records[0].attachmentInfo,
+            records,
+          }
+          changed = true
+        })
+      } catch { /* 忽略单个部位异常 */ }
+    })
+  })
+  return changed
+}
+
 function migratePatrolTaskLinks(data, projectId) {
   let changed = false
   ;(data.ledgers || []).forEach((ledger, ledgerIndex) => {
@@ -507,6 +561,7 @@ export function ensureMajorHazardData(projectId) {
     if (all[projectId].demoSeeded && backfillDemoWbsParts(all[projectId])) changed = true
     if (changed) writeAll(all)
   }
+  if (migrateDemoProcessRecords(all[projectId], projectId)) writeAll(all)
   if (migratePatrolTaskLinks(all[projectId], projectId)) writeAll(all)
   return readProject(projectId)
 }
