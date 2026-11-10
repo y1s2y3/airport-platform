@@ -25,9 +25,13 @@ function createId(prefix = 'grp') {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
 }
 
+/**
+ * 默认分组：3 个区域组 + 1 个跨区域「重点机位」组 + 1 个「待分配」空组。
+ * 2026-11-10 盘点前只有 2 组（仅前两个区域），分组管理页看不出跨区域与空组场景。
+ */
 function buildSeedGroups(projectId) {
   const devices = getProjectVideoDevices(projectId)
-  return AREA_OPTIONS.slice(0, 2).map((area, index) => {
+  const areaGroups = AREA_OPTIONS.slice(0, 3).map((area, index) => {
     const matched = devices.filter((d) => d.area === area.value).map((d) => d.id)
     return {
       id: `${projectId}-grp-${index + 1}`,
@@ -37,6 +41,25 @@ function buildSeedGroups(projectId) {
       children: [],
     }
   })
+  // 各区域各取首台，组成跨区域重点机位组；无设备时保持空组
+  const keyDeviceIds = areaGroups.map((group) => group.deviceIds[0]).filter(Boolean)
+  return [
+    ...areaGroups,
+    {
+      id: `${projectId}-grp-key`,
+      name: '重点机位（跨区域）',
+      deviceIds: keyDeviceIds,
+      parentId: null,
+      children: [],
+    },
+    {
+      id: `${projectId}-grp-empty`,
+      name: '待分配',
+      deviceIds: [],
+      parentId: null,
+      children: [],
+    },
+  ]
 }
 
 export function ensureVideoDeviceGroupSeed() {

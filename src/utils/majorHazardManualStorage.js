@@ -5,8 +5,19 @@ import { getMobileInspectionTask, listMobileInspectionTasks, retainPatrolInspect
 import { buildDemoTabRecords } from '../mock/majorHazardDemoRecords.js'
 export const MAJOR_HAZARD_CHANGE_EVENT = 'major-hazard-manual-change'
 
-/** 仅前 10 个项目生成危大工程示例数据，避免看板按项目汇总时铺开全部项目 */
-const DEMO_PROJECT_IDS = new Set(COC_PROJECT_OPTIONS.slice(0, 10).map((project) => project.id))
+/**
+ * 生成危大工程示例数据的项目集合（避免看板按项目汇总时铺开全部 40 个项目）。
+ * - 目录前 10 个（p-000~p-009）：原有演示口径，**顺序不可调整**（影响 AZXJ 任务单号序号）
+ * - 追加项目主数据里的常用项目 id（p-east-terminal / p-phase3 / p-east-apron / p-pump-002）：
+ *   这些 id 不在目录前 10 个里，此前切过去危大辨识与清单是空白（2026-11-10 盘点发现）
+ */
+const DEMO_PROJECT_IDS = new Set([
+  ...COC_PROJECT_OPTIONS.slice(0, 10).map((project) => project.id),
+  'p-east-terminal',
+  'p-phase3',
+  'p-east-apron',
+  'p-pump-002',
+])
 
 /** 危大辨识审批人候选（姓名 + 岗位），新增/详情页「审批人配置」下拉使用 */
 export const MAJOR_HAZARD_APPROVERS = [

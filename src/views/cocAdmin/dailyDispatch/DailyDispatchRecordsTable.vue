@@ -1,11 +1,26 @@
 <script setup>
-import { ref } from 'vue'
+import { h, ref } from 'vue'
+import { ElScrollbar } from 'element-plus'
 import { View } from '@element-plus/icons-vue'
 import BusinessPagedTable from '../../../components/common/BusinessPagedTable.vue'
 import { summaryCell } from '../../../utils/dailyDispatchCheckRules.js'
 import DailyLedgerResult from './DailyLedgerResult.vue'
 defineProps({ data: { type: Array, default: () => [] }, columns: { type: Array, required: true }, loading: Boolean, error: { type: String, default: '' }, actions: Boolean, detailOnly: Boolean })
 defineEmits(['open'])
+// Enable the same native overflow tooltip for each free-text summary column.
+const textTooltipColumns = new Set(['focusDepartment', 'attendance', 'dispatcher', 'departmentAttendance', 'projects'])
+const textTooltip = {
+  placement: 'top', showAfter: 200, enterable: true, popperClass: 'daily-ledger-tooltip',
+  popperStyle: { maxWidth: 'min(600px, calc(100vw - 32px))' },
+}
+function textTooltipContent({ row, column }) {
+  return h(ElScrollbar, { maxHeight: 'min(320px, calc(100vh - 64px))' }, {
+    default: () => h('div', {
+      class: 'daily-ledger-tooltip-content',
+      style: { whiteSpace: 'pre-line', overflowWrap: 'anywhere', paddingRight: '6px' },
+    }, String(summaryCell(row, column.property))),
+  })
+}
 const table = ref(null)
 defineExpose({ getPagination: () => table.value?.getPagination(), restorePagination: value => table.value?.restorePagination(value) })
 </script>
@@ -13,7 +28,7 @@ defineExpose({ getPagination: () => table.value?.getPagination(), restorePaginat
   <div class="daily-records-table" :class="{ 'is-daily-check': actions }">
     <el-empty v-if="error" description="数据加载失败，请点击刷新重试" />
     <BusinessPagedTable v-else ref="table" v-loading="loading" row-key="date" height="100%" :data="data" border stripe class="ap-table daily-ledger-list" empty-text="暂无符合条件的记录">
-      <el-table-column v-for="column in columns" :key="column.key" :prop="column.key" :label="column.label" :min-width="column.width" :fixed="column.key === 'date' ? 'left' : false" :align="column.status || ['unified', 'safetyQuality', 'camera'].includes(column.key) ? 'center' : 'left'"><template #default="{ row }"><DailyLedgerResult v-if="column.status" :value="row[column.key]" /><span v-else class="daily-summary-value">{{ summaryCell(row, column.key) }}</span></template></el-table-column>
+      <el-table-column v-for="column in columns" :key="column.key" :prop="column.key" :label="column.label" :min-width="column.width" :show-overflow-tooltip="textTooltipColumns.has(column.key) ? textTooltip : false" :tooltip-formatter="textTooltipColumns.has(column.key) ? textTooltipContent : undefined" :fixed="column.key === 'date' ? 'left' : false" :align="column.status || ['unified', 'safetyQuality', 'camera'].includes(column.key) ? 'center' : 'left'"><template #default="{ row }"><DailyLedgerResult v-if="column.status" :value="row[column.key]" /><span v-else class="daily-summary-value">{{ summaryCell(row, column.key) }}</span></template></el-table-column>
       <el-table-column v-if="actions || detailOnly" label="操作" fixed="right" :width="detailOnly ? 140 : 280"><template #default="{ row }"><div class="daily-list-actions"><div v-if="actions" class="daily-list-actions-primary"><el-button link type="primary" @click="$emit('open', row, 'unified')">统一调度检查填写</el-button><el-button link type="primary" @click="$emit('open', row, 'project')">项目部检查填写</el-button></div><el-button link type="primary" :icon="View" @click="$emit('open', row, 'detail')">查看详情</el-button></div></template></el-table-column>
     </BusinessPagedTable>
   </div>

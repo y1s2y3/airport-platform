@@ -410,98 +410,144 @@ export function ensureCompletePrereqDemoSeeds() {
   seedCompleteRejectDemo(project_id)
 }
 
+/** 演示：竣工已驳回存档单（用于「驳回记录 / 重新报审」）——3 条不同原因，2026-11-10 补齐 */
+const COMPLETE_REJECT_DEMO_PREFIX = 'tk-jg-reject-'
+const COMPLETE_REJECT_DEMOS = [
+  {
+    id: 'tk-jg-reject-001',
+    task_no: 'JG-2026-001',
+    conclusion: '资料不齐，待补全后重报',
+    remark: '竣工验收已驳回存档（演示·资料不齐）',
+    opinion: '竣工资料目录不完整，竣工验收报告签章缺页，请补齐后重新报审。',
+    attachment: '竣工现场全景.jpg',
+    submit_time: '2026-08-01 10:00:00',
+    finish_time: '2026-08-02 15:30:00',
+    created_at: '2026-08-01 09:00:00',
+  },
+  {
+    id: 'tk-jg-reject-002',
+    task_no: 'JG-2026-002',
+    conclusion: '前置验收未闭环，暂不予通过',
+    remark: '竣工验收已驳回存档（演示·消防验收未闭环）',
+    opinion: '消防专项验收意见尚未闭环，实体观感质量抽测记录缺失，请闭环后重新报审。',
+    attachment: '竣工资料补正说明.pdf',
+    submit_time: '2026-09-08 09:20:00',
+    finish_time: '2026-09-10 11:20:00',
+    created_at: '2026-09-07 16:00:00',
+  },
+  {
+    id: 'tk-jg-reject-003',
+    task_no: 'JG-2026-003',
+    conclusion: '竣工图与实体不符，退回复核',
+    remark: '竣工验收已驳回存档（演示·竣工图与实体不一致）',
+    opinion: '竣工图与现场实体不一致（廊桥区变更未反映），请修正竣工图后重新报审。',
+    attachment: '竣工图差异对照表.xlsx',
+    submit_time: '2026-10-06 10:10:00',
+    finish_time: '2026-10-08 16:40:00',
+    created_at: '2026-10-05 15:30:00',
+  },
+]
+
 /** 演示：竣工已驳回存档单（用于「驳回记录 / 重新报审」） */
 function seedCompleteRejectDemo(project_id) {
-  if (inspectionTasks.some((t) => t.project_id === project_id && Number(t.task_type) === 7)) {
-    return
-  }
+  // 用户已自行发起真实竣工验收单时，不再注入演示驳回单
+  const hasInteractive = inspectionTasks.some(
+    (t) =>
+      t.project_id === project_id &&
+      Number(t.task_type) === 7 &&
+      !String(t.id).startsWith(COMPLETE_REJECT_DEMO_PREFIX),
+  )
+  if (hasInteractive) return
   const gate = buildCompleteGate(project_id)
   if (!gate.canStart) return
 
   const root = getCompleteRootNode(project_id)
-  const id = 'tk-jg-reject-001'
-  const task = {
-    id,
-    task_no: 'JG-2026-001',
-    task_name: '项目竣工验收',
-    project_id,
-    wbs_node_id: root?.id || '',
-    plan_id: '',
-    unplanned_flag: 1,
-    parent_task_id: '',
-    task_type: 7,
-    specialty: '竣工',
-    location_name: root?.node_name || '项目竣工验收',
-    form_template_id: 'ft-complete',
-    form_data: {
-      'ft-complete': {
-        工程名称: root?.node_name || '项目竣工验收',
-        竣工验收结论: '资料不齐，待补全后重报',
+  COMPLETE_REJECT_DEMOS.forEach((demo) => {
+    if (inspectionTasks.some((t) => t.id === demo.id)) return
+    const id = demo.id
+    const task = {
+      id,
+      task_no: demo.task_no,
+      task_name: '项目竣工验收',
+      project_id,
+      wbs_node_id: root?.id || '',
+      plan_id: '',
+      unplanned_flag: 1,
+      parent_task_id: '',
+      task_type: 7,
+      specialty: '竣工',
+      location_name: root?.node_name || '项目竣工验收',
+      form_template_id: 'ft-complete',
+      form_data: {
+        'ft-complete': {
+          工程名称: root?.node_name || '项目竣工验收',
+          竣工验收结论: demo.conclusion,
+        },
       },
-    },
-    batch_type_id: '',
-    status: 3,
-    result: 2,
-    self_check_result: 1,
-    is_hidden_work: 0,
-    first_pass_flag: 0,
-    reinspect_count: 0,
-    current_rectify_id: '',
-    contractor_org_id: 'org-sg-01',
-    supervisor_org_id: 'org-jl-01',
-    applicant_id: 'u-sg-01',
-    submit_time: '2026-08-01 10:00:00',
-    reviewer_id: 'u-jl-01',
-    finish_time: '2026-08-02 15:30:00',
-    archive_status: 0,
-    archive_pkg_no: '',
-    archive_instance_id: '',
-    is_draft: 0,
-    need_archive: 1,
-    elec_archive_status: 3,
-    related_reject_id: '',
-    remark: '竣工验收已驳回存档（演示·可重新报审）',
-    manual_approval_flow: [],
-    created_by: 'u-sg-01',
-    created_at: '2026-08-01 09:00:00',
-    updated_by: 'u-jl-01',
-    updated_at: '2026-08-02 15:30:00',
-  }
-  inspectionTasks.unshift(task)
-  addAttachment({
-    biz_type: 'TASK',
-    biz_id: id,
-    task_id: id,
-    file_category: 1,
-    file_name: '竣工现场全景.jpg',
-    file_ext: 'jpg',
-    file_url: '#mock/jg-site.jpg',
-    file_size: 320000,
-    mime_type: 'image/jpeg',
+      batch_type_id: '',
+      status: 3,
+      result: 2,
+      self_check_result: 1,
+      is_hidden_work: 0,
+      first_pass_flag: 0,
+      reinspect_count: 0,
+      current_rectify_id: '',
+      contractor_org_id: 'org-sg-01',
+      supervisor_org_id: 'org-jl-01',
+      applicant_id: 'u-sg-01',
+      submit_time: demo.submit_time,
+      reviewer_id: 'u-jl-01',
+      finish_time: demo.finish_time,
+      archive_status: 0,
+      archive_pkg_no: '',
+      archive_instance_id: '',
+      is_draft: 0,
+      need_archive: 1,
+      elec_archive_status: 3,
+      related_reject_id: '',
+      remark: demo.remark,
+      manual_approval_flow: [],
+      created_by: 'u-sg-01',
+      created_at: demo.created_at,
+      updated_by: 'u-jl-01',
+      updated_at: demo.finish_time,
+    }
+    inspectionTasks.push(task)
+    addAttachment({
+      biz_type: 'TASK',
+      biz_id: id,
+      task_id: id,
+      file_category: 1,
+      file_name: demo.attachment,
+      file_ext: demo.attachment.split('.').pop(),
+      file_url: '#mock/jg-site.jpg',
+      file_size: 320000,
+      mime_type: 'image/jpeg',
+    })
+    approvalRecords.push(
+      {
+        id: `ar-${id}-submit`,
+        task_id: id,
+        node_name: '提交报验',
+        action: 1,
+        operator_id: 'u-sg-01',
+        operator_role: '施工方',
+        opinion: '',
+        action_time: demo.submit_time,
+      },
+      {
+        id: `ar-${id}-reject`,
+        task_id: id,
+        node_name: '监理单位审批',
+        action: 3,
+        operator_id: 'u-jl-01',
+        operator_role: '监理单位审批',
+        opinion: demo.opinion,
+        action_time: demo.finish_time,
+      },
+    )
+    syncNodeAccept(task)
   })
-  approvalRecords.push(
-    {
-      id: 'ar-jg-001',
-      task_id: id,
-      node_name: '提交报验',
-      action: 1,
-      operator_id: 'u-sg-01',
-      operator_role: '施工方',
-      opinion: '',
-      action_time: '2026-08-01 10:00:00',
-    },
-    {
-      id: 'ar-jg-002',
-      task_id: id,
-      node_name: '监理单位审批',
-      action: 3,
-      operator_id: 'u-jl-01',
-      operator_role: '监理单位审批',
-      opinion: '竣工资料目录不完整，竣工验收报告签章缺页，请补齐后重新报审。',
-      action_time: '2026-08-02 15:30:00',
-    },
-  )
-  syncNodeAccept(task)
 }
 
 ensureCompletePrereqDemoSeeds()

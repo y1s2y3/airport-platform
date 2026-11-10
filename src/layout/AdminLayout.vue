@@ -27,7 +27,8 @@ import {
   getPublishedChangelogs,
 } from '../config/appVersion'
 import { resolveHqEnterPath, resolveHqLeavePath } from '../router/hqLevelPathRedirect'
-import { logoutWeb, webLoginAccount } from '../mock/webSession.js'
+import { hydrateWebSession, logoutWeb, webLoginAccount } from '../mock/webSession.js'
+import { listSysUsers } from '../mock/sysUsers.js'
 import { getCurrentUserSnapshot } from '../mock/currentUser.js'
 import ChangePasswordDialog from '../components/common/ChangePasswordDialog.vue'
 import SidebarMenuNode from './SidebarMenuNode.vue'
@@ -39,6 +40,7 @@ const APP_DOWNLOAD_URL = 'https://fir.xcxwo.com/qnjm6918'
 const route = useRoute()
 const router = useRouter()
 const { isHqSelected } = useCurrentProject()
+hydrateWebSession()
 
 const changelogVisible = ref(false)
 const changelogHistoryVisible = ref(false)
@@ -52,6 +54,13 @@ const changePasswordVisible = ref(false)
 const webAccount = computed(
   () => webLoginAccount.value || getCurrentUserSnapshot(selectedProjectId.value).loginAccount || '',
 )
+
+// Show the same enabled system identity used by business forms, including after a reload.
+const currentUserName = computed(() => {
+  const account = webLoginAccount.value
+  if (!account) return getCurrentUserSnapshot(selectedProjectId.value).name
+  return listSysUsers().find(user => user.loginAccount === account && user.status === true)?.name || account
+})
 
 /** 顶栏项目分类筛选：在建 / 前期 / 历史（默认仅在建） */
 const PROJECT_STATUS_FILTER_OPTIONS = ['在建', '前期', '历史']
@@ -473,7 +482,7 @@ function skipToMain(e) {
         <el-dropdown trigger="click" placement="bottom-end" @command="onUserCommand">
           <div class="user-block" role="button" tabindex="0" aria-label="账号操作">
             <el-avatar :size="32" class="user-avatar">调</el-avatar>
-            <span class="user-name">COC调度室</span>
+            <span class="user-name">{{ currentUserName }}</span>
             <el-icon :size="12" color="#8f959e"><ArrowDown /></el-icon>
           </div>
           <template #dropdown>

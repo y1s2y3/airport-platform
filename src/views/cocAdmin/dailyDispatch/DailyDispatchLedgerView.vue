@@ -16,6 +16,8 @@ import DailyDispatchSummaryView from './DailyDispatchSummaryView.vue'
 import DailyPrototypeNote from './DailyPrototypeNote.vue'
 import DailyCheckDialog from './DailyCheckDialog.vue'
 import './daily-dispatch-theme.css'
+// Consume wrapper metadata instead of rendering it as an inherited native title tooltip.
+defineProps({ title: String, description: String })
 const route = useRoute(), router = useRouter(), { isHqSelected } = useCurrentProject()
 const restored = ref(readLedgerRouteState(route.query))
 const activeTab = ref(restored.value?.activeTab || (route.query.tab === 'summary' ? 'summary' : 'daily'))

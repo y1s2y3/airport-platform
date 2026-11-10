@@ -9,7 +9,7 @@ defineProps({
     <div class="page-header">
       <div class="page-breadcrumb">AI 应用 / {{ title }}</div>
       <h1 class="page-title">{{ title }}</h1>
-      <p class="page-tip">融合多机位视频进行人员轨迹预测与行为分析，功能开发中。</p>
+      <p class="page-tip">融合多机位视频进行人员轨迹预测与行为分析。本功能计划于后续版本提供，当前页面仅作入口占位。</p>
     </div>
     <el-empty description="功能待定" />
   </div>

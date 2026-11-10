@@ -11,6 +11,7 @@ export const userStatusOptions = [
 ]
 
 const initialUsers = [
+  { id: 'inspection-coc-demo', name: 'COC调度室', loginAccount: '1', status: true, orgId: 'org-hq', positions: [], remark: '原型演示账号1，登录身份与项目部首次默认姓名共用此用户记录' },
   { id: 'inspection-dispatch-demo', name: '安质部示例调度员', loginAccount: 'inspection.dispatch.demo', status: true, orgId: 'org-quality', positions: [], remark: '每日调度检查原型示例账号' },
   {
     id: 'u-001',

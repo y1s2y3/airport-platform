@@ -13,6 +13,7 @@ const pageTitle = computed(() => route.meta?.title || '')
     </header>
     <div class="official-biz-card">
       <p class="official-biz-text">具体业务见正式工程</p>
+      <p class="official-biz-tip">本功能计划于后续版本提供，当前页面仅作入口占位。</p>
     </div>
   </section>
 </template>
@@ -35,12 +36,20 @@ const pageTitle = computed(() => route.meta?.title || '')
 
 .official-biz-card {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 10px;
   min-height: 280px;
   background: #fff;
   border: 1px solid var(--ap-border, #ebeef5);
   border-radius: 8px;
+}
+
+.official-biz-tip {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ap-text-muted, #909399);
 }
 
 .official-biz-text {
