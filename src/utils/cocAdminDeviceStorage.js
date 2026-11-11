@@ -7,7 +7,7 @@ import { asAttachList } from '../constants/attachmentUpload.js'
 const PATROL_KEY = 'coc-admin-patrol-devices'
 const HELMET_KEY = 'coc-admin-smart-helmets'
 const SUPERVISION_KEY = 'coc-admin-supervision-meetings-v3'
-const SUPERVISION_HAZARD_KEY = 'coc-admin-supervision-hazards-v7'
+const SUPERVISION_HAZARD_KEY = 'coc-admin-supervision-hazards-v9'
 
 const defaultPatrolDevices = [
   {
@@ -400,7 +400,9 @@ export function closeSupervisionHazard(id, payload = {}) {
   return updateSupervisionHazardRecord(id, (row) => {
     if (row.rectifyStatus !== '待整改') return row
     const time = hazardNow()
-    const remark = String(payload.remark || '').trim() || '确认隐患已关闭'
+    const rectifyRemark = String(payload.rectifyRemark || payload.remark || '').trim()
+    const rectifyPhotos = Array.isArray(payload.rectifyPhotos) ? payload.rectifyPhotos : row.rectifyPhotos || []
+    const remark = rectifyRemark || '确认隐患已关闭'
     const log = {
       action: '确认关闭',
       fromStatus: '待整改',
@@ -408,12 +410,14 @@ export function closeSupervisionHazard(id, payload = {}) {
       operator: payload.operator || '指挥部用户',
       operatorRole: payload.operatorRole || SUPERVISION_HAZARD_ACTOR_ROLES.SUPERVISOR,
       remark,
-      photos: [],
+      photos: rectifyPhotos,
       time,
     }
     return {
       ...row,
       rectifyStatus: '已关闭',
+      rectifyRemark,
+      rectifyPhotos,
       statusLogs: appendStatusLog(row.statusLogs, log),
     }
   })
@@ -426,6 +430,8 @@ export const SUPERVISION_HAZARD_EDITABLE_FIELDS = [
   'hazardLevel',
   'remark',
   'hazardPhotos',
+  'rectifyRemark',
+  'rectifyPhotos',
 ]
 
 const SUPERVISION_HAZARD_FIELD_LABELS = {
@@ -434,6 +440,8 @@ const SUPERVISION_HAZARD_FIELD_LABELS = {
   hazardLevel: '隐患等级',
   remark: '备注',
   hazardPhotos: '隐患图片',
+  rectifyRemark: '整改说明',
+  rectifyPhotos: '整改图片',
 }
 
 function sameHazardFieldValue(a, b) {
@@ -448,6 +456,7 @@ function sameHazardFieldValue(a, b) {
 export function updateSupervisionHazard(id, patch = {}, payload = {}) {
   const changedFields = []
   let blockedMsg = ''
+  const ARRAY_FIELDS = ['hazardPhotos', 'rectifyPhotos']
   const next = updateSupervisionHazardRecord(id, (row) => {
     if (row.rectifyStatus !== '待整改') {
       blockedMsg = '仅「待整改」隐患可编辑'
@@ -456,13 +465,13 @@ export function updateSupervisionHazard(id, patch = {}, payload = {}) {
     const merged = { ...row }
     for (const field of SUPERVISION_HAZARD_EDITABLE_FIELDS) {
       if (!(field in patch)) continue
-      const before = field === 'hazardPhotos' ? row.hazardPhotos || [] : row[field] || ''
-      const after =
-        field === 'hazardPhotos'
-          ? Array.isArray(patch[field])
-            ? patch[field]
-            : []
-          : String(patch[field] ?? '').trim()
+      const isArrayField = ARRAY_FIELDS.includes(field)
+      const before = isArrayField ? row[field] || [] : row[field] || ''
+      const after = isArrayField
+        ? Array.isArray(patch[field])
+          ? patch[field]
+          : []
+        : String(patch[field] ?? '').trim()
       if (sameHazardFieldValue(before, after)) continue
       merged[field] = after
       changedFields.push(field)

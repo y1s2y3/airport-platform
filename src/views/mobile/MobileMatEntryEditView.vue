@@ -605,7 +605,7 @@ function goBack() {
     <div class="form-body">
       <div v-if="isHqSelected" class="tip-banner">请先切换到具体项目后再申报</div>
       <div v-else class="tip-banner muted">
-        {{ scopeProjectLabel }} · 合格证/现场照片为图片（≤5MB），质量证明为文件（≤50MB），均可 1～9 个
+        {{ scopeProjectLabel }} · 合格证/现场照片为图片（≤15MB），质量证明为文件（≤50MB），均可 1～9 个
       </div>
 
       <section class="form-section">

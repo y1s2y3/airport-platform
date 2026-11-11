@@ -362,6 +362,33 @@ export function exportDailyWorkRecords(records, options = {}) {
 
 const MAJOR_REGISTER_SHEET_NAME = '危大工程信息登记'
 
+/** 导入模版第 2 行的示例数据（导入时自动跳过该行；用户可直接覆盖或删除） */
+const MAJOR_REGISTER_SAMPLE = {
+  leadUnit: DAILY_WORK_DEFAULT_LEAD_UNIT,
+  projectName: '三跑道扩建机场工程（软基工程）',
+  contractor: '中国电建集团航空港建设有限公司',
+  majorWorkContent: '土面区袖阀钻孔、袖阀注浆',
+  majorProjectCategory: '不停航施工',
+  majorStartTime: '2026-06-30 00:00',
+  majorEndTime: '2026-06-30 07:00',
+  majorOwnerSafetyManager: '李想/13713651799',
+  majorContractorSafetyManager: '孙贯雨/18759189257, 周杰/18859327190',
+  majorSupervisorSafetyManager: '聂涵剑/15974177662',
+  majorControlMeasures: '按不停航施工专项方案组织交底、旁站与巡视检查。',
+}
+
+function buildMajorRegisterSampleRow() {
+  return MAJOR_WORK_REGISTER_FIELDS.map((field) => String(MAJOR_REGISTER_SAMPLE[field.key] || ''))
+}
+
+/** 判断一行是否与模版示例行完全一致（用于导入时跳过示例） */
+function isMajorRegisterSampleValues(values) {
+  const sample = MAJOR_REGISTER_SAMPLE
+  return MAJOR_WORK_REGISTER_FIELDS.every(
+    (field) => String(values[field.key] || '').trim() === String(sample[field.key] || '').trim(),
+  )
+}
+
 /** 模板/导出表头：必填列前加 *（导入解析时会自动去掉 * 再匹配字段） */
 function buildMajorRegisterHeaderRow(withRequiredMark = false) {
   return MAJOR_WORK_REGISTER_FIELDS.map((field) =>
@@ -407,7 +434,7 @@ function columnLetter(index) {
   return text
 }
 
-function buildMajorRegisterSheetXml(headerRow, dataRows, title = '', withValidation = false) {
+function buildMajorRegisterSheetXml(headerRow, dataRows, title = '', withValidation = false, sampleRowCount = 0) {
   const colCount = headerRow.length
   const cols = MAJOR_WORK_REGISTER_FIELDS.map((field, index) => {
     const width = field.type === 'textarea' ? 30 : 22
@@ -434,7 +461,9 @@ function buildMajorRegisterSheetXml(headerRow, dataRows, title = '', withValidat
     )
   }
   rows.push(buildRow(headerRow, headerRowIndex, 1))
-  dataRows.forEach((row, idx) => rows.push(buildRow(row, headerRowIndex + idx + 1, 2)))
+  dataRows.forEach((row, idx) =>
+    rows.push(buildRow(row, headerRowIndex + idx + 1, idx < sampleRowCount ? 4 : 2)),
+  )
 
   const lastRef = `${columnLetter(colCount - 1)}${headerRowIndex + dataRows.length}`
   const lastCol = columnLetter(colCount - 1)
@@ -484,10 +513,11 @@ function buildMajorRegisterStylesXml() {
   return (
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
-    '<fonts count="3">' +
+    '<fonts count="4">' +
     '<font><sz val="11"/><color theme="1"/><name val="等线"/><family val="2"/></font>' +
     '<font><b/><sz val="11"/><color rgb="FF1F2329"/><name val="等线"/><family val="2"/></font>' +
     '<font><b/><sz val="14"/><color rgb="FF1F2329"/><name val="等线"/><family val="2"/></font>' +
+    '<font><i/><sz val="11"/><color rgb="FF9A9A9A"/><name val="等线"/><family val="2"/></font>' +
     '</fonts>' +
     '<fills count="3">' +
     '<fill><patternFill patternType="none"/></fill>' +
@@ -504,18 +534,19 @@ function buildMajorRegisterStylesXml() {
     '<diagonal/></border>' +
     '</borders>' +
     '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
-    '<cellXfs count="4">' +
+    '<cellXfs count="5">' +
     '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
     '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>' +
     '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>' +
     '<xf numFmtId="0" fontId="2" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>' +
+    '<xf numFmtId="0" fontId="3" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>' +
     '</cellXfs>' +
     '<cellStyles count="1"><cellStyle name="常规" xfId="0" builtinId="0"/></cellStyles>' +
     '</styleSheet>'
   )
 }
 
-async function buildMajorRegisterXlsxBlob({ headerRow, dataRows, title = '', withValidation = false }) {
+async function buildMajorRegisterXlsxBlob({ headerRow, dataRows, title = '', withValidation = false, sampleRowCount = 0 }) {
   const zip = new JSZip()
   zip.file(
     '[Content_Types].xml',
@@ -551,7 +582,7 @@ async function buildMajorRegisterXlsxBlob({ headerRow, dataRows, title = '', wit
       '</Relationships>',
   )
   zip.file('xl/styles.xml', buildMajorRegisterStylesXml())
-  zip.file('xl/worksheets/sheet1.xml', buildMajorRegisterSheetXml(headerRow, dataRows, title, withValidation))
+  zip.file('xl/worksheets/sheet1.xml', buildMajorRegisterSheetXml(headerRow, dataRows, title, withValidation, sampleRowCount))
   const isBrowser = typeof document !== 'undefined'
   return zip.generateAsync({
     type: isBrowser ? 'blob' : 'nodebuffer',
@@ -559,18 +590,20 @@ async function buildMajorRegisterXlsxBlob({ headerRow, dataRows, title = '', wit
   })
 }
 
-/** 生成危大工程信息登记 xlsx（供下载/导出与自检复用）：表头必填列可带 *、浅蓝底；可带合并标题行与枚举下拉 */
+/** 生成危大工程信息登记 xlsx（供下载/导出与自检复用）：表头必填列可带 *、浅蓝底；可带合并标题行、枚举下拉与示例行 */
 export async function buildMajorWorkRegisterXlsxBlob({
   dataRows = [],
   withRequiredMark = false,
   title = '',
   withValidation = false,
+  sampleRowCount = 0,
 } = {}) {
   return buildMajorRegisterXlsxBlob({
     headerRow: buildMajorRegisterHeaderRow(withRequiredMark),
     dataRows,
     title,
     withValidation,
+    sampleRowCount,
   })
 }
 
@@ -585,9 +618,14 @@ function downloadExcelBlob(blob, fileName) {
   setTimeout(() => URL.revokeObjectURL(url), 3000)
 }
 
-/** 下载危大工程信息登记导入模版（第 1 行表头，必填列带 * 且浅蓝底；危大工程作业类别为下拉选择；第 2 行起填数据） */
+/** 下载危大工程信息登记导入模版（第 1 行表头：必填列带 *、浅蓝底、类别列下拉；第 2 行为示例行（导入自动跳过）；第 3 行起填数据） */
 export async function downloadMajorWorkRegisterTemplate(options = {}) {
-  const blob = await buildMajorWorkRegisterXlsxBlob({ withRequiredMark: true, withValidation: true })
+  const blob = await buildMajorWorkRegisterXlsxBlob({
+    dataRows: [buildMajorRegisterSampleRow()],
+    withRequiredMark: true,
+    withValidation: true,
+    sampleRowCount: 1,
+  })
   downloadExcelBlob(blob, options.fileName || '危大工程信息登记导入模版.xlsx')
   return { ok: true }
 }
@@ -697,6 +735,9 @@ export function parseMajorWorkRegisterWorkbook(arrayBuffer, options = {}) {
       values[field.key] = String(line[columnIndex[field.key]] ?? '').trim()
     })
 
+    // 模版第 2 行的示例行：导入时自动跳过，不当作业务数据
+    if (isMajorRegisterSampleValues(values)) continue
+
     const rowErrors = []
     requiredLabels.forEach((label) => {
       const field = MAJOR_WORK_REGISTER_FIELDS.find((item) => item.label === label)
@@ -755,12 +796,239 @@ export async function parseMajorWorkRegisterFile(file, options = {}) {
   return parseMajorWorkRegisterWorkbook(buffer, options)
 }
 
-/** 导出危大工程信息登记（按当前筛选结果，单 Sheet 11 列）：第 1 行合并标题、第 2 行表头（浅蓝底）、第 3 行起数据 */
+/** 导出模板（《危大工程信息导出模板.xlsx》）表头：序号 + 11 列字段，必填列带红 * */
+const MAJOR_REGISTER_EXPORT_HEADERS = [
+  '序号',
+  '*管理单位',
+  '*施工项目名称',
+  '*施工单位',
+  '*施工具体内容',
+  '*危大工程作业类别',
+  '*作业开始时间',
+  '*作业结束时间',
+  '*建设单位现场安全监管人及手机号',
+  '*施工单位现场安全监管人及手机号',
+  '监理单位现场安全监管人及手机号',
+  '*风险管控措施',
+]
+
+const MAJOR_REGISTER_EXPORT_COL_WIDTHS = [5.66, 36.11, 34.89, 22.11, 20.66, 20.66, 20.66, 20.66, 23.66, 23.66, 23.66, 50.66]
+
+/** 导出标题：沿用模板占位符口径（单日只展示开始日期） */
+function buildMajorRegisterExportTitle(rangeStart, rangeEnd) {
+  const start = String(rangeStart || '').trim()
+  const end = String(rangeEnd || '').trim()
+  const single = !start || !end || start === end
+  const day = single ? start || end : ''
+  const pad = (v) => String(Number(v))
+  const dayText = (value) => {
+    const [y, m, d] = String(value).split('-')
+    if (!m || !d) return String(value)
+    return `${pad(m)}月${pad(d)}日`
+  }
+  const rangePart = single ? day : `${start} 至 ${end}`
+  const dayPart = single ? `${dayText(day)}0:00~${dayText(day)}23:59` : `${dayText(start)}0:00~${dayText(end)}23:59`
+  return `3-3建设工程指挥部${rangePart}危大工程计划统计表（计划施工日期：${dayPart}）`
+}
+
+function exportColumnLetter(index) {
+  let n = index + 1
+  let text = ''
+  while (n > 0) {
+    const rem = (n - 1) % 26
+    text = String.fromCharCode(65 + rem) + text
+    n = Math.floor((n - 1) / 26)
+  }
+  return text
+}
+
+/** 估算换行后的行高（中文字符按 2 个宽度计） */
+function estimateExportRowHeight(values, widths) {
+  let lines = 1
+  values.forEach((value, index) => {
+    const text = String(value == null ? '' : value)
+    if (!text) return
+    const widthChars = Math.max(6, Math.round((widths[index] || 20) * 1.05))
+    let used = 0
+    let count = 1
+    for (const ch of text) {
+      const w = ch.charCodeAt(0) > 255 ? 2 : 1
+      if (used + w > widthChars) {
+        count += 1
+        used = w
+      } else {
+        used += w
+      }
+    }
+    lines = Math.max(lines, count)
+  })
+  return Math.min(260, Math.max(30, lines * 17 + 8))
+}
+
+function buildMajorRegisterExportStylesXml() {
+  return (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+    '<fonts count="4">' +
+    '<font><sz val="11"/><color theme="1"/><name val="宋体"/><charset val="134"/></font>' +
+    '<font><sz val="12"/><color theme="1"/><name val="微软雅黑"/><charset val="134"/></font>' +
+    '<font><sz val="22"/><color theme="1"/><name val="微软雅黑"/><charset val="134"/></font>' +
+    '<font><sz val="12"/><color rgb="FF000000"/><name val="微软雅黑"/><charset val="134"/></font>' +
+    '</fonts>' +
+    '<fills count="2">' +
+    '<fill><patternFill patternType="none"/></fill>' +
+    '<fill><patternFill patternType="gray125"/></fill>' +
+    '</fills>' +
+    '<borders count="2">' +
+    '<border><left/><right/><top/><bottom/><diagonal/></border>' +
+    '<border>' +
+    '<left style="thin"><color rgb="FF000000"/></left>' +
+    '<right style="thin"><color rgb="FF000000"/></right>' +
+    '<top style="thin"><color rgb="FF000000"/></top>' +
+    '<bottom style="thin"><color rgb="FF000000"/></bottom>' +
+    '<diagonal/></border>' +
+    '</borders>' +
+    '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+    '<cellXfs count="6">' +
+    '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
+    '<xf numFmtId="0" fontId="2" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>' +
+    '<xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>' +
+    '<xf numFmtId="0" fontId="3" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>' +
+    '<xf numFmtId="0" fontId="3" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1"/></xf>' +
+    '<xf numFmtId="0" fontId="2" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>' +
+    '</cellXfs>' +
+    '<cellStyles count="1"><cellStyle name="常规" xfId="0" builtinId="0"/></cellStyles>' +
+    '</styleSheet>'
+  )
+}
+
+/** 表头单元格：必填列做成富文本（红色 * + 黑色文字） */
+function buildMajorRegisterExportHeaderCell(ref, label) {
+  if (!label.startsWith('*')) {
+    return `<c r="${ref}" t="inlineStr" s="2"><is><t xml:space="preserve">${xmlEscape(label)}</t></is></c>`
+  }
+  const text = label.slice(1)
+  return (
+    `<c r="${ref}" t="inlineStr" s="2"><is>` +
+    '<r><rPr><sz val="12"/><color rgb="FFFF0000"/><rFont val="微软雅黑"/><charset val="134"/></rPr><t>*</t></r>' +
+    `<r><rPr><sz val="12"/><rFont val="微软雅黑"/><charset val="134"/></rPr><t xml:space="preserve">${xmlEscape(text)}</t></r>` +
+    '</is></c>'
+  )
+}
+
+function buildMajorRegisterExportSheetXml(title, dataRows) {
+  const colCount = MAJOR_REGISTER_EXPORT_HEADERS.length
+  const cols = MAJOR_REGISTER_EXPORT_COL_WIDTHS.map(
+    (width, index) => `<col min="${index + 1}" max="${index + 1}" width="${width}" customWidth="1"/>`,
+  ).join('')
+
+  const titleCells =
+    `<c r="A1" t="inlineStr" s="1"><is><t xml:space="preserve">${xmlEscape(title)}</t></is></c>` +
+    MAJOR_REGISTER_EXPORT_HEADERS.slice(1).map((_, i) => `<c r="${exportColumnLetter(i + 1)}1" s="1"/>`).join('')
+
+  const headerCells = MAJOR_REGISTER_EXPORT_HEADERS.map((label, index) =>
+    buildMajorRegisterExportHeaderCell(`${exportColumnLetter(index)}2`, label),
+  ).join('')
+
+  const dataXml = dataRows
+    .map((values, rowIndex) => {
+      const rowNo = rowIndex + 3
+      const cells = values
+        .map((value, colIndex) => {
+          const ref = `${exportColumnLetter(colIndex)}${rowNo}`
+          if (colIndex === 0) return `<c r="${ref}" s="3"><v>${Number(value) || rowIndex + 1}</v></c>`
+          const styleId = colIndex === values.length - 1 ? 4 : 3
+          return `<c r="${ref}" t="inlineStr" s="${styleId}"><is><t xml:space="preserve">${xmlEscape(value)}</t></is></c>`
+        })
+        .join('')
+      const height = estimateExportRowHeight(values, MAJOR_REGISTER_EXPORT_COL_WIDTHS)
+      return `<row r="${rowNo}" ht="${height}" customHeight="1">${cells}</row>`
+    })
+    .join('')
+
+  const lastRow = Math.max(2, dataRows.length + 2)
+  return (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+    '<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>' +
+    `<dimension ref="A1:${exportColumnLetter(colCount - 1)}${lastRow}"/>` +
+    '<sheetViews><sheetView workbookViewId="0"><pane ySplit="2" topLeftCell="A3" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>' +
+    '<sheetFormatPr defaultColWidth="9" defaultRowHeight="20"/>' +
+    `<cols>${cols}</cols>` +
+    `<sheetData><row r="1" ht="65.1" customHeight="1">${titleCells}</row>` +
+    `<row r="2" ht="34.8" customHeight="1">${headerCells}</row>` +
+    `${dataXml}</sheetData>` +
+    `<mergeCells count="1"><mergeCell ref="A1:${exportColumnLetter(colCount - 1)}1"/></mergeCells>` +
+    '<pageMargins left="0.2" right="0.2" top="0.2" bottom="0.2" header="0.3" footer="0.3"/>' +
+    '<pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0" horizontalDpi="600" verticalDpi="600"/>' +
+    '</worksheet>'
+  )
+}
+
+async function buildMajorRegisterExportXlsxBlob(title, dataRows) {
+  const zip = new JSZip()
+  zip.file(
+    '[Content_Types].xml',
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+      '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+      '<Default Extension="xml" ContentType="application/xml"/>' +
+      '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+      '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
+      '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
+      '</Types>',
+  )
+  zip.file(
+    '_rels/.rels',
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
+      '</Relationships>',
+  )
+  zip.file(
+    'xl/workbook.xml',
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+      '<sheets><sheet name="危大工程" sheetId="1" r:id="rId1"/></sheets>' +
+      '</workbook>',
+  )
+  zip.file(
+    'xl/_rels/workbook.xml.rels',
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' +
+      '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
+      '</Relationships>',
+  )
+  zip.file('xl/worksheets/sheet1.xml', buildMajorRegisterExportSheetXml(title, dataRows))
+  zip.file('xl/styles.xml', buildMajorRegisterExportStylesXml())
+  const inBrowser = typeof document !== 'undefined'
+  return zip.generateAsync({
+    type: inBrowser ? 'blob' : 'nodebuffer',
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  })
+}
+
+/** 构建危大工程计划统计表 xlsx（按《危大工程信息导出模板.xlsx》口径，供导出与自检复用） */
+export async function buildMajorWorkRegisterExportXlsx(records, options = {}) {
+  const list = Array.isArray(records) ? records : []
+  const title = buildMajorRegisterExportTitle(options.rangeStart, options.rangeEnd)
+  const dataRows = list.map((record, index) => {
+    const row = majorRegisterDataRow(record)
+    return [index + 1, ...row]
+  })
+  const blob = await buildMajorRegisterExportXlsxBlob(title, dataRows)
+  return { blob, title, count: list.length }
+}
+
+/** 导出危大工程计划统计表（按《危大工程信息导出模板.xlsx》口径）：序号 + 11 列字段、微软雅黑、红 * 必填、黑细边框、横向 A4 自适应 */
 export async function exportMajorWorkRegisterRecords(records, options = {}) {
   const list = Array.isArray(records) ? records : []
   if (!list.length) return { ok: false, count: 0, error: '当前没有可导出的记录' }
-  const dataRows = list.map((record) => majorRegisterDataRow(record))
-  const blob = await buildMajorWorkRegisterXlsxBlob({ dataRows, withRequiredMark: true, title: options.title || '' })
-  downloadExcelBlob(blob, options.fileName || '危大工程信息登记.xlsx')
-  return { ok: true, count: list.length }
+  const { blob, title, count } = await buildMajorWorkRegisterExportXlsx(list, options)
+  const start = String(options.rangeStart || '').trim()
+  const end = String(options.rangeEnd || '').trim()
+  const suffix = start && end && start !== end ? `${start}至${end}` : start || end
+  downloadExcelBlob(blob, options.fileName || `危大工程计划统计表_${suffix}.xlsx`)
+  return { ok: true, count, title }
 }

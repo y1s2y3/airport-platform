@@ -8,11 +8,20 @@ import { ElMessage } from 'element-plus'
 import { View, Plus, Edit } from '@element-plus/icons-vue'
 import {
   getSupervisionHazards,
+  getSupervisionMeetings,
   SUPERVISION_HAZARD_RECTIFY_STATUSES,
   closeSupervisionHazard,
   saveSupervisionHazard,
   updateSupervisionHazard,
 } from '../../utils/cocAdminDeviceStorage.js'
+import { hazardTypeLabelOf } from '../../utils/supervisionMeetingTemplate.js'
+
+/** 隐患类型下拉选项（安全 / 质量 / 其他） */
+const HAZARD_TYPE_SELECT_OPTIONS = [
+  { label: '安全', value: 'safety' },
+  { label: '质量', value: 'quality' },
+  { label: '其他', value: 'other' },
+]
 
 const props = defineProps({
   /** 兼容旧用法：true 时不可关闭 */
@@ -40,6 +49,7 @@ const current = ref(null)
 const formVisible = ref(false)
 const editingId = ref('')
 const form = ref(emptyManualForm())
+const closeForm = ref({ rectifyRemark: '', rectifyPhotos: [] })
 const hazardLevels = ['一般', '较大', '重大']
 
 const closeVisible = ref(false)
@@ -67,6 +77,8 @@ function emptyManualForm() {
     hazardLevel: '一般',
     remark: '',
     hazardPhotos: [],
+    rectifyRemark: '',
+    rectifyPhotos: [],
   }
 }
 
@@ -83,6 +95,24 @@ function hazardPhotos(row) {
 
 function hazardPreviewList(row) {
   return hazardPhotos(row).map(photoSrc)
+}
+
+/** 整改图片：结构同隐患图片 */
+function rectifyPhotos(row) {
+  return Array.isArray(row?.rectifyPhotos) ? row.rectifyPhotos.filter((item) => photoSrc(item)) : []
+}
+
+function rectifyPreviewList(row) {
+  return rectifyPhotos(row).map(photoSrc)
+}
+
+/** 关联会议展示：会议日期（会议编号）；找不到时回退会议编号 */
+function meetingLabel(meetingId) {
+  if (!meetingId) return '--'
+  const meeting = getSupervisionMeetings().find((item) => item.id === meetingId)
+  if (!meeting) return meetingId
+  const date = meeting.meetingDate || ''
+  return date ? `${date}（${meetingId}）` : meetingId
 }
 
 function load() {
@@ -113,17 +143,20 @@ const filtered = computed(() => {
       row.source,
       row.meetingId,
       row.rectifyStatus,
+      row.rectifyRemark,
       hazardTypeLabel(row.hazardType),
     ].some((f) => String(f || '').includes(q)),
   )
 })
 
 function hazardTypeLabel(type) {
-  return type === 'quality' ? '质量' : '安全'
+  return hazardTypeLabelOf(type)
 }
 
 function hazardTypeTag(type) {
-  return type === 'quality' ? 'success' : 'warning'
+  if (type === 'quality') return 'success'
+  if (type === 'other' || type === 'environment') return 'info'
+  return 'warning'
 }
 
 function rectifyStatusTag(status) {
@@ -169,6 +202,8 @@ function openEdit(row) {
     hazardLevel: row.hazardLevel || '一般',
     remark: row.remark || '',
     hazardPhotos: [...(row.hazardPhotos || [])],
+    rectifyRemark: row.rectifyRemark || '',
+    rectifyPhotos: [...(row.rectifyPhotos || [])],
   }
   formVisible.value = true
 }
@@ -200,6 +235,8 @@ function submitForm() {
         hazardLevel: form.value.hazardLevel,
         remark: String(form.value.remark || '').trim(),
         hazardPhotos: form.value.hazardPhotos,
+        rectifyRemark: String(form.value.rectifyRemark || '').trim(),
+        rectifyPhotos: form.value.rectifyPhotos,
       },
       { operator: props.operator, operatorRole: props.operatorRole },
     )
@@ -228,8 +265,8 @@ function submitForm() {
     hazardDeadline: '',
     acceptor: '',
     rectifyStatus: '待整改',
-    rectifyRemark: '',
-    rectifyPhotos: [],
+    rectifyRemark: String(form.value.rectifyRemark || '').trim(),
+    rectifyPhotos: form.value.rectifyPhotos,
     hazardPhotos: form.value.hazardPhotos,
     uploadTime: now,
   })
@@ -249,15 +286,23 @@ function openCloseDialog(row) {
     return
   }
   closeTarget.value = row
+  closeForm.value = {
+    rectifyRemark: '',
+    rectifyPhotos: [...(row.rectifyPhotos || [])],
+  }
   closeVisible.value = true
 }
 
 function submitClose() {
   const row = closeTarget.value
   if (!row) return
+  const rectifyRemark = String(closeForm.value.rectifyRemark || '').trim()
   const result = closeSupervisionHazard(row.id, {
     operator: props.operator,
     operatorRole: props.operatorRole,
+    remark: rectifyRemark,
+    rectifyRemark,
+    rectifyPhotos: closeForm.value.rectifyPhotos,
   })
   closeVisible.value = false
   if (!result || result.rectifyStatus !== '已关闭') {
@@ -347,6 +392,24 @@ defineExpose({ reload: load })
           </el-tag>
         </template>
       </el-table-column>
+      <el-table-column label="整改说明" min-width="150" show-overflow-tooltip>
+        <template #default="{ row }">{{ row.rectifyRemark || '--' }}</template>
+      </el-table-column>
+      <el-table-column label="整改图片" width="84" align="center">
+        <template #default="{ row }">
+          <el-image
+            v-if="rectifyPhotos(row).length"
+            :src="photoSrc(rectifyPhotos(row)[0])"
+            :preview-src-list="rectifyPreviewList(row)"
+            :z-index="3000"
+            preview-teleported
+            fit="cover"
+            class="cell-photo"
+            alt="整改图片 1"
+          />
+          <span v-else>--</span>
+        </template>
+      </el-table-column>
       <el-table-column prop="source" label="来源" width="96" />
       <el-table-column prop="uploadTime" label="登记时间" width="148" />
       <el-table-column label="操作" width="200" fixed="right">
@@ -385,8 +448,12 @@ defineExpose({ reload: load })
         </el-form-item>
         <el-form-item label="隐患类型" required>
           <el-select v-model="form.hazardType" placeholder="请选择" style="width: 100%" aria-label="请选择">
-            <el-option label="安全" value="safety" />
-            <el-option label="质量" value="quality" />
+            <el-option
+              v-for="option in HAZARD_TYPE_SELECT_OPTIONS"
+              :key="option.value"
+              :label="option.label"
+              :value="option.value"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="隐患描述" required>
@@ -408,7 +475,26 @@ defineExpose({ reload: load })
             :max="9"
             compress
             compact
-            hint="选填，最多 9 张，单张 ≤5MB（jpg/png 等图片）"
+            hint="选填，最多 9 张，单张 ≤15MB（jpg/png 等图片）"
+          />
+        </el-form-item>
+        <el-form-item label="整改说明">
+          <el-input
+            v-model="form.rectifyRemark"
+            type="textarea"
+            :rows="2"
+            placeholder="请输入整改说明"
+            aria-label="请输入整改说明"
+          />
+        </el-form-item>
+        <el-form-item label="整改图片">
+          <AttachmentUpload
+            v-model="form.rectifyPhotos"
+            preset="image"
+            :max="9"
+            compress
+            compact
+            hint="选填，最多 9 张，单张 ≤15MB（jpg/png 等图片）"
           />
         </el-form-item>
         <el-form-item label="备注">
@@ -421,11 +507,28 @@ defineExpose({ reload: load })
       </template>
     </el-dialog>
 
-    <el-dialog v-model="closeVisible" title="确认关闭隐患" width="440px" destroy-on-close>
-      <p class="close-tip">
-        关闭后该隐患状态将变为「已关闭」，且不可再编辑。确认关闭：
-        <strong>{{ closeTarget?.description || '--' }}</strong>
-      </p>
+    <el-dialog v-model="closeVisible" title="确认关闭隐患" width="560px" destroy-on-close>
+      <el-form label-width="96px" class="close-form">
+        <el-form-item label="整改说明">
+          <el-input
+            v-model="closeForm.rectifyRemark"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入整改说明（选填）"
+            aria-label="请输入整改说明"
+          />
+        </el-form-item>
+        <el-form-item label="整改图片">
+          <AttachmentUpload
+            v-model="closeForm.rectifyPhotos"
+            preset="image"
+            :max="9"
+            compress
+            compact
+            hint="选填，最多 9 张，单张 ≤15MB（jpg/png 等图片）"
+          />
+        </el-form-item>
+      </el-form>
       <template #footer>
         <el-button @click="closeVisible = false">取消</el-button>
         <el-button type="success" @click="submitClose">确认关闭</el-button>
@@ -437,6 +540,7 @@ defineExpose({ reload: load })
         <HazardSamplingPanel v-if="current" source="supervision" :record-id="current.id" />
         <el-descriptions :column="1" border>
           <el-descriptions-item label="项目名称">{{ current.projectName || '--' }}</el-descriptions-item>
+          <el-descriptions-item label="隐患编号">{{ current.id || '--' }}</el-descriptions-item>
           <el-descriptions-item label="隐患类型">{{ hazardTypeLabel(current.hazardType) }}</el-descriptions-item>
           <el-descriptions-item label="隐患描述">{{ current.description || '--' }}</el-descriptions-item>
           <el-descriptions-item label="隐患等级">{{ current.hazardLevel || '--' }}</el-descriptions-item>
@@ -457,10 +561,28 @@ defineExpose({ reload: load })
             </div>
             <span v-else>--</span>
           </el-descriptions-item>
+          <el-descriptions-item label="整改说明">{{ current.rectifyRemark || '--' }}</el-descriptions-item>
+          <el-descriptions-item label="整改图片">
+            <div v-if="rectifyPhotos(current).length" class="detail-photos">
+              <el-image
+                v-for="(photo, index) in rectifyPhotos(current)"
+                :key="index"
+                :src="photoSrc(photo)"
+                :preview-src-list="rectifyPreviewList(current)"
+                :initial-index="index"
+                :z-index="3000"
+                preview-teleported
+                fit="cover"
+                class="detail-photo"
+                :alt="`整改图片 ${index + 1}`"
+              />
+            </div>
+            <span v-else>--</span>
+          </el-descriptions-item>
           <el-descriptions-item label="备注">{{ current.remark || '--' }}</el-descriptions-item>
           <el-descriptions-item label="整改状态">{{ current.rectifyStatus || '待整改' }}</el-descriptions-item>
           <el-descriptions-item label="来源">{{ current.source || '--' }}</el-descriptions-item>
-          <el-descriptions-item label="关联会议">{{ current.meetingId || '--' }}</el-descriptions-item>
+          <el-descriptions-item label="关联会议">{{ meetingLabel(current.meetingId) }}</el-descriptions-item>
           <el-descriptions-item label="登记时间">{{ current.uploadTime }}</el-descriptions-item>
         </el-descriptions>
 
@@ -540,17 +662,6 @@ defineExpose({ reload: load })
   border: 1px solid #ebeef5;
   cursor: zoom-in;
   vertical-align: middle;
-}
-
-.close-tip {
-  margin: 0 0 12px;
-  font-size: 13px;
-  line-height: 1.6;
-  color: #606266;
-}
-
-.close-tip strong {
-  color: #303133;
 }
 
 .status-logs {

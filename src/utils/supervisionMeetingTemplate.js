@@ -1,77 +1,122 @@
 import * as XLSX from 'xlsx'
+import { buildWeeklyHazardTemplateBlob } from './weeklyHazardTemplateXlsx.js'
 
-const HAZARD_TYPE_OPTIONS = ['安全', '质量']
-const HAZARD_LEVEL_OPTIONS = ['一般', '较大', '重大']
+/** 隐患类型枚举（表格展示用文案） */
+export const HAZARD_TYPE_OPTIONS = ['安全', '质量', '其他']
+/** 隐患等级枚举 */
+export const HAZARD_LEVEL_OPTIONS = ['一般', '较大', '重大']
+/** 整改状态枚举（与监理隐患清单一致） */
+export const HAZARD_RECTIFY_STATUS_OPTIONS = ['待整改', '已关闭']
+
+/** 表格文案 → 存库值 */
+export const HAZARD_TYPE_MAP = {
+  安全: 'safety',
+  质量: 'quality',
+  其他: 'other',
+}
+
+/** 存库值 → 表格文案 */
+export const HAZARD_TYPE_LABELS = {
+  safety: '安全',
+  quality: '质量',
+  other: '其他',
+  // 历史数据兼容：2026-11-11 前登记的「环境」类别仅用于展示，不再出现在下拉枚举
+  environment: '环境',
+}
+
+/** 存库值 → 展示文案（兼容历史数据） */
+export function hazardTypeLabelOf(value) {
+  if (!value) return ''
+  return HAZARD_TYPE_LABELS[value] || (value === 'quality' ? '质量' : value === 'safety' ? '安全' : String(value))
+}
+
+const TEMPLATE_HEADERS = ['*隐患类型', '*隐患描述', '*隐患等级', '*整改状态', '整改说明', '备注']
+const TEMPLATE_WIDTHS = [12, 48, 12, 14, 30, 24]
+const TEMPLATE_SAMPLE = ['安全', '示例：临边防护缺失，请按现场实际修改后删除本行', '一般', '待整改', '', '']
+const TEMPLATE_BLANK_ROWS = 30
+
+const README_ROWS = [
+  ['字段', '可选值', '是否必填'],
+  ['隐患类型', HAZARD_TYPE_OPTIONS.join(' / '), '必填（下拉）'],
+  ['隐患描述', '自由文本（≤200 字）', '必填'],
+  ['隐患等级', HAZARD_LEVEL_OPTIONS.join(' / '), '必填（下拉）'],
+  ['整改状态', HAZARD_RECTIFY_STATUS_OPTIONS.join(' / '), '必填（下拉）'],
+  ['整改说明', '自由文本', '选填（已关闭时填写复核说明）'],
+  ['备注', '自由文本', '选填'],
+  [],
+  ['填写提示'],
+  ['1. 第 1 行为表头，带 * 的列为必填；请勿修改表头文字与列顺序。'],
+  ['2. 隐患类型 / 隐患等级 / 整改状态 三列均为下拉选择，请勿手工输入其它值。'],
+  ['3. 示例行仅作填写参考，导入时会自动跳过；可直接覆盖或删除。'],
+  ['4. 单次最多导入 500 行；同一文件内重复隐患按导入条数计入。'],
+]
+const README_WIDTHS = [16, 34, 26]
+
+function downloadBlob(blob, fileName) {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  setTimeout(() => URL.revokeObjectURL(url), 3000)
+}
+
+/** 生成本周隐患清单模板 blob（供下载与自检复用） */
+export async function buildWeeklyHazardListTemplateBlob() {
+  return buildWeeklyHazardTemplateBlob({
+    headers: TEMPLATE_HEADERS,
+    rows: [TEMPLATE_SAMPLE, ...Array.from({ length: TEMPLATE_BLANK_ROWS }, () => ['', '', '', '', '', ''])],
+    widths: TEMPLATE_WIDTHS,
+    validations: [
+      {
+        range: 'A2:A500',
+        options: HAZARD_TYPE_OPTIONS,
+        title: '隐患类型',
+        error: `请从下拉列表选择：${HAZARD_TYPE_OPTIONS.join(' / ')}`,
+      },
+      {
+        range: 'C2:C500',
+        options: HAZARD_LEVEL_OPTIONS,
+        title: '隐患等级',
+        error: `请从下拉列表选择：${HAZARD_LEVEL_OPTIONS.join(' / ')}`,
+      },
+      {
+        range: 'D2:D500',
+        options: HAZARD_RECTIFY_STATUS_OPTIONS,
+        title: '整改状态',
+        error: `请从下拉列表选择：${HAZARD_RECTIFY_STATUS_OPTIONS.join(' / ')}`,
+      },
+    ],
+    readmeRows: README_ROWS,
+    readmeWidths: README_WIDTHS,
+  })
+}
 
 /**
  * 下载本周隐患清单填报模板（仅 .xlsx）
- * 列：隐患类型 / 隐患描述 / 隐患等级 / 备注
- * 必填：隐患类型、隐患描述、隐患等级
- * 下拉：隐患类型=安全/质量；隐患等级=一般/较大/重大
+ * 列：*隐患类型 / *隐患描述 / *隐患等级 / *整改状态 / 整改说明 / 备注
+ * 下拉：隐患类型=安全/质量/其他；隐患等级=一般/较大/重大；整改状态=待整改/已关闭
  */
-export function downloadWeeklyHazardListTemplate() {
-  const headers = ['隐患类型', '隐患描述', '隐患等级', '备注']
-  const sample = ['安全', '示例：临边防护缺失，请按现场实际修改后删除本行', '一般', '']
-  const blankRows = Array.from({ length: 30 }, () => ['', '', '', ''])
-
-  const mainSheet = XLSX.utils.aoa_to_sheet([headers, sample, ...blankRows])
-  mainSheet['!cols'] = [{ wch: 12 }, { wch: 48 }, { wch: 12 }, { wch: 24 }]
-  mainSheet['!dataValidation'] = [
-    {
-      sqref: 'A2:A500',
-      type: 'list',
-      allowBlank: false,
-      showErrorMessage: true,
-      errorTitle: '隐患类型',
-      error: '请选择：安全 或 质量',
-      formula1: `"${HAZARD_TYPE_OPTIONS.join(',')}"`,
-      formulas: [`"${HAZARD_TYPE_OPTIONS.join(',')}"`],
-    },
-    {
-      sqref: 'C2:C500',
-      type: 'list',
-      allowBlank: false,
-      showErrorMessage: true,
-      errorTitle: '隐患等级',
-      error: '请选择：一般、较大 或 重大',
-      formula1: `"${HAZARD_LEVEL_OPTIONS.join(',')}"`,
-      formulas: [`"${HAZARD_LEVEL_OPTIONS.join(',')}"`],
-    },
-  ]
-
-  const enumSheet = XLSX.utils.aoa_to_sheet([
-    ['字段', '可选值', '是否必填'],
-    ['隐患类型', HAZARD_TYPE_OPTIONS.join(' / '), '必填（下拉）'],
-    ['隐患描述', '自由文本', '必填'],
-    ['隐患等级', HAZARD_LEVEL_OPTIONS.join(' / '), '必填（下拉）'],
-    ['备注', '自由文本', '选填'],
-    [],
-    ['隐患类型枚举'],
-    ...HAZARD_TYPE_OPTIONS.map((v) => [v]),
-    [],
-    ['隐患等级枚举'],
-    ...HAZARD_LEVEL_OPTIONS.map((v) => [v]),
-  ])
-  enumSheet['!cols'] = [{ wch: 16 }, { wch: 28 }, { wch: 14 }]
-
-  const workbook = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(workbook, mainSheet, '本周隐患清单')
-  XLSX.utils.book_append_sheet(workbook, enumSheet, '填写说明')
-  XLSX.writeFile(workbook, '本周隐患清单模板.xlsx')
+export async function downloadWeeklyHazardListTemplate() {
+  const blob = await buildWeeklyHazardListTemplateBlob()
+  downloadBlob(blob, '本周隐患清单模板.xlsx')
 }
 
-export { HAZARD_TYPE_OPTIONS, HAZARD_LEVEL_OPTIONS }
-
-const REQUIRED_HEADERS = ['隐患类型', '隐患描述', '隐患等级', '备注']
+const REQUIRED_HEADER_NAMES = ['隐患类型', '隐患描述', '隐患等级']
 
 function normalizeCell(value) {
   return String(value ?? '').trim()
 }
 
+/** 去掉表头前缀 *（兼容带 * 与历史不带 * 的模板） */
+function normalizeHeader(value) {
+  return normalizeCell(value).replace(/^[*＊\s]+/, '')
+}
+
 function mapHazardType(label) {
-  if (label === '安全') return 'safety'
-  if (label === '质量') return 'quality'
-  return ''
+  return HAZARD_TYPE_MAP[label] || ''
 }
 
 function isBlankRow(cells) {
@@ -84,11 +129,11 @@ function isSampleRow(description) {
 
 /**
  * 校验并导入本周隐患清单（.xlsx）
- * - 表头须为：隐患类型 / 隐患描述 / 隐患等级 / 备注
- * - 隐患类型：安全/质量；隐患等级：一般/较大/重大；描述必填；备注选填
+ * - 表头须包含：隐患类型 / 隐患描述 / 隐患等级（可选：整改状态 / 整改说明 / 备注）
+ * - 隐患类型：安全/质量/其他；隐患等级：一般/较大/重大；整改状态：待整改/已关闭（缺列时默认待整改）
  * - 空行跳过；模板示例行（描述以「示例：」开头）跳过
  * @param {File|Blob} file
- * @returns {Promise<{ ok: boolean, error?: string, hazards: Array, summary?: string }>}
+ * @returns {Promise<{ ok: boolean, error?: string, errors?: string[], hazards: Array, summary?: string }>}
  */
 export async function importWeeklyHazardListFromFile(file) {
   if (!file) {
@@ -130,42 +175,56 @@ export async function importWeeklyHazardListFromFile(file) {
     }
   }
 
-  const header = (rows[0] || []).slice(0, 4).map(normalizeCell)
-  const headerOk = REQUIRED_HEADERS.every((name, index) => header[index] === name)
-  if (!headerOk) {
-    const headerError = `表头格式不正确，当前为「${header.filter(Boolean).join(' / ') || '空'}」，须为：${REQUIRED_HEADERS.join(' / ')}`
+  const header = (rows[0] || []).map(normalizeHeader)
+  const headerIndex = {}
+  header.forEach((name, index) => {
+    if (name && headerIndex[name] == null) headerIndex[name] = index
+  })
+  const missing = REQUIRED_HEADER_NAMES.filter((name) => headerIndex[name] == null)
+  if (missing.length) {
     return {
       ok: false,
-      error: headerError,
-      errors: [headerError, '请下载清单模板后重新填报上传'],
+      error: `表头格式不正确，缺少「${missing.join(' / ')}」列`,
+      errors: [
+        `表头格式不正确，当前为「${header.filter(Boolean).join(' / ') || '空'}」`,
+        '须包含：隐患类型 / 隐患描述 / 隐患等级（可选：整改状态 / 整改说明 / 备注）',
+        '请下载清单模板后重新填报上传',
+      ],
       hazards: [],
     }
   }
 
+  const hasStatusColumn = headerIndex['整改状态'] != null
+  const col = (name) => (headerIndex[name] == null ? -1 : headerIndex[name])
   const hazards = []
   const errors = []
 
   for (let i = 1; i < rows.length; i += 1) {
     const rowIndex = i + 1
-    const cells = (rows[i] || []).slice(0, 4)
+    const cells = rows[i] || []
     if (isBlankRow(cells)) continue
 
-    const typeLabel = normalizeCell(cells[0])
-    const description = normalizeCell(cells[1])
-    const level = normalizeCell(cells[2])
-    const remark = normalizeCell(cells[3])
+    const typeLabel = normalizeCell(cells[col('隐患类型')])
+    const description = normalizeCell(cells[col('隐患描述')])
+    const level = normalizeCell(cells[col('隐患等级')])
+    const statusLabel = hasStatusColumn ? normalizeCell(cells[col('整改状态')]) : HAZARD_RECTIFY_STATUS_OPTIONS[0]
+    const rectifyRemark = col('整改说明') >= 0 ? normalizeCell(cells[col('整改说明')]) : ''
+    const remark = col('备注') >= 0 ? normalizeCell(cells[col('备注')]) : ''
 
     if (isSampleRow(description)) continue
 
     const hazardType = mapHazardType(typeLabel)
     if (!hazardType) {
-      errors.push(`第 ${rowIndex} 行：隐患类型须为「安全」或「质量」`)
+      errors.push(`第 ${rowIndex} 行：隐患类型须为「${HAZARD_TYPE_OPTIONS.join('」「')}」之一`)
     }
     if (!description) {
       errors.push(`第 ${rowIndex} 行：隐患描述不能为空`)
     }
     if (!HAZARD_LEVEL_OPTIONS.includes(level)) {
-      errors.push(`第 ${rowIndex} 行：隐患等级须为「一般」「较大」或「重大」`)
+      errors.push(`第 ${rowIndex} 行：隐患等级须为「${HAZARD_LEVEL_OPTIONS.join('」「')}」之一`)
+    }
+    if (hasStatusColumn && !HAZARD_RECTIFY_STATUS_OPTIONS.includes(statusLabel)) {
+      errors.push(`第 ${rowIndex} 行：整改状态须为「${HAZARD_RECTIFY_STATUS_OPTIONS.join('」「')}」之一`)
     }
 
     if (hazardType && description && HAZARD_LEVEL_OPTIONS.includes(level)) {
@@ -173,12 +232,13 @@ export async function importWeeklyHazardListFromFile(file) {
         hazardType,
         description,
         hazardLevel: level,
+        rectifyStatus: statusLabel,
+        rectifyRemark,
         remark,
         rectifier: '',
         hazardDeadline: '',
         acceptor: '',
         source: '清单导入',
-        rectifyStatus: '待整改',
       })
     }
   }
@@ -201,10 +261,11 @@ export async function importWeeklyHazardListFromFile(file) {
     }
   }
 
+  const closedCount = hazards.filter((item) => item.rectifyStatus === '已关闭').length
   return {
     ok: true,
     hazards,
-    summary: `已从「${fileName}」导入 ${hazards.length} 条隐患（默认待整改）`,
+    summary: `已从「${fileName}」导入 ${hazards.length} 条隐患（待整改 ${hazards.length - closedCount} 条 / 已关闭 ${closedCount} 条）`,
   }
 }
 

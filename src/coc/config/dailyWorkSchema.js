@@ -189,8 +189,8 @@ export const MAJOR_WORK_REGISTER_FIELDS = [
   { key: 'contractor', label: '施工单位', required: true, col: 'C', span: 24 },
   { key: 'majorWorkContent', label: '施工具体内容', required: false, col: 'D', span: 24, type: 'textarea' },
   { key: 'majorProjectCategory', label: '危大工程作业类别', required: true, col: 'E', span: 12, type: 'select' },
-  { key: 'majorStartTime', label: '作业开始时间', required: true, col: 'F', span: 12, type: 'datetime' },
-  { key: 'majorEndTime', label: '作业结束时间', required: true, col: 'G', span: 12, type: 'datetime' },
+  { key: 'majorStartTime', label: '作业开始时间', required: true, col: 'F', span: 24, type: 'datetime' },
+  { key: 'majorEndTime', label: '作业结束时间', required: true, col: 'G', span: 24, type: 'datetime' },
   {
     key: 'majorOwnerSafetyManager',
     label: '建设单位现场安全监管人及手机号',

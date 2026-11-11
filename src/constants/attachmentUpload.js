@@ -14,13 +14,13 @@ export const ATTACH_PRESETS = {
     label: '图片',
     accept: ATTACH_IMAGE_EXTS.join(','),
     exts: ATTACH_IMAGE_EXTS,
-    maxSizeMb: 5,
-    hint: '支持 jpg / jpeg / png / gif / webp / bmp / svg，单个不超过 5MB',
+    maxSizeMb: 15,
+    hint: '支持 jpg / jpeg / png / gif / webp / bmp / svg，单个不超过 15MB',
   },
   /**
-   * 图片（宽档 10MB）
-   * 用户 2026-10-19 指定：仅「工程指挥部 · 调度后台管理 · 黑红榜单」的榜单图片使用。
-   * 其它图片位仍用上面的 image（≤5MB），不得擅自把本档位扩用到别处。
+   * 图片（宽档，2026-11-11 起与标准图片档统一为 15MB）
+   * 历史：2026-10-19 曾为黑红榜单设为 10MB；现图片上限统一 15MB，image / image10 均按 15MB 校验，
+   * image10 键保留仅为兼容既有页面引用。
    */
   image10: {
     key: 'image10',
@@ -28,8 +28,8 @@ export const ATTACH_PRESETS = {
     label: '图片',
     accept: ATTACH_IMAGE_EXTS.join(','),
     exts: ATTACH_IMAGE_EXTS,
-    maxSizeMb: 10,
-    hint: '仅支持 jpg、jpeg、png、gif、webp、bmp、svg，单个不超过 10MB',
+    maxSizeMb: 15,
+    hint: '仅支持 jpg、jpeg、png、gif、webp、bmp、svg，单个不超过 15MB',
   },
   file: {
     key: 'file',

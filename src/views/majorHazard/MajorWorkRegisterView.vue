@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { Plus, Upload, Download, Search, Delete, Edit, View } from '@element-plus/icons-vue'
+import { Plus, Upload, Download, Search, Delete, Edit } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useCurrentProject } from '../../composables/useCurrentProject.js'
 import { COC_PROJECT_OPTIONS } from '../../config/projectOptions.js'
@@ -23,7 +23,7 @@ import {
   exportMajorWorkRegisterRecords,
   parseMajorWorkRegisterFile,
 } from '../../coc/utils/dailyWorkImport.js'
-import ProfilePersonContactInput from '../../components/basicData/ProfilePersonContactInput.vue'
+import ProfilePersonContactList from '../../components/basicData/ProfilePersonContactList.vue'
 
 const { selectedProjectId, isHqSelected } = useCurrentProject()
 
@@ -39,13 +39,10 @@ const keyword = ref('')
 const dateRange = ref([])
 const categoryFilter = ref('')
 const contractorFilter = ref('')
-const projectFilter = ref('')
 const currentPage = ref(1)
 const pageSize = ref(10)
 
 const dialogVisible = ref(false)
-const detailVisible = ref(false)
-const detailRow = ref(null)
 const dialogMode = ref('create')
 const formRef = ref(null)
 const form = ref(createEmptyForm())
@@ -59,7 +56,6 @@ const importTotal = ref(0)
 const importDuplicates = computed(() => importRecords.value.filter((item) => item._duplicate).length)
 const importSavable = computed(() => importRecords.value.filter((item) => !item._duplicate))
 
-const isHq = computed(() => isHqSelected.value)
 const canManage = computed(() => !isHqSelected.value)
 
 const currentProject = computed(() => findProjectById(selectedProjectId.value))
@@ -89,17 +85,17 @@ function createEmptyForm() {
     majorProjectCategory: '',
     majorStartTime: '',
     majorEndTime: '',
-    // 三方现场安全监管人：与「每日施工作业」一致，一个表单项内「姓名 + 手机号」并排两个输入框
+    // 三方现场安全监管人：与「每日施工作业」一致，支持多人（姓名 + 电话并排、可添加/删除人员）
     majorOwnerSafetyManager: '',
     majorContractorSafetyManager: '',
     majorSupervisorSafetyManager: '',
-    // 编辑导入的多人员记录时，保留未在表单展示的其余人员
-    contactExtras: {},
     majorControlMeasures: '',
   }
 }
 
-/** 三方现场安全监管人：表单字段 ↔ 存库「姓名/手机号」单列 */
+/** 三方现场安全监管人：表单字段 ↔ 存库「姓名/手机号」单列；每方最多 5 人 */
+const CONTACT_MAX_COUNT = 5
+
 const CONTACT_GROUPS = [
   { fieldKey: 'majorOwnerSafetyManager', rowKey: 'ownerSafety', label: '建设单位现场安全监管人', required: true },
   { fieldKey: 'majorContractorSafetyManager', rowKey: 'contractorSafety', label: '施工单位现场安全监管人', required: true },
@@ -119,37 +115,12 @@ function splitContactList(value) {
     .filter((item) => item.name || item.phone)
 }
 
-/** 人员数组 → Excel 单列「姓名/手机号」 */
-function joinContactList(list) {
-  return (Array.isArray(list) ? list : [])
-    .filter((item) => item && (item.name || item.phone))
-    .map((item) => `${item.name || ''}/${item.phone || ''}`)
-    .join(', ')
-}
-
-/** 详情展示：把「姓名/手机号」（可能多人）拆成姓名串与手机号串 */
-function contactNames(value) {
-  const list = splitContactList(value)
-  return list.length ? list.map((item) => item.name || '--').join('、') : ''
-}
-
-function contactPhones(value) {
-  const list = splitContactList(value)
-  return list.length ? list.map((item) => item.phone || '--').join('、') : ''
-}
-
 function contactFieldBaseLabel(field) {
   return String(field?.label || '').replace('及手机号', '')
 }
 
 function sourceLabel(source) {
   return SOURCE_LABEL[source] || source || '--'
-}
-
-function statusTagType(status) {
-  if (status === '进行中') return 'primary'
-  if (status === '已结束') return 'success'
-  return 'info'
 }
 
 function displayCell(value) {
@@ -204,7 +175,7 @@ const filteredList = computed(() => {
   const [dateStart, dateEnd] = dateRange.value || []
   const cat = categoryFilter.value
   const contractor = contractorFilter.value
-  const scopeId = isHqSelected.value ? projectFilter.value : selectedProjectId.value
+  const scopeId = isHqSelected.value ? '' : selectedProjectId.value
   return list.value.filter((row) => {
     if (!rowInScope(row, scopeId)) return false
     if (cat && row.category !== cat) return false
@@ -231,21 +202,24 @@ watch([total, pageSize], () => {
 })
 
 watch([selectedProjectId, isHqSelected], () => {
-  projectFilter.value = ''
   load()
 })
 
-/** 监管人校验（与「每日施工作业」一致的「姓名/手机号」单值）：必填方必填；须成对且手机号 11 位 */
-function contactValidator(fieldKey, required) {
+/** 监管人校验（与「每日施工作业」一致的多人员「姓名/手机号」）：必填方至少 1 人、至多 5 人；每人须姓名 + 11 位手机号 */
+function contactValidator(fieldKey, required, groupLabel = '现场安全监管人') {
   return (rule, value, callback) => {
     const list = splitContactList(form.value?.[fieldKey])
     if (!list.length) {
-      return callback(required ? new Error('请填写现场安全监管人姓名与手机号') : undefined)
+      return callback(required ? new Error(`请填写${groupLabel}的姓名与手机号`) : undefined)
     }
-    const first = list[0]
-    if (!first.name) return callback(new Error('请填写现场安全监管人姓名'))
-    if (!first.phone) return callback(new Error('请填写现场安全监管人手机号'))
-    if (!/^1\d{10}$/.test(first.phone)) return callback(new Error('手机号须为 11 位数字'))
+    if (list.length > CONTACT_MAX_COUNT) return callback(new Error(`${groupLabel}最多 ${CONTACT_MAX_COUNT} 人`))
+    for (let i = 0; i < list.length; i += 1) {
+      const person = list[i]
+      const label = list.length > 1 ? `第 ${i + 1} 位${groupLabel}` : groupLabel
+      if (!person.name) return callback(new Error(`请填写${label}姓名`))
+      if (!person.phone) return callback(new Error(`请填写${label}手机号`))
+      if (!/^1\d{10}$/.test(person.phone)) return callback(new Error(`${label}手机号须为 11 位数字`))
+    }
     return callback()
   }
 }
@@ -267,9 +241,17 @@ const formRules = {
     { required: true, message: '请选择作业结束时间', trigger: 'change' },
     { validator: timeCompareValidator, trigger: 'change' },
   ],
-  majorOwnerSafetyManager: [{ validator: contactValidator('majorOwnerSafetyManager', true), trigger: 'change' }],
-  majorContractorSafetyManager: [{ validator: contactValidator('majorContractorSafetyManager', true), trigger: 'change' }],
-  majorSupervisorSafetyManager: [{ validator: contactValidator('majorSupervisorSafetyManager', false), trigger: 'change' }],
+  majorOwnerSafetyManager: [
+    { required: true, message: '请填写建设单位现场安全监管人的姓名与手机号', trigger: 'change' },
+    { validator: contactValidator('majorOwnerSafetyManager', true, '建设单位现场安全监管人'), trigger: 'change' },
+  ],
+  majorContractorSafetyManager: [
+    { required: true, message: '请填写施工单位现场安全监管人的姓名与手机号', trigger: 'change' },
+    { validator: contactValidator('majorContractorSafetyManager', true, '施工单位现场安全监管人'), trigger: 'change' },
+  ],
+  majorSupervisorSafetyManager: [
+    { validator: contactValidator('majorSupervisorSafetyManager', false, '监理单位现场安全监管人'), trigger: 'change' },
+  ],
   majorControlMeasures: [{ required: true, message: '请填写风险管控措施', trigger: 'blur' }],
 }
 
@@ -297,37 +279,19 @@ function openEdit(row) {
   next.majorStartTime = row.startTime || ''
   next.majorEndTime = row.endTime || ''
   next.majorControlMeasures = row.measures || ''
-  // 三方监管人：取第 1 人填入「姓名/手机号」单值（表单内并排两输入框），其余人员原样保留
-  const extras = {}
+  // 三方监管人：支持多人，原样带入（组件内部按「姓名/手机号」拆分展示，最多 5 人）
   CONTACT_GROUPS.forEach((group) => {
-    const list = splitContactList(row[group.rowKey])
-    next[group.fieldKey] = list.length ? `${list[0].name}/${list[0].phone}` : ''
-    if (list.length > 1) extras[group.fieldKey] = list.slice(1)
+    next[group.fieldKey] = row[group.rowKey] || ''
   })
-  next.contactExtras = extras
   form.value = next
   dialogVisible.value = true
   formRef.value?.clearValidate()
 }
 
-/** 表单单值「姓名/手机号」→ 存库单列（保留编辑前未展示的其余人员） */
-function buildContactValue(group) {
-  const first = splitContactList(form.value?.[group.fieldKey])[0] || { name: '', phone: '' }
-  const extras = Array.isArray(form.value?.contactExtras?.[group.fieldKey])
-    ? form.value.contactExtras[group.fieldKey]
-    : []
-  return joinContactList([first, ...extras])
-}
-
 async function submitForm() {
   const valid = await formRef.value.validate().catch(() => false)
   if (!valid) return
-  const payload = { ...form.value }
-  CONTACT_GROUPS.forEach((group) => {
-    payload[group.fieldKey] = buildContactValue(group)
-  })
-  delete payload.contactExtras
-  const result = saveMajorWorkRegisterRecord({ ...payload, source: dialogMode.value === 'edit' ? undefined : 'manual' })
+  const result = saveMajorWorkRegisterRecord({ ...form.value, source: dialogMode.value === 'edit' ? undefined : 'manual' })
   if (!result.ok) {
     ElMessage.warning(result.msg || '保存失败')
     return
@@ -335,20 +299,6 @@ async function submitForm() {
   ElMessage.success(dialogMode.value === 'create' ? '危大工程信息已登记' : '危大工程信息已更新')
   dialogVisible.value = false
   load()
-}
-
-function openDetail(row) {
-  detailRow.value = row
-  detailVisible.value = true
-}
-
-function formatMomentText(value) {
-  const text = String(value || '').trim()
-  if (!text) return '--'
-  const date = new Date(text)
-  if (Number.isNaN(date.getTime())) return text
-  const pad = (num) => String(num).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
 async function handleDelete(row) {
@@ -452,13 +402,29 @@ function resetImport() {
 const exportDateLabel = computed(() => {
   const [start, end] = dateRange.value || []
   if (start && end) return `${start} 至 ${end}`
-  if (start) return `${start} 起`
-  if (end) return `截至 ${end}`
-  return '全部'
+  return ''
 })
 
+/** 导出取数口径：当前项目范围 + 所选作业日期区间（不受关键字/类别/施工单位筛选影响） */
+function dateScopedRows() {
+  const [start, end] = dateRange.value || []
+  const scopeId = isHqSelected.value ? '' : selectedProjectId.value
+  return list.value.filter((row) => {
+    if (!rowInScope(row, scopeId)) return false
+    const day = String(row.reportDate || '')
+    if (start && day < start) return false
+    if (end && day > end) return false
+    return true
+  })
+}
+
 async function handleExport() {
-  const rows = filteredList.value.map((row) => ({
+  const [start, end] = dateRange.value || []
+  if (!start || !end) {
+    ElMessage.warning('请先选择作业日期区间（开始日期 至 结束日期）后再导出')
+    return
+  }
+  const rows = dateScopedRows().map((row) => ({
     ...row,
     leadUnit: row.leadUnit,
     projectName: row.projectName,
@@ -472,14 +438,19 @@ async function handleExport() {
     majorSupervisorSafetyManager: row.supervisorSafety,
     majorControlMeasures: row.measures,
   }))
+  if (!rows.length) {
+    ElMessage.warning(`所选作业日期区间（${exportDateLabel.value}）内没有危大工程信息，无法导出`)
+    return
+  }
   const result = await exportMajorWorkRegisterRecords(rows, {
-    title: `建设工程指挥部危大工程信息登记表（作业日期：${exportDateLabel.value}）`,
+    rangeStart: start,
+    rangeEnd: end,
   })
   if (!result.ok) {
     ElMessage.warning(result.error || '导出失败')
     return
   }
-  ElMessage.success(`已导出 ${result.count} 条危大工程信息`)
+  ElMessage.success(`已按作业日期（${exportDateLabel.value}）导出 ${result.count} 条危大工程信息`)
 }
 
 function indexMethod(index) {
@@ -512,16 +483,6 @@ onMounted(() => {
             class="mwr-date"
             aria-label="作业日期区间"
           />
-          <el-select
-            v-if="isHq"
-            v-model="projectFilter"
-            clearable
-            placeholder="全部项目"
-            class="mwr-project"
-            aria-label="施工项目"
-          >
-            <el-option v-for="item in projectOptions" :key="item.id" :label="item.label" :value="item.id" />
-          </el-select>
           <el-select
             v-model="categoryFilter"
             clearable
@@ -585,13 +546,10 @@ onMounted(() => {
       <el-table-column label="来源" width="90" align="center">
         <template #default="{ row }">{{ sourceLabel(row.source) }}</template>
       </el-table-column>
-      <el-table-column label="操作" :width="canManage ? 218 : 92" fixed="right">
+      <el-table-column v-if="canManage" label="操作" width="150" fixed="right">
         <template #default="{ row }">
-          <el-button link type="primary" :icon="View" @click="openDetail(row)">详情</el-button>
-          <template v-if="canManage">
-            <el-button link type="primary" :icon="Edit" @click="openEdit(row)">编辑</el-button>
-            <el-button link type="danger" :icon="Delete" @click="handleDelete(row)">删除</el-button>
-          </template>
+          <el-button link type="primary" :icon="Edit" @click="openEdit(row)">编辑</el-button>
+          <el-button link type="danger" :icon="Delete" @click="handleDelete(row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -617,8 +575,17 @@ onMounted(() => {
       <el-form ref="formRef" :model="form" :rules="formRules" label-width="212px" class="mwr-form">
         <el-row :gutter="16">
           <el-col v-for="field in MAJOR_WORK_REGISTER_FIELDS" :key="field.key" :span="field.span || 24">
-            <el-form-item v-if="field.contactMode" :label="contactFieldBaseLabel(field)" :prop="field.key">
-              <ProfilePersonContactInput v-model="form[field.key]" action-layout="inline" />
+            <el-form-item
+              v-if="field.contactMode"
+              :label="contactFieldBaseLabel(field)"
+              :prop="field.key"
+              :required="field.required"
+            >
+              <ProfilePersonContactList
+                v-model="form[field.key]"
+                :min="field.required ? 1 : 0"
+                :max="CONTACT_MAX_COUNT"
+              />
             </el-form-item>
             <el-form-item v-else :label="field.label" :prop="field.key">
               <el-input
@@ -668,32 +635,6 @@ onMounted(() => {
         <el-button type="primary" @click="submitForm">保存</el-button>
       </template>
     </el-dialog>
-
-    <el-dialog v-model="detailVisible" title="危大工程登记详情" width="780px" append-to-body destroy-on-close>
-      <el-descriptions v-if="detailRow" :column="2" border class="mwr-detail">
-        <el-descriptions-item label="施工项目名称" :span="2">{{ displayCell(detailRow.projectName) }}</el-descriptions-item>
-        <el-descriptions-item label="管理单位" :span="2">{{ displayCell(detailRow.leadUnit) }}</el-descriptions-item>
-        <el-descriptions-item label="施工单位" :span="2">{{ displayCell(detailRow.contractor) }}</el-descriptions-item>
-        <el-descriptions-item label="危大工程作业类别">{{ displayCell(detailRow.category) }}</el-descriptions-item>
-        <el-descriptions-item label="作业状态">
-          <el-tag :type="statusTagType(detailRow.status)" size="small" effect="light">{{ detailRow.status || '--' }}</el-tag>
-        </el-descriptions-item>
-        <el-descriptions-item label="作业开始时间">{{ displayCell(detailRow.startTime) }}</el-descriptions-item>
-        <el-descriptions-item label="作业结束时间">{{ displayCell(detailRow.endTime) }}</el-descriptions-item>
-        <template v-for="group in CONTACT_GROUPS" :key="group.fieldKey">
-          <el-descriptions-item :label="`${group.label}姓名`">{{ displayCell(contactNames(detailRow[group.rowKey])) }}</el-descriptions-item>
-          <el-descriptions-item :label="`${group.label}手机号`">{{ displayCell(contactPhones(detailRow[group.rowKey])) }}</el-descriptions-item>
-        </template>
-        <el-descriptions-item label="施工具体内容" :span="2">{{ displayCell(detailRow.workContent) }}</el-descriptions-item>
-        <el-descriptions-item label="风险管控措施" :span="2">{{ displayCell(detailRow.measures) }}</el-descriptions-item>
-        <el-descriptions-item label="来源">{{ sourceLabel(detailRow.source) }}</el-descriptions-item>
-        <el-descriptions-item label="登记/更新时间">{{ formatMomentText(detailRow.updatedAt) }}</el-descriptions-item>
-      </el-descriptions>
-      <template #footer>
-        <el-button @click="detailVisible = false">关闭</el-button>
-      </template>
-    </el-dialog>
-
     <el-dialog v-model="importVisible" title="导入危大工程信息登记" width="880px" append-to-body destroy-on-close @closed="resetImport">
       <div class="mwr-import-tip">
         仅支持 .xlsx / .xls，单文件 ≤50MB；请使用「下载模版」生成的 11 列模板。施工项目名称可留空（默认取当前项目）。
@@ -796,7 +737,6 @@ onMounted(() => {
   min-width: 0;
 }
 
-.mwr-project,
 .mwr-category,
 .mwr-contractor {
   width: 148px;
@@ -830,7 +770,6 @@ onMounted(() => {
     width: auto;
   }
 
-  .mwr-project,
   .mwr-category,
   .mwr-contractor {
     flex: 1 1 148px;
@@ -846,10 +785,6 @@ onMounted(() => {
   margin-bottom: 14px;
 }
 
-.mwr-detail :deep(.el-descriptions__label) {
-  white-space: nowrap;
-  width: 200px;
-}
 
 .mwr-import-tip {
   margin-bottom: 12px;

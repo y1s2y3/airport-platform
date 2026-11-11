@@ -154,7 +154,7 @@ function validateForm() {
 
 function handleImageUpload(uploadFile) {
   const file = uploadFile.raw
-  // 黑红榜单图片使用 10MB 宽档（用户 2026-10-19 指定），其它图片位仍为 5MB
+  // 黑红榜单图片原用 10MB 宽档（用户 2026-10-19 指定）；2026-11-11 起图片上限全系统统一 15MB
   const err = validateAttachFile(file, 'image10', { currentCount: 0, max: 1 })
   if (err) {
     ElMessage.warning(err)

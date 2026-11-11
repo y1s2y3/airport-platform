@@ -62,7 +62,7 @@ export function deletionReason(row, people = {}, persistedRow, initialRow) {
 export function validateImages(images = [], required = false) {
   if (!Array.isArray(images) || images.length > 9) return '图片最多上传9张'
   if (required && !images.length) return '请至少上传1张检查情况截图'
-  if (images.some(i => !/^data:image\/(?:png|jpe?g|gif|webp|bmp|svg\+xml)[;,]/i.test(i?.url || '') || !Number.isFinite(i?.size) || i.size < 0 || i.size > 5 * 1024 * 1024)) return '请使用有效图片，单张不得超过5MB'
+  if (images.some(i => !/^data:image\/(?:png|jpe?g|gif|webp|bmp|svg\+xml)[;,]/i.test(i?.url || '') || !Number.isFinite(i?.size) || i.size < 0 || i.size > 15 * 1024 * 1024)) return '请使用有效图片，单张不得超过15MB'
   return ''
 }
 export function checkErrors(value, { required = false, imagesRequired = false } = {}) {

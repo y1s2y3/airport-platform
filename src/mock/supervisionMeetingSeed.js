@@ -1,4 +1,5 @@
 import { PROJECT_SHORT_NAMES } from '../coc/mock/data.js'
+import { hazardTypeLabelOf } from '../utils/supervisionMeetingTemplate.js'
 
 function escapeHtml(text = '') {
   return String(text)
@@ -76,6 +77,12 @@ const HAZARD_TEMPLATES = [
     description: '塔吊作业区警戒标识不足，临边防护缺失',
     hazardLevel: '较大',
     remark: '东侧塔吊回转半径范围内',
+  },
+  {
+    hazardType: 'safety',
+    description: '土方开挖裸土未覆盖，现场扬尘超标',
+    hazardLevel: '一般',
+    remark: '需覆盖防尘网并洒水降尘',
   },
   {
     hazardType: 'quality',
@@ -190,7 +197,7 @@ function buildHazardRowsForPreview(startIndex, count) {
   return Array.from({ length: count }, (_, h) => {
     const template = HAZARD_TEMPLATES[(startIndex + h) % HAZARD_TEMPLATES.length]
     return {
-      type: template.hazardType === 'quality' ? '质量' : '安全',
+      type: hazardTypeLabelOf(template.hazardType) || '安全',
       desc: template.description,
       level: template.hazardLevel,
       remark: template.remark || '',
@@ -304,8 +311,12 @@ export function buildSupervisionMeetingSeed() {
         hazardDeadline,
         acceptor,
         rectifyStatus,
-        rectifyRemark: rectifyStatus === '已关闭' ? '现场复核通过，资料齐全' : '',
-        rectifyPhotos: [],
+        rectifyRemark:
+          rectifyStatus === '已关闭'
+            ? '现场已按方案整改完成，监理复核通过，资料齐全。'
+            : '整改中：已安排责任班组按方案限期整改。',
+        rectifyPhotos:
+          rectifyStatus === '已关闭' ? [demoImageDataUrl('整改后照片（示例）', template.description)] : [],
         hazardPhotos:
           h === 0 ? [demoImageDataUrl('隐患现场照片（示例）', template.description)] : [],
         statusLogs: buildSeedStatusLogs(rectifyStatus, uploadTime, '指挥部安质专责'),
@@ -379,8 +390,8 @@ export function buildSupervisionMeetingSeed() {
           hazardDeadline: addDays(earlierDate, 5),
           acceptor: ACCEPTORS[(index + h + 1) % ACCEPTORS.length],
           rectifyStatus: '已关闭',
-          rectifyRemark: '已闭环',
-          rectifyPhotos: [],
+          rectifyRemark: '上周遗留隐患已完成整改，现场照片与验收资料齐全，监理复核通过。',
+          rectifyPhotos: [demoImageDataUrl('整改后照片（示例）', template.description)],
           hazardPhotos:
             h === 0 ? [demoImageDataUrl('隐患现场照片（示例）', template.description)] : [],
           statusLogs: buildSeedStatusLogs('已关闭', uploadTime),

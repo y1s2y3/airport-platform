@@ -54,7 +54,7 @@ const photoUrl=(file,index)=>resolveDispatchHazardPhotoSrc(file,index)
    </div>
   </section>
   <section v-if="row.source==='externalQuality'"><h3>问题描述与要求建议</h3><div v-for="item in raw.items" :key="item.id" class="source-item"><p>{{item.description}}</p><p>要求建议：{{item.advice||'--'}}</p><div class="source-photos"><div v-for="(file,index) in item.attachments" :key="index"><el-image :src="photoUrl(file,index)" :preview-src-list="item.attachments.map(photoUrl)" :z-index="240000" preview-teleported fit="contain"/><small>{{file.name||file}}</small></div></div></div></section>
-  <section v-if="rectification||rectPhotos.length"><h3>整改信息</h3><p>{{rectification||'--'}}</p><p v-if="inspection?.rectification?.date">整改日期：{{inspection.rectification.date}}</p><div class="source-photos"><div v-for="(photo,index) in rectPhotos" :key="index"><el-image :src="photoUrl(photo,index)" :preview-src-list="rectPhotos.map(photoUrl)" :z-index="240000" preview-teleported fit="contain"/><small>{{resolveDispatchHazardPhotoName(photo,index)}}</small></div></div></section>
+  <section v-if="rectification||rectPhotos.length"><h3>整改信息</h3><div class="source-field rectify-field"><span>整改说明</span><strong>{{rectification||'--'}}</strong></div><p v-if="inspection?.rectification?.date">整改日期：{{inspection.rectification.date}}</p><div class="hazard-content-label">整改图片</div><div v-if="rectPhotos.length" class="source-photos"><div v-for="(photo,index) in rectPhotos" :key="index"><el-image :src="photoUrl(photo,index)" :preview-src-list="rectPhotos.map(photoUrl)" :initial-index="index" :z-index="240000" preview-teleported fit="contain"/><small>{{resolveDispatchHazardPhotoName(photo,index)}}</small></div></div><p v-else>--</p></section>
   <section v-if="inspection?.reviews?.length"><h3>复查信息</h3><div v-for="review in inspection.reviews" :key="review.round"><p>{{review.date||'--'}} · {{review.result||'--'}}</p><p>{{review.comment||'--'}}</p></div></section>
   <section v-if="inspection?.managerApproval"><h3>项目经理审批</h3><p>{{inspection.managerApproval.manager||'--'}} · {{inspection.managerApproval.status||'--'}}</p><p>{{inspection.managerApproval.comment||'--'}}</p></section>
   <section><h3>流程记录</h3><el-timeline v-if="logs.length" class="coc-flow-timeline"><el-timeline-item v-for="(log,index) in logs" :key="index" :type="flowType(log.status)" :hollow="log.status==='pending'" :timestamp="log.time||'待进行'" placement="top"><div class="coc-flow-card" :class="log.status"><div class="coc-flow-title">{{log.title}}<el-tag v-if="log.status==='current'" size="small" type="warning" effect="dark">当前</el-tag></div><div class="coc-flow-meta">处理人：{{log.user||'--'}}</div><div v-if="log.remark" class="coc-flow-remark">备注：{{log.remark}}</div></div></el-timeline-item></el-timeline><p v-else>--</p></section>
@@ -67,6 +67,9 @@ const photoUrl=(file,index)=>resolveDispatchHazardPhotoSrc(file,index)
 .hazard-content-label{font-size:13px;font-weight:600;line-height:1.5;color:#c9dcf2;margin-bottom:6px}
 .hazard-content-text{margin:0;line-height:1.7;color:#dce8f6;overflow-wrap:anywhere}
 .hazard-content .source-photos{margin-top:10px}
+.rectify-field{display:flex;gap:12px;line-height:1.7;margin-bottom:6px}
+.rectify-field span{color:#98adc6;min-width:70px;flex-shrink:0}
+.rectify-field strong{font-weight:400;overflow-wrap:anywhere}
 /* ===== 抽检记录（深色大屏美化） ===== */
 .coc-hazard-issue-detail :deep(.sampling-panel){margin:0;padding:0;background:transparent;border:0;border-radius:0;color:#dce8f6}
 .coc-hazard-issue-detail :deep(.sampling-panel-head){display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 12px;padding-bottom:10px;border-bottom:1px dashed #3a506a}
