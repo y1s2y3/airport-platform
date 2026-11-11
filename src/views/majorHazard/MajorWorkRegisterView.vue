@@ -23,6 +23,7 @@ import {
   exportMajorWorkRegisterRecords,
   parseMajorWorkRegisterFile,
 } from '../../coc/utils/dailyWorkImport.js'
+import ProfilePersonContactInput from '../../components/basicData/ProfilePersonContactInput.vue'
 
 const { selectedProjectId, isHqSelected } = useCurrentProject()
 
@@ -88,11 +89,57 @@ function createEmptyForm() {
     majorProjectCategory: '',
     majorStartTime: '',
     majorEndTime: '',
+    // 三方现场安全监管人：与「每日施工作业」一致，一个表单项内「姓名 + 手机号」并排两个输入框
     majorOwnerSafetyManager: '',
     majorContractorSafetyManager: '',
     majorSupervisorSafetyManager: '',
+    // 编辑导入的多人员记录时，保留未在表单展示的其余人员
+    contactExtras: {},
     majorControlMeasures: '',
   }
+}
+
+/** 三方现场安全监管人：表单字段 ↔ 存库「姓名/手机号」单列 */
+const CONTACT_GROUPS = [
+  { fieldKey: 'majorOwnerSafetyManager', rowKey: 'ownerSafety', label: '建设单位现场安全监管人', required: true },
+  { fieldKey: 'majorContractorSafetyManager', rowKey: 'contractorSafety', label: '施工单位现场安全监管人', required: true },
+  { fieldKey: 'majorSupervisorSafetyManager', rowKey: 'supervisorSafety', label: '监理单位现场安全监管人', required: false },
+]
+
+/** Excel 单列「姓名/手机号」→ 人员数组（多人用英文逗号分隔） */
+function splitContactList(value) {
+  const text = String(value || '').trim()
+  if (!text) return []
+  return text
+    .split(/[,，;；]/)
+    .map((part) => {
+      const [name, phone] = String(part).split('/')
+      return { name: String(name || '').trim(), phone: String(phone || '').trim() }
+    })
+    .filter((item) => item.name || item.phone)
+}
+
+/** 人员数组 → Excel 单列「姓名/手机号」 */
+function joinContactList(list) {
+  return (Array.isArray(list) ? list : [])
+    .filter((item) => item && (item.name || item.phone))
+    .map((item) => `${item.name || ''}/${item.phone || ''}`)
+    .join(', ')
+}
+
+/** 详情展示：把「姓名/手机号」（可能多人）拆成姓名串与手机号串 */
+function contactNames(value) {
+  const list = splitContactList(value)
+  return list.length ? list.map((item) => item.name || '--').join('、') : ''
+}
+
+function contactPhones(value) {
+  const list = splitContactList(value)
+  return list.length ? list.map((item) => item.phone || '--').join('、') : ''
+}
+
+function contactFieldBaseLabel(field) {
+  return String(field?.label || '').replace('及手机号', '')
 }
 
 function sourceLabel(source) {
@@ -188,21 +235,17 @@ watch([selectedProjectId, isHqSelected], () => {
   load()
 })
 
-function isContactLike(value) {
-  const text = String(value || '').trim()
-  if (!text) return false
-  return text.split(/[,，;；]/).every((part) => {
-    const item = part.trim()
-    if (!item) return false
-    const phone = item.includes('/') ? item.split('/').pop().trim() : item
-    return /\d{11}/.test(phone)
-  })
-}
-
-function contactValidator(message) {
+/** 监管人校验（与「每日施工作业」一致的「姓名/手机号」单值）：必填方必填；须成对且手机号 11 位 */
+function contactValidator(fieldKey, required) {
   return (rule, value, callback) => {
-    if (!String(value || '').trim()) return callback(new Error(message))
-    if (!isContactLike(value)) return callback(new Error('格式应为「姓名/11位手机号」，多人用逗号分隔'))
+    const list = splitContactList(form.value?.[fieldKey])
+    if (!list.length) {
+      return callback(required ? new Error('请填写现场安全监管人姓名与手机号') : undefined)
+    }
+    const first = list[0]
+    if (!first.name) return callback(new Error('请填写现场安全监管人姓名'))
+    if (!first.phone) return callback(new Error('请填写现场安全监管人手机号'))
+    if (!/^1\d{10}$/.test(first.phone)) return callback(new Error('手机号须为 11 位数字'))
     return callback()
   }
 }
@@ -224,8 +267,9 @@ const formRules = {
     { required: true, message: '请选择作业结束时间', trigger: 'change' },
     { validator: timeCompareValidator, trigger: 'change' },
   ],
-  majorOwnerSafetyManager: [{ validator: contactValidator('请填写建设单位现场安全监管人及手机号'), trigger: 'blur' }],
-  majorContractorSafetyManager: [{ validator: contactValidator('请填写施工单位现场安全监管人及手机号'), trigger: 'blur' }],
+  majorOwnerSafetyManager: [{ validator: contactValidator('majorOwnerSafetyManager', true), trigger: 'change' }],
+  majorContractorSafetyManager: [{ validator: contactValidator('majorContractorSafetyManager', true), trigger: 'change' }],
+  majorSupervisorSafetyManager: [{ validator: contactValidator('majorSupervisorSafetyManager', false), trigger: 'change' }],
   majorControlMeasures: [{ required: true, message: '请填写风险管控措施', trigger: 'blur' }],
 }
 
@@ -242,29 +286,48 @@ function openCreate() {
 
 function openEdit(row) {
   dialogMode.value = 'edit'
-  form.value = {
-    id: row.recordId,
-    projectId: row.projectId || '',
-    leadUnit: row.leadUnit || DAILY_WORK_DEFAULT_LEAD_UNIT,
-    projectName: row.projectName || '',
-    contractor: row.contractor || '',
-    majorWorkContent: row.workContent || '',
-    majorProjectCategory: row.category || '',
-    majorStartTime: row.startTime || '',
-    majorEndTime: row.endTime || '',
-    majorOwnerSafetyManager: row.ownerSafety || '',
-    majorContractorSafetyManager: row.contractorSafety || '',
-    majorSupervisorSafetyManager: row.supervisorSafety || '',
-    majorControlMeasures: row.measures || '',
-  }
+  const next = createEmptyForm()
+  next.id = row.recordId
+  next.projectId = row.projectId || ''
+  next.leadUnit = row.leadUnit || DAILY_WORK_DEFAULT_LEAD_UNIT
+  next.projectName = row.projectName || ''
+  next.contractor = row.contractor || ''
+  next.majorWorkContent = row.workContent || ''
+  next.majorProjectCategory = row.category || ''
+  next.majorStartTime = row.startTime || ''
+  next.majorEndTime = row.endTime || ''
+  next.majorControlMeasures = row.measures || ''
+  // 三方监管人：取第 1 人填入「姓名/手机号」单值（表单内并排两输入框），其余人员原样保留
+  const extras = {}
+  CONTACT_GROUPS.forEach((group) => {
+    const list = splitContactList(row[group.rowKey])
+    next[group.fieldKey] = list.length ? `${list[0].name}/${list[0].phone}` : ''
+    if (list.length > 1) extras[group.fieldKey] = list.slice(1)
+  })
+  next.contactExtras = extras
+  form.value = next
   dialogVisible.value = true
   formRef.value?.clearValidate()
+}
+
+/** 表单单值「姓名/手机号」→ 存库单列（保留编辑前未展示的其余人员） */
+function buildContactValue(group) {
+  const first = splitContactList(form.value?.[group.fieldKey])[0] || { name: '', phone: '' }
+  const extras = Array.isArray(form.value?.contactExtras?.[group.fieldKey])
+    ? form.value.contactExtras[group.fieldKey]
+    : []
+  return joinContactList([first, ...extras])
 }
 
 async function submitForm() {
   const valid = await formRef.value.validate().catch(() => false)
   if (!valid) return
-  const result = saveMajorWorkRegisterRecord({ ...form.value, source: dialogMode.value === 'edit' ? undefined : 'manual' })
+  const payload = { ...form.value }
+  CONTACT_GROUPS.forEach((group) => {
+    payload[group.fieldKey] = buildContactValue(group)
+  })
+  delete payload.contactExtras
+  const result = saveMajorWorkRegisterRecord({ ...payload, source: dialogMode.value === 'edit' ? undefined : 'manual' })
   if (!result.ok) {
     ElMessage.warning(result.msg || '保存失败')
     return
@@ -551,10 +614,13 @@ onMounted(() => {
       append-to-body
       destroy-on-close
     >
-      <el-form ref="formRef" :model="form" :rules="formRules" label-width="180px" class="mwr-form">
+      <el-form ref="formRef" :model="form" :rules="formRules" label-width="212px" class="mwr-form">
         <el-row :gutter="16">
           <el-col v-for="field in MAJOR_WORK_REGISTER_FIELDS" :key="field.key" :span="field.span || 24">
-            <el-form-item :label="field.label" :prop="field.key">
+            <el-form-item v-if="field.contactMode" :label="contactFieldBaseLabel(field)" :prop="field.key">
+              <ProfilePersonContactInput v-model="form[field.key]" action-layout="inline" />
+            </el-form-item>
+            <el-form-item v-else :label="field.label" :prop="field.key">
               <el-input
                 v-if="field.key === 'projectName'"
                 :model-value="form.projectName || '--'"
@@ -614,9 +680,10 @@ onMounted(() => {
         </el-descriptions-item>
         <el-descriptions-item label="作业开始时间">{{ displayCell(detailRow.startTime) }}</el-descriptions-item>
         <el-descriptions-item label="作业结束时间">{{ displayCell(detailRow.endTime) }}</el-descriptions-item>
-        <el-descriptions-item label="建设单位现场安全监管人及手机号" :span="2">{{ displayCell(detailRow.ownerSafety) }}</el-descriptions-item>
-        <el-descriptions-item label="施工单位现场安全监管人及手机号" :span="2">{{ displayCell(detailRow.contractorSafety) }}</el-descriptions-item>
-        <el-descriptions-item label="监理单位现场安全监管人及手机号" :span="2">{{ displayCell(detailRow.supervisorSafety) }}</el-descriptions-item>
+        <template v-for="group in CONTACT_GROUPS" :key="group.fieldKey">
+          <el-descriptions-item :label="`${group.label}姓名`">{{ displayCell(contactNames(detailRow[group.rowKey])) }}</el-descriptions-item>
+          <el-descriptions-item :label="`${group.label}手机号`">{{ displayCell(contactPhones(detailRow[group.rowKey])) }}</el-descriptions-item>
+        </template>
         <el-descriptions-item label="施工具体内容" :span="2">{{ displayCell(detailRow.workContent) }}</el-descriptions-item>
         <el-descriptions-item label="风险管控措施" :span="2">{{ displayCell(detailRow.measures) }}</el-descriptions-item>
         <el-descriptions-item label="来源">{{ sourceLabel(detailRow.source) }}</el-descriptions-item>
