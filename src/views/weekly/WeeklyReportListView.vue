@@ -7,13 +7,15 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Download, Plus, Refresh, Search, View } from '@element-plus/icons-vue'
+import { Download, Refresh, Search, Setting, View } from '@element-plus/icons-vue'
 import {
   listWeeklyReports,
   ensureLatestWeekGenerated,
-  listWeekOptions,
-  generateWeeklyReport,
   getWeeklyReport,
+  getWeeklyTargets,
+  saveWeeklyTargets,
+  resetWeeklyTargets,
+  WEEKLY_TARGET_FIELDS,
   WEEKLY_REPORT_TODAY,
 } from '../../utils/weeklyReportStorage'
 import { exportWeeklyReportDocx } from '../../utils/weeklyReportDocx'
@@ -25,12 +27,11 @@ const loading = ref(false)
 const keyword = ref('')
 const yearFilter = ref('')
 const groupFilter = ref('all')
-const generateVisible = ref(false)
-const generateLoading = ref(false)
-const selectedWeekKey = ref('')
 const exportingId = ref('')
-
-const weekOptions = computed(() => listWeekOptions(8))
+const openingId = ref('')
+const settingsVisible = ref(false)
+const targetDraft = ref({})
+const targetFields = WEEKLY_TARGET_FIELDS
 
 const yearOptions = computed(() => {
   const years = new Set(reports.value.map((item) => String(item.weekStart).slice(0, 4)))
@@ -114,36 +115,24 @@ function latestMetric(key, unit) {
   return metricValue(latest, key, unit)
 }
 
-function goDetail(row) {
-  router.push(`/weekly-report/${row.id}`)
-}
-
-function openGenerate() {
-  selectedWeekKey.value = weekOptions.value.find((item) => !item.exists)?.weekKey || ''
-  generateVisible.value = true
-}
-
-async function submitGenerate() {
-  if (!selectedWeekKey.value) {
-    ElMessage.warning('请选择要生成的周次')
+async function goDetail(row) {
+  if (!row?.id) return
+  const target = `/weekly-report/${row.id}`
+  openingId.value = row.id
+  try {
+    await router.push(target)
     return
+  } catch (error) {
+    // 首次导航失败（多为详情页模块懒加载失败）：自动重试一次
+    try {
+      await router.push(target)
+      return
+    } catch (retryError) {
+      // 仍失败则整页重新加载（保留目标路由），让浏览器重新拉取模块，而不是让用户手动刷新
+      window.location.hash = target
+      window.location.reload()
+    }
   }
-  const option = weekOptions.value.find((item) => item.weekKey === selectedWeekKey.value)
-  if (option?.exists) {
-    ElMessage.warning('该周周报已生成，同一周不支持重复生成')
-    return
-  }
-  generateLoading.value = true
-  const result = generateWeeklyReport({ weekKey: selectedWeekKey.value, manual: true })
-  generateLoading.value = false
-  if (!result.ok) {
-    ElMessage.warning(result.msg || '生成失败')
-    refresh()
-    return
-  }
-  generateVisible.value = false
-  refresh()
-  ElMessage.success(result.msg || '周报已生成')
 }
 
 async function handleExport(row) {
@@ -163,7 +152,29 @@ function resetFilters() {
   yearFilter.value = ''
 }
 
+function openSettings() {
+  targetDraft.value = { ...getWeeklyTargets() }
+  settingsVisible.value = true
+}
+
+function restoreTargets() {
+  targetDraft.value = resetWeeklyTargets()
+}
+
+function saveTargets() {
+  const result = saveWeeklyTargets(targetDraft.value)
+  if (!result.ok) {
+    ElMessage.warning(result.msg)
+    return
+  }
+  settingsVisible.value = false
+  ElMessage.success('关注线设置已保存')
+}
+
 onMounted(() => {
+  openingId.value = ''
+  // 预加载详情页模块：进入列表即加载，避免首次点击详情时才懒加载（失败时表现为“点了没反应”）
+  import('./WeeklyReportDetailView.vue').catch(() => {})
   const auto = ensureLatestWeekGenerated()
   refresh()
   if (auto?.auto && auto.msg) {
@@ -178,11 +189,13 @@ onMounted(() => {
       <div class="page-breadcrumb">数据看板 / 数字周报</div>
       <div class="title-row">
         <h1 class="page-title">数字周报</h1>
-        <el-button type="primary" :icon="Plus" @click="openGenerate">生成周报</el-button>
+        <div class="title-actions">
+          <el-button :icon="Setting" @click="openSettings">设置</el-button>
+        </div>
       </div>
       <p class="page-tip">
-        按自然周（周一 00:00 ~ 周日 24:00）汇总 COC 调度、安质巡检、质量运行数据，生成后冻结存档；
-        每章采用「总体说明 + 分项目统计」两层结构，支持导出 Word。当前演示基准日：{{ WEEKLY_REPORT_TODAY }}。
+        按自然周（周一 00:00 ~ 周日 24:00）汇总 COC 调度、安质巡检、质量运行数据，系统每周一自动生成上周周报并冻结存档；
+        每章采用「总体说明 + 分项目统计 + 明细数据 + 图表」结构，支持导出 Word。当前演示基准日：{{ WEEKLY_REPORT_TODAY }}。
       </p>
     </div>
 
@@ -219,7 +232,15 @@ onMounted(() => {
       <el-button :icon="Refresh" @click="resetFilters">重置</el-button>
     </div>
 
-    <el-table v-loading="loading" :data="filtered" stripe border empty-text="暂无周报，请点击右上角「生成周报」">
+    <el-table
+      v-loading="loading"
+      :data="filtered"
+      stripe
+      border
+      empty-text="暂无周报记录"
+      row-class-name="is-clickable-row"
+      @row-click="goDetail"
+    >
       <el-table-column label="周次" min-width="190">
         <template #default="{ row }">
           <div class="week-cell">
@@ -249,33 +270,38 @@ onMounted(() => {
       <el-table-column label="逾期隐患" width="88" align="center">
         <template #default="{ row }">{{ metricValue(row, 'overdueHazard', '条') }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="140" fixed="right">
+      <el-table-column label="操作" width="140">
         <template #default="{ row }">
-          <el-button link type="primary" :icon="View" @click="goDetail(row)">详情</el-button>
-          <el-button link type="primary" :icon="Download" :loading="exportingId === row.id" @click="handleExport(row)">导出 Word</el-button>
+          <el-button link type="primary" :icon="View" :loading="openingId === row.id" @click.stop="goDetail(row)">详情</el-button>
+          <el-button link type="primary" :icon="Download" :loading="exportingId === row.id" @click.stop="handleExport(row)">导出 Word</el-button>
         </template>
       </el-table-column>
     </el-table>
 
-    <el-dialog v-model="generateVisible" title="生成周报" width="560px" destroy-on-close>
-      <p class="dialog-tip">选择统计周次后生成。同一周只生成一份周报，已生成周次不可重复生成。</p>
-      <el-radio-group v-model="selectedWeekKey" class="week-options">
-        <el-radio
-          v-for="option in weekOptions"
-          :key="option.weekKey"
-          :value="option.weekKey"
-          :disabled="option.exists"
-          border
-          class="week-option"
-        >
-          {{ option.label }}（{{ option.rangeLabel }}）
-          <el-tag v-if="option.exists" size="small" type="success" effect="plain">已生成</el-tag>
-          <el-tag v-else-if="option.isDemo" size="small" type="info" effect="plain">演示数据</el-tag>
-        </el-radio>
-      </el-radio-group>
+    <el-dialog v-model="settingsVisible" title="关注线设置" width="560px" destroy-on-close>
+      <p class="dialog-tip">
+        低于关注线的指标会在周报「本周结论」中列入重点关注。系统默认值已按初始口径统一下调 10 个百分点，可按管理要求调整。
+      </p>
+      <div class="target-grid">
+        <div v-for="field in targetFields" :key="field.key" class="target-row">
+          <span class="target-label">{{ field.label }}</span>
+          <el-input-number
+            v-model="targetDraft[field.key]"
+            :min="0"
+            :max="100"
+            :step="1"
+            :precision="1"
+            size="small"
+            controls-position="right"
+            style="width: 130px"
+          />
+          <span class="target-unit">%</span>
+        </div>
+      </div>
       <template #footer>
-        <el-button @click="generateVisible = false">取消</el-button>
-        <el-button type="primary" :loading="generateLoading" @click="submitGenerate">生成</el-button>
+        <el-button @click="restoreTargets">恢复默认</el-button>
+        <el-button @click="settingsVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveTargets">保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -287,6 +313,43 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+.title-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dialog-tip {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ap-text-muted, #909399);
+}
+.target-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 20px;
+}
+.target-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.target-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--ap-text, #303133);
+}
+.target-unit {
+  font-size: 13px;
+  color: var(--ap-text-muted, #909399);
+}
+:deep(.is-clickable-row) {
+  cursor: pointer;
+}
+:deep(.is-clickable-row:hover > td) {
+  background: #fdf7fa !important;
 }
 .stat-row {
   display: grid;

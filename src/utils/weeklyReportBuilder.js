@@ -29,6 +29,8 @@ import {
   buildHazardTrendChart,
   dateAtMidnight,
 } from '../mock/weeklyReport.js'
+// 命名空间导入新增能力：即使开发环境命中旧版 mock 模块，也只降级不抛 SyntaxError
+import * as weeklyMock from '../mock/weeklyReport.js'
 import { getMeetingSignInRecords } from '../coc/utils/meetingSignInStorage.js'
 import { getDailyWorkRecords } from '../coc/utils/dailyWorkStorage.js'
 import { getHazardIssueRows, isHazardIssueOverdue, getHazardIssueProjectOptions } from './hazardIssueSummary.js'
@@ -517,7 +519,11 @@ function buildOverdueHazardTable(hazardRows, sources, title, weekInfo, limit = 2
 }
 
 function buildRealSection(template, key, rows, totals, summary) {
-  return { ...template.sections[key], rows, totals, summary }
+  // 模板来自演示周报，图表与明细必须清掉，避免真实周报继承演示数据（由 SECTION_EXTRA_KEYS 按真实 rows 重建）
+  const base = { ...template.sections[key] }
+  delete base.charts
+  delete base.extraTables
+  return { ...base, rows, totals, summary }
 }
 
 function buildRealReport(weekInfo, prevReport, trendContext = []) {
@@ -538,6 +544,12 @@ function buildRealReport(weekInfo, prevReport, trendContext = []) {
   const qmMatRows = computeQmMatRows(projects)
 
   const sections = { ...template.sections }
+
+  // 模板来自演示周报，先清掉演示图表与明细，避免真实周报继承假数据（后续按真实 rows 重建）
+  Object.keys(sections).forEach((key) => {
+    delete sections[key].charts
+    delete sections[key].extraTables
+  })
 
   // 2.1 危险作业上报
   sections.cocDangerWork = buildRealSection(
@@ -863,6 +875,19 @@ function buildRealReport(weekInfo, prevReport, trendContext = []) {
       `品牌报审 ${find('qmBrandCount') ?? '--'} 项、材料设备进场 ${find('qmMatCount') ?? '--'} 批。`,
     groups,
     cards,
+  }
+
+  // 三件套补齐（真实台账）：环形图 + 近 6 周折线图 + 明细数据表
+  const extraKeys = weeklyMock.SECTION_EXTRA_KEYS || []
+  const buildExtras = weeklyMock.buildSectionExtras
+  if (typeof buildExtras === 'function' && extraKeys.length) {
+    extraKeys.forEach((key) => {
+      const section = sections[key]
+      if (!section) return
+      const extras = buildExtras(key, section, weekInfo.weekKey) || {}
+      section.charts = [...(section.charts || []), ...(extras.charts || [])]
+      section.extraTables = [...(section.extraTables || []), ...(extras.extraTables || [])]
+    })
   }
 
   return {

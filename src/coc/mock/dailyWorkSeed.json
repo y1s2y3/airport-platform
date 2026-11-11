@@ -1,12 +1,12 @@
 {
   "meta": {
-    "version": "2026.9.17-v2",
+    "version": "2026.11.11-v1",
     "sourceFile": "建设工程指挥部施工作业统计表.xlsx",
     "sheetName": "2026.6.30",
     "reportDate": "2026-06-30",
     "generatedAt": "2026-09-17T08:29:43.318769Z",
     "count": 48,
-    "note": "追加 T2/T1 完整多方人员演示数据；版本变更将覆盖 localStorage 中 source=seed 记录"
+    "note": "危大工程作业类别统一为 5 项枚举（不停航施工/基坑开挖工程/模板支撑体系/拆除工程/高处作业吊篮施工）；版本变更将覆盖 localStorage 中 source=seed 记录"
   },
   "records": [
     {
@@ -707,7 +707,7 @@
       "supervisorSafetyManager": "王代总/13400134001，赵专监/13400134002，钱专监/13400134003",
       "dangerControlMeasures": "架体验收合格后使用，连墙件按方案设置，禁止超载堆载。",
       "majorWorkContent": "南指廊外架搭设",
-      "majorProjectCategory": "脚手架工程",
+      "majorProjectCategory": "模板支撑体系",
       "majorStartTime": "2026-09-10 09:00",
       "majorEndTime": "2026-09-10 17:00",
       "majorOwnerSafetyManager": "刘安/13900139001，赵敏/13900139002，孙伟/13900139003",
@@ -843,7 +843,7 @@
       "supervisorSafetyManager": "王代总/13400134001，赵专监/13400134002，钱专监/13400134003",
       "dangerControlMeasures": "十不吊，专人指挥，警戒区封闭，风力大于六级停止吊装。",
       "majorWorkContent": "屋面空调机组吊装",
-      "majorProjectCategory": "起重吊装",
+      "majorProjectCategory": "高处作业吊篮施工",
       "majorStartTime": "2026-09-14 09:00",
       "majorEndTime": "2026-09-14 15:00",
       "majorOwnerSafetyManager": "刘安/13900139001，赵敏/13900139002，孙伟/13900139003",
@@ -1013,7 +1013,7 @@
       "supervisorSafetyManager": "王代总/13400134001，赵专监/13400134002，钱专监/13400134003",
       "dangerControlMeasures": "吊装前试吊，设警戒区，信号工专人指挥，大风停吊。",
       "majorWorkContent": "屋盖钢梁分段吊装",
-      "majorProjectCategory": "起重吊装",
+      "majorProjectCategory": "高处作业吊篮施工",
       "majorStartTime": "2026-09-18 09:00",
       "majorEndTime": "2026-09-18 17:30",
       "majorOwnerSafetyManager": "刘安/13900139001，赵敏/13900139002，孙伟/13900139003",
@@ -1251,7 +1251,7 @@
       "supervisorSafetyManager": "王代总/13400134001，赵专监/13400134002，钱专监/13400134003",
       "dangerControlMeasures": "吊篮验收挂牌，防坠器有效，双绳保险。",
       "majorWorkContent": "幕墙吊篮安装",
-      "majorProjectCategory": "脚手架工程",
+      "majorProjectCategory": "模板支撑体系",
       "majorStartTime": "2026-09-22 08:00",
       "majorEndTime": "2026-09-22 12:00",
       "majorOwnerSafetyManager": "刘安/13900139001，赵敏/13900139002，孙伟/13900139003",
@@ -1353,7 +1353,7 @@
       "supervisorSafetyManager": "王代总/13400134001，赵专监/13400134002，钱专监/13400134003",
       "dangerControlMeasures": "附墙件验收，指挥对讲畅通，风速超标停工。",
       "majorWorkContent": "塔吊附墙安装",
-      "majorProjectCategory": "起重吊装",
+      "majorProjectCategory": "高处作业吊篮施工",
       "majorStartTime": "2026-09-23 09:00",
       "majorEndTime": "2026-09-23 17:00",
       "majorOwnerSafetyManager": "刘安/13900139001，赵敏/13900139002，孙伟/13900139003",

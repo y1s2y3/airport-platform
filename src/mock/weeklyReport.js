@@ -17,6 +17,14 @@
  * 其余周次由 utils/weeklyReportBuilder.js 从各模块台账实时取数。
  */
 
+import {
+  buildDemoTrend,
+  buildDetailTable,
+  buildProjectShareDonut,
+  buildShareDonut,
+  buildStatusDonut,
+} from '../utils/weeklyReportSectionExtras'
+
 /* ------------------------------------------------------------------ *
  * 1. 周信息工具
  * ------------------------------------------------------------------ */
@@ -222,6 +230,380 @@ export function buildOverdueHazardList(weekKey, rows, options = {}) {
   })
   return list.sort((a, b) => b.overdueDays - a.overdueDays).map((row, index) => ({ seq: index + 1, ...row }))
 }
+
+/* ------------------------------------------------------------------ *
+ * 3.6 章节三件套补齐：环形图（本周构成）+ 折线图（近 6 周趋势）+ 明细数据表
+ *     演示周与真实周共用同一套派生逻辑（都基于该章最终 rows），保证两条取数路径形态一致。
+ * ------------------------------------------------------------------ */
+
+const DETAIL_SEQ = { prop: 'seq', label: '序号', width: 64, align: 'center' }
+const DETAIL_PROJECT = { prop: 'project', label: '项目', minWidth: 140 }
+const DETAIL_CENTER = { align: 'center' }
+
+function splitBriefList(text) {
+  return String(text || '')
+    .split(/[、,，;；]/)
+    .map((item) => item.trim())
+    .filter((item) => item && item !== '--' && item !== '—')
+}
+
+function withSeq(rows) {
+  return rows.map((row, index) => ({ seq: index + 1, ...row }))
+}
+
+/** 各章明细数据表（逐项目 / 逐记录展开） */
+function buildDetailForSection(key, section) {
+  const rows = section?.rows || []
+  switch (key) {
+    case 'cocDangerWork': {
+      const list = []
+      rows.forEach((row) => {
+        const misses = splitBriefList(row.missDates)
+        if (!misses.length) {
+          list.push({ project: row.project, rate: row.rate, dangerCount: row.dangerCount, missDate: '无漏报', status: '按日上报' })
+        } else {
+          misses.forEach((date) => list.push({ project: row.project, rate: row.rate, dangerCount: row.dangerCount, missDate: date, status: '漏报' }))
+        }
+      })
+      return buildDetailTable({
+        title: '每日施工作业上报明细',
+        summary: `逐项目、逐漏报日期展开 ${list.length} 行，其中漏报 ${list.filter((item) => item.status === '漏报').length} 行。`,
+        columns: [
+          DETAIL_SEQ,
+          DETAIL_PROJECT,
+          { prop: 'rate', label: '上报率', unit: '%', width: 92, align: 'center', format: 'pct' },
+          { prop: 'dangerCount', label: '危险作业条数', unit: '条', width: 120, align: 'center' },
+          { prop: 'missDate', label: '漏报日期', width: 120, align: 'center' },
+          { prop: 'status', label: '上报状态', width: 100, align: 'center' },
+        ],
+        rows: withSeq(list),
+      })
+    }
+    case 'cocDuty': {
+      const list = []
+      rows.forEach((row) => {
+        const slots = splitBriefList(row.missingSlots)
+        if (!slots.length) {
+          list.push({ project: row.project, rate: row.rate, slot: '无缺排', status: '已排满' })
+        } else {
+          slots.forEach((slot) => list.push({ project: row.project, rate: row.rate, slot, status: '缺排' }))
+        }
+      })
+      return buildDetailTable({
+        title: '值班表缺排明细',
+        summary: `逐项目、逐缺排槽位展开 ${list.length} 行，其中缺排 ${list.filter((item) => item.status === '缺排').length} 个槽位。`,
+        columns: [
+          DETAIL_SEQ,
+          DETAIL_PROJECT,
+          { prop: 'rate', label: '登记完整率', unit: '%', width: 116, align: 'center', format: 'pct' },
+          { prop: 'slot', label: '缺排槽位（日期 / 班次）', minWidth: 240, detail: true },
+          { prop: 'status', label: '状态', width: 96, align: 'center' },
+        ],
+        rows: withSeq(list),
+      })
+    }
+    case 'cocSupervisionMeeting':
+      return buildDetailTable({
+        title: '监理例会登记明细',
+        summary: `按项目逐条列示本周应召开次数、实际上报状态与纪要归档情况，共 ${rows.length} 行。`,
+        columns: [
+          DETAIL_SEQ,
+          DETAIL_PROJECT,
+          { prop: 'shouldCount', label: '应召开', unit: '次', width: 88, align: 'center' },
+          { prop: 'status', label: '上报状态', width: 96, align: 'center' },
+          { prop: 'meetingDate', label: '会议日期', width: 116, align: 'center' },
+          { prop: 'minutes', label: '纪要附件', width: 100, align: 'center' },
+          { prop: 'hazardParsed', label: '解析隐患', unit: '条', width: 100, align: 'center' },
+          { prop: 'remark', label: '备注', minWidth: 170 },
+        ],
+        rows: withSeq(rows),
+      })
+    case 'cocMeeting': {
+      const meetings = section?.extra?.meetings || []
+      const list = meetings.map((meeting) => ({
+        no: meeting.no,
+        date: meeting.date,
+        projectCount: meeting.projectCount,
+      }))
+      return buildDetailTable({
+        title: '调度会议明细',
+        summary: `本周共 ${list.length} 场调度会议，按场次列示召开日期与覆盖项目数。`,
+        columns: [
+          { prop: 'no', label: '场次', width: 64, align: 'center' },
+          { prop: 'date', label: '会议日期', width: 120, align: 'center' },
+          { prop: 'projectCount', label: '覆盖项目数', unit: '个', width: 120, align: 'center' },
+        ],
+        rows: list,
+      })
+    }
+    case 'cocHazard':
+      return buildDetailTable({
+        title: '调度隐患明细',
+        summary: `按项目逐条列示本周调度隐患的新增、来源构成、等级分布与闭环情况，共 ${rows.length} 行。`,
+        columns: [
+          DETAIL_SEQ,
+          DETAIL_PROJECT,
+          { prop: 'total', label: '新增合计', unit: '条', width: 92, align: 'center' },
+          { prop: 'dispatchSrc', label: '调度隐患', unit: '条', width: 92, align: 'center' },
+          { prop: 'supervisionSrc', label: '监理会议', unit: '条', width: 92, align: 'center' },
+          { prop: 'low', label: '一般', unit: '条', width: 68, align: 'center' },
+          { prop: 'mid', label: '较大', unit: '条', width: 68, align: 'center' },
+          { prop: 'high', label: '重大', unit: '条', width: 68, align: 'center' },
+          { prop: 'closed', label: '已闭环', unit: '条', width: 84, align: 'center' },
+          { prop: 'open', label: '未闭环', unit: '条', width: 84, align: 'center' },
+          { prop: 'overdue', label: '逾期', unit: '条', width: 68, align: 'center' },
+          { prop: 'mainHazards', label: '主要隐患', minWidth: 240, detail: true },
+        ],
+        rows: withSeq(rows),
+      })
+    case 'cocSampling':
+      return buildDetailTable({
+        title: '隐患抽检明细',
+        summary: `按项目列示指挥部抽检、监理抽检任务与项目全面复查任务的执行结果，共 ${rows.length} 行。`,
+        columns: [
+          DETAIL_SEQ,
+          DETAIL_PROJECT,
+          { prop: 'hqCount', label: '指挥部抽检', unit: '条', width: 108, align: 'center' },
+          { prop: 'hqFail', label: '其中不合格', unit: '条', width: 108, align: 'center' },
+          { prop: 'supervisorTasks', label: '监理抽检任务', unit: '个', width: 116, align: 'center' },
+          { prop: 'supervisorFail', label: '监理不合格', unit: '条', width: 108, align: 'center' },
+          { prop: 'reviewTasks', label: '全面复查任务', unit: '个', width: 116, align: 'center' },
+          { prop: 'reviewPending', label: '复查未完成', unit: '个', width: 112, align: 'center' },
+        ],
+        rows: withSeq(rows),
+      })
+    case 'anziTask':
+      return buildDetailTable({
+        title: '巡检任务明细',
+        summary: `按项目列示任务下发、自行登记、完成情况与逾期任务要点，共 ${rows.length} 行。`,
+        columns: [
+          DETAIL_SEQ,
+          DETAIL_PROJECT,
+          { prop: 'created', label: '任务合计', unit: '个', width: 92, align: 'center' },
+          { prop: 'done', label: '已完成', unit: '个', width: 84, align: 'center' },
+          { prop: 'rate', label: '完成率', unit: '%', width: 84, align: 'center', format: 'pct' },
+          { prop: 'withHazard', label: '有隐患任务', unit: '个', width: 108, align: 'center' },
+          { prop: 'overdue', label: '逾期任务', unit: '个', width: 92, align: 'center' },
+          { prop: 'overdueNames', label: '逾期任务要点', minWidth: 220, detail: true },
+        ],
+        rows: withSeq(rows),
+      })
+    case 'anziHazard':
+      return buildDetailTable({
+        title: '隐患整改明细（按整改率排名）',
+        summary: `按整改率降序逐项目列示新增、闭环与未闭环情况，共 ${rows.length} 行；排名同值并列。`,
+        columns: [
+          { prop: 'rank', label: '名次', width: 64, align: 'center' },
+          DETAIL_PROJECT,
+          { prop: 'created', label: '新增', unit: '条', width: 72, align: 'center' },
+          { prop: 'closed', label: '闭环', unit: '条', width: 72, align: 'center' },
+          { prop: 'open', label: '未闭环', unit: '条', width: 80, align: 'center' },
+          { prop: 'overdue', label: '逾期', unit: '条', width: 72, align: 'center' },
+          { prop: 'rate', label: '整改率', unit: '%', width: 84, align: 'center', format: 'pct' },
+          { prop: 'avgDays', label: '平均整改天数', unit: '天', width: 116, align: 'center' },
+          { prop: 'mark', label: '标记', width: 84, align: 'center' },
+        ],
+        rows,
+      })
+    case 'qmInspect':
+      return buildDetailTable({
+        title: '质量验评明细',
+        summary: `按项目列示验收任务、审批状态与节点完成情况，共 ${rows.length} 行。`,
+        columns: [
+          DETAIL_SEQ,
+          DETAIL_PROJECT,
+          { prop: 'tasks', label: '任务数', unit: '个', width: 84, align: 'center' },
+          { prop: 'approved', label: '已通过', unit: '个', width: 84, align: 'center' },
+          { prop: 'rejected', label: '已驳回', unit: '个', width: 84, align: 'center' },
+          { prop: 'firstPassRate', label: '通过率', unit: '%', width: 88, align: 'center', format: 'pct' },
+          { prop: 'nodeRate', label: '节点完成率', unit: '%', width: 108, align: 'center', format: 'pct' },
+        ],
+        rows: withSeq(rows),
+      })
+    case 'qmBrand':
+      return buildDetailTable({
+        title: '品牌报审明细',
+        summary: `按项目列示本周报审、审批状态与一次通过率，共 ${rows.length} 行。`,
+        columns: [
+          DETAIL_SEQ,
+          DETAIL_PROJECT,
+          { prop: 'applications', label: '报审合计', unit: '项', width: 92, align: 'center' },
+          { prop: 'approving', label: '审批中', unit: '项', width: 84, align: 'center' },
+          { prop: 'approved', label: '已通过', unit: '项', width: 84, align: 'center' },
+          { prop: 'rejected', label: '已驳回', unit: '项', width: 84, align: 'center' },
+          { prop: 'firstPassRate', label: '一次通过率', unit: '%', width: 116, align: 'center', format: 'pct' },
+        ],
+        rows: withSeq(rows),
+      })
+    case 'qmMat':
+      return buildDetailTable({
+        title: '材料设备进场明细',
+        summary: `按项目列示本周材料/设备进场批次与审批结果，共 ${rows.length} 行。`,
+        columns: [
+          DETAIL_SEQ,
+          DETAIL_PROJECT,
+          { prop: 'total', label: '进场合计', unit: '批', width: 92, align: 'center' },
+          { prop: 'matIn', label: '材料进场', unit: '批', width: 92, align: 'center' },
+          { prop: 'eqIn', label: '设备进场', unit: '批', width: 92, align: 'center' },
+          { prop: 'approving', label: '审批中', unit: '批', width: 84, align: 'center' },
+          { prop: 'approved', label: '已通过', unit: '批', width: 84, align: 'center' },
+          { prop: 'rejected', label: '已驳回', unit: '批', width: 84, align: 'center' },
+        ],
+        rows: withSeq(rows),
+      })
+    default:
+      return null
+  }
+}
+
+/** 各章图表（环形图 + 折线图），缺少某类时才补，避免与已有图表重复 */
+function buildChartsForSection(key, section, weekKey) {
+  const rows = section?.rows || []
+  const totals = section?.totals || {}
+  const value = (field) => (totals[field] === null || totals[field] === undefined ? 0 : Number(totals[field]))
+  const charts = []
+  switch (key) {
+    case 'cocDangerWork':
+      charts.push(buildProjectShareDonut({ key: 'dangerShare', title: '危险作业上报天次分布（按项目）', unit: '天次', rows, field: 'actualDays' }))
+      charts.push(buildDemoTrend({ key: 'dangerTrend', title: '近 6 周危险作业上报率趋势', unit: '%', weekKey, current: value('rate'), bounds: [0, 100] }))
+      break
+    case 'cocDuty':
+      charts.push(buildProjectShareDonut({ key: 'dutyMissShare', title: '值班表缺排分布（按项目缺排天数）', unit: '天', rows: rows.map((row) => ({ project: row.project, missDays: Math.max(0, 7 - (Number(row.filledDays) || 0)) })), field: 'missDays' }))
+      charts.push(buildDemoTrend({ key: 'dutyTrend', title: '近 6 周值班表登记完整率趋势', unit: '%', weekKey, current: value('rate'), bounds: [0, 100] }))
+      break
+    case 'cocSupervisionMeeting':
+      charts.push(
+        buildStatusDonut({
+          key: 'supervisionShare',
+          title: '监理例会上报状态分布',
+          unit: '个项目',
+          rows,
+          field: 'status',
+          order: ['已上报', '未上报'],
+        }),
+      )
+      charts.push(buildDemoTrend({ key: 'supervisionTrend', title: '近 6 周监理例会上报率趋势', unit: '%', weekKey, current: pct(value('reported'), value('shouldCount')), bounds: [0, 100] }))
+      break
+    case 'cocMeeting':
+      charts.push(buildProjectShareDonut({ key: 'attendShare', title: '调度会议参会人次分布（按项目）', unit: '人次', rows, field: 'joined' }))
+      charts.push(buildDemoTrend({ key: 'attendTrend', title: '近 6 周调度会议参会率趋势', unit: '%', weekKey, current: value('rate'), bounds: [0, 100] }))
+      break
+    case 'cocHazard':
+      charts.push(buildDemoTrend({ key: 'cocHazardTrend', title: '近 6 周调度隐患新增趋势', unit: '条', weekKey, current: value('total') }))
+      break
+    case 'cocSampling':
+      charts.push(
+        buildShareDonut({
+          key: 'samplingShare',
+          title: '指挥部抽检结果分布',
+          unit: '条',
+          items: [
+            { name: '合格', value: value('hqPass') },
+            { name: '不合格', value: value('hqFail') },
+          ],
+        }),
+        buildDemoTrend({ key: 'samplingTrend', title: '近 6 周抽检隐患数量趋势', unit: '条', weekKey, current: value('hqCount') }),
+      )
+      break
+    case 'anziTask':
+      charts.push(
+        buildShareDonut({
+          key: 'taskStatusShare',
+          title: '巡检任务状态分布',
+          unit: '个',
+          items: [
+            { name: '已完成', value: value('done') },
+            { name: '未完成', value: Math.max(0, value('created') - value('done')) },
+          ],
+        }),
+        buildDemoTrend({ key: 'taskTrend', title: '近 6 周巡检任务完成率趋势', unit: '%', weekKey, current: value('rate'), bounds: [0, 100] }),
+      )
+      break
+    case 'anziHazard':
+      charts.push(buildDemoTrend({ key: 'anziHazardTrend', title: '近 6 周隐患新增与闭环趋势', unit: '条', weekKey, current: [{ name: '新增隐患', value: value('created') }, { name: '闭环隐患', value: value('closed') }] }))
+      break
+    case 'qmInspect':
+      charts.push(
+        buildShareDonut({
+          key: 'qmInspectShare',
+          title: '质量验评结果分布',
+          unit: '个',
+          items: [
+            { name: '已通过', value: value('approved') },
+            { name: '已驳回', value: value('rejected') },
+            { name: '审批中', value: value('approving') },
+            { name: '待提交', value: value('pending') },
+          ],
+        }),
+        buildDemoTrend({ key: 'qmInspectTrend', title: '近 6 周验收通过率趋势', unit: '%', weekKey, current: pct(value('approved'), value('tasks')), bounds: [0, 100] }),
+      )
+      break
+    case 'qmBrand':
+      charts.push(
+        buildShareDonut({
+          key: 'qmBrandShare',
+          title: '品牌报审状态分布',
+          unit: '项',
+          items: [
+            { name: '已通过', value: value('approved') },
+            { name: '已驳回', value: value('rejected') },
+            { name: '审批中', value: value('approving') },
+          ],
+        }),
+        buildDemoTrend({ key: 'qmBrandTrend', title: '近 6 周品牌报审量趋势', unit: '项', weekKey, current: value('applications') }),
+      )
+      break
+    case 'qmMat':
+      charts.push(
+        buildShareDonut({
+          key: 'qmMatShare',
+          title: '材料设备进场构成',
+          unit: '批',
+          items: [
+            { name: '材料进场', value: value('matIn') },
+            { name: '设备进场', value: value('eqIn') },
+          ],
+        }),
+        buildDemoTrend({ key: 'qmMatTrend', title: '近 6 周材料设备进场批次趋势', unit: '批', weekKey, current: value('total') }),
+      )
+      break
+    default:
+      break
+  }
+  return charts
+}
+
+/**
+ * 章节三件套补齐（页面与 Word 导出共用）
+ * @param {string} key 章节 key
+ * @param {object} section 章节对象（含 rows/totals/charts/extraTables）
+ * @param {string} weekKey 周标识（如 2026-W44）
+ */
+export function buildSectionExtras(key, section, weekKey) {
+  const detail = buildDetailForSection(key, section)
+  const existingTypes = new Set((section?.charts || []).map((chart) => chart.type))
+  const charts = buildChartsForSection(key, section, weekKey).filter((chart) => !existingTypes.has(chart.type))
+  return {
+    charts,
+    extraTables: detail ? [detail] : [],
+  }
+}
+
+/** 需要补齐三件套的章节顺序 */
+export const SECTION_EXTRA_KEYS = [
+  'cocDangerWork',
+  'cocDuty',
+  'cocSupervisionMeeting',
+  'cocMeeting',
+  'cocHazard',
+  'cocSampling',
+  'anziTask',
+  'anziHazard',
+  'qmInspect',
+  'qmBrand',
+  'qmMat',
+]
+
 
 /* ------------------------------------------------------------------ *
  * 3.5 章节图表数据（折线图 / 环形图；页面渲染与 Word 导出共用）
@@ -1258,6 +1640,16 @@ export function buildDemoWeeklyReport(weekKey) {
   sections.qmInspect = buildQmInspect(weekKey)
   sections.qmBrand = buildQmBrand(weekKey)
   sections.qmMat = buildQmMat(weekKey)
+
+  // 三件套补齐：环形图（本周构成）+ 折线图（近 6 周趋势）+ 明细数据表
+  SECTION_EXTRA_KEYS.forEach((key) => {
+    const section = sections[key]
+    if (!section) return
+    const extras = buildSectionExtras(key, section, weekKey)
+    section.charts = [...(section.charts || []), ...extras.charts]
+    section.extraTables = [...(section.extraTables || []), ...extras.extraTables]
+  })
+
   sections.nextWatch = buildNextWatch(sections)
 
   const prevWeekInfo = previousWeekInfo(weekInfo.weekStart)

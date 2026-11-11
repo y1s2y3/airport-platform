@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx'
+import JSZip from 'jszip'
 import {
   DANGER_WORK_FIELDS,
   MAJOR_PROJECT_FIELDS,
@@ -7,7 +8,7 @@ import {
   DAILY_WORK_DEFAULT_LEAD_UNIT,
   MAJOR_WORK_REGISTER_FIELDS,
   MAJOR_WORK_REGISTER_COL_MAP,
-  MAJOR_WORK_REGISTER_DATA_START_ROW,
+  MAJOR_PROJECT_CATEGORY_OPTIONS,
   emptyDailyWorkRecord,
 } from '../config/dailyWorkSchema.js'
 import { classifyDailyWorkRecord } from './dailyWorkClassifier.js'
@@ -360,33 +361,12 @@ export function exportDailyWorkRecords(records, options = {}) {
 /* ---------- 危大工程信息登记：独立 11 列模板下载 / 导入解析校验 / 导出 ---------- */
 
 const MAJOR_REGISTER_SHEET_NAME = '危大工程信息登记'
-const MAJOR_REGISTER_TITLE = '建设工程指挥部危大工程信息登记表'
 
-const MAJOR_REGISTER_INSTRUCTIONS = [
-  '填报说明：',
-  '1. 带 * 字段必填；施工项目名称可留空（默认取页面当前所选项目），填写时须为系统内项目全称。',
-  '2. 管理单位默认「深圳机场集团/建设工程指挥部」。',
-  '3. 危大工程作业类别为文本，按实际作业类别填写（如：深基坑、高支模、起重吊装等）。',
-  '4. 作业开始/结束时间为 yyyy-MM-dd HH:mm，结束时间须晚于开始时间；施工日期以开始时间为准。',
-  '5. 现场安全监管人格式：姓名/11位手机号，多人用英文逗号分隔。',
-].join('\n')
-
-const MAJOR_REGISTER_SAMPLE = {
-  leadUnit: DAILY_WORK_DEFAULT_LEAD_UNIT,
-  projectName: '三跑道扩建机场工程（软基工程）',
-  contractor: '中国电建集团航空港建设有限公司',
-  majorWorkContent: '土面区袖阀钻孔、袖阀注浆',
-  majorProjectCategory: '不停航施工',
-  majorStartTime: '2026-06-30 00:00',
-  majorEndTime: '2026-06-30 07:00',
-  majorOwnerSafetyManager: '李想/13713651799',
-  majorContractorSafetyManager: '孙贯雨/18759189257',
-  majorSupervisorSafetyManager: '聂涵剑/15974177662',
-  majorControlMeasures: '按不停航施工专项方案组织交底、旁站与巡视检查。',
-}
-
-function buildMajorRegisterHeaderRow() {
-  return MAJOR_WORK_REGISTER_FIELDS.map((field) => field.label)
+/** 模板/导出表头：必填列前加 *（导入解析时会自动去掉 * 再匹配字段） */
+function buildMajorRegisterHeaderRow(withRequiredMark = false) {
+  return MAJOR_WORK_REGISTER_FIELDS.map((field) =>
+    withRequiredMark && field.required ? `*${field.label}` : field.label,
+  )
 }
 
 function majorRegisterDataRow(record) {
@@ -396,29 +376,220 @@ function majorRegisterDataRow(record) {
   })
 }
 
-function buildMajorRegisterSheetRows(dataRows = []) {
-  const padding = Array(MAJOR_WORK_REGISTER_DATA_START_ROW - 1)
-    .fill(null)
-    .map(() => Array(MAJOR_WORK_REGISTER_FIELDS.length).fill(''))
-  padding[1] = [MAJOR_REGISTER_TITLE]
-  padding[2] = [MAJOR_REGISTER_INSTRUCTIONS]
-  padding[3] = [MAJOR_REGISTER_TITLE]
-  padding[4] = buildMajorRegisterHeaderRow()
-  return [...padding, ...dataRows]
+/** 去掉表头前缀 *（兼容模版表头与手工修改的表头） */
+function normalizeHeaderLabel(value) {
+  return String(value == null ? '' : value)
+    .replace(/^[\s*＊]+/, '')
+    .trim()
 }
 
-function writeMajorRegisterWorkbook(rows, fileName) {
-  const ws = XLSX.utils.aoa_to_sheet(rows)
-  ws['!cols'] = MAJOR_WORK_REGISTER_FIELDS.map((field) => ({ wch: field.type === 'textarea' ? 28 : 20 }))
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, MAJOR_REGISTER_SHEET_NAME)
-  XLSX.writeFile(wb, fileName)
+/* ---------- 带表头浅蓝底的最小 xlsx 生成（SheetJS 社区版不写单元格样式） ---------- */
+
+const XLSX_HEADER_FILL = 'FFD9E2F3'
+
+function xmlEscape(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
 }
 
-/** 下载危大工程信息登记导入模版（11 列，第 6 行起数据） */
-export function downloadMajorWorkRegisterTemplate(options = {}) {
-  const rows = buildMajorRegisterSheetRows([majorRegisterDataRow(MAJOR_REGISTER_SAMPLE), Array(MAJOR_WORK_REGISTER_FIELDS.length).fill('')])
-  writeMajorRegisterWorkbook(rows, options.fileName || '危大工程信息登记导入模版.xlsx')
+function columnLetter(index) {
+  let n = index + 1
+  let text = ''
+  while (n > 0) {
+    const rem = (n - 1) % 26
+    text = String.fromCharCode(65 + rem) + text
+    n = Math.floor((n - 1) / 26)
+  }
+  return text
+}
+
+function buildMajorRegisterSheetXml(headerRow, dataRows, title = '', withValidation = false) {
+  const colCount = headerRow.length
+  const cols = MAJOR_WORK_REGISTER_FIELDS.map((field, index) => {
+    const width = field.type === 'textarea' ? 30 : 22
+    return `<col min="${index + 1}" max="${index + 1}" width="${width}" customWidth="1"/>`
+  }).join('')
+
+  const buildRow = (values, rowIndex, styleId) => {
+    const cells = values
+      .map((value, colIndex) => {
+        const ref = `${columnLetter(colIndex)}${rowIndex}`
+        return `<c r="${ref}" t="inlineStr" s="${styleId}"><is><t xml:space="preserve">${xmlEscape(value)}</t></is></c>`
+      })
+      .join('')
+    const height = styleId === 1 ? ' ht="30" customHeight="1"' : styleId === 3 ? ' ht="32" customHeight="1"' : ''
+    return `<row r="${rowIndex}"${height}>${cells}</row>`
+  }
+
+  const hasTitle = Boolean(String(title || '').trim())
+  const headerRowIndex = hasTitle ? 2 : 1
+  const rows = []
+  if (hasTitle) {
+    rows.push(
+      `<row r="1" ht="32" customHeight="1"><c r="A1" t="inlineStr" s="3"><is><t xml:space="preserve">${xmlEscape(title)}</t></is></c></row>`,
+    )
+  }
+  rows.push(buildRow(headerRow, headerRowIndex, 1))
+  dataRows.forEach((row, idx) => rows.push(buildRow(row, headerRowIndex + idx + 1, 2)))
+
+  const lastRef = `${columnLetter(colCount - 1)}${headerRowIndex + dataRows.length}`
+  const lastCol = columnLetter(colCount - 1)
+  const mergeXml = hasTitle ? `<mergeCells count="1"><mergeCell ref="A1:${lastCol}1"/></mergeCells>` : ''
+  const freezeRow = headerRowIndex + 1
+
+  // 枚举列（危大工程作业类别）在模版里做成下拉（数据验证）
+  let validationXml = ''
+  if (withValidation) {
+    const validations = MAJOR_WORK_REGISTER_FIELDS.map((field, index) => ({ field, index }))
+      .filter(({ field }) => field.type === 'select')
+      .map(({ field, index }) => {
+        const col = columnLetter(index)
+        const options = MAJOR_PROJECT_CATEGORY_OPTIONS.join(',')
+        const errorText = `请从下拉列表中选择：${MAJOR_PROJECT_CATEGORY_OPTIONS.join(' / ')}`
+        return (
+          `<dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="1" ` +
+          `promptTitle="${xmlEscape(field.label)}" prompt="请从下拉列表中选择" ` +
+          `errorTitle="${xmlEscape(field.label)}" error="${xmlEscape(errorText)}" ` +
+          `sqref="${col}${headerRowIndex + 1}:${col}500">` +
+          `<formula1>"${xmlEscape(options)}"</formula1></dataValidation>`
+        )
+      })
+    if (validations.length) {
+      validationXml = `<dataValidations count="${validations.length}">${validations.join('')}</dataValidations>`
+    }
+  }
+
+  return (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+    '<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>' +
+    `<dimension ref="A1:${lastRef}"/>` +
+    `<sheetViews><sheetView workbookViewId="0"><pane ySplit="${headerRowIndex}" topLeftCell="A${freezeRow}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>` +
+    '<sheetFormatPr defaultRowHeight="20"/>' +
+    `<cols>${cols}</cols>` +
+    `<sheetData>${rows.join('')}</sheetData>` +
+    mergeXml +
+    validationXml +
+    '<pageMargins left="0.4" right="0.4" top="0.6" bottom="0.6" header="0.3" footer="0.3"/>' +
+    '<pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/>' +
+    '</worksheet>'
+  )
+}
+
+function buildMajorRegisterStylesXml() {
+  return (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+    '<fonts count="3">' +
+    '<font><sz val="11"/><color theme="1"/><name val="等线"/><family val="2"/></font>' +
+    '<font><b/><sz val="11"/><color rgb="FF1F2329"/><name val="等线"/><family val="2"/></font>' +
+    '<font><b/><sz val="14"/><color rgb="FF1F2329"/><name val="等线"/><family val="2"/></font>' +
+    '</fonts>' +
+    '<fills count="3">' +
+    '<fill><patternFill patternType="none"/></fill>' +
+    '<fill><patternFill patternType="gray125"/></fill>' +
+    `<fill><patternFill patternType="solid"><fgColor rgb="${XLSX_HEADER_FILL}"/><bgColor indexed="64"/></patternFill></fill>` +
+    '</fills>' +
+    '<borders count="2">' +
+    '<border><left/><right/><top/><bottom/><diagonal/></border>' +
+    '<border>' +
+    '<left style="thin"><color rgb="FFBFBFBF"/></left>' +
+    '<right style="thin"><color rgb="FFBFBFBF"/></right>' +
+    '<top style="thin"><color rgb="FFBFBFBF"/></top>' +
+    '<bottom style="thin"><color rgb="FFBFBFBF"/></bottom>' +
+    '<diagonal/></border>' +
+    '</borders>' +
+    '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+    '<cellXfs count="4">' +
+    '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
+    '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>' +
+    '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>' +
+    '<xf numFmtId="0" fontId="2" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>' +
+    '</cellXfs>' +
+    '<cellStyles count="1"><cellStyle name="常规" xfId="0" builtinId="0"/></cellStyles>' +
+    '</styleSheet>'
+  )
+}
+
+async function buildMajorRegisterXlsxBlob({ headerRow, dataRows, title = '', withValidation = false }) {
+  const zip = new JSZip()
+  zip.file(
+    '[Content_Types].xml',
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+      '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+      '<Default Extension="xml" ContentType="application/xml"/>' +
+      '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+      '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
+      '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
+      '</Types>',
+  )
+  zip.file(
+    '_rels/.rels',
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
+      '</Relationships>',
+  )
+  zip.file(
+    'xl/workbook.xml',
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+      `<sheets><sheet name="${xmlEscape(MAJOR_REGISTER_SHEET_NAME)}" sheetId="1" r:id="rId1"/></sheets>` +
+      '</workbook>',
+  )
+  zip.file(
+    'xl/_rels/workbook.xml.rels',
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' +
+      '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
+      '</Relationships>',
+  )
+  zip.file('xl/styles.xml', buildMajorRegisterStylesXml())
+  zip.file('xl/worksheets/sheet1.xml', buildMajorRegisterSheetXml(headerRow, dataRows, title, withValidation))
+  const isBrowser = typeof document !== 'undefined'
+  return zip.generateAsync({
+    type: isBrowser ? 'blob' : 'nodebuffer',
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  })
+}
+
+/** 生成危大工程信息登记 xlsx（供下载/导出与自检复用）：表头必填列可带 *、浅蓝底；可带合并标题行与枚举下拉 */
+export async function buildMajorWorkRegisterXlsxBlob({
+  dataRows = [],
+  withRequiredMark = false,
+  title = '',
+  withValidation = false,
+} = {}) {
+  return buildMajorRegisterXlsxBlob({
+    headerRow: buildMajorRegisterHeaderRow(withRequiredMark),
+    dataRows,
+    title,
+    withValidation,
+  })
+}
+
+function downloadExcelBlob(blob, fileName) {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  setTimeout(() => URL.revokeObjectURL(url), 3000)
+}
+
+/** 下载危大工程信息登记导入模版（第 1 行表头，必填列带 * 且浅蓝底；危大工程作业类别为下拉选择；第 2 行起填数据） */
+export async function downloadMajorWorkRegisterTemplate(options = {}) {
+  const blob = await buildMajorWorkRegisterXlsxBlob({ withRequiredMark: true, withValidation: true })
+  downloadExcelBlob(blob, options.fileName || '危大工程信息登记导入模版.xlsx')
+  return { ok: true }
 }
 
 function normalizeDateTimeCell(value) {
@@ -498,7 +669,7 @@ export function parseMajorWorkRegisterWorkbook(arrayBuffer, options = {}) {
     return { records: [], errors: [{ row: 0, message: '未找到表头行（需包含「管理单位」「施工单位」等列名）' }], sheetName }
   }
 
-  const header = (rows[headerIndex] || []).map((cell) => String(cell || '').trim())
+  const header = (rows[headerIndex] || []).map((cell) => normalizeHeaderLabel(cell))
   const columnIndex = {}
   MAJOR_WORK_REGISTER_FIELDS.forEach((field) => {
     const idx = header.findIndex((label) => label === field.label)
@@ -545,6 +716,10 @@ export function parseMajorWorkRegisterWorkbook(arrayBuffer, options = {}) {
       }
     })
 
+    if (values.majorProjectCategory && !MAJOR_PROJECT_CATEGORY_OPTIONS.includes(values.majorProjectCategory)) {
+      rowErrors.push(`【危大工程作业类别】须为「${MAJOR_PROJECT_CATEGORY_OPTIONS.join('、')}」之一`)
+    }
+
     const project = resolveImportProjectName(values.projectName, options)
     if (!project.ok) rowErrors.push('【施工项目名称】不在系统项目列表中，或页面未选择项目')
     if (!values.projectName && !options.defaultProjectName) rowErrors.push('【施工项目名称】不能为空（页面未选择项目）')
@@ -580,12 +755,12 @@ export async function parseMajorWorkRegisterFile(file, options = {}) {
   return parseMajorWorkRegisterWorkbook(buffer, options)
 }
 
-/** 导出危大工程信息登记（按当前筛选结果，单 Sheet 11 列） */
-export function exportMajorWorkRegisterRecords(records, options = {}) {
+/** 导出危大工程信息登记（按当前筛选结果，单 Sheet 11 列）：第 1 行合并标题、第 2 行表头（浅蓝底）、第 3 行起数据 */
+export async function exportMajorWorkRegisterRecords(records, options = {}) {
   const list = Array.isArray(records) ? records : []
   if (!list.length) return { ok: false, count: 0, error: '当前没有可导出的记录' }
   const dataRows = list.map((record) => majorRegisterDataRow(record))
-  const rows = buildMajorRegisterSheetRows([...dataRows, Array(MAJOR_WORK_REGISTER_FIELDS.length).fill('')])
-  writeMajorRegisterWorkbook(rows, options.fileName || '危大工程信息登记.xlsx')
+  const blob = await buildMajorWorkRegisterXlsxBlob({ dataRows, withRequiredMark: true, title: options.title || '' })
+  downloadExcelBlob(blob, options.fileName || '危大工程信息登记.xlsx')
   return { ok: true, count: list.length }
 }

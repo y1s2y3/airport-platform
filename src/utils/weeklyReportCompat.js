@@ -9,14 +9,19 @@
  *  - 折线图：必须依赖历史周报，缺失周用 null 断线，**不伪造历史数据**；
  *  - 只补内存对象，不写回 localStorage（原快照保持冻结语义）。
  */
-import {
+// 命名空间导入（而非命名导入）：即使开发环境模块缓存拿到的是旧版 mock，
+// 也只会让新增能力降级失效，而不是抛 SyntaxError 导致整页白屏。
+import * as weeklyMock from '../mock/weeklyReport.js'
+import { getHazardTrendContext } from './weeklyReportStorage.js'
+
+const {
   buildHazardLevelChart,
   buildRectifyStatusChart,
   buildHazardTrendChart,
   buildOverdueHazardList,
   OVERDUE_HAZARD_COLUMNS,
-} from '../mock/weeklyReport.js'
-import { getHazardTrendContext } from './weeklyReportStorage.js'
+  isDemoWeek,
+} = weeklyMock
 
 function sumBy(rows, key) {
   return (rows || []).reduce((sum, row) => sum + (Number(row[key]) || 0), 0)
@@ -83,5 +88,28 @@ export function ensureReportRichData(report) {
     }
   }
 
+  return report
+}
+
+/**
+ * 补全所有章节的三件套（环形图 / 折线图 / 明细数据表）
+ * - 旧快照升级后，页面与导出都能看到新补齐的图表与明细；
+ * - 演示周的折线属虚构演示数据，允许补；真实周不伪造历史折线（旧快照缺折线则如实缺省）。
+ */
+export function ensureSectionExtras(report) {
+  if (!report?.sections) return report
+  // 旧版 mock 模块可能没有这些新增导出：降级为「不补三件套」，不影响正文
+  const { SECTION_EXTRA_KEYS = [], buildSectionExtras } = weeklyMock
+  if (typeof buildSectionExtras !== 'function' || !SECTION_EXTRA_KEYS.length) return report
+  const demo = typeof isDemoWeek === 'function' ? isDemoWeek(report.weekKey) : false
+  SECTION_EXTRA_KEYS.forEach((key) => {
+    const section = report.sections[key]
+    if (!section) return
+    const extras = buildSectionExtras(key, section, report.weekKey) || {}
+    const charts = demo ? extras.charts || [] : (extras.charts || []).filter((chart) => chart.type !== 'line')
+    section.charts = [...(section.charts || []), ...charts]
+    const existingTitles = new Set((section.extraTables || []).map((table) => table.title))
+    section.extraTables = [...(section.extraTables || []), ...(extras.extraTables || []).filter((table) => !existingTitles.has(table.title))]
+  })
   return report
 }

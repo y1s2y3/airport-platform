@@ -2,14 +2,14 @@
 /**
  * 考核配置。等级配置、考核项目仅指挥部可用（指标配置已并入「指标配置」页）。
  */
-import { computed, ref, watch } from 'vue'
+import { computed, defineComponent, h, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { Plus, Delete } from '@element-plus/icons-vue'
+import { ElMessage, ElSwitch, ElTableColumn } from 'element-plus'
 import { useCurrentProject } from '../../composables/useCurrentProject'
 import { projectStatusOptions } from '../../mock/projectBasicInfo'
 import {
   ASSESSMENT_TYPES,
+  INDICATOR_CATEGORIES,
   getAssessmentGrades,
   getAssessmentIndicators,
   getExcludeHistorical,
@@ -42,6 +42,69 @@ function changeProjectType(row, value) {
   ElMessage.success(result.msg)
 }
 const indicators = ref(getAssessmentIndicators())
+
+/** 指标单位展示：内置「百分比」显示为 %，其余单位按录入文本原样展示（与指标配置页同一口径） */
+function formatUnitText(value) {
+  const unit = String(value || '').trim()
+  if (!unit) return ''
+  if (unit === '百分比') return '%'
+  return unit
+}
+
+/** 指标按分类分组（顺序与指标配置页一致），用于考核项目矩阵的两行表头：分类 + 具体指标 */
+const indicatorGroups = computed(() =>
+  INDICATOR_CATEGORIES.map((category) => ({
+    ...category,
+    indicators: indicators.value.filter((item) => item.category === category.id),
+  })).filter((group) => group.indicators.length),
+)
+
+/**
+ * 考核项目矩阵的「分类 → 指标」两级表头。
+ * 说明：Element Plus 的 el-table-column 子列若用模板 v-for 渲染（Fragment + 动态插槽）会被内部过滤，
+ * 因此这里用渲染函数直接生成两级列：父列＝分类（跨列合并），子列＝具体指标（含单位）。
+ */
+const MatrixGroupColumns = defineComponent({
+  name: 'MatrixGroupColumns',
+  props: {
+    group: { type: Object, required: true },
+    canSave: { type: Boolean, default: true },
+    historicalLocked: { type: Function, required: true },
+  },
+  setup(props) {
+    return () =>
+      h(
+        ElTableColumn,
+        { label: props.group.name, align: 'center', 'label-class-name': 'matrix-group-head' },
+        {
+          default: () =>
+            props.group.indicators.map((indicator) =>
+              h(
+                ElTableColumn,
+                { key: indicator.id, width: 120, align: 'center' },
+                {
+                  header: () =>
+                    h('span', { class: 'matrix-head' }, [
+                      indicator.name,
+                      formatUnitText(indicator.value_unit)
+                        ? h('span', { class: 'matrix-unit' }, `（${formatUnitText(indicator.value_unit)}）`)
+                        : null,
+                    ]),
+                  default: ({ row }) =>
+                    h(ElSwitch, {
+                      modelValue: !!row.switches?.[indicator.id],
+                      'onUpdate:modelValue': (value) => {
+                        row.switches[indicator.id] = value
+                      },
+                      disabled: !props.canSave || props.historicalLocked(row),
+                    }),
+                },
+              ),
+            ),
+        },
+      )
+  },
+})
 const GRADE_PALETTE = ['#67c23a', '#409eff', '#e6a23c', '#f56c6c', '#91003d', '#909399']
 const GRADE_COLOR_FALLBACK = ['#f56c6c', '#e6a23c', '#409eff', '#67c23a']
 
@@ -57,11 +120,6 @@ function gradeRowsFromState(list) {
       min_cmp: index === 0 || item.min_inclusive ? 'gte' : 'gt',
       max_cmp: 'lte',
     }))
-}
-
-function nextGradeColor() {
-  const used = new Set(grades.value.map((item) => item.color))
-  return GRADE_PALETTE.find((color) => !used.has(color)) || '#909399'
 }
 
 const grades = ref(gradeRowsFromState(getAssessmentGrades()))
@@ -112,7 +170,7 @@ function saveProjects() {
   }
   projects.value = listAssessmentProjects()
   excludeHistorical.value = getExcludeHistorical()
-  ElMessage.success('考核项目已保存')
+  ElMessage.success('考核项目已保存；已结束月份结果不变，次月统计起生效')
 }
 
 function saveGrades() {
@@ -122,59 +180,11 @@ function saveGrades() {
     return
   }
   grades.value = gradeRowsFromState(getAssessmentGrades())
-  ElMessage.success('等级已保存')
+  ElMessage.success('等级已保存；已结束月份结果不变，次月统计起生效')
 }
 
 function resetGrades() {
   grades.value = gradeRowsFromState(getAssessmentGrades())
-}
-
-function removeGrade(index) {
-  if (index === 0 || grades.value.length <= 1) return
-  grades.value.splice(index, 1)
-  const prev = grades.value[index - 1]
-  const current = grades.value[index]
-  if (prev && current) current.min = prev.max
-  grades.value[grades.value.length - 1].max = 100
-}
-
-function addGradeAfter(index) {
-  const current = grades.value[index]
-  const next = grades.value[index + 1]
-  const lower = Number(current?.max ?? 0)
-  if (!next) {
-    const start = Number(current?.min ?? 0)
-    const mid = Math.round(((start + 100) / 2) * 10) / 10
-    current.max = mid
-    grades.value.push({
-      id: `g-${Date.now()}`,
-      name: '',
-      min: mid,
-      max: 100,
-      color: nextGradeColor(),
-      min_cmp: 'gt',
-      max_cmp: 'lte',
-    })
-    return
-  }
-  const upper = Number(next.max)
-  const mid = Math.round(((lower + upper) / 2) * 10) / 10
-  grades.value.splice(index + 1, 0, {
-    id: `g-${Date.now()}`,
-    name: '',
-    min: lower,
-    max: mid,
-    color: nextGradeColor(),
-    min_cmp: 'gt',
-    max_cmp: 'lte',
-  })
-  next.min = mid
-  grades.value[grades.value.length - 1].max = 100
-}
-
-function onGradeMaxChange(index) {
-  const next = grades.value[index + 1]
-  if (next) next.min = grades.value[index].max
 }
 
 </script>
@@ -223,14 +233,13 @@ function onGradeMaxChange(index) {
               <el-switch :model-value="rowAllOn(row)" :disabled="!canSave || historicalLocked(row)" @change="(value) => setRowIndicators(row, value)" />
             </template>
           </el-table-column>
-          <el-table-column v-for="indicator in indicators" :key="indicator.id" width="120" align="center">
-            <template #header>
-              <span class="matrix-head">{{ indicator.name }}</span>
-            </template>
-            <template #default="{ row }">
-              <el-switch v-model="row.switches[indicator.id]" :disabled="!canSave || historicalLocked(row)" />
-            </template>
-          </el-table-column>
+          <MatrixGroupColumns
+            v-for="group in indicatorGroups"
+            :key="group.id"
+            :group="group"
+            :can-save="canSave"
+            :historical-locked="historicalLocked"
+          />
         </el-table>
         <div class="save-bar">
           <el-button type="primary" :disabled="!canSave" @click="saveProjects">保存</el-button>
@@ -238,6 +247,9 @@ function onGradeMaxChange(index) {
       </template>
 
       <template v-else>
+        <div class="grade-tip">
+          等级固定为 4 档，仅可修改名称与颜色；分数区间固定（100 / 80 / 60 / 40），不可增删档位。
+        </div>
         <div class="grade-board">
           <div class="grade-head">
             <span class="grade-col-name">等级</span>
@@ -258,45 +270,17 @@ function onGradeMaxChange(index) {
               <el-color-picker v-model="row.color" :disabled="!canSave" :predefine="GRADE_PALETTE" aria-label="等级颜色" />
             </div>
             <div class="band-line">
-              <el-input-number
-                v-model="row.min"
-                :min="0"
-                :max="100"
-                :precision="1"
-                :controls="false"
-                :disabled="!canSave || index === 0"
-              />
-              <el-select v-model="row.min_cmp" class="band-op" :disabled="!canSave || index === 0">
+              <el-input-number v-model="row.min" :min="0" :max="100" :controls="false" disabled />
+              <el-select v-model="row.min_cmp" class="band-op" disabled>
                 <el-option label="≤" value="gte" />
                 <el-option label="<" value="gt" />
               </el-select>
               <span class="band-name">分数</span>
-              <el-select v-model="row.max_cmp" class="band-op" :disabled="!canSave">
+              <el-select v-model="row.max_cmp" class="band-op" disabled>
                 <el-option label="≤" value="lte" />
                 <el-option label="<" value="lt" />
               </el-select>
-              <el-input-number
-                v-model="row.max"
-                :min="0"
-                :max="100"
-                :precision="1"
-                controls-position="right"
-                :disabled="!canSave || index === grades.length - 1"
-                @change="onGradeMaxChange(index)"
-              />
-              <div class="band-actions">
-                <el-button circle type="primary" :icon="Plus" :disabled="!canSave" aria-label="新增等级" @click="addGradeAfter(index)" />
-                <el-button
-                  v-if="index > 0"
-                  circle
-                  type="danger"
-                  plain
-                  :icon="Delete"
-                  :disabled="!canSave"
-                  aria-label="删除等级"
-                  @click="removeGrade(index)"
-                />
-              </div>
+              <el-input-number v-model="row.max" :min="0" :max="100" controls-position="right" disabled />
             </div>
           </div>
           <div class="grade-footer">
@@ -343,6 +327,9 @@ function onGradeMaxChange(index) {
 .row-actions { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 .formula-preview { margin: 6px 0 0; color: var(--ap-text-muted, #909399); font-size: 12px; line-height: 1.4; }
 .matrix-head { display: inline-block; white-space: normal; line-height: 1.4; font-size: 12px; }
+.matrix-unit { font-size: 12px; font-weight: 400; color: var(--ap-text-muted, #909399); }
+/* 考核项目矩阵：分类表头（第一行）与指标表头（第二行）区分展示 */
+:deep(.matrix-group-head) { background: #f5f7fa; font-weight: 600; color: var(--ap-text, #303133); }
 .rule-form-row { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
 .rule-form-label { width: 96px; flex: none; line-height: 32px; text-align: right; color: var(--ap-text, #303133); }
 .rule-form-label.required::before { content: '*'; color: #f56c6c; margin-right: 4px; }
@@ -357,8 +344,8 @@ function onGradeMaxChange(index) {
 .unit-input :deep(.el-input) { width: 220px; }
 .band-max { display: flex; flex-direction: column; }
 .band-error { color: #f56c6c; font-size: 12px; line-height: 1.4; margin-top: 2px; }
-.band-actions { display: flex; align-items: center; gap: 8px; height: 32px; }
 .band-line :deep(.el-input-number) { width: 110px; }
+.grade-tip { margin-bottom: 12px; font-size: 12px; line-height: 1.6; color: var(--ap-text-muted, #909399); }
 .grade-board { max-width: 920px; }
 .grade-head, .grade-line { display: flex; align-items: flex-start; gap: 24px; }
 .grade-head { margin-bottom: 12px; font-weight: 600; }

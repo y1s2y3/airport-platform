@@ -10,18 +10,17 @@ import { useCurrentProject } from '../../composables/useCurrentProject'
 import {
   buildRanking,
   buildRankingConclusion,
-  getAssessmentGrades,
   getProjectAssessment,
+  getRankingGrades,
   listPeriodGroups,
-  summarizeRanking,
 } from '../../mock/assessmentScore'
 
 const { isHqSelected, selectedProjectId, headerProjectLabel } = useCurrentProject()
 
 const monthGroup = listPeriodGroups().find((item) => item.id === 'month')
 const periodOptions = monthGroup?.options || []
-/** 默认选中当期（ongoing），首屏即可看到环比与同比对比 */
-const periodId = ref(periodOptions.find((item) => item.ongoing)?.id || periodOptions[periodOptions.length - 1]?.id || '')
+/** 默认选中最新已发布月份（上月）：当月考核次月 1 日才统计固化，排名页不展示当月数据 */
+const periodId = ref(periodOptions.find((item) => !item.ongoing)?.id || periodOptions[0]?.id || '')
 const keyword = ref('')
 const drawerVisible = ref(false)
 const drawerRow = ref(null)
@@ -29,21 +28,18 @@ const drawerRow = ref(null)
 const currentPeriod = computed(() => periodOptions.find((item) => item.id === periodId.value))
 
 const ranking = computed(() => buildRanking(periodId.value))
-const summary = computed(() => summarizeRanking(ranking.value))
-const grades = computed(() => getAssessmentGrades())
+/** 等级口径取自本期快照（已结束月份固化，改等级配置不影响历史展示） */
+const grades = computed(() => getRankingGrades(periodId.value))
 /** 本期考核综述（指标卡下方的结论性内容，规则化自动生成） */
 const conclusion = computed(() => buildRankingConclusion(periodId.value))
-/** 综述一行展示项：短句 + 悬浮查看完整说明 */
-const conclusionItems = computed(() => {
+/** 综述头部一句话：项目数 · 均分 · 环比（下方为各分类卡片与 3 个重要指标） */
+const conclusionSummary = computed(() => {
   const data = conclusion.value
-  if (!data || data.empty) return []
-  return [
-    { key: 'overall', label: '总体', value: data.overall?.short || '--', detail: data.overall?.text || '' },
-    { key: 'bottom', label: '尾部短板', value: data.bottom?.short || '--', detail: data.bottom?.text || '' },
-    { key: 'weak', label: '共性短板', value: data.weakShort || '--', detail: data.weakText || '' },
-    { key: 'alert', label: '重点提示', value: data.alertShort || '无', detail: (data.alerts || []).map((item) => item.text).join('；') },
-    { key: 'advice', label: '整改建议', value: data.suggestionsShort || '无', detail: (data.suggestions || []).map((item) => `${item.name}：${item.text}`).join('；') },
-  ]
+  if (!data || data.empty) return ''
+  const metrics = data.overall?.metrics || {}
+  const delta = metrics.avgDelta
+  const deltaText = delta === null || delta === undefined ? '' : ` · 环比${delta >= 0 ? '+' : ''}${delta}`
+  return `${metrics.count || 0} 个项目 · 均分 ${metrics.avg ?? '--'} 分${deltaText}`
 })
 const typeTagType = { pre: 'warning', build: 'primary', close: 'success' }
 
@@ -129,42 +125,32 @@ function exportRank() {
       <el-select v-model="periodId" style="width: 280px" aria-label="统计月份">
         <el-option v-for="item in periodOptions" :key="item.id" :label="item.label" :value="item.id" />
       </el-select>
-      <el-tag v-if="currentPeriod?.ongoing" type="warning">出勤、摄像头按已结束日期求平均；塔吊按月累计；每日施工作业、实名制预警按比率统计。任务、隐患、预警、值班表、例会在次月 1 日统计，次月 1 日后名次固定；未参与评分的项目不进入排名</el-tag>
+      <el-tag v-if="currentPeriod" class="period-tip" type="warning">当月考核在次月 1 日一次性统计后才出最终名次，故本页不展示当月数据，最新可查为上月；未参与评分的项目不进入排名。</el-tag>
     </div>
 
     <template v-if="isHqSelected">
-      <div class="stat-row is-eight">
-        <div class="stat-card">
-          <span class="stat-label">已纳入项目数</span>
-          <span class="stat-value">{{ summary.count }}</span>
-        </div>
-        <div v-for="type in summary.typeStats" :key="type.id" class="stat-card is-type">
-          <span class="stat-label">{{ type.name }}类项目</span>
-          <span class="stat-value is-type-value">{{ type.count }} 个</span>
-        </div>
-        <div
-          v-for="(item, index) in grades"
-          :key="item.id"
-          class="stat-card is-grade"
-          :style="{ borderTopColor: gradeColorOf(item) }"
-        >
-          <span class="stat-label">{{ item.name }}</span>
-          <span class="stat-value" :style="{ color: gradeColorOf(item) }">{{ summary.grades[item.name] || 0 }} 个</span>
-        </div>
-      </div>
-
-      <!-- 本期考核综述（指标卡下方的结论性内容，规则化自动生成） -->
+      <!-- 本期考核综述：按高维度（总体表现 / 短板分布 / 趋势与提示 / 整改建议）横向分布，每个维度提炼 3 条关键信息 -->
       <section v-if="!conclusion.empty" class="conclusion-card">
         <div class="conclusion-head">
           <span class="conclusion-title">本期考核综述</span>
-          <span class="conclusion-sub">{{ conclusion.periodLabel }} · 按排名数据自动生成</span>
+          <span class="conclusion-sub">{{ conclusion.periodLabel }} · {{ conclusionSummary }} · 按排名数据自动生成</span>
         </div>
-        <div class="conclusion-line">
-          <div v-for="item in conclusionItems" :key="item.key" class="cl-item">
-            <span class="cl-label">{{ item.label }}</span>
-            <el-tooltip :content="item.detail" placement="top" effect="dark" :disabled="!item.detail">
-              <span class="cl-value">{{ item.value }}</span>
-            </el-tooltip>
+        <div class="conclusion-dims">
+          <div v-for="dim in conclusion.dimensions" :key="dim.key" class="cd-card" :class="`is-${dim.tone}`">
+            <div class="cd-head">
+              <span class="cd-dot"></span>
+              <span class="cd-title">{{ dim.title }}</span>
+            </div>
+            <ul class="cd-list">
+              <li v-for="(item, idx) in dim.items" :key="idx">
+                <span class="cd-idx">{{ ['①', '②', '③'][idx] }}</span>
+                <div class="cd-body">
+                  <span v-if="item.label && item.label !== '—'" class="cd-label">{{ item.label }}</span>
+                  <span class="cd-text" :title="item.text">{{ item.text }}</span>
+                  <span v-if="item.meta" class="cd-meta">{{ item.meta }}</span>
+                </div>
+              </li>
+            </ul>
           </div>
         </div>
       </section>
@@ -200,7 +186,7 @@ function exportRank() {
         </section>
 
         <section class="list-panel">
-          <el-table :data="pagedRows" stripe border empty-text="暂无其他排名项目">
+          <el-table :data="pagedRows" size="small" stripe border empty-text="暂无其他排名项目">
             <el-table-column label="名次" width="56" align="center" prop="rank" />
             <el-table-column label="项目名称" min-width="90" prop="project_name" show-overflow-tooltip />
             <el-table-column label="类型" width="72" align="center">
@@ -325,16 +311,9 @@ function exportRank() {
 <style scoped>
 .page-title { margin: 4px 0; font-size: 20px; }
 .filter-bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 16px; }
+/* 统计口径提示：文案较长，窄屏换行展示，避免被裁切 */
+.period-tip { white-space: normal; height: auto; line-height: 1.6; padding: 4px 10px; max-width: 100%; }
 .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px; }
-/* 指挥部排名：8 张指标卡同排一行 */
-.stat-row.is-eight { grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 10px; }
-.stat-row.is-eight .stat-card { padding: 12px; gap: 4px; }
-.stat-row.is-eight .stat-label { font-size: 12px; white-space: nowrap; }
-.stat-row.is-eight .stat-value { font-size: 20px; }
-.stat-row.is-eight .stat-card.is-type .is-type-value { font-size: 18px; }
-@media (max-width: 1180px) {
-  .stat-row.is-eight { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-}
 .stat-card {
   border: 1px solid var(--ap-border, #ebeef5);
   border-radius: 8px;
@@ -344,8 +323,6 @@ function exportRank() {
   flex-direction: column;
   gap: 6px;
 }
-.stat-card.is-grade { border-top: 3px solid transparent; }
-.stat-card.is-type .is-type-value { color: #409eff; font-size: 20px; }
 .conclusion-card {
   border: 1px solid var(--ap-border, #ebeef5);
   border-radius: 10px;
@@ -356,29 +333,68 @@ function exportRank() {
 .conclusion-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
 .conclusion-title { font-size: 16px; font-weight: 700; color: var(--ap-text, #303133); padding-left: 10px; border-left: 4px solid var(--ap-primary, #91003d); }
 .conclusion-sub { font-size: 12px; color: var(--ap-text-muted, #909399); }
-.conclusion-line { display: flex; align-items: stretch; }
-.cl-item {
-  flex: 1 1 0;
+/* 综述：四个高维度卡片（总体表现 / 短板分布 / 趋势与提示 / 整改建议） */
+.conclusion-dims { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+@media (min-width: 1200px) { .conclusion-dims { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.cd-card {
+  position: relative;
+  overflow: hidden;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 0 14px;
-  border-left: 1px solid #f0f2f5;
+  border: 1px solid #eef0f3;
+  border-radius: 10px;
+  background: linear-gradient(180deg, var(--cd-tint, #fafbfc) 0%, #ffffff 46%);
+  padding: 14px 14px 10px;
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.04);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
 }
-.cl-item:first-child { border-left: none; padding-left: 0; }
-.cl-label { font-size: 12px; color: var(--ap-text-muted, #909399); }
-.cl-value {
-  font-size: 13px;
+.cd-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: var(--cd-tone, #dcdfe6);
+}
+.cd-card:hover {
+  transform: translateY(-2px);
+  border-color: #e3e7ee;
+  box-shadow: 0 8px 20px rgba(17, 24, 39, 0.08);
+}
+.cd-card.is-primary { --cd-tone: var(--ap-primary, #91003d); --cd-tint: #fdf3f8; }
+.cd-card.is-warn { --cd-tone: #e6a23c; --cd-tint: #fdf8ef; }
+.cd-card.is-info { --cd-tone: #409eff; --cd-tint: #f2f8ff; }
+.cd-card.is-success { --cd-tone: #529b2e; --cd-tint: #f3faf0; }
+.cd-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.cd-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--cd-tone, #909399);
+  box-shadow: 0 0 0 3px var(--cd-tint, #f2f3f5);
+}
+.cd-title { font-size: 14px; font-weight: 700; color: #1f2d3d; letter-spacing: 0.2px; }
+.cd-list { list-style: none; margin: 0; padding: 0; }
+.cd-list li { display: flex; align-items: flex-start; gap: 8px; padding: 7px 0; border-top: 1px dashed #f0f2f5; }
+.cd-list li:first-child { border-top: none; padding-top: 2px; }
+.cd-list li:last-child { padding-bottom: 4px; }
+.cd-idx { flex: 0 0 auto; width: 16px; line-height: 18px; text-align: center; font-size: 12px; color: var(--cd-tone, #909399); }
+.cd-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.cd-label {
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--cd-tint, #f4f5f7);
+  color: var(--cd-tone, #606266);
+  font-size: 11px;
   font-weight: 600;
-  color: var(--ap-text, #303133);
-  line-height: 1.5;
+  line-height: 18px;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
 }
+.cd-text { font-size: 12.5px; color: #303133; line-height: 1.55; word-break: break-all; }
+.cd-meta { font-size: 11px; color: #8a93a0; line-height: 1.5; }
 .drawer-categories { margin-bottom: 14px; }
 .drawer-subtitle { display: block; font-size: 13px; font-weight: 600; color: var(--ap-text, #303133); margin: 0 0 8px; }
 .category-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
@@ -407,43 +423,44 @@ function exportRank() {
   border: 1px solid var(--ap-border, #ebeef5);
   border-radius: 8px;
   background: linear-gradient(180deg, #fdfaf6 0%, #ffffff 100%);
-  padding: 16px;
+  padding: 12px;
 }
-.podium { display: flex; align-items: flex-end; gap: 12px; min-height: 360px; }
-.podium-item { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 8px; }
+/* 排行高度在原基础上压缩约 1/3（360→240，底座与卡片同比缩小） */
+.podium { display: flex; align-items: flex-end; gap: 10px; min-height: 240px; }
+.podium-item { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 6px; }
 .podium-card {
   width: 100%;
   text-align: center;
-  padding: 16px 10px;
+  padding: 10px 8px;
   border: 1px solid var(--ap-border, #ebeef5);
-  border-radius: 10px;
+  border-radius: 8px;
   background: #fff;
   cursor: pointer;
   transition: box-shadow 0.2s, transform 0.2s;
 }
 .podium-card:hover { box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08); transform: translateY(-2px); }
 .podium-medal {
-  width: 40px;
-  height: 40px;
-  line-height: 40px;
-  margin: 0 auto 8px;
+  width: 30px;
+  height: 30px;
+  line-height: 30px;
+  margin: 0 auto 6px;
   border-radius: 50%;
   color: #fff;
-  font-size: 17px;
+  font-size: 14px;
   font-weight: 700;
 }
 .is-rank-1 .podium-medal { background: #e6b800; }
 .is-rank-2 .podium-medal { background: #9aa4b2; }
 .is-rank-3 .podium-medal { background: #c07a3e; }
 .podium-name {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--ap-text, #303133);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.podium-score { margin: 4px 0; font-size: 24px; font-weight: 700; color: var(--ap-primary, #91003d); }
+.podium-score { margin: 2px 0; font-size: 19px; font-weight: 700; color: var(--ap-primary, #91003d); }
 .podium-grade-empty { font-size: 12px; color: var(--ap-text-muted, #909399); }
 .podium-placeholder { width: 100%; }
 .podium-base {
@@ -453,14 +470,14 @@ function exportRank() {
   align-items: center;
   justify-content: center;
   color: #fff;
-  font-size: 17px;
+  font-size: 15px;
   font-weight: 700;
   letter-spacing: 1px;
 }
-.is-rank-1 .podium-base { height: 150px; background: linear-gradient(180deg, #f6c945, #e0a800); }
-.is-rank-2 .podium-base { height: 116px; background: linear-gradient(180deg, #cbd3dd, #9aa4b2); }
-.is-rank-3 .podium-base { height: 90px; background: linear-gradient(180deg, #d99a62, #b0703a); }
+.is-rank-1 .podium-base { height: 100px; background: linear-gradient(180deg, #f6c945, #e0a800); }
+.is-rank-2 .podium-base { height: 78px; background: linear-gradient(180deg, #cbd3dd, #9aa4b2); }
+.is-rank-3 .podium-base { height: 60px; background: linear-gradient(180deg, #d99a62, #b0703a); }
 .list-panel { flex: 1 1 0; min-width: 0; }
-.pager { display: flex; justify-content: flex-end; margin-top: 12px; }
+.pager { display: flex; justify-content: flex-end; margin-top: 8px; }
 :deep(.raw-cell) { white-space: normal; line-height: 1.45; overflow-wrap: break-word; word-break: normal; }
 </style>

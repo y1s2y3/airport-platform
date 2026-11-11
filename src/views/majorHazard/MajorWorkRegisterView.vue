@@ -1,12 +1,13 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { Plus, Upload, Download, Search, Refresh, Delete, Edit, View } from '@element-plus/icons-vue'
+import { Plus, Upload, Download, Search, Delete, Edit, View } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useCurrentProject } from '../../composables/useCurrentProject.js'
 import { COC_PROJECT_OPTIONS } from '../../config/projectOptions.js'
 import { findProjectById } from '../../mock/projectBasicInfo.js'
 import {
   MAJOR_WORK_REGISTER_FIELDS,
+  MAJOR_PROJECT_CATEGORY_OPTIONS,
   DAILY_WORK_DEFAULT_LEAD_UNIT,
 } from '../../coc/config/dailyWorkSchema.js'
 import {
@@ -25,18 +26,19 @@ import {
 
 const { selectedProjectId, isHqSelected } = useCurrentProject()
 
+/** 来源口径与「每日施工作业」保持一致：导入 / 线下模板 / 手动 */
 const SOURCE_LABEL = {
-  manual: '人工登记',
-  import: '表格导入',
-  seed: '演示数据',
+  manual: '手动',
+  import: '导入',
+  seed: '线下模板',
 }
 
 const list = ref([])
 const keyword = ref('')
+const dateRange = ref([])
 const categoryFilter = ref('')
 const contractorFilter = ref('')
 const projectFilter = ref('')
-const dateRange = ref([])
 const currentPage = ref(1)
 const pageSize = ref(10)
 
@@ -133,12 +135,12 @@ function rowInScope(row, scopeId) {
 }
 
 const categoryOptions = computed(() => {
-  const set = new Set()
+  const set = new Set(MAJOR_PROJECT_CATEGORY_OPTIONS)
   list.value.forEach((item) => {
     const value = String(item.category || '').trim()
     if (value) set.add(value)
   })
-  return [...set].sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'))
+  return [...set]
 })
 
 const contractorOptions = computed(() => {
@@ -152,16 +154,16 @@ const contractorOptions = computed(() => {
 
 const filteredList = computed(() => {
   const q = keyword.value.trim()
+  const [dateStart, dateEnd] = dateRange.value || []
   const cat = categoryFilter.value
   const contractor = contractorFilter.value
-  const [dateStart, dateEnd] = dateRange.value || []
   const scopeId = isHqSelected.value ? projectFilter.value : selectedProjectId.value
   return list.value.filter((row) => {
     if (!rowInScope(row, scopeId)) return false
     if (cat && row.category !== cat) return false
     if (contractor && row.contractor !== contractor) return false
-    if (dateStart && row.reportDate && row.reportDate < dateStart) return false
-    if (dateEnd && row.reportDate && row.reportDate > dateEnd) return false
+    if (dateStart && String(row.reportDate || '') < dateStart) return false
+    if (dateEnd && String(row.reportDate || '') > dateEnd) return false
     if (q) {
       const haystack = [row.workContent, row.category, row.contractor, row.projectName, row.ownerSafety, row.contractorSafety, row.supervisorSafety, row.measures]
       if (!haystack.some((value) => String(value || '').includes(q))) return false
@@ -185,15 +187,6 @@ watch([selectedProjectId, isHqSelected], () => {
   projectFilter.value = ''
   load()
 })
-
-function resetFilters() {
-  keyword.value = ''
-  categoryFilter.value = ''
-  contractorFilter.value = ''
-  projectFilter.value = ''
-  dateRange.value = []
-  currentPage.value = 1
-}
 
 function isContactLike(value) {
   const text = String(value || '').trim()
@@ -241,6 +234,8 @@ function openCreate() {
   form.value = createEmptyForm()
   form.value.projectId = selectedProjectId.value
   form.value.projectName = currentProjectName.value
+  // 施工单位默认展示当前项目的施工总承包单位名称（可修改）
+  form.value.contractor = String(currentProject.value?.contractorUnit || '').trim()
   dialogVisible.value = true
   formRef.value?.clearValidate()
 }
@@ -316,8 +311,8 @@ async function handleDelete(row) {
   load()
 }
 
-function downloadTemplate() {
-  downloadMajorWorkRegisterTemplate()
+async function downloadTemplate() {
+  await downloadMajorWorkRegisterTemplate()
   ElMessage.success('模版已下载，请按表头填写后导入')
 }
 
@@ -391,7 +386,15 @@ function resetImport() {
   importFileName.value = ''
 }
 
-function handleExport() {
+const exportDateLabel = computed(() => {
+  const [start, end] = dateRange.value || []
+  if (start && end) return `${start} 至 ${end}`
+  if (start) return `${start} 起`
+  if (end) return `截至 ${end}`
+  return '全部'
+})
+
+async function handleExport() {
   const rows = filteredList.value.map((row) => ({
     ...row,
     leadUnit: row.leadUnit,
@@ -406,16 +409,14 @@ function handleExport() {
     majorSupervisorSafetyManager: row.supervisorSafety,
     majorControlMeasures: row.measures,
   }))
-  const result = exportMajorWorkRegisterRecords(rows)
+  const result = await exportMajorWorkRegisterRecords(rows, {
+    title: `建设工程指挥部危大工程信息登记表（作业日期：${exportDateLabel.value}）`,
+  })
   if (!result.ok) {
     ElMessage.warning(result.error || '导出失败')
     return
   }
   ElMessage.success(`已导出 ${result.count} 条危大工程信息`)
-}
-
-function reportDateLabel(value) {
-  return String(value || '').trim() || '--'
 }
 
 function indexMethod(index) {
@@ -435,107 +436,93 @@ onMounted(() => {
   <div class="mwr-page page-card">
     <div class="page-header">
       <div class="page-breadcrumb">施工现场管理 / 施工作业申报 / 危大工程信息登记</div>
-      <h1 class="page-title">危大工程信息登记</h1>
-      <p class="page-tip">
-        登记各项目当日危大工程作业信息（管理单位、施工单位、危大作业类别、起止时间、三方现场安全监管人、风险管控措施），支持导入导出。
-        当前：{{ isHq ? '工程指挥部（只读汇总）' : (currentProjectName || '请先在顶部选择项目') }}
-      </p>
-    </div>
-
-    <el-alert
-      v-if="isHq"
-      type="info"
-      :closable="false"
-      show-icon
-      title="指挥部层级为只读汇总视图：可查看全部项目登记数据并导出，不能新增、编辑或删除（此类操作由项目层级维护）"
-      class="mb"
-    />
-
-    <div class="filter-bar">
-      <el-date-picker
-        v-model="dateRange"
-        type="daterange"
-        value-format="YYYY-MM-DD"
-        range-separator="至"
-        start-placeholder="作业日期起"
-        end-placeholder="作业日期止"
-        style="width: 260px"
-        aria-label="作业日期范围"
-      />
-      <el-select
-        v-if="isHq"
-        v-model="projectFilter"
-        clearable
-        placeholder="全部项目"
-        style="width: 200px"
-        aria-label="施工项目"
-      >
-        <el-option v-for="item in projectOptions" :key="item.id" :label="item.label" :value="item.id" />
-      </el-select>
-      <el-select v-model="categoryFilter" clearable filterable placeholder="危大工程作业类别" style="width: 190px" aria-label="危大工程作业类别">
-        <el-option v-for="item in categoryOptions" :key="item" :label="item" :value="item" />
-      </el-select>
-      <el-select v-model="contractorFilter" clearable filterable placeholder="施工单位" style="width: 200px" aria-label="施工单位">
-        <el-option v-for="item in contractorOptions" :key="item" :label="item" :value="item" />
-      </el-select>
-      <el-input
-        v-model="keyword"
-        clearable
-        placeholder="施工内容 / 类别 / 监管人"
-        style="width: 220px"
-        :prefix-icon="Search"
-        aria-label="搜索施工内容、类别或监管人"
-      />
-      <el-button :icon="Refresh" @click="resetFilters">重置</el-button>
-      <template v-if="canManage">
-        <el-button type="primary" :icon="Plus" @click="openCreate">新增登记</el-button>
-        <el-button :icon="Upload" @click="importVisible = true">导入</el-button>
-        <el-button :icon="Download" @click="downloadTemplate">下载模版</el-button>
-      </template>
-      <el-button :icon="Download" @click="handleExport">导出</el-button>
+      <div class="mwr-title-row">
+        <h1 class="page-title">危大工程信息登记</h1>
+        <div class="mwr-title-actions">
+          <el-date-picker
+            v-model="dateRange"
+            type="daterange"
+            value-format="YYYY-MM-DD"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            class="mwr-date"
+            aria-label="作业日期区间"
+          />
+          <el-select
+            v-if="isHq"
+            v-model="projectFilter"
+            clearable
+            placeholder="全部项目"
+            class="mwr-project"
+            aria-label="施工项目"
+          >
+            <el-option v-for="item in projectOptions" :key="item.id" :label="item.label" :value="item.id" />
+          </el-select>
+          <el-select
+            v-model="categoryFilter"
+            clearable
+            filterable
+            placeholder="危大工程类别"
+            class="mwr-category"
+            aria-label="危大工程作业类别"
+          >
+            <el-option v-for="item in categoryOptions" :key="item" :label="item" :value="item" />
+          </el-select>
+          <el-select
+            v-model="contractorFilter"
+            clearable
+            filterable
+            placeholder="施工单位"
+            class="mwr-contractor"
+            aria-label="施工单位"
+          >
+            <el-option v-for="item in contractorOptions" :key="item" :label="item" :value="item" />
+          </el-select>
+          <el-input
+            v-model="keyword"
+            clearable
+            placeholder="搜索项目、单位、类别、监管人…"
+            :prefix-icon="Search"
+            class="mwr-search"
+            aria-label="搜索项目、单位、类别、监管人"
+          />
+          <div class="mwr-title-buttons">
+            <template v-if="canManage">
+              <el-button type="primary" :icon="Plus" @click="openCreate">新增登记</el-button>
+              <el-button :icon="Upload" @click="importVisible = true">导入</el-button>
+              <el-button :icon="Download" @click="downloadTemplate">下载模版</el-button>
+            </template>
+            <el-button :icon="Download" @click="handleExport">导出</el-button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <el-table :data="pagedList" stripe border empty-text="暂无危大工程登记记录，可新增登记或导入 Excel">
       <el-table-column type="index" label="序号" width="56" :index="indexMethod" />
-      <el-table-column label="作业开始时间" width="150">
-        <template #default="{ row }">{{ displayCell(row.startTime) }}</template>
-      </el-table-column>
-      <el-table-column label="施工项目" min-width="170" show-overflow-tooltip>
+      <el-table-column label="施工项目" min-width="150" show-overflow-tooltip>
         <template #default="{ row }">{{ displayCell(row.projectName) }}</template>
       </el-table-column>
-      <el-table-column label="施工单位" min-width="180" show-overflow-tooltip>
+      <el-table-column label="施工单位" min-width="160" show-overflow-tooltip>
         <template #default="{ row }">{{ displayCell(row.contractor) }}</template>
       </el-table-column>
-      <el-table-column label="危大工程作业类别" min-width="140" show-overflow-tooltip>
+      <el-table-column label="危大工程作业类别" min-width="130" show-overflow-tooltip>
         <template #default="{ row }">{{ displayCell(row.category) }}</template>
       </el-table-column>
-      <el-table-column label="施工具体内容" min-width="200" show-overflow-tooltip>
+      <el-table-column label="施工具体内容" min-width="180" show-overflow-tooltip>
         <template #default="{ row }">{{ displayCell(row.workContent) }}</template>
+      </el-table-column>
+      <el-table-column label="作业开始时间" width="150">
+        <template #default="{ row }">{{ displayCell(row.startTime) }}</template>
       </el-table-column>
       <el-table-column label="作业结束时间" width="150">
         <template #default="{ row }">{{ displayCell(row.endTime) }}</template>
       </el-table-column>
-      <el-table-column label="作业状态" width="96" align="center">
-        <template #default="{ row }">
-          <el-tag :type="statusTagType(row.status)" size="small" effect="light">{{ row.status || '--' }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="建设单位现场安全监管人" min-width="170" show-overflow-tooltip>
-        <template #default="{ row }">{{ displayCell(row.ownerSafety) }}</template>
-      </el-table-column>
-      <el-table-column label="施工单位现场安全监管人" min-width="170" show-overflow-tooltip>
-        <template #default="{ row }">{{ displayCell(row.contractorSafety) }}</template>
-      </el-table-column>
-      <el-table-column label="监理单位现场安全监管人" min-width="170" show-overflow-tooltip>
-        <template #default="{ row }">{{ displayCell(row.supervisorSafety) }}</template>
-      </el-table-column>
-      <el-table-column label="风险管控措施" min-width="200" show-overflow-tooltip>
-        <template #default="{ row }">{{ displayCell(row.measures) }}</template>
-      </el-table-column>
-      <el-table-column label="来源" width="96" align="center">
+      <el-table-column label="来源" width="90" align="center">
         <template #default="{ row }">{{ sourceLabel(row.source) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="190" fixed="right">
+      <el-table-column label="操作" :width="canManage ? 218 : 92" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" :icon="View" @click="openDetail(row)">详情</el-button>
           <template v-if="canManage">
@@ -574,6 +561,15 @@ onMounted(() => {
                 disabled
                 placeholder="取当前所选项目"
               />
+              <el-select
+                v-else-if="field.type === 'select'"
+                v-model="form[field.key]"
+                filterable
+                placeholder="请选择危大工程作业类别"
+                style="width: 100%"
+              >
+                <el-option v-for="opt in MAJOR_PROJECT_CATEGORY_OPTIONS" :key="opt" :label="opt" :value="opt" />
+              </el-select>
               <el-date-picker
                 v-else-if="isDatetimeField(field)"
                 v-model="form[field.key]"
@@ -609,15 +605,13 @@ onMounted(() => {
 
     <el-dialog v-model="detailVisible" title="危大工程登记详情" width="780px" append-to-body destroy-on-close>
       <el-descriptions v-if="detailRow" :column="2" border class="mwr-detail">
-        <el-descriptions-item label="作业状态">
-          <el-tag :type="statusTagType(detailRow.status)" size="small" effect="light">{{ detailRow.status || '--' }}</el-tag>
-        </el-descriptions-item>
-        <el-descriptions-item label="施工日期（按开始时间派生）">{{ detailRow.reportDate || '--' }}</el-descriptions-item>
         <el-descriptions-item label="施工项目名称" :span="2">{{ displayCell(detailRow.projectName) }}</el-descriptions-item>
         <el-descriptions-item label="管理单位" :span="2">{{ displayCell(detailRow.leadUnit) }}</el-descriptions-item>
         <el-descriptions-item label="施工单位" :span="2">{{ displayCell(detailRow.contractor) }}</el-descriptions-item>
         <el-descriptions-item label="危大工程作业类别">{{ displayCell(detailRow.category) }}</el-descriptions-item>
-        <el-descriptions-item label="来源">{{ sourceLabel(detailRow.source) }}</el-descriptions-item>
+        <el-descriptions-item label="作业状态">
+          <el-tag :type="statusTagType(detailRow.status)" size="small" effect="light">{{ detailRow.status || '--' }}</el-tag>
+        </el-descriptions-item>
         <el-descriptions-item label="作业开始时间">{{ displayCell(detailRow.startTime) }}</el-descriptions-item>
         <el-descriptions-item label="作业结束时间">{{ displayCell(detailRow.endTime) }}</el-descriptions-item>
         <el-descriptions-item label="建设单位现场安全监管人及手机号" :span="2">{{ displayCell(detailRow.ownerSafety) }}</el-descriptions-item>
@@ -625,16 +619,9 @@ onMounted(() => {
         <el-descriptions-item label="监理单位现场安全监管人及手机号" :span="2">{{ displayCell(detailRow.supervisorSafety) }}</el-descriptions-item>
         <el-descriptions-item label="施工具体内容" :span="2">{{ displayCell(detailRow.workContent) }}</el-descriptions-item>
         <el-descriptions-item label="风险管控措施" :span="2">{{ displayCell(detailRow.measures) }}</el-descriptions-item>
-        <el-descriptions-item label="登记/更新时间" :span="2">{{ formatMomentText(detailRow.updatedAt) }}</el-descriptions-item>
+        <el-descriptions-item label="来源">{{ sourceLabel(detailRow.source) }}</el-descriptions-item>
+        <el-descriptions-item label="登记/更新时间">{{ formatMomentText(detailRow.updatedAt) }}</el-descriptions-item>
       </el-descriptions>
-      <el-alert
-        v-if="detailRow?.hasDangerPart"
-        type="info"
-        :closable="false"
-        show-icon
-        class="mwr-detail-tip"
-        title="该记录同时包含危险作业信息：危大工程信息在本页维护，危险作业信息在「每日施工作业」页维护，两者共用同一条填报记录。"
-      />
       <template #footer>
         <el-button @click="detailVisible = false">关闭</el-button>
       </template>
@@ -700,6 +687,94 @@ onMounted(() => {
   min-height: 100%;
 }
 
+/* 纵向节奏：面包屑 → 标题/搜索栏 → 列表 → 分页，逐层留白 */
+.mwr-page .page-header {
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.mwr-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  column-gap: 12px;
+  row-gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* 搜索栏与「每日施工作业」一致：作业日期 + 关键字 + 业务按钮同一行，右对齐 */
+.mwr-title-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.mwr-title-actions :deep(.el-button + .el-button) {
+  margin-left: 0;
+}
+
+.mwr-date {
+  width: 240px;
+}
+
+/* 日期区间选择器根元素由 ElTooltip 渲染，需 :deep 才能命中并压过 Element 的 350px 最小宽 */
+.mwr-title-actions :deep(.mwr-date) {
+  width: 240px;
+  min-width: 0;
+}
+
+.mwr-title-actions :deep(.el-range-input) {
+  min-width: 0;
+}
+
+.mwr-project,
+.mwr-category,
+.mwr-contractor {
+  width: 148px;
+}
+
+.mwr-search {
+  width: 220px;
+}
+
+/* 业务按钮组：放不下时整组换行并右对齐 */
+.mwr-title-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.mwr-title-buttons :deep(.el-button + .el-button) {
+  margin-left: 0;
+}
+
+@media (max-width: 1180px) {
+  .mwr-title-actions {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .mwr-date,
+  .mwr-search {
+    flex: 1 1 180px;
+    width: auto;
+  }
+
+  .mwr-project,
+  .mwr-category,
+  .mwr-contractor {
+    flex: 1 1 148px;
+    width: auto;
+  }
+}
+
+.table-pager {
+  margin-top: 14px;
+}
+
 .mwr-form :deep(.el-form-item) {
   margin-bottom: 14px;
 }
@@ -707,10 +782,6 @@ onMounted(() => {
 .mwr-detail :deep(.el-descriptions__label) {
   white-space: nowrap;
   width: 200px;
-}
-
-.mwr-detail-tip {
-  margin-top: 12px;
 }
 
 .mwr-import-tip {

@@ -1,8 +1,8 @@
 <script setup>
 /**
- * 指标配置（按前期 / 施工 / 收尾三类分页配置，页签为按钮样式）。
- * 每类页面只列该类型参与考核的指标，可调整扣分上限与扣分分档；
- * 保存时校验该类合计为 100 分。指挥部可编辑，项目级只读。
+ * 指标配置（按前期 / 在建 / 收尾三类分页配置，页签为按钮样式）。
+ * 三类共用同一套指标池：每类页面**列出全部指标**，用「启用」开关决定该指标在本类是否参与考核；
+ * 可调整启用指标的扣分上限与扣分分档，保存时校验该类已启用指标合计为 100 分。指挥部可编辑，项目级只读。
  */
 import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -37,6 +37,14 @@ function formatUnitText(value) {
 /** 当前分档弹窗对应指标的单位（自带值优先，兼容 band_unit 覆盖值）。 */
 const bandUnit = computed(() => formatUnitText(bandRow.value?.band_unit || bandRow.value?.value_unit))
 
+/**
+ * 扣分上限展示精度：整数直接显示整数（如 13），非整数保留 1 位小数（如 6.5）。
+ * 用户 2026-11-10 要求扣分上限尽量用整数配置。
+ */
+function capPrecision(value) {
+  return Number.isInteger(Number(value) || 0) ? 0 : 1
+}
+
 const groups = ref([])
 const bandVisible = ref(false)
 const bandRow = ref(null)
@@ -46,9 +54,7 @@ function load() {
   groups.value = listTypeIndicators(typeId.value)
     .map((group) => ({
       ...group,
-      indicators: group.indicators
-        .filter((item) => item.involved)
-        .map((item) => ({ ...item, bands: (item.bands || []).map((band) => ({ ...band })) })),
+      indicators: group.indicators.map((item) => ({ ...item, bands: (item.bands || []).map((band) => ({ ...band })) })),
     }))
     .filter((group) => group.indicators.length)
 }
@@ -125,7 +131,7 @@ function save() {
     ElMessage.error(result.msg)
     return
   }
-  ElMessage.success(`「${typeMeta.value.name}」类型指标已保存`)
+  ElMessage.success(`「${typeMeta.value.name}」类型指标已保存；已结束月份结果不变，次月统计起生效`)
   load()
 }
 
@@ -155,7 +161,7 @@ function saveBands() {
     return
   }
   bandVisible.value = false
-  ElMessage.success(`「${bandRow.value.name}」分档已保存`)
+  ElMessage.success(`「${bandRow.value.name}」分档已保存；已结束月份结果不变，次月统计起生效`)
   load()
 }
 
@@ -189,7 +195,7 @@ function resetBands() {
       </div>
     </div>
 
-    <p class="type-desc">{{ typeMeta.desc }}</p>
+    <p class="type-desc">{{ typeMeta.desc }}。三类共用同一套指标池：下方列出全部指标，用「启用」开关决定该指标在本类是否参与考核；已启用指标的扣分上限合计须为 100 分。</p>
 
     <div class="cap-summary" :class="{ 'is-warn': !totalOk }">
       <span class="cap-summary-label">已启用指标合计</span>
@@ -244,8 +250,8 @@ function resetBands() {
               v-model="row.cap"
               :min="0"
               :max="100"
-              :step="0.5"
-              :precision="1"
+              :step="1"
+              :precision="capPrecision(row.cap)"
               :disabled="!isRowEnabled(row)"
               size="small"
               controls-position="right"
@@ -256,10 +262,11 @@ function resetBands() {
         </el-table-column>
         <el-table-column label="扣分分档" width="150" align="center">
           <template #default="{ row }">
-            <el-button v-if="editable" link type="primary" :disabled="!isRowEnabled(row)" @click="openBands(row)">
+            <el-button v-if="editable && isRowEnabled(row)" link type="primary" @click="openBands(row)">
               {{ (row.bands || []).length }} 档{{ row.band_custom ? '（自定义）' : '' }}
             </el-button>
-            <span v-else>{{ isRowEnabled(row) ? `${(row.bands || []).length} 档` : '--' }}</span>
+            <span v-else-if="isRowEnabled(row)">{{ (row.bands || []).length }} 档</span>
+            <span v-else>--</span>
           </template>
         </el-table-column>
         <el-table-column label="考核规则" min-width="320" show-overflow-tooltip>
@@ -293,7 +300,7 @@ function resetBands() {
         </el-table-column>
         <el-table-column label="扣分" width="150" align="center">
           <template #default="{ row }">
-            <el-input-number v-model="row.deduct" :min="0" :step="0.5" :precision="1" size="small" controls-position="right" style="width: 120px" />
+            <el-input-number v-model="row.deduct" :min="0" :step="1" :precision="capPrecision(row.deduct)" size="small" controls-position="right" style="width: 120px" />
           </template>
         </el-table-column>
         <el-table-column label="操作" width="90" align="center">

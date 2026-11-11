@@ -4,7 +4,7 @@ import { Camera } from '@element-plus/icons-vue'
 import { maskPhone } from '../../../../utils/mask.js'
 
 const props = defineProps({
-  kind: { type: String, required: true, validator: (v) => ['hazard', 'danger'].includes(v) },
+  kind: { type: String, required: true, validator: (v) => ['hazard', 'danger', 'major'].includes(v) },
   record: { type: Object, required: true },
 })
 
@@ -78,7 +78,27 @@ const dangerFields = computed(() => {
   ]
 })
 
-const fields = computed(() => props.kind === 'hazard' ? hazardFields.value : dangerFields.value)
+/** 危大工程详情：字段与「危大工程信息登记」一致；施工单位默认取施工总承包单位名称 */
+const majorFields = computed(() => {
+  if (props.kind !== 'major') return []
+  return [
+    { label: '施工日期', value: props.record.date },
+    { label: '施工项目', value: props.record.projectName },
+    { label: '施工单位', value: props.record.contractor },
+    { label: '管理单位', value: props.record.leadUnit },
+    { label: '危大工程类别', value: props.record.category },
+    { label: '作业状态', value: props.record.status },
+    { label: '作业时段', value: props.record.time },
+    { label: '施工具体内容', value: props.record.workContent, full: true },
+    { label: '风险管控措施', value: props.record.measures, full: true },
+  ]
+})
+
+const fields = computed(() => {
+  if (props.kind === 'hazard') return hazardFields.value
+  if (props.kind === 'major') return majorFields.value
+  return dangerFields.value
+})
 
 /**
  * 流程记录：巡检 / 监理例会 / 调度 三类隐患统一展示。
@@ -186,8 +206,9 @@ function toggleReveal(key) {
   revealedKeys.value = next
 }
 
-function buildPersonnelRow(field) {
-  const people = splitPersonnel(detail.value[field.key])
+function buildPersonnelRow(field, rawValue) {
+  const raw = rawValue === undefined ? detail.value[field.key] : rawValue
+  const people = splitPersonnel(raw)
   const revealed = isRevealed(field.key)
   return {
     key: field.key,
@@ -202,12 +223,32 @@ function buildPersonnelRow(field) {
   }
 }
 
+/** 危大工程三方现场安全监管人 */
+const MAJOR_SAFETY_COLUMNS = [
+  { unit: '建设单位', field: 'ownerSafety' },
+  { unit: '施工单位', field: 'contractorSafety' },
+  { unit: '监理单位', field: 'supervisorSafety' },
+]
+
 const personnelGroups = computed(() => {
-  if (props.kind !== 'danger') return []
-  return PERSONNEL_GROUPS.map((group) => ({
-    unit: group.unit,
-    fields: group.fields.map(buildPersonnelRow),
-  }))
+  if (props.kind === 'danger') {
+    return PERSONNEL_GROUPS.map((group) => ({
+      unit: group.unit,
+      fields: group.fields.map((field) => buildPersonnelRow(field)),
+    }))
+  }
+  if (props.kind === 'major') {
+    return MAJOR_SAFETY_COLUMNS.map((column) => ({
+      unit: column.unit,
+      fields: [
+        buildPersonnelRow(
+          { key: `major-${column.field}`, label: '现场安全监管人' },
+          props.record[column.field],
+        ),
+      ],
+    }))
+  }
+  return []
 })
 </script>
 
@@ -225,7 +266,7 @@ const personnelGroups = computed(() => {
       </div>
     </div>
 
-    <div v-if="kind === 'danger'" class="detail-section personnel-section">
+    <div v-if="(kind === 'danger' || kind === 'major') && personnelGroups.length" class="detail-section personnel-section">
       <div class="section-label">参建单位管理人员</div>
       <div class="personnel-group" v-for="group in personnelGroups" :key="group.unit">
         <div class="personnel-unit">{{ group.unit }}</div>

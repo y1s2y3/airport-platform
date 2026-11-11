@@ -108,16 +108,13 @@ export const DANGER_WORK_CATEGORY_OPTIONS = [
   '不涉及危险作业',
 ]
 
+/** 危大工程作业类别（用户 2026-11-11 定稿枚举，登记表单/导入模板/COC 项目调度共用） */
 export const MAJOR_PROJECT_CATEGORY_OPTIONS = [
-  '深基坑',
-  '高支模',
-  '起重吊装',
-  '脚手架工程',
-  '暗挖工程',
   '不停航施工',
-  '模板工程及支撑体系',
+  '基坑开挖工程',
+  '模板支撑体系',
   '拆除工程',
-  '其他危大工程',
+  '高处作业吊篮施工',
 ]
 
 export const DAILY_WORK_HEADER_ROW = 5
@@ -191,7 +188,7 @@ export const MAJOR_WORK_REGISTER_FIELDS = [
   { key: 'projectName', label: '施工项目名称', required: false, col: 'B', span: 24, readonly: true },
   { key: 'contractor', label: '施工单位', required: true, col: 'C', span: 24 },
   { key: 'majorWorkContent', label: '施工具体内容', required: false, col: 'D', span: 24, type: 'textarea' },
-  { key: 'majorProjectCategory', label: '危大工程作业类别', required: true, col: 'E', span: 12 },
+  { key: 'majorProjectCategory', label: '危大工程作业类别', required: true, col: 'E', span: 12, type: 'select' },
   { key: 'majorStartTime', label: '作业开始时间', required: true, col: 'F', span: 12, type: 'datetime' },
   { key: 'majorEndTime', label: '作业结束时间', required: true, col: 'G', span: 12, type: 'datetime' },
   {
@@ -234,6 +231,3 @@ export const MAJOR_WORK_REGISTER_COL_MAP = MAJOR_WORK_REGISTER_FIELDS.reduce((ma
   map[index + 1] = field.key
   return map
 }, {})
-
-/** 危大工程信息登记模板：第 5 行表头、第 6 行起数据（与每日施工作业模板行结构一致） */
-export const MAJOR_WORK_REGISTER_DATA_START_ROW = 6

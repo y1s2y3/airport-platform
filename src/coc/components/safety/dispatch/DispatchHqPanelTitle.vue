@@ -19,7 +19,9 @@ defineProps({
       draggable="false"
     />
     <div class="dispatch-hq-title-main">
-      <span class="dispatch-hq-title-text">{{ title }}</span>
+      <slot name="title">
+        <span class="dispatch-hq-title-text">{{ title }}</span>
+      </slot>
       <div v-if="$slots.actions" class="dispatch-hq-title-actions">
         <slot name="actions" />
       </div>

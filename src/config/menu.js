@@ -303,7 +303,7 @@ const rawMenuTree = [
     levels: 'both',
     children: [
       { key: 'assessment-rank', label: '考核排名', icon: 'DataLine', path: '/assessment/rank', name: 'AssessmentRank', component: 'AssessmentRankView', levels: 'both', description: '指挥部看已纳入项目的月排名；项目只看本项目得分、扣分和自己的名次。' },
-      { key: 'assessment-indicators', label: '指标配置', icon: 'DataAnalysis', path: '/assessment/indicators', name: 'AssessmentIndicators', component: 'AssessmentTypeIndicatorView', levels: 'both', description: '按前期 / 施工 / 收尾三类分别配置考核指标的启用状态、扣分上限与扣分分档（三类各自独立，已启用指标合计须为 100 分）。' },
+      { key: 'assessment-indicators', label: '指标配置', icon: 'DataAnalysis', path: '/assessment/indicators', name: 'AssessmentIndicators', component: 'AssessmentTypeIndicatorView', levels: 'both', description: '前期 / 在建 / 收尾三类共用同一套指标池：每类页签列出全部指标，用开关决定该指标是否参与本类考核，启用指标可配扣分上限与分档（已启用合计须为 100 分）。' },
       { key: 'assessment-grades', label: '等级配置', icon: 'Star', path: '/assessment/grades', name: 'AssessmentGrades', component: 'AssessmentConfigView', levels: 'hq', description: '指挥部配置优、良、中、差的名称、颜色和分数区间。' },
       { key: 'assessment-projects', label: '考核项目', icon: 'Tickets', path: '/assessment/projects', name: 'AssessmentProjects', component: 'AssessmentConfigView', levels: 'hq', description: '指挥部勾选纳入月排名的项目。' },
     ],

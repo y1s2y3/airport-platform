@@ -143,3 +143,15 @@ body,
 .ap-table.el-table .el-table__row {
   font-size: 13px;
 }
+
+/* ---------- 弹窗锁屏：防止打开弹窗时页面横向变形 ----------
+ * Element Plus 打开 dialog 会给 body 加 .el-popup-parent--hidden，并在检测到 body 有纵向溢出时
+ * 把 body 宽度改成 calc(100% - 滚动条宽度)。本平台所有滚动都发生在内层容器
+ * （.page-viewport / COC .screen-viewport），body 本身不承担滚动，这个「让位」会造成
+ * 页面整体被收窄 ~17px（表格被挤、蒙层看起来比页面宽）。此处显式锁定为满宽并取消内边距补偿。
+ * COC 大屏 .screen-viewport 用的是 100vw，body 一旦被收窄也会导致比例与蒙层对不上，同理覆盖。
+ */
+body.el-popup-parent--hidden {
+  width: 100% !important;
+  padding-right: 0 !important;
+}

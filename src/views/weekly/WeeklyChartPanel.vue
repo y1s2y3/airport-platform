@@ -14,17 +14,38 @@ const props = defineProps({
 const el = ref(null)
 let instance = null
 let observer = null
+let lazyObserver = null
 
 function render() {
   if (!el.value || !props.chart) return
-  if (!instance) instance = echarts.init(el.value, null, { renderer: 'canvas' })
-  instance.setOption(buildChartOption(props.chart), true)
-  instance.resize()
+  try {
+    if (!instance) instance = echarts.init(el.value, null, { renderer: 'canvas' })
+    instance.setOption(buildChartOption(props.chart), true)
+    instance.resize()
+  } catch (error) {
+    // 图表渲染失败不影响周报正文与表格
+    if (el.value) el.value.innerHTML = '<div class="chart-fallback">图表渲染失败，可刷新页面重试</div>'
+  }
 }
 
 onMounted(async () => {
   await nextTick()
-  render()
+  // 懒渲染：周报一章有两张图，全量渲染会拖慢首屏；进入视口附近才初始化
+  if (typeof IntersectionObserver !== 'undefined' && el.value) {
+    lazyObserver = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          render()
+          lazyObserver?.disconnect()
+          lazyObserver = null
+        }
+      },
+      { rootMargin: '300px' },
+    )
+    lazyObserver.observe(el.value)
+  } else {
+    render()
+  }
   if (typeof ResizeObserver !== 'undefined' && el.value) {
     observer = new ResizeObserver(() => instance?.resize())
     observer.observe(el.value)
@@ -32,8 +53,10 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  if (lazyObserver) lazyObserver.disconnect()
   if (observer) observer.disconnect()
   if (instance) instance.dispose()
+  lazyObserver = null
   observer = null
   instance = null
 })
@@ -84,5 +107,16 @@ watch(
 }
 .chart-canvas.is-donut {
   height: 280px;
+}
+.chart-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 120px;
+  font-size: 13px;
+  color: var(--ap-text-muted, #909399);
+  background: #f7f8fa;
+  border-radius: 6px;
 }
 </style>

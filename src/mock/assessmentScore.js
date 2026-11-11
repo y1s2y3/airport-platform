@@ -239,11 +239,11 @@ export const ASSESSMENT_INDICATORS = [
     not_involved: '在场台数为 0',
     bands: [
       { min: null, max: 10, min_inclusive: false, max_inclusive: true, deduct: 0 },
-      { min: 10, max: 20, min_inclusive: false, max_inclusive: true, deduct: 0.8 },
-      { min: 20, max: 40, min_inclusive: false, max_inclusive: true, deduct: 1.6 },
-      { min: 40, max: 60, min_inclusive: false, max_inclusive: true, deduct: 2.4 },
-      { min: 60, max: 100, min_inclusive: false, max_inclusive: true, deduct: 3.2 },
-      { min: 100, max: null, min_inclusive: false, max_inclusive: true, deduct: 5.6 },
+      { min: 10, max: 20, min_inclusive: false, max_inclusive: true, deduct: 1 },
+      { min: 20, max: 40, min_inclusive: false, max_inclusive: true, deduct: 1 },
+      { min: 40, max: 60, min_inclusive: false, max_inclusive: true, deduct: 2 },
+      { min: 60, max: 100, min_inclusive: false, max_inclusive: true, deduct: 3 },
+      { min: 100, max: null, min_inclusive: false, max_inclusive: true, deduct: 4 },
     ],
   },
   {
@@ -345,7 +345,7 @@ export const ASSESSMENT_INDICATORS = [
 
 /* ------------------------------------------------------------------ *
  * 考核类型与指标分类（2026-11-05 新增）
- *  - 每个项目固定一种考核类型（前期/施工/收尾），可单独调整；
+ *  - 每个项目固定一种考核类型（前期/在建/收尾），可单独调整；
  *  - 不同类型启用不同指标、不同扣分上限（每类合计 100 分）；
  *  - 排名按综合得分混排，表格标注项目类型。
  * ------------------------------------------------------------------ */
@@ -353,15 +353,16 @@ export const ASSESSMENT_INDICATORS = [
 export const INDICATOR_CATEGORIES = [
   { id: 'progress', name: '施工进度', desc: '进度计划、作业申报、里程碑' },
   { id: 'coc', name: 'COC 调度', desc: '调度会、值班、例会、任务单' },
-  { id: 'safety', name: '安全管理及隐患管控', desc: '巡检、隐患、危大、人员与设备' },
-  { id: 'quality', name: '质量管控', desc: '验评、隐患、报审、材料与样板' },
+  { id: 'inspection', name: '巡检管理', desc: '巡检任务、安全隐患与质量隐患' },
+  { id: 'safety', name: '安全管理', desc: '人员出勤、设备与 AI 预警' },
+  { id: 'quality', name: '质量管控', desc: '验评、报审、材料与样板' },
   { id: 'pre', name: '前期专项', desc: '报审报批、定样、开工条件（前期类型）' },
   { id: 'close', name: '收尾专项', desc: '验收、资料、缺陷整改（收尾类型）' },
 ]
 
 export const ASSESSMENT_TYPES = [
   { id: 'pre', name: '前期', desc: '项目前期筹备：报审报批、定样、开工条件' },
-  { id: 'build', name: '施工', desc: '施工实施阶段：进度、安全、质量、调度' },
+  { id: 'build', name: '在建', desc: '在建实施阶段：进度、安全、质量、调度' },
   { id: 'close', name: '收尾', desc: '收尾阶段：验收、资料、缺陷整改' },
 ]
 
@@ -371,59 +372,52 @@ export const ASSESSMENT_TYPES = [
  */
 export const ASSESSMENT_TYPE_CAPS = {
   pre: {
-    work_apply: 10,
-    daily_work: 5,
-    duty_report: 5,
-    meeting_report: 5,
-    manage_att: 8,
-    inspect: 8,
-    hazard: 9,
-    brand_apply: 12,
-    mat_doc: 8,
-    mat_sample: 12,
-    plan_approve: 10,
-    scheme_approve: 8,
+    daily_work: 7,
+    duty_report: 7,
+    meeting_report: 7,
+    manage_att: 10,
+    inspect: 10,
+    hazard: 11,
+    brand_apply: 15,
+    mat_doc: 10,
+    plan_approve: 13,
+    scheme_approve: 10,
   },
   build: {
-    progress_plan: 12,
-    work_apply: 8,
+    progress_plan: 13,
     milestone: 5,
     daily_work: 5,
     duty_report: 5,
     meeting_report: 5,
-    inspect: 7,
-    hazard: 8,
+    inspect: 8,
+    hazard: 10,
     hazard_overdue: 4,
     manage_att: 6,
     crane: 4,
     camera: 2,
     ai: 2,
     labor_warn: 2,
-    qm_inspect: 10,
-    qm_hazard: 10,
-    brand_apply: 5,
+    qm_inspect: 11,
+    qm_hazard: 11,
+    brand_apply: 7,
   },
   close: {
-    battle_task: 10,
-    task_order: 10,
-    hazard: 10,
-    hazard_overdue: 8,
-    inspect: 7,
-    qm_inspect: 10,
-    qm_pass: 10,
-    qm_hazard: 5,
-    asbuilt: 12,
-    defect_close: 10,
-    archive_doc: 8,
+    task_order: 17,
+    hazard: 17,
+    hazard_overdue: 13,
+    inspect: 11,
+    qm_inspect: 17,
+    qm_pass: 17,
+    qm_hazard: 8,
   },
 }
 
 const typeCapState = JSON.parse(JSON.stringify(ASSESSMENT_TYPE_CAPS))
 
-/** 现有 10 个指标的分类归属 */
+/** 现有 10 个指标的分类归属（巡检任务与隐患类归入「巡检管理」） */
 const BASE_INDICATOR_CATEGORY = {
-  inspect: 'safety',
-  hazard: 'safety',
+  inspect: 'inspection',
+  hazard: 'inspection',
   manage_att: 'safety',
   crane: 'safety',
   camera: 'safety',
@@ -457,38 +451,27 @@ function makeIndicator(id, name, category, value_unit, calc_rule, not_involved) 
 const EXTRA_INDICATORS = [
   // 施工进度
   makeIndicator('progress_plan', '月度进度计划完成率', 'progress', '百分比', '每月 1 日统计上月。完成率 = 实际完成工程量 / 计划工程量', '无计划工程量'),
-  makeIndicator('work_apply', '工程作业申报及时率', 'progress', '百分比', '按截止时间统计。及时率 = 按期提交单数 / 应提交单数', '无应提交作业'),
   makeIndicator('milestone', '关键节点按期达成率', 'progress', '百分比', '按里程碑计划统计。达成率 = 按期达成节点数 / 应达成节点数', '本期无应达成节点'),
-  makeIndicator('battle_task', '挂图作战任务完成率', 'progress', '百分比', '完成率 = 已完成任务数 / 已下达任务数', '本期无下达任务'),
   // COC 调度
-  makeIndicator('danger_report', '危险作业上报及时率', 'coc', '百分比', '及时率 = 按时上报条数 / 应上报条数', '本期无危险作业'),
   makeIndicator('dispatch_hazard', '调度隐患闭环率', 'coc', '百分比', '闭环率 = 调度来源已闭环数 / 调度来源新增数', '本期无调度隐患'),
   makeIndicator('task_order', '调度任务单按期办结率', 'coc', '百分比', '办结率 = 按期办结单数 / 应办结单数', '本期无任务单'),
-  makeIndicator('sampling_coop', '隐患抽检配合率', 'coc', '百分比', '配合率 = 已完成抽检隐患数 / 已下发抽检隐患数', '本期无抽检任务'),
   // 安全管理及隐患管控
-  makeIndicator('inspect_overdue', '巡检任务逾期率', 'safety', '百分比', '逾期率 = 逾期未完成任务数 / 应完成任务数', '本期无巡检任务'),
-  makeIndicator('hazard_overdue', '隐患逾期未闭环数', 'safety', '条', '按条数扣分。统计期末逾期未闭环隐患条数', '本期无逾期隐患'),
-  makeIndicator('major_hazard', '重大隐患处置及时率', 'safety', '百分比', '及时率 = 按期处置重大隐患数 / 重大隐患总数', '本期无重大隐患'),
-  makeIndicator('major_control', '危大工程管控要点落实率', 'safety', '百分比', '落实率 = 已落实管控项 / 应落实管控项', '本期无危大工程'),
-  makeIndicator('major_patrol', '危大工程巡视频次完成率', 'safety', '百分比', '完成率 = 实际巡视次数 / 应巡视次数', '本期无巡视要求'),
-  makeIndicator('risk_control', '风险点管控到位率', 'safety', '百分比', '到位率 = 已落实管控风险点数 / 应管控风险点数', '本期无风险点'),
+  makeIndicator('inspect_overdue', '巡检任务逾期率', 'inspection', '百分比', '逾期率 = 逾期未完成任务数 / 应完成任务数', '本期无巡检任务'),
+  makeIndicator('hazard_overdue', '隐患逾期未闭环数', 'inspection', '条', '按条数扣分。统计期末逾期未闭环隐患条数', '本期无逾期隐患'),
+  makeIndicator('major_hazard', '重大隐患处置及时率', 'inspection', '百分比', '及时率 = 按期处置重大隐患数 / 重大隐患总数', '本期无重大隐患'),
+  makeIndicator('sampling_coop_supervisor', '监理单位隐患抽检完成率', 'inspection', '百分比', '完成率 = 监理单位已完成抽检隐患数 / 已下发监理单位抽检隐患数', '本期无监理单位抽检任务'),
+  makeIndicator('sampling_coop_construction', '施工单位隐患抽检完成率', 'inspection', '百分比', '完成率 = 施工单位已完成抽检隐患数 / 已下发施工单位抽检隐患数', '本期无施工单位抽检任务'),
   // 质量管控
   makeIndicator('qm_inspect', '质量验评任务完成率', 'quality', '百分比', '完成率 = 已完成验收任务数 / 应验收任务数', '本期无验收任务'),
-  makeIndicator('qm_pass', '验收一次通过率', 'quality', '百分比', '通过率 = 一次通过任务数 / 验收任务数', '本期无验收任务'),
-  makeIndicator('qm_hazard', '质量隐患整改率', 'quality', '百分比', '整改率 = 已闭环质量隐患数 / 新增质量隐患数', '本期无质量隐患'),
-  makeIndicator('qm_hazard_overdue', '质量隐患逾期数', 'quality', '条', '按条数扣分。统计期末逾期未闭环质量隐患条数', '本期无逾期质量隐患'),
+  makeIndicator('qm_pass', '质量验评一次通过率', 'quality', '百分比', '通过率 = 一次通过任务数 / 验收任务数', '本期无验收任务'),
+  makeIndicator('qm_hazard', '质量隐患整改率', 'inspection', '百分比', '整改率 = 已闭环质量隐患数 / 新增质量隐患数', '本期无质量隐患'),
+  makeIndicator('qm_hazard_overdue', '质量隐患逾期数', 'inspection', '条', '按条数扣分。统计期末逾期未闭环质量隐患条数', '本期无逾期质量隐患'),
   makeIndicator('brand_apply', '品牌报审一次通过率', 'quality', '百分比', '通过率 = 一次通过报审数 / 报审总数', '本期无品牌报审'),
   makeIndicator('mat_doc', '材料设备进场资料齐全率', 'quality', '百分比', '齐全率 = 资料齐全批次 / 进场批次', '本期无材料设备进场'),
-  makeIndicator('sample_pass', '样板验收合格率', 'quality', '百分比', '合格率 = 验收合格样板数 / 应做样板数', '本期无样板任务'),
   // 前期专项
-  makeIndicator('mat_sample', '材料设备定样完成率', 'pre', '百分比', '完成率 = 已定样材料设备数 / 应定样数', '本期无定样要求'),
   makeIndicator('plan_approve', '进度计划报批及时率', 'pre', '百分比', '及时率 = 按期报批计划数 / 应报批计划数', '本期无报批要求'),
   makeIndicator('scheme_approve', '方案报审及时率', 'pre', '百分比', '及时率 = 按期报审方案数 / 应报审方案数', '本期无方案报审'),
   // 收尾专项
-  makeIndicator('asbuilt', '实模一致验收完成率', 'close', '百分比', '完成率 = 已完成验收项 / 应验收项', '本期无实模验收'),
-  makeIndicator('defect_close', '缺陷整改闭环率', 'close', '百分比', '闭环率 = 已闭环缺陷数 / 缺陷总数', '本期无缺陷'),
-  makeIndicator('archive_doc', '竣工资料完整率', 'close', '百分比', '完整率 = 已归档资料项 / 应归档资料项', '本期无归档要求'),
-  makeIndicator('handover', '移交保修责任落实率', 'close', '百分比', '落实率 = 已落实移交事项 / 应落实事项', '本期无移交事项'),
   makeIndicator('settle_doc', '结算资料提交及时率', 'close', '百分比', '及时率 = 按期提交结算资料数 / 应提交数', '本期无结算要求'),
 ]
 ASSESSMENT_INDICATORS.push(...EXTRA_INDICATORS)
@@ -668,6 +651,22 @@ const DEFAULT_FORMULAS = {
   ],
 }
 
+/**
+ * 月度排名只发布已结束月份：当月考核在次月 1 日一次性统计后才出最终名次，
+ * 因此选项最新为「上月」，不展示当月数据（上月即最新，前两月用于环比对比）。
+ */
+function buildMonthPeriodOptions() {
+  const now = new Date()
+  return [1, 2].map((offset) => {
+    const month = new Date(now.getFullYear(), now.getMonth() - offset, 1)
+    return {
+      id: offset === 1 ? 'month-prev' : 'month-prev2',
+      label: `${month.getFullYear()}年${month.getMonth() + 1}月`,
+      ongoing: false,
+    }
+  })
+}
+
 export const PERIOD_GROUPS = [
   {
     id: 'week',
@@ -680,10 +679,7 @@ export const PERIOD_GROUPS = [
   {
     id: 'month',
     label: '月度排名',
-    options: [
-      { id: 'month-prev', label: '2026年8月', ongoing: false },
-      { id: 'month-current', label: '2026年9月（统计至昨日 2026-09-18）', ongoing: true },
-    ],
+    options: buildMonthPeriodOptions(),
   },
   {
     id: 'quarter',
@@ -740,12 +736,16 @@ catalog.forEach((item, index) => {
   projectTypeState[item.id] = TYPE_BY_INDEX[index] || 'build'
 })
 
-/** 期次序号：prev 为已归档历史期，current 为当期（切换类型只影响当期及以后） */
+/**
+ * 期次序号：数值越大越新，切换类型只影响当期（进行中月份，不在排名页展示）及以后；
+ * 已结束月份（上月/前两月）序号均小于当期，改类型不重算其名次。
+ */
 const PERIOD_ORDER = {
   'week-prev': 0,
   'week-current': 1,
+  'month-prev2': -1,
   'month-prev': 0,
-  'month-current': 1,
+  'month-prev3': -2,
   'quarter-prev': 0,
   'quarter-current': 1,
 }
@@ -1050,11 +1050,17 @@ export function listPeriodGroups() {
 
 const PERIOD_PREV = {
   'week-current': 'week-prev',
-  'month-current': 'month-prev',
+  'month-prev': 'month-prev2',
+  'month-prev2': 'month-prev3',
   'quarter-current': 'quarter-prev',
 }
 
 function periodLabelOf(periodId) {
+  if (periodId === 'month-prev3') {
+    const now = new Date()
+    const month = new Date(now.getFullYear(), now.getMonth() - 3, 1)
+    return `${month.getFullYear()}年${month.getMonth() + 1}月`
+  }
   for (const group of PERIOD_GROUPS) {
     const hit = (group.options || []).find((item) => item.id === periodId)
     if (hit) return hit.label
@@ -1079,21 +1085,42 @@ const INDICATOR_ADVICE = {
   meeting_report: '按期召开监理例会并上传纪要',
   labor_warn: '及时处置实名制预警，规范用工管理',
   progress_plan: '跟踪月度进度计划执行，偏差及时纠偏',
-  work_apply: '按截止时间提交工程作业申报',
   milestone: '盯控关键节点，提前暴露滞后风险',
-  battle_task: '加快挂图作战任务销项',
   hazard_overdue: '建立逾期隐患清单，逐条销项',
   brand_apply: '提前准备品牌报审资料，提高一次通过率',
   mat_doc: '完善材料设备进场资料，避免资料缺失',
-  mat_sample: '按期完成材料设备定样',
   qm_inspect: '按节点推进质量验评，及时提交验收',
-  qm_pass: '提升一次验收通过率，减少返工',
+  qm_pass: '提升质量验评一次通过率，减少返工',
   qm_hazard: '加强质量隐患整改闭环',
-  asbuilt: '加快实模一致验收',
-  defect_close: '逐项闭环缺陷整改',
+  sampling_coop_supervisor: '督促监理单位按期完成隐患抽检',
+  sampling_coop_construction: '督促施工单位按期完成隐患抽检',
 }
 
-export function buildRanking(periodId) {
+/** 整改建议的责任岗位与时限（用户 2026-11-10：数据拼装 + 责任 + 时限） */
+const CATEGORY_SUGGEST_META = {
+  progress: { owner: '工程管理部 · 进度工程师', due: '次月 15 日前' },
+  coc: { owner: 'COC 调度中心 · 调度员', due: '次月 5 日前' },
+  inspection: { owner: '安质部 · 隐患督办员', due: '次月 10 日前' },
+  safety: { owner: '安质部 · 安全管理员', due: '次月 10 日前' },
+  quality: { owner: '质量管理部 · 质量工程师', due: '次月 10 日前' },
+  pre: { owner: '工程管理部 · 前期报建专员', due: '次月 15 日前' },
+  close: { owner: '工程管理部 · 竣工资料专员', due: '次月 20 日前' },
+}
+const INDICATOR_SUGGEST_META = {
+  sampling_coop_supervisor: { owner: '监理单位 · 项目监理部', due: '次月 10 日前' },
+  sampling_coop_construction: { owner: '施工单位 · 项目部', due: '次月 10 日前' },
+  brand_apply: { owner: '质量管理部 · 品牌报审专员', due: '次月 10 日前' },
+  mat_doc: { owner: '质量管理部 · 材料管理员', due: '次月 10 日前' },
+  labor_warn: { owner: '综合管理部 · 实名制管理员', due: '次月 10 日前' },
+}
+function suggestMetaOf(indicatorId) {
+  if (INDICATOR_SUGGEST_META[indicatorId]) return INDICATOR_SUGGEST_META[indicatorId]
+  const indicator = ASSESSMENT_INDICATORS.find((item) => item.id === indicatorId)
+  const category = indicator?.category || 'safety'
+  return CATEGORY_SUGGEST_META[category] || { owner: '安质部', due: '次月 15 日前' }
+}
+
+function buildRankingLive(periodId) {
   const rows = catalog
     .filter((item) => isProjectIncluded(item.id))
     .map((item) => {
@@ -1141,6 +1168,91 @@ export function buildRanking(periodId) {
   })
 }
 
+/* ------------------------------------------------------------------ *
+ * 月度结果快照（用户 2026-11-10 裁决 A：统计完成即固化）
+ *  - 已结束月份首次计算时生成快照：名次、综合得分、等级、各指标扣分明细、汇总与等级口径；
+ *  - 之后修改指标配置（启停/上限/分档）或等级配置，只影响尚未固化的月份（次月及以后），
+ *    已固化月份始终返回快照，保证「已结束月份不改名次/等级」。
+ * ------------------------------------------------------------------ */
+
+const rankSnapshots = {}
+const snapshotBuilding = new Set()
+
+function cloneJson(value) {
+  return value === undefined ? value : JSON.parse(JSON.stringify(value))
+}
+
+function nowStamp() {
+  const d = new Date()
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function summarizeWithGrades(rows, grades) {
+  const count = rows.length
+  const avg = count ? round1(rows.reduce((sum, row) => sum + row.score, 0) / count) : null
+  const gradeCounts = {}
+  grades.forEach((item) => {
+    gradeCounts[item.name] = rows.filter((row) => row.grade === item.name).length
+  })
+  const typeStats = ASSESSMENT_TYPES.map((type) => ({
+    ...type,
+    count: rows.filter((row) => row.assessment_type === type.id).length,
+  }))
+  return { count, avg, grades: gradeCounts, typeStats }
+}
+
+/** 取（或首次生成）某月份的结果快照：已固化月份不再随配置变化 */
+export function getRankSnapshot(periodId) {
+  if (!rankSnapshots[periodId]) {
+    if (snapshotBuilding.has(periodId)) {
+      // 防御：循环引用时退化为实时计算，不写入快照
+      return { periodId, periodLabel: periodLabelOf(periodId), rows: buildRankingLive(periodId), grades: cloneJson(gradeState), summary: null, frozenAt: '' }
+    }
+    snapshotBuilding.add(periodId)
+    let rows = []
+    try {
+      rows = buildRankingLive(periodId)
+    } finally {
+      snapshotBuilding.delete(periodId)
+    }
+    const grades = cloneJson(gradeState)
+    rankSnapshots[periodId] = {
+      periodId,
+      periodLabel: periodLabelOf(periodId),
+      rows,
+      grades,
+      summary: summarizeWithGrades(rows, grades),
+      frozenAt: nowStamp(),
+    }
+  }
+  return rankSnapshots[periodId]
+}
+
+/** 排名列表（已固化月份取快照） */
+export function buildRanking(periodId) {
+  return cloneJson(getRankSnapshot(periodId).rows)
+}
+
+/** 该月份固化的等级口径（名称/颜色/区间），排名页据此展示统计卡与标签 */
+export function getRankingGrades(periodId) {
+  return cloneJson(getRankSnapshot(periodId).grades)
+}
+
+/** 该月份固化的汇总（项目数/均分/等级分布/类型分布） */
+export function getRankingSummary(periodId) {
+  return cloneJson(getRankSnapshot(periodId).summary)
+}
+
+/** 该月份固化时间（用于页面提示「已固化」） */
+export function getRankingFrozenAt(periodId) {
+  return getRankSnapshot(periodId).frozenAt
+}
+
+export function isRankPeriodFrozen(periodId) {
+  return !!rankSnapshots[periodId]
+}
+
 export function getProjectAssessment(projectId, periodId) {
   const project = catalog.find((item) => item.id === projectId)
   if (!project) {
@@ -1165,17 +1277,7 @@ export function getProjectAssessment(projectId, periodId) {
 }
 
 export function summarizeRanking(rows) {
-  const count = rows.length
-  const avg = count ? round1(rows.reduce((sum, row) => sum + row.score, 0) / count) : null
-  const grades = {}
-  gradeState.forEach((item) => {
-    grades[item.name] = rows.filter((row) => row.grade === item.name).length
-  })
-  const typeStats = ASSESSMENT_TYPES.map((type) => ({
-    ...type,
-    count: rows.filter((row) => row.assessment_type === type.id).length,
-  }))
-  return { count, avg, grades, typeStats }
+  return summarizeWithGrades(rows, gradeState)
 }
 
 /**
@@ -1185,16 +1287,17 @@ export function summarizeRanking(rows) {
  */
 export function buildRankingConclusion(periodId) {
   const rows = buildRanking(periodId)
+  const snapshotGrades = getRankingGrades(periodId)
   const periodLabel = periodLabelOf(periodId)
   if (!rows.length) {
-    return { empty: true, periodLabel, overall: null, top: null, bottom: null, weakIndicators: [], alerts: [], suggestions: [] }
+    return { empty: true, periodLabel, overall: null, top: null, bottom: null, weakIndicators: [], alerts: [], suggestions: [], dimensions: [] }
   }
 
   const prevRows = PERIOD_PREV[periodId] ? buildRanking(PERIOD_PREV[periodId]) : []
   const avg = round1(rows.reduce((sum, row) => sum + row.score, 0) / rows.length)
   const prevAvg = prevRows.length ? round1(prevRows.reduce((sum, row) => sum + row.score, 0) / prevRows.length) : null
   const avgDelta = prevAvg === null ? null : round1(avg - prevAvg)
-  const gradeStats = gradeState.map((item) => ({ name: item.name, color: item.color, count: rows.filter((row) => row.grade === item.name).length }))
+  const gradeStats = snapshotGrades.map((item) => ({ name: item.name, color: item.color, count: rows.filter((row) => row.grade === item.name).length }))
   const typeStats = ASSESSMENT_TYPES.map((type) => ({ ...type, count: rows.filter((row) => row.assessment_type === type.id).length }))
 
   // 指标扣分聚合
@@ -1224,7 +1327,7 @@ export function buildRankingConclusion(periodId) {
   }))
 
   // 重点提示：环比（较上月）/ 同比（去年同期）
-  const worstGrade = gradeState[gradeState.length - 1]
+  const worstGrade = snapshotGrades[snapshotGrades.length - 1]
   const worstProjects = rows.filter((row) => row.grade === worstGrade?.name)
 
   function compareWith(baseRows) {
@@ -1328,15 +1431,117 @@ export function buildRankingConclusion(periodId) {
   }
 
   // ⑥ 整改建议
-  const suggestions = weakIndicators.map((item) => ({
-    indicator_id: item.indicator_id,
-    name: item.name,
-    text: INDICATOR_ADVICE[item.indicator_id] || `针对「${item.name}」制定专项改进措施，纳入下期考核跟踪`,
-  }))
+  const suggestions = weakIndicators.map((item) => {
+    const meta = suggestMetaOf(item.indicator_id)
+    return {
+      indicator_id: item.indicator_id,
+      name: item.name,
+      text: INDICATOR_ADVICE[item.indicator_id] || `针对「${item.name}」制定专项改进措施，纳入下期考核跟踪`,
+      owner: meta.owner,
+      due: meta.due,
+    }
+  })
   const alertShort = alertItems.map((item) => item.short).filter(Boolean).join(' · ') || '无'
   const suggestionsShort = suggestions.length
     ? `${suggestions[0].name}${suggestions.length > 1 ? ` 等 ${suggestions.length} 项` : ''}`
     : '无'
+
+  // ⑦ 高维度综述：按「总体表现 / 短板分布 / 趋势与提示 / 整改建议」四个维度横向分布，
+  //    每个维度提炼 3 条辅助决策、提醒问题的关键信息（卡片式）。
+  const padItems = (items) => {
+    const list = items.slice(0, 3)
+    while (list.length < 3) list.push({ label: '—', text: '暂无' })
+    return list
+  }
+  const weakItems = weakIndicators.map((item, index) => ({
+    label: `Top ${index + 1}`,
+    text: `${item.name} 扣 ${item.totalDeduct} 分 · ${item.projectCount} 个项目涉及`,
+  }))
+  // 连续两期下滑：本月 < 上月 < 上上月（需要连续三个月数据，前期期次不足时显示暂无）
+  const prevChainId = PERIOD_PREV[periodId] ? PERIOD_PREV[PERIOD_PREV[periodId]] : null
+  const prev2Rows = prevChainId ? buildRanking(prevChainId) : []
+  let continuousDownItems = []
+  if (prevRows.length && prev2Rows.length) {
+    const prevScoreMap = new Map(prevRows.map((row) => [row.project_id, row.score]))
+    const prev2ScoreMap = new Map(prev2Rows.map((row) => [row.project_id, row.score]))
+    continuousDownItems = rows
+      .filter(
+        (row) =>
+          prevScoreMap.has(row.project_id) &&
+          prev2ScoreMap.has(row.project_id) &&
+          row.score < prevScoreMap.get(row.project_id) &&
+          prevScoreMap.get(row.project_id) < prev2ScoreMap.get(row.project_id),
+      )
+      .sort((a, b) => a.score - b.score)
+      .map((row) => `${row.project_name}（${prev2ScoreMap.get(row.project_id)}→${prevScoreMap.get(row.project_id)}→${row.score}）`)
+  }
+  // 新进末位等级：本期落在末位等级、上期不在末位等级
+  const worstName = snapshotGrades[snapshotGrades.length - 1]?.name || ''
+  const prevGradeMap = new Map(prevRows.map((row) => [row.project_id, row.grade]))
+  const newWorstRows = worstName
+    ? rows.filter((row) => row.grade === worstName && prevGradeMap.has(row.project_id) && prevGradeMap.get(row.project_id) !== worstName)
+    : []
+  const summarizeList = (list, limit = 3) => {
+    if (!list.length) return ''
+    const head = list.slice(0, limit).join('、')
+    return list.length > limit ? `${head} 等 ${list.length} 个` : head
+  }
+  const dimensions = [
+    {
+      key: 'overall',
+      title: '总体表现',
+      tone: 'primary',
+      items: padItems([
+        { label: '考核范围', text: `${rows.length} 个项目${typeText ? `（${typeText}）` : ''}` },
+        { label: '平均得分', text: `${avg} 分${avgDelta === null ? '' : `（环比${avgDelta >= 0 ? '+' : ''}${avgDelta} 分）`}` },
+        { label: '等级分布', text: gradeText || '—' },
+      ]),
+    },
+    {
+      key: 'weak',
+      title: '短板分布',
+      tone: 'warn',
+      items: padItems(weakItems.length ? weakItems : [{ label: '—', text: '本期无明显短板指标' }]),
+    },
+    {
+      key: 'trend',
+      title: '趋势与提示',
+      tone: 'info',
+      items: padItems([
+        mom
+          ? { label: '环比', text: `均分${mom.avgDelta >= 0 ? '+' : ''}${mom.avgDelta} 分（上升 ${mom.up} / 下降 ${mom.down}）` }
+          : { label: '环比', text: '上期无可比数据' },
+        {
+          label: '连续两期下滑',
+          text: continuousDownItems.length
+            ? `共 ${continuousDownItems.length} 个：${summarizeList(continuousDownItems)}`
+            : prev2Rows.length
+              ? '无连续两期下滑的项目'
+              : '历史期次不足，暂无法判断',
+        },
+        {
+          label: '新进末位等级',
+          text: worstName
+            ? newWorstRows.length
+              ? `新增 ${newWorstRows.length} 个「${worstName}」项目：${summarizeList(newWorstRows.map((row) => row.project_name))}`
+              : `无新进「${worstName}」等级项目`
+            : '未配置等级',
+        },
+      ]),
+    },
+    {
+      key: 'action',
+      title: '整改建议',
+      tone: 'success',
+      items: padItems(
+        suggestions.map((item, index) => ({
+          label: `建议 ${index + 1}`,
+          text: `${item.name}：${item.text}`,
+          meta: `责任：${item.owner} · 时限：${item.due}`,
+        })),
+      ),
+    },
+  ]
 
   return {
     empty: false,
@@ -1350,6 +1555,7 @@ export function buildRankingConclusion(periodId) {
     alertShort,
     suggestions,
     suggestionsShort,
+    dimensions,
     generatedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
   }
 }
@@ -1487,8 +1693,11 @@ export function saveAssessmentIndicators(indicators) {
   return { ok: true }
 }
 
+/** 等级固定 4 档，分数区间固定（用户 2026-11-10 裁决：数量固定，只支持改文字与颜色） */
+const FIXED_GRADE_BOUNDS = [0, 40, 60, 80, 100]
+
 export function saveAssessmentGrades(grades) {
-  if (!grades.length) return { ok: false, msg: '至少保留一个等级' }
+  if (grades.length !== FIXED_GRADE_BOUNDS.length - 1) return { ok: false, msg: '等级固定为 4 档，不支持增删' }
   const names = grades.map((item) => String(item.name || '').trim())
   if (names.some((name) => !name)) return { ok: false, msg: '请填写等级名称' }
   if (new Set(names).size !== names.length) return { ok: false, msg: '等级名称不能重复' }
@@ -1498,20 +1707,15 @@ export function saveAssessmentGrades(grades) {
     min: Math.round(Number(item.min) * 10) / 10,
     max: Math.round(Number(item.max) * 10) / 10,
     min_cmp: item.min_cmp || (index === 0 ? 'gte' : 'gt'),
+    color: item.color || '#909399',
   }))
-  for (const item of rows) {
-    if (Number.isNaN(item.min) || Number.isNaN(item.max) || item.min > item.max) {
-      return { ok: false, msg: '分数区间的下限不能大于上限' }
-    }
-    if (item.min < 0 || item.max > 100) return { ok: false, msg: '分数区间须在 0 分到 100 分之间' }
-  }
-  if (rows[0].min !== 0) return { ok: false, msg: '最低一档的下限须为 0 分' }
-  if (rows[rows.length - 1].max !== 100) return { ok: false, msg: '最高一档的上限须为 100 分' }
-  for (let index = 0; index < rows.length - 1; index += 1) {
-    if (rows[index].max !== rows[index + 1].min) {
-      return { ok: false, msg: '各档须从低到高首尾相接，下一档下限等于上一档上限' }
-    }
-  }
+  // 分数区间固定：必须恰好覆盖 0～100 的 4 个固定区间
+  const pairs = rows
+    .map((item) => [item.min, item.max])
+    .sort((left, right) => left[0] - right[0])
+  const fixedPairs = FIXED_GRADE_BOUNDS.slice(0, -1).map((min, index) => [min, FIXED_GRADE_BOUNDS[index + 1]])
+  const boundsOk = pairs.length === fixedPairs.length && pairs.every((pair, index) => pair[0] === fixedPairs[index][0] && pair[1] === fixedPairs[index][1])
+  if (!boundsOk) return { ok: false, msg: '等级分数区间固定（100 / 80 / 60 / 40），不可修改' }
   const stored = [...rows].sort((left, right) => right.max - left.max || right.min - left.min)
   gradeState = stored.map((item) => ({
     id: item.id,

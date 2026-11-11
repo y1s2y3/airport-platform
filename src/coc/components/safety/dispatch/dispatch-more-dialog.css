@@ -113,6 +113,27 @@
   max-width: 420px;
 }
 
+/* 项目调度·危险作业/危大工程「更多」清单：长文本单行省略（悬停 title 看全量），避免行高被拉高 */
+.drag-panel .more-table .cell-ellipsis {
+  display: block;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 两个切页共用的「更多」清单：所有单元格单行，超宽时由 .more-table-wrap 横向滚动 */
+.drag-panel .more-table.split-more-table th,
+.drag-panel .more-table.split-more-table td {
+  padding: 10px;
+  white-space: nowrap;
+}
+
+.drag-panel .more-table.split-more-table .col-desc {
+  min-width: 0;
+  max-width: none;
+}
+
 .drag-panel .dialog-tab-btn {
   border: 1px solid var(--coc-border);
   border-radius: 999px;

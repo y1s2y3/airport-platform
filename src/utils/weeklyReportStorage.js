@@ -207,3 +207,72 @@ export function listWeekOptions(total = 8) {
 export function clearWeeklyReports() {
   localStorage.removeItem(STORAGE_KEY)
 }
+
+/* ------------------------------------------------------------------ *
+ * 关注线配置（本周结论的「重点关注」判定阈值，可在列表页设置）
+ * ------------------------------------------------------------------ */
+
+const TARGET_STORAGE_KEY = 'airport-weekly-report-targets-v1'
+
+/** 可配置关注线的指标（与概览指标卡 key 一致） */
+export const WEEKLY_TARGET_FIELDS = [
+  { key: 'attendRate', label: '值班人员参会率' },
+  { key: 'dutyRate', label: '值班表登记完整率' },
+  { key: 'meetingReportRate', label: '监理例会上报率' },
+  { key: 'reportRate', label: '危险作业上报率' },
+  { key: 'taskRate', label: '巡检任务完成率' },
+  { key: 'qmPassRate', label: '验收通过率' },
+  { key: 'closeRate', label: '隐患整改率' },
+]
+
+/** 默认关注线（在初始口径基础上统一下调 10 个百分点） */
+export const DEFAULT_WEEKLY_TARGETS = {
+  attendRate: 85,
+  dutyRate: 85,
+  meetingReportRate: 85,
+  reportRate: 80,
+  taskRate: 80,
+  qmPassRate: 80,
+  closeRate: 75,
+}
+
+/** 读取关注线配置（缺失项用默认值补齐，异常时回退默认值） */
+export function getWeeklyTargets() {
+  const merged = { ...DEFAULT_WEEKLY_TARGETS }
+  try {
+    const raw = localStorage.getItem(TARGET_STORAGE_KEY)
+    if (!raw) return merged
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object') return merged
+    WEEKLY_TARGET_FIELDS.forEach((field) => {
+      const value = Number(parsed[field.key])
+      if (Number.isFinite(value) && value >= 0 && value <= 100) merged[field.key] = value
+    })
+    return merged
+  } catch (error) {
+    return merged
+  }
+}
+
+/** 保存关注线配置 */
+export function saveWeeklyTargets(targets) {
+  const next = {}
+  for (const field of WEEKLY_TARGET_FIELDS) {
+    const value = Number(targets?.[field.key])
+    if (!Number.isFinite(value) || value < 0 || value > 100) {
+      return { ok: false, msg: `「${field.label}」的关注线须为 0～100 之间的数值` }
+    }
+    next[field.key] = Math.round(value * 10) / 10
+  }
+  try {
+    localStorage.setItem(TARGET_STORAGE_KEY, JSON.stringify(next))
+    return { ok: true, msg: '关注线设置已保存', targets: getWeeklyTargets() }
+  } catch (error) {
+    return { ok: false, msg: '保存失败，请检查浏览器存储权限' }
+  }
+}
+
+/** 恢复默认关注线（仅返回默认值，需调用方保存） */
+export function resetWeeklyTargets() {
+  return { ...DEFAULT_WEEKLY_TARGETS }
+}

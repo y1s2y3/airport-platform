@@ -1,4 +1,5 @@
 import { findProjectIdByShortName, PROJECT_NAMES, DANGER_WORK_LIST, MAJOR_PROJECT_LIST } from '../mock/data.js'
+import { findProjectById } from '../../mock/projectBasicInfo.js'
 import dailyWorkSeed from '../mock/dailyWorkSeed.json'
 import { DAILY_WORK_DEFAULT_LEAD_UNIT } from '../config/dailyWorkSchema.js'
 import {
@@ -318,6 +319,82 @@ function formatCalendarDate(date) {
 /** @deprecated 兼容旧调用：仅返回列表 */
 export function getDispatchDangerWorkTodayList(projectId) {
   return getDispatchDangerWorkToday(projectId).list
+}
+
+/* ---------- COC 项目调度 · 今日危大工程（当日 00:00–23:59） ---------- */
+
+/** 作业时段是否与指定自然日（00:00–23:59）有交集；跨日作业按「当日仍在施工」计入 */
+export function overlapsWorkDay(startTime, endTime, day) {
+  const key = String(day || '').trim()
+  if (!key) return false
+  const dayStart = parseWorkDateTime(`${key} 00:00`)
+  const dayEnd = parseWorkDateTime(`${key} 23:59`)
+  if (!dayStart || !dayEnd) return false
+  const start = parseWorkDateTime(startTime)
+  const end = parseWorkDateTime(endTime)
+  if (!start && !end) return false
+  const from = start || end
+  const to = end || start
+  return from <= dayEnd && to >= dayStart
+}
+
+/** 危大段记录 → COC 项目调度·危大工程清单行（施工单位默认取项目施工总承包单位名称，取不到再用记录值） */
+export function toDispatchMajorWorkItem(record, contractorDefault = '') {
+  if (!hasMajorWorkSegment(record)) return null
+  const startTime = String(record.majorStartTime || '').trim()
+  const endTime = String(record.majorEndTime || '').trim()
+  return {
+    id: `mp-${record.id}`,
+    recordId: record.id,
+    projectId: record.projectId || resolveProjectId(record.projectName),
+    projectName: record.projectName || '',
+    contractor: String(contractorDefault || '').trim() || String(record.contractor || '').trim(),
+    category: String(record.majorProjectCategory || '').trim(),
+    workContent: String(record.majorWorkContent || '').trim(),
+    date: deriveReportDateFromMajorStart(startTime) || record.reportDate || '',
+    startTime,
+    endTime,
+    time: formatTimeRange(startTime, endTime),
+    status: deriveDangerWorkStatus(startTime, endTime),
+    leadUnit: record.leadUnit || '',
+    ownerSafety: record.majorOwnerSafetyManager || '',
+    contractorSafety: record.majorContractorSafetyManager || '',
+    supervisorSafety: record.majorSupervisorSafetyManager || '',
+    measures: record.majorControlMeasures || '',
+    source: record.source || 'manual',
+    updatedAt: record.updatedAt || record.createdAt || '',
+  }
+}
+
+/**
+ * 项目当日危大工程数据（作业时段落在当日 00:00–23:59，含跨日仍在施工的作业）。
+ * 系统当日无数据时回落到最近一次危大填报日，并标记 usingFallbackDate（与危险作业清单口径一致）。
+ */
+export function getDispatchMajorWorkToday(projectId) {
+  ensureDailyWorkSeed()
+  const calendarToday = formatCalendarDate(new Date())
+  const contractorDefault = String(findProjectById(projectId || '')?.contractorUnit || '').trim()
+  const all = getDailyWorkRecords()
+    .map((record) => toDispatchMajorWorkItem(record, contractorDefault))
+    .filter(Boolean)
+    .filter((item) => !projectId || item.projectId === projectId)
+
+  const todayList = all.filter((item) => overlapsWorkDay(item.startTime, item.endTime, calendarToday))
+  if (todayList.length) {
+    return { list: todayList, reportDate: calendarToday, calendarToday, usingFallbackDate: false }
+  }
+
+  const dates = [...new Set(all.map((item) => item.date).filter(Boolean))].sort()
+  const latest = dates.length ? dates[dates.length - 1] : ''
+  const fallbackList = latest
+    ? all.filter((item) => overlapsWorkDay(item.startTime, item.endTime, latest))
+    : []
+  return {
+    list: fallbackList,
+    reportDate: latest,
+    calendarToday,
+    usingFallbackDate: Boolean(latest && latest !== calendarToday),
+  }
 }
 
 export function getDerivedMajorProjectList() {
