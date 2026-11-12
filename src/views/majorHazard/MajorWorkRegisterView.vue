@@ -12,9 +12,7 @@ import {
 } from '../../coc/config/dailyWorkSchema.js'
 import {
   deriveReportDateFromMajorStart,
-  findDuplicateMajorWorkRegister,
   getMajorWorkRegisterRecords,
-  majorWorkDuplicateKey,
   removeMajorWorkRegisterRecord,
   saveMajorWorkRegisterRecord,
 } from '../../coc/utils/dailyWorkStorage.js'
@@ -38,7 +36,6 @@ const list = ref([])
 const keyword = ref('')
 const dateRange = ref([])
 const categoryFilter = ref('')
-const contractorFilter = ref('')
 const currentPage = ref(1)
 const pageSize = ref(10)
 
@@ -53,8 +50,6 @@ const importFileName = ref('')
 const importRecords = ref([])
 const importErrors = ref([])
 const importTotal = ref(0)
-const importDuplicates = computed(() => importRecords.value.filter((item) => item._duplicate).length)
-const importSavable = computed(() => importRecords.value.filter((item) => !item._duplicate))
 
 const canManage = computed(() => !isHqSelected.value)
 
@@ -161,25 +156,14 @@ const categoryOptions = computed(() => {
   return [...set]
 })
 
-const contractorOptions = computed(() => {
-  const set = new Set()
-  list.value.forEach((item) => {
-    const value = String(item.contractor || '').trim()
-    if (value) set.add(value)
-  })
-  return [...set].sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'))
-})
-
 const filteredList = computed(() => {
   const q = keyword.value.trim()
   const [dateStart, dateEnd] = dateRange.value || []
   const cat = categoryFilter.value
-  const contractor = contractorFilter.value
   const scopeId = isHqSelected.value ? '' : selectedProjectId.value
   return list.value.filter((row) => {
     if (!rowInScope(row, scopeId)) return false
     if (cat && row.category !== cat) return false
-    if (contractor && row.contractor !== contractor) return false
     if (dateStart && String(row.reportDate || '') < dateStart) return false
     if (dateEnd && String(row.reportDate || '') > dateEnd) return false
     if (q) {
@@ -342,13 +326,7 @@ async function onFileChange(uploadFile) {
       defaultProjectName: isHqSelected.value ? '' : currentProjectName.value,
       projectNames: knownProjectNames.value,
     })
-    const importedKeys = new Set()
-    importRecords.value = result.records.map((record) => {
-      const key = majorWorkDuplicateKey(record)
-      const duplicated = Boolean(findDuplicateMajorWorkRegister(record)) || importedKeys.has(key)
-      importedKeys.add(key)
-      return { ...record, _duplicate: duplicated }
-    })
+    importRecords.value = result.records
     importErrors.value = result.errors
     importTotal.value = result.total
     if (!result.records.length && !result.errors.length) {
@@ -362,27 +340,21 @@ async function onFileChange(uploadFile) {
 }
 
 function confirmImport() {
-  const rows = importSavable.value
+  const rows = importRecords.value
   if (!rows.length) {
-    ElMessage.warning(importDuplicates.value ? '解析出的数据均为重复记录，重复不入库' : '没有可导入的数据行')
+    ElMessage.warning('没有可导入的数据行')
     return
   }
   let failed = 0
-  let duplicated = 0
   rows.forEach((record) => {
-    const { _duplicate, ...payload } = record
-    const result = saveMajorWorkRegisterRecord({ ...payload, projectId: selectedProjectId.value, source: 'import' })
-    if (result.ok) return
-    if (result.code === 'duplicate') duplicated += 1
-    else failed += 1
+    const result = saveMajorWorkRegisterRecord({ ...record, projectId: selectedProjectId.value, source: 'import' })
+    if (!result.ok) failed += 1
   })
-  const successCount = rows.length - failed - duplicated
-  const skipped = duplicated + importDuplicates.value
+  const successCount = rows.length - failed
   const parts = [`成功 ${successCount} 条`]
-  if (skipped) parts.push(`重复跳过 ${skipped} 条`)
   if (failed) parts.push(`失败 ${failed} 条`)
   const message = `导入完成：${parts.join('，')}`
-  if (failed || skipped) ElMessage.warning(message)
+  if (failed) ElMessage.warning(message)
   else ElMessage.success(message)
   importVisible.value = false
   importRecords.value = []
@@ -492,16 +464,6 @@ onMounted(() => {
             aria-label="危大工程作业类别"
           >
             <el-option v-for="item in categoryOptions" :key="item" :label="item" :value="item" />
-          </el-select>
-          <el-select
-            v-model="contractorFilter"
-            clearable
-            filterable
-            placeholder="施工单位"
-            class="mwr-contractor"
-            aria-label="施工单位"
-          >
-            <el-option v-for="item in contractorOptions" :key="item" :label="item" :value="item" />
           </el-select>
           <el-input
             v-model="keyword"
@@ -656,7 +618,7 @@ onMounted(() => {
       </div>
       <template v-if="importTotal">
         <div class="mwr-import-summary">
-          解析共 {{ importTotal }} 行：可导入 <b>{{ importSavable.length }}</b> 条<span v-if="importDuplicates">，重复 <b class="mwr-error">{{ importDuplicates }}</b> 条（不入库）</span><span v-if="importErrors.length">，校验未通过 <b class="mwr-error">{{ importErrors.length }}</b> 条</span>
+          解析共 {{ importTotal }} 行：可导入 <b>{{ importRecords.length }}</b> 条<span v-if="importErrors.length">，校验未通过 <b class="mwr-error">{{ importErrors.length }}</b> 条</span>
         </div>
         <el-table v-if="importRecords.length" :data="importRecords.slice(0, 10)" size="small" border max-height="240">
           <el-table-column label="施工项目" min-width="150" show-overflow-tooltip prop="projectName" />
@@ -664,12 +626,6 @@ onMounted(() => {
           <el-table-column label="危大工程作业类别" min-width="120" prop="majorProjectCategory" />
           <el-table-column label="作业开始时间" width="140" prop="majorStartTime" />
           <el-table-column label="作业结束时间" width="140" prop="majorEndTime" />
-          <el-table-column label="状态" width="96" align="center">
-            <template #default="{ row }">
-              <el-tag v-if="row._duplicate" type="warning" size="small" effect="light">重复</el-tag>
-              <el-tag v-else type="success" size="small" effect="light">可导入</el-tag>
-            </template>
-          </el-table-column>
         </el-table>
         <p v-if="importRecords.length > 10" class="mwr-preview-more">… 另有 {{ importRecords.length - 10 }} 条待导入</p>
         <div v-if="importErrors.length" class="mwr-import-errors">
@@ -682,8 +638,8 @@ onMounted(() => {
       </template>
       <template #footer>
         <el-button @click="importVisible = false">取消</el-button>
-        <el-button type="primary" :disabled="!importSavable.length || importLoading" @click="confirmImport">
-          确认导入{{ importSavable.length ? `（${importSavable.length} 条，重复不入库）` : '' }}
+        <el-button type="primary" :disabled="!importRecords.length || importLoading" @click="confirmImport">
+          确认导入{{ importRecords.length ? `（${importRecords.length} 条）` : '' }}
         </el-button>
       </template>
     </el-dialog>
@@ -737,8 +693,7 @@ onMounted(() => {
   min-width: 0;
 }
 
-.mwr-category,
-.mwr-contractor {
+.mwr-category {
   width: 148px;
 }
 
@@ -770,8 +725,7 @@ onMounted(() => {
     width: auto;
   }
 
-  .mwr-category,
-  .mwr-contractor {
+  .mwr-category {
     flex: 1 1 148px;
     width: auto;
   }

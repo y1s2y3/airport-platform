@@ -25,6 +25,7 @@ export const TODO_HANDLER_REGISTRY = {
   inspection: { kind: 'full', loader: () => import('./TodoInspectionPanel.vue') },
   major_hazard_identification: { kind: 'full', loader: () => import('./TodoMajorHazardIdentificationPanel.vue') },
   penalty: { kind: 'full', loader: () => import('./TodoPenaltyPanel.vue') },
+  dispatch_notice: { kind: 'full', loader: () => import('./TodoDispatchTaskPanel.vue') },
   dispatch_hazard: { kind: 'full', loader: () => import('./TodoDispatchHazardPanel.vue') },
 }
 

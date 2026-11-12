@@ -36,6 +36,9 @@ import {
 } from './qmInspect.js'
 import { allowedEntityParentTypes } from '../constants/wbsEntityLabels.js'
 import { validateWbsNodeCode } from '../utils/wbsNodeCode.js'
+
+/** 新增 WBS 节点自增序号（避免同一毫秒创建多节点时 ID 冲突） */
+let wbsNodeIdSeq = 0
 import {
   joinLocationLabels,
   normalizeLocationFields,
@@ -1401,7 +1404,8 @@ export function upsertWbsNode(payload, id = '') {
     return { ok: false, msg: '不可将节点挂接到自身或其下级之下' }
   }
   if (node_type === 6 && !payload.batch_type_id) {
-    payload.batch_type_id = 'bt-rebar'
+    const existBatchNode = id ? wbsNodes.find((n) => isWbsAlive(n) && n.id === id) : null
+    payload.batch_type_id = existBatchNode?.batch_type_id || 'bt-rebar'
   }
   // form_template_ids：归属质量验评赋值；基础数据「实体工程分解」不读写、未传不覆盖
   if (node_type === 6) {
@@ -1436,7 +1440,7 @@ export function upsertWbsNode(payload, id = '') {
     return { ok: true, node }
   }
   const node = {
-    id: `wn-${Date.now()}`,
+    id: `wn-${Date.now()}-${++wbsNodeIdSeq}`,
     project_id: payload.project_id,
     parent_id,
     node_type,

@@ -47,6 +47,7 @@ export function useTodoHandleContext() {
   })
 
   const pageTitle = computed(() => {
+    if (todo.value?.type === 'dispatch_notice') return isReadonly.value ? '任务单处理详情' : '任务单处理'
     // 模块预警（AI / 机械 / 危大）二级页文案与通用待办区分
     if (todo.value?.type === 'module_warning') {
       return isReadonly.value ? '预警详情' : '预警处置'

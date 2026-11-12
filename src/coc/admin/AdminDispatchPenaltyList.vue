@@ -1,7 +1,11 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Edit, CircleClose, Upload, Promotion, Download } from '@element-plus/icons-vue'
+import { Plus } from '@element-plus/icons-vue'
+import { projectList } from '../../mock/projectBasicInfo.js'
+import { filterPenaltyRecords, penaltyResponsibleUnit, penaltyTemplateKey } from '../utils/penaltyLedger.js'
+import { PENALTY_TEMPLATE_URLS } from '../config/penaltyDocuments.js'
+import { downloadPenaltyDocx } from '../utils/penaltyDocx.js'
 import {
   buildProjects,
 } from '../mock/data.js'
@@ -26,7 +30,7 @@ import DispatchImageAttachments from '../components/DispatchImageAttachments.vue
 import PenaltyDetailPanels from '../components/PenaltyDetailPanels.vue'
 import PersonalCenterReadonlyHint from '../../components/PersonalCenterReadonlyHint.vue'
 import { buildExecutorOptions, resolveExecutorDisplay } from '../utils/executorDisplay.js'
-import { TASK_WORK_TYPES } from '../config/screenshotTaskOrderFields.js'
+import { taskWorkTypeOptions } from '../config/screenshotTaskOrderFields.js'
 
 defineProps({
   title: { type: String, default: '处罚单' },
@@ -38,6 +42,11 @@ defineProps({
 
 const keyword = ref('')
 const statusFilter = ref('')
+const unitFilter = ref('')
+const appliedFilters = ref({ keyword: '', status: '', unit: '' })
+const currentPage = ref(1)
+const pageSize = ref(10)
+const exportingId = ref('')
 const list = ref([])
 const detailVisible = ref(false)
 const formVisible = ref(false)
@@ -63,15 +72,30 @@ const form = ref(emptyPenaltyRecord())
 const projectOptions = buildProjects().map((p) => p.shortName || p.name)
 const assigneeOptions = buildExecutorOptions()
 
-const filtered = computed(() => {
-  let rows = list.value
-  if (statusFilter.value) rows = rows.filter((r) => r.status === statusFilter.value)
-  const q = keyword.value.trim()
-  if (!q) return rows
-  return rows.filter((r) =>
-    [r.id, r.project, r.workType, r.penaltyContent, r.assignee, r.executor, r.deadline, r.penaltyClause, r.amount]
-      .some((f) => String(f || '').includes(q)),
-  )
+const filtered = computed(() => filterPenaltyRecords(list.value, appliedFilters.value, projectList))
+const pagedRecords = computed(() => filtered.value.slice((currentPage.value - 1) * pageSize.value, currentPage.value * pageSize.value))
+const responsibleUnit = row => penaltyResponsibleUnit(row, projectList)
+
+function searchRecords() {
+  appliedFilters.value = { keyword: keyword.value, status: statusFilter.value, unit: unitFilter.value }
+  currentPage.value = 1
+}
+
+function resetFilters() {
+  keyword.value = ''
+  statusFilter.value = ''
+  unitFilter.value = ''
+  pageSize.value = 10
+  searchRecords()
+}
+
+function indexMethod(index) {
+  return (currentPage.value - 1) * pageSize.value + index + 1
+}
+
+watch(pageSize, () => { currentPage.value = 1 })
+watch(() => filtered.value.length, total => {
+  currentPage.value = Math.min(currentPage.value, Math.max(1, Math.ceil(total / pageSize.value)))
 })
 
 function displayValue(value) {
@@ -139,7 +163,7 @@ function validateForm() {
   return true
 }
 
-function submitForm() {
+function submitForm(issueNow = false) {
   if (!validateForm()) return
   const assignee = form.value.assignee.trim()
   const payload = {
@@ -155,10 +179,13 @@ function submitForm() {
     payload.status = PENALTY_STATUSES.PENDING
     payload.issueTime = '--'
   }
-  saveDispatchPenaltyRecord(payload)
+  const record = saveDispatchPenaltyRecord(payload)
+  if (issueNow && record?.id) issueDispatchPenaltyRecord(record.id)
   load()
   formVisible.value = false
-  ElMessage.success(formMode.value === 'create' ? '处罚单已创建，待指挥部下发' : '处罚单已更新')
+  ElMessage.success(issueNow
+    ? `处罚单已保存并直接下发（编号 ${record?.id || '--'}）`
+    : `处罚单已保存（编号 ${record?.id || '--'}），可在列表中点击下发操作`)
 }
 
 function handleClose(row) {
@@ -186,8 +213,18 @@ function handleIssue(row) {
     .catch(() => {})
 }
 
-function handleExport(row) {
-  ElMessage.success(`已按模板导出处罚单「${penaltyLabel(row)}」`)
+async function handleExport(row) {
+  const templateKey = penaltyTemplateKey(row)
+  if (!templateKey || exportingId.value) return
+  exportingId.value = row.id
+  try {
+    await downloadPenaltyDocx(row, PENALTY_TEMPLATE_URLS[templateKey])
+    ElMessage.success(`已导出处罚单「${row.id}」`)
+  } catch (error) {
+    ElMessage.error(/[\u4e00-\u9fff]/.test(error?.message || '') ? error.message : '处罚单导出失败，请重试')
+  } finally {
+    exportingId.value = ''
+  }
 }
 
 function canBlackBoard(row) {
@@ -231,111 +268,70 @@ function confirmBlackBoard() {
   ElMessage.success(`已纳入 ${formatRedBlackPeriod(period)} 黑榜`)
 }
 
-function statusTagType(status) {
-  if (status === PENALTY_STATUSES.CLOSED) return 'info'
-  if (status === PENALTY_STATUSES.PROCESSING) return 'warning'
-  if (status === PENALTY_STATUSES.PENDING) return 'warning'
-  if (status === PENALTY_STATUSES.APPEALING) return 'warning'
-  if (status === PENALTY_STATUSES.PENDING_ACCEPTANCE) return 'success'
-  return 'info'
-}
-
 onMounted(load)
 </script>
 
 <template>
-  <div class="panel-card admin-page">
-    <div class="panel-title simple-title">
-      <span>{{ title }}</span>
-      <div class="title-actions">
-        <el-select v-model="statusFilter" placeholder="状态" clearable style="width: 120px" aria-label="状态">
+  <section class="page-card penalty-ledger" :aria-label="title">
+    <el-form class="penalty-filter-form" @submit.prevent="searchRecords">
+      <el-form-item label="关键字" class="penalty-filter-item">
+        <el-input v-model="keyword" placeholder="请输入编号、项目、事由" clearable aria-label="关键字" @keyup.enter="searchRecords" />
+      </el-form-item>
+      <el-form-item label="状态" class="penalty-filter-item">
+        <el-select v-model="statusFilter" placeholder="请选择" clearable aria-label="状态">
           <el-option label="待下发" :value="PENALTY_STATUSES.PENDING" />
           <el-option label="处理中" :value="PENALTY_STATUSES.PROCESSING" />
           <el-option label="待验收" :value="PENALTY_STATUSES.PENDING_ACCEPTANCE" />
           <el-option label="申诉中" :value="PENALTY_STATUSES.APPEALING" />
           <el-option label="已关闭" :value="PENALTY_STATUSES.CLOSED" />
         </el-select>
-        <el-input v-model="keyword" placeholder="搜索编号、项目、处罚内容…" clearable class="search-input" aria-label="搜索编号、项目、处罚内容…"/>
-        <el-button type="primary" :icon="Plus" @click="openCreate">新增</el-button>
+      </el-form-item>
+      <el-form-item label="责任单位" class="penalty-filter-item">
+        <el-input v-model="unitFilter" placeholder="请输入" clearable aria-label="责任单位" @keyup.enter="searchRecords" />
+      </el-form-item>
+      <div class="penalty-filter-actions">
+        <el-button type="primary" @click="searchRecords">搜索</el-button>
+        <el-button @click="resetFilters">重置</el-button>
       </div>
+    </el-form>
+    <div class="penalty-list-toolbar">
+      <div class="penalty-record-count">共 <strong>{{ filtered.length }}</strong> 条</div>
+      <el-button type="primary" :icon="Plus" @click="openCreate">新增</el-button>
     </div>
-    <div class="panel-body page-body">
-      <p class="page-desc">{{ description }}</p>
-      <el-table :data="filtered" stripe border empty-text="暂无处罚单记录">
-        <el-table-column type="index" label="序号" width="56" />
-        <el-table-column prop="id" label="编号" width="148" show-overflow-tooltip />
-        <el-table-column prop="project" label="项目名称" min-width="120" show-overflow-tooltip />
-        <el-table-column prop="workType" label="类型" width="96" />
-        <el-table-column prop="penaltyContent" label="处罚内容" min-width="180" show-overflow-tooltip />
-        <el-table-column label="指派人" min-width="140" show-overflow-tooltip>
+      <el-table :data="pagedRecords" empty-text="暂无处罚单记录" class="penalty-table">
+        <el-table-column type="index" label="序号" width="56" :index="indexMethod" />
+        <el-table-column prop="id" label="编号" width="178" show-overflow-tooltip />
+        <el-table-column prop="project" label="项目名称" min-width="240" show-overflow-tooltip />
+        <el-table-column prop="workType" label="类型" width="76" />
+        <el-table-column label="责任单位" min-width="176" show-overflow-tooltip>
+          <template #default="{ row }">{{ responsibleUnit(row) || '--' }}</template>
+        </el-table-column>
+        <el-table-column prop="penaltyContent" label="事由" min-width="220" show-overflow-tooltip />
+        <el-table-column label="指派人" min-width="136" show-overflow-tooltip>
           <template #default="{ row }">
             {{ resolveExecutorDisplay(row.assignee || row.executor) }}
           </template>
         </el-table-column>
-        <el-table-column prop="deadline" label="完成时限" width="108" />
-        <el-table-column label="条款" min-width="160" show-overflow-tooltip>
+        <el-table-column prop="deadline" label="完成时限" width="120" />
+        <el-table-column label="条款" min-width="124" show-overflow-tooltip>
           <template #default="{ row }">{{ displayValue(row.penaltyClause) }}</template>
         </el-table-column>
-        <el-table-column label="金额" width="96">
-          <template #default="{ row }">{{ displayValue(row.amount) }}</template>
-        </el-table-column>
-        <el-table-column prop="status" label="状态" width="88">
+        <el-table-column label="操作" width="248" fixed="right">
           <template #default="{ row }">
-            <el-tag :type="statusTagType(row.status)" size="small">{{ row.status }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="黑榜" width="108">
-          <template #default="{ row }">
-            <el-tag v-if="row.blackBoardSynced" type="info" size="small">
-              {{ formatRedBlackPeriod(row.blackBoardMonth) }}
-            </el-tag>
-            <span v-else class="muted">--</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="340" fixed="right">
-          <template #default="{ row }">
-            <el-button link type="primary" @click="openDetail(row)">详情</el-button>
-            <el-button link type="primary" :icon="Download" @click="handleExport(row)">导出处罚单</el-button>
-            <el-button
-              v-if="row.status === PENALTY_STATUSES.PENDING"
-              link
-              type="success"
-              :icon="Promotion"
-              @click="handleIssue(row)"
-            >
-              下发
-            </el-button>
-            <el-button
-              v-if="row.status === PENALTY_STATUSES.PENDING"
-              link
-              type="primary"
-              :icon="Edit"
-              @click="openEdit(row)"
-            >
-              编辑
-            </el-button>
-            <el-button
-              v-if="canBlackBoard(row)"
-              link
-              type="warning"
-              :icon="Upload"
-              @click="openBlackBoard(row)"
-            >
-              纳入黑榜
-            </el-button>
-            <el-button
-              v-if="row.status === PENALTY_STATUSES.PENDING"
-              link
-              type="danger"
-              :icon="CircleClose"
-              @click="handleClose(row)"
-            >
-              关闭
-            </el-button>
+            <div class="penalty-row-actions">
+              <el-button link type="primary" class="penalty-action" @click="openDetail(row)">详情</el-button>
+              <el-button v-if="row.status === PENALTY_STATUSES.PENDING" link type="primary" class="penalty-action" @click="openEdit(row)">编辑</el-button>
+              <el-button v-if="row.status === PENALTY_STATUSES.PENDING" link type="success" class="penalty-action" @click="handleIssue(row)">下发</el-button>
+              <el-button v-if="row.status === PENALTY_STATUSES.PENDING" link type="danger" class="penalty-action" @click="handleClose(row)">关闭</el-button>
+              <el-button v-if="penaltyTemplateKey(row)" link type="primary" class="penalty-action" :loading="exportingId === row.id" :disabled="!!exportingId && exportingId !== row.id" @click="handleExport(row)">导出</el-button>
+              <el-button v-if="canBlackBoard(row)" link type="warning" class="penalty-action" @click="openBlackBoard(row)">纳入黑榜</el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
-    </div>
+      <div class="penalty-pagination">
+        <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize" :page-sizes="[10, 20, 50, 100]" :total="filtered.length" layout="total, sizes, prev, pager, next, jumper" />
+      </div>
 
     <el-dialog v-model="formVisible" :title="formMode === 'create' ? '新增处罚单' : '编辑处罚单'" width="640px" destroy-on-close>
       <p v-if="formMode === 'create'" class="dialog-tip">以下字段由指挥部填报；条款与金额由接收人在处理阶段填报。</p>
@@ -355,9 +351,13 @@ onMounted(load)
           </el-select>
         </el-form-item>
         <el-form-item label="类型" required>
-          <el-radio-group v-model="form.workType" class="work-type-tags">
-            <el-radio-button v-for="item in TASK_WORK_TYPES" :key="item" :value="item">{{ item }}</el-radio-button>
-          </el-radio-group>
+          <el-select
+            v-model="form.workType"
+            filterable
+            placeholder="请选择类型（取自工作类型配置）"
+            style="width: 100%" aria-label="选择类型">
+            <el-option v-for="item in taskWorkTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
         </el-form-item>
         <el-form-item label="处罚内容" required>
           <el-input
@@ -391,7 +391,8 @@ onMounted(load)
       </el-form>
       <template #footer>
         <el-button @click="formVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitForm">保存</el-button>
+        <el-button @click="submitForm(false)">保存</el-button>
+        <el-button type="primary" @click="submitForm(true)">直接下发</el-button>
       </template>
     </el-dialog>
 
@@ -431,45 +432,93 @@ onMounted(load)
       />
       <PenaltyDetailPanels v-if="current" :record="current" compact />
     </el-dialog>
-  </div>
+  </section>
 </template>
 
 <style scoped>
-.admin-page {
+.penalty-ledger {
   min-height: calc(100vh - 120px);
+  padding: 24px;
 }
 
-.simple-title {
+.penalty-filter-form {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
+  gap: 16px;
+  padding: 4px 0 24px;
+  border-bottom: 1px solid var(--ap-border);
+}
+
+.penalty-filter-item {
+  flex: 1 1 220px;
+  min-width: 220px;
+  margin: 0;
+}
+
+.penalty-filter-actions {
+  display: flex;
   gap: 12px;
-  font-size: 16px;
-  border-left: 4px solid #f56c6c;
-  padding-left: 12px;
 }
 
-.title-actions {
+.penalty-filter-actions :deep(.el-button + .el-button) {
+  margin-left: 0;
+}
+
+.penalty-list-toolbar {
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-left: auto;
+  justify-content: space-between;
+  margin: 24px 0 16px;
 }
 
-.search-input {
-  width: 240px;
+.penalty-record-count {
+  font-size: 16px;
+  color: var(--ap-text);
 }
 
-.page-body {
-  padding: 16px 20px 24px !important;
+.penalty-record-count strong {
+  font-weight: 500;
+  color: var(--ap-primary);
 }
 
-.page-desc {
-  margin: 0 0 16px;
-  font-size: 13px;
-  color: var(--coc-text-secondary);
-  line-height: 1.6;
+.penalty-table :deep(th.el-table__cell) {
+  background: #eef0f3;
+  color: var(--ap-text);
+  font-weight: 500;
+}
+
+.penalty-table :deep(.el-table__cell) {
+  padding: 14px 0;
+}
+
+.penalty-row-actions {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.penalty-row-actions .penalty-action {
+  margin: 0;
+  padding: 0;
+}
+
+.penalty-row-actions .penalty-action + .penalty-action {
+  margin-left: 9px;
+}
+
+.penalty-row-actions .penalty-action + .penalty-action::before {
+  content: '';
+  height: 14px;
+  border-left: 1px solid var(--ap-border);
+  margin-right: 9px;
+}
+
+.penalty-pagination {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20px;
+  overflow-x: auto;
 }
 
 .muted {

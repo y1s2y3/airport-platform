@@ -77,8 +77,6 @@ function emptyManualForm() {
     hazardLevel: '一般',
     remark: '',
     hazardPhotos: [],
-    rectifyRemark: '',
-    rectifyPhotos: [],
   }
 }
 
@@ -202,8 +200,6 @@ function openEdit(row) {
     hazardLevel: row.hazardLevel || '一般',
     remark: row.remark || '',
     hazardPhotos: [...(row.hazardPhotos || [])],
-    rectifyRemark: row.rectifyRemark || '',
-    rectifyPhotos: [...(row.rectifyPhotos || [])],
   }
   formVisible.value = true
 }
@@ -235,8 +231,6 @@ function submitForm() {
         hazardLevel: form.value.hazardLevel,
         remark: String(form.value.remark || '').trim(),
         hazardPhotos: form.value.hazardPhotos,
-        rectifyRemark: String(form.value.rectifyRemark || '').trim(),
-        rectifyPhotos: form.value.rectifyPhotos,
       },
       { operator: props.operator, operatorRole: props.operatorRole },
     )
@@ -265,8 +259,6 @@ function submitForm() {
     hazardDeadline: '',
     acceptor: '',
     rectifyStatus: '待整改',
-    rectifyRemark: String(form.value.rectifyRemark || '').trim(),
-    rectifyPhotos: form.value.rectifyPhotos,
     hazardPhotos: form.value.hazardPhotos,
     uploadTime: now,
   })
@@ -471,25 +463,6 @@ defineExpose({ reload: load })
         <el-form-item label="隐患图片">
           <AttachmentUpload
             v-model="form.hazardPhotos"
-            preset="image"
-            :max="9"
-            compress
-            compact
-            hint="选填，最多 9 张，单张 ≤15MB（jpg/png 等图片）"
-          />
-        </el-form-item>
-        <el-form-item label="整改说明">
-          <el-input
-            v-model="form.rectifyRemark"
-            type="textarea"
-            :rows="2"
-            placeholder="请输入整改说明"
-            aria-label="请输入整改说明"
-          />
-        </el-form-item>
-        <el-form-item label="整改图片">
-          <AttachmentUpload
-            v-model="form.rectifyPhotos"
             preset="image"
             :max="9"
             compress

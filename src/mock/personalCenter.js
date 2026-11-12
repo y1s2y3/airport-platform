@@ -3,6 +3,9 @@
  */
 import { reactive } from 'vue'
 import { nowStr } from '../utils/datetime.js'
+import { installDispatchTaskPersonalCenter } from './dispatchTaskPersonalCenter.js'
+import { taskProcessVisible } from '../coc/utils/dispatchTaskWorkflow.js'
+import { dispatchTaskOperator } from '../coc/utils/dispatchTaskIdentity.js'
 import {
   getWarningDetail,
   getProjectLabel,
@@ -2374,7 +2377,7 @@ export const personalCc = reactive([
 ])
 
 export function findPersonalTodo(id) {
-  return personalTodoStore.todos.find((item) => item.id === id) || null
+  return personalTodoStore.todos.find((item) => item.id === id && taskProcessVisible(item, dispatchTaskOperator())) || null
 }
 
 /** 同步危大工程管理异常到预警中心 */
@@ -2435,7 +2438,7 @@ export function resolveQmInspectHandleRedirect(to) {
 export function findPersonalProcess(id, from = 'todo') {
   const key = String(id || '')
   if (!key) return null
-  if (from === 'done') return personalTodoStore.done.find((item) => item.id === key) || null
+  if (from === 'done') return personalTodoStore.done.find((item) => item.id === key && taskProcessVisible(item, dispatchTaskOperator())) || null
   if (from === 'started') return personalStarted.find((item) => item.id === key) || null
   if (from === 'cc') return personalCc.find((item) => item.id === key) || null
   return findPersonalTodo(key)
@@ -4171,3 +4174,6 @@ export function discardQmInspectTodos(taskId) {
 queueMicrotask(() => {
   import('./engineeringWork.js')
 })
+
+// 与既有单据同步解耦，避免存储模块反向依赖个人中心。
+queueMicrotask(() => installDispatchTaskPersonalCenter(personalTodoStore))

@@ -31,7 +31,7 @@ const hazardFields = computed(() => {
         : props.record.channel === 'inspection'
           ? '巡检隐患'
           : ''
-  return [
+  const fields = [
     { label: '单号类型', value: detail.value.ticketType || props.record.ticketType },
     ...(channelLabel ? [{ label: '来源', value: channelLabel }] : []),
     { label: '隐患类别', value: props.record.hazardCategory || (props.record.type === 'quality' ? '质量' : '安全') },
@@ -57,6 +57,11 @@ const hazardFields = computed(() => {
     { label: '上报时间', value: detail.value.reportTime },
     { label: '隐患描述', value: props.record.desc || detail.value.requirement, full: true },
   ]
+  // 监理例会登记隐患：后台无「整改期限 / 整改人」录入入口，详情不展示，避免与后台口径不一致
+  if (emptyForMeeting) {
+    return fields.filter((field) => !['整改期限', '整改人'].includes(field.label))
+  }
+  return fields
 })
 
 const dangerFields = computed(() => {

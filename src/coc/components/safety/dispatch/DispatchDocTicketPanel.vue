@@ -2,7 +2,6 @@
 import { ref, computed, inject, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
-  DISPATCH_DOC_TICKET_LIST,
   DISPATCH_CURRENT_USER,
   buildProjects,
   buildPenaltyDraft,
@@ -13,9 +12,16 @@ import {
   saveDispatchNoticeRecord,
   saveDispatchPenaltyRecord,
   saveDispatchReminderRecord,
+  issueDispatchNoticeRecord,
+  issueDispatchPenaltyRecord,
+  issueDispatchReminderRecord,
+  getDispatchNoticeRecords,
+  getDispatchPenaltyRecords,
+  getDispatchReminderRecords,
 } from '../../../utils/dispatchMeetingStorage.js'
 import { buildExecutorOptions } from '../../../utils/executorDisplay.js'
-import { TASK_WORK_TYPES } from '../../../config/screenshotTaskOrderFields.js'
+import { taskWorkTypeOptions } from '../../../config/screenshotTaskOrderFields.js'
+import { TASK_EXECUTION_MODES, TASK_EXECUTION_MODE_OPTIONS, taskExecutors } from '../../../utils/dispatchTaskWorkflow.js'
 import DispatchDraggablePanel from './DispatchDraggablePanel.vue'
 import DispatchHqPanelTitle from './DispatchHqPanelTitle.vue'
 
@@ -54,6 +60,8 @@ function createNoticeDraft() {
   const draft = buildSamplingNoticeDraft(props.device)
   const projectName = resolveProjectName()
   if (projectName) draft.project = projectName
+  draft.executors = draft.executors?.length ? [...draft.executors] : (draft.executor ? [draft.executor] : [])
+  draft.executionMode = TASK_EXECUTION_MODES.SINGLE
   return draft
 }
 
@@ -61,6 +69,7 @@ function createReminderDraft() {
   const draft = buildReminderDraft(props.device)
   const projectName = resolveProjectName()
   if (projectName) draft.project = projectName
+  draft.assignees = draft.assignees?.length ? [...draft.assignees] : (draft.assignee || draft.executor ? [draft.assignee || draft.executor] : [])
   return draft
 }
 
@@ -104,10 +113,64 @@ const DOC_TYPE_LABELS = {
   penalty: '处罚单',
 }
 
+const dialogRefresh = ref(0)
+
+function timeText(value) {
+  return value && value !== '--' ? value : '--'
+}
+
+function noticeDialogRow(record) {
+  return {
+    id: record.id,
+    docType: '任务单',
+    title: record.title,
+    workRequirement: record.workRequirement,
+    status: record.status,
+    handler: taskExecutors(record).join('、') || record.handler || '--',
+    issuer: record.issuer || record.createdBy || '--',
+    time: timeText(record.issueTime !== '--' ? record.issueTime : record.createdAt),
+  }
+}
+
+function reminderDialogRow(record) {
+  return {
+    id: record.id,
+    docType: '提示函',
+    title: record.title,
+    matterDescription: record.matterDescription,
+    status: record.status,
+    handler: (Array.isArray(record.assignees) && record.assignees.length
+      ? record.assignees.join('、') : record.assignee || record.executor) || '--',
+    issuer: record.issuer || '--',
+    time: timeText(record.issueTime),
+  }
+}
+
+function penaltyDialogRow(record) {
+  return {
+    id: record.id,
+    docType: '处罚单',
+    title: record.title,
+    penaltyContent: record.penaltyContent,
+    status: record.status,
+    handler: record.assignee || record.executor || '--',
+    issuer: record.handler || record.issuer || '--',
+    time: timeText(record.issueTime),
+  }
+}
+
+/** 清单直接读三类单据存储，保存/直接下发后的新单据即时可见 */
 const dialogList = computed(() => {
-  if (dialogDocTab.value === 'all') return DISPATCH_DOC_TICKET_LIST
-  const type = DOC_TYPE_LABELS[dialogDocTab.value]
-  return DISPATCH_DOC_TICKET_LIST.filter((t) => t.docType === type)
+  dialogRefresh.value
+  const rows = [
+    ...getDispatchNoticeRecords().map(noticeDialogRow),
+    ...getDispatchReminderRecords().map(reminderDialogRow),
+    ...getDispatchPenaltyRecords().map(penaltyDialogRow),
+  ]
+  const filtered = dialogDocTab.value === 'all'
+    ? rows
+    : rows.filter((row) => row.docType === DOC_TYPE_LABELS[dialogDocTab.value])
+  return filtered.sort((a, b) => String(b.time).localeCompare(String(a.time)))
 })
 
 const docSubjectLabel = computed(() => {
@@ -132,8 +195,11 @@ const ticketStatusMap = {
   处理中: 'doing',
   待验收: 'doing',
   申诉中: 'doing',
+  已完成: 'closed',
+  无需执行: 'closed',
   已关闭: 'closed',
   已闭环: 'closed',
+  已作废: 'closed',
 }
 
 function switchDocTab(tab) {
@@ -143,13 +209,16 @@ function switchDocTab(tab) {
 
 function openListDialog() {
   dialogDocTab.value = 'all'
+  dialogRefresh.value += 1
   listDialogOpen.value = true
 }
 
 function buildNoticeSavePayload(draft) {
   const workType = draft.workType.trim()
   const workRequirement = draft.workRequirement.trim()
-  const executor = (draft.executor || draft.executeDept || '').trim()
+  const executors = (Array.isArray(draft.executors) ? draft.executors : [])
+    .map((value) => String(value || '').trim()).filter(Boolean)
+  const executor = executors.join('、')
   const titleBase = workRequirement.slice(0, 24) || draft.title || '任务单'
   return {
     id: draft.adminRecordId,
@@ -159,8 +228,10 @@ function buildNoticeSavePayload(draft) {
     workType,
     workRequirement,
     workSource: '远程调度',
+    executors,
     executor,
     executeDept: executor,
+    executionMode: draft.executionMode || TASK_EXECUTION_MODES.SINGLE,
     deadline: draft.deadline || defaultDeadline(),
     remark: draft.remark?.trim() || '',
     source: '远程调度',
@@ -172,15 +243,18 @@ function buildNoticeSavePayload(draft) {
 
 function buildReminderSavePayload(draft) {
   const matterDescription = draft.matterDescription.trim()
-  const executor = (draft.executor || draft.assignee || '').trim()
+  const assignees = (Array.isArray(draft.assignees) ? draft.assignees : [])
+    .map((value) => String(value || '').trim()).filter(Boolean)
+  const assignee = assignees.join('、')
   const titleBase = matterDescription.slice(0, 24) || draft.title || '提示函'
   return {
     id: draft.adminRecordId,
     title: titleBase.length >= 24 ? `${titleBase}…` : titleBase,
     project: draft.project || '',
     matterDescription,
-    assignee: executor,
-    executor,
+    assignees,
+    assignee,
+    executor: assignee,
     deadline: draft.deadline || defaultDeadline(),
     status: '待下发',
     issuer: DISPATCH_CURRENT_USER,
@@ -224,8 +298,12 @@ function validateDraft() {
       ElMessage.warning('请填写工作要求')
       return false
     }
-    if (!noticeDraft.value.executor?.trim()) {
-      ElMessage.warning('请填写执行人')
+    if (!noticeDraft.value.executors?.length) {
+      ElMessage.warning('请选择执行人')
+      return false
+    }
+    if (!TASK_EXECUTION_MODE_OPTIONS.includes(noticeDraft.value.executionMode)) {
+      ElMessage.warning('请选择执行模式')
       return false
     }
     if (!noticeDraft.value.deadline) {
@@ -241,7 +319,7 @@ function validateDraft() {
       ElMessage.warning('请填写事项描述')
       return false
     }
-    if (!reminderDraft.value.executor?.trim()) {
+    if (!reminderDraft.value.assignees?.length) {
       ElMessage.warning('请填写指派人')
       return false
     }
@@ -274,24 +352,40 @@ function validateDraft() {
   return true
 }
 
-function handleSave() {
+function handleSave(issueNow = false) {
   if (!validateDraft()) return
   if (docTab.value === 'notice') {
     const record = saveDispatchNoticeRecord(buildNoticeSavePayload(noticeDraft.value))
     noticeDraft.value.adminRecordId = record.id
     noticeDraft.value.status = 'draft'
-    ElMessage.success(`已保存至 ${ADMIN_MENU_ROOT} · ${ADMIN_MENU_NOTICE}（待指挥部下发）`)
+    if (issueNow) {
+      issueDispatchNoticeRecord(record.id)
+      ElMessage.success(`任务单已保存并直接下发（编号 ${record.id}）`)
+    } else {
+      ElMessage.success(`任务单已保存（编号 ${record.id}），可在${ADMIN_MENU_ROOT} · ${ADMIN_MENU_NOTICE}点击下发操作`)
+    }
   } else if (docTab.value === 'reminder') {
     const record = saveDispatchReminderRecord(buildReminderSavePayload(reminderDraft.value))
     reminderDraft.value.adminRecordId = record.id
     reminderDraft.value.status = 'draft'
-    ElMessage.success(`已保存至 ${ADMIN_MENU_ROOT} · ${ADMIN_MENU_REMINDER}（待指挥部下发）`)
+    if (issueNow) {
+      issueDispatchReminderRecord(record.id)
+      ElMessage.success(`提示函已保存并直接下发（编号 ${record.id}）`)
+    } else {
+      ElMessage.success(`提示函已保存（编号 ${record.id}），可在${ADMIN_MENU_ROOT} · ${ADMIN_MENU_REMINDER}点击下发操作`)
+    }
   } else {
     const record = saveDispatchPenaltyRecord(buildPenaltySavePayload(penaltyDraft.value))
     penaltyDraft.value.adminRecordId = record.id
     penaltyDraft.value.status = 'draft'
-    ElMessage.success(`已保存至 ${ADMIN_MENU_ROOT} · ${ADMIN_MENU_PENALTY}（待指挥部下发）`)
+    if (issueNow) {
+      issueDispatchPenaltyRecord(record.id)
+      ElMessage.success(`处罚单已保存并直接下发（编号 ${record.id}）`)
+    } else {
+      ElMessage.success(`处罚单已保存（编号 ${record.id}），可在${ADMIN_MENU_ROOT} · ${ADMIN_MENU_PENALTY}点击下发操作`)
+    }
   }
+  dialogRefresh.value += 1
 }
 </script>
 
@@ -339,9 +433,15 @@ function handleSave() {
             </div>
             <div class="field-row">
               <span class="field-label">工作类型</span>
-              <el-radio-group v-model="noticeDraft.workType" size="small" class="work-type-tags">
-                <el-radio-button v-for="item in TASK_WORK_TYPES" :key="item" :value="item">{{ item }}</el-radio-button>
-              </el-radio-group>
+              <el-select
+                v-model="noticeDraft.workType"
+                size="small"
+                filterable
+                :popper-class="DOC_POPPER_CLASS"
+                placeholder="请选择工作类型"
+                aria-label="选择工作类型">
+                <el-option v-for="item in taskWorkTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
+              </el-select>
             </div>
             <div class="field-row field-row-block">
               <span class="field-label">工作要求</span>
@@ -355,13 +455,14 @@ function handleSave() {
             <div class="field-row">
               <span class="field-label">执行人</span>
               <el-select
-                v-model="noticeDraft.executor"
+                v-model="noticeDraft.executors"
+                multiple
                 filterable
                 allow-create
                 default-first-option
                 size="small"
                 :popper-class="DOC_POPPER_CLASS"
-                placeholder="选择或输入执行人" aria-label="选择或输入执行人">
+                placeholder="选择或输入执行人（可多选）" aria-label="选择或输入执行人">
                 <el-option
                   v-for="item in executorOptions"
                   :key="item.value"
@@ -369,6 +470,12 @@ function handleSave() {
                   :value="item.value"
                 />
               </el-select>
+            </div>
+            <div class="field-row">
+              <span class="field-label">执行模式</span>
+              <el-radio-group v-model="noticeDraft.executionMode" size="small" class="execution-mode-tags">
+                <el-radio v-for="mode in TASK_EXECUTION_MODE_OPTIONS" :key="mode" :value="mode">{{ mode }}</el-radio>
+              </el-radio-group>
             </div>
             <div class="field-row">
               <span class="field-label">完成时限</span>
@@ -418,13 +525,14 @@ function handleSave() {
             <div class="field-row">
               <span class="field-label">指派人</span>
               <el-select
-                v-model="reminderDraft.executor"
+                v-model="reminderDraft.assignees"
+                multiple
                 filterable
                 allow-create
                 default-first-option
                 size="small"
                 :popper-class="DOC_POPPER_CLASS"
-                placeholder="选择或输入指派人" aria-label="选择或输入指派人">
+                placeholder="选择或输入指派人（可多选）" aria-label="选择或输入指派人">
                 <el-option
                   v-for="item in executorOptions"
                   :key="item.value"
@@ -462,9 +570,15 @@ function handleSave() {
             </div>
             <div class="field-row">
               <span class="field-label">类型</span>
-              <el-radio-group v-model="penaltyDraft.workType" size="small" class="work-type-tags">
-                <el-radio-button v-for="item in TASK_WORK_TYPES" :key="item" :value="item">{{ item }}</el-radio-button>
-              </el-radio-group>
+              <el-select
+                v-model="penaltyDraft.workType"
+                size="small"
+                filterable
+                :popper-class="DOC_POPPER_CLASS"
+                placeholder="请选择类型"
+                aria-label="选择类型">
+                <el-option v-for="item in taskWorkTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
+              </el-select>
             </div>
             <div class="field-row field-row-block">
               <span class="field-label">处罚内容</span>
@@ -508,7 +622,8 @@ function handleSave() {
         </div>
 
         <div class="draft-actions">
-          <el-button type="primary" size="small" @click="handleSave">{{ dispatchHqUi ? '提交' : '保存' }}</el-button>
+          <el-button size="small" @click="handleSave(false)">保存</el-button>
+          <el-button type="primary" size="small" @click="handleSave(true)">直接下发</el-button>
         </div>
       </div>
     </div>
@@ -744,6 +859,14 @@ function handleSave() {
   color: var(--coc-text-muted);
   font-size: calc(13px + var(--coc-font-boost));
   padding: 16px 8px !important;
+}
+
+.execution-mode-tags {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px 12px;
+  flex-wrap: wrap;
+  min-height: 28px;
 }
 
 .work-type-tags {

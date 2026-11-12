@@ -4,7 +4,12 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Upload, Delete, Edit, Setting, Download } from '@element-plus/icons-vue'
 import ProfilePersonContactInput from '../../components/basicData/ProfilePersonContactInput.vue'
 import ProfilePersonContactList from '../../components/basicData/ProfilePersonContactList.vue'
+import DailyWorkExportDialog from '../components/DailyWorkExportDialog.vue'
+import DailyCheckDialog from '../../views/cocAdmin/dailyDispatch/DailyCheckDialog.vue'
+import exportPlanTemplateUrl from '../../assets/daily-work-templates/export-plans.xlsx?url'
+import requirementChangesPrdUrl from '../../../docs/features/requirement-changes/requirements/Requirement_Changes_PRD_1112.docx?url'
 import { getProjectSelectOptions } from '../../mock/projectBasicInfo.js'
+import { matchesDailyWorkKeyword } from '../utils/dailyWorkExport.js'
 import {
   DAILY_WORK_RISK_RULES,
   buildDailyWorkRiskAlertDetails,
@@ -22,9 +27,9 @@ import {
 import {
   parseDailyWorkFile,
   downloadDailyWorkTemplate,
-  exportDailyWorkRecords,
 } from '../utils/dailyWorkImport.js'
 import {
+  ensureDailyWorkSeed,
   getDailyWorkRecords,
   saveDailyWorkRecord,
   removeDailyWorkRecord,
@@ -41,7 +46,10 @@ const props = defineProps({
 })
 
 const keyword = ref('')
+/** 进入页面不默认当天：施工日期留空，由用户主动选择后再查询/导出 */
 const dateFilter = ref('')
+const exportVisible = ref(false)
+const templateNoteVisible = ref(false)
 const records = ref([])
 const currentPage = ref(1)
 const pageSize = 10
@@ -106,12 +114,7 @@ function resetRuleConfig() {
 const filtered = computed(() => {
   let list = records.value
   if (dateFilter.value) list = list.filter((r) => r.reportDate === dateFilter.value)
-  const q = keyword.value.trim()
-  if (!q) return list
-  return list.filter((r) =>
-    [r.projectName, r.contractor, r.workArea, r.dangerWorkCategory, r.leadUnit]
-      .some((f) => String(f || '').includes(q)),
-  )
+  return list.filter((record) => matchesDailyWorkKeyword(record, keyword.value))
 })
 
 const pagedRecords = computed(() => {
@@ -124,6 +127,8 @@ watch([keyword, dateFilter], () => {
 })
 
 function load() {
+  // 子组件 mounted 先于父页面执行，这里主动补种，避免首开列表为空
+  ensureDailyWorkSeed()
   records.value = getDailyWorkRecords()
 }
 
@@ -305,13 +310,13 @@ function handleDownloadTemplate() {
   ElMessage.success('模版已下载，请按 Sheet 填写后导入')
 }
 
-function handleExport() {
-  const result = exportDailyWorkRecords(filtered.value)
-  if (!result.ok) {
-    ElMessage.warning(result.error || '导出失败')
+function openExport() {
+  if (!dateFilter.value) {
+    ElMessage.warning('请先选择施工日期后再导出')
     return
   }
-  ElMessage.success(`已导出 ${result.count} 条（${result.sheetCount} 个日期 Sheet）`)
+  load()
+  exportVisible.value = true
 }
 
 function indexMethod(index) {
@@ -325,10 +330,17 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="panel-card admin-page">
-    <div class="panel-title simple-title">
-      <span class="title-text">{{ props.title }}</span>
-      <div class="title-actions">
+  <div class="page-card admin-page">
+    <div class="daily-work-header">
+      <div class="daily-work-heading">
+        <h2 class="daily-work-title">{{ props.title }}</h2>
+        <el-button link type="primary" size="small" @click="templateNoteVisible = true">原型说明（模板下载）</el-button>
+      </div>
+      <el-button class="config-btn" :icon="Setting" @click="openRuleConfig">配置</el-button>
+    </div>
+
+    <div class="panel-body page-body">
+      <div class="daily-work-toolbar">
         <el-date-picker
           v-model="dateFilter"
           type="date"
@@ -340,12 +352,8 @@ onMounted(() => {
         <el-button type="primary" :icon="Plus" @click="openCreate">手动添加</el-button>
         <el-button :icon="Download" @click="handleDownloadTemplate">下载模版</el-button>
         <el-button :icon="Upload" @click="importVisible = true">导入表格</el-button>
-        <el-button :icon="Download" @click="handleExport">导出</el-button>
+        <el-button :icon="Download" class="dw-export-button" @click="openExport">导出</el-button>
       </div>
-      <el-button class="config-btn" :icon="Setting" @click="openRuleConfig">配置</el-button>
-    </div>
-
-    <div class="panel-body page-body">
       <el-table :data="pagedRecords" stripe border empty-text="暂无填报记录，可手动添加或导入 Excel">
         <el-table-column type="index" label="序号" width="56" :index="indexMethod" />
         <el-table-column prop="reportDate" label="施工日期" width="108" />
@@ -376,6 +384,28 @@ onMounted(() => {
         />
       </div>
     </div>
+
+    <DailyWorkExportDialog v-model="exportVisible" :records="records" :selected-date="dateFilter" :keyword="keyword" />
+
+    <DailyCheckDialog v-model="templateNoteVisible" title="每日施工作业 · 原型说明" width="760px">
+      <ul class="daily-work-prototype-templates" aria-label="需求文档及每日施工作业导出模板">
+        <li class="daily-work-prototype-template">
+          <div class="daily-work-template-info">
+            <strong>需求变更 PRD（1112版）</strong>
+            <p>需求变更PRD_待评审_1112.docx</p>
+          </div>
+          <el-button tag="a" :href="requirementChangesPrdUrl" download="需求变更PRD_待评审_1112.docx" type="primary" plain :icon="Download" aria-label="下载需求变更PRD（1112版）">下载</el-button>
+        </li>
+        <li class="daily-work-prototype-template">
+          <div class="daily-work-template-info">
+            <strong>每日施工作业计划表</strong>
+            <p>模板-每日施工作业计划表-yyyy-mm-dd.xlsx</p>
+          </div>
+          <el-button tag="a" :href="exportPlanTemplateUrl" download="模板-每日施工作业计划表-yyyy-mm-dd.xlsx" type="primary" plain :icon="Download" aria-label="下载每日施工作业计划表模板">下载</el-button>
+        </li>
+      </ul>
+      <template #footer><el-button type="primary" @click="templateNoteVisible = false">知道了</el-button></template>
+    </DailyCheckDialog>
 
     <!-- 手动添加/编辑 -->
     <el-dialog
@@ -617,29 +647,59 @@ onMounted(() => {
 
 <style scoped>
 .admin-page {
+  display: flex;
+  flex-direction: column;
   min-height: calc(100vh - 120px);
+  padding: 0;
+  overflow: hidden;
 }
 
-.simple-title {
+.daily-work-header {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  justify-content: space-between;
   gap: 12px;
-  font-size: 16px;
-  border-left: 4px solid var(--coc-accent);
-  padding-left: 12px;
+  padding: 16px 20px 0;
 }
 
-.title-text {
+.daily-work-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ap-text);
   flex-shrink: 0;
 }
 
-.title-actions {
+.daily-work-heading {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  min-width: 0;
+}
+
+.daily-work-prototype-templates { display: flex; flex-direction: column; gap: 10px; padding: 0; margin: 0; list-style: none; }
+.daily-work-prototype-template { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 14px; border: 1px solid var(--ap-border); border-radius: 6px; background: var(--ap-bg-soft); }
+.daily-work-template-info { min-width: 0; overflow-wrap: anywhere; }
+.daily-work-template-info strong { color: var(--ap-text); font-size: 14px; font-weight: 600; }
+.daily-work-template-info p { margin: 4px 0 0; color: var(--ap-text-secondary); font-size: 13px; line-height: 1.6; }
+.daily-work-prototype-template > .el-button { flex-shrink: 0; }
+@media (max-width: 600px) {
+  .daily-work-prototype-template { flex-direction: column; align-items: stretch; }
+  .daily-work-prototype-template > .el-button { align-self: flex-start; }
+}
+
+.daily-work-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
   gap: 10px;
   flex-wrap: wrap;
-  flex: 1;
+  margin-bottom: 14px;
+}
+
+.daily-work-toolbar :deep(.el-button + .el-button) {
+  margin-left: 0;
 }
 
 .config-btn {

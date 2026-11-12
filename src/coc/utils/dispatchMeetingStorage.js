@@ -1,6 +1,14 @@
-﻿import { COMMAND_MEETING_HISTORY, MOCK_NOTICE, AI_INTERCOM_RECORDS, DISPATCH_CURRENT_USER } from '../mock/data.js'
+import { COMMAND_MEETING_HISTORY, MOCK_NOTICE, AI_INTERCOM_RECORDS, DISPATCH_CURRENT_USER } from '../mock/data.js'
 import { resolveTaskWorkType } from '../config/screenshotTaskOrderFields.js'
 import { resolveExecutorDisplay } from './executorDisplay.js'
+import { nowStr } from '../../utils/datetime.js'
+import { listSysUsers } from '../../mock/sysUsers.js'
+import { dispatchTaskOperator, dispatchTaskUserOptions } from './dispatchTaskIdentity.js'
+import {
+  TASK_STATUSES, TASK_EXECUTION_MODES, TASK_EXECUTION_MODE_OPTIONS,
+  taskExecutors, taskReply, taskReplies, taskStatus, taskAssignees, prepareTaskReply,
+} from './dispatchTaskWorkflow.js'
+export { TASK_STATUSES } from './dispatchTaskWorkflow.js'
 
 const NOTICE_KEY = 'coc-admin-dispatch-notices'
 const PENALTY_KEY = 'coc-admin-dispatch-penalties'
@@ -19,6 +27,7 @@ const PENALTY_WORKTYPE_PATCH_FLAG = 'coc-admin-penalty-worktype-v1'
 const REMINDER_SEED_FLAG = 'coc-admin-dispatch-reminder-v1'
 const REMINDER_STATUS_PATCH_FLAG = 'coc-admin-reminder-status-v1'
 const NOTICE_STATUS_PATCH_FLAG = 'coc-admin-notice-status-v1'
+const TASK_REPLY_PATCH_FLAG = 'coc-admin-notice-reply-v1'
 const CHANGE_EVENT = 'coc-dispatch-meeting-change'
 
 export const NOTICE_STATUSES = {
@@ -28,13 +37,11 @@ export const NOTICE_STATUSES = {
   VOID: '已作废',
 }
 
-function migrateNoticeStatus(status) {
+function migrateReminderStatus(status) {
   if (status === '待签收' || status === '待确认') return NOTICE_STATUSES.PENDING
   if (status === '已闭环') return NOTICE_STATUSES.RECEIVED
   return status
 }
-
-const migrateReminderStatus = migrateNoticeStatus
 
 export const PENALTY_STATUSES = {
   PENDING: '待下发',
@@ -243,11 +250,11 @@ export function normalizeNoticeRecord(record = {}) {
       : (record.type || '')
   const workType = resolveTaskWorkType(rawWorkType, record.workRequirement || '')
   const workRequirement = record.workRequirement || record.content || ''
-  const rawExecutor =
-    record.executor !== undefined && record.executor !== null
-      ? record.executor
-      : (record.executeDept || record.unit || '')
-  const executor = rawExecutor ? resolveExecutorDisplay(rawExecutor) : ''
+  const executors = taskExecutors(record).map(value => resolveExecutorDisplay(value))
+  const executor = executors.join('、')
+  const executionMode = TASK_EXECUTION_MODE_OPTIONS.includes(record.executionMode)
+    ? record.executionMode : TASK_EXECUTION_MODES.SINGLE
+  const replies = taskReplies(record)
   const deadline = record.deadline || defaultDeadline()
   const remark = record.remark || ''
   const titleBase = workRequirement.trim().slice(0, 24) || record.title || '任务单'
@@ -262,10 +269,13 @@ export function normalizeNoticeRecord(record = {}) {
     cameraName: record.cameraName,
     cameraLocation: record.cameraLocation,
   }
-  return {
+  const normalized = {
     ...record,
     workType,
     workRequirement,
+    executors,
+    executorAssignments: taskAssignees({ ...record, executors }, listSysUsers()),
+    executionMode,
     executor,
     executeDept: executor,
     deadline,
@@ -278,7 +288,12 @@ export function normalizeNoticeRecord(record = {}) {
       record.content?.includes('工作类型：') && record.content?.includes('项目名称：')
         ? record.content
         : buildNoticeContentText(contentFields),
-    status: migrateNoticeStatus(record.status || NOTICE_STATUSES.PENDING),
+    replies,
+    reply: replies[0] || null,
+    createdAt: record.createdAt || '',
+    createdBy: record.createdBy || record.issuer || '',
+    issuedBy: record.issuedBy || '',
+    voidedBy: record.voidedBy || '',
     issueTime: record.issueTime ?? '--',
     issuer: record.issuer || DISPATCH_CURRENT_USER,
     attachments: Array.isArray(record.attachments)
@@ -288,15 +303,21 @@ export function normalizeNoticeRecord(record = {}) {
         }))
       : [],
   }
+  normalized.status = taskStatus({ ...normalized, status: record.status || TASK_STATUSES.PENDING })
+  return normalized
 }
 
 export function normalizeReminderRecord(record = {}) {
   const matterDescription = record.matterDescription || record.content || ''
-  const rawAssignee =
-    record.assignee !== undefined && record.assignee !== null
+  const rawAssignees = Array.isArray(record.assignees) && record.assignees.length
+    ? record.assignees
+    : (record.assignee !== undefined && record.assignee !== null
       ? record.assignee
-      : (record.executor || record.rectifier || '')
-  const assignee = rawAssignee ? resolveExecutorDisplay(rawAssignee) : ''
+      : (record.executor || record.rectifier || ''))
+  const assignees = taskExecutors(Array.isArray(rawAssignees)
+    ? { executors: rawAssignees }
+    : { executor: rawAssignees }).map(value => resolveExecutorDisplay(value))
+  const assignee = assignees.join('、')
   const deadline = record.deadline || defaultDeadline()
   const titleBase = matterDescription.trim().slice(0, 24) || record.title || '提示函'
   const contentFields = {
@@ -311,6 +332,7 @@ export function normalizeReminderRecord(record = {}) {
   return {
     ...record,
     matterDescription,
+    assignees,
     assignee,
     executor: assignee,
     deadline,
@@ -420,6 +442,9 @@ export function emptyNoticeRecord() {
     workRequirement: '',
     workSource: '后台录入',
     executor: '',
+    executors: [],
+    executionMode: TASK_EXECUTION_MODES.SINGLE,
+    replies: [],
     executeDept: '',
     deadline: defaultDeadline(),
     remark: '',
@@ -436,6 +461,7 @@ export function emptyReminderRecord() {
     project: '',
     matterDescription: '',
     assignee: '',
+    assignees: [],
     deadline: defaultDeadline(),
     issueTime: '--',
     status: NOTICE_STATUSES.PENDING,
@@ -1153,7 +1179,7 @@ function ensureNoticeStatusPatch() {
       NOTICE_KEY,
       list.map((item) => {
         const normalized = normalizeNoticeRecord(item)
-        const status = migrateNoticeStatus(item.status)
+        const status = taskStatus(item)
         return {
           ...normalized,
           status,
@@ -1169,6 +1195,10 @@ function ensureNoticeStatusPatch() {
 }
 
 export function ensureDispatchMeetingSeed() {
+  if (!localStorage.getItem(TASK_REPLY_PATCH_FLAG) && !localStorage.getItem('coc-admin-notice-before-reply-v1')) {
+    const previous = localStorage.getItem(NOTICE_KEY)
+    if (previous) localStorage.setItem('coc-admin-notice-before-reply-v1', previous)
+  }
   if (localStorage.getItem(SEED_FLAG)) {
     ensureDispatchDocSnapshots()
     ensureMeetingDetailPatch()
@@ -1207,7 +1237,158 @@ function ensureDispatchDocSnapshots() {
 
 export function getDispatchNoticeRecords() {
   ensureDispatchMeetingSeed()
-  return readList(NOTICE_KEY)
+  ensureTaskReplyUpgrade()
+  ensureTaskPersonalExamples()
+  ensureTaskParallelDemo()
+  return readList(NOTICE_KEY).map(normalizeNoticeRecord)
+}
+
+let taskUpgradeActive = false
+function ensureTaskReplyUpgrade() {
+  if (taskUpgradeActive || localStorage.getItem(TASK_REPLY_PATCH_FLAG)) return
+  taskUpgradeActive = true
+  try {
+    const original = readList(NOTICE_KEY)
+    if (!localStorage.getItem('coc-admin-notice-before-reply-v1')) localStorage.setItem('coc-admin-notice-before-reply-v1', JSON.stringify(original))
+    const options = dispatchTaskUserOptions()
+    const operator = dispatchTaskOperator()
+    const first = options.find(item => item.userId === operator.id) || options[0]
+    const second = options.find(item => item.userId !== first?.userId)
+    const actors = [first, second].filter(Boolean)
+    const statuses = [TASK_STATUSES.PENDING, TASK_STATUSES.PROCESSING, TASK_STATUSES.COMPLETED, TASK_STATUSES.NO_ACTION, TASK_STATUSES.VOID]
+    const existingIds = new Set(original.map(item => item.id))
+    const demos = first ? statuses.map((status, index) => {
+      const terminal = [TASK_STATUSES.COMPLETED, TASK_STATUSES.NO_ACTION].includes(status)
+      const time = `2026-11-09 16:${String(20 + index).padStart(2, '0')}:00`
+      return normalizeNoticeRecord({ id: `GZ-REPLY-DEMO-${index + 1}`, project: 'T2项目', demo: true,
+        workType: index % 2 ? '质量' : '安全', workSource: '调度会议',
+        workRequirement: ['示例：复核临边防护设置，明确后续处理安排。', '示例：复查现场技术交底记录并回复处理情况。', '示例：清理消防通道并反馈现场处理结果。', '示例：复核已取消的施工安排并说明无需执行原因。', '示例：已取消的现场复查任务。'][index],
+        executors: actors.map(item => item.value), executorAssignments: actors.map(item => ({ label: item.value, userId: item.userId })),
+        deadline: '2026-11-15', remark: '示例数据：多执行人中任意一人回复后结束。',
+        createdBy: 'COC调度室（示例）', issuer: 'COC调度室（示例）', createdAt: '2026-11-08 15:10:00',
+        issuedBy: status === TASK_STATUSES.PENDING || status === TASK_STATUSES.VOID ? '' : 'COC调度室（示例）',
+        issueTime: status === TASK_STATUSES.PENDING || status === TASK_STATUSES.VOID ? '--' : '2026-11-09 09:18:00', status,
+        voidedBy: status === TASK_STATUSES.VOID ? 'COC调度室（示例）' : '', voidedAt: status === TASK_STATUSES.VOID ? '2026-11-09 10:20:00' : '',
+        reply: terminal ? { actor: first.value, actorUserId: first.userId, time, result: status === TASK_STATUSES.COMPLETED ? '已执行' : '无需执行',
+          remark: status === TASK_STATUSES.COMPLETED ? '示例：已完成现场处理，并复核相关资料。' : '示例：经复核该施工安排已取消，无需继续执行。',
+          attachments: status === TASK_STATUSES.COMPLETED ? [{ name: '示例-现场处理照片.svg', url: NOTICE_SNAPSHOTS['GZ-20260612-004'] || Object.values(NOTICE_SNAPSHOTS)[0] }] : [] } : null,
+        closedTime: terminal ? time : '', closedBy: terminal ? '系统' : '',
+      })
+    }).filter(item => !existingIds.has(item.id)) : []
+    writeList(NOTICE_KEY, [...demos, ...original.map(normalizeNoticeRecord)])
+    localStorage.setItem(TASK_REPLY_PATCH_FLAG, '1')
+  } finally { taskUpgradeActive = false }
+}
+
+let taskPersonalExamplesActive = false
+function ensureTaskPersonalExamples() {
+  if (taskUpgradeActive || taskPersonalExamplesActive) return
+  const operator = dispatchTaskOperator()
+  const actor = dispatchTaskUserOptions().find(item => item.userId === operator.id)
+  if (!actor) return
+  const flag = `coc-admin-notice-personal-examples-v1:${encodeURIComponent(actor.userId)}`
+  if (localStorage.getItem(flag)) return
+  taskPersonalExamplesActive = true
+  try {
+    const original = readList(NOTICE_KEY)
+    const existingIds = new Set(original.map(item => item.id))
+    const definitions = [
+      { suffix: 'PROCESSING', status: TASK_STATUSES.PROCESSING, requirement: '示例：复查现场技术交底记录并回复处理情况。' },
+      { suffix: 'COMPLETED', status: TASK_STATUSES.COMPLETED, result: '已执行', requirement: '示例：清理消防通道并反馈现场处理结果。', explanation: '示例：已完成现场处理，并复核相关资料。' },
+      { suffix: 'NO-ACTION', status: TASK_STATUSES.NO_ACTION, result: '无需执行', requirement: '示例：复核已取消的施工安排并说明无需执行原因。', explanation: '示例：经复核该施工安排已取消，无需继续执行。' },
+    ]
+    const examples = definitions.flatMap((definition, index) => {
+      const existingExample = original.some(task => {
+        if (!task.demo) return false
+        const reply = taskReply(task)
+        return definition.result
+          ? reply?.actorUserId === actor.userId && reply.result === definition.result && taskStatus(task) !== TASK_STATUSES.VOID
+          : taskStatus(task) === TASK_STATUSES.PROCESSING && taskAssignees(task, listSysUsers()).some(item => item.userId === actor.userId)
+      })
+      const id = `GZ-REPLY-DEMO-${encodeURIComponent(actor.userId)}-${definition.suffix}`
+      if (existingExample || existingIds.has(id)) return []
+      const time = `2026-11-09 16:${String(30 + index).padStart(2, '0')}:00`
+      return [normalizeNoticeRecord({
+        id, demo: true, project: 'T2项目', workType: '安全', workSource: '调度会议',
+        workRequirement: definition.requirement, executors: [actor.value],
+        executorAssignments: [{ label: actor.value, userId: actor.userId }], deadline: '2026-11-15',
+        remark: '示例数据：供本账号演示任务单处理和已办详情。',
+        createdBy: 'COC调度室（示例）', issuer: 'COC调度室（示例）', createdAt: '2026-11-08 15:10:00',
+        issuedBy: 'COC调度室（示例）', issueTime: '2026-11-09 09:18:00', status: definition.status,
+        reply: definition.result ? {
+          actor: actor.value, actorUserId: actor.userId, time, result: definition.result, remark: definition.explanation,
+          attachments: definition.result === '已执行'
+            ? [{ name: '示例-现场处理照片.svg', url: NOTICE_SNAPSHOTS['GZ-20260612-004'] || Object.values(NOTICE_SNAPSHOTS)[0] }]
+            : [],
+        } : null,
+        closedTime: definition.result ? time : '', closedBy: definition.result ? '系统' : '',
+      })]
+    })
+    if (examples.length) writeList(NOTICE_KEY, [...examples, ...original])
+    localStorage.setItem(flag, '1')
+  } finally { taskPersonalExamplesActive = false }
+}
+
+const PARALLEL_DEMO_FLAG = 'coc-admin-notice-parallel-demo-v4'
+let taskParallelDemoActive = false
+/** 多人并行演示数据：一条「处理中（1/3 已回复）」、一条「三人全部回复已闭环」、一条项目层级可见 */
+function ensureTaskParallelDemo() {
+  if (taskParallelDemoActive || localStorage.getItem(PARALLEL_DEMO_FLAG)) return
+  taskParallelDemoActive = true
+  try {
+    const allOptions = dispatchTaskUserOptions()
+    const operator = dispatchTaskOperator()
+    const operatorOption = allOptions.find(item => item.userId === operator.id)
+    const others = allOptions.filter(item => item.userId !== operator?.id).slice(0, operatorOption ? 2 : 3)
+    const options = [...others, ...(operatorOption ? [operatorOption] : [])].slice(0, 3)
+    if (options.length < 2) return
+    const original = readList(NOTICE_KEY)
+    const demoIds = new Set(['GZ-PARALLEL-DEMO-1', 'GZ-PARALLEL-DEMO-2', 'GZ-PARALLEL-DEMO-3'])
+    const rest = original.filter(item => !demoIds.has(item.id))
+    const executors = options.map(item => item.value)
+    const executorAssignments = options.map(item => ({ label: item.value, userId: item.userId }))
+    const base = {
+      demo: true, project: 'T2项目', workType: '安全', workSource: '调度会议',
+      executors, executorAssignments, deadline: '2026-11-16',
+      createdBy: 'COC调度室（示例）', issuer: 'COC调度室（示例）', createdAt: '2026-11-10 10:05:00',
+      issuedBy: 'COC调度室（示例）', issueTime: '2026-11-10 10:30:00',
+      executionMode: TASK_EXECUTION_MODES.PARALLEL,
+    }
+    const partialReplies = [{
+      actor: executors[0], actorUserId: options[0].userId, time: '2026-11-11 09:12:30',
+      result: '已执行', remark: '示例：已完成现场处理（多人并行，等待其余执行人回复）。', attachments: [],
+    }]
+    const allReplies = executors.map((actor, index) => ({
+      actor, actorUserId: options[index].userId, time: `2026-11-11 09:1${index + 2}:00`,
+      result: index === 1 ? '无需执行' : '已执行',
+      remark: index === 1 ? '示例：经现场核实该点位无需处理。' : '示例：已完成现场处理并复核。',
+      attachments: [],
+    }))
+    const demos = [
+      normalizeNoticeRecord({
+        ...base, id: 'GZ-PARALLEL-DEMO-1', status: TASK_STATUSES.PROCESSING, replies: partialReplies,
+        workRequirement: '示例：三人并行任务——复核临边防护设置并反馈处理结果（已有 1 人回复）。',
+        remark: '示例数据：多人并行，全部执行人回复后任务单才关闭。',
+      }),
+      normalizeNoticeRecord({
+        ...base, id: 'GZ-PARALLEL-DEMO-2', status: TASK_STATUSES.PROCESSING, replies: allReplies,
+        workType: '生态治理',
+        workRequirement: '示例：三人并行任务——清理消防通道并反馈处理结果（三人均已回复）。',
+        remark: '示例数据：多人并行，全部回复后已关闭。',
+        closedTime: '2026-11-11 09:14:00', closedBy: '系统',
+      }),
+      normalizeNoticeRecord({
+        ...base, id: 'GZ-PARALLEL-DEMO-3', status: TASK_STATUSES.PROCESSING, replies: allReplies.slice(0, 2),
+        project: '2号雨水泵站', workType: '安全',
+        workRequirement: '示例：项目层级可见的任务单——复核基坑临边防护并反馈处理结果（2/3 人已回复）。',
+        remark: '示例数据：项目层级任务单页仅查看本项目任务单。',
+      }),
+    ]
+    if (demos.length) writeList(NOTICE_KEY, [...demos, ...rest])
+  } finally {
+    taskParallelDemoActive = false
+    localStorage.setItem(PARALLEL_DEMO_FLAG, '1')
+  }
 }
 
 export function getDispatchPenaltyRecords() {
@@ -1217,7 +1398,70 @@ export function getDispatchPenaltyRecords() {
 
 export function getDispatchReminderRecords() {
   ensureDispatchMeetingSeed()
+  ensureReminderAssigneePatch()
+  ensureReminderMultiDemo()
   return readList(REMINDER_KEY)
+}
+
+const REMINDER_ASSIGNEE_PATCH_FLAG = 'coc-admin-reminder-assignee-v1'
+const REMINDER_ASSIGNEE_PRESET = {
+  'TS-20260613-001': ['王强（项目经理）'],
+  'TS-20260615-002': ['王强（项目经理）'],
+  'TS-20260614-003': ['张安全（安监专员）'],
+  'TS-20260612-004': ['李巡检（巡检工程师）'],
+}
+
+/** 修复历史演示提示函丢失指派人：按预设补回（一次性） */
+function ensureReminderAssigneePatch() {
+  if (localStorage.getItem(REMINDER_ASSIGNEE_PATCH_FLAG)) return
+  try {
+    const list = readList(REMINDER_KEY)
+    if (list.length) {
+      writeList(REMINDER_KEY, list.map((item) => {
+        const preset = REMINDER_ASSIGNEE_PRESET[item.id]
+        if (!preset) return item
+        return normalizeReminderRecord({ ...item, assignees: preset })
+      }))
+    }
+  } finally {
+    localStorage.setItem(REMINDER_ASSIGNEE_PATCH_FLAG, '1')
+  }
+}
+
+const REMINDER_MULTI_DEMO_FLAG = 'coc-admin-reminder-multi-demo-v2'
+let reminderMultiDemoActive = false
+/** 提示函多指派人 + 项目层级可见演示数据（开发已实现执行人多人，原型同步） */
+function ensureReminderMultiDemo() {
+  if (reminderMultiDemoActive || localStorage.getItem(REMINDER_MULTI_DEMO_FLAG)) return
+  reminderMultiDemoActive = true
+  try {
+    const options = dispatchTaskUserOptions().slice(0, 2)
+    if (options.length < 2) return
+    const original = readList(REMINDER_KEY)
+    const demoIds = new Set(['TS-MULTI-DEMO-1', 'TS-PROJ-DEMO-1'])
+    const rest = original.filter((item) => !demoIds.has(item.id))
+    const assignees = options.map(item => item.value)
+    const demos = [
+      normalizeReminderRecord({
+        id: 'TS-MULTI-DEMO-1', demo: true, project: 'T2项目',
+        matterDescription: '示例：请两位指派人共同复核围挡修复情况，并在完成时限前反馈处理结果。',
+        assignees,
+        deadline: '2026-11-18', issueTime: '2026-11-11 10:20:00',
+        status: NOTICE_STATUSES.ISSUED, issuer: 'COC调度室（示例）', source: '后台录入',
+      }),
+      normalizeReminderRecord({
+        id: 'TS-PROJ-DEMO-1', demo: true, project: '2号雨水泵站',
+        matterDescription: '示例：项目层级可见的提示函——请两位指派人共同复核基坑周边警示标识。',
+        assignees,
+        deadline: '2026-11-20', issueTime: '2026-11-11 14:05:00',
+        status: NOTICE_STATUSES.ISSUED, issuer: 'COC调度室（示例）', source: '后台录入',
+      }),
+    ]
+    writeList(REMINDER_KEY, [...demos, ...rest])
+  } finally {
+    reminderMultiDemoActive = false
+    localStorage.setItem(REMINDER_MULTI_DEMO_FLAG, '1')
+  }
 }
 
 export function getDispatchMeetingRecords() {
@@ -1275,6 +1519,8 @@ function buildScreenshotNoticeRecord(payload) {
     workType: payload.workType || '',
     workRequirement: payload.workRequirement || payload.description || '',
     executor: payload.executor || payload.executeDept || payload.rectifier || '',
+    executors: payload.executors || [],
+    executionMode: payload.executionMode || TASK_EXECUTION_MODES.SINGLE,
     deadline: payload.deadline || defaultDeadline(),
     remark: payload.remark || '',
     issueTime: '--',
@@ -1292,6 +1538,7 @@ function buildScreenshotReminderRecord(payload) {
     project: payload.projectName || '',
     matterDescription: payload.matterDescription || payload.description || '',
     assignee: payload.assignee || payload.executor || payload.rectifier || '',
+    assignees: payload.assignees || [],
     deadline: payload.deadline || defaultDeadline(),
     issueTime: '--',
     issuer: payload.issuer || DISPATCH_CURRENT_USER,
@@ -1337,12 +1584,21 @@ export function saveDispatchDocFromScreenshot(docType, payload) {
 
 export function saveDispatchNoticeRecord(payload) {
   ensureDispatchMeetingSeed()
+  const list = readList(NOTICE_KEY)
+  const existing = list.find(item => item.id === payload.id)
+  if (existing && taskStatus(existing) !== TASK_STATUSES.PENDING) return normalizeNoticeRecord(existing)
+  const operator = dispatchTaskOperator(), createdAt = nowStr()
   const record = normalizeNoticeRecord({
     ...emptyNoticeRecord(),
     ...payload,
     id: payload.id || createDocId('GZ'),
+    createdAt: existing ? existing.createdAt || '' : createdAt,
+    createdBy: existing ? existing.createdBy || existing.issuer || '' : operator.name || payload.issuer || DISPATCH_CURRENT_USER,
+    issuer: existing ? existing.issuer : operator.name || payload.issuer || DISPATCH_CURRENT_USER,
+    status: TASK_STATUSES.PENDING,
+    replies: [],
+    reply: null,
   })
-  const list = readList(NOTICE_KEY)
   const index = list.findIndex((item) => item.id === record.id)
   if (index >= 0) list[index] = { ...list[index], ...record }
   else list.unshift(record)
@@ -1384,12 +1640,14 @@ export function issueDispatchNoticeRecord(id) {
   const list = readList(NOTICE_KEY)
   const index = list.findIndex((item) => item.id === id)
   if (index < 0) return null
-  if (list[index].status !== NOTICE_STATUSES.PENDING) return list[index]
+  if (taskStatus(list[index]) !== TASK_STATUSES.PENDING) return list[index]
+  const record = normalizeNoticeRecord(list[index])
+  if (!record.executors.length) throw new Error('请选择执行人后再下发任务单')
   list[index] = {
-    ...list[index],
-    status: NOTICE_STATUSES.ISSUED,
-    issueTime: new Date().toLocaleString('zh-CN', { hour12: false }),
-    issuer: list[index].issuer || DISPATCH_CURRENT_USER,
+    ...record,
+    status: TASK_STATUSES.PROCESSING,
+    issueTime: nowStr(),
+    issuedBy: dispatchTaskOperator().name || DISPATCH_CURRENT_USER,
   }
   writeList(NOTICE_KEY, list)
   window.dispatchEvent(new CustomEvent(CHANGE_EVENT, { detail: { type: 'notice', record: list[index] } }))
@@ -1397,31 +1655,34 @@ export function issueDispatchNoticeRecord(id) {
 }
 
 export function receiveDispatchNoticeRecord(id, receivedBy = '') {
-  const list = readList(NOTICE_KEY)
-  const index = list.findIndex((item) => item.id === id)
-  if (index < 0) return null
-  if (list[index].status !== NOTICE_STATUSES.ISSUED) return list[index]
-  const executor = list[index].executor || list[index].executeDept || ''
-  list[index] = {
-    ...list[index],
-    status: NOTICE_STATUSES.RECEIVED,
-    receivedTime: new Date().toLocaleString('zh-CN', { hour12: false }),
-    receivedBy: receivedBy || executor,
+  // 兼容旧调用方：签收不再结束任务；有效处理只能走 submitDispatchTaskReply。
+  return getDispatchNoticeRecords().find(item => item.id === id) || null
+}
+
+export async function submitDispatchTaskReply(id, payload) {
+  const commit = () => {
+    const list = readList(NOTICE_KEY), index = list.findIndex(item => item.id === id)
+    const result = prepareTaskReply(index >= 0 ? normalizeNoticeRecord(list[index]) : null,
+      dispatchTaskOperator(), payload, listSysUsers(), nowStr())
+    if (!result.ok) return result
+    list[index] = result.record
+    writeList(NOTICE_KEY, list)
+    return result
   }
-  writeList(NOTICE_KEY, list)
-  window.dispatchEvent(new CustomEvent(CHANGE_EVENT, { detail: { type: 'notice', record: list[index] } }))
-  return list[index]
+  // 同源标签页也串行争取一次回复；锁内重新读取记录，先提交成功者生效。
+  return globalThis.navigator?.locks?.request ? navigator.locks.request('airport-dispatch-task-replies', commit) : commit()
 }
 
 export function voidDispatchNoticeRecord(id) {
   const list = readList(NOTICE_KEY)
   const index = list.findIndex((item) => item.id === id)
   if (index < 0) return null
-  if (list[index].status !== NOTICE_STATUSES.PENDING) return list[index]
+  if (taskStatus(list[index]) !== TASK_STATUSES.PENDING) return list[index]
   list[index] = {
     ...list[index],
     status: '已作废',
-    voidedAt: new Date().toLocaleString('zh-CN', { hour12: false }),
+    voidedAt: nowStr(),
+    voidedBy: dispatchTaskOperator().name || DISPATCH_CURRENT_USER,
   }
   writeList(NOTICE_KEY, list)
   return list[index]

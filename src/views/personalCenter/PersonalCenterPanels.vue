@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, ref, watch, onMounted } from 'vue'
+import { computed, reactive, ref, watch, onMounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, ArrowDown } from '@element-plus/icons-vue'
@@ -26,6 +26,9 @@ import {
 import '../../mock/mat.js'
 import '../../mock/eq.js'
 import AttachmentUpload from '../../components/common/AttachmentUpload.vue'
+import { taskProcessVisible } from '../../coc/utils/dispatchTaskWorkflow.js'
+import { dispatchTaskOperator } from '../../coc/utils/dispatchTaskIdentity.js'
+import { getDispatchNoticeRecords } from '../../coc/utils/dispatchMeetingStorage.js'
 
 const props = defineProps({
   /** 是否显示页标题（个人中心页显示，工作台嵌入时可关） */
@@ -40,28 +43,20 @@ const router = useRouter()
 
 const TAB_NAMES = ['todo', 'done', 'started', 'cc', 'warning-center', 'notice']
 
-onMounted(() => {
+onMounted(async () => {
   ensureAlertPushNotices()
   ensureQmPersonalCenterSeeds()
   ensureLaborWarningCenterSeeds()
   ensureInspectionOverdueReminders()
   notices.value = [...personalNotices]
+  await focusTaskTodo()
 })
 
 const activeTab = ref(
   TAB_NAMES.includes(String(route.query.tab || '')) ? String(route.query.tab) : 'todo',
 )
 
-watch(
-  () => route.query.tab,
-  (tab) => {
-    if (TAB_NAMES.includes(String(tab || ''))) {
-      activeTab.value = String(tab)
-    } else if (!tab) {
-      activeTab.value = 'todo'
-    }
-  },
-)
+watch(() => dispatchTaskOperator().id, () => getDispatchNoticeRecords(), { immediate: true })
 
 const filters = reactive({
   processName: '',
@@ -76,8 +71,12 @@ const filters = reactive({
   warnKeyword: '',
 })
 
-const todos = computed(() => personalTodoStore.todos)
-const doneList = computed(() => personalTodoStore.done)
+const todos = computed(() => personalTodoStore.todos.filter(row => taskProcessVisible(row, dispatchTaskOperator())))
+const isTaskExample = row => row.type === 'dispatch_notice' && row.taskId?.startsWith('GZ-REPLY-DEMO-')
+const doneList = computed(() => {
+  const rows = personalTodoStore.done.filter(row => taskProcessVisible(row, dispatchTaskOperator()))
+  return [...rows.filter(isTaskExample), ...rows.filter(row => !isTaskExample(row))]
+})
 const startedList = computed(() => personalStarted)
 const ccList = computed(() => personalCc)
 const notices = ref([...personalNotices])
@@ -108,6 +107,7 @@ const warningSelection = ref([])
 
 const page = ref(1)
 const pageSize = ref(10)
+const todoTable = ref(null)
 
 watch(() => filters.warnModule, () => {
   filters.warnStatus = ''
@@ -202,6 +202,35 @@ const pagedStarted = computed(() => slicePage(filteredStarted.value))
 const pagedCc = computed(() => slicePage(filteredCc.value))
 const pagedNotices = computed(() => slicePage(filteredNotices.value))
 const pagedWarningCenter = computed(() => slicePage(filteredWarningCenter.value))
+
+async function focusTaskTodo() {
+  if (route.path !== props.basePath || route.query.focus !== 'dispatch-task' || activeTab.value !== 'todo') return
+  resetFilters()
+  // 等待页签、各模块示例及任务单投影更新，再按完整待办列表计算页码。
+  await nextTick()
+  const rows = filteredTodos.value
+  const target = rows.find(isTaskExample) || rows.find(row => row.type === 'dispatch_notice')
+  if (!target) {
+    ElMessage.info('当前账号暂无待处理任务单')
+    return
+  }
+  page.value = Math.floor(rows.indexOf(target) / pageSize.value) + 1
+  await nextTick()
+  if (activeTab.value !== 'todo') return
+  todoTable.value?.setCurrentRow(target)
+  todoTable.value?.$el.querySelector('.el-table__body-wrapper .current-row')?.scrollIntoView({ block: 'center', inline: 'nearest' })
+}
+
+watch(
+  () => [route.query.tab, route.query.focus],
+  async ([tab]) => {
+    if (route.path !== props.basePath) return
+    activeTab.value = TAB_NAMES.includes(String(tab || '')) ? String(tab) : 'todo'
+    await nextTick()
+    await focusTaskTodo()
+  },
+  { flush: 'post' },
+)
 
 const activeTotal = computed(() => {
   if (activeTab.value === 'todo') return filteredTodos.value.length
@@ -387,7 +416,10 @@ function onTabChange(name) {
   startedSelection.value = []
   noticeSelection.value = []
   warningSelection.value = []
-  router.replace({ path: props.basePath, query: name === 'todo' ? {} : { tab: name } })
+  const routeTab = TAB_NAMES.includes(String(route.query.tab || '')) ? String(route.query.tab) : 'todo'
+  if (route.path === props.basePath && routeTab !== name) {
+    router.replace({ path: props.basePath, query: name === 'todo' ? {} : { tab: name } })
+  }
 }
 
 watch([activeTotal, pageSize], () => {
@@ -424,7 +456,7 @@ watch([activeTotal, pageSize], () => {
       <div class="table-toolbar">
         <span class="count-text">共 {{ filteredTodos.length }} 条</span>
       </div>
-      <el-table :data="pagedTodos" border stripe empty-text="暂无数据">
+      <el-table ref="todoTable" :data="pagedTodos" row-key="id" highlight-current-row border stripe empty-text="暂无数据">
         <el-table-column prop="category" label="所属模块" width="110" />
         <el-table-column prop="processName" label="流程名称" min-width="220" show-overflow-tooltip />
         <el-table-column prop="applicant" label="申请人" width="110" />

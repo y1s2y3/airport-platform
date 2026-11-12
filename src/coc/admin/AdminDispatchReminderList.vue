@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Edit, CircleClose, Promotion } from '@element-plus/icons-vue'
 import { buildProjects } from '../mock/data.js'
@@ -13,6 +13,7 @@ import {
   NOTICE_STATUSES,
 } from '../utils/dispatchMeetingStorage.js'
 import { buildExecutorOptions, resolveExecutorDisplay } from '../utils/executorDisplay.js'
+import { useCurrentProject } from '../../composables/useCurrentProject.js'
 import DispatchImageAttachments from '../components/DispatchImageAttachments.vue'
 
 defineProps({
@@ -22,6 +23,10 @@ defineProps({
     default: '管理远程调度产生的提示函：创建、下发与闭环，支持从截图/调度会一键生成。',
   },
 })
+
+const { isHqSelected, headerProjectLabel } = useCurrentProject()
+const readonly = computed(() => !isHqSelected.value)
+const scopeProjectName = computed(() => (isHqSelected.value ? '' : headerProjectLabel.value || ''))
 
 const keyword = ref('')
 const statusFilter = ref('')
@@ -35,20 +40,36 @@ const form = ref(emptyReminderRecord())
 const projectOptions = buildProjects().map((p) => p.shortName || p.name)
 const assigneeOptions = buildExecutorOptions()
 
+function assigneeList(row) {
+  if (Array.isArray(row?.assignees) && row.assignees.length) return row.assignees
+  const single = resolveExecutorDisplay(row?.assignee || row?.executor)
+  return single && single !== '--' ? [single] : []
+}
+
 const filtered = computed(() => {
   let rows = list.value
   if (statusFilter.value) rows = rows.filter((r) => r.status === statusFilter.value)
   const q = keyword.value.trim()
   if (!q) return rows
   return rows.filter((r) =>
-    [r.id, r.project, r.matterDescription, r.assignee, r.executor, r.title]
+    [r.id, r.project, r.matterDescription, assigneeList(r).join('、'), r.title]
       .some((f) => String(f || '').includes(q)),
   )
 })
 
 function load() {
-  list.value = getDispatchReminderRecords()
+  const scope = scopeProjectName.value
+  const all = getDispatchReminderRecords()
+  list.value = scope
+    ? all.filter((row) => {
+        const project = String(row.project || '').trim()
+        return project === scope || project.includes(scope) || scope.includes(project)
+      })
+    : all
+  if (current.value) current.value = list.value.find((row) => row.id === current.value.id) || null
 }
+
+watch(scopeProjectName, load)
 
 function openDetail(row) {
   current.value = { ...row }
@@ -86,7 +107,7 @@ function openEdit(row) {
   const normalized = normalizeReminderRecord({ ...row })
   form.value = {
     ...normalized,
-    assignee: normalized.assignee || resolveExecutorDisplay(normalized.executor),
+    assignees: assigneeList(normalized),
   }
   formVisible.value = true
 }
@@ -100,7 +121,7 @@ function validateForm() {
     ElMessage.warning('请填写事项描述')
     return false
   }
-  if (!form.value.assignee?.trim()) {
+  if (!form.value.assignees?.length) {
     ElMessage.warning('请选择指派人')
     return false
   }
@@ -111,21 +132,26 @@ function validateForm() {
   return true
 }
 
-function submitForm() {
+function submitForm(issueNow = false) {
   if (!validateForm()) return
+  const assignee = form.value.assignees.join('、')
   const payload = {
     ...form.value,
-    assignee: form.value.assignee.trim(),
-    executor: form.value.assignee.trim(),
+    assignees: [...form.value.assignees],
+    assignee,
+    executor: assignee,
   }
   if (formMode.value === 'create') {
     payload.status = NOTICE_STATUSES.PENDING
     payload.issueTime = '--'
   }
-  saveDispatchReminderRecord(payload)
+  const record = saveDispatchReminderRecord(payload)
+  if (issueNow && record?.id) issueDispatchReminderRecord(record.id)
   load()
   formVisible.value = false
-  ElMessage.success(formMode.value === 'create' ? '提示函已创建，待指挥部下发' : '提示函已更新')
+  ElMessage.success(issueNow
+    ? `提示函已保存并直接下发（编号 ${record?.id || '--'}）`
+    : `提示函已保存（编号 ${record?.id || '--'}），可在列表中点击下发操作`)
 }
 
 function handleVoid(row) {
@@ -165,19 +191,22 @@ onMounted(load)
           <el-option label="已作废" :value="NOTICE_STATUSES.VOID" />
         </el-select>
         <el-input v-model="keyword" placeholder="搜索编号、项目名称、事项描述…" clearable class="search-input" aria-label="搜索编号、项目名称、事项描述…"/>
-        <el-button type="primary" :icon="Plus" @click="openCreate">新增</el-button>
+        <el-button v-if="!readonly" type="primary" :icon="Plus" @click="openCreate">新增</el-button>
       </div>
     </div>
     <div class="panel-body page-body">
       <p class="page-desc">{{ description }}</p>
+      <p v-if="readonly" class="page-desc readonly-hint">
+        项目层级仅查看本项目提示函（{{ scopeProjectName || '当前项目' }}），创建、下发、编辑与作废由指挥部处理。
+      </p>
       <el-table :data="filtered" stripe border empty-text="暂无提示函记录">
         <el-table-column type="index" label="序号" width="56" />
         <el-table-column prop="id" label="编号" width="148" show-overflow-tooltip />
         <el-table-column prop="project" label="项目名称" min-width="120" show-overflow-tooltip />
         <el-table-column prop="matterDescription" label="事项描述" min-width="220" show-overflow-tooltip />
-        <el-table-column label="指派人" min-width="140" show-overflow-tooltip>
+        <el-table-column label="指派人" min-width="160" show-overflow-tooltip>
           <template #default="{ row }">
-            {{ resolveExecutorDisplay(row.assignee || row.executor) }}
+            {{ assigneeList(row).join('、') || '--' }}
           </template>
         </el-table-column>
         <el-table-column prop="deadline" label="完成时限" width="108" />
@@ -186,9 +215,10 @@ onMounted(load)
             <el-tag :type="statusTagType(row.status)" size="small">{{ row.status }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="220" fixed="right">
+        <el-table-column label="操作" :width="readonly ? 88 : 220" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openDetail(row)">详情</el-button>
+            <template v-if="!readonly">
             <el-button
               v-if="row.status === NOTICE_STATUSES.PENDING"
               link
@@ -216,6 +246,7 @@ onMounted(load)
             >
               作废
             </el-button>
+            </template>
           </template>
         </el-table-column>
       </el-table>
@@ -246,11 +277,12 @@ onMounted(load)
         </el-form-item>
         <el-form-item label="指派人" required>
           <el-select
-            v-model="form.assignee"
+            v-model="form.assignees"
+            multiple
             filterable
             allow-create
             default-first-option
-            placeholder="选择指派人"
+            placeholder="选择或输入指派人（可多选）"
             style="width: 100%" aria-label="选择指派人">
             <el-option
               v-for="item in assigneeOptions"
@@ -269,7 +301,8 @@ onMounted(load)
       </el-form>
       <template #footer>
         <el-button @click="formVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitForm">保存</el-button>
+        <el-button @click="submitForm(false)">保存</el-button>
+        <el-button type="primary" @click="submitForm(true)">直接下发</el-button>
       </template>
     </el-dialog>
 
@@ -283,7 +316,7 @@ onMounted(load)
           <el-descriptions-item label="项目名称" :span="2">{{ current.project || '--' }}</el-descriptions-item>
           <el-descriptions-item label="事项描述" :span="2">{{ current.matterDescription || '--' }}</el-descriptions-item>
           <el-descriptions-item label="指派人">
-            {{ resolveExecutorDisplay(current.assignee || current.executor) }}
+            {{ assigneeList(current).join('、') || '--' }}
           </el-descriptions-item>
           <el-descriptions-item label="完成时限">{{ current.deadline || '--' }}</el-descriptions-item>
           <el-descriptions-item label="下发时间">{{ current.issueTime && current.issueTime !== '--' ? current.issueTime : '--' }}</el-descriptions-item>

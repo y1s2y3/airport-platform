@@ -272,8 +272,8 @@ const rawMenuTree = [
   {
     key: 'coc-admin', label: '调度后台管理', icon: 'Headset', levels: 'both',
     children: [
-      { key: 'coc-admin-notice', label: '任务单', icon: 'Tickets', path: '/coc-admin/notice', name: 'CocAdminNotice', component: 'AdminDispatchNoticeList', routeComponent: 'CocAdminPageView', levels: 'hq', roles: ['安质部', '项目经理', '施工'], description: '管理远程调度产生的任务单：创建、下发、签收、整改反馈与闭环台账。' },
-      { key: 'coc-admin-reminder', label: '提示函', icon: 'Message', path: '/coc-admin/reminder', name: 'CocAdminReminder', component: 'AdminDispatchReminderList', routeComponent: 'CocAdminPageView', levels: 'hq', roles: ['安质部', '项目经理', '施工'], description: '管理远程调度产生的提示函：创建、下发、签收与闭环。' },
+      { key: 'coc-admin-notice', label: '任务单', icon: 'Tickets', path: '/coc-admin/notice', name: 'CocAdminNotice', component: 'AdminDispatchNoticeList', routeComponent: 'CocAdminPageView', levels: 'both', roles: ['安质部', '项目经理', '施工'], description: '管理任务单的创建、下发与执行人处理回复；执行模式分单人执行（任一人办结即关闭）与多人并行（全部办结才关闭）；项目层级仅查看本项目任务单。' },
+      { key: 'coc-admin-reminder', label: '提示函', icon: 'Message', path: '/coc-admin/reminder', name: 'CocAdminReminder', component: 'AdminDispatchReminderList', routeComponent: 'CocAdminPageView', levels: 'both', roles: ['安质部', '项目经理', '施工'], description: '管理远程调度产生的提示函：创建、下发与闭环，指派人可多人；项目层级仅查看本项目提示函。' },
       { key: 'coc-admin-penalty', label: '处罚单', icon: 'Tickets', path: '/coc-admin/penalty', name: 'CocAdminPenalty', component: 'AdminDispatchPenaltyList', routeComponent: 'CocAdminPageView', levels: 'hq', roles: ['安质部', '项目经理', '施工'], description: '管理处罚单：新增、下发、编辑、关闭与纳入黑榜。' },
       { key: 'coc-admin-redblack', label: '黑红榜单', icon: 'TrophyBase', path: '/coc-admin/red-black', name: 'CocAdminRedBlack', component: 'AdminDispatchRedBlackList', routeComponent: 'CocAdminPageView', levels: 'hq', roles: ['安质部', '项目经理', '施工'], description: '维护项目红榜/黑榜展示。' },
       { key: 'coc-admin-patrol-device', label: '巡检仪管理', icon: 'Camera', path: '/coc-admin/patrol-device', name: 'CocAdminPatrolDevice', component: 'PatrolDeviceManageView', routeComponent: 'CocAdminPageView', levels: 'both', roles: ['COC调度室'], description: '管理巡检仪设备注册、绑定项目及人员。' },

@@ -1053,6 +1053,7 @@ export function buildReminderDraft(device) {
     aiGenerated: true,
     matterDescription: `根据 ${label} 现场巡检情况，请限期落实临边防护与警示标识复查，并反馈闭环情况。`,
     assignee: '项目经理',
+    assignees: ['项目经理'],
     executor: '项目经理',
     deadline: d.toISOString().slice(0, 10),
   }
@@ -1073,6 +1074,8 @@ export function buildSamplingNoticeDraft(device) {
     workType: '安全',
     workRequirement: `根据 ${label} 现场抽检视频对讲记录，1 项分部分项验收未通过须组织复检；2 名特种作业人员证件即将过期须 7 日内换证；1 台塔吊未接入安全监测须 3 日内完成接入。`,
     executor: '',
+    executors: [],
+    executionMode: '单人执行',
     executeDept: '',
     deadline: d.toISOString().slice(0, 10),
     remark: '',
@@ -1423,7 +1426,14 @@ export const TASK_EXECUTOR_OPTIONS = [
   { name: '马检', position: '试验员' },
 ]
 
-export const TASK_WORK_TYPES = ['安全', '质量']
+/** 工作类型字典已改为可配置（指挥部维护），这里保留旧入口名以兼容既有引用 */
+export {
+  DEFAULT_TASK_WORK_TYPES as TASK_WORK_TYPES,
+  taskWorkTypes,
+  taskWorkTypeOptions,
+  saveTaskWorkTypes,
+  WORK_TYPE_CHANGE_EVENT,
+} from '../config/screenshotTaskOrderFields.js'
 export const TASK_WORK_SOURCES = ['实时监控', '视频回放', '调度会议', '视频截屏']
 export const TASK_EXECUTE_DEPARTMENTS = ['安监部', '质量部', '工程管理部', 'COC调度室', '责任单位']
 export const TASK_LEDGER_HANDLING_OPTIONS = ['纳入任务单台账', '同步隐患台账', '仅问题截图存档']

@@ -10,6 +10,9 @@ import {
   wbsNodes,
 } from './qmInspect.js'
 import { nowStr } from '../utils/datetime.js'
+
+/** 新增施工部位自增序号（避免同一毫秒创建多个部位时 ID 冲突） */
+let locIdSeq = 0
 import { listEntries } from './mat.js'
 import { COC_PROJECT_OPTIONS } from '../config/projectOptions.js'
 import { listMaterialApps, listProcessApps } from './sample.js'
@@ -731,7 +734,7 @@ export function upsertLocation(payload, id = '') {
   }
 
   const row = {
-    id: `loc-${Date.now()}`,
+    id: `loc-${Date.now()}-${++locIdSeq}`,
     project_id: payload.project_id,
     wbs_node_id: payload.wbs_node_id,
     parent_id,
@@ -777,7 +780,7 @@ export function removeLocation(id) {
 export function buildEntityBreakdownTree(projectId) {
   if (!projectId) return []
   ensureWbsScaffold(projectId)
-  const allow = new Set([1, 2, 3, 4, 5, 9])
+  const allow = new Set([1, 2, 3, 4, 5, 6, 9])
   const list = wbsNodes.filter(
     (n) => isWbsAlive(n) && n.project_id === projectId && allow.has(n.node_type),
   )
@@ -791,7 +794,7 @@ export function buildEntityBreakdownTree(projectId) {
       type_label:
         n.node_type === 9
           ? '实体工程'
-          : ({ 1: '单位工程', 2: '子单位工程', 3: '分部工程', 4: '子分部工程', 5: '分项工程' }[
+          : ({ 1: '单位工程', 2: '子单位工程', 3: '分部工程', 4: '子分部工程', 5: '分项工程', 6: '检验批' }[
               n.node_type
             ] || String(n.node_type)),
       raw: n,
@@ -870,9 +873,14 @@ export function buildLocationManageEntityTree(projectId) {
   const attachLoc = (nodes) => {
     nodes.forEach((n) => {
       if (n.node_type === 5) {
+        // 分项下同时挂：检验批（WBS node_type=6）与施工部位（同级并排，检验批在前）
+        const wbsChildren = n.children || []
         n.is_item = true
         n.wbs_node_id = n.id
-        n.children = buildLocationTree(projectId, n.id).map(mapLocNodeForManage)
+        n.children = [
+          ...wbsChildren,
+          ...buildLocationTree(projectId, n.id).map(mapLocNodeForManage),
+        ]
       } else {
         n.is_item = false
         n.wbs_node_id = n.id

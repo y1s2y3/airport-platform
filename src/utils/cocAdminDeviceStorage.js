@@ -423,15 +423,16 @@ export function closeSupervisionHazard(id, payload = {}) {
   })
 }
 
-/** 可编辑字段（项目名称/来源/登记时间不可改） */
+/**
+ * 可编辑字段（项目名称/来源/登记时间不可改）
+ * 整改说明 / 整改图片不在编辑范围：仅在「确认关闭」时录入
+ */
 export const SUPERVISION_HAZARD_EDITABLE_FIELDS = [
   'hazardType',
   'description',
   'hazardLevel',
   'remark',
   'hazardPhotos',
-  'rectifyRemark',
-  'rectifyPhotos',
 ]
 
 const SUPERVISION_HAZARD_FIELD_LABELS = {
@@ -440,8 +441,6 @@ const SUPERVISION_HAZARD_FIELD_LABELS = {
   hazardLevel: '隐患等级',
   remark: '备注',
   hazardPhotos: '隐患图片',
-  rectifyRemark: '整改说明',
-  rectifyPhotos: '整改图片',
 }
 
 function sameHazardFieldValue(a, b) {
@@ -456,7 +455,7 @@ function sameHazardFieldValue(a, b) {
 export function updateSupervisionHazard(id, patch = {}, payload = {}) {
   const changedFields = []
   let blockedMsg = ''
-  const ARRAY_FIELDS = ['hazardPhotos', 'rectifyPhotos']
+  const ARRAY_FIELDS = ['hazardPhotos']
   const next = updateSupervisionHazardRecord(id, (row) => {
     if (row.rectifyStatus !== '待整改') {
       blockedMsg = '仅「待整改」隐患可编辑'

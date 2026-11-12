@@ -13,9 +13,15 @@ import {
   buildProjects,
 } from '../mock/data.js'
 import { saveScreenshotRecord } from '../utils/videoStorage.js'
-import { saveDispatchDocFromScreenshot } from '../utils/dispatchMeetingStorage.js'
+import {
+  saveDispatchDocFromScreenshot,
+  issueDispatchNoticeRecord,
+  issueDispatchReminderRecord,
+  issueDispatchPenaltyRecord,
+} from '../utils/dispatchMeetingStorage.js'
 import { buildExecutorOptions } from '../utils/executorDisplay.js'
-import { TASK_WORK_TYPES } from '../config/screenshotTaskOrderFields.js'
+import { taskWorkTypeOptions } from '../config/screenshotTaskOrderFields.js'
+import { TASK_EXECUTION_MODES, TASK_EXECUTION_MODE_OPTIONS } from '../utils/dispatchTaskWorkflow.js'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -47,6 +53,9 @@ const form = reactive({
   workType: '',
   workRequirement: '',
   executor: '',
+  executors: [],
+  executionMode: TASK_EXECUTION_MODES.SINGLE,
+  assignees: [],
   deadline: '',
   remark: '',
   matterDescription: '',
@@ -86,6 +95,7 @@ function docTypeMeta(type) {
 }
 
 const currentDocMeta = computed(() => docTypeMeta(form.docType))
+const isDispatchDoc = computed(() => ['notice', 'reminder', 'penalty'].includes(form.docType))
 
 const formContextText = computed(() =>
   [form.projectName, form.cameraName, form.cameraLocation].filter(Boolean).join(' · ') || '--',
@@ -121,6 +131,9 @@ function resetForm() {
   form.workType = ''
   form.workRequirement = ''
   form.executor = ''
+  form.executors = []
+  form.executionMode = TASK_EXECUTION_MODES.SINGLE
+  form.assignees = []
   form.deadline = defaultDeadline()
   form.remark = ''
   form.matterDescription = ''
@@ -329,7 +342,7 @@ function backToMark() {
   showForm.value = false
 }
 
-function handleSubmit() {
+function handleSubmit(issueNow = false) {
   if (form.docType === 'notice') {
     if (!form.projectName.trim()) {
       ElMessage.warning('请填写项目名称')
@@ -343,8 +356,12 @@ function handleSubmit() {
       ElMessage.warning('请填写工作要求')
       return
     }
-    if (!form.executor?.trim()) {
+    if (!form.executors?.length) {
       ElMessage.warning('请填写执行人')
+      return
+    }
+    if (!TASK_EXECUTION_MODE_OPTIONS.includes(form.executionMode)) {
+      ElMessage.warning('请选择执行模式')
       return
     }
     if (!form.deadline) {
@@ -360,7 +377,7 @@ function handleSubmit() {
       ElMessage.warning('请填写事项描述')
       return
     }
-    if (!form.executor?.trim()) {
+    if (!form.assignees?.length) {
       ElMessage.warning('请填写指派人')
       return
     }
@@ -404,8 +421,21 @@ function handleSubmit() {
     }
   }
 
+  const noticeExecutors = form.docType === 'notice' ? form.executors.filter(Boolean) : []
+  const noticeExecutorsText = noticeExecutors.join('、')
+  const reminderAssignees = form.docType === 'reminder' ? form.assignees.filter(Boolean) : []
+  const reminderAssigneesText = reminderAssignees.join('、')
   const payload = {
     ...form,
+    executors: noticeExecutors,
+    executor:
+      form.docType === 'notice'
+        ? noticeExecutorsText
+        : form.docType === 'reminder'
+          ? reminderAssigneesText
+          : form.executor,
+    executionMode: form.executionMode,
+    assignees: reminderAssignees,
     description:
       form.docType === 'notice'
         ? form.workRequirement
@@ -415,14 +445,20 @@ function handleSubmit() {
             ? form.penaltyContent
             : form.description,
     rectifier:
-      form.docType === 'notice' || form.docType === 'reminder' || form.docType === 'penalty'
-        ? form.executor
-        : form.rectifier,
+      form.docType === 'notice'
+        ? noticeExecutorsText
+        : form.docType === 'reminder'
+          ? reminderAssigneesText
+          : form.docType === 'penalty'
+            ? form.executor
+            : form.rectifier,
     assignee:
-      form.docType === 'reminder' || form.docType === 'penalty'
-        ? (form.executor || '项目经理')
-        : '',
-    executeDept: form.docType === 'notice' ? form.executor : '',
+      form.docType === 'reminder'
+        ? (reminderAssigneesText || '项目经理')
+        : form.docType === 'penalty'
+          ? (form.executor || '项目经理')
+          : '',
+    executeDept: form.docType === 'notice' ? noticeExecutorsText : '',
     snapshot: exportMergedImage(),
     cameraId: props.camera?.id,
     sourceType: props.sourceType,
@@ -430,11 +466,21 @@ function handleSubmit() {
     penaltyReason: form.docType === 'penalty' ? form.workType : '',
   }
   saveScreenshotRecord(payload)
-  if (form.docType === 'notice' || form.docType === 'penalty' || form.docType === 'reminder') {
-    saveDispatchDocFromScreenshot(form.docType, payload)
+  if (['notice', 'reminder', 'penalty'].includes(form.docType)) {
+    const record = saveDispatchDocFromScreenshot(form.docType, payload)
+    if (issueNow && record?.id) {
+      if (form.docType === 'notice') issueDispatchNoticeRecord(record.id)
+      else if (form.docType === 'reminder') issueDispatchReminderRecord(record.id)
+      else issueDispatchPenaltyRecord(record.id)
+    }
+    const docLabel = { notice: '任务单', reminder: '提示函', penalty: '处罚单' }[form.docType] || '单据'
+    ElMessage.success(issueNow
+      ? `${docLabel}已保存并直接下发（编号 ${record?.id || '--'}）`
+      : `${docLabel}已保存（编号 ${record?.id || '--'}），可在后台点击下发操作`)
+  } else {
+    ElMessage.success(currentDocMeta.value.successText)
   }
   emit('submit', payload)
-  ElMessage.success(currentDocMeta.value.successText)
   handleClose()
 }
 
@@ -551,9 +597,14 @@ watch(
                   </el-select>
                 </el-form-item>
                 <el-form-item label="工作类型" required>
-                  <el-radio-group v-model="form.workType" class="work-type-tags">
-                    <el-radio-button v-for="item in TASK_WORK_TYPES" :key="item" :value="item">{{ item }}</el-radio-button>
-                  </el-radio-group>
+                  <el-select
+                    v-model="form.workType"
+                    filterable
+                    :popper-class="MARK_POPPER_CLASS"
+                    placeholder="请选择工作类型（取自工作类型配置）"
+                    style="width: 100%" aria-label="选择工作类型">
+                    <el-option v-for="item in taskWorkTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
+                  </el-select>
                 </el-form-item>
                 <el-form-item label="工作要求" required>
                   <el-input
@@ -564,12 +615,13 @@ watch(
                 </el-form-item>
                 <el-form-item label="执行人" required>
                   <el-select
-                    v-model="form.executor"
+                    v-model="form.executors"
+                    multiple
                     filterable
                     allow-create
                     default-first-option
                     :popper-class="MARK_POPPER_CLASS"
-                    placeholder="选择或输入执行人"
+                    placeholder="选择或输入执行人（可多选）"
                     style="width: 100%" aria-label="选择或输入执行人">
                     <el-option
                       v-for="item in executorOptions"
@@ -578,6 +630,11 @@ watch(
                       :value="item.value"
                     />
                   </el-select>
+                </el-form-item>
+                <el-form-item label="执行模式" required>
+                  <el-radio-group v-model="form.executionMode" aria-label="执行模式">
+                    <el-radio v-for="mode in TASK_EXECUTION_MODE_OPTIONS" :key="mode" :value="mode">{{ mode }}</el-radio>
+                  </el-radio-group>
                 </el-form-item>
                 <el-form-item label="完成时限" required>
                   <el-date-picker
@@ -615,12 +672,13 @@ watch(
                 </el-form-item>
                 <el-form-item label="指派人" required>
                   <el-select
-                    v-model="form.executor"
+                    v-model="form.assignees"
+                    multiple
                     filterable
                     allow-create
                     default-first-option
                     :popper-class="MARK_POPPER_CLASS"
-                    placeholder="默认：项目经理"
+                    placeholder="默认：项目经理（可多选）"
                     style="width: 100%" aria-label="默认：项目经理">
                     <el-option
                       v-for="item in executorOptions"
@@ -655,9 +713,14 @@ watch(
                   </el-select>
                 </el-form-item>
                 <el-form-item label="类型" required>
-                  <el-radio-group v-model="form.workType" class="work-type-tags">
-                    <el-radio-button v-for="item in TASK_WORK_TYPES" :key="item" :value="item">{{ item }}</el-radio-button>
-                  </el-radio-group>
+                  <el-select
+                    v-model="form.workType"
+                    filterable
+                    :popper-class="MARK_POPPER_CLASS"
+                    placeholder="请选择类型（取自工作类型配置）"
+                    style="width: 100%" aria-label="选择类型">
+                    <el-option v-for="item in taskWorkTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
+                  </el-select>
                 </el-form-item>
                 <el-form-item label="处罚内容" required>
                   <el-input
@@ -740,7 +803,11 @@ watch(
       <template v-else>
         <el-button @click="backToMark">返回标记</el-button>
         <el-button @click="handleClose">取消</el-button>
-        <el-button type="primary" @click="handleSubmit">
+        <template v-if="isDispatchDoc">
+          <el-button @click="handleSubmit(false)">保存</el-button>
+          <el-button type="primary" @click="handleSubmit(true)">直接下发</el-button>
+        </template>
+        <el-button v-else type="primary" @click="handleSubmit(false)">
           {{ currentDocMeta.submitText }}
         </el-button>
       </template>

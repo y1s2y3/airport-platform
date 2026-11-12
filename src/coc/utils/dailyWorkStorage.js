@@ -493,29 +493,10 @@ export function getMajorWorkRegisterRecords(filters = {}) {
     .sort((a, b) => String(b.startTime || b.reportDate || '').localeCompare(String(a.startTime || a.reportDate || '')))
 }
 
-/** 危大工程去重业务键：施工项目 + 危大工程作业类别 + 作业开始时间 */
-export function majorWorkDuplicateKey(record) {
-  return [
-    normalizeProjectName(record?.projectName),
-    String(record?.majorProjectCategory || '').trim(),
-    String(record?.majorStartTime || '').trim().replace(/\//g, '-'),
-  ].join('|')
-}
-
-/** 查找重复的危大登记记录（可排除指定记录），重复记录不入库 */
-export function findDuplicateMajorWorkRegister(payload, excludeId = '') {
-  const key = majorWorkDuplicateKey(payload)
-  return (
-    getDailyWorkRecords().find(
-      (record) => record.id !== excludeId && hasMajorWorkSegment(record) && majorWorkDuplicateKey(record) === key,
-    ) || null
-  )
-}
-
 /**
  * 保存危大工程登记记录（新增 / 编辑）
  * 编辑时仅覆盖危大段与共享字段，保留同一记录上的危险作业段数据。
- * 去重口径：施工项目 + 危大工程作业类别 + 作业开始时间 相同的记录不重复入库。
+ * 不做重复校验：同一「施工项目 + 危大工程作业类别 + 作业开始时间」允许多条（手工新增与导入口径一致）。
  * @param {object} payload 表单值（MAJOR_WORK_REGISTER_FIELDS 的 key）+ 可选 id/source
  * @returns {{ ok: boolean, record?: object, code?: string, msg?: string }}
  */
@@ -545,21 +526,6 @@ export function saveMajorWorkRegisterRecord(payload = {}) {
     contractor: String(payload.contractor || '').trim(),
     reportDate,
     source: existing?.source || payload.source || 'manual',
-  }
-  const duplicate = findDuplicateMajorWorkRegister(
-    {
-      projectName: record.projectName,
-      majorProjectCategory: record.majorProjectCategory,
-      majorStartTime: record.majorStartTime,
-    },
-    existing?.id || '',
-  )
-  if (duplicate) {
-    return {
-      ok: false,
-      code: 'duplicate',
-      msg: '已存在相同「施工项目 + 危大工程作业类别 + 作业开始时间」的危大作业记录，重复不入库',
-    }
   }
   const saved = saveDailyWorkRecord(record)
   return { ok: true, record: saved }

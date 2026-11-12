@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useTodoHandleContext } from './personalCenter/composables/useTodoHandleContext.js'
 import TodoHandleShell from './personalCenter/components/TodoHandleShell.vue'
@@ -136,6 +136,10 @@ function goBack() {
     query: tab === 'todo' ? {} : { tab },
   })
 }
+
+watch(todo, (value, previous) => {
+  if (!value && previous?.type === 'dispatch_notice') goBack()
+})
 </script>
 
 <template>
@@ -210,7 +214,7 @@ function goBack() {
         :approval-flow="approvalFlow"
       />
       <TodoApprovalFlowSection
-        v-else-if="todo.type !== 'risk_control'"
+        v-else-if="todo.type !== 'risk_control' && todo.type !== 'dispatch_notice'"
         :approval-flow="approvalFlow"
         :is-inspection="todo.type === 'inspection'"
       />

@@ -211,25 +211,6 @@ function recordToExcelRow(record) {
   return row
 }
 
-/** 导出仅危险作业侧 A–O，不含危大兼容列 */
-const DANGER_EXPORT_COL_COUNT = 15
-
-function buildDangerExportHeaderRow() {
-  const row = Array(DANGER_EXPORT_COL_COUNT).fill('')
-  DANGER_WORK_FIELDS.forEach((field) => {
-    row[colLetterToNumber(field.col) - 1] = field.label
-  })
-  return row
-}
-
-function recordToDangerExcelRow(record) {
-  const row = Array(DANGER_EXPORT_COL_COUNT).fill('')
-  DANGER_WORK_FIELDS.forEach((field) => {
-    const val = record[field.key]
-    if (val != null && String(val).trim()) row[colLetterToNumber(field.col) - 1] = val
-  })
-  return row
-}
 
 const TEMPLATE_INSTRUCTIONS = [
   '填报说明：',
@@ -305,58 +286,6 @@ export function downloadDailyWorkTemplate(options = {}) {
   XLSX.writeFile(wb, options.fileName || '每日施工作业导入模版.xlsx')
 }
 
-function sheetNameFromReportDate(reportDate) {
-  const m = String(reportDate || '').match(/(\d{4})-(\d{1,2})-(\d{1,2})/)
-  if (!m) return ''
-  return `${m[1]}.${Number(m[2])}.${Number(m[3])}`
-}
-
-function buildExportSheetRows(sheetName, records) {
-  const displayDate = formatDisplayDateLabel(sheetName)
-  const title = `建设工程指挥部危险作业统计表（施工日期：${displayDate}00:00-${displayDate}24:00）`
-  const padding = Array(DAILY_WORK_DATA_START_ROW - 1)
-    .fill(null)
-    .map(() => Array(DANGER_EXPORT_COL_COUNT).fill(''))
-  padding[1] = [title]
-  padding[2] = [TEMPLATE_INSTRUCTIONS]
-  padding[3] = [title]
-  padding[4] = buildDangerExportHeaderRow()
-  const dataRows = (records || []).map((record) => recordToDangerExcelRow(record))
-  return [...padding, ...dataRows]
-}
-
-/**
- * 导出每日施工作业（按施工日期分 Sheet；仅危险作业侧 A–O，不含危大兼容列）
- * @param {Array} records 待导出记录（通常为当前筛选结果）
- * @returns {{ ok: boolean, count: number, sheetCount: number, error?: string }}
- */
-export function exportDailyWorkRecords(records, options = {}) {
-  const list = Array.isArray(records) ? records : []
-  if (!list.length) {
-    return { ok: false, count: 0, sheetCount: 0, error: '当前没有可导出的记录' }
-  }
-
-  const groups = new Map()
-  list.forEach((record) => {
-    const sheetName = sheetNameFromReportDate(record.reportDate) || '未标注日期'
-    if (!groups.has(sheetName)) groups.set(sheetName, [])
-    groups.get(sheetName).push(record)
-  })
-
-  const wb = XLSX.utils.book_new()
-  ;[...groups.entries()]
-    .sort(([a], [b]) => String(b).localeCompare(String(a)))
-    .forEach(([sheetName, rows]) => {
-      const safeName = String(sheetName).slice(0, 31) || '导出'
-      const ws = XLSX.utils.aoa_to_sheet(buildExportSheetRows(safeName, rows))
-      ws['!cols'] = Array(DANGER_EXPORT_COL_COUNT).fill({ wch: 18 })
-      XLSX.utils.book_append_sheet(wb, ws, safeName)
-    })
-
-  const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-  XLSX.writeFile(wb, options.fileName || `每日施工作业导出_${stamp}.xlsx`)
-  return { ok: true, count: list.length, sheetCount: groups.size }
-}
 
 /* ---------- 危大工程信息登记：独立 11 列模板下载 / 导入解析校验 / 导出 ---------- */
 

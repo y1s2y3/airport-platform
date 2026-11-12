@@ -173,15 +173,16 @@ onMounted(load)
             <el-descriptions-item label="工作类型">{{ current.workType || '--' }}</el-descriptions-item>
             <el-descriptions-item label="工作要求">{{ current.workRequirement || current.description || '--' }}</el-descriptions-item>
             <el-descriptions-item label="执行人">
-              {{ resolveExecutorDisplay(current.executor || current.executeDept || current.rectifier) }}
+              {{ current.executors?.length ? current.executors.join('、') : resolveExecutorDisplay(current.executor || current.executeDept || current.rectifier) }}
             </el-descriptions-item>
+            <el-descriptions-item v-if="current.executionMode" label="执行模式">{{ current.executionMode }}</el-descriptions-item>
             <el-descriptions-item label="完成时限">{{ current.deadline || '--' }}</el-descriptions-item>
             <el-descriptions-item label="备注">{{ current.remark || '--' }}</el-descriptions-item>
           </template>
           <template v-else-if="isReminderRow(current)">
             <el-descriptions-item label="事项描述">{{ current.matterDescription || current.description || '--' }}</el-descriptions-item>
             <el-descriptions-item label="指派人">
-              {{ resolveExecutorDisplay(current.assignee || current.executor || current.rectifier) }}
+              {{ current.assignees?.length ? current.assignees.join('、') : resolveExecutorDisplay(current.assignee || current.executor || current.rectifier) }}
             </el-descriptions-item>
             <el-descriptions-item label="完成时限">{{ current.deadline || '--' }}</el-descriptions-item>
           </template>
