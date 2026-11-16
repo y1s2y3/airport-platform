@@ -15,6 +15,13 @@ const routes = [
     meta: { title: 'COC 调度中心' },
   },
   {
+    /** 「大屏样式」样板屏：顶栏「COC调度大屏」之后的新入口，新开页签查看 */
+    path: '/screen-style',
+    name: 'ScreenStyle',
+    component: () => import('../views/ScreenStyleView.vue'),
+    meta: { title: '大屏样式' },
+  },
+  {
     path: '/safety-situation-screen-v1',
     name: 'SafetySituationScreenV1',
     component: () => import('../views/SafetySituationScreenV1View.vue'),

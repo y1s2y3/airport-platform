@@ -1,6 +1,6 @@
 /** 只引用原台账单据的演示场景；不改变原单据的业务状态。 */
 import { getSamplingPeople } from './samplingPeople.js'
-export const SAMPLING_EXAMPLE_VERSION = 7
+export const SAMPLING_EXAMPLE_VERSION = 8
 
 export function buildSamplingExamples(rows, projects, eligible, reviewedAt) {
   const tasks = []
@@ -12,8 +12,8 @@ export function buildSamplingExamples(rows, projects, eligible, reviewedAt) {
   function log(row, stage, result, task, note, time, explicitId = '') {
     const id = explicitId || `EX-JL-${row.projectKey}-${++order}`
     const person = stage === 'hq' ? '指挥部检查人' : stage === 'supervisor' ? '责任监理' : '项目经理'
-    const file = { id: `${id}-file`, name: `${stage === 'hq' ? '抽检' : '复查'}支撑材料_示例.png`, example: { title: row.title, number: row.originalNo, person, result, time } }
-    const entry = { id, rowId: row.id, projectKey: row.projectKey, stage, taskId: task?.id || '', person, time, result, note: `【示例】${note}`, files: [file], completed: stage === 'manager', example: true }
+    const file = { id: `${id}-file`, name: `${stage === 'hq' ? '抽检' : '复查'}支撑材料.png`, example: { title: row.title, number: row.originalNo, person, result, time } }
+    const entry = { id, rowId: row.id, projectKey: row.projectKey, stage, taskId: task?.id || '', person, time, result, note: `${note}`, files: [file], completed: stage === 'manager', example: true }
     history.push(entry)
     if (task) task.results[row.id] = id
     return entry
@@ -85,7 +85,7 @@ export function buildSamplingExamples(rows, projects, eligible, reviewedAt) {
       if (['difference', 'resolved'].includes(scenario)) {
         supervisor.discrepancy = true
         if (scenario === 'resolved') {
-          supervisor.resolution = '【示例】核对后续现场照片及时间，确认监理复查前已完成线下整改，差异核查完成。'
+          supervisor.resolution = '核对后续现场照片及时间，确认监理复查前已完成线下整改，差异核查完成。'
           log(pass, 'hq', '合格', null, '核查补充证据后确认整改到位，本轮差异已处理。', at(index * 120 + 40)).roundId = batchId
         }
         return
@@ -122,13 +122,13 @@ export function buildManualSamplingExamples(rows, projects) {
       const people=getSamplingPeople(project.key),person=people[index%people.length]
       const time=new Date(now.getTime()+index*60000).toISOString()
       const task={id,stage:'supervisor',projectKey:project.key,projectName:project.label,batchId,start:dates[0],end:dates.at(-1),poolIds:pool.map(row=>row.id),ids:[...ids],results:{},recipient:person.label,assigneeId:person.id,assigneeName:person.name,sender:'指挥部检查人',percent,rangeBasis:'登记时间',originRowId:origin.id,createdAt:time,submittedAt:'',discrepancy:false,resolution:'',example:true}
-      history.push({id:`${id}-hq`,roundId:batchId,rowId:origin.id,projectKey:project.key,stage:'hq',taskId:'',person:'指挥部检查人',time,result:'不合格',note:'【示例】发现现场防护与原记录不一致，按登记日期选取检查范围并下发指定人员。',files:[],dispatch:true,example:true})
+      history.push({id:`${id}-hq`,roundId:batchId,rowId:origin.id,projectKey:project.key,stage:'hq',taskId:'',person:'指挥部检查人',time,result:'不合格',note:'发现现场防护与原记录不一致，按登记日期选取检查范围并下发指定人员。',files:[],dispatch:true,example:true})
       const checked=scenario==='progress'?ids.filter(rowId=>rowId!==origin.id).slice(0,1):ids
-      checked.forEach((rowId,number)=>{const logId=`${id}-review-${number}`,reviewTime=new Date(now.getTime()+(index+1)*60000+number*1000).toISOString();history.push({id:logId,roundId:batchId,rowId,projectKey:project.key,stage:'supervisor',taskId:id,person:person.label,time:reviewTime,result:'合格',note:'【示例】已核对现场和整改资料，符合要求。',files:[],example:true});task.results[rowId]=logId;if(scenario==='complete')task.submittedAt=reviewTime})
+      checked.forEach((rowId,number)=>{const logId=`${id}-review-${number}`,reviewTime=new Date(now.getTime()+(index+1)*60000+number*1000).toISOString();history.push({id:logId,roundId:batchId,rowId,projectKey:project.key,stage:'supervisor',taskId:id,person:person.label,time:reviewTime,result:'合格',note:'已核对现场和整改资料，符合要求。',files:[],example:true});task.results[rowId]=logId;if(scenario==='complete')task.submittedAt=reviewTime})
       if(scenario==='complete')task.discrepancy=true
       tasks.push(task)
     }
-    history.push({id:`EX-MANUAL-NO-DISPATCH-${project.key}`,roundId:`EX-MANUAL-NO-DISPATCH-${project.key}`,rowId:other[0].id,projectKey:project.key,stage:'hq',taskId:'',person:'指挥部检查人',time:now.toISOString(),result:'不合格',note:'【示例】现场资料尚需补充，本次仅登记抽查结果，选择不下发任务。',files:[],dispatch:false,example:true})
+    history.push({id:`EX-MANUAL-NO-DISPATCH-${project.key}`,roundId:`EX-MANUAL-NO-DISPATCH-${project.key}`,rowId:other[0].id,projectKey:project.key,stage:'hq',taskId:'',person:'指挥部检查人',time:now.toISOString(),result:'不合格',note:'现场资料尚需补充，本次仅登记抽查结果，选择不下发任务。',files:[],dispatch:false,example:true})
   }
   return {tasks,history}
 }
@@ -143,15 +143,15 @@ export function buildAssignedReviewExamples(rows, projects) {
     const batchId=`EX-SELECTED-PC-${template.projectKey}`,id=`EX-SELECTED-CJ-${template.projectKey}`,followId=`EX-SELECTED-FC-${template.projectKey}`
     const primary={...template,id,batchId,results:{},submittedAt:'',createdAt:now.toISOString()}
     const follow={...primary,id:followId,parentTaskId:id,stage:'manager',ids:[...primary.poolIds],percent:100,assigneeId:person.id,assigneeName:person.name,recipient:person.label,sender:primary.recipient,results:{},createdAt:new Date(now.getTime()+60000).toISOString()}
-    history.push({id:`${id}-hq`,roundId:batchId,rowId:primary.originRowId,projectKey:primary.projectKey,stage:'hq',taskId:'',person:'指挥部检查人',time:primary.createdAt,result:'不合格',note:'【示例】按登记时间范围下发抽检。',files:[],dispatch:true,example:true})
+    history.push({id:`${id}-hq`,roundId:batchId,rowId:primary.originRowId,projectKey:primary.projectKey,stage:'hq',taskId:'',person:'指挥部检查人',time:primary.createdAt,result:'不合格',note:'按登记时间范围下发抽检。',files:[],dispatch:true,example:true})
     primary.ids.forEach((rowId,number)=>{
       const failed=rowId===primary.originRowId,logId=`${id}-review-${number}`,time=new Date(now.getTime()+60000+number*1000).toISOString()
-      history.push({id:logId,roundId:batchId,rowId,projectKey:primary.projectKey,stage:'supervisor',taskId:id,person:primary.recipient,time,result:failed?'不合格':'合格',note:failed?`【示例】发现防护不到位，已选择${person.name}进行原时间范围的全面复查。`:'【示例】已核对现场与整改资料，符合要求。',files:[],...(failed?{reviewAssigneeId:person.id,reviewRecipient:person.label,reviewTaskId:followId}:{}),example:true})
+      history.push({id:logId,roundId:batchId,rowId,projectKey:primary.projectKey,stage:'supervisor',taskId:id,person:primary.recipient,time,result:failed?'不合格':'合格',note:failed?`发现防护不到位，已选择${person.name}进行原时间范围的全面复查。`:'已核对现场与整改资料，符合要求。',files:[],...(failed?{reviewAssigneeId:person.id,reviewRecipient:person.label,reviewTaskId:followId}:{}),example:true})
       primary.results[rowId]=logId;primary.submittedAt=time
     })
     const row=index.get(follow.ids[0]),time=new Date(now.getTime()+120000).toISOString(),logId=`${followId}-review`
-    const file={id:`${logId}-photo`,name:'全面复查支撑_示例.png',example:{title:row.title,number:row.originalNo,person:person.label,result:'合格',time}}
-    history.push({id:logId,roundId:batchId,rowId:row.id,projectKey:primary.projectKey,stage:'manager',taskId:followId,person:person.label,time,result:'合格',note:'【示例】已现场复查并完成线下整改，支撑照片已上传，其余单据继续办理。',files:[file],completed:true,example:true})
+    const file={id:`${logId}-photo`,name:'全面复查支撑.png',example:{title:row.title,number:row.originalNo,person:person.label,result:'合格',time}}
+    history.push({id:logId,roundId:batchId,rowId:row.id,projectKey:primary.projectKey,stage:'manager',taskId:followId,person:person.label,time,result:'合格',note:'已现场复查并完成线下整改，支撑照片已上传，其余单据继续办理。',files:[file],completed:true,example:true})
     follow.results[row.id]=logId;tasks.push(primary,follow)
   }
   return {tasks,history}

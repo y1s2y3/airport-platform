@@ -193,7 +193,7 @@ function statusTagType(row) {
         <div class="list-panel">
           <div class="list-heading">
             <div><h3>问题清单</h3><span>共 {{ filteredRows.length }} 条</span></div>
-            <span class="demo-note">随手拍为原型示例数据</span>
+            
           </div>
           <div class="filter-bar">
             <el-input v-model="filters.keyword" clearable :prefix-icon="Search" placeholder="搜索问题、编号、项目或整改人" class="keyword-input" />

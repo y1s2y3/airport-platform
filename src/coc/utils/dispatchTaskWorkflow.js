@@ -6,7 +6,7 @@ export const TASK_STATUSES = Object.freeze({
 export const TASK_EXECUTION_MODES = Object.freeze({ SINGLE: '单人执行', PARALLEL: '多人并行' })
 export const TASK_EXECUTION_MODE_OPTIONS = Object.freeze([TASK_EXECUTION_MODES.SINGLE, TASK_EXECUTION_MODES.PARALLEL])
 
-export const TASK_REPLY_RESULTS = Object.freeze(['已执行', '无需执行'])
+export const TASK_REPLY_RESULTS = Object.freeze(['已执行', '无需执行', '转派'])
 const clean = value => String(value ?? '').trim()
 export const taskActorName = value => clean(value).replace(/[（(].*$/, '').replace(/\s+/g, '')
 
@@ -41,6 +41,9 @@ export function normalizeTaskReply(reply) {
   const time = clean(reply.time)
   const remark = clean(reply.remark)
   if (!TASK_REPLY_RESULTS.includes(result) || !actor || !time || !remark) return null
+  const transferTo = reply.transferTo && typeof reply.transferTo === 'object'
+    ? { label: clean(reply.transferTo.label), userId: clean(reply.transferTo.userId) }
+    : null
   return {
     ...reply,
     actor,
@@ -48,6 +51,7 @@ export function normalizeTaskReply(reply) {
     time,
     result,
     remark,
+    ...(result === '转派' && transferTo?.label ? { transferTo } : {}),
     attachments: (Array.isArray(reply.attachments) ? reply.attachments : [])
       .filter(item => item && (item.url || item.name))
       .map(item => ({ name: clean(item.name) || '处理附件', url: item.url || '' })),
@@ -82,9 +86,11 @@ export function taskReplyProgress(task = {}) {
   const repliedNames = new Set(replies.map(reply => taskActorName(reply.actor)))
   const pendingActors = executors.filter(label => !repliedNames.has(taskActorName(label)))
   const repliedAssigned = executors.filter(label => repliedNames.has(taskActorName(label))).length
-  const finished = mode === TASK_EXECUTION_MODES.PARALLEL
-    ? executors.length > 0 && repliedAssigned === executors.length
-    : replies.length > 0
+  // 以「当前执行人是否全部回复」判断结束：转派后执行人已被替换为新执行人，
+  // 不能沿用单人有回复即结束，否则转派会被误判为流程结束（2026-11-13）。
+  const finished = executors.length > 0
+    ? repliedAssigned === executors.length
+    : (mode === TASK_EXECUTION_MODES.PARALLEL ? false : replies.length > 0)
   return {
     mode,
     total: executors.length,
@@ -153,6 +159,10 @@ export function buildTaskFlow(task = {}) {
     nodes.push({
       title: '执行人回复', user: reply.actor, time: reply.time,
       remark: `处理结果：${reply.result}`, status: 'done',
+      replyResult: reply.result,
+      replyRemark: reply.remark,
+      replyTransferTo: reply.result === '转派' ? (reply.transferTo?.label || '') : '',
+      replyAttachments: (reply.attachments || []).map(item => ({ name: item.name || '处理附件', url: item.url || '' })),
     })
   })
   if (!progress.finished) {
@@ -195,17 +205,42 @@ export function prepareTaskReply(task, actor, payload = {}, users = [], time = '
   }
   if (!TASK_REPLY_RESULTS.includes(payload.result)) return { ok: false, message: '请选择处理结果' }
   const remark = clean(payload.remark)
-  if (!remark) return { ok: false, message: '请填写处理说明' }
+  const isTransfer = payload.result === '转派'
+  const transferTo = isTransfer && payload.transferTo && typeof payload.transferTo === 'object'
+    ? { label: clean(payload.transferTo.label), userId: clean(payload.transferTo.userId) }
+    : null
+  if (isTransfer && !transferTo?.label) return { ok: false, message: '请选择转派执行人' }
+  if (!remark) return { ok: false, message: isTransfer ? '请填写转派说明' : '请填写处理说明' }
   if (!time) return { ok: false, message: '处理时间生成失败，请重试' }
-  const attachments = (Array.isArray(payload.attachments) ? payload.attachments : [])
-    .filter(item => item?.url).map(item => ({ name: clean(item.name) || '处理附件', url: item.url }))
+  if (isTransfer && taskActorName(transferTo.label) === taskActorName(assigned.label)) {
+    return { ok: false, message: '转派执行人不能是当前执行人本人' }
+  }
+  const attachments = isTransfer ? [] : (Array.isArray(payload.attachments) ? payload.attachments : [])
+    .filter(item => item?.url).map(item => ({ name: clean(item.name) || '处理附件', url: item.url || '' }))
   const reply = {
     actor: assigned.label, actorUserId: actor.id, time, result: payload.result, remark, attachments,
+    ...(isTransfer ? { transferTo } : {}),
   }
   const nextReplies = [...replies, reply]
-  const draft = { ...task, replies: nextReplies, reply: nextReplies[0], status: TASK_STATUSES.PROCESSING }
+  // 转派：把当前执行人替换为新执行人，任务单继续「处理中」，新执行人接管待办
+  const assignments = taskAssignees(task, users)
+  const nextAssignments = isTransfer
+    ? assignments.map(item => (taskActorName(item.label) === taskActorName(assigned.label)
+      ? { label: transferTo.label, userId: transferTo.userId || '' }
+      : item))
+    : assignments
+  const nextExecutors = isTransfer
+    ? [...new Set(nextAssignments.map(item => item.label))]
+    : undefined
+  const draft = {
+    ...task,
+    ...(isTransfer ? { executors: nextExecutors, executorAssignments: nextAssignments } : {}),
+    replies: nextReplies,
+    reply: nextReplies[0],
+    status: TASK_STATUSES.PROCESSING,
+  }
   const progress = taskReplyProgress(draft)
-  const closed = mode === TASK_EXECUTION_MODES.PARALLEL ? progress.finished : true
+  const closed = isTransfer ? false : (mode === TASK_EXECUTION_MODES.PARALLEL ? progress.finished : true)
   const finalStatus = closed
     ? (nextReplies.some(item => item.result === '已执行') ? TASK_STATUSES.COMPLETED : TASK_STATUSES.NO_ACTION)
     : TASK_STATUSES.PROCESSING
@@ -224,7 +259,10 @@ export function prepareTaskReply(task, actor, payload = {}, users = [], time = '
 
 export function taskProcessVisible(process, actor) {
   if (process?.type !== 'dispatch_notice') return true
-  return !!actor?.id && process.assigneeUserId === actor.id
+  if (!actor) return false
+  // 优先按账号 ID 匹配；演示/未建档账号没有 userId 时按姓名兜底，避免任务单待办“看不见”
+  if (actor.id && process.assigneeUserId) return process.assigneeUserId === actor.id
+  return !!actor.name && taskActorName(process.assignee) === taskActorName(actor.name)
 }
 
 export function projectTaskProcesses(task, users = []) {

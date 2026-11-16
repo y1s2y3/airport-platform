@@ -10,8 +10,31 @@ export const DEFAULT_RULE = { days: 90, percent: 30, minimum: 3 }
 export const SAMPLING_STATUS = { PASS: '合格', FAIL: '不合格', PENDING: '未复核' }
 const RECIPIENTS = { supervisor: '责任监理', manager: '项目经理' }
 const emptyState = () => ({ rule: { ...DEFAULT_RULE }, tasks: [], history: [] })
+const DEMO_WORDING_FLAG = 'airport-hazard-sampling-demo-wording-v1'
+const DEMO_MARK_PATTERNS = [
+  [/【示例】/g, ''],
+  [/（示例）/g, ''],
+  [/_示例/g, ''],
+  [/示例[:：]\s*/g, ''],
+  [/示例/g, ''],
+]
+function cleanDemoText(value) {
+  if (typeof value === 'string') {
+    return DEMO_MARK_PATTERNS.reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), value)
+  }
+  if (Array.isArray(value)) return value.map(cleanDemoText)
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, cleanDemoText(item)]))
+  }
+  return value
+}
 let saved
 try { saved = JSON.parse(localStorage.getItem(KEY) || 'null') } catch { saved = null }
+if (saved && !localStorage.getItem(DEMO_WORDING_FLAG)) {
+  saved = cleanDemoText(saved)
+  try { localStorage.setItem(KEY, JSON.stringify(saved)) } catch { /* ignore */ }
+  try { localStorage.setItem(DEMO_WORDING_FLAG, '1') } catch { /* ignore */ }
+}
 const usable = saved && saved.rule && typeof saved.rule.days === 'number' && Array.isArray(saved.tasks) && Array.isArray(saved.history)
 export const sampling = ref(usable ? saved : emptyState())
 watch(sampling, value => localStorage.setItem(KEY, JSON.stringify(value)), { deep: true })
@@ -276,7 +299,7 @@ export async function downloadSamplingAttachment(file) {
     const canvas = document.createElement('canvas'); canvas.width = 1100; canvas.height = 650
     const context = canvas.getContext('2d'); context.fillStyle = '#f5f7fa'; context.fillRect(0, 0, 1100, 650)
     context.fillStyle = '#fff'; context.fillRect(35, 35, 1030, 580); context.fillStyle = '#8f0045'; context.font = 'bold 30px sans-serif'
-    context.fillText('抽检与复查支撑材料 · 原型示例', 65, 90)
+    context.fillText('抽检与复查支撑材料', 65, 90)
     context.fillStyle = '#303133'; context.font = '24px sans-serif'
     const lines = [`单据：${file.example.number}`, `检查人：${file.example.person}`, `结论：${file.example.result}`, `时间：${new Date(file.example.time).toLocaleString()}`]
     lines.forEach((line, index) => context.fillText(line, 65, 155 + index * 55))

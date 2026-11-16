@@ -1,8 +1,9 @@
 <script setup>
-import { computed, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useTodoHandleContext } from './personalCenter/composables/useTodoHandleContext.js'
 import TodoHandleShell from './personalCenter/components/TodoHandleShell.vue'
+import TodoTransferPanel from './personalCenter/todoHandlers/TodoTransferPanel.vue'
 import TodoApprovalFlowSection from './personalCenter/components/TodoApprovalFlowSection.vue'
 import SubcontractorApprovalFlow from '../components/basicData/SubcontractorApprovalFlow.vue'
 import {
@@ -37,6 +38,29 @@ const {
   emptyText,
   embedType,
 } = useTodoHandleContext()
+
+// 办理 / 转派 两个操作页签（COC 任务单在处理页内已自带转派，不重复展示）
+const handleTab = ref('handle')
+const showTransfer = computed(() =>
+  !!todo.value
+  && !isReadonly.value
+  // COC 任务单在处理页内已自带转派；处罚单处理面板已有「上报结果/申诉/转派」页签
+  && !['dispatch_notice', 'penalty'].includes(todo.value.type),
+)
+// 第一个页签按待办类型命名：整改结果 / 审批操作 / 上报结果 / 办理
+const handleTabLabel = computed(() => {
+  const row = todo.value
+  if (!row) return '办理'
+  const bizType = String(row.bizType || row.inspectionBizType || '')
+  if (row.type === 'inspection' || row.type === 'qm_rectify') {
+    return bizType.includes('复查') ? '复查结果' : '整改结果'
+  }
+  if (row.type === 'penalty' || bizType.includes('申诉') || bizType.includes('上报')) return '上报结果'
+  if (COMMON_APPROVE_TYPES.has(row.type) || ['risk_control', 'major_hazard_identification', 'dispatch_hazard'].includes(row.type)) {
+    return '审批操作'
+  }
+  return '办理'
+})
 
 const handlerMeta = computed(() =>
   resolveTodoHandlerMeta({
@@ -151,6 +175,12 @@ watch(todo, (value, previous) => {
     :page-class="todo?.type === 'brand' ? 'is-brand' : ''"
     @back="goBack"
   >
+    <el-radio-group v-if="showTransfer" v-model="handleTab" class="todo-handle-mode-tabs">
+      <el-radio-button value="handle">{{ handleTabLabel }}</el-radio-button>
+      <el-radio-button value="transfer">转派</el-radio-button>
+    </el-radio-group>
+
+    <div v-show="handleTab === 'handle'">
     <el-empty v-if="!todo && !handlerMeta" :description="emptyText" :image-size="80">
       <el-button type="primary" @click="goBack">返回</el-button>
     </el-empty>
@@ -219,6 +249,14 @@ watch(todo, (value, previous) => {
         :is-inspection="todo.type === 'inspection'"
       />
     </template>
+    </div>
+
+    <TodoTransferPanel
+      v-if="showTransfer && handleTab === 'transfer' && todo"
+      :todo="todo"
+      @transferred="goBack"
+      @back="handleTab = 'handle'"
+    />
   </TodoHandleShell>
 </template>
 
@@ -229,5 +267,8 @@ watch(todo, (value, previous) => {
 }
 .brand-assignee-alert {
   margin-bottom: 12px;
+}
+.todo-handle-mode-tabs {
+  margin-bottom: 4px;
 }
 </style>

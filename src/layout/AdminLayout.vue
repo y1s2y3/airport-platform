@@ -284,6 +284,8 @@ function resolveScreenHref(routeName, fallbackPath, query = {}) {
 }
 
 const cocScreenHref = computed(() => resolveScreenHref('CocScreen', 'coc'))
+/** 「大屏样式」样板屏（COC 调度大屏之后的新入口，新开页签查看） */
+const screenStyleHref = computed(() => resolveScreenHref('ScreenStyle', 'screen-style'))
 const safetyScreenHref = computed(() => resolveScreenHref(
   'SafetySituationScreen',
   'safety-situation-screen',
@@ -440,6 +442,16 @@ function skipToMain(e) {
           aria-label="打开 COC 调度大屏"
         >
           COC调度大屏
+        </a>
+        <a
+          class="screen-btn screen-style-btn"
+          :href="screenStyleHref"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="打开大屏样式"
+          aria-label="打开大屏样式"
+        >
+          大屏样式
         </a>
         <button
           class="screen-btn safety-screen-btn"
@@ -917,6 +929,16 @@ function skipToMain(e) {
 
 .safety-screen-btn:hover {
   background: #0d7377;
+  color: #fff;
+}
+
+.screen-style-btn {
+  border-color: #1d5f8f;
+  color: #1d5f8f;
+}
+
+.screen-style-btn:hover {
+  background: #1d5f8f;
   color: #fff;
 }
 

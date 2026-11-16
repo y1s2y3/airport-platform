@@ -28,6 +28,10 @@ export const SCOPE_TARGETS = [
     root: '.safety-screen-v1',
     allowGlobal: ['body.coc-hq-shell'],
   },
+  {
+    file: 'src/screenStyle/styles/screen-style.css',
+    root: '.screen-style-app',
+  },
 ]
 
 /**

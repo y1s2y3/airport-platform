@@ -8,6 +8,7 @@ import {
   buildLedgerRows,
   ensureMajorHazardData,
   getMajorHazardData,
+  listMajorHazardStoredProjectIds,
   majorHazardApproverLabel,
   saveIdentification,
   updateAlertStatus,
@@ -54,8 +55,21 @@ function majorHazardWarningCenterItem(project, alert) {
 /** 将各项目危大工程异常同步为个人中心预警处置任务 */
 export function syncMajorHazardWarningCenter(personalWarningCenterStore) {
   if (!personalWarningCenterStore?.items) return
+  // 仅同步已落库的项目：避免个人中心首次加载时为全部 40 个项目铺示例数据，
+  // 导致 localStorage 体积暴涨并触发 QuotaExceededError（2026-11-13 实测）。
+  const storedIds = new Set(listMajorHazardStoredProjectIds())
+  // 保底生成一个示例项目，保证预警中心有危大工程示例数据可看
+  const exampleProject = COC_PROJECT_OPTIONS.find((project) => storedIds.has(project.id)) || COC_PROJECT_OPTIONS[0]
+  if (exampleProject && !storedIds.has(exampleProject.id)) {
+    try {
+      ensureMajorHazardData(exampleProject.id)
+      storedIds.add(exampleProject.id)
+    } catch {
+      /* 示例数据生成失败不影响预警中心 */
+    }
+  }
   for (const project of COC_PROJECT_OPTIONS) {
-    ensureMajorHazardData(project.id)
+    if (!storedIds.has(project.id)) continue
     const data = getMajorHazardData(project.id)
     const alerts = getCalendarAlerts(project.id, data, buildLedgerRows(data))
     for (const alert of alerts) {

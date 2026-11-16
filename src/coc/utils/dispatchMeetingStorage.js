@@ -4,6 +4,7 @@ import { resolveExecutorDisplay } from './executorDisplay.js'
 import { nowStr } from '../../utils/datetime.js'
 import { listSysUsers } from '../../mock/sysUsers.js'
 import { dispatchTaskOperator, dispatchTaskUserOptions } from './dispatchTaskIdentity.js'
+import { ensureStorageRoom } from '../../utils/storagePressure.js'
 import {
   TASK_STATUSES, TASK_EXECUTION_MODES, TASK_EXECUTION_MODE_OPTIONS,
   taskExecutors, taskReply, taskReplies, taskStatus, taskAssignees, prepareTaskReply,
@@ -197,8 +198,25 @@ function readList(key) {
 }
 
 function writeList(key, list) {
-  localStorage.setItem(key, JSON.stringify(list))
+  const text = JSON.stringify(list)
+  try {
+    localStorage.setItem(key, text)
+  } catch (error) {
+    // localStorage 配额不足：先清理可重建的演示缓存再重试一次；仍失败则告警降级，避免页面崩
+    try {
+      ensureStorageRoom({ minFreeKB: 1024 })
+    } catch {
+      /* 清理失败不阻断后续降级 */
+    }
+    try {
+      localStorage.setItem(key, text)
+    } catch {
+      console.warn('[调度单据] 本地存储空间不足，本次数据未写入：', error?.name || '')
+      return false
+    }
+  }
   window.dispatchEvent(new CustomEvent(CHANGE_EVENT))
+  return true
 }
 
 function defaultDeadline() {
@@ -1240,6 +1258,8 @@ export function getDispatchNoticeRecords() {
   ensureTaskReplyUpgrade()
   ensureTaskPersonalExamples()
   ensureTaskParallelDemo()
+  ensureTaskTodoDemo()
+  ensureDemoWordingCleanup()
   return readList(NOTICE_KEY).map(normalizeNoticeRecord)
 }
 
@@ -1262,16 +1282,16 @@ function ensureTaskReplyUpgrade() {
       const time = `2026-11-09 16:${String(20 + index).padStart(2, '0')}:00`
       return normalizeNoticeRecord({ id: `GZ-REPLY-DEMO-${index + 1}`, project: 'T2项目', demo: true,
         workType: index % 2 ? '质量' : '安全', workSource: '调度会议',
-        workRequirement: ['示例：复核临边防护设置，明确后续处理安排。', '示例：复查现场技术交底记录并回复处理情况。', '示例：清理消防通道并反馈现场处理结果。', '示例：复核已取消的施工安排并说明无需执行原因。', '示例：已取消的现场复查任务。'][index],
+        workRequirement: ['复核临边防护设置，明确后续处理安排。', '复查现场技术交底记录并回复处理情况。', '清理消防通道并反馈现场处理结果。', '复核已取消的施工安排并说明无需执行原因。', '已取消的现场复查任务。'][index],
         executors: actors.map(item => item.value), executorAssignments: actors.map(item => ({ label: item.value, userId: item.userId })),
-        deadline: '2026-11-15', remark: '示例数据：多执行人中任意一人回复后结束。',
-        createdBy: 'COC调度室（示例）', issuer: 'COC调度室（示例）', createdAt: '2026-11-08 15:10:00',
-        issuedBy: status === TASK_STATUSES.PENDING || status === TASK_STATUSES.VOID ? '' : 'COC调度室（示例）',
+        deadline: '2026-11-15', remark: '多执行人中任意一人回复后结束。',
+        createdBy: 'COC调度室', issuer: 'COC调度室', createdAt: '2026-11-08 15:10:00',
+        issuedBy: status === TASK_STATUSES.PENDING || status === TASK_STATUSES.VOID ? '' : 'COC调度室',
         issueTime: status === TASK_STATUSES.PENDING || status === TASK_STATUSES.VOID ? '--' : '2026-11-09 09:18:00', status,
-        voidedBy: status === TASK_STATUSES.VOID ? 'COC调度室（示例）' : '', voidedAt: status === TASK_STATUSES.VOID ? '2026-11-09 10:20:00' : '',
+        voidedBy: status === TASK_STATUSES.VOID ? 'COC调度室' : '', voidedAt: status === TASK_STATUSES.VOID ? '2026-11-09 10:20:00' : '',
         reply: terminal ? { actor: first.value, actorUserId: first.userId, time, result: status === TASK_STATUSES.COMPLETED ? '已执行' : '无需执行',
-          remark: status === TASK_STATUSES.COMPLETED ? '示例：已完成现场处理，并复核相关资料。' : '示例：经复核该施工安排已取消，无需继续执行。',
-          attachments: status === TASK_STATUSES.COMPLETED ? [{ name: '示例-现场处理照片.svg', url: NOTICE_SNAPSHOTS['GZ-20260612-004'] || Object.values(NOTICE_SNAPSHOTS)[0] }] : [] } : null,
+          remark: status === TASK_STATUSES.COMPLETED ? '已完成现场处理，并复核相关资料。' : '经复核该施工安排已取消，无需继续执行。',
+          attachments: status === TASK_STATUSES.COMPLETED ? [{ name: '现场处理照片.svg', url: NOTICE_SNAPSHOTS['GZ-20260612-004'] || Object.values(NOTICE_SNAPSHOTS)[0] }] : [] } : null,
         closedTime: terminal ? time : '', closedBy: terminal ? '系统' : '',
       })
     }).filter(item => !existingIds.has(item.id)) : []
@@ -1285,7 +1305,10 @@ function ensureTaskPersonalExamples() {
   if (taskUpgradeActive || taskPersonalExamplesActive) return
   const operator = dispatchTaskOperator()
   const actor = dispatchTaskUserOptions().find(item => item.userId === operator.id)
-  if (!actor) return
+    || (operator.name || operator.label
+      ? { value: operator.label || operator.name, userId: operator.id || `demo-${encodeURIComponent(operator.label || operator.name)}` }
+      : null)
+  if (!actor || !actor.value) return
   const flag = `coc-admin-notice-personal-examples-v1:${encodeURIComponent(actor.userId)}`
   if (localStorage.getItem(flag)) return
   taskPersonalExamplesActive = true
@@ -1293,9 +1316,9 @@ function ensureTaskPersonalExamples() {
     const original = readList(NOTICE_KEY)
     const existingIds = new Set(original.map(item => item.id))
     const definitions = [
-      { suffix: 'PROCESSING', status: TASK_STATUSES.PROCESSING, requirement: '示例：复查现场技术交底记录并回复处理情况。' },
-      { suffix: 'COMPLETED', status: TASK_STATUSES.COMPLETED, result: '已执行', requirement: '示例：清理消防通道并反馈现场处理结果。', explanation: '示例：已完成现场处理，并复核相关资料。' },
-      { suffix: 'NO-ACTION', status: TASK_STATUSES.NO_ACTION, result: '无需执行', requirement: '示例：复核已取消的施工安排并说明无需执行原因。', explanation: '示例：经复核该施工安排已取消，无需继续执行。' },
+      { suffix: 'PROCESSING', status: TASK_STATUSES.PROCESSING, requirement: '复查现场技术交底记录并回复处理情况。' },
+      { suffix: 'COMPLETED', status: TASK_STATUSES.COMPLETED, result: '已执行', requirement: '清理消防通道并反馈现场处理结果。', explanation: '已完成现场处理，并复核相关资料。' },
+      { suffix: 'NO-ACTION', status: TASK_STATUSES.NO_ACTION, result: '无需执行', requirement: '复核已取消的施工安排并说明无需执行原因。', explanation: '经复核该施工安排已取消，无需继续执行。' },
     ]
     const examples = definitions.flatMap((definition, index) => {
       const existingExample = original.some(task => {
@@ -1312,13 +1335,13 @@ function ensureTaskPersonalExamples() {
         id, demo: true, project: 'T2项目', workType: '安全', workSource: '调度会议',
         workRequirement: definition.requirement, executors: [actor.value],
         executorAssignments: [{ label: actor.value, userId: actor.userId }], deadline: '2026-11-15',
-        remark: '示例数据：供本账号演示任务单处理和已办详情。',
-        createdBy: 'COC调度室（示例）', issuer: 'COC调度室（示例）', createdAt: '2026-11-08 15:10:00',
-        issuedBy: 'COC调度室（示例）', issueTime: '2026-11-09 09:18:00', status: definition.status,
+        remark: '供本账号演示任务单处理和已办详情。',
+        createdBy: 'COC调度室', issuer: 'COC调度室', createdAt: '2026-11-08 15:10:00',
+        issuedBy: 'COC调度室', issueTime: '2026-11-09 09:18:00', status: definition.status,
         reply: definition.result ? {
           actor: actor.value, actorUserId: actor.userId, time, result: definition.result, remark: definition.explanation,
           attachments: definition.result === '已执行'
-            ? [{ name: '示例-现场处理照片.svg', url: NOTICE_SNAPSHOTS['GZ-20260612-004'] || Object.values(NOTICE_SNAPSHOTS)[0] }]
+            ? [{ name: '现场处理照片.svg', url: NOTICE_SNAPSHOTS['GZ-20260612-004'] || Object.values(NOTICE_SNAPSHOTS)[0] }]
             : [],
         } : null,
         closedTime: definition.result ? time : '', closedBy: definition.result ? '系统' : '',
@@ -1350,38 +1373,38 @@ function ensureTaskParallelDemo() {
     const base = {
       demo: true, project: 'T2项目', workType: '安全', workSource: '调度会议',
       executors, executorAssignments, deadline: '2026-11-16',
-      createdBy: 'COC调度室（示例）', issuer: 'COC调度室（示例）', createdAt: '2026-11-10 10:05:00',
-      issuedBy: 'COC调度室（示例）', issueTime: '2026-11-10 10:30:00',
+      createdBy: 'COC调度室', issuer: 'COC调度室', createdAt: '2026-11-10 10:05:00',
+      issuedBy: 'COC调度室', issueTime: '2026-11-10 10:30:00',
       executionMode: TASK_EXECUTION_MODES.PARALLEL,
     }
     const partialReplies = [{
       actor: executors[0], actorUserId: options[0].userId, time: '2026-11-11 09:12:30',
-      result: '已执行', remark: '示例：已完成现场处理（多人并行，等待其余执行人回复）。', attachments: [],
+      result: '已执行', remark: '已完成现场处理（多人并行，等待其余执行人回复）。', attachments: [],
     }]
     const allReplies = executors.map((actor, index) => ({
       actor, actorUserId: options[index].userId, time: `2026-11-11 09:1${index + 2}:00`,
       result: index === 1 ? '无需执行' : '已执行',
-      remark: index === 1 ? '示例：经现场核实该点位无需处理。' : '示例：已完成现场处理并复核。',
+      remark: index === 1 ? '经现场核实该点位无需处理。' : '已完成现场处理并复核。',
       attachments: [],
     }))
     const demos = [
       normalizeNoticeRecord({
         ...base, id: 'GZ-PARALLEL-DEMO-1', status: TASK_STATUSES.PROCESSING, replies: partialReplies,
-        workRequirement: '示例：三人并行任务——复核临边防护设置并反馈处理结果（已有 1 人回复）。',
-        remark: '示例数据：多人并行，全部执行人回复后任务单才关闭。',
+        workRequirement: '三人并行任务——复核临边防护设置并反馈处理结果（已有 1 人回复）。',
+        remark: '多人并行，全部执行人回复后任务单才关闭。',
       }),
       normalizeNoticeRecord({
         ...base, id: 'GZ-PARALLEL-DEMO-2', status: TASK_STATUSES.PROCESSING, replies: allReplies,
         workType: '生态治理',
-        workRequirement: '示例：三人并行任务——清理消防通道并反馈处理结果（三人均已回复）。',
-        remark: '示例数据：多人并行，全部回复后已关闭。',
+        workRequirement: '三人并行任务——清理消防通道并反馈处理结果（三人均已回复）。',
+        remark: '多人并行，全部回复后已关闭。',
         closedTime: '2026-11-11 09:14:00', closedBy: '系统',
       }),
       normalizeNoticeRecord({
         ...base, id: 'GZ-PARALLEL-DEMO-3', status: TASK_STATUSES.PROCESSING, replies: allReplies.slice(0, 2),
         project: '2号雨水泵站', workType: '安全',
-        workRequirement: '示例：项目层级可见的任务单——复核基坑临边防护并反馈处理结果（2/3 人已回复）。',
-        remark: '示例数据：项目层级任务单页仅查看本项目任务单。',
+        workRequirement: '项目层级可见的任务单——复核基坑临边防护并反馈处理结果（2/3 人已回复）。',
+        remark: '项目层级任务单页仅查看本项目任务单。',
       }),
     ]
     if (demos.length) writeList(NOTICE_KEY, [...demos, ...rest])
@@ -1391,6 +1414,234 @@ function ensureTaskParallelDemo() {
   }
 }
 
+
+/** 任务单处理回复的演示图片（内联 SVG，无需外部资源） */
+function buildTaskReplyDemoPhoto() {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="480" height="300" viewBox="0 0 480 300">
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#1f3b57"/><stop offset="1" stop-color="#0d1c2e"/>
+  </linearGradient></defs>
+  <rect width="480" height="300" fill="url(#bg)"/>
+  <rect x="18" y="18" width="444" height="264" rx="10" fill="none" stroke="rgba(94,238,255,0.45)" stroke-width="2"/>
+  <text x="240" y="132" text-anchor="middle" fill="#e8f6ff" font-size="26" font-family="Microsoft YaHei, sans-serif">整改现场照片</text>
+  <text x="240" y="172" text-anchor="middle" fill="#9fb6c8" font-size="15" font-family="Microsoft YaHei, sans-serif">裸土覆盖完成 · 已拍照留存</text>
+  <text x="240" y="238" text-anchor="middle" fill="#5eeeff" font-size="13" font-family="Microsoft YaHei, sans-serif">COC 调度 · 任务单处理图片（演示）</text>
+</svg>`
+  return {
+    name: '整改现场照片-1.svg',
+    url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`,
+  }
+}
+
+const TASK_REPLY_IMAGE_FLAG = 'coc-admin-task-reply-image-v2'
+
+/**
+ * 历史演示数据补图片：早期生成的任务单演示回复没有图片附件，
+ * 这里给所有演示任务单的执行人回复补演示图片，保证「我的待办」与「任务单详情」的处理流程都能看到图片。
+ * 用 v2 标记强制重跑一次（历史标记 v1 的浏览器也能补上）。
+ */
+function ensureTaskReplyImageDemo() {
+  const operator = dispatchTaskOperator()
+  const accountKey = operator.id || operator.name || 'anon'
+  const flagKey = `${TASK_REPLY_IMAGE_FLAG}:${accountKey}`
+  const list = readList(NOTICE_KEY)
+  let changed = false
+  const next = list.map((item) => {
+    if (!String(item.id || '').startsWith('GZ-TODO-DEMO-')) return item
+    const replies = Array.isArray(item.replies) ? item.replies : []
+    if (!replies.length) return item
+    let replyChanged = false
+    const nextReplies = replies.map((reply, index) => {
+      const attachments = (reply.attachments || []).map((file) => {
+        if (!String(file.name || '').startsWith('任务处理图片')) return file
+        replyChanged = true
+        return { ...file, name: '整改现场照片-1.svg' }
+      })
+      if (attachments.length) return { ...reply, attachments }
+      replyChanged = true
+      return {
+        ...reply,
+        attachments: [{ ...buildTaskReplyDemoPhoto(), name: `整改现场照片-${index + 1}.svg` }],
+      }
+    })
+    if (!replyChanged) return item
+    changed = true
+    return { ...item, replies: nextReplies }
+  })
+  if (changed) writeList(NOTICE_KEY, next)
+  localStorage.setItem(flagKey, '1')
+}
+
+const TASK_TODO_DEMO_FLAG = 'coc-admin-notice-todo-demo-v1'
+let taskTodoDemoActive = false
+/**
+ * 任务单待办演示数据：按当前操作账号生成 5 条「处理中」任务单，
+ * 覆盖 单人执行 / 多人并行（1/3、2/3 已回复）、不同项目与工作类型、临近/常规时限，
+ * 使【工作台 → 我的待办 → 任务单】有足够且形态多样的演示条目。
+ */
+function ensureTaskTodoDemo() {
+  if (taskTodoDemoActive) return
+  const operator = dispatchTaskOperator()
+  const accountKey = operator.id || operator.name || 'anon'
+  const flagKey = `${TASK_TODO_DEMO_FLAG}:${accountKey}`
+  const idBase = `GZ-TODO-DEMO-${encodeURIComponent(accountKey)}`
+  // 自愈：不只看一次性标记，按实际记录判断；记录缺失（旧版本标记残留/被清掉）时重新生成
+  const existingDemos = readList(NOTICE_KEY).filter(item => String(item.id).startsWith(idBase))
+  if (existingDemos.length >= 5) {
+    if (!localStorage.getItem(flagKey)) localStorage.setItem(flagKey, '1')
+    return
+  }
+  taskTodoDemoActive = true
+  let wrote = false
+  try {
+    const options = dispatchTaskUserOptions()
+    const matched = options.find(item => item.userId === operator.id)
+      || options.find(item => item.value === operator.label)
+    // 登录账号未必在系统用户池里（如演示账号/外部账号）：仍按当前账号生成，保证待办可见
+    const me = matched || (operator.name || operator.label
+      ? { value: operator.label || operator.name, userId: operator.id || '' }
+      : null)
+    if (!me || !me.value) return
+    const others = options.filter(item => item.userId !== me.userId).slice(0, 2)
+    const reply = (option, time, result, remark) => ({
+      actor: option.label ?? option.value, actorUserId: option.userId, time, result, remark, attachments: [],
+    })
+    const base = {
+      demo: true,
+      workSource: '调度会议',
+      createdBy: 'COC调度室',
+      issuer: 'COC调度室',
+      createdAt: '2026-11-11 09:20:00',
+      issuedBy: 'COC调度室',
+      issueTime: '2026-11-11 09:30:00',
+    }
+    const meOnly = { label: me.value, userId: me.userId }
+    const withOthers = [{ label: me.value, userId: me.userId }, ...others.map(item => ({ label: item.value, userId: item.userId }))]
+    const parallelOthers = others.map(item => ({ label: item.value, userId: item.userId }))
+    const demos = [
+      normalizeNoticeRecord({
+        ...base, id: `${idBase}-1`, project: 'T2项目', workType: '安全',
+        executionMode: TASK_EXECUTION_MODES.SINGLE,
+        workRequirement: '高处作业人员未系安全带，请立即整改并回复现场处理情况。',
+        executors: [meOnly.label], executorAssignments: [meOnly],
+        deadline: '2026-11-13', status: TASK_STATUSES.PROCESSING, remark: '任务单待办（单人执行，临近完成时限）。',
+      }),
+      normalizeNoticeRecord({
+        ...base, id: `${idBase}-2`, project: 'T2空侧捷运线', workType: '质量',
+        executionMode: TASK_EXECUTION_MODES.SINGLE,
+        workRequirement: '混凝土养护记录缺失，请补齐验收资料并回复处理结果。',
+        executors: [meOnly.label], executorAssignments: [meOnly],
+        deadline: '2026-11-16', status: TASK_STATUSES.PROCESSING, remark: '任务单待办（单人执行）。',
+      }),
+      normalizeNoticeRecord({
+        ...base, id: `${idBase}-3`, project: '捷运线延长段', workType: '生态治理',
+        executionMode: TASK_EXECUTION_MODES.PARALLEL,
+        workRequirement: '围挡外侧裸土未覆盖，请组织覆盖并反馈（三人并行，已有 1 人回复）。',
+        executors: withOthers.map(item => item.label), executorAssignments: withOthers,
+        deadline: '2026-11-15', status: TASK_STATUSES.PROCESSING,
+        replies: parallelOthers.slice(0, 1).map(item => reply(item, '2026-11-11 14:20:00', '已执行', '已安排覆盖并完成拍照留存。')).map(item => ({ ...item, attachments: [buildTaskReplyDemoPhoto()] })),
+        remark: '任务单待办（多人并行 1/3 已回复）。',
+      }),
+      normalizeNoticeRecord({
+        ...base, id: `${idBase}-4`, project: '2号雨水泵站', workType: '安全',
+        executionMode: TASK_EXECUTION_MODES.PARALLEL,
+        workRequirement: '基坑临边防护缺失，请补充防护并反馈（三人并行，已有 2 人回复）。',
+        executors: withOthers.map(item => item.label), executorAssignments: withOthers,
+        deadline: '2026-11-17', status: TASK_STATUSES.PROCESSING,
+        replies: [
+          reply(parallelOthers[0], '2026-11-11 15:05:00', '已执行', '已补齐防护栏杆并复核。'),
+          ...(parallelOthers[1] ? [reply(parallelOthers[1], '2026-11-11 15:40:00', '无需执行', '经核实该点位由另一班组负责。')] : []),
+        ],
+        remark: '任务单待办（多人并行 2/3 已回复）。',
+      }),
+      normalizeNoticeRecord({
+        ...base, id: `${idBase}-5`, project: 'T2主体结构', workType: '安全',
+        executionMode: TASK_EXECUTION_MODES.SINGLE,
+        workRequirement: '动火作业审批单未上传，请补传审批材料并回复。',
+        executors: [meOnly.label], executorAssignments: [meOnly],
+        deadline: '2026-11-14', status: TASK_STATUSES.PROCESSING, remark: '任务单待办（单人执行）。',
+      }),
+    ]
+    const ids = new Set(demos.map(item => item.id))
+    const rest = readList(NOTICE_KEY).filter(item => !ids.has(item.id))
+    writeList(NOTICE_KEY, [...demos, ...rest])
+    wrote = true
+    // 通知个人中心即时重建待办投影（否则工作台首屏仍显示旧列表）
+    window.dispatchEvent(new CustomEvent(CHANGE_EVENT, { detail: { type: 'notice', records: demos } }))
+  } finally {
+    taskTodoDemoActive = false
+    if (wrote) localStorage.setItem(flagKey, '1')
+  }
+}
+
+/** App 启动时统一预热演示数据（任务单多执行人/待办/提示函多人等），保证工作台首屏即可看到任务单待办 */
+const DEMO_WORDING_FLAG = 'coc-admin-notice-demo-wording-v4'
+const DEMO_MARK_PATTERNS = [
+  [/^(?:示例数据|示例)[:：]\s*/, ''],
+  [/示例数据[:：]\s*/g, ''],
+  [/【示例】/g, ''],
+  [/（示例）/g, ''],
+  [/示例/g, ''],
+]
+function cleanDemoObject(value) {
+  if (typeof value === 'string') return cleanDemoWording(value)
+  if (Array.isArray(value)) return value.map(cleanDemoObject)
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, cleanDemoObject(item)]))
+  }
+  return value
+}
+
+function isDemoRecord(item) {
+  if (!item) return false
+  return Boolean(item.demo) || /DEMO/i.test(String(item.id || ''))
+}
+
+function cleanRecordList(key, normalize) {
+  const list = readList(key)
+  if (!list.length) return
+  writeList(key, list.map(item => {
+    if (!isDemoRecord(item)) return item
+    const cleaned = cleanDemoObject(item)
+    const next = normalize(cleaned)
+    if (normalize === normalizeNoticeRecord) {
+      // 标题与正文是派生字段，清空后由清洗过的内容重新生成
+      next.title = ''
+      next.content = ''
+      return normalizeNoticeRecord(next)
+    }
+    return next
+  }))
+}
+
+/** 旧版本演示数据带「示例」字样：一次性清洗，已有浏览器刷新后也不再显示 */
+function ensureDemoWordingCleanup() {
+  if (localStorage.getItem(DEMO_WORDING_FLAG)) return
+  try {
+    cleanRecordList(NOTICE_KEY, normalizeNoticeRecord)
+    cleanRecordList(REMINDER_KEY, normalizeReminderRecord)
+    cleanRecordList(PENALTY_KEY, normalizePenaltyRecord)
+    window.dispatchEvent(new CustomEvent(CHANGE_EVENT, { detail: { type: 'notice' } }))
+  } catch (error) {
+    // 清洗失败不影响业务读取
+  } finally {
+    try { localStorage.setItem(DEMO_WORDING_FLAG, '1') } catch (error) { /* ignore */ }
+  }
+}
+
+export function ensureDispatchDemoData() {
+  try {
+    ensureDispatchMeetingSeed()
+    ensureTaskReplyUpgrade()
+    ensureTaskPersonalExamples()
+    ensureTaskParallelDemo()
+    ensureTaskTodoDemo()
+    ensureTaskReplyImageDemo()
+    ensureDemoWordingCleanup()
+  } catch (error) {
+    // 演示数据失败不影响正常业务读取
+  }
+}
 export function getDispatchPenaltyRecords() {
   ensureDispatchMeetingSeed()
   return readList(PENALTY_KEY)
@@ -1444,17 +1695,17 @@ function ensureReminderMultiDemo() {
     const demos = [
       normalizeReminderRecord({
         id: 'TS-MULTI-DEMO-1', demo: true, project: 'T2项目',
-        matterDescription: '示例：请两位指派人共同复核围挡修复情况，并在完成时限前反馈处理结果。',
+        matterDescription: '请两位指派人共同复核围挡修复情况，并在完成时限前反馈处理结果。',
         assignees,
         deadline: '2026-11-18', issueTime: '2026-11-11 10:20:00',
-        status: NOTICE_STATUSES.ISSUED, issuer: 'COC调度室（示例）', source: '后台录入',
+        status: NOTICE_STATUSES.ISSUED, issuer: 'COC调度室', source: '后台录入',
       }),
       normalizeReminderRecord({
         id: 'TS-PROJ-DEMO-1', demo: true, project: '2号雨水泵站',
-        matterDescription: '示例：项目层级可见的提示函——请两位指派人共同复核基坑周边警示标识。',
+        matterDescription: '项目层级可见的提示函——请两位指派人共同复核基坑周边警示标识。',
         assignees,
         deadline: '2026-11-20', issueTime: '2026-11-11 14:05:00',
-        status: NOTICE_STATUSES.ISSUED, issuer: 'COC调度室（示例）', source: '后台录入',
+        status: NOTICE_STATUSES.ISSUED, issuer: 'COC调度室', source: '后台录入',
       }),
     ]
     writeList(REMINDER_KEY, [...demos, ...rest])

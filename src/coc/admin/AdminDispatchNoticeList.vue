@@ -171,6 +171,10 @@ function validateForm() {
 }
 
 const executionModeOptions = TASK_EXECUTION_MODE_OPTIONS
+const executionModeHints = {
+  [TASK_EXECUTION_MODES.SINGLE]: '任一执行人办结即关闭任务单',
+  [TASK_EXECUTION_MODES.PARALLEL]: '全部执行人办结后才关闭',
+}
 
 function submitForm(issueNow = false) {
   if (!validateForm()) return
@@ -259,7 +263,7 @@ onBeforeUnmount(() => { window.removeEventListener('coc-dispatch-meeting-change'
     <div class="panel-title simple-title">
       <div class="dispatch-task-title">
         <span>{{ title }}</span>
-        <span class="dispatch-task-prototype-hint">
+        <span v-if="!readonly" class="dispatch-task-prototype-hint">
           原型提示：处理页面进入【工作台】-【我的待办】查看，
           <el-button link type="primary" @click="openTaskTodo">快速入口</el-button>
         </span>
@@ -274,9 +278,9 @@ onBeforeUnmount(() => { window.removeEventListener('coc-dispatch-meeting-change'
       </div>
     </div>
     <div class="panel-body page-body">
-      <p class="page-desc">{{ description }}</p>
+      <p v-if="!readonly" class="page-desc">{{ description }}</p>
       <p v-if="readonly" class="page-desc readonly-hint">
-        项目层级仅查看本项目任务单（{{ scopeProjectName || '当前项目' }}），创建、下发、编辑与作废由指挥部处理。
+        任务单由 COC 调度过程中下发，执行人可在【工作台 → 我的待办】中查看并处理。
       </p>
       <el-table :data="filtered" stripe border empty-text="暂无任务单记录">
         <el-table-column type="index" label="序号" width="56" />
@@ -388,11 +392,23 @@ onBeforeUnmount(() => { window.removeEventListener('coc-dispatch-meeting-change'
           </el-select>
         </el-form-item>
         <el-form-item label="执行模式" required>
-          <el-radio-group v-model="form.executionMode" aria-label="执行模式">
-            <el-radio v-for="mode in executionModeOptions" :key="mode" :value="mode">{{ mode }}</el-radio>
-          </el-radio-group>
-          <div class="execution-mode-hint">
-            单人执行：任一执行人办结即关闭任务单；多人并行：全部执行人办结后才关闭。
+          <div class="execution-mode-picker" role="radiogroup" aria-label="执行模式">
+            <button
+              v-for="mode in executionModeOptions"
+              :key="mode"
+              type="button"
+              class="execution-mode-option"
+              :class="{ active: form.executionMode === mode }"
+              role="radio"
+              :aria-checked="form.executionMode === mode"
+              @click="form.executionMode = mode"
+            >
+              <span class="mode-indicator" aria-hidden="true"></span>
+              <span class="mode-text">
+                <span class="mode-title">{{ mode }}</span>
+                <span class="mode-desc">{{ executionModeHints[mode] }}</span>
+              </span>
+            </button>
           </div>
         </el-form-item>
         <el-form-item label="完成时限" required>
@@ -401,7 +417,7 @@ onBeforeUnmount(() => { window.removeEventListener('coc-dispatch-meeting-change'
         <el-form-item label="备注">
           <el-input v-model="form.remark" type="textarea" :rows="2" placeholder="选填" aria-label="选填"/>
         </el-form-item>
-        <el-form-item label="附件">
+        <el-form-item label="图片">
           <DispatchImageAttachments v-model="form.attachments" />
         </el-form-item>
       </el-form>
@@ -549,12 +565,80 @@ onBeforeUnmount(() => { window.removeEventListener('coc-dispatch-meeting-change'
   color: #e6a23c;
 }
 
-.execution-mode-hint {
+.execution-mode-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
   width: 100%;
-  margin-top: 4px;
+}
+
+.execution-mode-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--ap-border, #dcdfe6);
+  border-radius: 8px;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+
+.execution-mode-option:hover {
+  border-color: var(--ap-primary, #ab004e);
+  background: rgba(171, 0, 78, 0.04);
+}
+
+.execution-mode-option.active {
+  border-color: var(--ap-primary, #ab004e);
+  background: rgba(171, 0, 78, 0.06);
+  box-shadow: 0 0 0 1px rgba(171, 0, 78, 0.18) inset;
+}
+
+.mode-indicator {
+  position: relative;
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  margin-top: 3px;
+  border: 2px solid #c0c4cc;
+  border-radius: 50%;
+  transition: border-color 0.18s ease;
+}
+
+.execution-mode-option.active .mode-indicator {
+  border-color: var(--ap-primary, #ab004e);
+}
+
+.execution-mode-option.active .mode-indicator::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  background: var(--ap-primary, #ab004e);
+}
+
+.mode-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mode-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ap-text, #303133);
+  line-height: 1.4;
+}
+
+.mode-desc {
   font-size: 12px;
-  line-height: 1.6;
   color: var(--el-text-color-secondary, #909399);
+  line-height: 1.35;
 }
 
 .work-type-config-tip {

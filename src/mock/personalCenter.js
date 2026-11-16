@@ -1950,6 +1950,91 @@ export const personalTodoStore = reactive({
 export const personalTodos = personalTodoStore.todos
 export const personalDone = personalTodoStore.done
 
+/* ---------------- 待办转派（全模块通用） ---------------- */
+const TODO_TRANSFER_KEY = 'airport-todo-transfers-v1'
+
+function readTodoTransfers() {
+  try {
+    const raw = localStorage.getItem(TODO_TRANSFER_KEY)
+    const parsed = raw ? JSON.parse(raw) : {}
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function writeTodoTransfers(map) {
+  try {
+    localStorage.setItem(TODO_TRANSFER_KEY, JSON.stringify(map))
+  } catch {
+    /* 存储受限时静默失败：转派仅在本次会话生效 */
+  }
+}
+
+/** 读取某条待办的转派信息 */
+export function getTodoTransfer(todoId) {
+  return readTodoTransfers()[todoId] || null
+}
+
+/** 当前用户可见的待办（转派后原用户不可见、被转派用户可见） */
+export function applyTodoTransfers(rows = [], operator = dispatchTaskOperator()) {
+  const map = readTodoTransfers()
+  const operatorId = operator?.id || ''
+  const operatorName = operator?.name || ''
+  const operatorLabel = operator?.label || ''
+  return (Array.isArray(rows) ? rows : [])
+    .filter((row) => {
+      const transfer = map[row?.id]
+      if (!transfer || !transfer.toUserName) return true
+      const recipients = [transfer.toUserId, transfer.toUserName].filter(Boolean)
+      return recipients.includes(operatorId) || recipients.includes(operatorName) || recipients.includes(operatorLabel)
+        || !operatorId
+    })
+    .map((row) => {
+      const transfer = map[row?.id]
+      return transfer
+        ? { ...row, transferredTo: transfer.toUserName, transferFrom: transfer.fromUserName, transferNote: transfer.note }
+        : row
+    })
+}
+
+/**
+ * 将待办转派给其他用户：原用户待办移除并生成一条「转派」已办记录，
+ * 被转派用户在待办列表中可见同一待办。
+ */
+export function transferPersonalTodo({ todo, toUser, note, operator = dispatchTaskOperator() } = {}) {
+  if (!todo?.id) return { ok: false, message: '待办不存在' }
+  const toName = toUser?.value || toUser?.label || ''
+  if (!toName) return { ok: false, message: '请选择执行人' }
+  const reason = String(note || '').trim()
+  if (!reason) return { ok: false, message: '请填写转派说明' }
+  const time = nowStr()
+  const map = readTodoTransfers()
+  map[todo.id] = {
+    toUserId: toUser.userId || '',
+    toUserName: toName,
+    fromUserId: operator?.id || '',
+    fromUserName: operator?.name || '',
+    note: reason,
+    time,
+  }
+  writeTodoTransfers(map)
+  const doneRow = {
+    ...todo,
+    id: `done-transfer-${todo.id}`,
+    status: '已完成',
+    handleTime: time,
+    assignee: operator?.label || operator?.name || '当前用户',
+    handleLabel: '转派',
+    transferNote: reason,
+    transferredTo: toName,
+  }
+  if (!personalTodoStore.done.some((row) => row.id === doneRow.id)) {
+    personalTodoStore.done.unshift(doneRow)
+  }
+  return { ok: true, done: doneRow }
+}
+
 /** 我发起的 */
 export const personalStarted = reactive([
   ...seedQmInspectStarted(),

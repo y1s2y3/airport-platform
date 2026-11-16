@@ -112,7 +112,7 @@ function commonRecord(tabKey, context) {
     status: '已完成',
     date: recordDate,
     responsible: SUBMITTERS[index % SUBMITTERS.length],
-    content: `${partName}${config?.label || tabKey}示例记录 ${index + 1}`,
+    content: `${partName}${config?.label || tabKey}记录 ${index + 1}`,
     createdBy: SUBMITTERS[index % SUBMITTERS.length],
     createdAt: `${recordDate} 09:30:00`,
     attachmentInfo: index === 0 ? `${config?.label || '过程'}资料.pdf\n现场照片${index + 1}.jpg` : '',

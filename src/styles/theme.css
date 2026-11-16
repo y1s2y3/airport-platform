@@ -155,3 +155,11 @@ body.el-popup-parent--hidden {
   width: 100% !important;
   padding-right: 0 !important;
 }
+
+/* ---------- 消息提示层级 ----------
+ * Element Plus 的 message 与 dialog 共用 zIndex 计数器，在弹窗内触发的 toast
+ * 可能被蒙层/弹窗本体压住（表现为「点保存没反应」）。统一把 message 抬到最上层。
+ */
+.el-message {
+  z-index: 5000 !important;
+}

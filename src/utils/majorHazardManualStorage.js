@@ -440,15 +440,15 @@ function migratePatrolTaskLinks(data, projectId) {
       const date = dateOffset(-1)
       const task = retainPatrolInspectionTask({
         id: taskId, taskNo: 'AZXJ' + date.replaceAll('-', '') + String([...DEMO_PROJECT_IDS].indexOf(projectId) + 1).padStart(2, '0') + String(ledgerIndex + 1).padStart(2, '0'),
-        taskName: ledger.name + '现场巡视（示例）', source: '系统自建', projectId, project_id: projectId,
+        taskName: ledger.name + '现场巡视', source: '系统自建', projectId, project_id: projectId,
         project: COC_PROJECT_OPTIONS.find((item) => item.id === projectId)?.label || projectId,
         executor: ledger.responsible || '张工', inspector: ledger.responsible || '张工', companions: [],
         inspectionCategories: ['安全'], inspectionDate: date, deadline: date, status: '已完成',
         isMajorHazardPatrol: '是', majorHazardProjectId: projectId, majorHazardLedgerId: ledger.id,
         majorHazardSourceId: ledger.sourceId, majorHazardName: ledger.name,
         hazardCount, result: hazardCount ? 'hazard' : 'normal', isExample: true,
-        normalPhotos: hazardCount ? [] : ['现场巡视照片_示例.jpg'],
-        hazardItems: hazardCount ? [{ desc: '【示例】现场临边防护局部缺失', photos: ['巡视隐患照片_示例.jpg'], hasRectify: false }] : [],
+        normalPhotos: hazardCount ? [] : ['现场巡视照片.jpg'],
+        hazardItems: hazardCount ? [{ desc: '现场临边防护局部缺失', photos: ['巡视隐患照片.jpg'], hasRectify: false }] : [],
       })
       addLink(task)
     }
@@ -476,17 +476,104 @@ function blankData(projectId) {
   }
 }
 
+const DEMO_WORDING_FLAG = 'airport-major-hazard-demo-wording-v1'
+const DEMO_MARK_PATTERNS = [
+  [/【示例】/g, ''],
+  [/（示例）/g, ''],
+  [/_示例/g, ''],
+  [/示例记录/g, '记录'],
+  [/示例[:：]\s*/g, ''],
+  [/示例/g, ''],
+]
+
+function cleanDemoText(value) {
+  if (typeof value === 'string') {
+    return DEMO_MARK_PATTERNS.reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), value)
+  }
+  if (Array.isArray(value)) return value.map(cleanDemoText)
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, cleanDemoText(item)]))
+  }
+  return value
+}
+
 function readAll() {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
+    const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
+    if (localStorage.getItem(DEMO_WORDING_FLAG)) return data
+    localStorage.setItem(DEMO_WORDING_FLAG, '1')
+    const cleaned = cleanDemoText(data)
+    if (JSON.stringify(cleaned) !== JSON.stringify(data)) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(cleaned))
+      } catch {
+        // 配额不足时跳过清洗回写，不阻断页面读取
+      }
+    }
+    return cleaned
   } catch {
     return {}
   }
 }
 
-function writeAll(data) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+/**
+ * 删除没有任何业务数据的示例项目数据，用于浏览器本地存储配额不足时腾出空间。
+ * 仅删除「无危大辨识、无清单、无方案、未播种示例」的空壳项目；
+ * keepProjectId（当前正在写入的项目）绝不删除，避免写入目标被清掉后读取报错。
+ */
+function pruneEmptyProjects(data, keepProjectId = '') {
+  let removed = 0
+  Object.keys(data || {}).forEach((projectId) => {
+    if (keepProjectId && projectId === keepProjectId) return
+    const item = data[projectId]
+    if (!item || typeof item !== 'object') return
+    const hasBusinessData =
+      (item.identifications || []).length ||
+      (item.ledgers || []).length ||
+      (item.plans || []).length ||
+      item.demoSeeded ||
+      Object.keys(item.alertActions || {}).length
+    if (hasBusinessData) return
+    delete data[projectId]
+    removed += 1
+  })
+  return removed
+}
+
+function writeAll(data, keepProjectId = '') {
+  let payload = data
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
+  } catch (error) {
+    // 浏览器 localStorage 配额不足：清理无业务数据的示例项目后重试一次，仍失败则降级为只读不抛错
+    const removed = pruneEmptyProjects(payload, keepProjectId)
+    if (removed > 0) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
+        console.warn(`[危大工程] 本地存储空间不足，已清理 ${removed} 个空示例项目的缓存后重试成功。`)
+        window.dispatchEvent(new CustomEvent(MAJOR_HAZARD_CHANGE_EVENT))
+        return true
+      } catch {
+        /* 继续走降级 */
+      }
+    }
+    console.warn(
+      '[危大工程] 本地存储空间不足，本次数据未写入；可清理浏览器中其他模块的演示数据后重试。',
+      error?.name || '',
+    )
+    return false
+  }
   window.dispatchEvent(new CustomEvent(MAJOR_HAZARD_CHANGE_EVENT))
+  return true
+}
+
+/** 已落库的危大工程项目 id（供预警中心等跨模块同步使用，避免给全部项目铺数据） */
+export function listMajorHazardStoredProjectIds() {
+  try {
+    return Object.keys(JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'))
+  } catch {
+    return []
+  }
 }
 
 function normalizeLegacyControlPoints(controlPoints = [], descriptions = []) {
@@ -538,7 +625,7 @@ function readProject(projectId) {
 function writeProject(projectId, data) {
   const all = readAll()
   all[projectId] = data
-  writeAll(all)
+  writeAll(all, projectId)
 }
 
 function upsert(items, item) {
@@ -551,11 +638,11 @@ export function ensureMajorHazardData(projectId) {
   const all = readAll()
   if (!all[projectId]) {
     all[projectId] = blankData(projectId)
-    writeAll(all)
+    writeAll(all, projectId)
   } else if (DEMO_PROJECT_IDS.has(projectId) && !all[projectId].demoSeeded && !(all[projectId].identifications || []).length && !(all[projectId].ledgers || []).length && !(all[projectId].plans || []).length) {
     const demo = buildDemoBusinessData(projectId)
     all[projectId] = { ...all[projectId], ...demo, demoSeeded: true }
-    writeAll(all)
+    writeAll(all, projectId)
   } else {
     let changed = false
     if (all[projectId].standardLibraryVersion !== STANDARD_LIBRARY_VERSION) {
@@ -570,10 +657,10 @@ export function ensureMajorHazardData(projectId) {
       changed = true
     }
     if (all[projectId].demoSeeded && backfillDemoWbsParts(all[projectId])) changed = true
-    if (changed) writeAll(all)
+    if (changed) writeAll(all, projectId)
   }
-  if (migrateDemoProcessRecords(all[projectId], projectId)) writeAll(all)
-  if (migratePatrolTaskLinks(all[projectId], projectId)) writeAll(all)
+  if (migrateDemoProcessRecords(all[projectId], projectId)) writeAll(all, projectId)
+  if (migratePatrolTaskLinks(all[projectId], projectId)) writeAll(all, projectId)
   return readProject(projectId)
 }
 

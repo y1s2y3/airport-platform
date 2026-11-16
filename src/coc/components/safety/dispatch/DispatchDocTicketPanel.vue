@@ -40,6 +40,12 @@ const props = defineProps({
 
 const DOC_POPPER_CLASS = 'screenshot-mark-popper'
 
+/** 执行模式选项说明（单选卡片副标题） */
+const EXECUTION_MODE_HINTS = {
+  [TASK_EXECUTION_MODES.SINGLE]: '任一执行人办结即关闭',
+  [TASK_EXECUTION_MODES.PARALLEL]: '全部执行人办结才关闭',
+}
+
 const projectOptions = computed(() =>
   buildProjects().map((p) => p.shortName || p.name),
 )
@@ -471,11 +477,26 @@ function handleSave(issueNow = false) {
                 />
               </el-select>
             </div>
-            <div class="field-row">
+            <div class="field-row field-row-block">
               <span class="field-label">执行模式</span>
-              <el-radio-group v-model="noticeDraft.executionMode" size="small" class="execution-mode-tags">
-                <el-radio v-for="mode in TASK_EXECUTION_MODE_OPTIONS" :key="mode" :value="mode">{{ mode }}</el-radio>
-              </el-radio-group>
+              <div class="execution-mode-picker" role="radiogroup" aria-label="执行模式">
+                <button
+                  v-for="mode in TASK_EXECUTION_MODE_OPTIONS"
+                  :key="mode"
+                  type="button"
+                  class="execution-mode-option"
+                  :class="{ active: noticeDraft.executionMode === mode }"
+                  role="radio"
+                  :aria-checked="noticeDraft.executionMode === mode"
+                  @click="noticeDraft.executionMode = mode"
+                >
+                  <span class="mode-indicator" aria-hidden="true"></span>
+                  <span class="mode-text">
+                    <span class="mode-title">{{ mode }}</span>
+                    <span class="mode-desc">{{ EXECUTION_MODE_HINTS[mode] }}</span>
+                  </span>
+                </button>
+              </div>
             </div>
             <div class="field-row">
               <span class="field-label">完成时限</span>
@@ -622,7 +643,7 @@ function handleSave(issueNow = false) {
         </div>
 
         <div class="draft-actions">
-          <el-button size="small" @click="handleSave(false)">保存</el-button>
+          <el-button size="small" @click="handleSave(false)">保存到后台</el-button>
           <el-button type="primary" size="small" @click="handleSave(true)">直接下发</el-button>
         </div>
       </div>
@@ -861,12 +882,87 @@ function handleSave(issueNow = false) {
   padding: 16px 8px !important;
 }
 
-.execution-mode-tags {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px 12px;
-  flex-wrap: wrap;
-  min-height: 28px;
+/* 执行模式单选卡片（替代默认 radio，把「单人执行/多人并行」的差异直接写进选项） */
+.execution-mode-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.execution-mode-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 9px;
+  border: 1px solid var(--coc-border);
+  border-radius: 8px;
+  background: var(--coc-surface-muted, #fff);
+  color: var(--coc-text);
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+
+.execution-mode-option:hover {
+  border-color: var(--coc-accent);
+  background: rgba(201, 123, 99, 0.1);
+}
+
+.execution-mode-option.active {
+  border-color: var(--coc-accent);
+  background: rgba(201, 123, 99, 0.12);
+  box-shadow: 0 0 0 1px rgba(201, 123, 99, 0.22) inset;
+}
+
+.coc-hq-mode .execution-mode-option.active {
+  background: rgba(94, 238, 255, 0.14);
+  box-shadow: 0 0 0 1px rgba(94, 238, 255, 0.3) inset;
+}
+
+.mode-indicator {
+  position: relative;
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  margin-top: 3px;
+  border: 2px solid #c0c4cc;
+  border-radius: 50%;
+  transition: border-color 0.18s ease;
+}
+
+.execution-mode-option.active .mode-indicator {
+  border-color: var(--coc-accent);
+}
+
+.execution-mode-option.active .mode-indicator::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  background: var(--coc-accent);
+}
+
+.mode-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mode-title {
+  font-size: calc(12px + var(--coc-font-boost));
+  font-weight: 600;
+  color: var(--coc-text);
+  line-height: 1.4;
+}
+
+.mode-desc {
+  font-size: calc(11px + var(--coc-font-boost));
+  color: var(--coc-text-muted);
+  line-height: 1.35;
 }
 
 .work-type-tags {

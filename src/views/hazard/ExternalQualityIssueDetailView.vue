@@ -22,7 +22,7 @@ function goBack() {
       <el-button @click="goBack">{{ route.query.from === 'sampling-task' ? '返回任务' : '返回汇总' }}</el-button>
       <div class="detail-title">
         <h2>随手拍</h2>
-        <p>问题记录详情 <el-tag size="small" type="info">原型示例</el-tag></p>
+        <p>问题记录详情 </p>
       </div>
     </div>
 

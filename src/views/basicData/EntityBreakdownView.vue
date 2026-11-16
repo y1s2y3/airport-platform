@@ -607,8 +607,8 @@ function runWbsImport() {
         v-model:expand-row-keys="expandRowKeys"
         empty-text="暂无实体工程节点"
       >
-        <el-table-column prop="node_name" label="节点名称" min-width="220" show-overflow-tooltip />
-        <el-table-column label="节点类型" width="120">
+        <el-table-column prop="node_name" label="节点名称" min-width="170" show-overflow-tooltip />
+        <el-table-column label="节点类型" width="100">
           <template #default="{ row }">
             <el-tag
               size="small"
@@ -619,10 +619,10 @@ function runWbsImport() {
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="code" label="编码" width="120" show-overflow-tooltip>
+        <el-table-column prop="code" label="编码" width="110" show-overflow-tooltip>
           <template #default="{ row }">{{ row.code || '--' }}</template>
         </el-table-column>
-        <el-table-column label="专业" min-width="180">
+        <el-table-column label="专业" min-width="130">
           <template #default="{ row }">
             <div v-if="row.specialties?.length" class="specialty-tags">
               <el-tag
@@ -638,43 +638,44 @@ function runWbsImport() {
             <span v-else>--</span>
           </template>
         </el-table-column>
-        <el-table-column prop="full_path" label="完整路径" min-width="240" show-overflow-tooltip />
+        <el-table-column prop="full_path" label="完整路径" min-width="160" show-overflow-tooltip />
         <el-table-column prop="sort_no" label="排序值" width="80" align="center" />
-        <el-table-column label="操作" width="260" fixed="right">
+        <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
-            <el-button
-              v-if="canAddWbsChild(row)"
-              link
-              type="primary"
-              @click="openCreateWbs(row)"
-            >
-              {{ addChildLabel(row) }}
-            </el-button>
-            <el-button
-              v-if="canAddLocation(row)"
-              link
-              type="primary"
-              @click="openCreateLocation(row)"
-            >
-              新增部位
-            </el-button>
-            <el-button
-              v-if="canAddLocChild(row)"
-              link
-              type="primary"
-              @click="openCreateLocation(row)"
-            >
-              新增子部位
-            </el-button>
-            <el-button
-              v-if="!isSystemNode(row)"
-              link
-              type="danger"
-              @click="onRemove(row)"
-            >
-              删除
-            </el-button>
+            <div class="op-cell">
+              <div class="op-line">
+                <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
+                <el-button v-if="!isSystemNode(row)" link type="danger" @click="onRemove(row)">
+                  删除
+                </el-button>
+              </div>
+              <div class="op-line">
+                <el-button
+                  v-if="canAddWbsChild(row)"
+                  link
+                  type="primary"
+                  @click="openCreateWbs(row)"
+                >
+                  {{ addChildLabel(row) }}
+                </el-button>
+                <el-button
+                  v-if="canAddLocation(row)"
+                  link
+                  type="primary"
+                  @click="openCreateLocation(row)"
+                >
+                  新增部位
+                </el-button>
+                <el-button
+                  v-if="canAddLocChild(row)"
+                  link
+                  type="primary"
+                  @click="openCreateLocation(row)"
+                >
+                  新增子部位
+                </el-button>
+              </div>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -686,7 +687,7 @@ function runWbsImport() {
         :closable="false"
         show-icon
         class="mb"
-        title="导入为增量追加：只新增系统不存在的节点，已存在按完整路径跳过，不修改、不删除任何已有节点；导入只读取模板第 2 个工作表「WBS导入表」，新增的检验批可在「验评目录树」查看。"
+        title="导入为增量追加：只新增系统不存在的节点，已存在按完整路径跳过，不修改、不删除任何已有节点；导入只读取模板第 2 个工作表「WBS导入表」。"
       />
       <div class="import-actions">
         <el-button @click="onWbsTemplateDownload">下载模板</el-button>
@@ -694,16 +695,14 @@ function runWbsImport() {
           :key="importUploadKey"
           :auto-upload="false"
           :show-file-list="false"
-          :limit="1"
           accept=".xlsx,.xls"
           :on-change="onWbsImportFileChange"
         >
-          <el-button type="primary" :loading="importParsing">上传 WBS 导入表</el-button>
+          <el-button type="primary" :loading="importParsing">
+            {{ importFileName ? '重新选择' : '上传 WBS 导入表' }}
+          </el-button>
         </el-upload>
         <span class="import-file">{{ importFileName || '未选择文件（仅支持 .xlsx）' }}</span>
-        <el-button v-if="importFileName" link type="primary" @click="onWbsImportFileReset">
-          重新选择
-        </el-button>
       </div>
 
       <el-alert
@@ -958,8 +957,36 @@ function runWbsImport() {
 .page-title { margin: 4px 0; font-size: 20px; }
 .page-tip { margin: 0; font-size: 13px; color: #606266; }
 .mb { margin-bottom: 8px; }
+.op-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  line-height: 1.5;
+}
+.op-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+.op-line :deep(.el-button + .el-button) {
+  margin-left: 0;
+}
 .toolbar { display: flex; align-items: center; gap: 12px; }
 .tree-table { flex: 1; }
+/* 字段间距：单元格左右留白加大、行高放宽，列之间不再拥挤 */
+.tree-table :deep(.el-table__cell) {
+  padding: 10px 0;
+}
+.tree-table :deep(.cell) {
+  padding-left: 14px;
+  padding-right: 14px;
+  line-height: 1.6;
+}
+.tree-table :deep(th.el-table__cell .cell) {
+  font-weight: 600;
+}
 .field-hint { margin-top: 4px; font-size: 12px; color: #909399; line-height: 1.4; }
 .specialty-tags {
   display: flex;

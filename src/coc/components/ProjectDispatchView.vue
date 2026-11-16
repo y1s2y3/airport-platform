@@ -184,9 +184,9 @@ const dispatchDevice = computed(() => {
 }
 
 .dispatch-side :deep(.doc-ticket-panel) {
-  flex: 0 1 auto;
+  flex: 1 1 0;
   min-height: 0;
-  max-height: 42%;
+  max-height: none;
 }
 
 .dispatch-side :deep(.hazard-side-panel) {

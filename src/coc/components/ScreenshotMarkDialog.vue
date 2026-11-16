@@ -632,9 +632,24 @@ watch(
                   </el-select>
                 </el-form-item>
                 <el-form-item label="执行模式" required>
-                  <el-radio-group v-model="form.executionMode" aria-label="执行模式">
-                    <el-radio v-for="mode in TASK_EXECUTION_MODE_OPTIONS" :key="mode" :value="mode">{{ mode }}</el-radio>
-                  </el-radio-group>
+                  <div class="execution-mode-picker execution-mode-picker--dark" role="radiogroup" aria-label="执行模式">
+                    <button
+                      v-for="mode in TASK_EXECUTION_MODE_OPTIONS"
+                      :key="mode"
+                      type="button"
+                      class="execution-mode-option"
+                      :class="{ active: form.executionMode === mode }"
+                      role="radio"
+                      :aria-checked="form.executionMode === mode"
+                      @click="form.executionMode = mode"
+                    >
+                      <span class="mode-indicator" aria-hidden="true"></span>
+                      <span class="mode-text">
+                        <span class="mode-title">{{ mode }}</span>
+                        <span class="mode-desc">{{ mode === '单人执行' ? '任一执行人办结即关闭' : '全部执行人办结才关闭' }}</span>
+                      </span>
+                    </button>
+                  </div>
                 </el-form-item>
                 <el-form-item label="完成时限" required>
                   <el-date-picker
@@ -804,7 +819,7 @@ watch(
         <el-button @click="backToMark">返回标记</el-button>
         <el-button @click="handleClose">取消</el-button>
         <template v-if="isDispatchDoc">
-          <el-button @click="handleSubmit(false)">保存</el-button>
+          <el-button @click="handleSubmit(false)">保存到后台</el-button>
           <el-button type="primary" @click="handleSubmit(true)">直接下发</el-button>
         </template>
         <el-button v-else type="primary" @click="handleSubmit(false)">
@@ -887,19 +902,21 @@ watch(
 .issue-form {
   display: flex;
   flex-direction: column;
+  gap: 18px;
+  padding: 2px 2px 4px;
 }
 
 .form-main {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
 }
 
 .doc-type-bar {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding-bottom: 14px;
+  padding: 2px 2px 16px;
   border-bottom: 1px solid var(--coc-border);
 }
 
@@ -964,7 +981,7 @@ watch(
 
 .form-body {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-columns: 236px minmax(0, 1fr);
   gap: 20px;
   align-items: start;
 }
@@ -972,7 +989,7 @@ watch(
 .form-preview {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   position: sticky;
   top: 0;
 }
@@ -1016,11 +1033,11 @@ watch(
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
 .form-context {
-  padding: 8px 12px;
+  padding: 10px 14px;
   border-radius: 8px;
   background: #faf8f6;
   font-size: calc(12px + var(--coc-font-boost));
@@ -1029,7 +1046,7 @@ watch(
 }
 
 .issue-fields :deep(.el-form-item) {
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 
 .issue-fields :deep(.el-form-item:last-child) {
@@ -1078,6 +1095,83 @@ watch(
   box-shadow: none;
   font-weight: 600;
 }
+
+/* 执行模式单选卡片（深色弹窗内） */
+.execution-mode-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+}
+
+.execution-mode-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+
+.execution-mode-option:hover {
+  border-color: #7db3ff;
+  background: rgba(125, 179, 255, 0.1);
+}
+
+.execution-mode-option.active {
+  border-color: #7db3ff;
+  background: rgba(125, 179, 255, 0.14);
+  box-shadow: 0 0 0 1px rgba(125, 179, 255, 0.3) inset;
+}
+
+.mode-indicator {
+  position: relative;
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  margin-top: 3px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-radius: 50%;
+  transition: border-color 0.18s ease;
+}
+
+.execution-mode-option.active .mode-indicator {
+  border-color: #7db3ff;
+}
+
+.execution-mode-option.active .mode-indicator::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  background: #7db3ff;
+}
+
+.mode-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mode-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #eaf2ff;
+  line-height: 1.4;
+}
+
+.mode-desc {
+  font-size: 12px;
+  color: rgba(234, 242, 255, 0.62);
+  line-height: 1.35;
+}
 </style>
 
 <style>
@@ -1085,5 +1179,9 @@ watch(
   padding-top: 12px;
   max-height: calc(100vh - 180px);
   overflow: auto;
+}
+
+.screenshot-mark-dialog .el-dialog__footer {
+  padding: 14px 20px 18px;
 }
 </style>

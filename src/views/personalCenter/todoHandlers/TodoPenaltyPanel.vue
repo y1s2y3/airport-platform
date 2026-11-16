@@ -9,6 +9,7 @@ import {
 } from '../../../coc/utils/dispatchMeetingStorage.js'
 import DispatchImageAttachments from '../../../coc/components/DispatchImageAttachments.vue'
 import PenaltyDetailPanels from '../../../coc/components/PenaltyDetailPanels.vue'
+import TodoTransferPanel from './TodoTransferPanel.vue'
 import { userOptions, getUserLabel } from '../../../composables/useInspectionPlan.js'
 import { usePersonalTodoSubmit } from '../composables/usePersonalTodoSubmit.js'
 import '../styles/todoHandleBlocks.css'
@@ -136,6 +137,9 @@ watch(() => props.todo, resetForms, { immediate: true })
             </el-form-item>
           </el-form>
         </el-tab-pane>
+        <el-tab-pane label="转派" name="transfer">
+          <TodoTransferPanel :todo="todo" @transferred="emit('back')" @back="processTab = 'report'" />
+        </el-tab-pane>
         <el-tab-pane label="申诉" name="appeal">
           <el-form label-width="110px" class="op-form">
             <el-form-item label="申诉理由" required>
@@ -153,7 +157,7 @@ watch(() => props.todo, resetForms, { immediate: true })
           </el-form>
         </el-tab-pane>
       </el-tabs>
-      <div class="op-actions">
+      <div v-if="processTab !== 'transfer'" class="op-actions">
         <el-button @click="emit('back')">取消</el-button>
         <el-button v-if="processTab === 'report'" type="primary" @click="submitProcessReport(reportForm)">
           提交上报

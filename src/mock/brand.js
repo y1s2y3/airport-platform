@@ -477,7 +477,7 @@ const store = reactive({
       applicant_name: '王工',
       submit_time: '2026-07-08 08:30:00',
       finish_time: '2026-07-09 17:20:00',
-      remark: '重点项目示例数据',
+      remark: '重点项目数据',
       copy_from_application_id: '',
     supervisor_approver_user_id: 'u-jl-01',
     supervisor_approver_name: '李总监',

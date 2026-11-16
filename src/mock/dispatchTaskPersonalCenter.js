@@ -26,6 +26,9 @@ export function installDispatchTaskPersonalCenter(store) {
     } finally { syncing = false }
   }
   sync()
+  // 操作账号可能在首帧后才完成水合，延迟再同步，确保任务单演示数据与待办投影落到当前账号
+  setTimeout(sync, 0)
+  setTimeout(sync, 600)
   window.addEventListener('coc-dispatch-meeting-change', sync)
   window.addEventListener('storage', event => {
     if (event.key === 'coc-admin-dispatch-notices' || event.key === null) sync()

@@ -1,8 +1,10 @@
 import JSZip from 'jszip'
 import { DANGER_WORK_FIELDS, MAJOR_WORK_REGISTER_FIELDS } from '../config/dailyWorkSchema.js'
 import { buildDailyWorkExportPlan } from './dailyWorkExport.js'
+import { DAILY_WORK_EXPORT_TEMPLATE_DATA_URL } from './dailyWorkExportTemplate.js'
 
-const TEMPLATE_URL = new URL('../../assets/daily-work-templates/export-plans.xlsx', import.meta.url).href
+// 模板内联为 data URI，避免 new URL(..., import.meta.url) 在受限环境/单文件构建下触发 Vite 资源解析失败
+const TEMPLATE_URL = DAILY_WORK_EXPORT_TEMPLATE_DATA_URL
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 const TEMPLATE_SHEET_NUMBERS = { night: 1, danger: 2, major: 3 }
 const COLUMNS = DANGER_WORK_FIELDS.map(field => field.key)

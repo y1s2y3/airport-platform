@@ -9,6 +9,10 @@ defineProps({
   projects: { type: Array, default: () => [] },
   selectionId: { type: String, default: 'hq' },
   statusFilters: { type: Array, default: () => ['在建'] },
+  /** 大屏标题；默认 COC 调度大屏原值，供「大屏样式」等复用页覆盖 */
+  title: { type: String, default: 'COC调度指挥中心' },
+  /** 隐藏左上角项目选择工具条（复用页只做指挥部视角时使用，改用 #left 插槽） */
+  hideToolbar: { type: Boolean, default: false },
 })
 
 defineEmits(['project-change', 'status-filter'])
@@ -71,17 +75,20 @@ onUnmounted(() => {
       aria-hidden="true"
       draggable="false"
     />
-    <h1 class="hq-header__title">COC调度指挥中心</h1>
+    <h1 class="hq-header__title">{{ title }}</h1>
 
     <div class="hq-header__overlay">
       <div class="hq-header__left">
-        <HqHeaderToolbar
-          :projects="projects"
-          :selection-id="selectionId"
-          :status-filters="statusFilters"
-          @project-change="$emit('project-change', $event)"
-          @status-filter="$emit('status-filter', $event)"
-        />
+        <slot name="left">
+          <HqHeaderToolbar
+            v-if="!hideToolbar"
+            :projects="projects"
+            :selection-id="selectionId"
+            :status-filters="statusFilters"
+            @project-change="$emit('project-change', $event)"
+            @status-filter="$emit('status-filter', $event)"
+          />
+        </slot>
       </div>
 
       <div class="hq-header__right">

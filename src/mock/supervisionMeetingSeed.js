@@ -316,9 +316,9 @@ export function buildSupervisionMeetingSeed() {
             ? '现场已按方案整改完成，监理复核通过，资料齐全。'
             : '整改中：已安排责任班组按方案限期整改。',
         rectifyPhotos:
-          rectifyStatus === '已关闭' ? [demoImageDataUrl('整改后照片（示例）', template.description)] : [],
+          rectifyStatus === '已关闭' ? [demoImageDataUrl('整改后照片', template.description)] : [],
         hazardPhotos:
-          h === 0 ? [demoImageDataUrl('隐患现场照片（示例）', template.description)] : [],
+          h === 0 ? [demoImageDataUrl('隐患现场照片', template.description)] : [],
         statusLogs: buildSeedStatusLogs(rectifyStatus, uploadTime, '指挥部安质专责'),
         uploadTime,
       })
@@ -391,9 +391,9 @@ export function buildSupervisionMeetingSeed() {
           acceptor: ACCEPTORS[(index + h + 1) % ACCEPTORS.length],
           rectifyStatus: '已关闭',
           rectifyRemark: '上周遗留隐患已完成整改，现场照片与验收资料齐全，监理复核通过。',
-          rectifyPhotos: [demoImageDataUrl('整改后照片（示例）', template.description)],
+          rectifyPhotos: [demoImageDataUrl('整改后照片', template.description)],
           hazardPhotos:
-            h === 0 ? [demoImageDataUrl('隐患现场照片（示例）', template.description)] : [],
+            h === 0 ? [demoImageDataUrl('隐患现场照片', template.description)] : [],
           statusLogs: buildSeedStatusLogs('已关闭', uploadTime),
           uploadTime,
         })

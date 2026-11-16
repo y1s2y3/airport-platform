@@ -22,6 +22,7 @@ import {
   markWarningCenterRead,
   batchDisposeWarningCenter,
   findPersonalTodo,
+  applyTodoTransfers,
 } from '../../mock/personalCenter.js'
 import '../../mock/mat.js'
 import '../../mock/eq.js'
@@ -71,7 +72,18 @@ const filters = reactive({
   warnKeyword: '',
 })
 
-const todos = computed(() => personalTodoStore.todos.filter(row => taskProcessVisible(row, dispatchTaskOperator())))
+const todos = computed(() => {
+  const rows = applyTodoTransfers(
+    personalTodoStore.todos.filter(row => taskProcessVisible(row, dispatchTaskOperator())),
+    dispatchTaskOperator(),
+  )
+  // 任务单（COC 调度）待办优先展示：避免被其它模块后写入的种子数据挤到后面的页码，
+  // 演示与日常办理都能第一时间看到新下发的任务单。
+  return [
+    ...rows.filter(row => row.type === 'dispatch_notice'),
+    ...rows.filter(row => row.type !== 'dispatch_notice'),
+  ]
+})
 const isTaskExample = row => row.type === 'dispatch_notice' && row.taskId?.startsWith('GZ-REPLY-DEMO-')
 const doneList = computed(() => {
   const rows = personalTodoStore.done.filter(row => taskProcessVisible(row, dispatchTaskOperator()))

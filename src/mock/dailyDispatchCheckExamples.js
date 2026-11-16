@@ -3,10 +3,10 @@ export function canPopulateExample(day) {
   return day?.demo === true && !day.hq.version && !day.hq.firstSubmittedAt && !day.hq.updatedAt && !day.dispatchDefaults && !Object.keys(day.people || {}).length && !day.hq.rows.some(row => rowHasContent(row))
 }
 export function createExampleDay(source, scenario, getUsers) {
-  const day = clone(source), at = `${day.date}T09:30:00.000Z`, operator = { id: 'inspection-example', name: '原型示例用户', loginAccount: 'inspection.example' }
+  const day = clone(source), at = `${day.date}T09:30:00.000Z`, operator = { id: 'inspection-example', name: '调度值班员', loginAccount: 'inspection.example' }
   const image = index => {
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="480" height="280"><rect width="480" height="280" fill="#f8f4f6"/><text x="24" y="70" fill="#8f0045" font-size="24">每日调度检查 · 示例图片 ${index}</text><text x="24" y="125" font-size="18">检查日期：${day.date}</text><text x="24" y="190" font-size="18">仅用于原型展示，不代表真实现场</text></svg>`
-    return { name: `示例现场-${index}.svg`, url: 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg), size: new TextEncoder().encode(svg).length, kind: 'image' }
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="480" height="280"><rect width="480" height="280" fill="#f8f4f6"/><text x="24" y="70" fill="#8f0045" font-size="24">每日调度检查 · 现场图片 ${index}</text><text x="24" y="125" font-size="18">检查日期：${day.date}</text><text x="24" y="190" font-size="18">仅用于原型展示，不代表真实现场</text></svg>`
+    return { name: `现场照片-${index}.svg`, url: 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg), size: new TextEncoder().encode(svg).length, kind: 'image' }
   }
   const check = type => ({ ...emptyCheck(), type })
   const problem = (description, index) => ({ text: description + '（模拟）', images: [image(index)] })
@@ -16,7 +16,7 @@ export function createExampleDay(source, scenario, getUsers) {
   if (!a) return day
   if (scenario !== 4) {
     const dispatcher = getUsers('dispatch').find(user => user.status === true)
-    Object.assign(day.hq, { version: 1, firstSubmittedAt: at, updatedAt: at, operator, note: `原型示例：${names[scenario]}。所有数据均为模拟。` })
+    Object.assign(day.hq, { version: 1, firstSubmittedAt: at, updatedAt: at, operator, note: `${names[scenario]}。所有数据均为模拟。` })
     Object.assign(day.hq.headers, { focusDepartment: '安质部、项目管理部（模拟）', attendance: '参会', dispatcher: dispatcher?.name || '', dispatcherId: dispatcher?.id || '', departmentAttendance: '参会' })
     for (const row of [a,b].filter(Boolean)) { row.unified = scenario !== 6; row.personnel = { type:'normal', text:'' }; for(const key of CHECK_FIELDS)row[key]=check('normal'); row.hasSubmittedContent = true }
   }
@@ -51,8 +51,8 @@ export function canPopulateReviewExample(day) {
   return personParts(day).every(part => isPrototypeExamplePart(part) || !(part.version || part.firstSubmittedAt || text(part.name) || part.check?.type))
 }
 function repairImage(date, index) {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="480" height="260"><rect width="480" height="260" fill="#f8f4f6"/><text x="20" y="65" font-size="24" fill="#8f0045">每日检查示例 ${date}</text><text x="20" y="125" font-size="20">逐条问题附件 ${index}</text><text x="20" y="190" font-size="18">模拟数据，不代表真实现场</text></svg>`
-  return { name: `示例补图-${index}.svg`, url: 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg), size: new TextEncoder().encode(svg).length, kind: 'image' }
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="480" height="260"><rect width="480" height="260" fill="#f8f4f6"/><text x="20" y="65" font-size="24" fill="#8f0045">每日检查 ${date}</text><text x="20" y="125" font-size="20">逐条问题附件 ${index}</text><text x="20" y="190" font-size="18">模拟数据，不代表真实现场</text></svg>`
+  return { name: `补充照片-${index}.svg`, url: 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg), size: new TextEncoder().encode(svg).length, kind: 'image' }
 }
 export function repairExampleDay(source, getUsers) {
   const day = clone(source)
