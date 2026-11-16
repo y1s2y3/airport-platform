@@ -4,10 +4,10 @@
  * - 由 scripts/bump-pages-version.mjs 在发布流水线中递增 patch
  */
 
-export const APP_VERSION_BASE = '2.17.1'
+export const APP_VERSION_BASE = '3.1.1'
 
 /** GitHub Pages 发布序号（从 0 开始；仓库内为「当前即将发布 / 下一版」序号） */
-export const APP_VERSION_PATCH = 63
+export const APP_VERSION_PATCH = 1
 
 export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
 
@@ -16,6 +16,15 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  * highlights 宜短句，便于页头问号弹窗快速阅读
  */
 export const VERSION_CHANGELOG = [
+  {
+    version: 'v3.1.1.1',
+    date: '2026-11-16',
+    highlights: [
+      '质量验评 WBS 目录树新增「模板导入」：支持下载导入模板、批量导入并逐行校验，导入结果展示成功与失败明细。',
+      '实体工程分解不再维护「检验批」，检验批统一由验评目录树维护，相关节点类型与展示口径同步收敛。',
+      '调度通知（后台）工作类型增加在用校验：已被单据使用的类型不可删除或改名。',
+    ],
+  },
   {
     version: 'v2.17.1.62',
     date: '2026-11-13',

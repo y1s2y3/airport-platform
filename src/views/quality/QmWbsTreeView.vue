@@ -39,6 +39,9 @@ import {
   allowedEntityChildTypes,
 } from '../../constants/wbsEntityLabels.js'
 import { normalizeWbsNodeCode, validateWbsNodeCode, wbsEntityCodeSpec } from '../../utils/wbsNodeCode.js'
+import { downloadWbsImportTemplate } from '../../utils/wbsImportTemplate.js'
+import { parseWbsImportFile } from '../../utils/wbsImportParser.js'
+import { importWbsRows } from '../../mock/wbsImport.js'
 import './qm-hq-stats.css'
 
 /** 实体工程分解同口径节点（单位～分项 + 实体分类）；检验批/专项不走此表单 */
@@ -79,6 +82,17 @@ function goBackToHQ() {
 const keyword = ref('')
 const expandRowKeys = ref([])
 const visible = ref(false)
+
+/** —— WBS 模板导入（验评目录树） —— */
+const importVisible = ref(false)
+const importParsing = ref(false)
+const importSubmitting = ref(false)
+const importFileName = ref('')
+const importUploadKey = ref(0)
+const importParsed = ref(null)
+const importResult = ref(null)
+const importErrorRows = computed(() => (importParsed.value?.errors || []).slice(0, 20))
+const importDetailRows = computed(() => (importResult.value?.details || []).slice(0, 50))
 /** 弹窗形态：entity=实体工程分解同口径；other=检验批/专项等原表单 */
 const dialogKind = ref('entity')
 const form = reactive({
@@ -423,6 +437,77 @@ function onCodeInput(val) {
   if (form.location_code !== next) form.location_code = next
 }
 
+/** —— WBS 模板导入 —— */
+function openWbsImport() {
+  if (!canMaintain.value) return ElMessage.warning('请切换到具体项目后再导入')
+  importVisible.value = true
+  importFileName.value = ''
+  importParsed.value = null
+  importResult.value = null
+  importUploadKey.value += 1
+}
+
+function onWbsTemplateDownload() {
+  downloadWbsImportTemplate()
+  ElMessage.success('已开始下载《WBS导入模板.xlsx》')
+}
+
+function onWbsImportFileReset() {
+  importFileName.value = ''
+  importParsed.value = null
+  importResult.value = null
+  importUploadKey.value += 1
+}
+
+async function onWbsImportFileChange(uploadFile) {
+  const raw = uploadFile?.raw
+  if (!raw) return
+  if (!/\.xlsx?$/i.test(raw.name || '')) {
+    ElMessage.error('仅支持 .xlsx 格式的 WBS 导入表')
+    onWbsImportFileReset()
+    return
+  }
+  importFileName.value = raw.name
+  importParsed.value = null
+  importResult.value = null
+  importParsing.value = true
+  try {
+    const buffer = await raw.arrayBuffer()
+    importParsed.value = parseWbsImportFile(buffer)
+  } catch {
+    ElMessage.error('文件读取失败，请重新选择')
+  } finally {
+    importParsing.value = false
+  }
+}
+
+function runWbsImport() {
+  const projectId = viewProjectId.value || scopeProjectId.value
+  const parsed = importParsed.value
+  if (!projectId) return ElMessage.warning('请先选择具体项目')
+  if (!parsed || parsed.fatal || !parsed.ok || !parsed.rows?.length) {
+    ElMessage.warning('请先上传通过校验的 WBS 导入表')
+    return
+  }
+  importSubmitting.value = true
+  try {
+    const result = importWbsRows(projectId, parsed.rows)
+    importResult.value = result
+    if (result.added > 0) {
+      ElMessage.success(`导入完成：新增 ${result.added} 行，跳过 ${result.skipped} 行，失败 ${result.failed} 行`)
+    } else if (result.failed > 0) {
+      ElMessage.error(`导入完成：失败 ${result.failed} 行`)
+    } else {
+      ElMessage.info('导入完成：数据均已存在，未新增节点')
+    }
+    expandRowKeys.value = collectQmInspectDefaultExpandKeys(buildQmInspectTableTree(projectId))
+  } catch (err) {
+    ElMessage.error(err?.message || '导入失败')
+  } finally {
+    importSubmitting.value = false
+  }
+}
+
 async function onRemove(row) {
   try {
     await ElMessageBox.confirm(`确认删除「${row.node_name}」？`, '删除节点', { type: 'warning' })
@@ -481,6 +566,9 @@ async function onRemove(row) {
           aria-label="筛选节点"
         />
         <span v-if="fromHq" class="toolbar-hint">指挥部层级仅可查看，不可维护</span>
+        <el-button v-if="canMaintain" type="primary" plain @click="openWbsImport">
+          WBS 模板导入
+        </el-button>
       </div>
 
       <el-table
@@ -552,6 +640,101 @@ async function onRemove(row) {
         </el-table-column>
       </el-table>
     </template>
+
+    <el-dialog v-model="importVisible" title="WBS 模板导入" width="780px" destroy-on-close>
+      <el-alert
+        type="info"
+        :closable="false"
+        show-icon
+        class="mb"
+        title="导入为增量追加：只新增系统不存在的节点，已存在按完整路径跳过，不修改、不删除任何已有节点；导入只读取模板第 2 个工作表「WBS导入表」。导入的检验批节点将直接进入本验评目录树。"
+      />
+      <div class="import-actions">
+        <el-button @click="onWbsTemplateDownload">下载模板</el-button>
+        <el-upload
+          :key="importUploadKey"
+          :auto-upload="false"
+          :show-file-list="false"
+          accept=".xlsx,.xls"
+          :on-change="onWbsImportFileChange"
+        >
+          <el-button type="primary" :loading="importParsing">
+            {{ importFileName ? '重新选择' : '上传 WBS 导入表' }}
+          </el-button>
+        </el-upload>
+        <span class="import-file">{{ importFileName || '未选择文件（仅支持 .xlsx）' }}</span>
+      </div>
+
+      <el-alert
+        v-if="importParsed && importParsed.fatal"
+        type="error"
+        :closable="false"
+        show-icon
+        :title="importParsed.fatal"
+      />
+
+      <template v-else-if="importParsed">
+        <el-descriptions :column="4" border size="small" class="import-stats">
+          <el-descriptions-item label="数据行">{{ importParsed.stats.totalRows }}</el-descriptions-item>
+          <el-descriptions-item label="校验通过">{{ importParsed.stats.validRows || 0 }}</el-descriptions-item>
+          <el-descriptions-item label="错误数">{{ importParsed.stats.errorCount }}</el-descriptions-item>
+          <el-descriptions-item label="校验结果">
+            <el-tag :type="importParsed.ok ? 'success' : 'danger'" size="small" effect="plain">
+              {{ importParsed.ok ? '通过' : '未通过' }}
+            </el-tag>
+          </el-descriptions-item>
+        </el-descriptions>
+
+        <template v-if="importErrorRows.length">
+          <p class="import-section-title">校验错误（最多显示前 20 条，整批不导入）</p>
+          <el-table :data="importErrorRows" border size="small" max-height="220">
+            <el-table-column prop="rowNo" label="行号" width="80" />
+            <el-table-column prop="column" label="列" width="150" />
+            <el-table-column prop="message" label="原因" min-width="260" show-overflow-tooltip />
+          </el-table>
+        </template>
+
+        <el-alert
+          v-if="importResult"
+          :type="importResult.failed ? 'warning' : 'success'"
+          :closable="false"
+          show-icon
+          class="mb"
+          :title="`导入完成：新增 ${importResult.added} 行 / 已存在跳过 ${importResult.skipped} 行 / 失败 ${importResult.failed} 行`"
+        />
+        <template v-if="importDetailRows.length">
+          <p class="import-section-title">导入明细（最多显示前 50 条）</p>
+          <el-table :data="importDetailRows" border size="small" max-height="220">
+            <el-table-column prop="rowNo" label="行号" width="70" />
+            <el-table-column prop="label" label="数据行" min-width="220" show-overflow-tooltip />
+            <el-table-column prop="action" label="结果" width="90">
+              <template #default="{ row }">
+                <el-tag
+                  size="small"
+                  effect="plain"
+                  :type="row.action === 'added' ? 'success' : row.action === 'failed' ? 'danger' : 'info'"
+                >
+                  {{ row.action === 'added' ? '新增' : row.action === 'failed' ? '失败' : '跳过' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="message" label="说明" min-width="180" show-overflow-tooltip />
+          </el-table>
+        </template>
+      </template>
+
+      <template #footer>
+        <el-button @click="importVisible = false">关闭</el-button>
+        <el-button
+          type="primary"
+          :disabled="!importParsed || !!importParsed.fatal || !importParsed.ok || !importParsed.rows?.length"
+          :loading="importSubmitting"
+          @click="runWbsImport"
+        >
+          开始导入
+        </el-button>
+      </template>
+    </el-dialog>
 
     <el-dialog v-model="visible" :title="form.id ? '编辑节点' : '新增节点'" width="560px" destroy-on-close>
       <!-- 实体工程（单位～分项 / 实体分类）：字段对齐实体工程分解 -->
@@ -737,4 +920,14 @@ async function onRemove(row) {
   align-items: center;
 }
 .specialty-tag { margin: 0; }
+.import-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+.import-file { font-size: 12px; color: #909399; }
+.import-stats { margin-bottom: 12px; }
+.import-section-title { margin: 12px 0 6px; font-size: 13px; color: #606266; }
 </style>

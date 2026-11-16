@@ -6,6 +6,8 @@ import { Plus, Edit, CircleClose, Promotion, Setting } from '@element-plus/icons
 import { TASK_WORK_SOURCES, buildProjects } from '../mock/data.js'
 import {
   getDispatchNoticeRecords,
+  getDispatchPenaltyRecords,
+  getDispatchReminderRecords,
   saveDispatchNoticeRecord,
   voidDispatchNoticeRecord,
   issueDispatchNoticeRecord,
@@ -24,7 +26,6 @@ import {
   taskWorkTypes,
   taskWorkTypeOptions,
   saveTaskWorkTypes,
-  DEFAULT_TASK_WORK_TYPES,
 } from '../config/screenshotTaskOrderFields.js'
 import { useCurrentProject } from '../../composables/useCurrentProject.js'
 import DispatchImageAttachments from '../components/DispatchImageAttachments.vue'
@@ -52,7 +53,7 @@ const formMode = ref('create')
 const current = ref(null)
 const form = ref(emptyNoticeRecord())
 const workTypeConfigVisible = ref(false)
-const workTypeDraft = ref([...taskWorkTypes.value])
+const workTypeDraft = ref(taskWorkTypes.value.map((item) => ({ value: item, original: item })))
 const workTypeConfigError = ref('')
 
 const projectOptions = buildProjects().map((p) => p.shortName || p.name)
@@ -217,39 +218,73 @@ function onStorage(event) {
 }
 
 /* ---------------- 配置工作类型（仅指挥部） ---------------- */
+/** 已有单据使用的工作类型：任务单 / 提示函 / 处罚单（含截图登记生成的单据）均计入 */
+const usedWorkTypes = computed(() => {
+  const used = new Set()
+  const collect = (rows) => {
+    ;(rows || []).forEach((row) => {
+      const value = String(row?.workType || '').trim()
+      if (value) used.add(value)
+    })
+  }
+  collect(list.value)
+  collect(getDispatchPenaltyRecords())
+  collect(getDispatchReminderRecords())
+  return used
+})
+
+function workTypeInUse(row) {
+  const key = String(row?.original || '').trim()
+  return !!key && usedWorkTypes.value.has(key)
+}
+
 function openWorkTypeConfig() {
   workTypeConfigError.value = ''
-  workTypeDraft.value = [...taskWorkTypes.value]
+  workTypeDraft.value = taskWorkTypes.value.map((item) => ({ value: item, original: item }))
   workTypeConfigVisible.value = true
 }
 
 function addWorkTypeRow() {
-  workTypeDraft.value.push('')
+  workTypeDraft.value.push({ value: '', original: '' })
 }
 
 function removeWorkTypeRow(index) {
+  const row = workTypeDraft.value[index]
+  if (workTypeInUse(row)) {
+    workTypeConfigError.value = `「${row.original}」已有单据使用，不可删除`
+    return
+  }
   workTypeDraft.value.splice(index, 1)
 }
 
 function applyWorkTypeConfig() {
-  const rows = workTypeDraft.value.map((item) => String(item ?? '').trim())
-  if (rows.some((item) => !item)) {
+  const values = workTypeDraft.value.map((row) => String(row?.value ?? '').trim())
+  if (values.some((item) => !item)) {
     workTypeConfigError.value = '工作类型不能为空，请填写或删除空行'
     return
   }
-  const unique = new Set(rows)
-  if (unique.size !== rows.length) {
+  const unique = new Set(values)
+  if (unique.size !== values.length) {
     workTypeConfigError.value = '工作类型不可重复'
     return
   }
-  saveTaskWorkTypes(rows)
+  // 已有单据使用的工作类型：不可删除、不可重命名（避免历史单据口径丢失）
+  for (const name of usedWorkTypes.value) {
+    if (!values.includes(name)) {
+      workTypeConfigError.value = `「${name}」已有单据使用，不可删除；如不再使用可保留该类型`
+      return
+    }
+  }
+  for (const row of workTypeDraft.value) {
+    const original = String(row?.original || '').trim()
+    if (original && usedWorkTypes.value.has(original) && String(row.value).trim() !== original) {
+      workTypeConfigError.value = `「${original}」已有单据使用，不可重命名；如需新增请另加一条`
+      return
+    }
+  }
+  saveTaskWorkTypes(values)
   workTypeConfigVisible.value = false
   ElMessage.success('工作类型已保存，任务单/截图/处罚单下拉即时生效')
-}
-
-function resetWorkTypeConfig() {
-  workTypeDraft.value = [...DEFAULT_TASK_WORK_TYPES]
-  workTypeConfigError.value = ''
 }
 
 watch(scopeProjectName, load)
@@ -428,15 +463,35 @@ onBeforeUnmount(() => { window.removeEventListener('coc-dispatch-meeting-change'
       </template>
     </el-dialog>
 
-    <el-dialog v-model="workTypeConfigVisible" title="配置工作类型" width="520px" class="dispatch-task-dialog work-type-config-dialog" align-center destroy-on-close>
+    <el-dialog v-model="workTypeConfigVisible" title="配置工作类型" width="560px" class="dispatch-task-dialog work-type-config-dialog" align-center destroy-on-close>
       <p class="work-type-config-tip">
-        工作类型全平台一份，指挥部统一维护；保存后任务单、截图登记、处罚单的下拉即时生效。删除工作类型不会修改历史单据上的原值。
+        工作类型全平台一份，指挥部统一维护；保存后任务单、截图登记、处罚单的下拉即时生效。
+        已有单据使用的工作类型不可删除、不可重命名（行内会标注并锁定），如需调整请新增一条。
       </p>
       <div class="work-type-config-list">
-        <div v-for="(item, index) in workTypeDraft" :key="index" class="work-type-config-row">
+        <div
+          v-for="(row, index) in workTypeDraft"
+          :key="row.original || `new-${index}`"
+          class="work-type-config-row"
+        >
           <span class="work-type-config-index">{{ index + 1 }}</span>
-          <el-input v-model="workTypeDraft[index]" maxlength="20" placeholder="请输入工作类型" aria-label="工作类型" />
-          <el-button link type="danger" :disabled="workTypeDraft.length <= 1" @click="removeWorkTypeRow(index)">删除</el-button>
+          <el-input
+            v-model="row.value"
+            maxlength="20"
+            placeholder="请输入工作类型"
+            aria-label="工作类型"
+            :disabled="workTypeInUse(row)"
+          />
+          <span v-if="workTypeInUse(row)" class="work-type-config-lock">已有单据使用</span>
+          <el-button
+            link
+            type="danger"
+            :disabled="workTypeInUse(row) || workTypeDraft.length <= 1"
+            :title="workTypeInUse(row) ? '已有单据使用该工作类型，不可删除' : ''"
+            @click="removeWorkTypeRow(index)"
+          >
+            删除
+          </el-button>
         </div>
         <el-empty v-if="!workTypeDraft.length" description="暂无工作类型，请新增一条" :image-size="60" />
       </div>
@@ -445,7 +500,6 @@ onBeforeUnmount(() => { window.removeEventListener('coc-dispatch-meeting-change'
         <div class="work-type-config-footer">
           <div>
             <el-button link type="primary" @click="addWorkTypeRow">+ 新增一条</el-button>
-            <el-button link @click="resetWorkTypeConfig">恢复默认</el-button>
           </div>
           <div>
             <el-button @click="workTypeConfigVisible = false">取消</el-button>
@@ -666,6 +720,13 @@ onBeforeUnmount(() => { window.removeEventListener('coc-dispatch-meeting-change'
   text-align: center;
   font-size: 13px;
   color: var(--el-text-color-secondary, #909399);
+}
+
+.work-type-config-lock {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--el-color-warning, #e6a23c);
+  white-space: nowrap;
 }
 
 .work-type-config-error {

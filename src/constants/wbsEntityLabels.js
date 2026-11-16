@@ -1,6 +1,5 @@
 /** 实体工程分解 / 施工部位管理 — 统一节点类型展示名（验评目录树用 qmInspect 内 WBS_TREE_NODE_TYPE_LABEL） */
-/** CR-09（2026-11-12）：实体工程分解页支持维护检验批（6） */
-export const ENTITY_BREAKDOWN_NODE_TYPES = [1, 2, 3, 4, 5, 6]
+export const ENTITY_BREAKDOWN_NODE_TYPES = [1, 2, 3, 4, 5]
 
 /** 父节点类型 → 本页允许创建的子 WBS 类型 */
 export const ENTITY_CHILD_TYPES_BY_PARENT = {
@@ -9,7 +8,6 @@ export const ENTITY_CHILD_TYPES_BY_PARENT = {
   2: [3],
   3: [4, 5],
   4: [5],
-  5: [6],
 }
 
 /** 当前节点类型 → 允许挂接的父节点类型（编辑反查） */
@@ -19,7 +17,6 @@ export const ENTITY_PARENT_TYPES_BY_CHILD = {
   3: [1, 2],
   4: [3],
   5: [3, 4],
-  6: [5],
 }
 
 export function allowedEntityChildTypes(parentType) {
@@ -36,7 +33,6 @@ export const WBS_ENTITY_TYPE_LABEL = {
   3: '分部工程',
   4: '子分部工程',
   5: '分项工程',
-  6: '检验批',
   9: '实体工程',
   loc: '施工部位',
 }
