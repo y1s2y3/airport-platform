@@ -17,7 +17,7 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
-    version: APP_VERSION,
+    version: 'v3.1.1.2',
     date: '2026-11-17',
     highlights: [
       '巡检分类统一为安全、质量、其他，质量A级支持五节点验收，安全、其他及质量B/C支持三节点整改闭环。',
