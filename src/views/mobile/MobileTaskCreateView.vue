@@ -1,4 +1,5 @@
 <script setup>
+import InspectionPersonMultiSelect from '../../components/InspectionPersonMultiSelect.vue'
 import { ref, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -7,8 +8,7 @@ import { createMobileRectificationsFromTask } from '../../composables/useMobileR
 import {
   INSPECTION_CATEGORIES,
   INSPECTION_TYPES,
-  HAZARD_CATEGORIES,
-  HAZARD_LEVELS,
+  validateInspectionHazard,
   buildInspectionTaskNo,
   formatInspectionCategories,
   resolveInspectionProjectId,
@@ -23,13 +23,15 @@ import { useCurrentProject } from '../../composables/useCurrentProject'
 import { COC_PROJECT_OPTIONS } from '../../config/projectOptions'
 import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
 
+import { useInspectionCategoryForm, useInspectionHazardOptions } from '../../composables/useInspectionCategoryForm'
+
 const router = useRouter()
 const { tasksBase } = useMobileRouteBase()
 const { selectedProjectId: currentProjectId, isHqSelected, headerProjectLabel } = useCurrentProject()
 
 const form = ref({
   inspectionCategories: ['安全'],
-  inspectionType: '值班检查',
+  inspectionType: INSPECTION_TYPES.includes('值班检查') ? '值班检查' : INSPECTION_TYPES[0] || '',
   inspDate: new Date().toISOString().slice(0, 10),
   project: '',
   isMajorHazardPatrol: '是',
@@ -43,6 +45,9 @@ const form = ref({
   // 每条隐患独立配置整改单，巡检单：隐患：整改单 = 1：n：n
   hazardItems: [],
 })
+
+const { selectedCategory } = useInspectionCategoryForm(form)
+const { hazardCategoryOptions, hazardLevelOptions } = useInspectionHazardOptions(selectedCategory, computed(() => form.value.hazardItems))
 
 /**
  * 所属项目可选范围：指挥部级可选全部项目；项目级直接带出当前项目且不允许选择。
@@ -71,13 +76,7 @@ const selectedProjectId = computed(() => projectOptions.value.find(item => item.
 const majorHazardOptions = computed(() => form.value.project ? getMajorHazardLedgerOptions(selectedProjectId.value) : [])
 
 function toggleInspectionCategory(category) {
-  const categories = form.value.inspectionCategories
-  const index = categories.indexOf(category)
-  if (index >= 0) {
-    if (categories.length > 1) categories.splice(index, 1)
-    return
-  }
-  categories.push(category)
+  selectedCategory.value = category
 }
 
 function chooseMajorHazard(ledgerId) {
@@ -94,8 +93,8 @@ function addCompanion() {
 }
 
 function addHazard() {
-  const defaultRectifier = getProjectRectifierLabel(form.value.project)
-  const defaultReviewer = getProjectReviewerLabel(form.value.project)
+  const defaultRectifier = getProjectRectifierLabel(form.value.project, selectedCategory.value)
+  const defaultReviewer = getProjectReviewerLabel(form.value.project, selectedCategory.value)
   form.value.hazardItems.push({
     hazardCategory: '',
     hazardLevel: '',
@@ -105,13 +104,14 @@ function addHazard() {
     rectifyPerson: defaultRectifier,
     reviewPerson: defaultReviewer,
     rectifyDeadline: '',
+    ccPersons: '',
   })
 }
 
 watch(() => form.value.project, project => {
   form.value.hazardItems.forEach(item => {
-    item.rectifyPerson = getProjectRectifierLabel(project)
-    item.reviewPerson = getProjectReviewerLabel(project)
+    item.rectifyPerson = getProjectRectifierLabel(project, selectedCategory.value)
+    item.reviewPerson = getProjectReviewerLabel(project, selectedCategory.value)
   })
   form.value.majorHazardLedgerId = ''
   form.value.majorHazardSourceId = ''
@@ -152,8 +152,8 @@ function triggerPhoto() {
 function removePhoto(i) { form.value.photos.splice(i, 1) }
 
 function submitInspection() {
-  if (!form.value.inspectionCategories.length) { ElMessage.warning('请选择至少一个巡检分类'); return }
-  if (!form.value.inspectionType) { ElMessage.warning('请选择检查类型'); return }
+  if (form.value.inspectionCategories.length !== 1) { ElMessage.warning('请选择一个巡检分类'); return }
+  if (!INSPECTION_TYPES.includes(form.value.inspectionType)) { ElMessage.warning('请选择检查类型'); return }
   if (!form.value.inspDate) { ElMessage.warning('请选择巡检日期'); return }
   if (!form.value.project) { ElMessage.warning('请选择所属项目'); return }
   if (form.value.isMajorHazardPatrol === '是' && !form.value.majorHazardLedgerId) {
@@ -168,6 +168,8 @@ function submitInspection() {
   if (form.value.result === 'hazard') {
     if (form.value.hazardItems.length === 0) { ElMessage.warning('请至少添加一条隐患'); return }
     for (const [i,item] of form.value.hazardItems.entries()) {
+      const dictionaryError = validateInspectionHazard(item, selectedCategory.value)
+      if (dictionaryError) { ElMessage.warning(`第 ${i + 1} 条隐患：${dictionaryError}`); return }
       if (!item.hazardCategory) { ElMessage.warning(`第 ${i+1} 条隐患请选择隐患类别`); return }
       if (!item.hazardLevel) { ElMessage.warning(`第 ${i+1} 条隐患请选择隐患等级`); return }
       if (!item.rectifyRequirement.trim()) { ElMessage.warning(`第 ${i+1} 条隐患请填写整改要求`); return }
@@ -205,6 +207,7 @@ function submitInspection() {
       rectifyPerson: item.rectifyPerson,
       reviewPerson: item.reviewPerson,
       rectifyDeadline: item.rectifyDeadline,
+      ccPersons: item.ccPersons || '',
     }
   })
   const rectifyCount = hazardItems.length
@@ -263,7 +266,7 @@ function goBack() { router.push(tasksBase.value) }
         <div class="form-row">
           <span class="form-label">巡检分类<span class="required-mark">*</span></span>
           <div class="form-tags">
-            <button v-for="category in INSPECTION_CATEGORIES" :key="category" class="tag-btn" :class="{ active: form.inspectionCategories.includes(category) }" @click="toggleInspectionCategory(category)">{{ category }}</button>
+            <button v-for="category in INSPECTION_CATEGORIES" :key="category" class="tag-btn" :class="{ active: selectedCategory === category }" @click="toggleInspectionCategory(category)">{{ category }}</button>
           </div>
         </div>
 
@@ -289,7 +292,7 @@ function goBack() { router.push(tasksBase.value) }
         </div>
         <div v-if="!isHqSelected" class="link-tip">项目级新建巡检任务自动带出所在项目，不可更改。</div>
 
-        <div class="form-row">
+        <div class="form-row form-row--stacked">
           <span class="form-label">危大工程现场巡视<span class="required-mark">*</span></span>
           <div class="form-tags">
             <button class="tag-btn" :class="{ active: form.isMajorHazardPatrol === '是' }" @click="form.isMajorHazardPatrol = '是'">是</button>
@@ -297,14 +300,14 @@ function goBack() { router.push(tasksBase.value) }
           </div>
         </div>
 
-        <div v-if="form.isMajorHazardPatrol === '是'" class="form-row">
+        <div v-if="form.isMajorHazardPatrol === '是'" class="form-row form-row--stacked">
           <span class="form-label">危大工程名称<span class="required-mark">*</span></span>
           <select :value="form.majorHazardLedgerId" class="form-input" :disabled="!form.project" @change="chooseMajorHazard($event.target.value)">
             <option value="" disabled>{{ form.project ? '请选择危大工程' : '请先选择项目' }}</option>
             <option v-for="item in majorHazardOptions" :key="item.id" :value="item.id">{{ item.label }}</option>
           </select>
         </div>
-        <div v-if="form.isMajorHazardPatrol === '是'" class="link-tip">完成巡检后将自动写入危大工程的现场巡视台账。</div>
+        <div v-if="form.isMajorHazardPatrol === '是'" class="link-tip link-tip--full">完成巡检后将自动写入危大工程的现场巡视台账。</div>
 
         <div class="form-row">
           <span class="form-label">执行人</span>
@@ -352,15 +355,15 @@ function goBack() { router.push(tasksBase.value) }
             <div class="form-row">
               <span class="form-label">隐患类别<span class="required-mark">*</span></span>
               <select v-model="item.hazardCategory" class="form-input">
-                <option value="" disabled>请选择隐患类别</option>
-                <option v-for="category in HAZARD_CATEGORIES" :key="category" :value="category">{{ category }}</option>
+                <option value="" disabled>{{ hazardCategoryOptions.length ? '请选择隐患类别' : '请先由指挥部配置此分类的隐患类别' }}</option>
+                <option v-for="option in hazardCategoryOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
               </select>
             </div>
             <div class="form-row">
               <span class="form-label">隐患等级<span class="required-mark">*</span></span>
               <select v-model="item.hazardLevel" class="form-input">
                 <option value="" disabled>请选择隐患等级</option>
-                <option v-for="level in HAZARD_LEVELS" :key="level" :value="level">{{ level }}</option>
+                <option v-for="level in hazardLevelOptions" :key="level" :value="level">{{ level }}</option>
               </select>
             </div>
             <div class="form-row">
@@ -384,17 +387,15 @@ function goBack() { router.push(tasksBase.value) }
               </div>
               <div class="form-row">
                 <span class="form-label">整改人<span class="required-mark">*</span></span>
-                <select v-model="item.rectifyPerson" class="form-input">
-                  <option value="" disabled>请选择整改人</option>
-                  <option v-for="p in personOptions" :key="p" :value="p">{{ p }}</option>
-                </select>
+                <InspectionPersonMultiSelect v-model="item.rectifyPerson" :options="personOptions" placeholder="请选择整改人（可多选）" />
               </div>
               <div class="form-row">
                 <span class="form-label">复查人<span class="required-mark">*</span></span>
-                <select v-model="item.reviewPerson" class="form-input">
-                  <option value="" disabled>请选择复查人</option>
-                  <option v-for="p in personOptions" :key="p" :value="p">{{ p }}</option>
-                </select>
+                <InspectionPersonMultiSelect v-model="item.reviewPerson" :options="personOptions" placeholder="请选择复核人（可多选）" />
+              </div>
+              <div class="form-row">
+                <span class="form-label">抄送人</span>
+                <InspectionPersonMultiSelect v-model="item.ccPersons" :options="personOptions" placeholder="请选择抄送人（选填，可多选）" aria-label="抄送人" />
               </div>
               <div class="form-row">
                   <span class="form-label">整改截止日期<span class="required-mark">*</span></span>
@@ -433,13 +434,18 @@ function goBack() { router.push(tasksBase.value) }
 .form-row:last-child { margin-bottom:0; }
 .form-label { color:#666; flex-shrink:0; width:72px; font-size:13px; padding-top:4px; }
 .required-mark { color:#e53935; margin-left:2px; font-weight:600; }
-.form-input { flex:1; padding:8px 10px; border:1px solid #ddd; border-radius:8px; font-size:13px; font-family:inherit; background:#fff; }
+.form-input { flex:1; min-width:0; box-sizing:border-box; padding:8px 10px; border:1px solid #ddd; border-radius:8px; font-size:13px; font-family:inherit; background:#fff; }
+.form-row--stacked { flex-direction:column; gap:8px; }
+.form-row--stacked .form-label { width:auto; padding-top:0; }
+.form-row--stacked .form-input { flex:auto; width:100%; max-width:100%; }
+.form-row--stacked .form-tags { flex:none; }
 .form-input:disabled { background:#f2f3f5; color:#606266; }
 .form-textarea { flex:1; padding:8px 10px; border:1px solid #ddd; border-radius:8px; font-size:13px; font-family:inherit; resize:none; background:#fff; }
 .form-tags { flex:1; display:flex; gap:6px; flex-wrap:wrap; }
 .tag-btn { padding:6px 14px; border:1px solid #ddd; border-radius:16px; background:#fff; font-size:13px; color:#666; cursor:pointer; }
 .tag-btn.active { background:#8f0045; color:#fff; border-color:#8f0045; }
 .link-tip { margin:-7px 0 12px 80px; font-size:11px; line-height:1.45; color:#8f0045; }
+.link-tip--full { margin-left:0; overflow-wrap:anywhere; }
 .photo-group { flex:1; display:flex; gap:6px; flex-wrap:wrap; }
 .photo-box { width:68px; height:68px; border:1px solid #ddd; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:11px; position:relative; background:#f0faf0; }
 .photo-del { position:absolute; top:2px; right:2px; width:18px; height:18px; border-radius:50%; border:none; background:rgba(0,0,0,0.4); color:#fff; font-size:10px; cursor:pointer; }

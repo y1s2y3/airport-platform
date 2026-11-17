@@ -1,83 +1,94 @@
-import { reactive } from 'vue'
-import {
-  DEFAULT_INSPECTOR_LABEL,
-  resolveInspectionProjectId,
-} from '../config/inspectionManagement'
-import {
-  getDemoInspectionPeople,
-  inspectionPeoplePool,
-} from '../mock/inspectionPeople'
+import { reactive, watch } from 'vue'
+import { DEFAULT_INSPECTOR_LABEL, INSPECTION_CATEGORIES, resolveInspectionProjectId } from '../config/inspectionManagement'
+import { getDemoInspectionPeople, inspectionPeoplePool } from '../mock/inspectionPeople'
 import { COC_PROJECT_OPTIONS } from '../config/projectOptions'
 
-export const inspectorCandidates = inspectionPeoplePool
-
-export const inspectionPersonConfigs = reactive(COC_PROJECT_OPTIONS.map(project => {
+export const inspectorCandidates = [
+  ...inspectionPeoplePool,
+  { id: 'quality-inspector', name: '郑工', role: '质量巡检人（监理）', phone: '138****8101' },
+  { id: 'quality-rectifier', name: '林工', role: '施工单位质量整改人', phone: '138****8102' },
+  { id: 'quality-contractor-manager', name: '许经理', role: '施工单位项目经理', phone: '138****8103' },
+  { id: 'quality-reviewer', name: '蒋工', role: '监理单位质量复核人', phone: '138****8104' },
+  { id: 'quality-director', name: '冯总监', role: '监理单位项目总监', phone: '138****8105' },
+  { id: 'quality-hq-manager', name: '邓经理', role: '指挥部项目经理', phone: '138****8106' },
+  ...COC_PROJECT_OPTIONS.map(project => ({ id: `manager-${project.id}`, name: getDemoInspectionPeople(project.id).manager, role: '项目经理', phone: '138****8000' })),
+]
+export const INSPECTION_PERSON_CONFIG_GROUPS = [
+  { value: '安全', label: '安全、其他' },
+  { value: '质量', label: '质量' },
+]
+const KEY = 'airport-inspection-person-config-shared-v3'
+const LEGACY_KEY = 'airport-inspection-person-config-by-category-v2'
+const personnelCategory = category => category === '其他' ? '安全' : category
+export function inspectionPersonIds(value) {
+  return [...new Set((Array.isArray(value) ? value : [value]).filter(Boolean))]
+}
+function normalizePeople(config) {
+  return { ...config, rectifierId: inspectionPersonIds(config.rectifierId), reviewerId: inspectionPersonIds(config.reviewerId) }
+}
+const defaults = COC_PROJECT_OPTIONS.flatMap(project => INSPECTION_PERSON_CONFIG_GROUPS.map(({ value: inspectionCategory }) => {
   const people = getDemoInspectionPeople(project.id)
+  const quality = inspectionCategory === '质量'
   return {
-    projectId: project.id,
-    manager: people.manager,
-    inspectorId: people.inspector.id,
-    rectifierId: people.rectifier.id,
-    reviewerId: people.reviewer.id,
+    projectId: project.id, inspectionCategory, manager: people.manager,
+    inspectorId: quality ? 'quality-inspector' : (project.id === 'p-004' ? '' : people.inspector.id),
+    rectifierId: quality ? 'quality-rectifier' : people.rectifier.id,
+    reviewerId: quality ? 'quality-reviewer' : people.reviewer.id,
+    managerId: quality ? 'quality-hq-manager' : `manager-${project.id}`,
+    contractorManagerId: quality ? 'quality-contractor-manager' : '',
+    directorId: quality ? 'quality-director' : '',
   }
 }))
-
-// 演示一条未配置巡检人的项目，供下发任务的置灰/前置条件场景使用。
-const unconfiguredInspectorProject = inspectionPersonConfigs.find(item => item.projectId === 'p-004')
-if (unconfiguredInspectorProject) unconfiguredInspectorProject.inspectorId = ''
-
-export function getInspectionPersonConfig(projectIdOrName) {
+try {
+  const saved = JSON.parse(localStorage.getItem(KEY) || localStorage.getItem(LEGACY_KEY) || 'null')
+  if (Array.isArray(saved)) for (const config of defaults) {
+    // 合并时优先沿用安全配置；仅有其他配置的项目使用其他配置，旧缓存保留以便核对。
+    const match = saved.find(item => item.projectId === config.projectId && item.inspectionCategory === config.inspectionCategory)
+      || (config.inspectionCategory === '安全' ? saved.find(item => item.projectId === config.projectId && item.inspectionCategory === '其他') : null)
+    if (match) Object.assign(config, match, { projectId: config.projectId, inspectionCategory: personnelCategory(match.inspectionCategory) })
+  }
+} catch { /* 保留初始配置。 */ }
+export const inspectionPersonConfigs = reactive(defaults.map(normalizePeople))
+watch(inspectionPersonConfigs, value => {
+  try { localStorage.setItem(KEY, JSON.stringify(value)) } catch { /* 会话内可继续使用。 */ }
+}, { deep: true, immediate: true })
+export function getInspectionPersonConfig(projectIdOrName, category = '安全') {
   const projectId = resolveInspectionProjectId(projectIdOrName)
-  return inspectionPersonConfigs.find(item => item.projectId === projectId)
+  return inspectionPersonConfigs.find(item => item.projectId === projectId && item.inspectionCategory === personnelCategory(category))
 }
-
-export function getInspectorById(id) {
-  return inspectorCandidates.find(item => item.id === id)
+export function getInspectorById(id) { return inspectorCandidates.find(item => item.id === id) }
+export function getConfiguredPersonLabel(project, category, field) {
+  return inspectionPersonIds(getInspectionPersonConfig(project, category)?.[field])
+    .map(getInspectorById).filter(Boolean).map(person => `${person.name}（${person.role}）`).join('、')
 }
-
-/** 巡检任务使用项目人员配置；兜底值仅用于异常数据展示。 */
-export function getProjectInspectorLabel(projectIdOrName) {
-  const config = getInspectionPersonConfig(projectIdOrName)
-  const person = getInspectorById(config?.inspectorId)
-  return person ? `${person.name}（${person.role}）` : DEFAULT_INSPECTOR_LABEL
+export function getProjectInspectorLabel(project, category = '安全') {
+  return getConfiguredPersonLabel(project, category, 'inspectorId') || DEFAULT_INSPECTOR_LABEL
 }
-
-export function hasCompleteInspectionPersonConfig(projectIdOrName) {
-  const config = getInspectionPersonConfig(projectIdOrName)
-  return Boolean(config?.inspectorId && config?.rectifierId && config?.reviewerId)
+export function getProjectRectifierLabel(project, category = '安全') {
+  return getConfiguredPersonLabel(project, category, 'rectifierId')
 }
-
-/** 下发任务选择项目时，巡检人是项目可选的前置条件。 */
-export function hasInspectionInspectorConfig(projectIdOrName) {
-  const config = getInspectionPersonConfig(projectIdOrName)
-  return Boolean(config?.inspectorId)
+export function getProjectReviewerLabel(project, category = '安全') {
+  return getConfiguredPersonLabel(project, category, 'reviewerId')
 }
-
-export function getProjectRectifierLabel(projectIdOrName) {
-  const config = getInspectionPersonConfig(projectIdOrName)
-  const person = getInspectorById(config?.rectifierId)
-  return person ? `${person.name}（${person.role}）` : ''
+export function getProjectApproverLabel(project, category = '安全') {
+  return getConfiguredPersonLabel(project, category, 'managerId')
 }
-
-export function getProjectReviewerLabel(projectIdOrName) {
-  const config = getInspectionPersonConfig(projectIdOrName)
-  const person = getInspectorById(config?.reviewerId)
-  return person ? `${person.name}（${person.role}）` : DEFAULT_INSPECTOR_LABEL
+export function hasCompleteInspectionPersonConfig(project, category = '安全') {
+  const config = getInspectionPersonConfig(project, category)
+  return Boolean(config?.inspectorId && inspectionPersonIds(config.rectifierId).length && inspectionPersonIds(config.reviewerId).length && config.managerId
+    && (category !== '质量' || (config.contractorManagerId && config.directorId)))
 }
-
-export function saveInspectionPersonConfig(projectId, data) {
-  const existing = getInspectionPersonConfig(projectId)
-  if (existing) {
-    Object.assign(existing, data)
-    return existing
-  }
-  const created = {
-    projectId,
-    manager: data.manager || '项目经理',
-    inspectorId: data.inspectorId || 'insp-supervisor',
-    rectifierId: data.rectifierId || '',
-    reviewerId: data.reviewerId || '',
-  }
+export function hasInspectionInspectorConfig(project, category = '安全') {
+  return Boolean(getInspectionPersonConfig(project, category)?.inspectorId)
+}
+export function saveInspectionPersonConfig(projectId, data, category = '安全') {
+  if (!INSPECTION_CATEGORIES.includes(category)) throw new Error('请选择有效巡检分类')
+  projectId = resolveInspectionProjectId(projectId)
+  const value = normalizePeople({ ...data, projectId, inspectionCategory: personnelCategory(category) })
+  if (category !== '质量') Object.assign(value, { contractorManagerId: '', directorId: '' })
+  const existing = getInspectionPersonConfig(projectId, category)
+  if (existing) { Object.assign(existing, value); return existing }
+  const created = value
   inspectionPersonConfigs.push(created)
   return created
 }

@@ -6,6 +6,13 @@ import { getMobileRectification, submitManagerApproval } from '../../composables
 import { formatInspectionCategories } from '../../config/inspectionManagement'
 import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
 
+import { workflowFlowRecords, workflowSteps } from '../../utils/inspectionRectificationWorkflow'
+
+function today() {
+ const date = new Date()
+ return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-')
+}
+
 const route = useRoute()
 const router = useRouter()
 const { rectifyBase } = useMobileRouteBase()
@@ -14,21 +21,13 @@ const missing = computed(() => !record.value)
 const inspectionCategoryLabel = computed(() =>
   formatInspectionCategories(record.value?.inspectionCategories || record.value?.inspectionCategory),
 )
-const approvalDate = ref('')
+const approvalDate = ref(today())
 const approvalComment = ref('')
+const approvalLabel = computed(() => workflowSteps(record.value).find(step => step.key === 'approval')?.label || '项目经理审批')
 const flowCollapsed = ref(false)
 onMounted(() => document.querySelector('.page-viewport')?.scrollTo({ top: 0 }))
 
-const flowRecords = computed(() => {
-  const row = record.value
-  if (!row) return []
-  return [
-    { action: '下发整改单', date: row.applyDate || '--' },
-    { action: '整改人提交整改结果', date: row.rectificationDate || row.submitDate || '--' },
-    { action: '复查人复查通过', date: row.reviewDate || row.applyDate || '--' },
-    { action: '待项目经理审批', date: '', current: true },
-  ]
-})
+const flowRecords = computed(() => workflowFlowRecords(record.value).map(item => ({ ...item, action: item.a, date: item.d, detail: item.dt, current: item.cur })))
 
 function displayPhotos(list) {
   if (!list?.length) return '--'
@@ -53,10 +52,10 @@ function handleApproval(pass) {
     approvalComment: approvalComment.value.trim(),
   })
   if (!ok) {
-    ElMessage.error('审批失败，未找到整改单')
+    ElMessage.error('提交失败，当前节点可能已变更，请返回列表刷新后重试')
     return
   }
-  ElMessage.success(pass ? '审批通过，整改流程已闭环' : '审批不通过，已退回复查人重新复查')
+  ElMessage.success(pass ? '审批通过，整改流程已闭环' : '审批不通过，已退回复核人重新复核')
   const tab = route.query.tab
   router.push(tab ? `${rectifyBase.value}?tab=${pass ? '已关闭' : '待验收'}` : rectifyBase.value)
 }
@@ -71,7 +70,7 @@ function goBack() {
   <div class="mp">
     <header class="mh">
       <button class="mb" @click="goBack">‹</button>
-      <h1 class="mt">项目经理审批</h1>
+      <h1 class="mt">{{ approvalLabel }}</h1>
     </header>
 
     <div v-if="missing" class="empty-tip">未找到该整改单，请返回列表重试。</div>
@@ -81,10 +80,12 @@ function goBack() {
         <div class="info-title">⚠ {{ record.rectifyNo }}</div>
         <div class="info-meta">巡检任务单编号：{{ record.taskNo || '--' }}</div>
         <div class="info-meta">巡检分类：{{ inspectionCategoryLabel || '--' }}</div>
+        <div class="info-meta">截止日期：{{ record.deadline || '--' }}</div>
+        <div class="info-meta">状态：{{ record.status || '--' }}</div>
         <div class="info-meta">{{ record.project || '--' }}</div>
         <div class="people-row">
           <span>整改人：{{ record.rectifier || '--' }}</span>
-          <span>复查人：{{ record.reviewer || '--' }}</span>
+          <span>复核人：{{ record.reviewer || '--' }}</span>
         </div>
       </div>
 
@@ -99,22 +100,26 @@ function goBack() {
             <div class="flow-content">
               <strong>{{ item.action }}</strong>
               <span>{{ item.date || '待处理' }}</span>
+              <span>处理人：{{ item.by || '--' }}</span>
+              <span v-if="item.detail" class="flow-detail">{{ item.detail }}</span>
             </div>
           </div>
         </div>
       </div>
 
       <div class="section">
-        <div class="section-title">隐患与整改复查结果</div>
+        <div class="section-title">隐患与整改复核结果</div>
         <div class="info-row"><span>隐患类别</span><p>{{ record.hazardCategory || '安全管理' }}</p></div>
         <div class="info-row"><span>隐患等级</span><p>{{ record.hazardLevel || '未设置' }}</p></div>
         <div class="info-row"><span>整改要求</span><p style="white-space:pre-wrap">{{ record.rectifyRequirement || '未填写' }}</p></div>
         <div class="info-row"><span>隐患说明</span><p>{{ record.hazard || '--' }}</p></div>
+        <div class="info-row"><span>隐患照片</span><p>{{ displayPhotos(record.hazardPhotos) }}</p></div>
         <div class="info-row"><span>整改日期</span><p>{{ record.rectificationDate || record.submitDate || '--' }}</p></div>
         <div class="info-row"><span>整改照片</span><p>{{ displayPhotos(record.rectificationPhotos) }}</p></div>
         <div class="info-row"><span>整改说明</span><p>{{ record.rectificationNote || '--' }}</p></div>
-        <div class="info-row"><span>复查结果</span><p :class="{ 'pass-text': record.reviewResult === '通过' }">{{ record.reviewResult || '--' }}</p></div>
-        <div class="info-row"><span>复查意见</span><p>{{ record.reviewComment || '--' }}</p></div>
+        <div class="info-row"><span>复核日期</span><p>{{ record.reviewDate || '--' }}</p></div>
+        <div class="info-row"><span>复核结果</span><p :class="{ 'pass-text': record.reviewResult === '通过' }">{{ record.reviewResult || '--' }}</p></div>
+        <div class="info-row"><span>复核意见</span><p>{{ record.reviewComment || '--' }}</p></div>
       </div>
 
       <div class="section approval-card">
@@ -128,7 +133,7 @@ function goBack() {
           <textarea v-model="approvalComment" rows="3" placeholder="请输入审批意见..." />
         </label>
         <div class="actions">
-          <button class="reject" @click="handleApproval(false)">不通过，退回复查</button>
+          <button class="reject" @click="handleApproval(false)">不通过，退回复核</button>
           <button class="pass" @click="handleApproval(true)">通过并关闭</button>
         </div>
       </div>
@@ -156,7 +161,7 @@ function goBack() {
 .flow-item:last-child::before { display:none; }
 .flow-dot { width:13px; height:13px; margin-top:2px; border-radius:50%; background:#34a853; flex:none; }
 .flow-item.current .flow-dot { background:#8f0045; box-shadow:0 0 0 3px #fceef4; }
-.flow-content { flex:1; display:flex; justify-content:space-between; gap:8px; font-size:12px; }
+.flow-content { flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; font-size:12px; overflow-wrap:anywhere; }
 .flow-content strong { color:#333; font-size:13px; }
 .flow-content span { color:#999; }
 .info-row { display:flex; gap:8px; margin-bottom:8px; font-size:13px; line-height:1.6; }

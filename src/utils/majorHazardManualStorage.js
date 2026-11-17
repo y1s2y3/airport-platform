@@ -402,7 +402,7 @@ function migratePatrolTaskLinks(data, projectId) {
     const links = new Map((ledger.patrolRecords || []).filter((link) => link.inspectionTaskId).map((link) => [link.inspectionTaskId, link]))
     const addLink = (task) => {
       if (!task?.id) return
-      if (!getMobileInspectionTask(task.id)) retainPatrolInspectionTask(task)
+      if (!getMobileInspectionTask(task.id)) retainPatrolInspectionTask(task, { initialization: true })
       links.set(task.id, { id: 'mh-patrol-' + task.id, inspectionTaskId: task.id })
     }
     ;(ledger.parts || []).forEach((part) => {
@@ -497,71 +497,34 @@ function cleanDemoText(value) {
   return value
 }
 
+
+let initializationFallback = null
+let fallbackStorageSource = null
 function readAll() {
   try {
-    const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
+    const raw = localStorage.getItem(STORAGE_KEY) || '{}'
+    if (initializationFallback && raw === fallbackStorageSource) return clone(initializationFallback)
+    initializationFallback = null
+    const data = JSON.parse(raw)
     if (localStorage.getItem(DEMO_WORDING_FLAG)) return data
-    localStorage.setItem(DEMO_WORDING_FLAG, '1')
-    const cleaned = cleanDemoText(data)
-    if (JSON.stringify(cleaned) !== JSON.stringify(data)) {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(cleaned))
-      } catch {
-        // 配额不足时跳过清洗回写，不阻断页面读取
-      }
-    }
-    return cleaned
+    try { localStorage.setItem(DEMO_WORDING_FLAG, '1') } catch { /* 配额不足不影响读取 */ }
+    return cleanDemoText(data)
   } catch {
     return {}
   }
 }
 
-/**
- * 删除没有任何业务数据的示例项目数据，用于浏览器本地存储配额不足时腾出空间。
- * 仅删除「无危大辨识、无清单、无方案、未播种示例」的空壳项目；
- * keepProjectId（当前正在写入的项目）绝不删除，避免写入目标被清掉后读取报错。
- */
-function pruneEmptyProjects(data, keepProjectId = '') {
-  let removed = 0
-  Object.keys(data || {}).forEach((projectId) => {
-    if (keepProjectId && projectId === keepProjectId) return
-    const item = data[projectId]
-    if (!item || typeof item !== 'object') return
-    const hasBusinessData =
-      (item.identifications || []).length ||
-      (item.ledgers || []).length ||
-      (item.plans || []).length ||
-      item.demoSeeded ||
-      Object.keys(item.alertActions || {}).length
-    if (hasBusinessData) return
-    delete data[projectId]
-    removed += 1
-  })
-  return removed
-}
-
-function writeAll(data, keepProjectId = '') {
-  let payload = data
+function writeAll(data, { initialization = false } = {}) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+    initializationFallback = null
   } catch (error) {
-    // 浏览器 localStorage 配额不足：清理无业务数据的示例项目后重试一次，仍失败则降级为只读不抛错
-    const removed = pruneEmptyProjects(payload, keepProjectId)
-    if (removed > 0) {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
-        console.warn(`[危大工程] 本地存储空间不足，已清理 ${removed} 个空示例项目的缓存后重试成功。`)
-        window.dispatchEvent(new CustomEvent(MAJOR_HAZARD_CHANGE_EVENT))
-        return true
-      } catch {
-        /* 继续走降级 */
-      }
-    }
-    console.warn(
-      '[危大工程] 本地存储空间不足，本次数据未写入；可清理浏览器中其他模块的演示数据后重试。',
-      error?.name || '',
-    )
-    return false
+    // 自动补示例和迁移不能阻断首页渲染；保留原缓存，临时数据仅在本次会话使用。
+    // 用户主动保存仍抛出错误，避免把未持久化的数据误报为已保存。
+    if (!initialization || !['QuotaExceededError', 'NS_ERROR_DOM_QUOTA_REACHED', 'SecurityError'].includes(error?.name)) throw error
+    fallbackStorageSource = localStorage.getItem(STORAGE_KEY) || '{}'
+    initializationFallback = clone(data)
+    return
   }
   window.dispatchEvent(new CustomEvent(MAJOR_HAZARD_CHANGE_EVENT))
   return true
@@ -622,10 +585,10 @@ function readProject(projectId) {
   }
 }
 
-function writeProject(projectId, data) {
+function writeProject(projectId, data, options) {
   const all = readAll()
   all[projectId] = data
-  writeAll(all, projectId)
+  writeAll(all, options)
 }
 
 function upsert(items, item) {
@@ -638,11 +601,11 @@ export function ensureMajorHazardData(projectId) {
   const all = readAll()
   if (!all[projectId]) {
     all[projectId] = blankData(projectId)
-    writeAll(all, projectId)
+    writeAll(all, { initialization: true })
   } else if (DEMO_PROJECT_IDS.has(projectId) && !all[projectId].demoSeeded && !(all[projectId].identifications || []).length && !(all[projectId].ledgers || []).length && !(all[projectId].plans || []).length) {
     const demo = buildDemoBusinessData(projectId)
     all[projectId] = { ...all[projectId], ...demo, demoSeeded: true }
-    writeAll(all, projectId)
+    writeAll(all, { initialization: true })
   } else {
     let changed = false
     if (all[projectId].standardLibraryVersion !== STANDARD_LIBRARY_VERSION) {
@@ -657,10 +620,10 @@ export function ensureMajorHazardData(projectId) {
       changed = true
     }
     if (all[projectId].demoSeeded && backfillDemoWbsParts(all[projectId])) changed = true
-    if (changed) writeAll(all, projectId)
+    if (changed) writeAll(all, { initialization: true })
   }
-  if (migrateDemoProcessRecords(all[projectId], projectId)) writeAll(all, projectId)
-  if (migratePatrolTaskLinks(all[projectId], projectId)) writeAll(all, projectId)
+  if (migrateDemoProcessRecords(all[projectId], projectId)) writeAll(all, { initialization: true })
+  if (migratePatrolTaskLinks(all[projectId], projectId)) writeAll(all, { initialization: true })
   return readProject(projectId)
 }
 
@@ -1083,7 +1046,7 @@ export function getCalendarAlerts(projectId, data, ledgerRows = buildLedgerRows(
     data.alertActions[alert.id] = { ...previous, occurredAt: firstSeenAt }
     changed = true
   })
-  if (changed) writeProject(projectId, data)
+  if (changed) writeProject(projectId, data, { initialization: true })
   return alerts.map((alert) => ({ ...alert, occurredAt: data.alertActions[alert.id].occurredAt }))
 }
 

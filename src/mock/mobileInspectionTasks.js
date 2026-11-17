@@ -11,6 +11,10 @@ import {
 import { inspectionTaskSeeds } from './inspectionDemoData'
 import { syncInspectionTaskToMajorHazard } from '../utils/inspectionMajorHazardLink'
 
+const taskListeners = new Set()
+export function registerInspectionTaskListener(listener) { taskListeners.add(listener) }
+function notifyTask(task) { for (const listener of taskListeners) listener(task) }
+
 const seedTasks = [
   {
     id: 'mt-000',
@@ -176,17 +180,19 @@ export function normalizeInspectionTask(task = {}) {
 
 // 现场巡视仍由巡检模块持有原单；危大清单只保存任务引用。
 const PATROL_TASK_ARCHIVE_KEY = 'airport-inspection-patrol-tasks-v1'
+const initializationPatrolFallback = new Map()
 function readPatrolTaskArchive() {
   try {
     const saved = JSON.parse(localStorage.getItem(PATROL_TASK_ARCHIVE_KEY) || '[]')
-    return Array.isArray(saved) ? saved.filter((task) => task?.id) : []
+    return [...new Map([...(Array.isArray(saved) ? saved.filter((task) => task?.id) : []), ...initializationPatrolFallback.values()].map(task => [task.id, task])).values()]
   } catch { return [] }
 }
+export const inspectionSeedTaskIds = new Set([...seedTasks, ...inspectionTaskSeeds].map(task => task.id))
 const taskEntries = new Map([...seedTasks, ...inspectionTaskSeeds, ...readPatrolTaskArchive()].map((task) => [task.id, normalizeInspectionTask(task)]))
 export const mobileInspectionTasks = reactive([...taskEntries.values()])
 
 /** 保留原巡检单供刷新后查看；历史内联原单只在任务不存在时恢复，不覆盖现行单据。 */
-export function retainPatrolInspectionTask(task) {
+export function retainPatrolInspectionTask(task, { initialization = false } = {}) {
   if (!task?.id) return null
   let stored = getMobileInspectionTask(task.id)
   if (!stored) {
@@ -195,7 +201,13 @@ export function retainPatrolInspectionTask(task) {
   }
   const archive = new Map(readPatrolTaskArchive().map((item) => [item.id, item]))
   archive.set(stored.id, JSON.parse(JSON.stringify(stored)))
-  localStorage.setItem(PATROL_TASK_ARCHIVE_KEY, JSON.stringify([...archive.values()]))
+  try {
+    localStorage.setItem(PATROL_TASK_ARCHIVE_KEY, JSON.stringify([...archive.values()]))
+    initializationPatrolFallback.clear()
+  } catch (error) {
+    if (!initialization || !['QuotaExceededError', 'NS_ERROR_DOM_QUOTA_REACHED', 'SecurityError'].includes(error?.name)) throw error
+    initializationPatrolFallback.set(stored.id, JSON.parse(JSON.stringify(stored)))
+  }
   return stored
 }
 
@@ -211,6 +223,7 @@ export function addMobileInspectionTask(task) {
   const item = normalizeInspectionTask(task)
   mobileInspectionTasks.unshift(item)
   syncInspectionTaskToMajorHazard(item)
+  notifyTask(item)
   return item
 }
 
@@ -221,6 +234,7 @@ export function updateMobileInspectionTask(id, patch) {
   Object.assign(target, normalizeInspectionTask({ ...target, ...patch }))
   if (target.isMajorHazardPatrol === '是' || readPatrolTaskArchive().some((item) => item.id === target.id)) retainPatrolInspectionTask(target)
   syncInspectionTaskToMajorHazard(target)
+  notifyTask(target)
   return target
 }
 
@@ -231,5 +245,6 @@ export function updateMobileInspectionTaskByNo(taskNo, patch) {
   Object.assign(target, normalizeInspectionTask({ ...target, ...patch }))
   if (target.isMajorHazardPatrol === '是' || readPatrolTaskArchive().some((item) => item.id === target.id)) retainPatrolInspectionTask(target)
   syncInspectionTaskToMajorHazard(target)
+  notifyTask(target)
   return target
 }

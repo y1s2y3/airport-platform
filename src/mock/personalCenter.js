@@ -44,8 +44,10 @@ import {
   runWithoutBizToWarningCenterSync,
 } from './warningCenterBizHook.js'
 import { INSPECTION_DEMO_TODAY, inspectionHazards } from './inspectionDemoData.js'
-import { mobileInspectionTasks } from './mobileInspectionTasks.js'
-import { submitRectification } from '../composables/useMobileRectification.js'
+import { mobileInspectionTasks, registerInspectionTaskListener, inspectionSeedTaskIds } from './mobileInspectionTasks.js'
+import { submitRectification, registerInspectionWorkflowListener, mobileRectificationRecords, ensureInspectionWorkflowExamples } from '../composables/useMobileRectification.js'
+import { workflowSteps, currentWorkflowStep, rectificationProcessName, workflowFlowRecords, workflowApprovalRecords } from '../utils/inspectionRectificationWorkflow.js'
+import { canExecuteInspectionStep } from '../utils/inspectionWorkflowIdentity'
 import {
   applyMajorHazardWarningDispose,
   createMajorHazardIdentificationTodo as createMajorHazardIdentificationTodoCore,
@@ -85,7 +87,7 @@ export const NOTICE_MODULE_OPTIONS = [
   '机械设备监管',
   '系统通知',
 ]
-export const INSPECTION_BIZ_TYPE_OPTIONS = ['巡检', '整改', '复查', '审批']
+export const INSPECTION_BIZ_TYPE_OPTIONS = ['巡检', '整改', '施工验收', '复查', '总监验收', '审批']
 
 /** 处罚单待办业务状态 */
 export const PENALTY_TODO_STATUS = {
@@ -1136,13 +1138,12 @@ function buildInspectionExample(bizType, listType, index) {
   }
 }
 
-const inspectionTodoExamples = INSPECTION_BIZ_TYPE_OPTIONS.map((type, index) =>
-  buildInspectionExample(type, 'todo', index),
-)
-const inspectionDoneExamples = INSPECTION_BIZ_TYPE_OPTIONS.map((type, index) =>
+// 任务执行示例统一使用下方三个真实任务，避免额外的静态待办重复出现。
+const inspectionTodoExamples = []
+const inspectionDoneExamples = ['巡检'].map((type, index) =>
   buildInspectionExample(type, 'done', index),
 )
-const inspectionStartedExamples = INSPECTION_BIZ_TYPE_OPTIONS.map((type, index) =>
+const inspectionStartedExamples = ['巡检'].map((type, index) =>
   buildInspectionExample(type, 'started', index),
 )
 
@@ -2413,6 +2414,20 @@ export function markWarningCenterDisposed(laborWarningId, handler = '张明') {
 
 /** 抄送我的 */
 export const personalCc = reactive([
+  ...(() => {
+    const record = mobileRectificationRecords.find(item => item.id === 'inspection-example-safety-approval')
+    if (!record) return []
+    return [{
+      id: 'inspection-rectification-cc-example',
+      type: 'inspection_rectification_cc', inspectionCopyExample: true,
+      sourceLabel: '巡检管理', category: '巡检管理', bizType: '整改单抄送',
+      processName: '隐患整改·整改单抄送示例',
+      rectifyId: record.id, projectName: record.project,
+      applicant: record.inspector, readStatus: '未读',
+      applyTime: record.issuedAt, endTime: record.closeDate || '',
+      detail: JSON.parse(JSON.stringify(record)),
+    }]
+  })(),
   {
     id: 'cc-1',
     type: 'qm_inspect',
@@ -2462,7 +2477,7 @@ export const personalCc = reactive([
 ])
 
 export function findPersonalTodo(id) {
-  return personalTodoStore.todos.find((item) => item.id === id && taskProcessVisible(item, dispatchTaskOperator())) || null
+  return personalTodoStore.todos.find((item) => item.id === id && taskProcessVisible(item, dispatchTaskOperator()) && canExecuteInspectionStep(item.detail, item.expectedWorkflowStage)) || null
 }
 
 /** 同步危大工程管理异常到预警中心 */
@@ -2605,6 +2620,7 @@ export function finishPersonalTodo(id, handleLabel) {
     eqEntryId: row.eqEntryId,
     laborWarningId: row.laborWarningId,
     inspectionBizType: row.inspectionBizType,
+    inspectionTaskId: row.inspectionTaskId,
     rectifyId: row.rectifyId,
     approvalFlow: flow,
   })
@@ -4262,3 +4278,118 @@ queueMicrotask(() => {
 
 // 与既有单据同步解耦，避免存储模块反向依赖个人中心。
 queueMicrotask(() => installDispatchTaskPersonalCenter(personalTodoStore))
+
+/** 新产生的巡检整改单按实际节点同步个人中心，不影响其他业务待办。 */
+function syncInspectionWorkflowTodo(record, handledStep = null) {
+  for (const recipient of String(record.ccPersons || '').split('、').filter(Boolean)) {
+    const id = `inspection-rectification-cc-${record.id}-${recipient}`
+    let copied = personalCc.find(item => item.id === id)
+    if (!copied) {
+      copied = { id, type: 'inspection_rectification_cc', sourceLabel: '巡检管理', category: '巡检管理', bizType: '整改单抄送', rectifyId: record.id, recipient, readStatus: '未读', applyTime: record.issuedAt || record.applyDate }
+      personalCc.unshift(copied)
+    }
+    Object.assign(copied, { processName: `隐患整改·${record.rectifyNo}`, projectName: record.project, applicant: record.inspector || record.applicant, detail: JSON.parse(JSON.stringify(record)) })
+  }
+  const related = personalTodoStore.todos.filter(item => item.liveInspectionWorkflow && item.rectifyId === record.id)
+  for (const item of related) {
+    if (handledStep?.assignment) {
+      personalTodoStore.todos.splice(personalTodoStore.todos.indexOf(item), 1)
+      continue
+    }
+    item.detail = JSON.parse(JSON.stringify(record))
+    item.approvalFlow = inspectionWorkflowHistory(record)
+    finishPersonalTodo(item.id, handledStep?.label || '已流转')
+  }
+  const step = currentWorkflowStep(record)
+  if (record.exampleHidden) return
+  const detail = JSON.parse(JSON.stringify(record))
+  const flow = inspectionWorkflowHistory(record)
+  const base = { type: 'inspection', sourceLabel: '巡检管理', category: '巡检管理', rectifyId: record.id, liveInspectionWorkflow: true, processName: record.rectifyProcessName || `隐患整改·${record.hazard}`, applicant: record.applicant, dept: record.project, applyTime: record.applyDate, detail, approvalFlow: flow }
+  if (step) personalTodoStore.todos.unshift({ ...base, id: `inspection-live-${record.id}-${record.workflowHistory?.length || 0}`, bizType: step.biz, inspectionBizType: step.biz, expectedWorkflowStage: step.key, assignee: step.actor })
+  let started = personalStarted.find(item => item.liveInspectionWorkflow && item.rectifyId === record.id)
+  if (!started) { started = { ...base, id: `inspection-started-${record.id}` }; personalStarted.unshift(started) }
+  Object.assign(started, base, { inspectionBizType: step?.biz || '审批', status: step ? '审批中' : '已通过', endTime: record.closeDate || '' })
+}
+registerInspectionWorkflowListener(syncInspectionWorkflowTodo)
+
+/** 进入或搜索原型示例时补齐可办理节点，避免指派后缺失及热更新期间投影遗漏。 */
+export function ensurePersonalInspectionExamples() {
+  for (const record of ensureInspectionWorkflowExamples()) {
+    const stage = currentWorkflowStep(record)?.key
+    if (!personalTodoStore.todos.some(item => item.liveInspectionWorkflow && item.rectifyId === record.id && item.expectedWorkflowStage === stage)) syncInspectionWorkflowTodo(record)
+  }
+}
+
+function inspectionWorkflowHistory(record) {
+  return workflowApprovalRecords(record)
+}
+
+/** 巡检任务与两端共用同一任务身份，完成后同步待办、已办与发起记录。 */
+function syncInspectionTaskTodo(task) {
+  if (task.source !== '任务下发') return
+  const completed = task.status === '已完成'
+  const detail = JSON.parse(JSON.stringify({ ...task, inspectionResult: task.result || '', inspectionDate: task.inspectionDate || task.inspDate || '' }))
+  const base = {
+    type: 'inspection', sourceLabel: '巡检管理', category: '巡检管理',
+    inspectionBizType: '巡检', bizType: '巡检', inspectionTaskId: task.id,
+    businessNo: task.taskNo, processName: `巡检任务·${task.taskName || task.taskNo}`,
+    applicant: task.createdBy || '系统', assignee: task.executor || task.inspector,
+    dept: task.project, applyTime: task.createdAt || '', detail,
+    approvalFlow: [{ title: '巡检任务执行', user: task.executor || task.inspector, time: completed ? task.submittedAt || '' : '', remark: completed ? '巡检已完成' : '', status: completed ? 'done' : 'current' }],
+  }
+  const pending = personalTodoStore.todos.find(item => item.inspectionTaskId === task.id && item.inspectionBizType === '巡检')
+  if (pending) {
+    Object.assign(pending, base)
+    if (completed) finishPersonalTodo(pending.id, '完成巡检')
+  } else if (!completed) {
+    personalTodoStore.todos.unshift({ ...base, id: `inspection-task-${task.id}` })
+  }
+  let started = personalStarted.find(item => item.inspectionTaskId === task.id && item.inspectionBizType === '巡检')
+  if (!started) { started = { id: `inspection-task-started-${task.id}` }; personalStarted.unshift(started) }
+  Object.assign(started, base, { status: completed ? '已通过' : '审批中', endTime: completed ? task.submittedAt || '' : '' })
+}
+registerInspectionTaskListener(syncInspectionTaskTodo)
+const personalInspectionTaskExampleIds = new Set(['mt-001', 'mt-demo-000-1', 'mt-demo-000-2'])
+for (const task of mobileInspectionTasks.filter(item => item.status !== '已完成'
+  && (!inspectionSeedTaskIds.has(item.id) || personalInspectionTaskExampleIds.has(item.id)))) syncInspectionTaskTodo(task)
+
+// 待办、已办、发起各保留八种节点示例；已办使用独立的已完成快照。
+for (const record of mobileRectificationRecords.filter(item => item.workflowExample || item.workflowAssignees)) {
+  syncInspectionWorkflowTodo(record)
+  if (!record.workflowExample || record.exampleHidden) continue
+  const steps = workflowSteps(record)
+  const step = currentWorkflowStep(record)
+  if (!step) continue
+  const completed = JSON.parse(JSON.stringify(record))
+  completed.id = 'inspection-completed-snapshot-' + record.id
+  const date = String(record.applyDate || record.issuedAt).slice(0, 10)
+  const comment = {
+    rectify: '已按整改要求完成现场处理，整改照片和复测资料已提交。',
+    contractorAcceptance: '施工单位项目经理已核验整改资料及现场情况，验收通过。',
+    review: '监理已现场复查整改结果，复查通过。',
+    directorAcceptance: '项目总监已核验监理复核资料及现场整改情况，验收通过。',
+    approval: '整改资料及前序验收结论齐全，同意通过并关闭整改单。',
+  }[step.key]
+  completed[step.date] = date
+  completed[step.note] = comment
+  if (step.result) completed[step.result] = '通过'
+  if (step.key === 'rectify') {
+    completed.rectificationPhotos = ['整改完成现场.jpg', '复测记录.jpg']
+    completed.submitDate = date
+  }
+  completed.workflowHistory.push({ stage: step.key, label: step.label, actor: step.actor, date, comment, result: '通过' })
+  const next = steps[steps.findIndex(item => item.key === step.key) + 1]
+  completed.status = next?.status || '已关闭'
+  completed.currentNode = next?.label || '流程结束'
+  completed.closeDate = next ? '' : date
+  personalTodoStore.done.push({
+    id: 'inspection-example-done-' + record.id + '-' + step.key,
+    type: 'inspection', sourceLabel: '巡检管理', category: '巡检管理',
+    bizType: step.biz, inspectionBizType: step.biz, rectifyId: completed.id,
+    sourceRectifyId: record.id, inspectionCompletedExample: true,
+    processName: rectificationProcessName(record, step.key),
+    applicant: record.inspector, assignee: step.actor, dept: record.project,
+    applyTime: record.issuedAt, handleTime: date, handleLabel: step.label + '已处理', endTime: completed.closeDate,
+    detail: completed, approvalFlow: workflowApprovalRecords(completed),
+  })
+}

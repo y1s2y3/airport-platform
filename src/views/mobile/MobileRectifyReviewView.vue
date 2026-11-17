@@ -1,50 +1,57 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { canExecuteInspectionStep } from '../../utils/inspectionWorkflowIdentity'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { getMobileRectification, submitRectificationReview } from '../../composables/useMobileRectification'
+import { getMobileRectification, submitInspectionWorkflowStep } from '../../composables/useMobileRectification'
 import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
+
+import { workflowFlowRecords, currentWorkflowStep, workflowSteps, isAcceptanceStage } from '../../utils/inspectionRectificationWorkflow'
+
+function today() {
+ const date = new Date()
+ return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-')
+}
 
 const route = useRoute()
 const router = useRouter()
 const { rectifyBase } = useMobileRouteBase()
-const rid = route.params.id
+const rid = computed(() => route.params.id)
 
-const record = computed(() => getMobileRectification(rid))
+const record = computed(() => getMobileRectification(rid.value))
 const missing = computed(() => !record.value)
+const assignmentRevision = ref(record.value?.workflowAssignmentRevision || 0)
+const canHandle = computed(() => canExecuteInspectionStep(record.value, expectedStage.value))
+const expectedStage = ref('')
+watch(rid, () => {
+  assignmentRevision.value = record.value?.workflowAssignmentRevision || 0
+  const stage = currentWorkflowStep(record.value)?.key
+  expectedStage.value = ['contractorAcceptance', 'review', 'directorAcceptance'].includes(stage) ? stage : ''
+}, { immediate: true })
+const actionStep = computed(() => workflowSteps(record.value).find(step => step.key === expectedStage.value))
+const actionLabel = computed(() => actionStep.value?.label || '复核')
+const actionInputLabel = computed(() => ({ contractorAcceptance: '施工验收', review: '监理复核', directorAcceptance: '总监验收' })[expectedStage.value] || '复核')
+
+/** 进入总监验收/审批等后续节点时，把上一环“监理复核”的结论单独展示出来 */
+const reviewRecord = computed(() => {
+  const row = record.value
+  if (!row) return null
+  if (!(row.reviewDate || row.reviewComment || row.reviewResult)) return null
+  return {
+    reviewer: row.reviewer || '',
+    date: row.reviewDate || '',
+    result: row.reviewResult || '通过',
+    comment: row.reviewComment || '',
+  }
+})
 
 const flowCollapsed = ref(false)
 const reviewComment = ref('')
-const reviewDate = ref('')
+const acceptanceStage = computed(() => isAcceptanceStage(expectedStage.value))
+const reviewDate = ref(today())
 onMounted(() => document.querySelector('.page-viewport')?.scrollTo({ top: 0 }))
 
-const flowRecords = computed(() => {
-  const row = record.value
-  if (!row) return []
-  if (row.isSecondRound) {
-    return [
-      { a: '下发整改单', d: row.applyDate || '--' },
-      { a: '整改人提交整改结果', d: '--' },
-      { a: '复查不通过，退回继续整改', d: '--', dt: row.rejectReason || '整改不彻底' },
-      { a: '整改人重新提交整改结果', d: row.rectificationDate || row.submitDate || '--' },
-      { a: '待监理复查', d: '', cur: true },
-    ]
-  }
-  if (row.approvalRejected) {
-    return [
-      { a: '下发整改单', d: '--' },
-      { a: '整改人提交整改结果', d: row.rectificationDate || row.submitDate || '--' },
-      { a: '复查人复查通过，提交项目经理审批', d: row.reviewDate || '--' },
-      { a: '项目经理审批不通过，退回复查', d: row.approvalDate || '--', dt: row.approvalReason },
-      { a: '复查人重新复查', d: '', cur: true },
-    ]
-  }
-  return [
-    { a: '下发整改单', d: row.applyDate || '--' },
-    { a: '整改人提交整改结果', d: row.rectificationDate || row.submitDate || '--' },
-    { a: '待监理复查', d: '', cur: true },
-  ]
-})
+const flowRecords = computed(() => workflowFlowRecords(record.value))
 
 function displayPhotos(list) {
   if (!list?.length) return '--'
@@ -53,30 +60,27 @@ function displayPhotos(list) {
 
 function handleReview(pass) {
   if (missing.value) {
-    ElMessage.error('未找到整改单，无法复查')
+    ElMessage.error('未找到整改单，无法复核')
     return
   }
-  if (!reviewComment.value.trim()) {
-    ElMessage.warning('请输入复查意见')
+  if ((!pass || !acceptanceStage.value) && !reviewComment.value.trim()) {
+    ElMessage.warning(`请输入${actionLabel.value}意见`)
     return
   }
   if (!reviewDate.value) {
-    ElMessage.warning('请选择复查日期')
+    ElMessage.warning(`请选择${actionLabel.value}日期`)
     return
   }
-  const ok = submitRectificationReview(rid, pass, {
-    reviewDate: reviewDate.value,
-    reviewComment: reviewComment.value.trim(),
+  const ok = submitInspectionWorkflowStep(rid.value, expectedStage.value, pass, {
+    assignmentRevision: assignmentRevision.value,
+    date: reviewDate.value,
+    comment: reviewComment.value.trim(),
   })
   if (!ok) {
-    ElMessage.error('复查提交失败，未找到整改单')
+    ElMessage.error('提交失败，当前节点可能已变更，请返回列表刷新后重试')
     return
   }
-  ElMessage.success(
-    pass
-      ? '复查通过，状态已更新为“待复查”，已流转至项目经理审批'
-      : '复查不通过，已退回整改人重新整改',
-  )
+  ElMessage.success(pass ? `处理通过，已流转至${record.value.currentNode}` : `处理不通过，已退回${record.value.currentNode}`)
   const tab = route.query.tab
   router.push(tab ? `${rectifyBase.value}?tab=${tab}` : rectifyBase.value)
 }
@@ -91,25 +95,28 @@ function goBack() {
   <div class="mp">
     <header class="mh">
       <button class="mb" @click="goBack">‹</button>
-      <h1 class="mt">整改复查</h1>
+      <h1 class="mt">{{ actionLabel }}</h1>
     </header>
 
     <div v-if="missing" class="empty-tip">未找到该整改单，请返回列表重试。</div>
 
     <template v-else>
+      <div v-if="!canHandle" class="empty-tip">任务已指派给其他人员，你无法继续执行。</div>
       <div class="ib">
         <div class="ibn"><span class="ibn-label">整改单编号：</span>{{ record.rectifyNo }}</div>
         <div class="ibm"><span class="ibm-label">巡检任务单编号：</span><span class="ibm-value">{{ record.taskNo || '--' }}</span></div>
         <div class="ibm"><span class="ibm-label">巡检分类：</span><span class="ibm-value">{{ record.inspectionCategory || '--' }}</span></div>
+        <div class="ibm"><span class="ibm-label">截止日期：</span><span class="ibm-value">{{ record.deadline || '--' }}</span></div>
+        <div class="ibm"><span class="ibm-label">状态：</span><span class="ibm-value">{{ record.status || '--' }}</span></div>
         <div class="ibm"><span class="ibm-label">项目名称：</span><span class="ibm-value">{{ record.project || '--' }}</span></div>
         <div class="ibm"><span class="ibm-label">整改人：</span><span class="ibm-value">{{ record.rectifier || '--' }}</span></div>
-        <div class="ibm"><span class="ibm-label">复查人：</span><span class="ibm-value">{{ record.reviewer || '--' }}</span></div>
+        <div class="ibm"><span class="ibm-label">复核人：</span><span class="ibm-value">{{ record.reviewer || '--' }}</span></div>
       </div>
 
       <div v-if="record.approvalRejected" class="approval-reject-tip">
         <strong>项目经理审批不通过</strong>
         <span>{{ record.approvalReason || '--' }}</span>
-        <small>请复查人重新核验并提交审批</small>
+        <small>请复核人重新核验并提交审批</small>
       </div>
 
       <div class="sc">
@@ -125,6 +132,7 @@ function goBack() {
                 <span class="fa">{{ f.a }}</span>
                 <span class="fd2">{{ f.d || '待处理' }}</span>
               </div>
+              <span class="fd2">处理人：{{ f.by || '--' }}</span>
               <span v-if="f.dt" class="fdl">{{ f.dt }}</span>
             </div>
           </div>
@@ -146,16 +154,26 @@ function goBack() {
         </div>
       </div>
 
+      <div v-if="reviewRecord" class="sc">
+        <div class="sct">监理复核记录</div>
+        <div class="ic">
+          <div class="ir"><span class="il">复核人</span><span>{{ reviewRecord.reviewer || '--' }}</span></div>
+          <div class="ir"><span class="il">复核日期</span><span>{{ reviewRecord.date || '--' }}</span></div>
+          <div class="ir"><span class="il">复核结果</span><span :class="reviewRecord.result === '通过' ? 'pass' : 'fail'">{{ reviewRecord.result || '--' }}</span></div>
+          <div class="ir"><span class="il">复核意见</span><span>{{ reviewRecord.comment || '--' }}</span></div>
+        </div>
+      </div>
+
       <div class="sc review">
-        <div class="sct">复查意见</div>
-        <div class="fr"><span class="fl-label">复查日期 <i class="req">*</i></span><input type="date" v-model="reviewDate" class="fi-input" /></div>
+        <div class="sct">{{ actionLabel }}意见</div>
+        <div class="fr"><span class="fl-label">{{ actionInputLabel }}日期 <i class="req">*</i></span><input type="date" v-model="reviewDate" class="fi-input" /></div>
         <div class="fr">
-          <span class="fl-label">复查意见 <i class="req">*</i></span>
-          <textarea v-model="reviewComment" class="fta" placeholder="请输入复查意见..." rows="3"></textarea>
+          <span class="fl-label">{{ actionInputLabel }}意见 <i v-if="!acceptanceStage" class="req">*</i></span>
+          <textarea v-model="reviewComment" class="fta" :placeholder="acceptanceStage ? `${actionLabel}意见（通过选填，不通过必填）` : `请输入${actionLabel}意见`" rows="3"></textarea>
         </div>
         <div class="ra">
-          <button class="ab reject" @click="handleReview(false)">❌ 不通过</button>
-          <button class="ab pass" @click="handleReview(true)">✅ 通过</button>
+          <button class="ab reject" :disabled="!canHandle" @click="handleReview(false)">❌ 不通过</button>
+          <button class="ab pass" :disabled="!canHandle" @click="handleReview(true)">✅ 通过</button>
         </div>
       </div>
     </template>
@@ -186,6 +204,8 @@ function goBack() {
 .ic { background:#fafafa; border-radius:8px; padding:12px; margin-bottom:8px; }
 .ir { display:flex; gap:6px; font-size:13px; line-height:1.6; margin-bottom:4px; }
 .il { color:#999; flex-shrink:0; width:68px; }
+.pass { color:#34a853; font-weight:600; }
+.fail { color:#e53935; font-weight:600; }
 .ir > span:last-child { flex:1; min-width:0; word-break:break-word; }
 .dv { height:1px; background:#eee; margin:8px 0; }
 
@@ -210,7 +230,7 @@ function goBack() {
 .fc-row { display:flex; justify-content:space-between; align-items:baseline; width:100%; }
 .fa { font-size:13px; color:#1f2329; font-weight:500; }
 .fd2 { font-size:12px; color:#999; flex-shrink:0; }
-.fdl { font-size:11px; color:#e53935; background:#ffebee; padding:2px 8px; border-radius:4px; display:inline-block; }
+.fdl { font-size:11px; color:#606266; background:#f5f7fa; padding:2px 8px; border-radius:4px; display:inline-block; }
 .fi.cur .fa { color:#8f0045; }
 .fi.cur .fd2 { color:#f5a623; }
 </style>

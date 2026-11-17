@@ -1,4 +1,4 @@
-import { reactive, computed } from 'vue'
+import { reactive, computed, watch } from 'vue'
 import {
   buildInspectionTaskNo,
   DEFAULT_INSPECTOR_LABEL,
@@ -11,6 +11,7 @@ import { addMobileInspectionTask, listMobileInspectionTasks, updateMobileInspect
 import { COC_PROJECT_OPTIONS } from '../config/projectOptions'
 import { inspectionTaskSeeds } from '../mock/inspectionDemoData'
 import { getProjectInspectorLabel } from './useInspectionPersonConfig'
+import { mergeInspectionCheckItemExamples } from '../mock/inspectionCheckItemExamples.js'
 
 // ========== 项目列表 ==========
 export const projectOptions = COC_PROJECT_OPTIONS.map(project => ({
@@ -38,7 +39,7 @@ export function getUserLabel(id) {
 }
 
 // ========== 检查分类 & 检查项（最多二级） ==========
-export const checkCategoryTree = [
+export const checkCategoryTree = reactive([
   {
     id: 'cat-1', label: '安全管理行为', inspectionCategory: '安全',
     items: [
@@ -150,7 +151,30 @@ export const checkCategoryTree = [
       { id: 'item-q2-3', label: '隐蔽工程验收记录是否完整' },
     ],
   },
-]
+])
+const CHECK_ITEMS_KEY = 'airport-inspection-check-items-v1'
+const CHECK_ITEM_EXAMPLES_KEY = 'airport-inspection-check-item-examples-v2'
+let restoredCheckItems = false
+try {
+  const saved = JSON.parse(localStorage.getItem(CHECK_ITEMS_KEY) || 'null')
+  if (Array.isArray(saved) && saved.every(item => Array.isArray(item.items) && item.inspectionCategory)) {
+    checkCategoryTree.splice(0, checkCategoryTree.length, ...saved)
+    restoredCheckItems = true
+  }
+} catch { /* 保留默认检查项。 */ }
+// 升级时给旧缓存补一次示例；用户后续编辑、删除的示例不会因刷新再次恢复。
+let shouldAddExamples = !restoredCheckItems
+try { shouldAddExamples ||= localStorage.getItem(CHECK_ITEM_EXAMPLES_KEY) !== '1' } catch { shouldAddExamples = true }
+if (shouldAddExamples) {
+  checkCategoryTree.splice(0, checkCategoryTree.length, ...mergeInspectionCheckItemExamples(checkCategoryTree))
+  try {
+    localStorage.setItem(CHECK_ITEMS_KEY, JSON.stringify(checkCategoryTree))
+    localStorage.setItem(CHECK_ITEM_EXAMPLES_KEY, '1')
+  } catch { /* 无存储权限时仍展示本次会话的示例。 */ }
+}
+watch(checkCategoryTree, value => {
+  try { localStorage.setItem(CHECK_ITEMS_KEY, JSON.stringify(value)) } catch { /* 会话内仍可使用。 */ }
+}, { deep: true })
 
 export function getCategoryLabel(id) {
   const c = checkCategoryTree.find(c => c.id === id)
@@ -272,7 +296,7 @@ function getSelectedProjects(plan) {
 
 function createMobileTask(plan, project, taskNo, itemCount, index = 0) {
   addMobileInspectionTask({
-    id: `mt-${Date.now()}-${index}`,
+    id: `mt-${crypto.randomUUID()}`,
     taskNo,
     taskName: plan.name,
     source: '任务下发',
@@ -292,8 +316,8 @@ function createMobileTask(plan, project, taskNo, itemCount, index = 0) {
     projectIds: [project.id],
     projectId: project.id,
     project_id: project.id,
-    executor: getProjectInspectorLabel(project.id) || DEFAULT_INSPECTOR_LABEL,
-    inspector: getProjectInspectorLabel(project.id) || DEFAULT_INSPECTOR_LABEL,
+    executor: getProjectInspectorLabel(project.id, plan.inspectionCategory) || DEFAULT_INSPECTOR_LABEL,
+    inspector: getProjectInspectorLabel(project.id, plan.inspectionCategory) || DEFAULT_INSPECTOR_LABEL,
     companions: [],
     deadline: plan.deadlineDate,
     inspectionDate: '',
@@ -360,8 +384,8 @@ export function updatePlan(id, data) {
       project: primaryProject.label,
       projectId: primaryProject.id,
       project_id: primaryProject.id,
-      executor: getProjectInspectorLabel(primaryProject.id) || DEFAULT_INSPECTOR_LABEL,
-      inspector: getProjectInspectorLabel(primaryProject.id) || DEFAULT_INSPECTOR_LABEL,
+      executor: getProjectInspectorLabel(primaryProject.id, item.inspectionCategory) || DEFAULT_INSPECTOR_LABEL,
+      inspector: getProjectInspectorLabel(primaryProject.id, item.inspectionCategory) || DEFAULT_INSPECTOR_LABEL,
       deadline: item.deadlineDate,
       itemCount: item.checkConfig.reduce((sum, config) => sum + config.itemIds.length, 0),
       checkConfig: item.checkConfig.map(config => ({ categoryId: config.categoryId, itemIds: [...config.itemIds] })),

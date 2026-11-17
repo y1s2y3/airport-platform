@@ -1,9 +1,17 @@
 <script setup>
+import { canExecuteInspectionStep } from '../../utils/inspectionWorkflowIdentity'
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getMobileRectification, submitRectification } from '../../composables/useMobileRectification'
 import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
+
+import { workflowFlowRecords } from '../../utils/inspectionRectificationWorkflow'
+
+function today() {
+ const date = new Date()
+ return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-')
+}
 
 const route = useRoute()
 const router = useRouter()
@@ -12,8 +20,10 @@ const rid = route.params.id
 
 const record = computed(() => getMobileRectification(rid))
 const missing = computed(() => !record.value)
+const assignmentRevision = ref(record.value?.workflowAssignmentRevision || 0)
+const canHandle = computed(() => canExecuteInspectionStep(record.value, 'rectify'))
 
-const rectDate = ref('')
+const rectDate = ref(today())
 const rectPhotos = ref([])
 const rectNote = ref('')
 const flowCollapsed = ref(false)
@@ -24,28 +34,13 @@ onMounted(() => {
   if (!row) return
   // 重新整改时回显上一轮提交内容
   if (row.isRejected && (row.rectificationDate || row.rectificationNote || row.rectificationPhotos?.length)) {
-    rectDate.value = row.rectificationDate || ''
+    rectDate.value = row.rectificationDate || today()
     rectPhotos.value = [...(row.rectificationPhotos || [])]
     rectNote.value = row.rectificationNote || ''
   }
 })
 
-const flowRecords = computed(() => {
-  const row = record.value
-  if (!row) return []
-  if (row.isRejected) {
-    return [
-      { a: '下发整改单', d: row.applyDate || '--' },
-      { a: '整改人提交整改结果', d: row.rectificationDate || row.submitDate || '--' },
-      { a: '复查不通过，退回继续整改', d: row.reviewDate || '--', dt: row.rejectReason || row.reviewComment || '复查不通过' },
-      { a: '等待整改人重新整改', d: '', cur: true },
-    ]
-  }
-  return [
-    { a: '下发整改单', d: row.applyDate || '--' },
-    { a: '等待整改人执行', d: '', cur: true },
-  ]
-})
+const flowRecords = computed(() => workflowFlowRecords(record.value))
 
 function triggerPhoto() {
   const input = document.createElement('input')
@@ -80,15 +75,16 @@ function submitRectify() {
     return
   }
   const ok = submitRectification(rid, {
+    assignmentRevision: assignmentRevision.value,
     rectificationDate: rectDate.value,
     rectificationNote: rectNote.value.trim(),
     rectificationPhotos: [...rectPhotos.value],
   })
   if (!ok) {
-    ElMessage.error('提交失败，未找到整改单')
+    ElMessage.error('提交失败，当前节点可能已变更，请返回列表刷新后重试')
     return
   }
-  ElMessage.success('整改结果已提交，已流转至复查人复查')
+  ElMessage.success(`整改结果已提交，已流转至${record.value.currentNode}`)
   const tab = route.query.tab
   router.push(tab ? `${rectifyBase.value}?tab=${tab}` : rectifyBase.value)
 }
@@ -114,13 +110,15 @@ function displayPhotos(list) {
     <div v-if="missing" class="empty-tip">未找到该整改单，请返回列表重试。</div>
 
     <template v-else>
+      <div v-if="!canHandle" class="empty-tip">任务已指派给其他人员，你无法继续执行。</div>
       <div class="task-bar">
         <div class="tbn">⚠ {{ record.rectifyNo }}</div>
         <div class="tbi"><span class="tbi-label">巡检任务单编号：</span><span class="tbi-value">{{ record.taskNo || '--' }}</span></div>
         <div class="tbi"><span class="tbi-label">巡检分类：</span><span class="tbi-value">{{ record.inspectionCategory || '--' }}</span></div>
         <div class="tbi"><span class="tbi-label">项目名称：</span><span class="tbi-value">{{ record.project || '--' }}</span></div>
         <div class="tbi"><span class="tbi-label">整改人：</span><span class="tbi-value">{{ record.rectifier || '--' }}</span></div>
-        <div class="tbi"><span class="tbi-label">复查人：</span><span class="tbi-value">{{ record.reviewer || '--' }}</span></div>
+        <div class="tbi"><span class="tbi-label">复核人：</span><span class="tbi-value">{{ record.reviewer || '--' }}</span></div>
+        <div class="tbi"><span class="tbi-label">状态：</span><span class="tbi-value">{{ record.status || '--' }}</span></div>
         <div class="tbi"><span class="tbi-label">截止日期：</span><span class="tbi-value">{{ record.deadline || '--' }}</span></div>
       </div>
 
@@ -137,6 +135,7 @@ function displayPhotos(list) {
                 <span class="fa">{{ f.a }}</span>
                 <span class="fd2">{{ f.d || '进行中' }}</span>
               </div>
+              <span class="fd2">处理人：{{ f.by || '--' }}</span>
               <span v-if="f.dt" class="fdl">{{ f.dt }}</span>
             </div>
           </div>
@@ -166,7 +165,7 @@ function displayPhotos(list) {
       </div>
 
       <div class="bb">
-        <button class="sb" @click="submitRectify">✓ 提交整改结果</button>
+        <button class="sb" :disabled="!canHandle" @click="submitRectify">✓ 提交整改结果</button>
       </div>
     </template>
   </div>
@@ -214,7 +213,7 @@ function displayPhotos(list) {
 .fc-row { display:flex; justify-content:space-between; align-items:baseline; width:100%; }
 .fa { font-size:13px; color:#1f2329; font-weight:500; }
 .fd2 { font-size:12px; color:#999; flex-shrink:0; }
-.fdl { font-size:11px; color:#e53935; background:#ffebee; padding:2px 8px; border-radius:4px; display:inline-block; }
+.fdl { font-size:11px; color:#606266; background:#f5f7fa; padding:2px 8px; border-radius:4px; display:inline-block; }
 .fi.cur .fa { color:#8f0045; font-weight:600; }
 
 .bb { position:sticky; bottom:0; background:#fff; border-top:1px solid #eee; padding:10px 16px; padding-bottom:calc(10px+env(safe-area-inset-bottom,0)); }

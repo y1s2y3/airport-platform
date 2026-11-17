@@ -1,18 +1,31 @@
 <script setup>
+import { canExecuteInspectionStep } from '../../../utils/inspectionWorkflowIdentity'
+import InspectionPersonMultiSelect from '../../../components/InspectionPersonMultiSelect.vue'
 import { computed, reactive, ref, toRef, watch } from 'vue'
 import DispatchImageAttachments from '../../../coc/components/DispatchImageAttachments.vue'
 import { userOptions, getUserLabel, checkCategoryTree, getItemLabel } from '../../../composables/useInspectionPlan.js'
-import { HAZARD_CATEGORIES, HAZARD_LEVELS, normalizeInspectionCategories, resolveInspectionProjectId } from '../../../config/inspectionManagement.js'
+import { validateInspectionHazard, normalizeInspectionCategories, resolveInspectionProjectId } from '../../../config/inspectionManagement.js'
 import { COC_PROJECT_OPTIONS } from '../../../config/projectOptions.js'
 import { getMajorHazardLedgerOptions } from '../../../utils/inspectionMajorHazardLink.js'
 import { usePersonalTodoSubmit } from '../composables/usePersonalTodoSubmit.js'
 import '../styles/todoHandleBlocks.css'
+import { inspectorCandidates, getProjectRectifierLabel, getProjectReviewerLabel } from '../../../composables/useInspectionPersonConfig'
+import { getMobileRectification } from '../../../composables/useMobileRectification'
+import { currentWorkflowStep } from '../../../utils/inspectionRectificationWorkflow'
+
+import { useInspectionHazardOptions } from '../../../composables/useInspectionCategoryForm'
+
+const inspectionPersonOptions = inspectorCandidates.map(person => `${person.name}（${person.role}）`)
 
 const props = defineProps({
   todo: { type: Object, required: true },
   todoId: { type: String, default: '' },
   isReadonly: { type: Boolean, default: false },
 })
+
+const assignmentRecord = computed(() => getMobileRectification(props.todo.rectifyId))
+const assignmentStage = computed(() => props.todo.expectedWorkflowStage)
+const canHandleAssignment = computed(() => canExecuteInspectionStep(assignmentRecord.value, assignmentStage.value))
 
 const emit = defineEmits(['back'])
 
@@ -32,8 +45,8 @@ function createHazardItem() {
     rectifyRequirement: '',
     desc: '',
     photos: [],
-    rectifier: '',
-    reviewer: '',
+    rectifier: getProjectRectifierLabel(props.todo?.detail?.project, props.todo?.detail?.inspectionCategory || '安全'),
+    reviewer: getProjectReviewerLabel(props.todo?.detail?.project, props.todo?.detail?.inspectionCategory || '安全'),
     rectifyDeadline: '',
   }
 }
@@ -55,6 +68,9 @@ const inspectionForm = reactive({
   // 隐患可多条：与移动端「新增隐患项」一致
   hazardItems: [createHazardItem()],
 })
+
+const taskCategory = computed(() => normalizeInspectionCategories(props.todo?.detail?.inspectionCategories || props.todo?.detail?.inspectionCategory).join('、'))
+const { hazardCategoryOptions, hazardLevelOptions } = useInspectionHazardOptions(taskCategory, computed(() => inspectionForm.hazardItems))
 
 /** 本次巡视项目：下发任务只带一个项目；保留多项目任务的兼容分支（与移动端一致） */
 const patrolProjectOptions = computed(() => {
@@ -104,10 +120,20 @@ const inspectionActionMeta = computed(() => {
     巡检: { title: '巡检处理', remarkLabel: '巡检结果', pass: '完成巡检', reject: '退回任务' },
     整改: { title: '整改处理', remarkLabel: '整改说明', pass: '提交整改', reject: '退回' },
     复查: { title: '复查处理', remarkLabel: '复查意见', pass: '复查通过', reject: '复查不通过' },
+    施工验收: { title: '施工单位项目经理验收', remarkLabel: '施工单位验收意见', pass: '验收通过', reject: '验收不通过' },
+    总监验收: { title: '监理单位项目总监验收', remarkLabel: '总监验收意见', pass: '验收通过', reject: '验收不通过' },
     审批: { title: '项目经理审批', remarkLabel: '审批意见', pass: '审批通过', reject: '审批不通过' },
+  }
+  const step = currentWorkflowStep(getMobileRectification(props.todo?.rectifyId))
+  if (step && props.todo?.liveInspectionWorkflow) {
+    const action = { rectify: '整改', contractorAcceptance: '施工验收', review: '复核', directorAcceptance: '总监验收', approval: '审批' }[step.key]
+    return { title: step.label, remarkLabel: action + (step.key === 'rectify' ? '说明' : '意见'), pass: '通过', reject: '不通过' }
   }
   return map[type] || map.巡检
 })
+const processDateLabel = computed(() => ({ 整改: '整改日期', 复查: '复核日期', 施工验收: '施工验收日期', 总监验收: '总监验收日期' })[props.todo.inspectionBizType] || '审批日期')
+// 两类验收通过时意见可不填；其余节点仍必填。
+const remarkRequired = computed(() => !(['施工验收', '总监验收'].includes(props.todo?.inspectionBizType) && inspectionForm.decision === 'pass'))
 
 const personalCheckTree = computed(() => {
   const detail = props.todo?.detail || {}
@@ -293,31 +319,9 @@ function onSubmit() {
       class="inspection-detail-block"
     >
       <div class="inspection-section-title">复查信息</div>
-      <div v-if="todo.detail?.reviewDate" class="inspection-kv">
-        <span>复查日期</span><b>{{ todo.detail.reviewDate }}</b>
-      </div>
-      <div v-if="todo.detail?.reviewResult" class="inspection-kv">
-        <span>复查结果</span><b class="inspection-pass-text">{{ todo.detail.reviewResult }}</b>
-      </div>
-      <div v-if="todo.detail?.reviewComment" class="inspection-kv">
-        <span>复查意见</span><b>{{ todo.detail.reviewComment }}</b>
-      </div>
-    </div>
-    <div v-if="todo.detail?.manager" class="inspection-detail-block">
-      <div class="inspection-section-title">项目经理审批</div>
-      <div class="inspection-kv"><span>审批人</span><b>{{ todo.detail.manager }}</b></div>
-      <div class="inspection-kv">
-        <span>审批状态</span>
-        <b>{{
-          todo.detail?.approvalResult || (todo.detail.status === '已关闭' ? '通过' : '审批中')
-        }}</b>
-      </div>
-      <div v-if="todo.detail?.approvalDate" class="inspection-kv">
-        <span>审批日期</span><b>{{ todo.detail.approvalDate }}</b>
-      </div>
-      <div v-if="todo.detail?.approvalComment" class="inspection-kv">
-        <span>审批意见</span><b>{{ todo.detail.approvalComment }}</b>
-      </div>
+      <div v-if="todo.detail?.reviewDate" class="inspection-kv"><span>复查日期</span><b>{{ todo.detail.reviewDate }}</b></div>
+      <div v-if="todo.detail?.reviewResult" class="inspection-kv"><span>复查结果</span><b>{{ todo.detail.reviewResult }}</b></div>
+      <div v-if="todo.detail?.reviewComment" class="inspection-kv"><span>复查意见</span><b>{{ todo.detail.reviewComment }}</b></div>
     </div>
     <div v-if="todo.detail?.checkItems?.length" class="inspection-detail-block">
       <div class="inspection-section-title">检查项</div>
@@ -384,6 +388,7 @@ function onSubmit() {
   </section>
 
   <section v-if="!isReadonly" class="block block--panel block--action">
+    <el-alert v-if="!canHandleAssignment" title="任务已指派给其他人员，你无法继续执行。" type="warning" :closable="false" />
     <div class="block-head">
       <div class="block-title">{{ inspectionActionMeta.title }}</div>
     </div>
@@ -489,21 +494,22 @@ function onSubmit() {
                     v-model="hazard.hazardCategory"
                     filterable
                     placeholder="请选择隐患类别"
+                    no-data-text="请先由指挥部配置此分类的隐患类别"
                     style="width: 100%"
                     :aria-label="`隐患${index + 1}类别`"
                   >
                     <el-option
-                      v-for="category in HAZARD_CATEGORIES"
-                      :key="category"
-                      :label="category"
-                      :value="category"
+                      v-for="option in hazardCategoryOptions"
+                      :key="option.value"
+                      :label="option.label"
+                      :value="option.value"
                     />
                   </el-select>
                 </div>
                 <div class="hazard-row">
                   <span class="hazard-label">隐患等级<i>*</i></span>
                   <el-select v-model="hazard.hazardLevel" placeholder="请选择隐患等级" style="width: 100%" :aria-label="`隐患${index + 1}等级`">
-                    <el-option v-for="level in HAZARD_LEVELS" :key="level" :label="level" :value="level" />
+                    <el-option v-for="level in hazardLevelOptions" :key="level" :label="level" :value="level" />
                   </el-select>
                 </div>
                 <div class="hazard-row">
@@ -533,37 +539,11 @@ function onSubmit() {
                   <div class="rectify-tip">发现隐患后系统将自动生成整改单，请完善整改信息</div>
                   <div class="hazard-row">
                     <span class="hazard-label">整改人<i>*</i></span>
-                    <el-select
-                      v-model="hazard.rectifier"
-                      filterable
-                      placeholder="请选择整改人"
-                      style="width: 100%"
-                      :aria-label="`隐患${index + 1}整改人`"
-                    >
-                      <el-option
-                        v-for="u in userOptions"
-                        :key="u.id"
-                        :label="getUserLabel(u.id)"
-                        :value="getUserLabel(u.id)"
-                      />
-                    </el-select>
+                    <InspectionPersonMultiSelect v-model="hazard.rectifier" :options="inspectionPersonOptions" :aria-label="`隐患${index + 1}整改人`" />
                   </div>
                   <div class="hazard-row">
                     <span class="hazard-label">复查人<i>*</i></span>
-                    <el-select
-                      v-model="hazard.reviewer"
-                      filterable
-                      placeholder="请选择复查人"
-                      style="width: 100%"
-                      :aria-label="`隐患${index + 1}复查人`"
-                    >
-                      <el-option
-                        v-for="u in userOptions"
-                        :key="u.id"
-                        :label="getUserLabel(u.id)"
-                        :value="getUserLabel(u.id)"
-                      />
-                    </el-select>
+                    <InspectionPersonMultiSelect v-model="hazard.reviewer" :options="inspectionPersonOptions" :aria-label="`隐患${index + 1}复核人`" />
                   </div>
                   <div class="hazard-row">
                     <span class="hazard-label">整改截止日期<i>*</i></span>
@@ -585,22 +565,16 @@ function onSubmit() {
       </template>
       <template v-else>
         <el-form-item
-          :label="
-            todo.inspectionBizType === '整改'
-              ? '整改日期'
-              : todo.inspectionBizType === '复查'
-                ? '复查日期'
-                : '审批日期'
-          "
+          :label="processDateLabel"
           required
         >
           <el-date-picker
             v-model="inspectionForm.processDate"
             type="date"
             value-format="YYYY-MM-DD"
-            :placeholder="`请选择${todo.inspectionBizType === '整改' ? '整改' : todo.inspectionBizType === '复查' ? '复查' : '审批'}日期`"
+            :placeholder="`请选择${processDateLabel}`"
             style="width: 100%"
-            :aria-label="`请选择${todo.inspectionBizType === '整改' ? '整改' : todo.inspectionBizType === '复查' ? '复查' : '审批'}日期`"
+            :aria-label="`请选择${processDateLabel}`"
           />
         </el-form-item>
         <el-form-item v-if="todo.inspectionBizType === '整改'" label="整改照片" required>
@@ -612,12 +586,12 @@ function onSubmit() {
             <el-radio value="reject">{{ inspectionActionMeta.reject }}</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item :label="inspectionActionMeta.remarkLabel" required>
+        <el-form-item :label="inspectionActionMeta.remarkLabel" :required="remarkRequired">
           <el-input
             v-model="inspectionForm.remark"
             type="textarea"
             :rows="4"
-            :placeholder="`请填写${inspectionActionMeta.remarkLabel}`"
+            :placeholder="remarkRequired ? `请填写${inspectionActionMeta.remarkLabel}` : `${inspectionActionMeta.remarkLabel}（选填）`"
             :aria-label="`请填写${inspectionActionMeta.remarkLabel}`"
           />
         </el-form-item>
@@ -625,7 +599,7 @@ function onSubmit() {
     </el-form>
     <div class="op-actions">
       <el-button @click="emit('back')">取消</el-button>
-      <el-button type="primary" @click="onSubmit">
+      <el-button type="primary" :disabled="!canHandleAssignment" @click="onSubmit">
         {{
           todo.inspectionBizType === '巡检'
             ? '提交检查结果'
@@ -704,8 +678,10 @@ function onSubmit() {
   line-height: 1.7;
 }
 .inspection-kv > span {
-  width: 76px;
+  min-width: 76px;
   flex-shrink: 0;
+  margin-right: 12px;
+  white-space: nowrap;
   color: #868e96;
 }
 .inspection-kv > b {

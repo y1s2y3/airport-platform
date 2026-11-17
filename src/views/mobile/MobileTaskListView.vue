@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { listMobileInspectionTasks } from '../../mock/mobileInspectionTasks'
-import { INSPECTION_TYPES, hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
+import { INSPECTION_CATEGORIES, getInspectionTypeFilterOptions, hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
 import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
 
 const router = useRouter()
@@ -70,12 +70,11 @@ function goBack() { router.push(bizHome.value) }
       </div>
       <div class="m-type-chips">
         <button class="m-chip" :class="{ active: categoryFilter === '' }" @click="categoryFilter = ''">全部分类</button>
-        <button class="m-chip" :class="{ active: categoryFilter === '安全' }" @click="categoryFilter = '安全'">安全</button>
-        <button class="m-chip" :class="{ active: categoryFilter === '质量' }" @click="categoryFilter = '质量'">质量</button>
+        <button v-for="category in INSPECTION_CATEGORIES" :key="category" class="m-chip" :class="{ active: categoryFilter === category }" @click="categoryFilter = category">{{ category }}</button>
       </div>
       <select v-model="inspectionTypeFilter" class="m-type-select">
         <option value="">全部检查类型</option>
-        <option v-for="type in INSPECTION_TYPES" :key="type" :value="type">{{ type }}</option>
+        <option v-for="type in getInspectionTypeFilterOptions()" :key="type" :value="type">{{ type }}</option>
       </select>
     </div>
 

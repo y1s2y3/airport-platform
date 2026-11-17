@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Search, View, ArrowLeft } from '@element-plus/icons-vue'
 import { useLaborProjectScope, selectedProjectId } from '../../composables/useCurrentProject'
@@ -9,7 +9,7 @@ import {
   inspectionProjectTree,
 } from '../../mock/inspectionDemoData'
 import { listInspectionHazards } from '../../mock/inspectionHazardQuery'
-import { HAZARD_CATEGORIES, HAZARD_LEVELS, hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
+import { INSPECTION_CATEGORIES, getHazardCategoryOptions, getHazardLevels, hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
 
 const router = useRouter()
 const route = useRoute()
@@ -49,6 +49,10 @@ const rectifyData = computed(() => listInspectionHazards())
 
 const filterForm = reactive({ keyword: '', category: '', hazardCategory: '', hazardLevel: '', status: '', overdue: '' })
 
+const hazardCategoryOptions = computed(() => getHazardCategoryOptions(filterForm.category, true))
+const hazardLevelOptions = computed(() => getHazardLevels(filterForm.category))
+watch(() => filterForm.category, () => { filterForm.hazardCategory = ''; filterForm.hazardLevel = '' })
+
 const hqProjectKeyword = ref('')
 const hqProjectStats = computed(() => inspectionProjectTree[0].children.map(project => {
   const rows = rectifyData.value.filter(item => item.project_id === project.id)
@@ -57,7 +61,7 @@ const hqProjectStats = computed(() => inspectionProjectTree[0].children.map(proj
     project_name: project.label,
     totalCount: rows.length,
     pendingCount: rows.filter(item => item.status === '待整改').length,
-    reviewCount: rows.filter(item => item.status === '待验收').length,
+    reviewCount: rows.filter(item => ['待验收'].includes(item.status)).length,
     reviewedCount: rows.filter(item => item.status === '待复查').length,
     closedCount: rows.filter(item => item.status === '已关闭').length,
     overdueCount: rows.filter(item => isOverdue(item)).length,
@@ -107,6 +111,13 @@ function isOverdue(row) {
   if (['待复查', '已关闭'].includes(row.status)) return false
   if (!row.deadline) return false
   return new Date(row.deadline) < new Date(INSPECTION_DEMO_TODAY)
+}
+
+/** 列表只显示姓名，岗位放在 title 提示里，避免窄列逐字换行。 */
+function personShort(value) {
+  const text = String(value || '').trim()
+  if (!text) return '--'
+  return text.replace(/[（(].*?[)）]/g, '').trim() || text
 }
 
 function viewDetail(row) { router.push(`/safety-inspection/hazard/${row.id}`) }
@@ -169,16 +180,16 @@ function goBackToHQ() {
         <div class="filter-bar">
           <el-input v-model="filterForm.keyword" placeholder="搜索整改单编号/巡检任务单编号..." clearable style="width:280px" :prefix-icon="Search" />
           <el-select v-model="filterForm.category" placeholder="巡检分类" clearable style="width:100px">
-            <el-option label="安全" value="安全" /><el-option label="质量" value="质量" />
+            <el-option v-for="category in INSPECTION_CATEGORIES" :key="category" :label="category" :value="category" />
           </el-select>
           <el-select v-model="filterForm.hazardCategory" placeholder="隐患类别" clearable filterable style="width:150px">
-            <el-option v-for="category in HAZARD_CATEGORIES" :key="category" :label="category" :value="category" />
+            <el-option v-for="option in hazardCategoryOptions" :key="`${option.category}-${option.value}`" :label="option.label" :value="option.value" />
           </el-select>
           <el-select v-model="filterForm.status" placeholder="整改状态" clearable style="width:110px">
             <el-option label="待整改" value="待整改" /><el-option label="待验收" value="待验收" /><el-option label="待复查" value="待复查" /><el-option label="已关闭" value="已关闭" />
           </el-select>
           <el-select v-model="filterForm.hazardLevel" placeholder="隐患等级" clearable style="width:200px">
-            <el-option v-for="level in HAZARD_LEVELS" :key="level" :label="level" :value="level" />
+            <el-option v-for="level in hazardLevelOptions" :key="level" :label="level" :value="level" />
           </el-select>
           <el-select v-model="filterForm.overdue" placeholder="是否逾期" clearable style="width:100px">
             <el-option label="是" value="是" /><el-option label="否" value="否" />
@@ -186,11 +197,11 @@ function goBackToHQ() {
           <el-button @click="handleReset">重置</el-button>
         </div>
         <el-table :data="filteredData" stripe border style="width:100%" class="hazard-table">
-          <el-table-column type="index" label="序号" width="55" align="center" />
-          <el-table-column prop="rectifyNo" label="整改单编号" min-width="120" />
-          <el-table-column prop="taskNo" label="巡检任务单编号" min-width="120" />
-          <el-table-column prop="project" label="项目" min-width="110" show-overflow-tooltip />
-          <el-table-column prop="inspectionCategory" label="巡检分类" min-width="120" align="center">
+          <el-table-column type="index" label="序号" width="52" align="center" />
+          <el-table-column prop="rectifyNo" label="整改单编号" width="118" />
+          <el-table-column prop="taskNo" label="巡检任务单编号" width="135" />
+          <el-table-column prop="project" label="项目" width="100" show-overflow-tooltip />
+          <el-table-column prop="inspectionCategory" label="巡检分类" width="84" align="center">
             <template #default="{ row }">
               <el-tag
                 v-for="category in normalizeInspectionCategories(row.inspectionCategories || row.inspectionCategory)"
@@ -201,38 +212,43 @@ function goBackToHQ() {
               >{{ category }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="hazardCategory" label="隐患类别" min-width="130" show-overflow-tooltip />
-          <el-table-column label="隐患等级" min-width="180" show-overflow-tooltip>
+          <el-table-column prop="hazardCategory" label="隐患类别" width="110" show-overflow-tooltip />
+          <el-table-column label="隐患等级" width="120" show-overflow-tooltip>
             <template #default="{ row }">{{ row.hazardLevel || '未设置' }}</template>
           </el-table-column>
-          <el-table-column prop="rectifier" label="整改人" min-width="55" align="center" />
-          <el-table-column prop="reviewer" label="复查人" min-width="55" align="center" />
-          <el-table-column label="整改日期" min-width="90" align="center">
+          <el-table-column prop="currentNode" label="当前节点" width="150" show-overflow-tooltip />
+          <el-table-column label="整改人" width="100" align="center">
+            <template #default="{ row }"><span :title="row.rectifier || '--'" class="person-cell">{{ personShort(row.rectifier) }}</span></template>
+          </el-table-column>
+          <el-table-column label="复查人" width="100" align="center">
+            <template #default="{ row }"><span :title="row.reviewer || '--'" class="person-cell">{{ personShort(row.reviewer) }}</span></template>
+          </el-table-column>
+          <el-table-column label="整改日期" width="100" align="center">
             <template #default="{ row }">
               <span v-if="row.rectDate">{{ row.rectDate }}</span>
               <span v-else style="color:#999">-</span>
             </template>
           </el-table-column>
-          <el-table-column label="复查日期" min-width="90" align="center">
+          <el-table-column label="复查日期" width="100" align="center">
             <template #default="{ row }">
               <span v-if="row.reviewDate">{{ row.reviewDate }}</span>
               <span v-else style="color:#999">-</span>
             </template>
           </el-table-column>
-          <el-table-column label="整改截止日期" min-width="90" align="center">
+          <el-table-column label="整改截止日期" width="108" align="center">
             <template #default="{ row }">
               <span v-if="row.deadline">{{ row.deadline }}</span>
               <span v-else style="color:#999">-</span>
             </template>
           </el-table-column>
-          <el-table-column label="是否逾期" min-width="65" align="center">
+          <el-table-column label="是否逾期" width="76" align="center">
             <template #default="{ row }">
               <span v-if="isOverdue(row)" style="color:#e53935;font-weight:600">是</span>
               <span v-else style="color:#999">-</span>
             </template>
           </el-table-column>
-          <el-table-column prop="status" label="状态" min-width="55" align="center" />
-          <el-table-column label="操作" width="60" align="center">
+          <el-table-column prop="status" label="状态" width="76" align="center" />
+          <el-table-column label="操作" width="56" align="center">
             <template #default="{ row }">
               <el-button link type="primary" size="small" @click="viewDetail(row)">查看</el-button>
             </template>
@@ -272,4 +288,7 @@ function goBackToHQ() {
 .project-tree { font-size:13px; }
 .project-tree :deep(.el-tree-node__content) { height:36px; }
 .project-tree :deep(.el-tree-node.is-current > .el-tree-node__content) { background:#fceef4; color:#8f0045; font-weight:600; }
+.hazard-table :deep(.el-table__cell .cell) { word-break: keep-all; }
+.hazard-table :deep(.el-table__cell) { vertical-align: middle; }
+.person-cell { display:inline-block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 </style>

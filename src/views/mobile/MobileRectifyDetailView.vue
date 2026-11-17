@@ -5,6 +5,8 @@ import { getMobileRectification } from '../../composables/useMobileRectification
 import { formatInspectionCategories } from '../../config/inspectionManagement'
 import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
 
+import { workflowFlowRecords } from '../../utils/inspectionRectificationWorkflow'
+
 const route = useRoute()
 const router = useRouter()
 const { rectifyBase } = useMobileRouteBase()
@@ -28,66 +30,7 @@ const managerApproval = computed(() => {
   }
 })
 
-const flowRecords = computed(() => {
-  const row = record.value
-  if (!row) return []
-  if (row.status === '已关闭') {
-    const items = [
-      { action: '下发整改单', date: row.applyDate || '--' },
-      { action: '整改人提交整改结果', date: row.rectificationDate || row.submitDate || '--' },
-    ]
-    if (row.isSecondRound || row.isRejected) {
-      items.push({
-        action: '复查不通过，退回继续整改',
-        date: '--',
-        detail: row.rejectReason || '整改不彻底',
-      })
-      items.push({ action: '整改人重新提交整改结果', date: row.rectificationDate || '--' })
-    }
-    items.push({ action: '复查通过，提交项目经理审批', date: row.reviewDate || '--' })
-    items.push({ action: '项目经理审批通过，整改单关闭', date: row.closeDate || row.approvalDate || '--' })
-    return items
-  }
-  const items = [{ action: '下发整改单', date: row.applyDate || '--' }]
-  if (row.status === '待整改') {
-    if (row.isRejected) {
-      items.push({
-        action: '整改人提交整改结果',
-        date: row.rectificationDate || row.submitDate || '--',
-      })
-      items.push({
-        action: '复查不通过，退回继续整改',
-        date: row.reviewDate || '--',
-        detail: row.rejectReason || row.reviewComment,
-      })
-    }
-    items.push({ action: row.currentNode || '等待整改人执行', date: '', current: true })
-  } else {
-    items.push({
-      action: '整改人提交整改结果',
-      date: row.rectificationDate || row.submitDate || row.applyDate || '--',
-    })
-    if (row.status === '待验收') {
-      if (row.approvalRejected) {
-        items.push({
-          action: '复查人复查通过，提交项目经理审批',
-          date: row.reviewDate || '--',
-        })
-        items.push({
-          action: '项目经理审批不通过，退回复查',
-          date: row.approvalDate || '--',
-          detail: row.approvalReason,
-        })
-      }
-      items.push({ action: row.currentNode || '待监理复查', date: '', current: true })
-    }
-    if (row.status === '待复查') {
-      items.push({ action: '复查通过，提交项目经理审批', date: row.reviewDate || row.applyDate || '--' })
-      items.push({ action: '待项目经理审批', date: '', current: true })
-    }
-  }
-  return items
-})
+const flowRecords = computed(() => workflowFlowRecords(record.value).map(item => ({ ...item, action: item.a, date: item.d, detail: item.dt, current: item.cur })))
 
 const flowCollapsed = ref(false)
 
@@ -143,7 +86,9 @@ function goBack() {
         <div class="ibm">巡检任务单编号：{{ record.taskNo || '--' }}</div>
         <div class="ibm">巡检分类：{{ inspectionCategoryLabel || '--' }}</div>
         <div class="ibm">{{ record.project || '--' }}</div>
-        <div class="ibm">整改人：{{ record.rectifier || '--' }}　复查人：{{ record.reviewer || '--' }}</div>
+        <div class="ibm">整改人：{{ record.rectifier || '--' }}　复核人：{{ record.reviewer || '--' }}</div>
+        <div v-if="record.ccPersons" class="ibm">抄送人：{{ record.ccPersons }}</div>
+        <div class="ibm">截止日期：{{ record.deadline || '--' }}</div>
         <div class="ibm">状态：<b :class="'st-' + statusText">{{ statusText }}</b>
           <template v-if="record.closeDate">　关闭日期：{{ record.closeDate }}</template>
         </div>
@@ -162,6 +107,7 @@ function goBack() {
                 <span class="fa">{{ f.action }}</span>
                 <span class="fd2">{{ f.date || '进行中' }}</span>
               </div>
+              <span class="fd2">处理人：{{ f.by || '--' }}</span>
               <span v-if="f.detail" class="fdl">{{ f.detail }}</span>
             </div>
           </div>
@@ -186,12 +132,12 @@ function goBack() {
         </div>
       </div>
 
-      <div v-if="reviewRecords.length && ['待复查', '已关闭'].includes(statusText)" class="sc">
-        <div class="sct">复查信息</div>
+      <div v-if="reviewRecords.length && ['待验收', '待复查', '已关闭'].includes(statusText)" class="sc">
+        <div class="sct">复核信息</div>
         <div v-for="(r, i) in reviewRecords" :key="i" class="ic">
-          <div class="ir"><span class="il">复查日期</span><span>{{ r.date }}</span></div>
-          <div class="ir"><span class="il">复查结果</span><span :class="r.result === '通过' ? 'pass' : 'fail'">{{ r.result }}</span></div>
-          <div class="ir"><span class="il">复查意见</span><span>{{ r.comment }}</span></div>
+          <div class="ir"><span class="il">复核日期</span><span>{{ r.date }}</span></div>
+          <div class="ir"><span class="il">复核结果</span><span :class="r.result === '通过' ? 'pass' : 'fail'">{{ r.result }}</span></div>
+          <div class="ir"><span class="il">复核意见</span><span>{{ r.comment }}</span></div>
         </div>
       </div>
 
@@ -216,7 +162,7 @@ function goBack() {
 .ibn { font-size:15px; font-weight:600; color:#1f2329; margin-bottom:6px; }
 .ibm { font-size:12px; line-height:1.7; color:#666; }
 .st-待整改,.st-待验收 { color:#f5a623; }
-.st-待复查 { color:#8f0045; }
+.st-待复核 { color:#8f0045; }
 .st-已关闭 { color:#34a853; }
 .sc { background:#fff; border-radius:10px; padding:14px 16px; margin:12px 16px; box-shadow:0 1px 3px rgba(0,0,0,0.04); }
 .sct { font-size:13px; font-weight:600; color:#1f2329; margin-bottom:10px; padding-left:8px; border-left:3px solid #8f0045; }
@@ -238,6 +184,6 @@ function goBack() {
 .fc-row { display:flex; justify-content:space-between; align-items:baseline; width:100%; }
 .fa { font-size:13px; color:#1f2329; font-weight:500; }
 .fd2 { font-size:12px; color:#999; flex-shrink:0; }
-.fdl { font-size:11px; color:#e53935; background:#ffebee; padding:2px 8px; border-radius:4px; display:inline-block; }
+.fdl { font-size:11px; color:#606266; background:#f5f7fa; padding:2px 8px; border-radius:4px; display:inline-block; }
 .fi.cur .fa { color:#8f0045; font-weight:600; }
 </style>

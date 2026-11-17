@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { FolderOpened } from '@element-plus/icons-vue'
@@ -16,15 +16,17 @@ import {
 } from '../../composables/useInspectionPersonConfig'
 
 const route = useRoute()
+import { useInspectionCategoryForm } from '../../composables/useInspectionCategoryForm'
+
 const router = useRouter()
 const isEdit = computed(() => !!route.params.id)
 const pageTitle = computed(() => isEdit.value ? '编辑巡检任务' : '下发巡检任务')
 
 const form = reactive({
   name: '',
-  // 巡检分类不手动选择：由“选择检查项”的结果自动确定（见 derivedCategories）
-  inspectionCategories: [],
-  inspectionType: '值班检查',
+  // 新任务先选择一个巡检分类，再配置该分类下的检查项。
+  inspectionCategories: ['安全'],
+  inspectionType: INSPECTION_TYPES.includes('值班检查') ? '值班检查' : INSPECTION_TYPES[0] || '',
   projectIds: [],
   responsiblePerson: '',
   ccPersons: [],
@@ -33,11 +35,13 @@ const form = reactive({
   checkConfig: [],
 })
 
+const { selectedCategory } = useInspectionCategoryForm(form)
+
 const receiverSummary = computed(() => {
   const selected = projectOptions.filter(project => form.projectIds.includes(project.id))
   if (!selected.length) return '选择项目后自动带入已配置的巡检人'
   return selected
-    .map(project => `${project.label}：${getProjectInspectorLabel(project.id) || '未配置'}`)
+    .map(project => `${project.label}：${getProjectInspectorLabel(project.id, selectedCategory.value) || '未配置'}`)
     .join('；')
 })
 
@@ -79,31 +83,12 @@ const selectingCountByCategory = computed(() => {
   return counts
 })
 
-/**
- * 巡检分类由已选检查项自动确定：
- * 勾选了安全类检查项即包含“安全”，勾选了质量类检查项即包含“质量”；两者都选则为安全+质量。
- */
-const derivedCategories = computed(() => {
-  const picked = new Set()
-  for (const config of form.checkConfig) {
-    if (!config.itemIds?.length) continue
-    const category = checkCategoryTree.find((item) => item.id === config.categoryId)
-    if (category?.inspectionCategory) picked.add(category.inspectionCategory)
+watch(selectedCategory, (category) => {
+  if (category) {
+    selectInspectionCategory.value = category
+    displayInspectionCategory.value = category
   }
-  return INSPECTION_CATEGORIES.filter((category) => picked.has(category))
 })
-
-watch(
-  () => derivedCategories.value.join('、'),
-  (joined) => {
-    form.inspectionCategories = joined ? joined.split('、') : []
-    const next = form.inspectionCategories
-    if (next.length && !next.includes(displayInspectionCategory.value)) {
-      displayInspectionCategory.value = next[0]
-    }
-  },
-  { immediate: true },
-)
 
 watch(displayInspectionCategory, (category) => {
   const configs = selectedCheckTabs.value.find((tab) => tab.category === category)?.configs || []
@@ -119,11 +104,12 @@ watch(selectInspectionCategory, (category) => {
 })
 
 function openSelectDialog() {
+  if (!selectedCategory.value) { ElMessage.warning('请先选择一个巡检分类'); return }
   const keys = {}
   for (const c of form.checkConfig) keys[c.categoryId] = [...c.itemIds]
   Object.keys(selecting).forEach(k => delete selecting[k])
   for (const [catId, itemIds] of Object.entries(keys)) selecting[catId] = itemIds
-  selectInspectionCategory.value = '安全'
+  selectInspectionCategory.value = selectedCategory.value
   selTreeActive.value = categoryCheckTree.value[0]?.id || ''
   selectDialogVisible.value = true
 }
@@ -160,7 +146,7 @@ function isCatSelInd(catId) {
 function confirmSelection() {
   form.checkConfig = []
   for (const [catId, itemIds] of Object.entries(selecting)) {
-    if (itemIds.length > 0) form.checkConfig.push({ categoryId: catId, itemIds: [...itemIds] })
+    if (itemIds.length > 0 && checkCategoryTree.find(item => item.id === catId)?.inspectionCategory === selectedCategory.value) form.checkConfig.push({ categoryId: catId, itemIds: [...itemIds] })
   }
   selectDialogVisible.value = false
   selTreeActive.value = ''
@@ -169,7 +155,7 @@ function confirmSelection() {
     displayInspectionCategory.value = firstConfiguredTab?.category || form.inspectionCategories[0] || '安全'
     displayTreeCat.value = firstConfiguredTab?.configs[0]?.categoryId || ''
     const total = form.checkConfig.reduce((s, c) => s + c.itemIds.length, 0)
-    ElMessage.success(`已选择 ${form.checkConfig.length} 个分类，共 ${total} 个检查项，巡检分类：${formatInspectionCategories(derivedCategories.value)}`)
+    ElMessage.success(`已选择 ${form.checkConfig.length} 个分类，共 ${total} 个检查项，巡检分类：${selectedCategory.value}`)
   }
 }
 
@@ -191,7 +177,7 @@ const displayItems = computed(() => {
 const totalCheckItems = computed(() => form.checkConfig.reduce((s, c) => s + c.itemIds.length, 0))
 
 // ===== 编辑加载 =====
-onMounted(() => {
+watch(() => route.params.id, () => {
   if (isEdit.value) {
     const plan = getPlanById(route.params.id)
     if (plan) {
@@ -206,20 +192,31 @@ onMounted(() => {
       form.checkConfig = plan.checkConfig ? plan.checkConfig.map(c => ({ categoryId: c.categoryId, itemIds: [...c.itemIds] })) : []
       if (form.checkConfig.length > 0) displayTreeCat.value = form.checkConfig[0].categoryId
     }
+  } else {
+    Object.assign(form, {
+      name: '', inspectionCategories: ['安全'],
+      inspectionType: INSPECTION_TYPES.includes('值班检查') ? '值班检查' : INSPECTION_TYPES[0] || '',
+      projectIds: [], responsiblePerson: '', ccPersons: [], deadlineDate: '', remark: '', checkConfig: [],
+    })
+    displayTreeCat.value = ''
   }
-})
+}, { immediate: true })
 
 // ===== 保存 =====
 function handleSave() {
   if (!form.name.trim()) { ElMessage.warning('请输入任务名称'); return }
-  if (form.checkConfig.length === 0 || !form.inspectionCategories.length) {
-    ElMessage.warning('请先在“选择检查项”中选择检查项，巡检分类由所选检查项自动确定')
+  if (form.checkConfig.length === 0 || form.inspectionCategories.length !== 1) {
+    ElMessage.warning('请先选择一个巡检分类，并配置该分类下的检查项')
     return
   }
-  if (!form.inspectionType) { ElMessage.warning('请选择检查类型'); return }
+  if (form.checkConfig.some(config => checkCategoryTree.find(item => item.id === config.categoryId)?.inspectionCategory !== selectedCategory.value)) {
+    ElMessage.warning('检查项与当前巡检分类不一致，请重新选择检查项')
+    return
+  }
+  if (!INSPECTION_TYPES.includes(form.inspectionType)) { ElMessage.warning('请选择检查类型'); return }
   if (form.projectIds.length === 0) { ElMessage.warning('请选择所属项目'); return }
   const incompleteProject = projectOptions.find(project =>
-    form.projectIds.includes(project.id) && !hasCompleteInspectionPersonConfig(project.id),
+    form.projectIds.includes(project.id) && !hasCompleteInspectionPersonConfig(project.id, selectedCategory.value),
   )
   if (incompleteProject) {
     ElMessage.warning(`${incompleteProject.label}尚未完整配置巡检人、整改人和复查人，请先完成人员配置`)
@@ -265,12 +262,12 @@ function handleCancel() { router.push('/safety-inspection/plan') }
         <el-input v-model="form.name" placeholder="如：雨季临时用电检查" maxlength="50" />
       </el-form-item>
       <el-form-item label="巡检分类" required>
-        <el-checkbox-group v-model="form.inspectionCategories" :disabled="true">
-          <el-checkbox v-for="category in INSPECTION_CATEGORIES" :key="category" :value="category" border>
+        <el-radio-group v-model="selectedCategory">
+          <el-radio v-for="category in INSPECTION_CATEGORIES" :key="category" :value="category" border>
             {{ category }}
-          </el-checkbox>
-        </el-checkbox-group>
-        <div class="form-tip">不支持手动修改：在“选择检查项”中勾选安全类检查项即为安全、勾选质量类即为质量，两者都选则为安全+质量，系统据此确定任务编号前缀与检查范围。</div>
+          </el-radio>
+        </el-radio-group>
+        <div class="form-tip">一次只能选择一个巡检分类；检查项、隐患类别、隐患等级和编号随分类联动。历史复合分类任务需重新选择分类后保存。</div>
       </el-form-item>
       <el-form-item label="检查类型" required>
         <el-select v-model="form.inspectionType" placeholder="请选择检查类型" style="width: 100%">
@@ -284,10 +281,10 @@ function handleCancel() { router.push('/safety-inspection/plan') }
             :key="p.id"
             :label="p.label"
             :value="p.id"
-            :disabled="!hasInspectionInspectorConfig(p.id)"
+            :disabled="!hasInspectionInspectorConfig(p.id, selectedCategory)"
           >
             <span>{{ p.label }}</span>
-            <span v-if="!hasInspectionInspectorConfig(p.id)" class="project-disabled-note">（未配置巡检人）</span>
+            <span v-if="!hasInspectionInspectorConfig(p.id, selectedCategory)" class="project-disabled-note">（未配置巡检人）</span>
           </el-option>
         </el-select>
         <div v-if="isEdit" class="form-tip">任务已下发，所属项目不可修改。</div>
@@ -301,7 +298,7 @@ function handleCancel() { router.push('/safety-inspection/plan') }
       <h4 class="form-section-title" style="margin-top: 28px">下发信息</h4>
       <el-form-item label="任务接收人">
         <el-input :model-value="receiverSummary" disabled />
-        <div class="form-tip">按各项目人员配置自动确定巡检人；三类人员配置完整后才可下发任务</div>
+        <div class="form-tip">按各项目人员配置自动确定巡检人；当前巡检分类人员配置完整后才可下发任务</div>
       </el-form-item>
       <el-form-item label="抄送人">
         <el-select v-model="form.ccPersons" multiple placeholder="可选，多人" style="width: 100%" :disabled="isEdit">
@@ -378,7 +375,7 @@ function handleCancel() { router.push('/safety-inspection/plan') }
     <el-dialog v-model="selectDialogVisible" title="选择检查项" width="760px" destroy-on-close top="5vh">
       <el-tabs v-model="selectInspectionCategory" class="inspection-type-tabs">
         <el-tab-pane
-          v-for="category in INSPECTION_CATEGORIES"
+          v-for="category in (selectedCategory ? [selectedCategory] : [])"
           :key="category"
           :name="category"
           :label="`${category}检查项（${selectingCountByCategory[category] || 0}）`"
@@ -433,7 +430,7 @@ function handleCancel() { router.push('/safety-inspection/plan') }
           </div>
         </el-tab-pane>
       </el-tabs>
-      <div class="sel-dialog-tip">安全、质量两类检查项固定展示；确定后系统按所勾选的检查项自动确定巡检分类，无需手动选择。</div>
+      <div class="sel-dialog-tip">仅展示所选巡检分类的检查项；尚未配置时，请先在“巡检检查项”中维护。</div>
       <template #footer>
         <el-button @click="selectDialogVisible = false">取消</el-button>
         <el-button type="primary" @click="confirmSelection">确定选择</el-button>

@@ -1,4 +1,5 @@
 <script setup>
+import InspectionPersonMultiSelect from '../../components/InspectionPersonMultiSelect.vue'
 /**
  * 项目级 · 新增巡检记录（WEB 端）
  * - 字段、校验、提交逻辑与移动端「新建巡检」完全一致（MobileTaskCreateView.vue）
@@ -14,8 +15,7 @@ import { createMobileRectificationsFromTask } from '../../composables/useMobileR
 import {
   INSPECTION_CATEGORIES,
   INSPECTION_TYPES,
-  HAZARD_CATEGORIES,
-  HAZARD_LEVELS,
+  validateInspectionHazard,
   buildInspectionTaskNo,
   formatInspectionCategories,
 } from '../../config/inspectionManagement'
@@ -24,6 +24,8 @@ import { getMajorHazardLedgerOptions } from '../../utils/inspectionMajorHazardLi
 import { useCurrentProject } from '../../composables/useCurrentProject'
 import { COC_PROJECT_OPTIONS } from '../../config/projectOptions'
 import DispatchImageAttachments from '../../coc/components/DispatchImageAttachments.vue'
+
+import { useInspectionCategoryForm, useInspectionHazardOptions } from '../../composables/useInspectionCategoryForm'
 
 const router = useRouter()
 const { selectedProjectId, headerProjectLabel, isHqSelected } = useCurrentProject()
@@ -48,16 +50,17 @@ function createHazardItem() {
     desc: '',
     rectifyRequirement: '',
     photos: [],
-    rectifyPerson: getProjectRectifierLabel(projectLabel.value),
-    reviewPerson: getProjectReviewerLabel(projectLabel.value),
+    rectifyPerson: getProjectRectifierLabel(projectLabel.value, selectedCategory.value),
+    reviewPerson: getProjectReviewerLabel(projectLabel.value, selectedCategory.value),
     rectifyDeadline: '',
+    ccPersons: '',
   }
 }
 
 const form = ref({
   projectId: '',
   inspectionCategories: ['安全'],
-  inspectionType: '值班检查',
+  inspectionType: INSPECTION_TYPES.includes('值班检查') ? '值班检查' : INSPECTION_TYPES[0] || '',
   inspDate: new Date().toISOString().slice(0, 10),
   isMajorHazardPatrol: '否',
   majorHazardLedgerId: '',
@@ -69,6 +72,9 @@ const form = ref({
   result: '',
   hazardItems: [],
 })
+
+const { selectedCategory } = useInspectionCategoryForm(form)
+const { hazardCategoryOptions, hazardLevelOptions } = useInspectionHazardOptions(selectedCategory, computed(() => form.value.hazardItems))
 
 const submitting = ref(false)
 
@@ -114,8 +120,8 @@ function goBack() {
 }
 
 function submitInspection() {
-  if (!form.value.inspectionCategories.length) return ElMessage.warning('请选择至少一个巡检分类')
-  if (!form.value.inspectionType) return ElMessage.warning('请选择检查类型')
+  if (form.value.inspectionCategories.length !== 1) return ElMessage.warning('请选择一个巡检分类')
+  if (!INSPECTION_TYPES.includes(form.value.inspectionType)) return ElMessage.warning('请选择检查类型')
   if (!form.value.inspDate) return ElMessage.warning('请选择巡检日期')
   if (!projectId.value) return ElMessage.warning('请选择所属项目')
   if (form.value.isMajorHazardPatrol === '是' && !form.value.majorHazardLedgerId) return ElMessage.warning('请选择危大工程名称')
@@ -126,6 +132,8 @@ function submitInspection() {
   if (form.value.result === 'hazard') {
     if (form.value.hazardItems.length === 0) return ElMessage.warning('请至少添加一条隐患')
     for (const [i, item] of form.value.hazardItems.entries()) {
+      const dictionaryError = validateInspectionHazard(item, selectedCategory.value)
+      if (dictionaryError) { ElMessage.warning(`第 ${i + 1} 条隐患：${dictionaryError}`); return }
       if (!item.hazardCategory) return ElMessage.warning(`第 ${i + 1} 条隐患请选择隐患类别`)
       if (!item.hazardLevel) return ElMessage.warning(`第 ${i + 1} 条隐患请选择隐患等级`)
       if (!String(item.rectifyRequirement || '').trim()) return ElMessage.warning(`第 ${i + 1} 条隐患请填写整改要求`)
@@ -154,6 +162,7 @@ function submitInspection() {
       rectifyPerson: item.rectifyPerson,
       reviewPerson: item.reviewPerson,
       rectifyDeadline: item.rectifyDeadline,
+      ccPersons: item.ccPersons || '',
     }
   })
   const rectifyCount = hazardItems.length
@@ -229,7 +238,7 @@ function submitInspection() {
         <el-row :gutter="24">
           <el-col :span="12">
             <el-form-item label="巡检分类" required>
-              <el-select v-model="form.inspectionCategories" multiple collapse-tags collapse-tags-tooltip placeholder="请选择巡检分类" style="width: 100%" aria-label="请选择巡检分类">
+              <el-select v-model="selectedCategory" placeholder="请选择巡检分类" style="width: 100%" aria-label="请选择巡检分类">
                 <el-option v-for="category in INSPECTION_CATEGORIES" :key="category" :label="category" :value="category" />
               </el-select>
             </el-form-item>
@@ -316,14 +325,14 @@ function submitInspection() {
           </div>
           <div class="hazard-row">
             <span class="hazard-label">隐患类别<i>*</i></span>
-            <el-select v-model="hazard.hazardCategory" filterable placeholder="请选择隐患类别" style="width: 100%" :aria-label="`隐患${index + 1}类别`">
-              <el-option v-for="category in HAZARD_CATEGORIES" :key="category" :label="category" :value="category" />
+            <el-select v-model="hazard.hazardCategory" filterable placeholder="请选择隐患类别" no-data-text="请先由指挥部配置此分类的隐患类别" style="width: 100%" :aria-label="`隐患${index + 1}类别`">
+              <el-option v-for="option in hazardCategoryOptions" :key="option.value" :label="option.label" :value="option.value" />
             </el-select>
           </div>
           <div class="hazard-row">
             <span class="hazard-label">隐患等级<i>*</i></span>
             <el-select v-model="hazard.hazardLevel" placeholder="请选择隐患等级" style="width: 100%" :aria-label="`隐患${index + 1}等级`">
-              <el-option v-for="level in HAZARD_LEVELS" :key="level" :label="level" :value="level" />
+              <el-option v-for="level in hazardLevelOptions" :key="level" :label="level" :value="level" />
             </el-select>
           </div>
           <div class="hazard-row">
@@ -341,15 +350,15 @@ function submitInspection() {
           <div class="hazard-rectify">
             <div class="hazard-row">
               <span class="hazard-label">整改人<i>*</i></span>
-              <el-select v-model="hazard.rectifyPerson" filterable placeholder="请选择整改人" style="width: 100%" :aria-label="`隐患${index + 1}整改人`">
-                <el-option v-for="p in personOptions" :key="p" :label="p" :value="p" />
-              </el-select>
+              <InspectionPersonMultiSelect v-model="hazard.rectifyPerson" :options="personOptions" :aria-label="`隐患${index + 1}整改人`" />
             </div>
             <div class="hazard-row">
               <span class="hazard-label">复查人<i>*</i></span>
-              <el-select v-model="hazard.reviewPerson" filterable placeholder="请选择复查人" style="width: 100%" :aria-label="`隐患${index + 1}复查人`">
-                <el-option v-for="p in personOptions" :key="p" :label="p" :value="p" />
-              </el-select>
+              <InspectionPersonMultiSelect v-model="hazard.reviewPerson" :options="personOptions" :aria-label="`隐患${index + 1}复核人`" />
+            </div>
+            <div class="hazard-row">
+              <span class="hazard-label">抄送人</span>
+              <InspectionPersonMultiSelect v-model="hazard.ccPersons" :options="personOptions" placeholder="请选择抄送人（选填，可多选）" :aria-label="`隐患${index + 1}抄送人`" />
             </div>
             <div class="hazard-row">
               <span class="hazard-label">整改截止日期<i>*</i></span>

@@ -22,7 +22,7 @@ const scopedWorkflowMessages = computed(() => {
   return {
     ...messages,
     todo: isHqSelected.value
-      ? messages.todo.filter(item => item.action !== 'execute')
+      ? messages.todo.filter(item => item.action !== 'execute' && !['contractorAcceptance', 'directorAcceptance'].includes(item.workflowStage))
       : messages.todo,
   }
 })
@@ -108,6 +108,9 @@ function goBack() { router.push('/mobile/tasks') }
             <strong>{{ item.flowName }}</strong>
             <span :class="['status-tag', item.status === '待办' ? 'todo' : item.status === '已办结' ? 'done' : 'moving']">{{ item.status }}</span>
           </div>
+          <div v-if="item.inspectionCategory" class="message-field"><span>巡检分类：</span><b>{{ item.inspectionCategory }}<template v-if="item.hazardLevel"> / {{ item.hazardLevel }}</template></b></div>
+          <div v-if="item.rectifyNo" class="message-field"><span>整改单号：</span><b>{{ item.rectifyNo }}</b></div>
+          <div v-if="item.hazard" class="message-field"><span>隐患说明：</span><b>{{ item.hazard }}</b></div>
           <div class="message-field"><span>当前节点：</span><b>{{ item.currentNode }}</b></div>
           <div class="message-field"><span>负责人：</span><b>{{ item.owner }}</b></div>
           <div class="message-field"><span>申请人：</span><b>{{ item.applicant }}</b></div>

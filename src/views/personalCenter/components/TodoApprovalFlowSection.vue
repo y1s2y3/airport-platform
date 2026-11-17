@@ -32,8 +32,14 @@ function flowType(status) {
             {{ step.title }}
             <el-tag v-if="step.status === 'current'" size="small" type="warning">当前</el-tag>
           </div>
-          <div class="flow-meta">处理人：{{ step.user || '--' }}</div>
-          <div v-if="step.remark" class="flow-remark">{{ step.remark }}</div>
+          <template v-if="step.status === 'assignment'">
+            <div class="flow-meta">指派人：{{ step.from || step.user || '--' }}</div>
+            <div class="flow-meta">接收人：{{ step.to || '--' }}</div>
+          </template>
+          <template v-else>
+            <div class="flow-meta">处理人：{{ step.user || '--' }}</div>
+            <div v-if="step.remark" class="flow-remark">{{ step.remark }}</div>
+          </template>
         </div>
       </el-timeline-item>
     </el-timeline>

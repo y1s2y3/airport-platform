@@ -1,7 +1,15 @@
-import { computed, reactive } from 'vue'
-import { getProjectRectifierLabel, getProjectReviewerLabel } from './useInspectionPersonConfig'
+import { computed, reactive, watch } from 'vue'
+import { getProjectRectifierLabel, getProjectReviewerLabel, getConfiguredPersonLabel, getProjectApproverLabel } from './useInspectionPersonConfig'
 import { mobileInspectionTasks } from '../mock/mobileInspectionTasks'
 import { normalizeHazardCategory } from '../config/inspectionManagement'
+import { createInspectionWorkflowExamples, createInspectionAssignmentExamples } from '../mock/inspectionWorkflowExamples.js'
+
+import { workflowSteps, currentWorkflowStep, isAcceptanceStage } from '../utils/inspectionRectificationWorkflow'
+import { canExecuteInspectionStep, canAssignInspectionStep, inspectionOperator, isInspectionCopyRecipient } from '../utils/inspectionWorkflowIdentity'
+import { inspectorCandidates } from './useInspectionPersonConfig'
+const workflowListeners = new Set()
+export function registerInspectionWorkflowListener(listener) { workflowListeners.add(listener) }
+function notifyWorkflow(record, handledStep = null) { for (const listener of workflowListeners) listener(record, handledStep) }
 
 const nowText = () => new Date().toLocaleString('zh-CN', { hour12: false }).replaceAll('/', '-')
 
@@ -16,12 +24,13 @@ function photoLabels(list, prefix = '整改照片') {
 
 /** 移动端整改记录 → Web 隐患清单行（同一真相源） */
 export function mapMobileRecordToHazardRow(record) {
-  const issueDate = String(record.applyDate || record.submitDate || '').slice(0, 10)
+  const issueDate = String(record.issuedAt || record.applyDate || record.submitDate || '').slice(0, 10)
   return {
     id: record.id,
     rectifyNo: record.rectifyNo,
     taskNo: record.taskNo,
     inspectionCategory: record.inspectionCategory,
+    inspectionCategories: record.inspectionCategories,
     hazardCategory: normalizeHazardCategory(record.hazardCategory),
     hazardLevel: record.hazardLevel || '',
     rectifyRequirement: record.rectifyRequirement || '',
@@ -30,6 +39,7 @@ export function mapMobileRecordToHazardRow(record) {
     project_id: record.projectId,
     rectifier: record.rectifier,
     reviewer: record.reviewer,
+    ccPersons: record.ccPersons || '',
     manager: record.manager,
     issueDate: issueDate || '2026-07-25',
     deadline: record.deadline,
@@ -48,6 +58,16 @@ export function mapMobileRecordToHazardRow(record) {
     rejectReason: record.rejectReason || '',
     approvalRejected: !!record.approvalRejected,
     approvalReason: record.approvalReason || '',
+    contractorManager: record.contractorManager,
+    director: record.director,
+    contractorAcceptanceDate: record.contractorAcceptanceDate,
+    contractorAcceptanceComment: record.contractorAcceptanceComment,
+    contractorAcceptanceResult: record.contractorAcceptanceResult,
+    directorAcceptanceDate: record.directorAcceptanceDate,
+    directorAcceptanceComment: record.directorAcceptanceComment,
+    directorAcceptanceResult: record.directorAcceptanceResult,
+    workflowHistory: record.workflowHistory,
+    currentNode: record.currentNode,
     source: 'mobile-rectify',
   }
 }
@@ -266,11 +286,64 @@ export const mobileRectificationRecords = reactive([
     approvalDate: '2026-07-30',
     approvalComment: '同意关闭',
   },
+  ...createInspectionWorkflowExamples(),
+  ...createInspectionAssignmentExamples(),
 ].map((record) => ({
   ...record,
+  // 旧台账示例仍可查看详情，但不再重复投影到消息中心的待办清单。
+  legacyWorkflowExample: !record.workflowExample,
   hazardCategory: normalizeHazardCategory(record.hazardCategory),
 })))
 
+const ASSIGNMENT_ARCHIVE_KEY = 'airport-inspection-assigned-records-v1'
+function readAssignedRecords() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(ASSIGNMENT_ARCHIVE_KEY) || '[]')
+    return Array.isArray(saved) ? saved.filter(item => item?.id && item.workflowAssignees) : []
+  } catch { return [] }
+}
+function restoreAssignedRecords() {
+  for (const saved of readAssignedRecords()) {
+    const current = mobileRectificationRecords.find(item => item.id === saved.id)
+    if (current) Object.assign(current, saved)
+    else mobileRectificationRecords.unshift(saved)
+  }
+}
+function persistAssignedRecords() {
+  const value = JSON.stringify(mobileRectificationRecords.filter(item => item.workflowAssignees))
+  if (localStorage.getItem(ASSIGNMENT_ARCHIVE_KEY) !== value) localStorage.setItem(ASSIGNMENT_ARCHIVE_KEY, value)
+}
+restoreAssignedRecords()
+// 已指派的演示单属于原办理历史，不能恢复执行权；另补独立演示单，保证八种示例可再次演示。
+export function ensureInspectionWorkflowExamples() {
+  const availableRecords = []
+  for (const template of createInspectionWorkflowExamples().filter(item => !item.exampleHidden)) {
+    const expectedStage = currentWorkflowStep(template)?.key
+    const related = mobileRectificationRecords.filter(item => item.id === template.id || item.demoTemplateId === template.id)
+    const available = related.find(item => !item.workflowAssignees && currentWorkflowStep(item)?.key === expectedStage)
+    if (available) { availableRecords.push(available); continue }
+    for (const item of related) item.workflowExample = false
+    let sequence = 1
+    while (mobileRectificationRecords.some(item => item.id === `${template.id}-demo-${sequence}`)) sequence++
+    const created = {
+      ...template, id: `${template.id}-demo-${sequence}`, demoTemplateId: template.id,
+      rectifyNo: `${template.rectifyNo}-D${sequence}`, legacyWorkflowExample: false,
+      hazardCategory: normalizeHazardCategory(template.hazardCategory),
+    }
+    mobileRectificationRecords.unshift(created)
+    availableRecords.push(created)
+    notifyWorkflow(created)
+  }
+  return availableRecords
+}
+ensureInspectionWorkflowExamples()
+watch(mobileRectificationRecords, persistAssignedRecords, { deep: true })
+// 另一标签页发生指派时，及时收回原处理人的待办和执行权限。
+window.addEventListener('storage', event => {
+  if (event.key !== ASSIGNMENT_ARCHIVE_KEY) return
+  restoreAssignedRecords()
+  for (const row of mobileRectificationRecords.filter(item => item.workflowAssignees)) notifyWorkflow(row, { assignment: true })
+})
 export const getMobileRectification = (id) => mobileRectificationRecords.find((item) => item.id === id)
 
 /** 将巡检中逐条生成的整改单同步进整改复查台账。 */
@@ -278,7 +351,9 @@ export function createMobileRectificationsFromTask(task = {}, hazardItems = []) 
   hazardItems.forEach((hazard, index) => {
     const id = hazard.rectifyId || `rectify-${task.id || Date.now()}-${index + 1}`
     if (getMobileRectification(id)) return
-    mobileRectificationRecords.unshift({
+    const category = task.inspectionCategory || '安全'
+    const project = task.projectId || task.project_id || task.project
+    const record = {
       id,
       rectifyNo: hazard.rectifyNo || id,
       taskNo: task.taskNo || '--',
@@ -289,9 +364,14 @@ export function createMobileRectificationsFromTask(task = {}, hazardItems = []) 
       rectifyRequirement: String(hazard.rectifyRequirement || '').trim(),
       projectId: task.projectId || task.project_id || '',
       project: task.project || '--',
-      rectifier: hazard.rectifyPerson || hazard.rectifier || getProjectRectifierLabel(task.projectId || task.project),
-      reviewer: hazard.reviewPerson || hazard.reviewer || getProjectReviewerLabel(task.projectId || task.project),
-      manager: '项目经理',
+      rectifier: hazard.rectifyPerson || hazard.rectifier || getProjectRectifierLabel(project, category),
+      reviewer: hazard.reviewPerson || hazard.reviewer || getProjectReviewerLabel(project, category),
+      ccPersons: [...new Set((Array.isArray(hazard.ccPersons) ? hazard.ccPersons : String(hazard.ccPersons || '').split('、')).filter(Boolean))].join('、'),
+      manager: getProjectApproverLabel(project, category),
+      contractorManager: getConfiguredPersonLabel(project, category, 'contractorManagerId'),
+      director: getConfiguredPersonLabel(project, category, 'directorId'),
+      workflowHistory: [],
+      issuedAt: task.submittedAt || nowText(),
       deadline: hazard.rectifyDeadline || '',
       status: '待整改',
       currentNode: '整改人整改',
@@ -300,7 +380,10 @@ export function createMobileRectificationsFromTask(task = {}, hazardItems = []) 
       overdue: false,
       hazard: hazard.desc || '',
       hazardPhotos: photoLabels(hazard.photos || [], '隐患照片'),
-    })
+    }
+    record.currentNode = currentWorkflowStep(record)?.label || '施工单位整改'
+    mobileRectificationRecords.unshift(record)
+    notifyWorkflow(record)
   })
 }
 
@@ -308,101 +391,92 @@ export function listMobileHazardsAsInspectionRows() {
   return mobileRectificationRecords.map(mapMobileRecordToHazardRow)
 }
 
-export function submitRectification(id, payload = {}) {
+/** 所有端共用同一状态机，禁止跳级或重复办理；退回后清空下游结论，日志保留。 */
+export function submitInspectionWorkflowStep(id, expectedStage, pass, payload = {}) {
+  restoreAssignedRecords()
   const record = getMobileRectification(id)
-  if (!record || record.status !== '待整改') return false
-  const rectificationDate = payload.rectificationDate || payload.rectDate || nowText().slice(0, 10)
-  const rectificationNote = payload.rectificationNote || payload.rectNote || ''
-  const rectificationPhotos = photoLabels(
-    payload.rectificationPhotos || payload.rectPhotos || [],
-    '整改照片',
-  )
+  const step = currentWorkflowStep(record)
+  if (!record || !step || step.key !== expectedStage) return false
+  if (!canExecuteInspectionStep(record, step.key)) return false
+  if (record.workflowAssignees?.[step.key] && payload.assignmentRevision !== record.workflowAssignmentRevision) return false
+  const steps = workflowSteps(record), index = steps.findIndex(item => item.key === step.key)
+  const date = payload.date || payload[step.date] || nowText().slice(0, 10)
+  const comment = String(payload.comment || payload[step.note] || '').trim()
+  if (!date || (!comment && !(pass && isAcceptanceStage(step.key)))) return false
+  if (step.key === 'rectify' && !(payload.rectificationPhotos || payload.rectPhotos || []).length) return false
+  // 历史单据首次办理时固化原始登记时间，后续 applyDate 更新不影响下发记录。
+  record.issuedAt ||= record.applyDate || nowText()
+  record.workflowHistory ||= []
+  record.workflowHistory.push({ stage: step.key, label: step.label, actor: record.workflowAssignees?.[step.key] ? inspectionOperator().label : step.actor, date, comment, result: pass ? '通过' : '不通过' })
+  record[step.date] = date
+  record[step.note] = comment
+  if (step.result) record[step.result] = pass ? '通过' : '不通过'
+  if (step.key === 'rectify') {
+    record.rectificationPhotos = photoLabels(payload.rectificationPhotos || payload.rectPhotos || [], '整改照片')
+    record.submitDate = date
+  }
+  let nextIndex = index + 1
+  if (!pass) nextIndex = step.key === 'contractorAcceptance' || step.key === 'review' ? 0 : steps.findIndex(item => item.key === 'review')
+  // 重新流转时作废本次所经过的下游旧结论，历史处理留在 workflowHistory。
+  for (let i = pass ? index + 1 : nextIndex; i < steps.length; i++) {
+    if (i === index && !pass) continue
+    const later = steps[i]
+    record[later.date] = ''
+    record[later.note] = ''
+    if (later.result) record[later.result] = ''
+  }
+  const next = steps[nextIndex]
   Object.assign(record, {
-    rectificationDate,
-    rectificationNote,
-    rectificationPhotos,
-    status: '待验收',
-    currentNode: '复查人复查',
-    submitDate: rectificationDate,
+    status: next?.status || '已关闭',
+    currentNode: next?.label || '流程结束',
+    applicant: step.actor,
     applyDate: nowText(),
-    isRejected: false,
-    rejectReason: '',
-    reviewDate: '',
-    reviewResult: '',
-    reviewComment: '',
-    approvalRejected: false,
-    approvalReason: '',
+    closeDate: next ? '' : date,
+    isRejected: !pass && nextIndex === 0,
+    rejectReason: !pass && nextIndex === 0 ? comment : '',
+    approvalRejected: !pass && nextIndex !== 0,
+    approvalReason: !pass && nextIndex !== 0 ? comment : '',
   })
+  notifyWorkflow(record, step)
+  if (record.workflowAssignees) persistAssignedRecords()
   return true
 }
+export function assignInspectionWorkflowStep(id, expectedStage, targetId, expectedRevision = 0) {
+  restoreAssignedRecords()
+  const record = getMobileRectification(id)
+  if (!canAssignInspectionStep(record, expectedStage)) return { ok: false, message: '只有当前任务处理人可以指派整改或复查任务' }
+  if ((record.workflowAssignmentRevision || 0) !== expectedRevision) return { ok: false, message: '任务已被指派，请刷新后重试' }
+  const target = inspectorCandidates.find(item => item.id === targetId)
+  const operator = inspectionOperator()
+  if (!target || target.id === operator.id) return { ok: false, message: '请选择其他处理人' }
+  const label = `${target.name}（${target.role}）`
+  const step = currentWorkflowStep(record)
+  if (step.actor === label) return { ok: false, message: '该人员已是当前处理人' }
+  record.workflowAssignees ||= {}
+  record.legacyWorkflowExample = false
+  record.workflowAssignees[expectedStage] = { id: target.id, label }
+  record[expectedStage === 'rectify' ? 'rectifier' : 'reviewer'] = label
+  record.workflowAssignmentRevision = (record.workflowAssignmentRevision || 0) + 1
+  record.workflowHistory ||= []
+  if (!record.workflowHistory.length) {
+    for (const previous of workflowSteps(record)) if (record[previous.date]) {
+      record.workflowHistory.push({ stage: previous.key, label: previous.label, actor: previous.actor, date: record[previous.date], comment: record[previous.note] || '', result: previous.result ? record[previous.result] : '通过' })
+    }
+  }
+  record.workflowHistory.push({ type: 'assignment', stage: expectedStage, label: step.label, actor: operator.label, fromId: operator.id, toId: target.id, from: operator.label, to: label, date: nowText(), comment: `${operator.label}指派给${label}`, result: '指派' })
+  notifyWorkflow(record, { assignment: true })
+  persistAssignedRecords()
+  return { ok: true }
+}
 
+export function submitRectification(id, payload = {}) {
+  return submitInspectionWorkflowStep(id, 'rectify', true, { ...payload, date: payload.rectificationDate || payload.rectDate, comment: payload.rectificationNote || payload.rectNote })
+}
 export function submitRectificationReview(id, pass, payload = {}) {
-  const record = getMobileRectification(id)
-  if (!record || record.status !== '待验收') return false
-  const reviewDate = payload.reviewDate || nowText().slice(0, 10)
-  const reviewComment = payload.reviewComment || ''
-  if (pass) {
-    Object.assign(record, {
-      reviewDate,
-      reviewComment,
-      reviewResult: '通过',
-      status: '待复查',
-      currentNode: '项目经理审批',
-      applicant: record.reviewer,
-      applyDate: nowText(),
-      approvalRejected: false,
-      approvalReason: '',
-      isRejected: false,
-      rejectReason: '',
-    })
-  } else {
-    Object.assign(record, {
-      reviewDate,
-      reviewComment,
-      reviewResult: '不通过',
-      status: '待整改',
-      currentNode: '整改人重新整改',
-      applicant: record.reviewer,
-      applyDate: nowText(),
-      isRejected: true,
-      rejectReason: reviewComment || '复查不通过，请重新整改',
-    })
-  }
-  return true
+  return submitInspectionWorkflowStep(id, 'review', pass, { ...payload, date: payload.reviewDate, comment: payload.reviewComment })
 }
-
 export function submitManagerApproval(id, pass, payload = {}) {
-  const record = getMobileRectification(id)
-  if (!record || record.status !== '待复查') return false
-  const approvalDate = payload.approvalDate || nowText().slice(0, 10)
-  const approvalComment = payload.approvalComment || ''
-  if (pass) {
-    Object.assign(record, {
-      approvalDate,
-      approvalComment,
-      approvalResult: '通过',
-      status: '已关闭',
-      currentNode: '流程结束',
-      closeDate: approvalDate,
-      applicant: record.manager,
-      applyDate: nowText(),
-      approvalRejected: false,
-      approvalReason: '',
-    })
-  } else {
-    Object.assign(record, {
-      approvalDate,
-      approvalComment,
-      approvalResult: '不通过',
-      status: '待验收',
-      currentNode: '复查人重新复查',
-      applicant: record.manager,
-      applyDate: nowText(),
-      approvalRejected: true,
-      approvalReason: approvalComment || '审批不通过，请复查人重新复查',
-    })
-  }
-  return true
+  return submitInspectionWorkflowStep(id, 'approval', pass, { ...payload, date: payload.approvalDate, comment: payload.approvalComment })
 }
 
 export const mobileWorkflowMessages = computed(() => {
@@ -420,38 +494,30 @@ export const mobileWorkflowMessages = computed(() => {
       action: 'task-execute',
     }))
   const rectifyTodo = mobileRectificationRecords
-    .filter((item) => item.status === '待整改' || item.status === '待验收' || item.status === '待复查')
+    .filter((item) => !item.legacyWorkflowExample && !!currentWorkflowStep(item) && canExecuteInspectionStep(item, currentWorkflowStep(item)?.key))
     .map((item) => ({
       id: `todo-${item.id}`,
+      inspectionCategory: item.inspectionCategory,
+      hazardLevel: item.hazardLevel,
+      rectifyNo: item.rectifyNo,
+      hazard: item.hazard,
+      workflowStage: currentWorkflowStep(item)?.key,
       recordId: item.id,
       flowName: '隐患整改',
       currentNode: item.currentNode,
-      owner:
-        item.status === '待整改'
-          ? item.rectifier
-          : item.status === '待验收'
-            ? item.reviewer
-            : item.manager,
+      owner: currentWorkflowStep(item)?.actor || '-',
       applicant: item.applicant,
       applyDate: item.applyDate,
       status: '待办',
-      action:
-        item.status === '待整改' ? 'execute' : item.status === '待验收' ? 'review' : 'approve',
+      action: currentWorkflowStep(item)?.key === 'rectify' ? 'execute' : currentWorkflowStep(item)?.key === 'approval' ? 'approve' : 'review',
     }))
   const todo = [...inspectionTodo, ...rectifyTodo]
-  const initiated = mobileRectificationRecords.slice(0, 5).map((item) => ({
+  const initiated = mobileRectificationRecords.filter(item => !item.legacyWorkflowExample).map((item) => ({
     id: `started-${item.id}`,
     recordId: item.id,
     flowName: '隐患整改',
     currentNode: item.currentNode,
-    owner:
-      item.status === '待整改'
-        ? item.rectifier
-        : item.status === '待验收'
-          ? item.reviewer
-          : item.status === '待复查'
-            ? item.manager
-            : '-',
+    owner: currentWorkflowStep(item)?.actor || '-',
     applicant: item.applicant,
     applyDate: item.applyDate,
     status: item.status === '已关闭' ? '已办结' : '流转中',
@@ -470,7 +536,8 @@ export const mobileWorkflowMessages = computed(() => {
       status: '已办结',
       action: 'detail',
     }))
-  const copied = mobileRectificationRecords.slice(1, 4).map((item) => ({
+  const copiedRows = new Map([...mobileRectificationRecords.filter(item => item.legacyWorkflowExample && !item.ccPersons).slice(1, 4), ...mobileRectificationRecords.filter(item => isInspectionCopyRecipient(item.ccPersons))].map(item => [item.id, item]))
+  const copied = [...copiedRows.values()].map((item) => ({
     id: `cc-${item.id}`,
     recordId: item.id,
     flowName: '隐患整改',

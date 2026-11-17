@@ -1,11 +1,12 @@
 <script setup>
+import InspectionPersonMultiSelect from '../../components/InspectionPersonMultiSelect.vue'
 import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getMobileInspectionTask, updateMobileInspectionTask } from '../../mock/mobileInspectionTasks'
 import { createMobileRectificationsFromTask } from '../../composables/useMobileRectification'
 import { checkCategoryTree, getItemLabel } from '../../composables/useInspectionPlan'
-import { HAZARD_CATEGORIES, HAZARD_LEVELS, hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
+import { validateInspectionHazard, hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
 import { COC_PROJECT_OPTIONS } from '../../config/projectOptions'
 import { getMajorHazardLedgerOptions } from '../../utils/inspectionMajorHazardLink'
 import {
@@ -14,6 +15,8 @@ import {
   getProjectReviewerLabel,
 } from '../../composables/useInspectionPersonConfig'
 import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
+
+import { useInspectionHazardOptions } from '../../composables/useInspectionCategoryForm'
 
 const route = useRoute()
 const router = useRouter()
@@ -133,6 +136,8 @@ const currentCatItems = computed(() => {
 
 // 隐患列表（类似系统自建）
 const hazardItems = ref([])
+const taskCategory = computed(() => normalizeInspectionCategories(taskInfo.inspectionCategories || taskInfo.inspectionCategory).join('、'))
+const { hazardCategoryOptions, hazardLevelOptions } = useInspectionHazardOptions(taskCategory, hazardItems)
 
 function addHazard() {
   hazardItems.value.push({
@@ -141,8 +146,8 @@ function addHazard() {
     rectifyRequirement: '',
     desc: '',
     photos: [],
-    rectifyPerson: getProjectRectifierLabel(taskInfo.project),
-    reviewPerson: getProjectReviewerLabel(taskInfo.project),
+    rectifyPerson: getProjectRectifierLabel(taskInfo.project, taskCategory.value),
+    reviewPerson: getProjectReviewerLabel(taskInfo.project, taskCategory.value),
     rectifyDeadline: '',
   })
 }
@@ -192,6 +197,10 @@ function triggerNormalPhoto() {
 function removeNormalPhoto(idx) { normalPhotos.value.splice(idx, 1) }
 
 function submitCheck() {
+  if (getMobileInspectionTask(String(route.params.id))?.status !== '未完成') {
+    ElMessage.warning('任务已完成或不存在，请返回列表刷新后重试')
+    return
+  }
   if (patrolLink.value.isMajorHazardPatrol === '是' && !patrolLink.value.projectId) {
     ElMessage.warning('请先选择本次实际巡视项目')
     return
@@ -208,6 +217,8 @@ function submitCheck() {
   if (inspectResult.value === 'hazard') {
     if (hazardItems.value.length === 0) { ElMessage.warning('请至少新增一条隐患'); return }
     for (const [i, item] of hazardItems.value.entries()) {
+      const dictionaryError = validateInspectionHazard(item, taskCategory.value)
+      if (dictionaryError) { ElMessage.warning(`第 ${i + 1} 条隐患：${dictionaryError}`); return }
       if (!item.hazardCategory) { ElMessage.warning(`第 ${i+1} 条隐患请选择隐患类别`); return }
       if (!item.hazardLevel) { ElMessage.warning(`第 ${i+1} 条隐患请选择隐患等级`); return }
       if (!item.rectifyRequirement.trim()) { ElMessage.warning(`第 ${i+1} 条隐患请填写整改要求`); return }
@@ -408,15 +419,15 @@ function goBack() { router.push(tasksBase.value) }
             <div class="form-row">
               <span class="form-label">隐患类别 <i class="req">*</i></span>
               <select v-model="item.hazardCategory" class="rf-select">
-                <option value="" disabled>请选择隐患类别</option>
-                <option v-for="category in HAZARD_CATEGORIES" :key="category" :value="category">{{ category }}</option>
+                <option value="" disabled>{{ hazardCategoryOptions.length ? '请选择隐患类别' : '请先由指挥部配置此分类的隐患类别' }}</option>
+                <option v-for="option in hazardCategoryOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
               </select>
             </div>
             <div class="form-row">
               <span class="form-label">隐患等级 <i class="req">*</i></span>
               <select v-model="item.hazardLevel" class="rf-select">
                 <option value="" disabled>请选择隐患等级</option>
-                <option v-for="level in HAZARD_LEVELS" :key="level" :value="level">{{ level }}</option>
+                <option v-for="level in hazardLevelOptions" :key="level" :value="level">{{ level }}</option>
               </select>
             </div>
             <div class="form-row">
@@ -439,10 +450,10 @@ function goBack() { router.push(tasksBase.value) }
             </div>
             <div class="rectify-fields">
               <div class="rf-row"><span class="rf-label">整改人 <i class="req">*</i></span>
-                <select v-model="item.rectifyPerson" class="rf-select"><option value="" disabled>请选择</option><option v-for="p in personOptions" :key="p" :value="p">{{ p }}</option></select>
+                <InspectionPersonMultiSelect v-model="item.rectifyPerson" :options="personOptions" placeholder="请选择整改人（可多选）" />
               </div>
               <div class="rf-row"><span class="rf-label">复查人 <i class="req">*</i></span>
-                <select v-model="item.reviewPerson" class="rf-select"><option value="" disabled>请选择</option><option v-for="p in personOptions" :key="p" :value="p">{{ p }}</option></select>
+                <InspectionPersonMultiSelect v-model="item.reviewPerson" :options="personOptions" placeholder="请选择复核人（可多选）" />
               </div>
               <div class="rf-row"><span class="rf-label">整改截止日期 <i class="req">*</i></span>
                 <input type="date" v-model="item.rectifyDeadline" class="rf-select" />

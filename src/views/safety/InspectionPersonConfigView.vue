@@ -2,139 +2,46 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useCurrentProject } from '../../composables/useCurrentProject'
-import {
-  getInspectionPersonConfig,
-  getInspectorById,
-  inspectorCandidates,
-  saveInspectionPersonConfig,
-} from '../../composables/useInspectionPersonConfig'
-
+import { INSPECTION_PERSON_CONFIG_GROUPS, getInspectionPersonConfig, getInspectorById, inspectorCandidates, saveInspectionPersonConfig } from '../../composables/useInspectionPersonConfig'
 const { laborProjectId, projectLabel } = useCurrentProject()
-const isEditing = ref(false)
-
-const form = reactive({
-  manager: '',
-  inspectorId: 'insp-supervisor',
-  rectifierId: '',
-  reviewerId: '',
-})
-
-const currentConfig = computed(() => getInspectionPersonConfig(laborProjectId.value))
-const currentInspector = computed(() => getInspectorById(form.inspectorId))
-const currentRectifier = computed(() => getInspectorById(form.rectifierId))
-const currentReviewer = computed(() => getInspectorById(form.reviewerId))
-
-function loadForm() {
-  const config = currentConfig.value
-  form.manager = config?.manager || '项目经理'
-  form.inspectorId = config?.inspectorId || 'insp-supervisor'
-  form.rectifierId = config?.rectifierId || ''
-  form.reviewerId = config?.reviewerId || 'insp-supervisor'
-}
-
-watch(laborProjectId, () => {
-  loadForm()
-  isEditing.value = false
-}, { immediate: true })
-
-function startEdit() {
-  loadForm()
-  isEditing.value = true
-}
-
-function cancelEdit() {
-  loadForm()
+const category = ref('安全'), isEditing = ref(false)
+const form = reactive({})
+const fields = computed(() => [
+  { key: 'inspectorId', label: '巡检人' },
+  { key: 'rectifierId', label: '施工单位整改人', multiple: true },
+  ...(category.value === '质量' ? [{ key: 'contractorManagerId', label: '施工单位项目经理（A级验收）' }] : []),
+  { key: 'reviewerId', label: '监理单位复核人', multiple: true },
+  ...(category.value === '质量' ? [{ key: 'directorId', label: '监理单位项目总监（A级验收）' }] : []),
+  { key: 'managerId', label: category.value === '质量' ? '指挥部项目经理（审批）' : '项目经理（审批）' },
+])
+function load() {
+  const config = getInspectionPersonConfig(laborProjectId.value, category.value) || {}
+  Object.assign(form, config, { rectifierId: [...(config.rectifierId || [])], reviewerId: [...(config.reviewerId || [])] })
   isEditing.value = false
 }
-
-function handleSave() {
-  if (!form.inspectorId) {
-    ElMessage.warning('请选择巡检人')
-    return
-  }
-  if (!form.rectifierId) {
-    ElMessage.warning('请选择默认整改人')
-    return
-  }
-  if (!form.reviewerId) {
-    ElMessage.warning('请选择默认复查人')
-    return
-  }
-  saveInspectionPersonConfig(laborProjectId.value, {
-    manager: form.manager || '项目经理',
-    inspectorId: form.inspectorId,
-    rectifierId: form.rectifierId,
-    reviewerId: form.reviewerId,
-  })
-  isEditing.value = false
-  ElMessage.success('人员配置已保存，任务和隐患将默认带入巡检人、整改人及复查人')
+watch([laborProjectId, category], load, { immediate: true })
+function label(id) {
+  if (Array.isArray(id)) return id.length ? id.map(label).join('、') : '未配置'
+  const person = getInspectorById(id); return person ? `${person.name}（${person.role}）` : '未配置'
+}
+function save() {
+  if (!laborProjectId.value) return ElMessage.warning('请先选择项目')
+  const missing = fields.value.find(field => field.multiple ? !form[field.key]?.length : !form[field.key])
+  if (missing) return ElMessage.warning('请选择' + missing.label)
+  saveInspectionPersonConfig(laborProjectId.value, { ...form }, category.value)
+  isEditing.value = false; ElMessage.success(category.value === '质量' ? '质量人员配置已保存，安全、其他配置不受影响' : '安全、其他共用人员配置已保存，质量配置不受影响')
 }
 </script>
-
 <template>
   <div class="person-config-page">
-    <div class="page-head">
-      <div>
-        <h3 class="page-title">人员配置详情</h3>
-        <div class="page-desc">查看本项目巡检人、复查人和整改人配置。</div>
-      </div>
-      <el-button v-if="!isEditing" type="primary" @click="startEdit">编辑</el-button>
-      <div v-else class="head-actions">
-        <el-button @click="cancelEdit">取消</el-button>
-        <el-button type="primary" @click="handleSave">保存</el-button>
-      </div>
-    </div>
-
-    <el-card class="config-card" shadow="never">
-      <template #header>
-        <div class="card-header">
-          <span>基本信息</span>
-          <el-tag v-if="isEditing" type="warning" effect="light">编辑中</el-tag>
-        </div>
-      </template>
-      <el-descriptions :column="2" border class="config-detail">
-        <el-descriptions-item label="项目">{{ projectLabel }}</el-descriptions-item>
-        <el-descriptions-item label="配置人">{{ form.manager || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="巡检人">
-          <el-select v-if="isEditing" v-model="form.inspectorId" placeholder="请选择巡检人" class="person-select">
-            <el-option v-for="item in inspectorCandidates" :key="item.id" :label="`${item.name}（${item.role}）`" :value="item.id" />
-          </el-select>
-          <template v-else>
-            <span v-if="currentInspector">{{ currentInspector.name }}（{{ currentInspector.role }}，{{ currentInspector.phone }}）</span>
-            <span v-else>-</span>
-          </template>
-        </el-descriptions-item>
-        <el-descriptions-item label="复查人">
-          <el-select v-if="isEditing" v-model="form.reviewerId" placeholder="请选择复查人" class="person-select">
-            <el-option v-for="item in inspectorCandidates" :key="item.id" :label="`${item.name}（${item.role}）`" :value="item.id" />
-          </el-select>
-          <template v-else>
-            <span v-if="currentReviewer">{{ currentReviewer.name }}（{{ currentReviewer.role }}，{{ currentReviewer.phone }}）</span>
-            <span v-else>-</span>
-          </template>
-        </el-descriptions-item>
-        <el-descriptions-item label="整改人">
-          <el-select v-if="isEditing" v-model="form.rectifierId" placeholder="请选择整改人" class="person-select">
-            <el-option v-for="item in inspectorCandidates" :key="item.id" :label="`${item.name}（${item.role}）`" :value="item.id" />
-          </el-select>
-          <template v-else>
-            <span v-if="currentRectifier">{{ currentRectifier.name }}（{{ currentRectifier.role }}，{{ currentRectifier.phone }}）</span>
-            <span v-else>-</span>
-          </template>
-        </el-descriptions-item>
-      </el-descriptions>
-    </el-card>
+    <div class="page-head"><h3>人员配置</h3><el-button v-if="!isEditing" type="primary" @click="isEditing = true">编辑</el-button><div v-else><el-button @click="load">取消</el-button><el-button type="primary" @click="save">保存</el-button></div></div>
+    <el-radio-group v-model="category" size="large"><el-radio-button v-for="item in INSPECTION_PERSON_CONFIG_GROUPS" :key="item.value" :value="item.value">{{ item.label }}</el-radio-button></el-radio-group>
+    <el-alert :closable="false" type="info" :title="category === '质量' ? '质量A级：施工单位整改 → 施工单位项目经理验收 → 监理单位复核 → 监理单位项目总监验收 → 指挥部项目经理审批；B/C级：整改 → 监理复核 → 指挥部项目经理审批。' : '安全、其他共用巡检人、整改人、复核人和项目经理：施工单位整改 → 监理单位复核 → 项目经理审批；质量人员独立配置。'" />
+    <el-card shadow="never"><el-descriptions :column="1" border><el-descriptions-item label="项目">{{ projectLabel }}</el-descriptions-item>
+      <el-descriptions-item v-for="field in fields" :key="field.key" :label="field.label">
+        <el-select v-if="isEditing" v-model="form[field.key]" :multiple="field.multiple" filterable :placeholder="'请选择' + field.label" style="width:100%;max-width:520px"><el-option v-for="person in inspectorCandidates" :key="person.id" :label="label(person.id)" :value="person.id" /></el-select><span v-else>{{ label(form[field.key]) }}</span>
+      </el-descriptions-item>
+    </el-descriptions></el-card>
   </div>
 </template>
-
-<style scoped>
-.person-config-page { display:flex; flex-direction:column; gap:16px; }
-.page-head { display:flex; justify-content:space-between; align-items:flex-start; }
-.page-title { font-size:18px; font-weight:600; color:#1f2329; margin:0 0 6px; }
-.page-desc { font-size:13px; color:#666; line-height:1.6; }
-.config-card { border-radius:8px; }
-.head-actions { display:flex; gap:8px; }
-.card-header { display:flex; align-items:center; justify-content:space-between; }
-.person-select { width:100%; max-width:420px; }
-.config-detail :deep(.el-descriptions__cell) { height:56px; }
-</style>
+<style scoped>.person-config-page { display:flex;flex-direction:column;gap:18px; }.page-head { display:flex;justify-content:space-between;align-items:center; }.page-head h3 { margin:0; }</style>

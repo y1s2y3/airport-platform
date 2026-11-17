@@ -1,4 +1,6 @@
 <script setup>
+import { getMobileRectification, mobileRectificationRecords } from '../../composables/useMobileRectification'
+import InspectionWorkflowAssignment from '../../components/InspectionWorkflowAssignment.vue'
 import { computed, reactive, ref, watch, onMounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -18,6 +20,7 @@ import {
   ensureLaborWarningCenterSeeds,
   ensureInspectionOverdueReminders,
   ensureAlertPushNotices,
+  ensurePersonalInspectionExamples,
   listPersonalWarningCenter,
   markWarningCenterRead,
   batchDisposeWarningCenter,
@@ -30,6 +33,9 @@ import AttachmentUpload from '../../components/common/AttachmentUpload.vue'
 import { taskProcessVisible } from '../../coc/utils/dispatchTaskWorkflow.js'
 import { dispatchTaskOperator } from '../../coc/utils/dispatchTaskIdentity.js'
 import { getDispatchNoticeRecords } from '../../coc/utils/dispatchMeetingStorage.js'
+import { useCurrentProject } from '../../composables/useCurrentProject.js'
+import { canExecuteInspectionStep, isInspectionCopyRecipient, inspectionOperator } from '../../utils/inspectionWorkflowIdentity'
+import { currentWorkflowStep } from '../../utils/inspectionRectificationWorkflow'
 
 const props = defineProps({
   /** 是否显示页标题（个人中心页显示，工作台嵌入时可关） */
@@ -41,10 +47,16 @@ const props = defineProps({
 
 const route = useRoute()
 const router = useRouter()
+const { isHqSelected } = useCurrentProject()
+const inspectionProcessVisible = row => !isHqSelected.value || row.type !== 'inspection' || row.inspectionBizType === '审批'
+const inspectionRowHint = row => row.assignmentEntry ? `已指派给：${row.to} · 当前节点：${row.node} · 当前处理人：${row.currentActor}` : row.type === 'inspection'
+  ? [row.detail?.inspectionCategory, row.detail?.hazardLevel, row.detail?.currentNode].filter(Boolean).join(' · ')
+  : ''
 
 const TAB_NAMES = ['todo', 'done', 'started', 'cc', 'warning-center', 'notice']
 
 onMounted(async () => {
+  ensurePersonalInspectionExamples()
   ensureAlertPushNotices()
   ensureQmPersonalCenterSeeds()
   ensureLaborWarningCenterSeeds()
@@ -74,7 +86,7 @@ const filters = reactive({
 
 const todos = computed(() => {
   const rows = applyTodoTransfers(
-    personalTodoStore.todos.filter(row => taskProcessVisible(row, dispatchTaskOperator())),
+    personalTodoStore.todos.filter(row => inspectionProcessVisible(row) && taskProcessVisible(row, dispatchTaskOperator()) && canExecuteInspectionStep(row.detail, row.expectedWorkflowStage)),
     dispatchTaskOperator(),
   )
   // 任务单（COC 调度）待办优先展示：避免被其它模块后写入的种子数据挤到后面的页码，
@@ -86,11 +98,11 @@ const todos = computed(() => {
 })
 const isTaskExample = row => row.type === 'dispatch_notice' && row.taskId?.startsWith('GZ-REPLY-DEMO-')
 const doneList = computed(() => {
-  const rows = personalTodoStore.done.filter(row => taskProcessVisible(row, dispatchTaskOperator()))
-  return [...rows.filter(isTaskExample), ...rows.filter(row => !isTaskExample(row))]
+  const rows = personalTodoStore.done.filter(row => inspectionProcessVisible(row) && taskProcessVisible(row, dispatchTaskOperator()))
+  return [...assignedRows.value, ...rows.filter(isTaskExample), ...rows.filter(row => !isTaskExample(row))]
 })
-const startedList = computed(() => personalStarted)
-const ccList = computed(() => personalCc)
+const startedList = computed(() => personalStarted.filter(inspectionProcessVisible))
+const ccList = computed(() => personalCc.filter(row => row.inspectionCopyExample || row.type !== 'inspection_rectification_cc' || isInspectionCopyRecipient(row.recipient)))
 const notices = ref([...personalNotices])
 watch(
   () => personalNotices.length,
@@ -141,6 +153,7 @@ function resetFilters() {
 }
 
 function onSearch() {
+  ensurePersonalInspectionExamples()
   page.value = 1
   ElMessage.success('已按条件筛选')
 }
@@ -149,12 +162,14 @@ function slicePage(rows) {
   const start = (page.value - 1) * pageSize.value
   return rows.slice(start, start + pageSize.value)
 }
+const normalizeInspectionSearch = value => String(value || '').replaceAll('复查', '复核')
+const matchesProcessName = (row, keyword) => normalizeInspectionSearch([row.processName, row.handleLabel, row.rectifyNo, row.from, row.to, inspectionRowHint(row), row.type === 'inspection' ? row.inspectionBizType : ''].filter(Boolean).join(' ')).includes(normalizeInspectionSearch(keyword))
 
 const filteredTodos = computed(() => {
   let rows = [...todos.value]
   if (filters.processCategory) rows = rows.filter((r) => r.category === filters.processCategory)
   const kw = filters.processName.trim()
-  if (kw) rows = rows.filter((r) => r.processName.includes(kw))
+  if (kw) rows = rows.filter((r) => matchesProcessName(r, kw))
   return rows
 })
 
@@ -162,7 +177,7 @@ const filteredDone = computed(() => {
   let rows = [...doneList.value]
   if (filters.processCategory) rows = rows.filter((r) => r.category === filters.processCategory)
   const kw = filters.processName.trim()
-  if (kw) rows = rows.filter((r) => r.processName.includes(kw))
+  if (kw) rows = rows.filter((r) => matchesProcessName(r, kw))
   return rows
 })
 
@@ -170,7 +185,7 @@ const filteredStarted = computed(() => {
   let rows = [...startedList.value]
   if (filters.processCategory) rows = rows.filter((r) => r.category === filters.processCategory)
   const kw = filters.processName.trim()
-  if (kw) rows = rows.filter((r) => r.processName.includes(kw))
+  if (kw) rows = rows.filter((r) => matchesProcessName(r, kw))
   if (filters.processStatus) rows = rows.filter((r) => r.status === filters.processStatus)
   return rows
 })
@@ -208,6 +223,21 @@ const filteredWarningCenter = computed(() => {
   return rows
 })
 
+const assignedRows = computed(() => {
+  const operator = inspectionOperator()
+  return mobileRectificationRecords.flatMap(record => (record.workflowHistory || []).flatMap((log, index) => {
+    if (log.type !== 'assignment') return []
+    const mine = log.fromId ? log.fromId === operator.id : (log.from || log.actor) === operator.label || (log.from || log.actor) === operator.name
+    if (!mine && !record.assignmentExample) return []
+    return [{ assignmentEntry: true, type: 'inspection', category: '巡检管理', handleLabel: '已指派', applicant: log.from || log.actor, dept: record.project, applyTime: record.issuedAt || record.applyDate, handleTime: log.date, id: record.id + '-' + index, rectifyId: record.id, processName: record.rectifyProcessName || '隐患整改·' + (record.hazard || record.rectifyNo), rectifyNo: record.rectifyNo, project: record.project, from: log.from || log.actor, to: log.to || String(log.comment || '').split('指派给')[1] || '--', time: log.date, node: record.currentNode, currentActor: currentWorkflowStep(record)?.actor || '--', status: record.status }]
+  })).sort((a, b) => String(b.time).localeCompare(String(a.time)))
+})
+function viewAssignment(row) { router.push('/safety-inspection/hazard/' + row.rectifyId) }
+function assignmentCompleted() {
+  assignmentDialogVisible.value = false
+  activeTab.value = 'done'
+  onTabChange('done')
+}
 const pagedTodos = computed(() => slicePage(filteredTodos.value))
 const pagedDone = computed(() => slicePage(filteredDone.value))
 const pagedStarted = computed(() => slicePage(filteredStarted.value))
@@ -261,6 +291,10 @@ function refreshWarningCenter() {
 }
 
 function openProcessDetail(row, from) {
+  if (from === 'cc' && row?.type === 'inspection_rectification_cc') {
+    router.push(`/safety-inspection/hazard/${row.rectifyId}`)
+    return
+  }
   if (from === 'cc' && row?.type === 'inspection_dispatch_cc' && row.inspectionPlanId) {
     router.push({
       name: 'InspectionPlanDetail',
@@ -374,11 +408,20 @@ async function confirmBatchDispose() {
   }
 }
 
+const assignmentRequest = ref(null)
+const assignmentDialogVisible = ref(false)
+const assignableTodo = row => row.liveInspectionWorkflow && ['rectify', 'review'].includes(row.expectedWorkflowStage)
+function openAssignment(row) {
+  const record = getMobileRectification(row.rectifyId)
+  assignmentRequest.value = { record, stage: row.expectedWorkflowStage, revision: record?.workflowAssignmentRevision || 0 }
+  assignmentDialogVisible.value = true
+}
 function handleTodo(row) {
   openProcessDetail(row, 'todo')
 }
 
 function viewDone(row) {
+  if (row.assignmentEntry) return viewAssignment(row)
   openProcessDetail(row, 'done')
 }
 
@@ -392,7 +435,7 @@ function viewStarted(row) {
 }
 
 function markAllCcRead() {
-  personalCc.forEach((r) => {
+  ccList.value.forEach((r) => {
     r.readStatus = '已读'
   })
   ElMessage.success('抄送消息已全部标为已读')
@@ -444,6 +487,9 @@ watch([activeTotal, pageSize], () => {
   <div class="pc-page" :class="{ 'pc-page--embedded': !showTitle }">
     <h1 v-if="showTitle" class="pc-title">{{ title }}</h1>
 
+    <el-dialog v-model="assignmentDialogVisible" title="指派任务" width="440px" destroy-on-close>
+      <InspectionWorkflowAssignment v-if="assignmentRequest" :record="assignmentRequest.record" :stage="assignmentRequest.stage" :revision="assignmentRequest.revision" @assigned="assignmentCompleted" />
+    </el-dialog>
     <el-tabs v-model="activeTab" class="pc-tabs" @tab-change="onTabChange">
       <el-tab-pane label="我的待办" name="todo" />
       <el-tab-pane label="我的已办" name="done" />
@@ -470,13 +516,14 @@ watch([activeTotal, pageSize], () => {
       </div>
       <el-table ref="todoTable" :data="pagedTodos" row-key="id" highlight-current-row border stripe empty-text="暂无数据">
         <el-table-column prop="category" label="所属模块" width="110" />
-        <el-table-column prop="processName" label="流程名称" min-width="220" show-overflow-tooltip />
+        <el-table-column prop="processName" label="流程名称" min-width="220" show-overflow-tooltip><template #default="{ row }"><div>{{ row.processName }}</div><small v-if="inspectionRowHint(row)" style="color:#909399">{{ inspectionRowHint(row) }}</small></template></el-table-column>
         <el-table-column prop="applicant" label="申请人" width="110" />
         <el-table-column prop="dept" label="申请人部门" width="140" />
         <el-table-column prop="applyTime" label="申请时间" width="170" />
-        <el-table-column label="操作" width="90" fixed="right">
+        <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="handleTodo(row)">处理</el-button>
+            <el-button v-if="assignableTodo(row)" link type="primary" title="指派给其他人员" @click="openAssignment(row)">指派</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -499,11 +546,12 @@ watch([activeTotal, pageSize], () => {
       </div>
       <el-table :data="pagedDone" border stripe empty-text="暂无数据">
         <el-table-column prop="category" label="所属模块" width="110" />
-        <el-table-column prop="processName" label="流程名称" min-width="220" show-overflow-tooltip />
+        <el-table-column prop="processName" label="流程名称" min-width="220" show-overflow-tooltip><template #default="{ row }"><div>{{ row.processName }}</div><small v-if="inspectionRowHint(row)" style="color:#909399">{{ inspectionRowHint(row) }}</small></template></el-table-column>
         <el-table-column prop="applicant" label="申请人" width="110" />
         <el-table-column prop="dept" label="申请人部门" width="140" />
         <el-table-column prop="applyTime" label="申请时间" width="170" />
         <el-table-column prop="handleTime" label="处理时间" width="170" />
+        <el-table-column prop="handleLabel" label="办理结果" width="120"><template #default="{ row }"><span>{{ row.handleLabel || '已处理' }}</span></template></el-table-column>
         <el-table-column label="操作" width="90" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="viewDone(row)">详情</el-button>
@@ -542,7 +590,7 @@ watch([activeTotal, pageSize], () => {
         <el-table-column type="selection" width="48" />
         <el-table-column prop="category" label="所属模块" width="110" />
         <el-table-column prop="status" label="处理状态" width="110" />
-        <el-table-column prop="processName" label="流程名称" min-width="220" show-overflow-tooltip />
+        <el-table-column prop="processName" label="流程名称" min-width="220" show-overflow-tooltip><template #default="{ row }"><div>{{ row.processName }}</div><small v-if="inspectionRowHint(row)" style="color:#909399">{{ inspectionRowHint(row) }}</small></template></el-table-column>
         <el-table-column prop="applyTime" label="申请时间" width="170" />
         <el-table-column prop="endTime" label="结束时间" width="170">
           <template #default="{ row }">{{ row.endTime || '--' }}</template>

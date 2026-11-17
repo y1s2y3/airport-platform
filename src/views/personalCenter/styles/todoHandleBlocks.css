@@ -89,6 +89,10 @@
   border-color: #fde2e2;
   background: #fef0f0;
 }
+.flow-card.assignment {
+  border-color: #dcdfe6;
+  background: #f5f7fa;
+}
 
 .flow-title {
   display: flex;

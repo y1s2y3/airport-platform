@@ -5,7 +5,7 @@ import { Plus } from '@element-plus/icons-vue'
 import { planData, userOptions, getPlanExecutionStatus } from '../../composables/useInspectionPlan'
 import { listMobileInspectionTasks } from '../../mock/mobileInspectionTasks'
 import { getProjectInspectorLabel } from '../../composables/useInspectionPersonConfig'
-import { INSPECTION_TYPES, hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
+import { INSPECTION_CATEGORIES, getInspectionTypeFilterOptions, hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
 
 const router = useRouter()
 
@@ -61,11 +61,10 @@ function goTaskDetail(row) {
     </div>
     <div class="filter-bar">
       <el-select v-model="filterForm.category" placeholder="巡检分类" clearable style="width: 110px">
-        <el-option label="安全" value="安全" />
-        <el-option label="质量" value="质量" />
+        <el-option v-for="category in INSPECTION_CATEGORIES" :key="category" :label="category" :value="category" />
       </el-select>
       <el-select v-model="filterForm.inspectionType" placeholder="检查类型" clearable style="width: 130px">
-        <el-option v-for="type in INSPECTION_TYPES" :key="type" :label="type" :value="type" />
+        <el-option v-for="type in getInspectionTypeFilterOptions()" :key="type" :label="type" :value="type" />
       </el-select>
       <el-input v-model="filterForm.keyword" placeholder="搜索任务名称..." clearable style="width: 240px" />
     </div>

@@ -2,6 +2,7 @@
  * 巡检隐患查询（合并 Web 种子 + 移动端整改）
  * 独立模块，避免 inspectionDemoData ↔ useMobileRectification ↔ mobileInspectionTasks 循环依赖。
  */
+import { isQualityA, workflowFlowRecords, workflowSteps, currentWorkflowStep } from '../utils/inspectionRectificationWorkflow'
 import { inspectionHazards } from './inspectionDemoData.js'
 import {
   getMobileRectification,
@@ -11,9 +12,26 @@ import { getInspectionPersonConfig, getInspectorById } from '../composables/useI
 
 /** Web 批量种子 + 移动端整改记录（同一 id 以移动端为准） */
 export function listInspectionHazards() {
-  const mobileRows = listMobileHazardsAsInspectionRows()
+  const mobileRows = listMobileHazardsAsInspectionRows().map(withDisplayDefaults)
   const mobileIds = new Set(mobileRows.map((item) => item.id))
-  return [...mobileRows, ...inspectionHazards.filter((item) => !mobileIds.has(item.id))]
+  return [...mobileRows, ...inspectionHazards.filter((item) => !mobileIds.has(item.id)).map(withDisplayDefaults)]
+}
+
+/** 历史种子缺少隐患等级/当前节点时，按分类与状态补齐展示值（不改原始数据）。 */
+function withDisplayDefaults(row) {
+  const statusNode = { 待整改: '施工单位整改', 待验收: '监理单位复核', 待复查: '项目经理审批', 已关闭: '流程结束' }[row.status] || row.status || ''
+  // 历史种子里的旧节点措辞统一为新流程名称。
+  const legacyNode = { 整改人整改: '施工单位整改', 复查人复查: '监理单位复核' }[row.currentNode] || ''
+  let currentNode = legacyNode || row.currentNode || ''
+  if (!currentNode) {
+    const step = workflowSteps(row).find(item => item.status === row.status && !row[item.date] && !(item.result && row[item.result]))
+    currentNode = step?.label || statusNode
+  }
+  return {
+    ...row,
+    hazardLevel: row.hazardLevel || (row.inspectionCategory === '质量' ? 'C' : 'Ⅲ一般隐患'),
+    currentNode,
+  }
 }
 
 export function getInspectionHazard(id) {
@@ -29,7 +47,7 @@ export function getInspectionHazard(id) {
  * 未配置巡检人时返回空串（页面显示 --），不用兜底值冒充。
  */
 function resolveConfiguredInspector(row) {
-  const config = getInspectionPersonConfig(row.project_id || row.projectId || '')
+  const config = getInspectionPersonConfig(row.project_id || row.projectId || '', row.inspectionCategory || '安全')
   const person = getInspectorById(config?.inspectorId)
   return person ? `${person.name}（${person.role}）` : ''
 }
@@ -47,6 +65,7 @@ export function getInspectionHazardDetail(id) {
     cat: row.inspectionCategory,
     rf: row.rectifier,
     rv: row.reviewer,
+    ccPersons: row.ccPersons || '',
     dl: row.deadline,
     st: row.status,
     cd: row.closeDate,
@@ -114,11 +133,15 @@ export function getInspectionHazardDetail(id) {
         by: row.manager || '',
       })
     }
-    detail.flow.push({ a: '待监理复查', d: '', cur: true, by: row.reviewer || '' })
+    // 待验收阶段可能停在“监理单位复核”或“监理单位项目总监验收”，按实际节点展示。
+    const acceptanceNode = currentWorkflowStep(row)
+    detail.flow.push({ a: acceptanceNode ? `待${acceptanceNode.label}` : '待监理复查', d: '', cur: true, by: acceptanceNode?.actor || row.reviewer || '' })
   } else if (row.isRejected) {
     detail.flow.push({ a: '等待整改人重新整改', d: '', cur: true, by: row.rectifier || '' })
   } else {
     detail.flow.push({ a: '等待整改人执行', d: '', cur: true, by: row.rectifier || '' })
   }
+  const live = getMobileRectification(id)
+  if (live) detail.flow = workflowFlowRecords(live)
   return detail
 }

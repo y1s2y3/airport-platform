@@ -6,7 +6,7 @@ import { COC_PROJECT_OPTIONS } from '../../config/projectOptions'
 import { listMobileInspectionTasks } from '../../mock/mobileInspectionTasks'
 import { INSPECTION_DEMO_TODAY } from '../../mock/inspectionDemoData'
 import { listInspectionHazards } from '../../mock/inspectionHazardQuery'
-import { formatInspectionCategories, hasInspectionCategory } from '../../config/inspectionManagement'
+import { INSPECTION_CATEGORIES, formatInspectionCategories, hasInspectionCategory } from '../../config/inspectionManagement'
 
 const router = useRouter()
 const TODAY = new Date(INSPECTION_DEMO_TODAY)
@@ -103,7 +103,7 @@ const hazardStats = computed(() => {
   const data = scopedHazardData.value
   const total = data.length
   const pending = data.filter(d => d.status === '待整改').length
-  const review = data.filter(d => d.status === '待验收').length
+  const review = data.filter(d => ['待验收'].includes(d.status)).length
   const reviewed = data.filter(d => d.status === '待复查').length
   const closed = data.filter(d => d.status === '已关闭').length
   const overdue = data.filter(d => calcOverdue(d).overdue).length
@@ -140,7 +140,7 @@ const taskChartData = computed(() => projectNames.map((name, i) => {
 
 const hazardChartData = computed(() => projectNames.map((name, i) => {
   const items = filteredHazardChartItems.value.filter(d => d.project === name)
-  return { name: projectShort[i], pending: items.filter(d => d.status === '待整改').length, review: items.filter(d => d.status === '待验收').length, reviewed: items.filter(d => d.status === '待复查').length, closed: items.filter(d => d.status === '已关闭').length, rate: items.length ? Math.round(items.filter(d=>d.status==='已关闭').length / items.length * 100) : 0 }
+  return { name: projectShort[i], pending: items.filter(d => d.status === '待整改').length, review: items.filter(d => ['待验收'].includes(d.status)).length, reviewed: items.filter(d => d.status === '待复查').length, closed: items.filter(d => d.status === '已关闭').length, rate: items.length ? Math.round(items.filter(d=>d.status==='已关闭').length / items.length * 100) : 0 }
 }))
 
 // ===== 逾期清单 =====
@@ -305,8 +305,7 @@ function goDetail(type, id) {
       <span class="drilldown-tip">交互说明：本页仅“逾期清单”支持进入任务或隐患详情。</span>
       <el-radio-group v-model="inspectionCategory" size="large" class="category-tabs">
         <el-radio-button value="">全部</el-radio-button>
-        <el-radio-button value="安全">安全</el-radio-button>
-        <el-radio-button value="质量">质量</el-radio-button>
+        <el-radio-button v-for="category in INSPECTION_CATEGORIES" :key="category" :value="category">{{ category }}</el-radio-button>
       </el-radio-group>
     </div>
 

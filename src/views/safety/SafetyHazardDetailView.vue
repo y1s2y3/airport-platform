@@ -7,6 +7,7 @@ import { getProjectRectifierLabel, getProjectReviewerLabel } from '../../composa
 import { getInspectionHazardDetail } from '../../mock/inspectionHazardQuery'
 import { normalizeHazardCategory } from '../../config/inspectionManagement'
 
+import { getMobileRectification } from '../../composables/useMobileRectification'
 const route = useRoute()
 if (route.query.from === 'sampling-task' && route.query.viewer !== 'hq') restoreSupervisorTaskContext(String(route.query.samplingTask || ''))
 const router = useRouter()
@@ -172,7 +173,9 @@ function goBack() {
       <div class="ic"><label>巡检分类</label><span>{{ info.cat }}</span></div>
       <div class="ic"><label>整改人</label><span>{{ info.rf }}</span></div>
       <div class="ic"><label>复查人</label><span>{{ info.rv }}</span></div>
+      <div v-if="info.ccPersons" class="ic"><label>抄送人</label><span>{{ info.ccPersons }}</span></div>
       <div class="ic"><label>截止日期</label><span>{{ info.dl }}</span></div>
+      <div class="ic"><label>本单登记时间</label><span>{{ info.flow?.find(item => item.a === '下发整改单')?.d || '--' }}</span></div>
       <div class="ic"><label>状态</label><span :style="{color:info.st==='已关闭'?'#34a853':info.st==='待复查'?'#8f0045':'#f5a623',fontWeight:600}">{{ info.st }}</span></div>
       <div class="ic" v-if="info.cd"><label>关闭日期</label><span>{{ info.cd }}</span></div>
     </div>
@@ -187,8 +190,8 @@ function goBack() {
       <div class="rf" v-if="info.hazard.photos?.length"><label>隐患照片</label><span>{{ info.hazard.photos.join('、') }}</span></div>
     </div>
 
-    <!-- ===== 整改信息（待验收/待复查/已关闭展示） ===== -->
-    <template v-if="['待验收', '待复查', '已关闭'].includes(info.st)">
+    <!-- ===== 整改信息（有整改记录即展示，含待整改已整改的情况） ===== -->
+    <template v-if="latestRectifications.length">
       <div class="sc">
         <div class="sct">整改信息</div>
         <div v-for="rct in latestRectifications" :key="rct.date" class="sc-inner">
@@ -202,8 +205,8 @@ function goBack() {
       </div>
     </template>
 
-    <!-- ===== 复查信息（复查通过后展示） ===== -->
-    <template v-if="['待复查', '已关闭'].includes(info.st)">
+    <!-- ===== 复查信息（已有复查结论即展示，待总监验收/待复查/已关闭均可见） ===== -->
+    <template v-if="latestReviews.length">
       <div class="sc">
         <div class="sct">复查信息</div>
         <div v-for="rv in latestReviews" :key="rv.date" class="rv-item" :class="{ 'rv-pass': rv.result==='通过' }">
@@ -295,5 +298,5 @@ function goBack() {
 .fb { display:flex; flex-direction:column; gap:2px; }
 .fa { color:#212529; font-weight:500; }
 .fd2 { color:#868e96; font-size:12px; }
-.fdl { color:#e53935; font-size:12px; margin-top:2px; background:#ffebee; padding:1px 6px; border-radius:3px; display:inline-block; }
+.fdl { color:#606266; font-size:12px; margin-top:2px; background:#f5f7fa; padding:1px 6px; border-radius:3px; display:inline-block; }
 </style>

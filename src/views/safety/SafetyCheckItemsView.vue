@@ -3,36 +3,12 @@ import { ref, computed, reactive, watch } from 'vue'
 import { FolderOpened, Plus, Edit, Delete, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { checkCategoryTree as baseTree } from '../../composables/useInspectionPlan'
+import { INSPECTION_CATEGORIES } from '../../config/inspectionManagement'
 
 // 一级分类（扁平）
 const inspectionCategory = ref('安全')
-const qualityCategories = [
-  {
-    id: 'quality-cat-1',
-    label: '材料质量',
-    items: [
-      { id: 'quality-item-1-1', label: '进场材料合格证、检测报告是否齐全' },
-      { id: 'quality-item-1-2', label: '材料规格、型号及外观质量是否符合要求' },
-    ],
-  },
-  {
-    id: 'quality-cat-2',
-    label: '施工工艺',
-    items: [
-      { id: 'quality-item-2-1', label: '关键工序是否按施工方案和技术交底实施' },
-      { id: 'quality-item-2-2', label: '实测实量结果是否符合质量验收标准' },
-    ],
-  },
-]
-const allBaseCategories = [
-  ...baseTree.map(c => ({ ...c, inspectionCategory: '安全' })),
-  ...qualityCategories.map(c => ({ ...c, inspectionCategory: '质量' })),
-]
-const categoryTree = ref(allBaseCategories.map(c => ({
-  id: c.id,
-  label: c.label,
-  inspectionCategory: c.inspectionCategory,
-})))
+const allBaseCategories = baseTree
+const categoryTree = ref(allBaseCategories.map(c => ({ id: c.id, label: c.label, inspectionCategory: c.inspectionCategory })))
 const selectedCategory = ref(baseTree[0]?.id || null)
 // 分类搜索：位于左侧「检查分类」树标题下方
 const filterText = ref('')
@@ -52,6 +28,13 @@ allBaseCategories.forEach(cat => {
     updated_at: '2026-07-13 10:00',
   }))
 })
+
+watch([categoryTree, itemStore], () => {
+  baseTree.splice(0, baseTree.length, ...categoryTree.value.map(category => ({
+    ...category,
+    items: (itemStore[category.id] || []).map(item => ({ ...item, label: item.checkPoint })),
+  })))
+}, { deep: true })
 
 const currentCategoryName = computed(() => categoryTree.value.find(g => g.id === selectedCategory.value)?.label || '')
 
@@ -104,6 +87,7 @@ const catDialogVisible = ref(false)
 const catForm = reactive({ label: '' })
 
 function openAddCat() {
+  editingCat.value = null
   catForm.label = ''
   catDialogVisible.value = true
 }
@@ -203,8 +187,7 @@ function deleteItem(row) {
       <div class="page-heading">
         <h3 class="page-title">巡检检查项</h3>
         <el-radio-group v-model="inspectionCategory" size="large" class="category-tabs">
-          <el-radio-button value="安全">安全</el-radio-button>
-          <el-radio-button value="质量">质量</el-radio-button>
+          <el-radio-button v-for="category in INSPECTION_CATEGORIES" :key="category" :value="category">{{ category }}</el-radio-button>
         </el-radio-group>
       </div>
       <div class="page-actions">

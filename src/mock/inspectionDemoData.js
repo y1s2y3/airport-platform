@@ -93,7 +93,7 @@ function buildHazards(project, index) {
     reviewer: people.reviewerLabel,
     manager: `${people.manager}（项目经理）`,
   }
-  return [
+  const projectHazards = [
     {
       ...base,
       hazardCategory: HAZARD_CATEGORIES[(index * 4) % HAZARD_CATEGORIES.length],
@@ -161,7 +161,44 @@ function buildHazards(project, index) {
       reviewResult: '通过',
       approvalComment: '同意关闭。',
     },
+    ]
+  // 每个项目补 4 条 A 级质量隐患，覆盖待整改/待验收/待复查/已关闭四个状态。
+  const qualityPeople = {
+    rectifier: '林工（施工单位质量整改人）',
+    reviewer: '蒋工（监理单位质量复核人）',
+    manager: '邓经理（指挥部项目经理）',
+    contractorManager: '许经理（施工单位项目经理）',
+    director: '冯总监（监理单位项目总监）',
+  }
+  const qualityStatuses = [
+    { status: '待整改', issueDate: '2026-08-24', deadline: '2026-09-03', hazardCategory: '结构实体质量', desc: '回填土含水量偏高，压实度复检结果不合格', rectDate: '', reviewDate: '', closeDate: '' },
+    { status: '待验收', issueDate: '2026-08-20', deadline: '2026-08-27', hazardCategory: '材料质量', desc: '进场钢筋复试报告未及时归档', rectDate: '2026-08-25', reviewDate: '', closeDate: '', rectificationNote: '复试报告已补齐并归档，请监理复查。' },
+    { status: '待复查', issueDate: '2026-08-18', deadline: '2026-08-25', hazardCategory: '施工工艺', desc: '道面混凝土切缝深度不足，局部出现裂缝', rectDate: '2026-08-22', reviewDate: '2026-08-24', closeDate: '', reviewComment: '复查合格，同意提交指挥部项目经理审批。', reviewResult: '通过' },
+    { status: '已关闭', issueDate: '2026-08-10', deadline: '2026-08-18', hazardCategory: '隐蔽工程验收', desc: '隐蔽工程验收影像资料缺失', rectDate: '2026-08-15', reviewDate: '2026-08-17', closeDate: '2026-08-18', reviewComment: '复查合格。', reviewResult: '通过', approvalComment: '同意关闭。' },
   ]
+  const qualityAExamples = qualityStatuses.map((item, slot) => ({
+    ...base,
+    inspectionCategory: '质量',
+    inspectionCategories: ['质量'],
+    hazardLevel: 'A',
+    ...qualityPeople,
+    taskNo: taskNo(index, 4 + slot, '质量'),
+    hazardCategory: item.hazardCategory,
+    id: hazardId(index, 4 + slot),
+    rectifyNo: `ZGQA${String(index + 1).padStart(2, '0')}${slot + 1}`,
+    issueDate: item.issueDate,
+    deadline: item.deadline,
+    status: item.status,
+    rectDate: item.rectDate,
+    reviewDate: item.reviewDate,
+    closeDate: item.closeDate,
+    desc: item.desc,
+    hazardPhotos: ['隐患照片1.jpg', '隐患照片2.jpg'],
+    ...(item.rectificationNote ? { rectificationPhotos: ['整改后照片1.jpg'], rectificationNote: item.rectificationNote } : {}),
+    ...(item.reviewComment ? { reviewComment: item.reviewComment, reviewResult: item.reviewResult } : {}),
+    ...(item.approvalComment ? { approvalComment: item.approvalComment } : {}),
+  }))
+  return [...projectHazards, ...qualityAExamples]
 }
 
 export const inspectionHazards = COC_PROJECT_OPTIONS.flatMap(buildHazards)

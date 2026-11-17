@@ -169,6 +169,8 @@ const rawMenuTree = [
         children: [
           { key: 'safety-plan', label: '任务下发', icon: 'Position', path: '/safety-inspection/plan', name: 'InspectionPlan', component: 'InspectionPlanView', levels: 'hq' },
           { key: 'safety-check-items', label: '巡检检查项', icon: 'List', path: '/safety-inspection/check-items', name: 'SafetyCheckItems', component: 'SafetyCheckItemsView', levels: 'hq' },
+          { key: 'inspection-type-config', label: '检查类型配置', icon: 'Setting', path: '/safety-inspection/inspection-types', name: 'InspectionTypeConfig', component: 'InspectionDictionaryView', levels: 'hq' },
+          { key: 'inspection-hazard-category-config', label: '隐患类别配置', icon: 'Setting', path: '/safety-inspection/hazard-categories', name: 'InspectionHazardCategoryConfig', component: 'InspectionDictionaryView', levels: 'hq' },
           { key: 'safety-inspector-config', label: '人员配置', icon: 'User', path: '/safety-inspection/inspector-config', name: 'InspectionPersonConfig', component: 'InspectionPersonConfigView', levels: 'project' },
           { key: 'safety-task-manage', label: '巡检任务', icon: 'Tickets', path: '/safety-inspection/task', name: 'InspectionTaskManage', component: 'InspectionTaskManageView', levels: 'both' },
           { key: 'safety-hazard', label: '隐患清单', icon: 'Warning', path: '/safety-inspection/hazard', name: 'SafetyHazardList', component: 'SafetyHazardListView', levels: 'both' },
@@ -939,6 +941,7 @@ export const viewLoaders = {
   InspectionPlanFormView: () => import('../views/safety/InspectionPlanFormView.vue'),
   InspectionPlanDetailView: () => import('../views/safety/InspectionPlanDetailView.vue'),
   SafetyCheckItemsView: () => import('../views/safety/SafetyCheckItemsView.vue'),
+  InspectionDictionaryView: () => import('../views/safety/InspectionDictionaryView.vue'),
   InspectionPersonConfigView: () => import('../views/safety/InspectionPersonConfigView.vue'),
   InspectionTaskManageView: () => import('../views/safety/InspectionTaskManageView.vue'),
   InspectionTaskDetailView: () => import('../views/safety/InspectionTaskDetailView.vue'),

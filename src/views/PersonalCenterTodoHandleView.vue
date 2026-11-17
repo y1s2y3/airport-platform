@@ -24,6 +24,8 @@ import {
   getEffectiveUserId,
 } from '../mock/currentUser.js'
 import './personalCenter/styles/todoHandleBlocks.css'
+import { getMobileRectification } from '../composables/useMobileRectification'
+import { workflowApprovalRecords } from '../utils/inspectionRectificationWorkflow'
 
 const router = useRouter()
 const route = useRoute()
@@ -96,6 +98,10 @@ const subcontractorLiveDetail = computed(() => {
 
 const approvalFlow = computed(() => {
   if (!todo.value) return []
+  if (todo.value.type === 'inspection' && todo.value.rectifyId) {
+    const record = getMobileRectification(todo.value.rectifyId)
+    if (record) return workflowApprovalRecords(record)
+  }
   if (todo.value.type === 'penalty') return buildPenaltyApprovalFlow(todo.value)
   if (todo.value.type === 'dispatch_hazard') return buildDispatchHazardApprovalFlow(todo.value)
   if (todo.value.type === 'subcontractor' && subcontractorLiveDetail.value?.approvalFlow?.length) {

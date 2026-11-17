@@ -1,15 +1,17 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { mobileRectificationRecords } from '../../composables/useMobileRectification'
-import { HAZARD_CATEGORIES, HAZARD_LEVELS, normalizeInspectionCategories } from '../../config/inspectionManagement'
+import { INSPECTION_CATEGORIES, getHazardCategoryOptions, getHazardLevels, normalizeInspectionCategories } from '../../config/inspectionManagement'
 import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
+import { canExecuteInspectionStep } from '../../utils/inspectionWorkflowIdentity'
 
 defineProps({
   /** 嵌在建管 APP 二级页时隐藏自带顶栏，避免双顶栏 */
   embedded: { type: Boolean, default: false },
 })
 
+import { RECTIFICATION_STATUSES, currentWorkflowStep } from '../../utils/inspectionRectificationWorkflow'
 const router = useRouter()
 const route = useRoute()
 const { rectifyBase, tasksBase } = useMobileRouteBase()
@@ -22,16 +24,21 @@ if (route.query.tab) activeTab.value = route.query.tab
 const searchKeyword = ref('')
 const hazardCategory = ref('')
 const hazardLevel = ref('')
+const categoryFilter = ref('')
+const hazardCategoryOptions = computed(() => getHazardCategoryOptions(categoryFilter.value, true))
+const hazardLevelOptions = computed(() => getHazardLevels(categoryFilter.value))
+watch(categoryFilter, () => { hazardCategory.value = ''; hazardLevel.value = '' })
 const tabs = computed(() => {
   const counts = { '全部': rectifyList.value.length }
   for (const t of rectifyList.value) {
     counts[t.status] = (counts[t.status] || 0) + 1
   }
-  return ['全部','待整改','待验收','待复查','已关闭'].filter(t => (counts[t]||0) > 0 || t === '全部').map(t => ({ label: t, count: counts[t]||0 }))
+  return ['全部', ...RECTIFICATION_STATUSES].filter(t => (counts[t]||0) > 0 || t === '全部').map(t => ({ label: t, count: counts[t]||0 }))
 })
 
 const filteredList = computed(() => {
   let list = rectifyList.value
+  if (categoryFilter.value) list = list.filter(t => normalizeInspectionCategories(t.inspectionCategories || t.inspectionCategory).includes(categoryFilter.value))
   if (activeTab.value !== '全部') {
     list = list.filter(t => t.status === activeTab.value)
   }
@@ -58,7 +65,9 @@ function goDetail(id) { router.push(`${rectifyBase.value}/${id}?tab=${activeTab.
 function goBack() { router.push(tasksBase.value) }
 
 function onCardClick(item) {
-  if (item.status === '待整改') return goExecute(item.id)
+  if (!canExecuteInspectionStep(item, currentWorkflowStep(item)?.key)) return goDetail(item.id)
+  // 施工方项目经理验收也属于“待整改”，当前节点为验收时进入验收页。
+  if (item.status === '待整改') return String(item.currentNode || '').includes('验收') ? goReview(item.id) : goExecute(item.id)
   if (item.status === '待验收') return goReview(item.id)
   if (item.status === '待复查') return goApproval(item.id)
   return goDetail(item.id)
@@ -79,13 +88,17 @@ function onCardClick(item) {
     </div>
     <div class="m-filter">
       <input v-model="searchKeyword" class="m-search-input" placeholder="搜索整改单编号/巡检单编号..." />
+      <select v-model="categoryFilter" class="m-category-select" aria-label="巡检分类筛选">
+        <option value="">全部巡检分类</option>
+        <option v-for="category in INSPECTION_CATEGORIES" :key="category" :value="category">{{ category }}</option>
+      </select>
       <select v-model="hazardCategory" class="m-category-select">
         <option value="">全部隐患类别</option>
-        <option v-for="category in HAZARD_CATEGORIES" :key="category" :value="category">{{ category }}</option>
+        <option v-for="option in hazardCategoryOptions" :key="`${option.category}-${option.value}`" :value="option.value">{{ option.label }}</option>
       </select>
       <select v-model="hazardLevel" class="m-category-select" aria-label="隐患等级筛选">
         <option value="">全部隐患等级</option>
-        <option v-for="level in HAZARD_LEVELS" :key="level" :value="level">{{ level }}</option>
+        <option v-for="level in hazardLevelOptions" :key="level" :value="level">{{ level }}</option>
       </select>
     </div>
     <div class="m-list">
@@ -115,8 +128,7 @@ function onCardClick(item) {
           <span class="rec-status" :style="{ color: statusStyles[item.status]?.color, background: statusStyles[item.status]?.bg }">{{ item.status }}</span>
         </div>
         <div class="rec-mid">
-          <span>整改人：{{ item.rectifier }}</span>
-          <span v-if="item.reviewer">复查人：{{ item.reviewer }}</span>
+          <span>当前流程节点：{{ currentWorkflowStep(item)?.label || (item.status === '已关闭' ? '流程结束' : item.currentNode || '--') }}</span>
         </div>
         <div v-if="item.isRejected&&item.rejectReason" class="rec-reject">❌ 退回原因：{{ item.rejectReason }}</div>
         <div v-if="item.approvalRejected&&item.approvalReason" class="rec-reject">❌ 审批退回：{{ item.approvalReason }}</div>

@@ -5,7 +5,7 @@ import { Search, View, ArrowLeft } from '@element-plus/icons-vue'
 import { useLaborProjectScope, selectedProjectId } from '../../composables/useCurrentProject'
 import { HQ_PROJECT_OPTION } from '../../config/projectOptions'
 import { getProjectInspectorLabel } from '../../composables/useInspectionPersonConfig'
-import { DEFAULT_INSPECTOR_LABEL, INSPECTION_TYPES, hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
+import { INSPECTION_CATEGORIES, DEFAULT_INSPECTOR_LABEL, getInspectionTypeFilterOptions, hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
 import { listMobileInspectionTasks } from '../../mock/mobileInspectionTasks'
 import { INSPECTION_DEMO_TODAY, inspectionProjectTree } from '../../mock/inspectionDemoData'
 
@@ -204,10 +204,10 @@ function goBackToHQ() {
         <div class="filter-bar">
           <el-input v-model="filterForm.keyword" placeholder="搜索编号/名称/整改单..." clearable style="width:240px" :prefix-icon="Search" />
           <el-select v-model="filterForm.category" placeholder="巡检分类" clearable style="width:100px">
-            <el-option label="安全" value="安全" /><el-option label="质量" value="质量" />
+            <el-option v-for="category in INSPECTION_CATEGORIES" :key="category" :label="category" :value="category" />
           </el-select>
           <el-select v-model="filterForm.inspectionType" placeholder="检查类型" clearable style="width:120px">
-            <el-option v-for="type in INSPECTION_TYPES" :key="type" :label="type" :value="type" />
+            <el-option v-for="type in getInspectionTypeFilterOptions()" :key="type" :label="type" :value="type" />
           </el-select>
           <el-select v-model="filterForm.status" placeholder="任务状态" clearable style="width:100px">
             <el-option label="未完成" value="未完成" /><el-option label="已完成" value="已完成" />

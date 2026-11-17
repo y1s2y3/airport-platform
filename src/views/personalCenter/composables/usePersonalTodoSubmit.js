@@ -26,6 +26,7 @@ import {
 } from '../../../coc/utils/dispatchMeetingStorage.js'
 import {
   createMobileRectificationsFromTask,
+  submitInspectionWorkflowStep,
   submitManagerApproval,
   submitRectification,
   submitRectificationReview,
@@ -38,7 +39,8 @@ import {
 } from '../../../utils/dispatchHazardStorage.js'
 import { getMajorHazardLedgerOptions, syncInspectionTaskToMajorHazard } from '../../../utils/inspectionMajorHazardLink.js'
 import { COC_PROJECT_OPTIONS } from '../../../config/projectOptions.js'
-import { resolveInspectionProjectId } from '../../../config/inspectionManagement.js'
+import { getMobileInspectionTask, updateMobileInspectionTask } from '../../../mock/mobileInspectionTasks.js'
+import { validateInspectionHazard, normalizeInspectionCategories, resolveInspectionProjectId } from '../../../config/inspectionManagement.js'
 
 /**
  * 个人中心待办提交逻辑（与 UI 面板解耦，供 handle 页与各 TodoXxxPanel 复用）。
@@ -387,6 +389,9 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
     if (!row) return
     const bizType = row.inspectionBizType
     if (bizType === '巡检') {
+      if (row.inspectionTaskId && getMobileInspectionTask(row.inspectionTaskId)?.status !== '未完成') {
+        return ElMessage.warning('任务已完成或不存在，请刷新待办后重新办理')
+      }
       // 危大工程现场巡视：与移动端执行巡检一致，先判定再校验危大清单
       if (inspectionForm.isMajorHazardPatrol === '是') {
         if (!inspectionForm.majorHazardProjectId) {
@@ -405,6 +410,9 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
         const hazards = inspectionForm.hazardItems || []
         if (!hazards.length) return ElMessage.warning('请至少新增一条隐患')
         for (const [index, hazard] of hazards.entries()) {
+          const category = normalizeInspectionCategories(row.detail?.inspectionCategories || row.detail?.inspectionCategory).join('、')
+          const dictionaryError = validateInspectionHazard(hazard, category)
+          if (dictionaryError) return ElMessage.warning(`隐患 ${index + 1}：${dictionaryError}`)
           if (!hazard.hazardCategory) {
             return ElMessage.warning(`隐患 ${index + 1} 请选择隐患类别`)
           }
@@ -437,12 +445,24 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
       if (bizType === '整改' && inspectionForm.attachments.length === 0) {
         return ElMessage.warning('请至少上传一张整改照片')
       }
-      if (!inspectionForm.remark.trim()) {
+      const acceptancePass = ['施工验收', '总监验收'].includes(bizType) && inspectionForm.decision === 'pass'
+      if (!inspectionForm.remark.trim() && !acceptancePass) {
         return ElMessage.warning(`请填写${inspectionActionMeta.remarkLabel}`)
       }
     }
 
     const approved = inspectionForm.decision === 'pass'
+    if (bizType !== '巡检' && row.liveInspectionWorkflow) {
+      const ok = submitInspectionWorkflowStep(row.rectifyId, row.expectedWorkflowStage, bizType === '整改' || approved, {
+        assignmentRevision: row.detail?.workflowAssignmentRevision || 0,
+        date: inspectionForm.processDate, comment: inspectionForm.remark.trim(),
+        rectificationPhotos: inspectionForm.attachments.map(item => item.name),
+      })
+      if (!ok) return ElMessage.warning('节点已变化或资料不完整，请刷新待办后重新办理')
+      ElMessage.success('当前节点已处理并推送至下一处理人')
+      goBack()
+      return
+    }
     const now = new Date().toLocaleString('zh-CN', { hour12: false })
     // 隐患整改单编号：ZG + 日期 + 4 位时间戳 + 两位序号（与移动端执行巡检同规则）
     const stamp = Date.now()
@@ -541,6 +561,19 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
       majorHazardName: bizType === '巡检' ? (patrolLink?.name || '') : row.detail?.majorHazardName,
     }
 
+    if (bizType === '巡检' && row.inspectionTaskId) {
+      const task = updateMobileInspectionTask(row.inspectionTaskId, {
+        ...row.detail, result: inspectionForm.inspectionResult,
+        inspDate: row.detail.inspectionDate, submittedAt: now,
+        hazardCount: row.detail.hazardItems?.length || 0,
+        rectifyCount: row.detail.hazardItems?.length || 0,
+        hasRectify: inspectionForm.inspectionResult === 'hazard', overdue: false,
+      })
+      if (inspectionForm.inspectionResult === 'hazard') createMobileRectificationsFromTask(task, row.detail.hazardItems)
+      ElMessage.success('巡检已提交，任务状态和个人待办已同步')
+      goBack()
+      return
+    }
     if (bizType === '巡检' && inspectionForm.inspectionResult === 'hazard') {
       createMobileRectificationsFromTask(
         {
