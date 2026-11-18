@@ -43,9 +43,9 @@ onBeforeUnmount(() => { window.removeEventListener('coc-dispatch-meeting-change'
 async function submit() {
   if (busy.value || !canReply.value) return
   if (!form.result) return ElMessage.warning('请选择处理结果')
-  const isTransfer = form.result === '转派'
-  if (isTransfer && !form.transferTo) return ElMessage.warning('请选择转派执行人')
-  if (!form.remark.trim()) return ElMessage.warning(isTransfer ? '请填写转派说明' : '请填写处理说明')
+  const isTransfer = form.result === '转交'
+  if (isTransfer && !form.transferTo) return ElMessage.warning('请选择转交人')
+  if (!form.remark.trim()) return ElMessage.warning(isTransfer ? '请填写说明' : '请填写处理说明')
   const payload = {
     result: form.result,
     remark: form.remark,
@@ -64,7 +64,7 @@ async function submit() {
     const result = await submitDispatchTaskReply(task.value.id, payload)
     if (!result.ok) { load(); return ElMessage.warning(result.message) }
     if (isTransfer) {
-      ElMessage.success(`已转派给${transferLabel.value}，任务单继续流转`)
+      ElMessage.success(`已转交给${transferLabel.value}，任务单继续流转`)
     } else if (result.closed) {
       ElMessage.success(isParallel.value ? '全部执行人已回复，任务单流程结束' : '处理结果已提交，任务单流程结束')
     } else {
@@ -88,24 +88,24 @@ async function submit() {
             <el-radio-group v-model="form.result" aria-label="处理结果">
               <el-radio value="已执行">已执行</el-radio>
               <el-radio value="无需执行">无需执行</el-radio>
-              <el-radio value="转派">转派</el-radio>
+              <el-radio value="转交">转交</el-radio>
             </el-radio-group>
           </el-form-item>
-          <el-form-item v-if="form.result === '转派'" label="执行人" required>
-            <el-select v-model="form.transferTo" filterable placeholder="请选择转派执行人" style="width: 100%" aria-label="选择转派执行人">
+          <el-form-item v-if="form.result === '转交'" label="转交人" required>
+            <el-select v-model="form.transferTo" filterable placeholder="请选择转交人" style="width: 100%" aria-label="选择转交人">
               <el-option v-for="item in transferOptions" :key="item.userId || item.value" :label="item.label" :value="item.value" />
             </el-select>
           </el-form-item>
-          <el-form-item :label="form.result === '转派' ? '转派说明' : '处理说明'" required>
+          <el-form-item :label="form.result === '转交' ? '说明' : '处理说明'" required>
             <el-input
               v-model="form.remark"
               type="textarea"
               :rows="4"
-              :placeholder="form.result === '转派' ? '请填写转派原因及处理要求' : '请填写实际处理情况或无需执行原因'"
-              :aria-label="form.result === '转派' ? '转派说明' : '处理说明'"
+              :placeholder="form.result === '转交' ? '请填写转交原因及处理要求' : '请填写实际处理情况或无需执行原因'"
+              :aria-label="form.result === '转交' ? '说明' : '处理说明'"
             />
           </el-form-item>
-          <el-form-item v-if="form.result !== '转派'" label="图片"><DispatchImageAttachments v-model="form.attachments" name-prefix="任务处理图片" /></el-form-item>
+          <el-form-item v-if="form.result !== '转交'" label="图片"><DispatchImageAttachments v-model="form.attachments" name-prefix="任务处理图片" /></el-form-item>
           <div class="dispatch-task-submit-actions"><el-button :disabled="busy" @click="emit('back')">取消</el-button><el-button type="primary" :loading="busy" @click="submit">提交处理</el-button></div>
         </el-form>
       </template>

@@ -1951,7 +1951,7 @@ export const personalTodoStore = reactive({
 export const personalTodos = personalTodoStore.todos
 export const personalDone = personalTodoStore.done
 
-/* ---------------- 待办转派（全模块通用） ---------------- */
+/* ---------------- 待办转交（全模块通用） ---------------- */
 const TODO_TRANSFER_KEY = 'airport-todo-transfers-v1'
 
 function readTodoTransfers() {
@@ -1968,16 +1968,16 @@ function writeTodoTransfers(map) {
   try {
     localStorage.setItem(TODO_TRANSFER_KEY, JSON.stringify(map))
   } catch {
-    /* 存储受限时静默失败：转派仅在本次会话生效 */
+    /* 存储受限时静默失败：转交仅在本次会话生效 */
   }
 }
 
-/** 读取某条待办的转派信息 */
+/** 读取某条待办的转交信息 */
 export function getTodoTransfer(todoId) {
   return readTodoTransfers()[todoId] || null
 }
 
-/** 当前用户可见的待办（转派后原用户不可见、被转派用户可见） */
+/** 当前用户可见的待办（转交后原用户不可见、被转交用户可见） */
 export function applyTodoTransfers(rows = [], operator = dispatchTaskOperator()) {
   const map = readTodoTransfers()
   const operatorId = operator?.id || ''
@@ -2000,15 +2000,15 @@ export function applyTodoTransfers(rows = [], operator = dispatchTaskOperator())
 }
 
 /**
- * 将待办转派给其他用户：原用户待办移除并生成一条「转派」已办记录，
- * 被转派用户在待办列表中可见同一待办。
+ * 将待办转交给其他用户：原用户待办移除并生成一条「转交」已办记录，
+ * 被转交用户在待办列表中可见同一待办。
  */
 export function transferPersonalTodo({ todo, toUser, note, operator = dispatchTaskOperator() } = {}) {
   if (!todo?.id) return { ok: false, message: '待办不存在' }
   const toName = toUser?.value || toUser?.label || ''
-  if (!toName) return { ok: false, message: '请选择执行人' }
+  if (!toName) return { ok: false, message: '请选择转交人' }
   const reason = String(note || '').trim()
-  if (!reason) return { ok: false, message: '请填写转派说明' }
+  if (!reason) return { ok: false, message: '请填写说明' }
   const time = nowStr()
   const map = readTodoTransfers()
   map[todo.id] = {
@@ -2026,7 +2026,7 @@ export function transferPersonalTodo({ todo, toUser, note, operator = dispatchTa
     status: '已完成',
     handleTime: time,
     assignee: operator?.label || operator?.name || '当前用户',
-    handleLabel: '转派',
+    handleLabel: '转交',
     transferNote: reason,
     transferredTo: toName,
   }

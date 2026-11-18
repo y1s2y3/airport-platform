@@ -41,12 +41,12 @@ const {
   embedType,
 } = useTodoHandleContext()
 
-// 办理 / 转派 两个操作页签（COC 任务单在处理页内已自带转派，不重复展示）
+// 办理 / 转交 两个操作页签（COC 任务单在处理页内已自带转交，不重复展示）
 const handleTab = ref('handle')
 const showTransfer = computed(() =>
   !!todo.value
   && !isReadonly.value
-  // COC 任务单在处理页内已自带转派；处罚单处理面板已有「上报结果/申诉/转派」页签
+  // COC 任务单在处理页内已自带转交；处罚单处理面板已有「上报结果/申诉/转交」页签
   && !['dispatch_notice', 'penalty'].includes(todo.value.type),
 )
 // 第一个页签按待办类型命名：整改结果 / 审批操作 / 上报结果 / 办理
@@ -183,7 +183,7 @@ watch(todo, (value, previous) => {
   >
     <el-radio-group v-if="showTransfer" v-model="handleTab" class="todo-handle-mode-tabs">
       <el-radio-button value="handle">{{ handleTabLabel }}</el-radio-button>
-      <el-radio-button value="transfer">转派</el-radio-button>
+      <el-radio-button value="transfer">转交</el-radio-button>
     </el-radio-group>
 
     <div v-show="handleTab === 'handle'">

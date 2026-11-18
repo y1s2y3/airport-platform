@@ -17,6 +17,13 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: APP_VERSION,
+    date: '2026-11-18',
+    highlights: [
+      '待办转派相关字段统一改称「转交」：办理页签与任务单处理结果改为「转交」，人员字段改为「转交人」，说明字段改为「说明」；任务单流程记录与我的已办同步展示，历史「转派」数据自动兼容。',
+    ],
+  },
+  {
     version: 'v3.1.1.2',
     date: '2026-11-17',
     highlights: [

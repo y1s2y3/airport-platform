@@ -6,7 +6,7 @@ export const TASK_STATUSES = Object.freeze({
 export const TASK_EXECUTION_MODES = Object.freeze({ SINGLE: '单人执行', PARALLEL: '多人并行' })
 export const TASK_EXECUTION_MODE_OPTIONS = Object.freeze([TASK_EXECUTION_MODES.SINGLE, TASK_EXECUTION_MODES.PARALLEL])
 
-export const TASK_REPLY_RESULTS = Object.freeze(['已执行', '无需执行', '转派'])
+export const TASK_REPLY_RESULTS = Object.freeze(['已执行', '无需执行', '转交'])
 const clean = value => String(value ?? '').trim()
 export const taskActorName = value => clean(value).replace(/[（(].*$/, '').replace(/\s+/g, '')
 
@@ -36,7 +36,9 @@ export function taskExecutionMode(task = {}) {
 
 export function normalizeTaskReply(reply) {
   if (!reply || typeof reply !== 'object') return null
-  const result = clean(reply.result)
+  // 兼容旧数据：历史回复结果「转派」统一读作「转交」
+  const rawResult = clean(reply.result)
+  const result = rawResult === '转派' ? '转交' : rawResult
   const actor = clean(reply.actor)
   const time = clean(reply.time)
   const remark = clean(reply.remark)
@@ -51,7 +53,7 @@ export function normalizeTaskReply(reply) {
     time,
     result,
     remark,
-    ...(result === '转派' && transferTo?.label ? { transferTo } : {}),
+    ...(result === '转交' && transferTo?.label ? { transferTo } : {}),
     attachments: (Array.isArray(reply.attachments) ? reply.attachments : [])
       .filter(item => item && (item.url || item.name))
       .map(item => ({ name: clean(item.name) || '处理附件', url: item.url || '' })),
@@ -86,8 +88,8 @@ export function taskReplyProgress(task = {}) {
   const repliedNames = new Set(replies.map(reply => taskActorName(reply.actor)))
   const pendingActors = executors.filter(label => !repliedNames.has(taskActorName(label)))
   const repliedAssigned = executors.filter(label => repliedNames.has(taskActorName(label))).length
-  // 以「当前执行人是否全部回复」判断结束：转派后执行人已被替换为新执行人，
-  // 不能沿用单人有回复即结束，否则转派会被误判为流程结束（2026-11-13）。
+  // 以「当前执行人是否全部回复」判断结束：转交后执行人已被替换为新执行人，
+  // 不能沿用单人有回复即结束，否则转交会被误判为流程结束（2026-11-13）。
   const finished = executors.length > 0
     ? repliedAssigned === executors.length
     : (mode === TASK_EXECUTION_MODES.PARALLEL ? false : replies.length > 0)
@@ -161,7 +163,7 @@ export function buildTaskFlow(task = {}) {
       remark: `处理结果：${reply.result}`, status: 'done',
       replyResult: reply.result,
       replyRemark: reply.remark,
-      replyTransferTo: reply.result === '转派' ? (reply.transferTo?.label || '') : '',
+      replyTransferTo: reply.result === '转交' ? (reply.transferTo?.label || '') : '',
       replyAttachments: (reply.attachments || []).map(item => ({ name: item.name || '处理附件', url: item.url || '' })),
     })
   })
@@ -205,15 +207,15 @@ export function prepareTaskReply(task, actor, payload = {}, users = [], time = '
   }
   if (!TASK_REPLY_RESULTS.includes(payload.result)) return { ok: false, message: '请选择处理结果' }
   const remark = clean(payload.remark)
-  const isTransfer = payload.result === '转派'
+  const isTransfer = payload.result === '转交'
   const transferTo = isTransfer && payload.transferTo && typeof payload.transferTo === 'object'
     ? { label: clean(payload.transferTo.label), userId: clean(payload.transferTo.userId) }
     : null
-  if (isTransfer && !transferTo?.label) return { ok: false, message: '请选择转派执行人' }
-  if (!remark) return { ok: false, message: isTransfer ? '请填写转派说明' : '请填写处理说明' }
+  if (isTransfer && !transferTo?.label) return { ok: false, message: '请选择转交人' }
+  if (!remark) return { ok: false, message: isTransfer ? '请填写说明' : '请填写处理说明' }
   if (!time) return { ok: false, message: '处理时间生成失败，请重试' }
   if (isTransfer && taskActorName(transferTo.label) === taskActorName(assigned.label)) {
-    return { ok: false, message: '转派执行人不能是当前执行人本人' }
+    return { ok: false, message: '转交人不能是当前执行人本人' }
   }
   const attachments = isTransfer ? [] : (Array.isArray(payload.attachments) ? payload.attachments : [])
     .filter(item => item?.url).map(item => ({ name: clean(item.name) || '处理附件', url: item.url || '' }))
@@ -222,7 +224,7 @@ export function prepareTaskReply(task, actor, payload = {}, users = [], time = '
     ...(isTransfer ? { transferTo } : {}),
   }
   const nextReplies = [...replies, reply]
-  // 转派：把当前执行人替换为新执行人，任务单继续「处理中」，新执行人接管待办
+  // 转交：把当前执行人替换为新执行人，任务单继续「处理中」，新执行人接管待办
   const assignments = taskAssignees(task, users)
   const nextAssignments = isTransfer
     ? assignments.map(item => (taskActorName(item.label) === taskActorName(assigned.label)

@@ -70,15 +70,15 @@ const progressText = computed(() =>
         >
           <div class="dispatch-task-flow-title">
             {{ step.title }}
-            <el-tag v-if="step.replyResult" :type="step.replyResult === '已执行' ? 'success' : step.replyResult === '转派' ? 'warning' : 'info'" size="small">{{ step.replyResult }}</el-tag>
+            <el-tag v-if="step.replyResult" :type="step.replyResult === '已执行' ? 'success' : step.replyResult === '转交' ? 'warning' : 'info'" size="small">{{ step.replyResult }}</el-tag>
             <el-tag v-if="step.status === 'void'" type="info" size="small">终止</el-tag>
           </div>
           <div v-if="step.replyTransferTo" class="dispatch-task-flow-field">
-            <span class="flow-field-label">转派给</span>
+            <span class="flow-field-label">转交人</span>
             <span class="dispatch-task-flow-remark flow-field-text">{{ step.replyTransferTo }}</span>
           </div>
           <div v-if="step.replyRemark" class="dispatch-task-flow-field">
-            <span class="flow-field-label">{{ step.replyResult === '转派' ? '转派说明' : '处理说明' }}</span>
+            <span class="flow-field-label">{{ step.replyResult === '转交' ? '说明' : '处理说明' }}</span>
             <span class="dispatch-task-flow-remark flow-field-text">{{ step.replyRemark }}</span>
           </div>
           <div v-if="step.replyAttachments?.length" class="dispatch-task-flow-field">

@@ -137,7 +137,7 @@ watch(() => props.todo, resetForms, { immediate: true })
             </el-form-item>
           </el-form>
         </el-tab-pane>
-        <el-tab-pane label="转派" name="transfer">
+        <el-tab-pane label="转交" name="transfer">
           <TodoTransferPanel :todo="todo" @transferred="emit('back')" @back="processTab = 'report'" />
         </el-tab-pane>
         <el-tab-pane label="申诉" name="appeal">
