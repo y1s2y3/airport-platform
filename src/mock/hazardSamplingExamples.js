@@ -1,6 +1,6 @@
 /** 只引用原台账单据的演示场景；不改变原单据的业务状态。 */
 import { getSamplingPeople } from './samplingPeople.js'
-export const SAMPLING_EXAMPLE_VERSION = 8
+export const SAMPLING_EXAMPLE_VERSION = 9
 
 export function buildSamplingExamples(rows, projects, eligible, reviewedAt) {
   const tasks = []
@@ -155,4 +155,105 @@ export function buildAssignedReviewExamples(rows, projects) {
     follow.results[row.id]=logId;tasks.push(primary,follow)
   }
   return {tasks,history}
+}
+
+/** 为 COC 演示账号生成可逐单办理的两阶段任务，仍然引用当前项目的原单。 */
+export function buildCocSamplingExamples(rows, projects, demoUser) {
+  const tasks = []
+  const history = []
+  if (!demoUser) return { tasks, history }
+
+  const startTime = new Date()
+  startTime.setHours(8, 0, 0, 0)
+  startTime.setDate(startTime.getDate() - 1)
+  const at = (minutes, seconds = 0) => new Date(startTime.getTime() + minutes * 60000 + seconds * 1000).toISOString()
+  const pools = new Map()
+  for (const row of rows) {
+    if (!/^\d{4}-\d{2}-\d{2}/.test(row.registeredAt)) continue
+    if (!pools.has(row.projectKey)) pools.set(row.projectKey, new Map())
+    const sources = pools.get(row.projectKey)
+    if (!sources.has(row.source)) sources.set(row.source, [])
+    sources.get(row.source).push(row)
+  }
+
+  for (const project of projects) {
+    if (!project.masterId) continue
+    const sourcePools = pools.get(project.key)
+    if (!sourcePools) continue
+    const pool = [...sourcePools.values()].sort((a, b) => b.length - a.length)[0]
+    if (pool.length < 2) continue
+    const recipient = `${demoUser.name}（${project.label}）`
+    const poolIds = pool.map(row => row.id)
+    const dates = pool.map(row => row.registeredAt.slice(0, 10)).sort()
+    const percent = Math.max(1, Math.floor(200 / pool.length))
+    const sample = pool.slice(0, Math.ceil(pool.length * percent / 100))
+    const scenarios = ['pending', 'in-progress', 'reviewing', 'completed']
+    const common = {
+      projectKey: project.key, projectName: project.label,
+      start: dates[0], end: dates.at(-1), poolIds,
+      recipient, assigneeId: demoUser.id, assigneeName: demoUser.name,
+      rangeBasis: '登记时间', originRowId: sample[0].id,
+      discrepancy: false, resolution: '', example: true,
+    }
+
+    scenarios.forEach((scenario, index) => {
+      const key = `${project.key}-${scenario}`
+      const minute = index * 45
+      const batchId = `EX-COC-PC-${key}`
+      const original = {
+        ...common, id: `EX-COC-CJ-${key}`, batchId, stage: 'supervisor',
+        ids: sample.map(row => row.id), results: {}, parentTaskId: '',
+        sender: '指挥部检查人', percent, createdAt: at(minute), submittedAt: '',
+      }
+      tasks.push(original)
+      history.push({
+        id: `${original.id}-hq`, roundId: batchId, rowId: sample[0].id,
+        projectKey: project.key, stage: 'hq', taskId: '', person: original.sender,
+        time: original.createdAt, result: '不合格', note: '抽查发现现场整改与记录不一致，已发起抽检。',
+        files: [], dispatch: true, example: true,
+      })
+      if (scenario === 'pending') return
+
+      const follow = {
+        ...common, id: `EX-COC-FC-${key}`, batchId, stage: 'manager',
+        ids: poolIds, results: {}, parentTaskId: original.id,
+        sender: recipient, percent: 100, createdAt: at(minute + 2), submittedAt: '',
+      }
+      tasks.push(follow)
+      const checked = scenario === 'in-progress' ? sample.slice(0, 1) : sample
+      checked.forEach((row, i) => {
+        const id = `${original.id}-record-${i}`
+        const failed = i === 0
+        history.push({
+          id, roundId: batchId, rowId: row.id, projectKey: project.key,
+          stage: 'supervisor', taskId: original.id, person: recipient, time: at(minute + 1, i),
+          result: failed ? '不合格' : '合格', files: [], example: true,
+          note: failed ? '现场防护仍需完善，已下发本时间范围全部单据进行复查。' : '现场整改及记录核对一致。',
+          ...(failed ? { dispatch: true, reviewAssigneeId: demoUser.id, reviewRecipient: recipient, reviewTaskId: follow.id } : {}),
+        })
+        original.results[row.id] = id
+      })
+      if (scenario === 'in-progress') return
+      original.submittedAt = at(minute + 1, checked.length - 1)
+
+      // 办理中的复查优先为未抽中的单据准备材料，便于演示关联追踪。
+      const reviewRows = scenario === 'completed' ? pool : [pool[sample.length] || pool[0]]
+      reviewRows.forEach((row, i) => {
+        const id = `${follow.id}-record-${i}`
+        const time = at(minute + 4, i)
+        history.push({
+          id, roundId: batchId, rowId: row.id, projectKey: project.key,
+          stage: 'manager', taskId: follow.id, person: recipient, time,
+          result: '合格', completed: true, note: '已核实现场整改，附复查支撑照片。', example: true,
+          files: [{
+            id: `${id}-photo`, name: '全面复查支撑.png',
+            example: { title: row.title, number: row.originalNo, person: recipient, result: '合格', time },
+          }],
+        })
+        follow.results[row.id] = id
+      })
+      if (scenario === 'completed') follow.submittedAt = at(minute + 4, reviewRows.length - 1)
+    })
+  }
+  return { tasks, history }
 }

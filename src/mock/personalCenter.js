@@ -46,8 +46,10 @@ import {
 import { INSPECTION_DEMO_TODAY, inspectionHazards } from './inspectionDemoData.js'
 import { mobileInspectionTasks, registerInspectionTaskListener, inspectionSeedTaskIds } from './mobileInspectionTasks.js'
 import { submitRectification, registerInspectionWorkflowListener, mobileRectificationRecords, ensureInspectionWorkflowExamples } from '../composables/useMobileRectification.js'
-import { workflowSteps, currentWorkflowStep, rectificationProcessName, workflowFlowRecords, workflowApprovalRecords } from '../utils/inspectionRectificationWorkflow.js'
+import { workflowSteps, currentWorkflowStep, rectificationProcessName, workflowFlowRecords, workflowApprovalRecords, rectificationCopyEvents } from '../utils/inspectionRectificationWorkflow.js'
 import { canExecuteInspectionStep } from '../utils/inspectionWorkflowIdentity'
+import { listSamplingTaskNotices, SAMPLING_NOTICE_MODULE, updateSamplingNoticeStatus } from './hazardSamplingNotices.js'
+import { webLoginAccount } from './webSession.js'
 import {
   applyMajorHazardWarningDispose,
   createMajorHazardIdentificationTodo as createMajorHazardIdentificationTodoCore,
@@ -81,13 +83,14 @@ export const NOTICE_MODULE_OPTIONS = [
   '质量验评',
   '品牌报审',
   '巡检管理',
+  SAMPLING_NOTICE_MODULE,
   '人员实名',
   '风险管理',
   '危大工程监测',
   '机械设备监管',
   '系统通知',
 ]
-export const INSPECTION_BIZ_TYPE_OPTIONS = ['巡检', '整改', '施工验收', '复查', '总监验收', '审批']
+export const INSPECTION_BIZ_TYPE_OPTIONS = ['巡检', '项目经理确认', '整改', '施工验收', '复查', '总监验收', '审批']
 
 /** 处罚单待办业务状态 */
 export const PENALTY_TODO_STATUS = {
@@ -4141,15 +4144,15 @@ export function listLaborPersonalDone() {
   return personalTodoStore.done
 }
 
-export function listLaborPersonalNotices() {
+export function listLaborPersonalNotices(context = { account: webLoginAccount.value }) {
   ensureAlertPushNotices()
-  return personalNotices
+  return [...listSamplingTaskNotices(context), ...personalNotices]
 }
 
 /** 通知信息批量已读 */
 export function markPersonalNoticesRead(ids = []) {
   const set = new Set((ids || []).map(String))
-  let n = 0
+  let n = updateSamplingNoticeStatus(set, 'read')
   for (const row of personalNotices) {
     if (!set.has(String(row.id))) continue
     if (row.readStatus === '未读') {
@@ -4281,14 +4284,17 @@ queueMicrotask(() => installDispatchTaskPersonalCenter(personalTodoStore))
 
 /** 新产生的巡检整改单按实际节点同步个人中心，不影响其他业务待办。 */
 function syncInspectionWorkflowTodo(record, handledStep = null) {
-  for (const recipient of String(record.ccPersons || '').split('、').filter(Boolean)) {
-    const id = `inspection-rectification-cc-${record.id}-${recipient}`
-    let copied = personalCc.find(item => item.id === id)
-    if (!copied) {
-      copied = { id, type: 'inspection_rectification_cc', sourceLabel: '巡检管理', category: '巡检管理', bizType: '整改单抄送', rectifyId: record.id, recipient, readStatus: '未读', applyTime: record.issuedAt || record.applyDate }
-      personalCc.unshift(copied)
+  for (const event of rectificationCopyEvents(record)) {
+    for (const recipient of event.recipients) {
+      const key = event.key === 'issue' ? record.id : 'completion-' + record.id
+      const id = 'inspection-rectification-cc-' + key + '-' + recipient
+      let copied = personalCc.find(item => item.id === id)
+      if (!copied) {
+        copied = { id, type: 'inspection_rectification_cc', sourceLabel: '巡检管理', category: '巡检管理', bizType: '整改单抄送', rectifyId: record.id, recipient, readStatus: '未读', applyTime: event.date }
+        personalCc.unshift(copied)
+      }
+      Object.assign(copied, { processName: event.title + ' · ' + record.rectifyNo, projectName: record.project, applicant: record.inspector || record.applicant, detail: JSON.parse(JSON.stringify(record)) })
     }
-    Object.assign(copied, { processName: `隐患整改·${record.rectifyNo}`, projectName: record.project, applicant: record.inspector || record.applicant, detail: JSON.parse(JSON.stringify(record)) })
   }
   const related = personalTodoStore.todos.filter(item => item.liveInspectionWorkflow && item.rectifyId === record.id)
   for (const item of related) {
@@ -4298,17 +4304,25 @@ function syncInspectionWorkflowTodo(record, handledStep = null) {
     }
     item.detail = JSON.parse(JSON.stringify(record))
     item.approvalFlow = inspectionWorkflowHistory(record)
-    finishPersonalTodo(item.id, handledStep?.label || '已流转')
+    const outcome = handledStep?.key === 'managerConfirmation' ? (record.managerConfirmationResult === '是' ? '确认为隐患' : '确认为非隐患') : handledStep?.label
+    finishPersonalTodo(item.id, outcome || '已流转')
   }
   const step = currentWorkflowStep(record)
   if (record.exampleHidden) return
   const detail = JSON.parse(JSON.stringify(record))
   const flow = inspectionWorkflowHistory(record)
   const base = { type: 'inspection', sourceLabel: '巡检管理', category: '巡检管理', rectifyId: record.id, liveInspectionWorkflow: true, processName: record.rectifyProcessName || `隐患整改·${record.hazard}`, applicant: record.applicant, dept: record.project, applyTime: record.applyDate, detail, approvalFlow: flow }
-  if (step) personalTodoStore.todos.unshift({ ...base, id: `inspection-live-${record.id}-${record.workflowHistory?.length || 0}`, bizType: step.biz, inspectionBizType: step.biz, expectedWorkflowStage: step.key, assignee: step.actor })
+  if (step) personalTodoStore.todos.unshift({ ...base, processName: step.key === 'managerConfirmation' || record.managerConfirmationExample ? rectificationProcessName(record, step.key) : base.processName, id: `inspection-live-${record.id}-${record.workflowHistory?.length || 0}`, bizType: step.biz, inspectionBizType: step.biz, expectedWorkflowStage: step.key, assignee: step.actor })
   let started = personalStarted.find(item => item.liveInspectionWorkflow && item.rectifyId === record.id)
   if (!started) { started = { ...base, id: `inspection-started-${record.id}` }; personalStarted.unshift(started) }
-  Object.assign(started, base, { inspectionBizType: step?.biz || '审批', status: step ? '审批中' : '已通过', endTime: record.closeDate || '' })
+  Object.assign(started, base, {
+    processName: record.requiresManagerConfirmation ? rectificationProcessName(record, 'managerConfirmation') : base.processName,
+    inspectionBizType: record.requiresManagerConfirmation ? '项目经理确认' : step?.biz || '审批',
+    applicant: record.inspector || base.applicant,
+    applyTime: record.registeredAt || base.applyTime,
+    status: step ? '审批中' : record.managerConfirmationResult === '否' ? '已驳回' : '已通过',
+    endTime: record.closeDate || '',
+  })
 }
 registerInspectionWorkflowListener(syncInspectionWorkflowTodo)
 
@@ -4354,9 +4368,9 @@ for (const task of mobileInspectionTasks.filter(item => item.status !== '已完�
   && (!inspectionSeedTaskIds.has(item.id) || personalInspectionTaskExampleIds.has(item.id)))) syncInspectionTaskTodo(task)
 
 // 待办、已办、发起各保留八种节点示例；已办使用独立的已完成快照。
-for (const record of mobileRectificationRecords.filter(item => item.workflowExample || item.workflowAssignees)) {
+for (const record of mobileRectificationRecords.filter(item => item.workflowExample || item.managerConfirmationExample || item.workflowAssignees)) {
   syncInspectionWorkflowTodo(record)
-  if (!record.workflowExample || record.exampleHidden) continue
+  if (!(record.workflowExample || record.managerConfirmationExample) || record.exampleHidden) continue
   const steps = workflowSteps(record)
   const step = currentWorkflowStep(record)
   if (!step) continue
@@ -4364,6 +4378,7 @@ for (const record of mobileRectificationRecords.filter(item => item.workflowExam
   completed.id = 'inspection-completed-snapshot-' + record.id
   const date = String(record.applyDate || record.issuedAt).slice(0, 10)
   const comment = {
+    managerConfirmation: '现场防护缺失，确认为隐患，已下发整改单。',
     rectify: '已按整改要求完成现场处理，整改照片和复测资料已提交。',
     contractorAcceptance: '施工单位项目经理已核验整改资料及现场情况，验收通过。',
     review: '监理已现场复查整改结果，复查通过。',
@@ -4372,12 +4387,14 @@ for (const record of mobileRectificationRecords.filter(item => item.workflowExam
   }[step.key]
   completed[step.date] = date
   completed[step.note] = comment
-  if (step.result) completed[step.result] = '通过'
+  const result = step.key === 'managerConfirmation' ? '是' : '通过'
+  if (step.result) completed[step.result] = result
+  if (step.key === 'managerConfirmation') completed.issuedAt = record.applyDate
   if (step.key === 'rectify') {
     completed.rectificationPhotos = ['整改完成现场.jpg', '复测记录.jpg']
     completed.submitDate = date
   }
-  completed.workflowHistory.push({ stage: step.key, label: step.label, actor: step.actor, date, comment, result: '通过' })
+  completed.workflowHistory.push({ stage: step.key, label: step.label, actor: step.actor, date, comment, result })
   const next = steps[steps.findIndex(item => item.key === step.key) + 1]
   completed.status = next?.status || '已关闭'
   completed.currentNode = next?.label || '流程结束'
@@ -4389,7 +4406,7 @@ for (const record of mobileRectificationRecords.filter(item => item.workflowExam
     sourceRectifyId: record.id, inspectionCompletedExample: true,
     processName: rectificationProcessName(record, step.key),
     applicant: record.inspector, assignee: step.actor, dept: record.project,
-    applyTime: record.issuedAt, handleTime: date, handleLabel: step.label + '已处理', endTime: completed.closeDate,
+    applyTime: record.issuedAt || record.registeredAt, handleTime: date, handleLabel: step.key === 'managerConfirmation' ? '确认为隐患' : step.label + '已处理', endTime: completed.closeDate,
     detail: completed, approvalFlow: workflowApprovalRecords(completed),
   })
 }

@@ -1,7 +1,7 @@
 import { computed, unref, watch } from 'vue'
 import { getHazardCategoryOptions, getHazardLevels, INSPECTION_CATEGORIES } from '../config/inspectionManagement'
 
-import { getProjectRectifierLabel, getProjectReviewerLabel } from './useInspectionPersonConfig'
+import { getProjectRectifierLabel, getProjectReviewerLabel, getInspectionCopyDefaults } from './useInspectionPersonConfig'
 import { selectedProjectId } from './useCurrentProject'
 
 /** 新表单单选，历史数组仅用于回显，不擅自选择复合分类中的第一项。 */
@@ -19,6 +19,7 @@ export function useInspectionCategoryForm(source) {
         const project = form().projectId || form().project || selectedProjectId.value
         hazard.rectifyPerson = getProjectRectifierLabel(project, category)
         hazard.reviewPerson = getProjectReviewerLabel(project, category)
+        Object.assign(hazard, getInspectionCopyDefaults(project, category))
         if (!categories.includes(hazard.hazardCategory)) hazard.hazardCategory = ''
         if (!levels.includes(hazard.hazardLevel)) hazard.hazardLevel = ''
       }

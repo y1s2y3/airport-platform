@@ -7,7 +7,7 @@ import HazardRecordDetail from '../../components/hazard/HazardRecordDetail.vue'
 import ExternalQualityDetail from './ExternalQualityIssueDetailView.vue'
 import SafetyDetail from '../safety/SafetyHazardDetailView.vue'
 import { useCurrentProject } from '../../composables/useCurrentProject.js'
-import { sampling, useSamplingRole, viewableTasks, canHandleTask, linkedReviewTasks, taskProgress, submitReview, visibleHistory, saveSamplingAttachment, downloadSamplingAttachment } from '../../mock/hazardSampling.js'
+import { sampling, useSamplingRole, projectSamplingRole, canViewTask, canHandleTask, parentSamplingTask, linkedReviewTask, taskProgress, submitReview, saveSamplingAttachment } from '../../mock/hazardSampling.js'
 import { getHazardIssueRows } from '../../utils/hazardIssueSummary.js'
 import { buildSamplingRounds } from '../../mock/hazardSamplingRounds.js'
 import SamplingRoundsTable from '../../components/hazard/SamplingRoundsTable.vue'
@@ -19,17 +19,20 @@ import { restoreSupervisorTaskContext } from '../../utils/hazardSamplingTaskNavi
 const route = useRoute()
 const router = useRouter()
 if (route.query.viewer !== 'hq') restoreSupervisorTaskContext(String(route.params.id))
-const role = useSamplingRole()
+const viewerRole = useSamplingRole()
+const role = computed(() => route.query.viewer === 'project' && viewerRole.value === 'hq' ? projectSamplingRole.value : viewerRole.value)
 const { selectedProjectId } = useCurrentProject()
 const isHq = computed(() => role.value === 'hq')
 
-const task = computed(() => viewableTasks(role.value, selectedProjectId.value).find(item => item.id === route.params.id))
-function parentTaskOf(item) {
-  if (!item) return null
-  return sampling.value.tasks.find(entry => entry.stage === 'supervisor' && (entry.id === item.parentTaskId || (!item.parentTaskId && entry.batchId === item.batchId && entry.projectKey === item.projectKey))) || null
-}
-const supervisorTask = computed(() => !task.value ? null : task.value.stage === 'supervisor' ? task.value : parentTaskOf(task.value))
-const reviewTask = computed(() => !task.value ? null : task.value.stage === 'manager' ? task.value : linkedReviewTasks(task.value)[0] || null)
+const task = computed(() => {
+  const entry = sampling.value.tasks.find(item => item.id === route.params.id)
+  return canViewTask(entry, role.value, selectedProjectId.value) ? entry : null
+})
+const supervisorTask = computed(() => task.value?.stage === 'supervisor' ? task.value : parentSamplingTask(task.value))
+const reviewTask = computed(() => {
+  const entry = task.value?.stage === 'manager' ? task.value : linkedReviewTask(task.value)
+  return canViewTask(entry, role.value, selectedProjectId.value) ? entry : null
+})
 const supervisorProgress = computed(() => taskProgress(supervisorTask.value))
 const reviewProgress = computed(() => taskProgress(reviewTask.value))
 
@@ -91,11 +94,20 @@ watch(visibleRecords, list => {
 })
 const currentRow = computed(() => currentRecord.value?.row || null)
 
-const history = computed(() => currentRow.value ? visibleHistory(currentRow.value.id, isHq.value ? 'hq' : phaseRole.value) : [])
-const recordRounds = computed(() => currentRow.value ? buildSamplingRounds(sampling.value, currentRow.value, role.value) : [])
+const recordRounds = computed(() => {
+  const row = currentRow.value
+  const target = phaseTask.value
+  if (!row || !target || !currentRecord.value.log) return []
+  const tasks = [supervisorTask.value, reviewTask.value].filter(entry => entry && canViewTask(entry, role.value, selectedProjectId.value))
+  const history = sampling.value.history.filter(log => log.rowId === row.id && (
+    tasks.some(entry => logOf(entry, row.id)?.id === log.id)
+    || (isHq.value && log.stage === 'hq' && (log.roundId || log.id) === target.batchId)
+  ))
+  return buildSamplingRounds({ tasks, history }, row, isHq.value ? 'hq' : phaseRole.value)
+})
 const detailComponent = computed(() => currentRow.value?.source === 'externalQuality' ? ExternalQualityDetail : currentRow.value?.source === 'inspection' ? SafetyDetail : HazardRecordDetail)
 const people = computed(() => getSamplingPeople(supervisorTask.value?.projectKey || task.value?.projectKey || ''))
-const existingFollow = computed(() => supervisorTask.value ? sampling.value.tasks.find(entry => entry.stage === 'manager' && entry.batchId === supervisorTask.value.batchId) : null)
+const existingFollow = computed(() => linkedReviewTask(supervisorTask.value))
 
 const form = reactive({ result: '', note: '', files: [], completed: false, dispatch: null, reviewAssigneeId: '', uploading: 0 })
 function resetForm() { Object.assign(form, { result: '', note: '', files: [], completed: false, dispatch: null, reviewAssigneeId: '', uploading: 0 }) }
@@ -213,7 +225,7 @@ const formatTime = value => value ? new Date(value).toLocaleString('sv-SE') : '-
 
             <component :is="detailComponent" :row="currentRow" :record-id="currentRow?.sourceId" embedded />
 
-            <div class="ws-block" v-if="history.length"><h4>本单记录</h4><SamplingRoundsTable :rounds="recordRounds" :role="role" /></div>
+            <div class="ws-block" v-if="recordRounds.length"><h4>本单记录</h4><SamplingRoundsTable :rounds="recordRounds" :role="phaseRole" /></div>
           </template>
           <el-empty v-else description="左列选择一张单据查看详情" :image-size="60" />
         </section>

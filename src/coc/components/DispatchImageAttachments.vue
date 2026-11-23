@@ -25,6 +25,10 @@ const props = defineProps({
     type: String,
     default: '图片附件',
   },
+  uploadText: {
+    type: String,
+    default: '上传图片',
+  },
   min: {
     type: Number,
     default: 0,
@@ -164,7 +168,7 @@ const previewList = computed(() => files.value.map((f) => f.url).filter(Boolean)
       >
         <div class="upload-inner">
           <el-icon :size="22"><Plus /></el-icon>
-          <span>上传图片</span>
+          <span>{{ uploadText }}</span>
         </div>
       </el-upload>
     </div>

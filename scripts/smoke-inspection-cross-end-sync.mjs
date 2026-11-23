@@ -31,7 +31,7 @@ try {
    return { task, todo }
   }
   const first = makeTask('核查WEB全部正常')
-  const submit = ({todo}, form) => usePersonalTodoSubmit({ todo: ref(todo), todoId: ref(todo.id), goBack: () => {} }).submitInspectionHandle({ decision: 'pass', remark: '', companions: [], isMajorHazardPatrol: '否', ...form }, { title: '巡检', pass: '完成巡检', reject: '退回' })
+  const submit = ({todo}, form) => usePersonalTodoSubmit({ todo: ref(todo), todoId: ref(todo.id), goBack: () => {} }).submitInspectionHandle({ decision: 'pass', remark: '', companions: [], requiresManagerConfirmation: '否', isMajorHazardPatrol: '否', ...form }, { title: '巡检', pass: '完成巡检', reject: '退回' })
   submit(first, { inspectionResult: 'normal', attachments: [{name:'巡检.jpg'}] })
   check(first.task.status === '已完成' && first.task.result === 'normal', 'WEB完成未同步移动端')
   check(!PC.personalTodoStore.todos.some(x => x.inspectionTaskId === first.task.id), 'WEB提交未清理待办')
@@ -83,8 +83,8 @@ try {
  await page.locator('.inspection-stage-banner').waitFor()
  await page.getByText('有隐患', {exact:true}).click()
  const multi = page.locator('.person-multi-select')
- assert.equal(await multi.count(),2)
- assert.equal(await multi.locator('.el-tag').count(),4)
+ assert.equal(await multi.count(),4)
+ assert.equal(await multi.locator('.el-tag').count(),5)
  assert.deepEqual(errors,[])
  console.log('PASS 计划生成待办；WEB与移动提交双向同步；过期提交拦截；两隐患两单；安全/其他/质量B/A退回再通过；真实时间/历史/节点一致；WEB多人默认带出')
 } finally { await browser.close(); await server.close() }

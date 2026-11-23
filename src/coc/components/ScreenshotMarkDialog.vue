@@ -8,7 +8,6 @@ import {
   isVideoMonitorFeed,
   isHandheldDeviceFeed,
   HAZARD_REPORTERS,
-  HAZARD_LEVELS,
   MOCK_NOTICE,
   buildProjects,
 } from '../mock/data.js'
@@ -22,6 +21,8 @@ import {
 import { buildExecutorOptions } from '../utils/executorDisplay.js'
 import { taskWorkTypeOptions } from '../config/screenshotTaskOrderFields.js'
 import { TASK_EXECUTION_MODES, TASK_EXECUTION_MODE_OPTIONS } from '../utils/dispatchTaskWorkflow.js'
+import { getHazardLevels } from '../../config/inspectionManagement.js'
+import { DISPATCH_HAZARD_TYPE_OPTIONS, getDispatchHazardTypeLabel } from '../../config/dispatchHazardTypes.js'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -48,7 +49,8 @@ const form = reactive({
   cameraLocation: '',
   description: '',
   rectifier: '',
-  hazardLevel: '一般',
+  hazardType: '',
+  hazardLevel: '',
   hazardDeadline: '',
   workType: '',
   workRequirement: '',
@@ -79,23 +81,12 @@ const docTypeOptions = [
   { value: 'notice', label: '任务单' },
   { value: 'reminder', label: '提示函' },
   { value: 'penalty', label: '处罚单' },
-  { value: 'safety', label: '安全隐患' },
-  { value: 'quality', label: '质量隐患' },
+  { value: 'hazard', label: '隐患' },
 ]
 
-function docTypeMeta(type) {
-  const map = {
-    notice: { submitText: '提交任务单', successText: '任务单已登记，待指挥部下发' },
-    reminder: { submitText: '提交提示函', successText: '提示函已登记，待指挥部下发' },
-    penalty: { submitText: '提交处罚单', successText: '处罚单已登记，待指挥部下发' },
-    safety: { submitText: '提交安全隐患', successText: '安全隐患已登记' },
-    quality: { submitText: '提交质量隐患', successText: '质量隐患已登记' },
-  }
-  return map[type] || map.notice
-}
-
-const currentDocMeta = computed(() => docTypeMeta(form.docType))
-const isDispatchDoc = computed(() => ['notice', 'reminder', 'penalty'].includes(form.docType))
+const isDispatchDoc = computed(() => form.docType !== 'hazard')
+const hazardTypeLabel = computed(() => getDispatchHazardTypeLabel(form.hazardType))
+const hazardLevelOptions = computed(() => hazardTypeLabel.value ? getHazardLevels(hazardTypeLabel.value) : [])
 
 const formContextText = computed(() =>
   [form.projectName, form.cameraName, form.cameraLocation].filter(Boolean).join(' · ') || '--',
@@ -126,7 +117,8 @@ function resetForm() {
   form.cameraLocation = props.camera?.location || guessCameraLocation(props.camera?.name)
   form.description = ''
   form.rectifier = ''
-  form.hazardLevel = '一般'
+  form.hazardType = ''
+  form.hazardLevel = ''
   form.hazardDeadline = defaultDeadline()
   form.workType = ''
   form.workRequirement = ''
@@ -325,7 +317,7 @@ function exportMergedImage() {
   const ctx = merged.getContext('2d')
   ctx.drawImage(bg, 0, 0)
   ctx.drawImage(draw, 0, 0)
-  return merged.toDataURL('image/png')
+  return merged.toDataURL('image/jpeg', 0.85)
 }
 
 function handleClose() {
@@ -407,8 +399,20 @@ function handleSubmit(issueNow = false) {
       return
     }
   } else {
+    if (!form.projectName.trim()) {
+      ElMessage.warning('请选择项目名称')
+      return
+    }
+    if (!hazardTypeLabel.value) {
+      ElMessage.warning('请选择隐患类型')
+      return
+    }
     if (!form.description.trim()) {
       ElMessage.warning('请填写隐患描述')
+      return
+    }
+    if (!hazardLevelOptions.value.includes(form.hazardLevel)) {
+      ElMessage.warning('请选择对应的隐患等级')
       return
     }
     if (!form.rectifier) {
@@ -427,6 +431,8 @@ function handleSubmit(issueNow = false) {
   const reminderAssigneesText = reminderAssignees.join('、')
   const payload = {
     ...form,
+    docType: isDispatchDoc.value ? form.docType : form.hazardType,
+    hazardLevel: isDispatchDoc.value ? '' : form.hazardLevel,
     executors: noticeExecutors,
     executor:
       form.docType === 'notice'
@@ -459,14 +465,20 @@ function handleSubmit(issueNow = false) {
           ? (form.executor || '项目经理')
           : '',
     executeDept: form.docType === 'notice' ? noticeExecutorsText : '',
-    snapshot: exportMergedImage(),
+    snapshot: previewUrl.value,
     cameraId: props.camera?.id,
     sourceType: props.sourceType,
     unit: form.docType === 'penalty' ? (form.unit?.trim() || '') : MOCK_NOTICE.unit,
     penaltyReason: form.docType === 'penalty' ? form.workType : '',
   }
-  saveScreenshotRecord(payload)
-  if (['notice', 'reminder', 'penalty'].includes(form.docType)) {
+  try {
+    saveScreenshotRecord(payload)
+  } catch (error) {
+    if (error?.name !== 'QuotaExceededError') throw error
+    ElMessage.error('浏览器存储空间不足，问题截图未保存')
+    return
+  }
+  if (isDispatchDoc.value) {
     const record = saveDispatchDocFromScreenshot(form.docType, payload)
     if (issueNow && record?.id) {
       if (form.docType === 'notice') issueDispatchNoticeRecord(record.id)
@@ -478,7 +490,7 @@ function handleSubmit(issueNow = false) {
       ? `${docLabel}已保存并直接下发（编号 ${record?.id || '--'}）`
       : `${docLabel}已保存（编号 ${record?.id || '--'}），可在后台点击下发操作`)
   } else {
-    ElMessage.success(currentDocMeta.value.successText)
+    ElMessage.success(`${hazardTypeLabel.value}隐患已登记`)
   }
   emit('submit', payload)
   handleClose()
@@ -552,14 +564,7 @@ watch(
               :key="opt.value"
               type="button"
               class="doc-tab-btn"
-              :class="{
-                active: form.docType === opt.value,
-                notice: opt.value === 'notice',
-                reminder: opt.value === 'reminder',
-                penalty: opt.value === 'penalty',
-                safety: opt.value === 'safety',
-                quality: opt.value === 'quality',
-              }"
+              :class="[opt.value, { active: form.docType === opt.value }]"
               @click="switchDocType(opt.value)"
             >
               {{ opt.label }}
@@ -773,17 +778,49 @@ watch(
               </template>
 
               <template v-else>
+                <el-form-item label="项目名称" required>
+                  <el-select
+                    v-model="form.projectName"
+                    filterable
+                    allow-create
+                    default-first-option
+                    :popper-class="MARK_POPPER_CLASS"
+                    placeholder="选择或输入项目名称"
+                    aria-label="选择或输入项目名称"
+                  >
+                    <el-option v-for="item in projectOptions" :key="item" :label="item" :value="item" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="隐患类型" required>
+                  <el-select
+                    v-model="form.hazardType"
+                    :popper-class="MARK_POPPER_CLASS"
+                    placeholder="请选择隐患类型"
+                    aria-label="隐患类型"
+                    @change="form.hazardLevel = ''"
+                  >
+                    <el-option v-for="item in DISPATCH_HAZARD_TYPE_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
+                  </el-select>
+                </el-form-item>
                 <el-form-item label="隐患描述" required>
                   <el-input
                     v-model="form.description"
                     type="textarea"
                     :rows="4"
-                    :placeholder="form.docType === 'safety' ? '请描述发现的安全隐患' : '请描述发现的质量隐患'" aria-label="form.docType === 'safety' ? '请描述发现的安全隐患' : '请描述发现的质量隐患'"/>
+                    placeholder="请输入隐患描述"
+                    aria-label="隐患描述"
+                  />
                 </el-form-item>
-                <el-form-item label="等级" required>
-                  <el-radio-group v-model="form.hazardLevel">
-                    <el-radio v-for="item in HAZARD_LEVELS" :key="item" :value="item">{{ item }}</el-radio>
-                  </el-radio-group>
+                <el-form-item label="隐患等级" required>
+                  <el-select
+                    v-model="form.hazardLevel"
+                    :disabled="!hazardTypeLabel"
+                    :popper-class="MARK_POPPER_CLASS"
+                    :placeholder="hazardTypeLabel ? '请选择隐患等级' : '请先选择隐患类型'"
+                    aria-label="隐患等级"
+                  >
+                    <el-option v-for="item in hazardLevelOptions" :key="item" :label="item" :value="item" />
+                  </el-select>
                 </el-form-item>
                 <el-form-item label="整改人" required>
                   <el-select
@@ -822,9 +859,7 @@ watch(
           <el-button @click="handleSubmit(false)">保存到后台</el-button>
           <el-button type="primary" @click="handleSubmit(true)">直接下发</el-button>
         </template>
-        <el-button v-else type="primary" @click="handleSubmit(false)">
-          {{ currentDocMeta.submitText }}
-        </el-button>
+        <el-button v-else type="primary" @click="handleSubmit(false)">提交隐患</el-button>
       </template>
     </template>
   </el-dialog>
@@ -965,17 +1000,10 @@ watch(
   font-weight: 600;
 }
 
-.doc-tab-btn.active.safety {
+.doc-tab-btn.active.hazard {
   border-color: #e6a23c;
   background: rgba(230, 162, 60, 0.1);
   color: #e6a23c;
-  font-weight: 600;
-}
-
-.doc-tab-btn.active.quality {
-  border-color: #67c23a;
-  background: rgba(103, 194, 58, 0.1);
-  color: #67c23a;
   font-weight: 600;
 }
 

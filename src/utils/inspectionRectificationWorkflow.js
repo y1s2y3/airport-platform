@@ -5,6 +5,10 @@ export const ACCEPTANCE_STAGES = ['contractorAcceptance', 'directorAcceptance']
 export function isAcceptanceStage(key) { return ACCEPTANCE_STAGES.includes(key) }
 export function workflowSteps(row = {}) {
   return [
+    ...(row.requiresManagerConfirmation ? [{
+      key: 'managerConfirmation', label: '指挥部项目经理确认', actor: row.manager, status: '待整改', biz: '项目经理确认',
+      date: 'managerConfirmationDate', note: 'managerConfirmationComment', result: 'managerConfirmationResult',
+    }] : []),
     { key: 'rectify', label: '施工单位整改', actor: row.rectifier, status: '待整改', biz: '整改', date: 'rectificationDate', note: 'rectificationNote', result: '' },
     ...(isQualityA(row) ? [{ key: 'contractorAcceptance', label: '施工单位项目经理验收', actor: row.contractorManager, status: '待整改', biz: '施工验收', date: 'contractorAcceptanceDate', note: 'contractorAcceptanceComment', result: 'contractorAcceptanceResult' }] : []),
     { key: 'review', label: '监理单位复核', actor: row.reviewer, status: '待验收', biz: '复查', date: 'reviewDate', note: 'reviewComment', result: 'reviewResult' },
@@ -20,6 +24,10 @@ export function currentWorkflowStep(row) {
   const legacyKey = { 待施工单位验收: 'contractorAcceptance', 待总监验收: 'directorAcceptance' }[row?.status]
   return legacyKey ? steps.find(step => step.key === legacyKey) || null : null
 }
+export function currentWorkflowLabel(row) {
+  if (row.status === '已关闭') return '流程结束'
+  return currentWorkflowStep(row)?.label || row.currentNode || '--'
+}
 /** 个人中心流程名称前缀：A/B/C 级质量问题、安全问题、其他问题。 */
 export function rectifyNamePrefix(row = {}) {
   if (row.inspectionCategory === '质量') return `${row.hazardLevel || ''}级质量问题`
@@ -29,6 +37,7 @@ export function rectifyNamePrefix(row = {}) {
 /** 个人中心流程名称里的节点措辞（与业务节点一一对应）。 */
 export function rectificationStepName(row = {}, key = '') {
   return {
+    managerConfirmation: '项目经理确认',
     rectify: '施工方整改',
     contractorAcceptance: '施工方项目经理验收',
     review: row.inspectionCategory === '其他' ? '监理复核' : '监理复查',
@@ -39,12 +48,32 @@ export function rectificationStepName(row = {}, key = '') {
 export function rectificationProcessName(row = {}, key = '') {
   return `隐患问题整改 · ${rectifyNamePrefix(row)}${rectificationStepName(row, key)}`
 }
+export function rectificationIssuedAt(row) {
+  return row?.issuedAt || (row?.requiresManagerConfirmation ? '' : row?.issueDate || row?.applyDate || '')
+}
+
+export function rectificationCopyEvents(row) {
+  const split = value => [...new Set(String(value || '').split('、').map(label => label.trim()).filter(Boolean))]
+  return [
+    { key: 'issue', title: '下发整改单抄送', date: rectificationIssuedAt(row), recipients: split(row.issueCcPersons ?? row.ccPersons) },
+    { key: 'completion', title: '整改单完成抄送', date: row.approvalResult === '通过' && row.status === '已关闭' ? row.closeDate : '', recipients: split(row.completionCcPersons) },
+  ].filter(event => event.date && event.recipients.length)
+}
+
 export function workflowFlowRecords(row) {
   if (!row) return []
-  const logs = (row.workflowHistory || []).map(log => ({ a: log.label + (log.type === 'assignment' ? '指派' : log.result === '通过' ? '通过' : log.result === '不通过' ? '不通过' : '已提交'), d: log.date, dt: log.comment, by: log.actor, ...(log.type === 'assignment' ? { type: 'assignment', from: log.from || log.actor, to: log.to || String(log.comment || '').split('指派给')[1] || '' } : {}) }))
+  const logs = (row.workflowHistory || []).map(log => ({ a: log.label + (log.type === 'assignment' ? '指派' : log.stage === 'managerConfirmation' ? (log.result === '是' ? '：是隐患' : '：非隐患') : log.result === '通过' ? '通过' : log.result === '不通过' ? '不通过' : '已提交'), d: log.date, dt: log.comment, by: log.actor, ...(log.type === 'assignment' ? { type: 'assignment', from: log.from || log.actor, to: log.to || String(log.comment || '').split('指派给')[1] || '' } : {}) }))
   if (!logs.length) for (const step of workflowSteps(row)) if (row[step.date]) logs.push({ a: step.label, d: row[step.date], dt: row[step.note], by: step.actor })
   const current = currentWorkflowStep(row)
-  return [{ a: '下发整改单', d: row.issuedAt || row.applyDate, by: row.inspector || row.applicant }, ...logs, { a: current?.label || '流程结束', d: current ? '' : row.closeDate, by: current?.actor || '', cur: !!current }]
+  const issue = { a: '下发整改单', d: rectificationIssuedAt(row), by: row.inspector || row.applicant }
+  const start = row.requiresManagerConfirmation
+    ? { a: '登记隐患', d: row.registeredAt, by: row.inspector || row.applicant }
+    : issue
+  if (row.requiresManagerConfirmation && issue.d) {
+    const confirmed = logs.findIndex(log => log.a.includes('项目经理确认'))
+    logs.splice(confirmed + 1, 0, issue)
+  }
+  return [start, ...logs, { a: current?.label || '流程结束', d: current ? '' : row.closeDate, by: current?.actor || '', cur: !!current }]
 }
 export function workflowApprovalRecords(row) {
   return workflowFlowRecords(row).map(item => ({ title: item.a, user: item.by || '', time: item.d || '', remark: item.dt || '', from: item.from, to: item.to, status: item.type === 'assignment' ? 'assignment' : item.cur ? 'current' : 'done' }))

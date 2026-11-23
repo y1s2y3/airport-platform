@@ -407,6 +407,7 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
         return ElMessage.warning('全部正常时请至少上传一张巡检照片')
       }
       if (inspectionForm.inspectionResult === 'hazard') {
+        if (!['是', '否'].includes(inspectionForm.requiresManagerConfirmation)) return ElMessage.warning('请选择是否需项目经理确认')
         const hazards = inspectionForm.hazardItems || []
         if (!hazards.length) return ElMessage.warning('请至少新增一条隐患')
         for (const [index, hazard] of hazards.entries()) {
@@ -439,14 +440,14 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
     } else {
       if (!inspectionForm.processDate) {
         return ElMessage.warning(
-          `请选择${bizType === '整改' ? '整改' : bizType === '复查' ? '复查' : '审批'}日期`,
+          `请选择${bizType === '整改' ? '整改' : bizType === '复查' ? '复查' : bizType === '项目经理确认' ? '确认' : '审批'}日期`,
         )
       }
       if (bizType === '整改' && inspectionForm.attachments.length === 0) {
         return ElMessage.warning('请至少上传一张整改照片')
       }
       const acceptancePass = ['施工验收', '总监验收'].includes(bizType) && inspectionForm.decision === 'pass'
-      if (!inspectionForm.remark.trim() && !acceptancePass) {
+      if (!inspectionForm.remark.trim() && !acceptancePass && bizType !== '项目经理确认') {
         return ElMessage.warning(`请填写${inspectionActionMeta.remarkLabel}`)
       }
     }
@@ -456,14 +457,14 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
       const ok = submitInspectionWorkflowStep(row.rectifyId, row.expectedWorkflowStage, bizType === '整改' || approved, {
         assignmentRevision: row.detail?.workflowAssignmentRevision || 0,
         date: inspectionForm.processDate, comment: inspectionForm.remark.trim(),
-        rectificationPhotos: inspectionForm.attachments.map(item => item.name),
+        rectificationPhotos: [...inspectionForm.attachments],
       })
       if (!ok) return ElMessage.warning('节点已变化或资料不完整，请刷新待办后重新办理')
-      ElMessage.success('当前节点已处理并推送至下一处理人')
+      ElMessage.success(bizType === '项目经理确认' ? (approved ? '确认完成，整改单已下发' : '已确认非隐患，整改单已关闭') : '当前节点已处理')
       goBack()
       return
     }
-    const now = new Date().toLocaleString('zh-CN', { hour12: false })
+    const now = new Date().toLocaleString('sv-SE', { hour12: false })
     // 隐患整改单编号：ZG + 日期 + 4 位时间戳 + 两位序号（与移动端执行巡检同规则）
     const stamp = Date.now()
     const hazardDateKey = new Date().toISOString().slice(0, 10).replace(/-/g, '')
@@ -507,11 +508,12 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
       inspector: row.detail?.executor || inspectionForm.inspector || row.detail?.inspector,
       companions: [...inspectionForm.companions],
       inspectionResult: inspectionForm.inspectionResult || row.detail?.inspectionResult,
+      requiresManagerConfirmation: bizType === '巡检' ? inspectionForm.inspectionResult === 'hazard' && inspectionForm.requiresManagerConfirmation === '是' : row.detail?.requiresManagerConfirmation,
       inspectionDate:
         bizType === '巡检' ? new Date().toISOString().slice(0, 10) : row.detail?.inspectionDate,
       normalPhotos:
-        inspectionForm.inspectionResult === 'normal'
-          ? inspectionForm.attachments.map((item) => item.name)
+        bizType === '巡检'
+          ? [...inspectionForm.attachments]
           : row.detail?.normalPhotos,
       hazardItems:
         inspectionForm.inspectionResult === 'hazard'
@@ -523,7 +525,7 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
                 hazardLevel: hazard.hazardLevel,
                 rectifyRequirement: String(hazard.rectifyRequirement || '').trim(),
                 desc: String(hazard.desc || '').trim(),
-                photos: (hazard.photos || []).map((item) => item.name),
+                photos: [...(hazard.photos || [])],
                 hasRectify: true,
                 issueRectify: true,
                 rectifyNo,
@@ -534,6 +536,8 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
                 rectifyPerson: hazard.rectifier || '',
                 reviewPerson: hazard.reviewer || '',
                 rectifyDeadline: hazard.rectifyDeadline || '',
+                issueCcPersons: hazard.issueCcPersons,
+                completionCcPersons: hazard.completionCcPersons,
               }
             })
           : row.detail?.hazardItems,
@@ -603,7 +607,7 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
       const ok = submitRectification(row.rectifyId, {
         rectificationDate: inspectionForm.processDate,
         rectificationNote: remark,
-        rectificationPhotos: inspectionForm.attachments.map((item) => item.name),
+        rectificationPhotos: [...inspectionForm.attachments],
       })
       if (!ok) return ElMessage.error('未找到关联整改单，无法提交整改')
     }

@@ -5,8 +5,9 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getMobileRectification, submitRectification } from '../../composables/useMobileRectification'
 import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
+import MobileRectifyBasicInfo from '../../components/MobileRectifyBasicInfo.vue'
 
-import { workflowFlowRecords } from '../../utils/inspectionRectificationWorkflow'
+import { workflowFlowRecords, currentWorkflowStep } from '../../utils/inspectionRectificationWorkflow'
 
 function today() {
  const date = new Date()
@@ -21,7 +22,8 @@ const rid = route.params.id
 const record = computed(() => getMobileRectification(rid))
 const missing = computed(() => !record.value)
 const assignmentRevision = ref(record.value?.workflowAssignmentRevision || 0)
-const canHandle = computed(() => canExecuteInspectionStep(record.value, 'rectify'))
+const isRectification = computed(() => currentWorkflowStep(record.value)?.key === 'rectify')
+const canHandle = computed(() => isRectification.value && canExecuteInspectionStep(record.value, 'rectify'))
 
 const rectDate = ref(today())
 const rectPhotos = ref([])
@@ -110,17 +112,9 @@ function displayPhotos(list) {
     <div v-if="missing" class="empty-tip">未找到该整改单，请返回列表重试。</div>
 
     <template v-else>
-      <div v-if="!canHandle" class="empty-tip">任务已指派给其他人员，你无法继续执行。</div>
-      <div class="task-bar">
-        <div class="tbn">⚠ {{ record.rectifyNo }}</div>
-        <div class="tbi"><span class="tbi-label">巡检任务单编号：</span><span class="tbi-value">{{ record.taskNo || '--' }}</span></div>
-        <div class="tbi"><span class="tbi-label">巡检分类：</span><span class="tbi-value">{{ record.inspectionCategory || '--' }}</span></div>
-        <div class="tbi"><span class="tbi-label">项目名称：</span><span class="tbi-value">{{ record.project || '--' }}</span></div>
-        <div class="tbi"><span class="tbi-label">整改人：</span><span class="tbi-value">{{ record.rectifier || '--' }}</span></div>
-        <div class="tbi"><span class="tbi-label">复核人：</span><span class="tbi-value">{{ record.reviewer || '--' }}</span></div>
-        <div class="tbi"><span class="tbi-label">状态：</span><span class="tbi-value">{{ record.status || '--' }}</span></div>
-        <div class="tbi"><span class="tbi-label">截止日期：</span><span class="tbi-value">{{ record.deadline || '--' }}</span></div>
-      </div>
+      <div v-if="!isRectification" class="empty-tip">当前节点：{{ record.currentNode || '流程结束' }}</div>
+      <div v-else-if="!canHandle" class="empty-tip">任务已指派给其他人员，你无法继续执行。</div>
+      <MobileRectifyBasicInfo :record="record" />
 
       <div class="section">
         <div class="section-title collapsible" @click="flowCollapsed = !flowCollapsed">
@@ -178,11 +172,6 @@ function displayPhotos(list) {
 .mt { flex:1; font-size:18px; font-weight:600; margin:0; }
 .empty-tip { margin:40px 16px; padding:24px; text-align:center; color:#999; background:#fff; border-radius:10px; }
 
-.task-bar { background:#fff; padding:14px 16px; border-bottom:1px solid #eee; }
-.tbn { font-size:15px; font-weight:600; color:#1f2329; margin-bottom:6px; }
-.tbi { display:grid; grid-template-columns:96px minmax(0,1fr); gap:0 8px; align-items:start; font-size:12px; line-height:1.6; color:#999; }
-.tbi-label { text-align:right; white-space:nowrap; }
-.tbi-value { min-width:0; color:#666; word-break:break-word; }
 
 .sc { background:#fff; border-radius:10px; padding:14px 16px; margin:12px 16px; box-shadow:0 1px 3px rgba(0,0,0,0.04); }
 .sct { font-size:13px; font-weight:600; color:#1f2329; margin-bottom:10px; padding-left:8px; border-left:3px solid #8f0045; }

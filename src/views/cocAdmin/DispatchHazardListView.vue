@@ -6,6 +6,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { View } from '@element-plus/icons-vue'
 import { useCurrentProject } from '../../composables/useCurrentProject.js'
 import { matchesHazardIssueProject } from '../../utils/hazardIssueSummary.js'
+import { DISPATCH_HAZARD_TYPE_OPTIONS, getDispatchHazardTypeLabel as hazardTypeLabel } from '../../config/dispatchHazardTypes.js'
 import {
   getDispatchHazards,
   DISPATCH_HAZARD_RECTIFY_STATUSES,
@@ -73,12 +74,8 @@ const filtered = computed(() => {
   )
 })
 
-function hazardTypeLabel(type) {
-  return type === 'quality' ? '质量' : '安全'
-}
-
 function hazardTypeTag(type) {
-  return type === 'quality' ? 'success' : 'warning'
+  return { safety: 'warning', quality: 'success', other: 'info' }[type] || 'info'
 }
 
 function rectifyStatusTag(status) {
@@ -117,7 +114,7 @@ onMounted(load)
         <p class="page-desc">
           {{
             description ||
-            '汇集 COC 调度大屏「问题截图」登记的安全隐患与质量隐患；整改与验收请在个人中心待办处理。'
+            '汇集 COC 调度大屏「问题截图」登记的隐患，整改与验收请在个人中心待办处理。'
           }}
         </p>
       </div>
@@ -129,8 +126,7 @@ onMounted(load)
 
     <div class="tab-toolbar">
       <el-select v-model="typeFilter" placeholder="隐患类型" clearable class="status-filter" aria-label="隐患类型">
-        <el-option label="安全" value="safety" />
-        <el-option label="质量" value="quality" />
+        <el-option v-for="item in DISPATCH_HAZARD_TYPE_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
       </el-select>
       <el-select v-model="statusFilter" placeholder="整改状态" clearable class="status-filter" aria-label="整改状态">
         <el-option
@@ -164,7 +160,7 @@ onMounted(load)
         </template>
       </el-table-column>
       <el-table-column prop="description" label="隐患描述" min-width="180" show-overflow-tooltip />
-      <el-table-column prop="hazardLevel" label="等级" width="72" align="center" />
+      <el-table-column prop="hazardLevel" label="隐患等级" width="150" align="center" />
       <el-table-column label="整改状态" width="96" align="center">
         <template #default="{ row }">
           <el-tag :type="rectifyStatusTag(row.rectifyStatus)" size="small">

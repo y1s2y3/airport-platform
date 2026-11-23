@@ -1,4 +1,8 @@
 <script setup>
+import { getInspectionTaskPhotos } from '../../../utils/inspectionTaskPhotos.js'
+import { getInspectionTaskForRectification } from '../../../mock/mobileInspectionTasks'
+import InspectionPhotoList from '../../../components/InspectionPhotoList.vue'
+import { inspectionDateKey } from '../../../utils/inspectionLedgerDates'
 import { canExecuteInspectionStep } from '../../../utils/inspectionWorkflowIdentity'
 import InspectionPersonMultiSelect from '../../../components/InspectionPersonMultiSelect.vue'
 import { computed, reactive, ref, toRef, watch } from 'vue'
@@ -9,9 +13,9 @@ import { COC_PROJECT_OPTIONS } from '../../../config/projectOptions.js'
 import { getMajorHazardLedgerOptions } from '../../../utils/inspectionMajorHazardLink.js'
 import { usePersonalTodoSubmit } from '../composables/usePersonalTodoSubmit.js'
 import '../styles/todoHandleBlocks.css'
-import { inspectorCandidates, getProjectRectifierLabel, getProjectReviewerLabel } from '../../../composables/useInspectionPersonConfig'
+import { inspectorCandidates, getProjectRectifierLabel, getProjectReviewerLabel, getInspectionCopyDefaults, getInspectionCopyDetailFields, INSPECTION_COPY_FIELDS } from '../../../composables/useInspectionPersonConfig'
 import { getMobileRectification } from '../../../composables/useMobileRectification'
-import { currentWorkflowStep } from '../../../utils/inspectionRectificationWorkflow'
+import { currentWorkflowStep, rectificationIssuedAt } from '../../../utils/inspectionRectificationWorkflow'
 
 import { useInspectionHazardOptions } from '../../../composables/useInspectionCategoryForm'
 
@@ -24,6 +28,12 @@ const props = defineProps({
 })
 
 const assignmentRecord = computed(() => getMobileRectification(props.todo.rectifyId))
+const inspectionPhotos = computed(() => getInspectionTaskPhotos(props.todo.detail))
+const rectificationInspectionPhotos = computed(() => getInspectionTaskPhotos(getInspectionTaskForRectification(
+  assignmentRecord.value || { ...props.todo.detail, id: props.todo.rectifyId },
+)))
+const rectificationCopyFields = computed(() => getInspectionCopyDetailFields(assignmentRecord.value, props.todo.detail))
+const hazardCopyFields = hazard => getInspectionCopyDetailFields(getMobileRectification(hazard.rectifyId), hazard)
 const assignmentStage = computed(() => props.todo.expectedWorkflowStage)
 const canHandleAssignment = computed(() => canExecuteInspectionStep(assignmentRecord.value, assignmentStage.value))
 
@@ -48,6 +58,7 @@ function createHazardItem() {
     rectifier: getProjectRectifierLabel(props.todo?.detail?.project, props.todo?.detail?.inspectionCategory || '安全'),
     reviewer: getProjectReviewerLabel(props.todo?.detail?.project, props.todo?.detail?.inspectionCategory || '安全'),
     rectifyDeadline: '',
+    ...getInspectionCopyDefaults(props.todo?.detail?.projectId || props.todo?.detail?.project, props.todo?.detail?.inspectionCategory || '安全'),
   }
 }
 
@@ -59,7 +70,8 @@ const inspectionForm = reactive({
   // 同行人与移动端一致：执行巡检时按现场实际参加人员选择，不从下发任务预填
   companions: [],
   inspectionResult: '',
-  // 巡检照片（全部正常时）/ 整改照片（整改环节）
+  requiresManagerConfirmation: '是',
+  // 巡检照片 / 整改照片（整改环节）
   attachments: [],
   // 危大工程现场巡视：与移动端执行巡检一致，在执行时判定并选择危大清单
   isMajorHazardPatrol: '否',
@@ -122,8 +134,10 @@ const inspectionActionMeta = computed(() => {
     复查: { title: '复查处理', remarkLabel: '复查意见', pass: '复查通过', reject: '复查不通过' },
     施工验收: { title: '施工单位项目经理验收', remarkLabel: '施工单位验收意见', pass: '验收通过', reject: '验收不通过' },
     总监验收: { title: '监理单位项目总监验收', remarkLabel: '总监验收意见', pass: '验收通过', reject: '验收不通过' },
+    项目经理确认: { title: '指挥部项目经理确认', remarkLabel: '确认说明', pass: '是', reject: '否' },
     审批: { title: '项目经理审批', remarkLabel: '审批意见', pass: '审批通过', reject: '审批不通过' },
   }
+  if (type === '项目经理确认') return map[type]
   const step = currentWorkflowStep(getMobileRectification(props.todo?.rectifyId))
   if (step && props.todo?.liveInspectionWorkflow) {
     const action = { rectify: '整改', contractorAcceptance: '施工验收', review: '复核', directorAcceptance: '总监验收', approval: '审批' }[step.key]
@@ -131,9 +145,9 @@ const inspectionActionMeta = computed(() => {
   }
   return map[type] || map.巡检
 })
-const processDateLabel = computed(() => ({ 整改: '整改日期', 复查: '复核日期', 施工验收: '施工验收日期', 总监验收: '总监验收日期' })[props.todo.inspectionBizType] || '审批日期')
+const processDateLabel = computed(() => ({ 项目经理确认: '确认日期', 整改: '整改日期', 复查: '复核日期', 施工验收: '施工验收日期', 总监验收: '总监验收日期' })[props.todo.inspectionBizType] || '审批日期')
 // 两类验收通过时意见可不填；其余节点仍必填。
-const remarkRequired = computed(() => !(['施工验收', '总监验收'].includes(props.todo?.inspectionBizType) && inspectionForm.decision === 'pass'))
+const remarkRequired = computed(() => props.todo.inspectionBizType !== '项目经理确认' && !(['施工验收', '总监验收'].includes(props.todo?.inspectionBizType) && inspectionForm.decision === 'pass'))
 
 const personalCheckTree = computed(() => {
   const detail = props.todo?.detail || {}
@@ -197,6 +211,7 @@ function resetInspectionForm() {
     // 同行人与移动端一致：执行巡检时按现场实际参加人员选择，不从下发任务预填
     companions: [],
     inspectionResult: props.todo?.detail?.inspectionResult || '',
+    requiresManagerConfirmation: '是',
     attachments: [],
     hazardItems: [createHazardItem()],
     // 危大工程现场巡视：已选择过则回显，否则按任务项目预置（多项目任务留空待选）
@@ -281,8 +296,13 @@ function onSubmit() {
           style="margin-right:4px"
         >{{ category }}</el-tag>
       </el-descriptions-item>
+      <el-descriptions-item label="巡检人">{{ todo.detail?.inspector || '—' }}</el-descriptions-item>
+      <el-descriptions-item label="整改单下发日期">{{ inspectionDateKey(rectificationIssuedAt(todo.detail)) || '—' }}</el-descriptions-item>
       <el-descriptions-item label="整改人">{{ todo.detail?.rectifier || '—' }}</el-descriptions-item>
       <el-descriptions-item label="复查人">{{ todo.detail?.reviewer || '—' }}</el-descriptions-item>
+      <el-descriptions-item v-for="field in rectificationCopyFields" :key="field.key" :label="field.label">
+        {{ field.value }}
+      </el-descriptions-item>
       <el-descriptions-item label="截止日期">{{ todo.detail?.deadline || '—' }}</el-descriptions-item>
       <el-descriptions-item label="状态">{{ todo.detail?.status || '—' }}</el-descriptions-item>
       <el-descriptions-item v-if="todo.detail?.closeDate" label="关闭日期">
@@ -298,6 +318,11 @@ function onSubmit() {
       <div v-if="todo.detail?.hazardPhotos?.length" class="inspection-kv">
         <span>隐患照片</span><b>{{ todo.detail.hazardPhotos.join('、') }}</b>
       </div>
+    </div>
+    <div v-if="todo.inspectionBizType !== '巡检' && todo.detail?.hazard" class="inspection-detail-block">
+      <div class="inspection-section-title">巡检照片</div>
+      <InspectionPhotoList v-if="rectificationInspectionPhotos.length" :photos="rectificationInspectionPhotos" />
+      <span v-else>未上传</span>
     </div>
     <div
       v-if="todo.detail?.rectificationDate || todo.detail?.rectificationNote"
@@ -360,9 +385,11 @@ function onSubmit() {
       <el-tag :type="todo.detail.inspectionResult === 'normal' ? 'success' : 'danger'">
         {{ todo.detail.inspectionResult === 'normal' ? '全部正常' : '有隐患' }}
       </el-tag>
-      <span v-if="todo.detail?.normalPhotos?.length" class="inspection-file-text">
-        巡检照片：{{ todo.detail.normalPhotos.join('、') }}
-      </span>
+      <div class="inspection-file-text">
+        <span>巡检照片</span>
+        <InspectionPhotoList v-if="inspectionPhotos.length" :photos="inspectionPhotos" />
+        <span v-else>未上传</span>
+      </div>
       <div
         v-for="(hazard, index) in todo.detail?.hazardItems || []"
         :key="index"
@@ -373,7 +400,10 @@ function onSubmit() {
         <span>等级：{{ hazard.hazardLevel || '未设置' }}</span>
         <span>说明：{{ hazard.desc }}</span>
         <span style="white-space:pre-wrap">整改要求：{{ hazard.rectifyRequirement || '未填写' }}</span>
-        <span v-if="hazard.photos?.length">照片：{{ hazard.photos.join('、') }}</span>
+        <div v-if="hazard.photos?.length">
+          <span>隐患照片</span>
+          <InspectionPhotoList :photos="hazard.photos" name-prefix="隐患照片" />
+        </div>
         <span>下发整改单：{{ hazard.issueRectify || hazard.hasRectify ? '是' : '否' }}</span>
         <span v-if="hazard.issueRectify || hazard.hasRectify">
           整改单编号：{{ hazard.rectifyNo || '—' }}
@@ -383,6 +413,9 @@ function onSubmit() {
             hazard.reviewer || hazard.reviewPerson || '—'
           }}　截止：{{ hazard.rectifyDeadline || '—' }}
         </span>
+        <template v-if="hazard.issueRectify || hazard.hasRectify">
+          <span v-for="field in hazardCopyFields(hazard)" :key="field.key">{{ field.label }}：{{ field.value }}</span>
+        </template>
       </div>
     </div>
   </section>
@@ -463,12 +496,19 @@ function onSubmit() {
             <el-radio value="hazard">有隐患</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item v-if="inspectionForm.inspectionResult === 'normal'" label="巡检照片" required>
+        <el-form-item v-if="inspectionForm.inspectionResult === 'hazard'" label="是否需项目经理确认" required>
+          <el-radio-group v-model="inspectionForm.requiresManagerConfirmation" aria-label="是否需项目经理确认">
+            <el-radio value="是">是</el-radio>
+            <el-radio value="否">否</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item v-if="inspectionForm.inspectionResult" :label="inspectionForm.inspectionResult === 'hazard' ? '巡检照片（选填）' : '巡检照片'" :required="inspectionForm.inspectionResult === 'normal'">
           <DispatchImageAttachments
             v-model="inspectionForm.attachments"
-            :min="1"
+            :min="inspectionForm.inspectionResult === 'normal' ? 1 : 0"
             :max="9"
             name-prefix="巡检照片"
+            upload-text="上传巡检照片"
           />
         </el-form-item>
         <template v-if="inspectionForm.inspectionResult === 'hazard'">
@@ -529,6 +569,7 @@ function onSubmit() {
                     :min="1"
                     :max="9"
                     :name-prefix="`隐患${index + 1}照片`"
+                    upload-text="上传隐患照片"
                   />
                 </div>
                 <div class="hazard-row">
@@ -544,6 +585,10 @@ function onSubmit() {
                   <div class="hazard-row">
                     <span class="hazard-label">复查人<i>*</i></span>
                     <InspectionPersonMultiSelect v-model="hazard.reviewer" :options="inspectionPersonOptions" :aria-label="`隐患${index + 1}复核人`" />
+                  </div>
+                  <div v-for="field in INSPECTION_COPY_FIELDS" :key="field.key" class="hazard-row">
+                    <span class="hazard-label">{{ field.label }}</span>
+                    <InspectionPersonMultiSelect v-model="hazard[field.key]" :options="inspectionPersonOptions" placeholder="请选择（选填，可多选）" :aria-label="field.label" />
                   </div>
                   <div class="hazard-row">
                     <span class="hazard-label">整改截止日期<i>*</i></span>
@@ -580,7 +625,7 @@ function onSubmit() {
         <el-form-item v-if="todo.inspectionBizType === '整改'" label="整改照片" required>
           <DispatchImageAttachments v-model="inspectionForm.attachments" :min="1" :max="9" name-prefix="整改照片" />
         </el-form-item>
-        <el-form-item v-if="todo.inspectionBizType !== '整改'" :label="`${todo.inspectionBizType}结果`" required>
+        <el-form-item v-if="todo.inspectionBizType !== '整改'" :label="todo.inspectionBizType === '项目经理确认' ? '是否为隐患' : '办理结果'" required>
           <el-radio-group v-model="inspectionForm.decision">
             <el-radio value="pass">{{ inspectionActionMeta.pass }}</el-radio>
             <el-radio value="reject">{{ inspectionActionMeta.reject }}</el-radio>

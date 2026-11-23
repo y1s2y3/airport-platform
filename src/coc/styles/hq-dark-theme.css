@@ -2243,16 +2243,10 @@
   color: #f89898;
 }
 
-.coc-hq-shell .screenshot-mark-dialog .doc-tab-btn.active.safety {
+.coc-hq-shell .screenshot-mark-dialog .doc-tab-btn.active.hazard {
   border-color: rgba(246, 197, 117, 0.55);
   background: rgba(246, 197, 117, 0.15);
   color: #f6c575;
-}
-
-.coc-hq-shell .screenshot-mark-dialog .doc-tab-btn.active.quality {
-  border-color: rgba(103, 194, 58, 0.55);
-  background: rgba(103, 194, 58, 0.15);
-  color: #95d475;
 }
 
 .coc-hq-shell .screenshot-mark-dialog .preview-thumb {

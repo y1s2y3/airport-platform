@@ -3,8 +3,8 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getMobileRectification, submitManagerApproval } from '../../composables/useMobileRectification'
-import { formatInspectionCategories } from '../../config/inspectionManagement'
 import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
+import MobileRectifyBasicInfo from '../../components/MobileRectifyBasicInfo.vue'
 
 import { workflowFlowRecords, workflowSteps } from '../../utils/inspectionRectificationWorkflow'
 
@@ -18,9 +18,6 @@ const router = useRouter()
 const { rectifyBase } = useMobileRouteBase()
 const record = computed(() => getMobileRectification(route.params.id))
 const missing = computed(() => !record.value)
-const inspectionCategoryLabel = computed(() =>
-  formatInspectionCategories(record.value?.inspectionCategories || record.value?.inspectionCategory),
-)
 const approvalDate = ref(today())
 const approvalComment = ref('')
 const approvalLabel = computed(() => workflowSteps(record.value).find(step => step.key === 'approval')?.label || '项目经理审批')
@@ -76,18 +73,7 @@ function goBack() {
     <div v-if="missing" class="empty-tip">未找到该整改单，请返回列表重试。</div>
 
     <template v-else>
-      <div class="info-bar">
-        <div class="info-title">⚠ {{ record.rectifyNo }}</div>
-        <div class="info-meta">巡检任务单编号：{{ record.taskNo || '--' }}</div>
-        <div class="info-meta">巡检分类：{{ inspectionCategoryLabel || '--' }}</div>
-        <div class="info-meta">截止日期：{{ record.deadline || '--' }}</div>
-        <div class="info-meta">状态：{{ record.status || '--' }}</div>
-        <div class="info-meta">{{ record.project || '--' }}</div>
-        <div class="people-row">
-          <span>整改人：{{ record.rectifier || '--' }}</span>
-          <span>复核人：{{ record.reviewer || '--' }}</span>
-        </div>
-      </div>
+      <MobileRectifyBasicInfo :record="record" />
 
       <div class="section">
         <div class="section-title collapsible" @click="flowCollapsed = !flowCollapsed">
@@ -147,10 +133,6 @@ function goBack() {
 .mb { border:0; background:transparent; color:#fff; font-size:28px; line-height:1; cursor:pointer; }
 .mt { flex:1; margin:0; font-size:18px; font-weight:600; }
 .empty-tip { margin:40px 16px; padding:24px; text-align:center; color:#999; background:#fff; border-radius:10px; }
-.info-bar { background:#fff; padding:14px 16px; border-bottom:1px solid #eee; }
-.info-title { font-size:15px; font-weight:600; color:#1f2329; margin-bottom:5px; }
-.info-meta,.people-row { color:#999; font-size:12px; line-height:1.7; }
-.people-row { display:flex; gap:10px; flex-wrap:wrap; }
 .section { margin:12px 16px; padding:14px 16px; background:#fff; border-radius:10px; box-shadow:0 1px 3px rgba(0,0,0,.04); }
 .section-title { margin-bottom:12px; padding-left:9px; border-left:3px solid #8f0045; color:#1f2329; font-size:14px; font-weight:600; }
 .collapsible { display:flex; justify-content:space-between; cursor:pointer; }

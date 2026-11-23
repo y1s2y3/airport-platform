@@ -1,4 +1,5 @@
 <script setup>
+import { inspectionOperator } from '../../utils/inspectionWorkflowIdentity'
 import InspectionPersonMultiSelect from '../../components/InspectionPersonMultiSelect.vue'
 /**
  * 项目级 · 新增巡检记录（WEB 端）
@@ -19,7 +20,7 @@ import {
   buildInspectionTaskNo,
   formatInspectionCategories,
 } from '../../config/inspectionManagement'
-import { inspectorCandidates, getProjectRectifierLabel, getProjectReviewerLabel } from '../../composables/useInspectionPersonConfig'
+import { inspectorCandidates, getProjectRectifierLabel, getProjectReviewerLabel, getInspectionCopyDefaults, INSPECTION_COPY_FIELDS } from '../../composables/useInspectionPersonConfig'
 import { getMajorHazardLedgerOptions } from '../../utils/inspectionMajorHazardLink'
 import { useCurrentProject } from '../../composables/useCurrentProject'
 import { COC_PROJECT_OPTIONS } from '../../config/projectOptions'
@@ -53,7 +54,7 @@ function createHazardItem() {
     rectifyPerson: getProjectRectifierLabel(projectLabel.value, selectedCategory.value),
     reviewPerson: getProjectReviewerLabel(projectLabel.value, selectedCategory.value),
     rectifyDeadline: '',
-    ccPersons: '',
+    ...getInspectionCopyDefaults(projectId.value, selectedCategory.value),
   }
 }
 
@@ -66,15 +67,18 @@ const form = ref({
   majorHazardLedgerId: '',
   majorHazardSourceId: '',
   majorHazardName: '',
-  inspector: '当前用户',
+  inspector: inspectionOperator().label,
   companions: [],
   photos: [],
   result: '',
+  requiresManagerConfirmation: '是',
   hazardItems: [],
 })
 
 const { selectedCategory } = useInspectionCategoryForm(form)
 const { hazardCategoryOptions, hazardLevelOptions } = useInspectionHazardOptions(selectedCategory, computed(() => form.value.hazardItems))
+const showManagerConfirmation = computed(() => form.value.result === 'hazard')
+const needsManagerConfirmation = computed(() => showManagerConfirmation.value && form.value.requiresManagerConfirmation === '是')
 
 const submitting = ref(false)
 
@@ -87,7 +91,12 @@ function onMajorHazardChange(ledgerId) {
 }
 
 /** 指挥部级切换项目后，清空危大工程选择（危大清单随项目变化） */
-watch(() => form.value.projectId, () => {
+watch(projectId, project => {
+  for (const hazard of form.value.hazardItems) {
+    hazard.rectifyPerson = getProjectRectifierLabel(project, selectedCategory.value)
+    hazard.reviewPerson = getProjectReviewerLabel(project, selectedCategory.value)
+    Object.assign(hazard, getInspectionCopyDefaults(project, selectedCategory.value))
+  }
   form.value.majorHazardLedgerId = ''
   form.value.majorHazardSourceId = ''
   form.value.majorHazardName = ''
@@ -130,6 +139,7 @@ function submitInspection() {
     return ElMessage.warning('全部正常时请至少上传一张巡检照片')
   }
   if (form.value.result === 'hazard') {
+    if (!['是', '否'].includes(form.value.requiresManagerConfirmation)) return ElMessage.warning('请选择是否需项目经理确认')
     if (form.value.hazardItems.length === 0) return ElMessage.warning('请至少添加一条隐患')
     for (const [i, item] of form.value.hazardItems.entries()) {
       const dictionaryError = validateInspectionHazard(item, selectedCategory.value)
@@ -138,7 +148,7 @@ function submitInspection() {
       if (!item.hazardLevel) return ElMessage.warning(`第 ${i + 1} 条隐患请选择隐患等级`)
       if (!String(item.rectifyRequirement || '').trim()) return ElMessage.warning(`第 ${i + 1} 条隐患请填写整改要求`)
       if (!String(item.desc || '').trim()) return ElMessage.warning(`第 ${i + 1} 条隐患请填写说明`)
-      if (!item.photos?.length) return ElMessage.warning(`第 ${i + 1} 条隐患请至少上传一张照片`)
+      if (!item.photos?.length) return ElMessage.warning(`第 ${i + 1} 条隐患请至少上传一张隐患照片`)
       if (!item.rectifyPerson) return ElMessage.warning(`第 ${i + 1} 条隐患请选择整改人`)
       if (!item.reviewPerson) return ElMessage.warning(`第 ${i + 1} 条隐患请选择复查人`)
       if (!item.rectifyDeadline) return ElMessage.warning(`第 ${i + 1} 条隐患请选择整改截止日期`)
@@ -162,7 +172,8 @@ function submitInspection() {
       rectifyPerson: item.rectifyPerson,
       reviewPerson: item.reviewPerson,
       rectifyDeadline: item.rectifyDeadline,
-      ccPersons: item.ccPersons || '',
+      issueCcPersons: item.issueCcPersons,
+      completionCcPersons: item.completionCcPersons,
     }
   })
   const rectifyCount = hazardItems.length
@@ -190,12 +201,13 @@ function submitInspection() {
     deadline: form.value.inspDate,
     status: '已完成',
     inspDate: form.value.inspDate,
-    submittedAt: new Date().toLocaleString('zh-CN', { hour12: false }),
+    submittedAt: new Date().toLocaleString('sv-SE', { hour12: false }),
     itemCount: 0,
     hazardCount: form.value.hazardItems.length,
     photos: form.value.photos,
     result: form.value.result,
-    normalPhotos: form.value.result === 'normal' ? [...form.value.photos] : [],
+    requiresManagerConfirmation: needsManagerConfirmation.value,
+    normalPhotos: [...form.value.photos],
     hazardItems,
     hasRectify: rectifyCount > 0,
     rectifyCount,
@@ -205,7 +217,7 @@ function submitInspection() {
   try {
     addMobileInspectionTask(newTask)
     createMobileRectificationsFromTask(newTask, hazardItems)
-    ElMessage.success(`巡检记录已提交${rectifyCount ? `，已下发 ${rectifyCount} 份整改单` : ''}`)
+    ElMessage.success(`巡检记录已提交${rectifyCount ? `，${newTask.requiresManagerConfirmation ? '待项目经理确认' : '已下发'} ${rectifyCount} 份整改单` : ''}`)
     router.push('/safety-inspection/task')
   } finally {
     submitting.value = false
@@ -306,8 +318,14 @@ function submitInspection() {
             <el-radio value="hazard">有隐患</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item v-if="form.result === 'normal'" label="巡检照片" required>
-          <DispatchImageAttachments v-model="form.photos" :min="1" :max="9" name-prefix="巡检照片" />
+        <el-form-item v-if="showManagerConfirmation" label="是否需项目经理确认" required>
+          <el-radio-group v-model="form.requiresManagerConfirmation" aria-label="是否需项目经理确认">
+            <el-radio value="是">是</el-radio>
+            <el-radio value="否">否</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item v-if="form.result" :label="form.result === 'hazard' ? '巡检照片（选填）' : '巡检照片'" :required="form.result === 'normal'">
+          <DispatchImageAttachments v-model="form.photos" :min="form.result === 'normal' ? 1 : 0" :max="9" name-prefix="巡检照片" upload-text="上传巡检照片" />
         </el-form-item>
       </el-form>
     </section>
@@ -341,7 +359,7 @@ function submitInspection() {
           </div>
           <div class="hazard-row">
             <span class="hazard-label">隐患照片<i>*</i></span>
-            <DispatchImageAttachments v-model="hazard.photos" :min="1" :max="9" :name-prefix="`隐患${index + 1}照片`" />
+            <DispatchImageAttachments v-model="hazard.photos" :min="1" :max="9" :name-prefix="`隐患${index + 1}照片`" upload-text="上传隐患照片" />
           </div>
           <div class="hazard-row">
             <span class="hazard-label">整改要求<i>*</i></span>
@@ -356,9 +374,9 @@ function submitInspection() {
               <span class="hazard-label">复查人<i>*</i></span>
               <InspectionPersonMultiSelect v-model="hazard.reviewPerson" :options="personOptions" :aria-label="`隐患${index + 1}复核人`" />
             </div>
-            <div class="hazard-row">
-              <span class="hazard-label">抄送人</span>
-              <InspectionPersonMultiSelect v-model="hazard.ccPersons" :options="personOptions" placeholder="请选择抄送人（选填，可多选）" :aria-label="`隐患${index + 1}抄送人`" />
+            <div v-for="field in INSPECTION_COPY_FIELDS" :key="field.key" class="hazard-row">
+              <span class="hazard-label">{{ field.label }}</span>
+              <InspectionPersonMultiSelect v-model="hazard[field.key]" :options="personOptions" placeholder="请选择（选填，可多选）" :aria-label="field.label" />
             </div>
             <div class="hazard-row">
               <span class="hazard-label">整改截止日期<i>*</i></span>
@@ -367,7 +385,7 @@ function submitInspection() {
           </div>
         </div>
         <el-button class="hazard-add" @click="addHazard">+ 新增隐患</el-button>
-        <div class="rectify-summary">已录入 {{ form.hazardItems.length }} 条隐患，将下发 {{ form.hazardItems.length }} 份整改单</div>
+        <div class="rectify-summary">已录入 {{ form.hazardItems.length }} 条隐患，生成 {{ form.hazardItems.length }} 份整改单{{ needsManagerConfirmation ? '，项目经理确认后下发' : '，提交后下发' }}</div>
       </div>
     </section>
 

@@ -9,7 +9,8 @@ import {
   personalTodoStore,
   personalStarted,
   personalCc,
-  personalNotices,
+  listLaborPersonalNotices,
+  markPersonalNoticesRead,
   PROCESS_STATUS_OPTIONS,
   PROCESS_CATEGORY_OPTIONS,
   READ_STATUS_OPTIONS,
@@ -36,6 +37,8 @@ import { getDispatchNoticeRecords } from '../../coc/utils/dispatchMeetingStorage
 import { useCurrentProject } from '../../composables/useCurrentProject.js'
 import { canExecuteInspectionStep, isInspectionCopyRecipient, inspectionOperator } from '../../utils/inspectionWorkflowIdentity'
 import { currentWorkflowStep } from '../../utils/inspectionRectificationWorkflow'
+import { PERSONAL_CENTER_TABS as TAB_NAMES } from '../../utils/personalCenterNavigation'
+import { isSamplingTaskNotice, updateSamplingNoticeStatus } from '../../mock/hazardSamplingNotices'
 
 const props = defineProps({
   /** 是否显示页标题（个人中心页显示，工作台嵌入时可关） */
@@ -48,12 +51,10 @@ const props = defineProps({
 const route = useRoute()
 const router = useRouter()
 const { isHqSelected } = useCurrentProject()
-const inspectionProcessVisible = row => !isHqSelected.value || row.type !== 'inspection' || row.inspectionBizType === '审批'
+const inspectionProcessVisible = row => !isHqSelected.value || row.type !== 'inspection' || ['审批', '项目经理确认'].includes(row.inspectionBizType)
 const inspectionRowHint = row => row.assignmentEntry ? `已指派给：${row.to} · 当前节点：${row.node} · 当前处理人：${row.currentActor}` : row.type === 'inspection'
   ? [row.detail?.inspectionCategory, row.detail?.hazardLevel, row.detail?.currentNode].filter(Boolean).join(' · ')
   : ''
-
-const TAB_NAMES = ['todo', 'done', 'started', 'cc', 'warning-center', 'notice']
 
 onMounted(async () => {
   ensurePersonalInspectionExamples()
@@ -61,7 +62,6 @@ onMounted(async () => {
   ensureQmPersonalCenterSeeds()
   ensureLaborWarningCenterSeeds()
   ensureInspectionOverdueReminders()
-  notices.value = [...personalNotices]
   await focusTaskTodo()
 })
 
@@ -71,7 +71,7 @@ const activeTab = ref(
 
 watch(() => dispatchTaskOperator().id, () => getDispatchNoticeRecords(), { immediate: true })
 
-const filters = reactive({
+const emptyFilters = {
   processName: '',
   processStatus: '',
   processCategory: '',
@@ -82,6 +82,29 @@ const filters = reactive({
   warnStatus: '',
   warnModule: '',
   warnKeyword: '',
+}
+const filterStorageKey = `airport-personal-center-filters:${props.basePath}`
+function readSavedFilters() {
+  try {
+    return JSON.parse(sessionStorage.getItem(filterStorageKey) || '{}')
+  } catch {
+    return {}
+  }
+}
+const savedFilters = readSavedFilters()
+const filtersByTab = reactive(Object.fromEntries(TAB_NAMES.map(tab => [
+  tab,
+  Object.fromEntries(Object.keys(emptyFilters).map(key => {
+    const value = savedFilters?.[tab]?.[key]
+    return [key, typeof value === 'string' ? value : '']
+  })),
+])))
+const filters = computed(() => filtersByTab[activeTab.value])
+
+watch(filtersByTab, state => {
+  try {
+    sessionStorage.setItem(filterStorageKey, JSON.stringify(state))
+  } catch { /* 当前页面仍可继续筛选。 */ }
 })
 
 const todos = computed(() => {
@@ -102,25 +125,18 @@ const doneList = computed(() => {
   return [...assignedRows.value, ...rows.filter(isTaskExample), ...rows.filter(row => !isTaskExample(row))]
 })
 const startedList = computed(() => personalStarted.filter(inspectionProcessVisible))
-const ccList = computed(() => personalCc.filter(row => row.inspectionCopyExample || row.type !== 'inspection_rectification_cc' || isInspectionCopyRecipient(row.recipient)))
-const notices = ref([...personalNotices])
-watch(
-  () => personalNotices.length,
-  () => {
-    const known = new Set(notices.value.map((item) => item.id))
-    personalNotices
-      .filter((item) => !known.has(item.id))
-      .forEach((item) => notices.value.unshift(item))
-  },
-)
+const ccList = computed(() => personalCc.filter(row => row.inspectionCopyExample || row.type !== 'inspection_rectification_cc' || isInspectionCopyRecipient(row.recipient, row.detail?.projectId, row.detail?.inspectionCategory)))
+const deletedNoticeIds = ref(new Set())
+const notices = computed(() => listLaborPersonalNotices().filter(item => !deletedNoticeIds.value.has(item.id)))
 const warningCenterTick = ref(0)
 const warningCenterList = computed(() => {
   warningCenterTick.value
   return listPersonalWarningCenter()
 })
 const warningStatusOptions = computed(() => {
-  const rows = filters.warnModule
-    ? warningCenterList.value.filter((row) => row.module === filters.warnModule)
+  const { warnModule } = filtersByTab['warning-center']
+  const rows = warnModule
+    ? warningCenterList.value.filter((row) => row.module === warnModule)
     : warningCenterList.value
   return [...new Set(rows.map((row) => row.business?.status || row.status))]
 })
@@ -133,22 +149,13 @@ const page = ref(1)
 const pageSize = ref(10)
 const todoTable = ref(null)
 
-watch(() => filters.warnModule, () => {
-  filters.warnStatus = ''
-  page.value = 1
+watch(() => filtersByTab['warning-center'].warnModule, () => {
+  filtersByTab['warning-center'].warnStatus = ''
+  if (activeTab.value === 'warning-center') page.value = 1
 })
 
 function resetFilters() {
-  filters.processName = ''
-  filters.processStatus = ''
-  filters.processCategory = ''
-  filters.readStatus = ''
-  filters.noticeTitle = ''
-  filters.noticeModule = ''
-  filters.warnType = ''
-  filters.warnStatus = ''
-  filters.warnModule = ''
-  filters.warnKeyword = ''
+  Object.assign(filters.value, emptyFilters)
   page.value = 1
 }
 
@@ -166,6 +173,7 @@ const normalizeInspectionSearch = value => String(value || '').replaceAll('复�
 const matchesProcessName = (row, keyword) => normalizeInspectionSearch([row.processName, row.handleLabel, row.rectifyNo, row.from, row.to, inspectionRowHint(row), row.type === 'inspection' ? row.inspectionBizType : ''].filter(Boolean).join(' ')).includes(normalizeInspectionSearch(keyword))
 
 const filteredTodos = computed(() => {
+  const filters = filtersByTab.todo
   let rows = [...todos.value]
   if (filters.processCategory) rows = rows.filter((r) => r.category === filters.processCategory)
   const kw = filters.processName.trim()
@@ -174,6 +182,7 @@ const filteredTodos = computed(() => {
 })
 
 const filteredDone = computed(() => {
+  const filters = filtersByTab.done
   let rows = [...doneList.value]
   if (filters.processCategory) rows = rows.filter((r) => r.category === filters.processCategory)
   const kw = filters.processName.trim()
@@ -182,6 +191,7 @@ const filteredDone = computed(() => {
 })
 
 const filteredStarted = computed(() => {
+  const filters = filtersByTab.started
   let rows = [...startedList.value]
   if (filters.processCategory) rows = rows.filter((r) => r.category === filters.processCategory)
   const kw = filters.processName.trim()
@@ -191,6 +201,7 @@ const filteredStarted = computed(() => {
 })
 
 const filteredCc = computed(() => {
+  const filters = filtersByTab.cc
   let rows = [...ccList.value]
   if (filters.processCategory) rows = rows.filter((r) => r.category === filters.processCategory)
   if (filters.readStatus) rows = rows.filter((r) => r.readStatus === filters.readStatus)
@@ -200,6 +211,7 @@ const filteredCc = computed(() => {
 })
 
 const filteredNotices = computed(() => {
+  const filters = filtersByTab.notice
   let rows = [...notices.value]
   const kw = filters.noticeTitle.trim()
   if (kw) rows = rows.filter((r) => `${r.title}${r.content}`.includes(kw))
@@ -209,6 +221,7 @@ const filteredNotices = computed(() => {
 })
 
 const filteredWarningCenter = computed(() => {
+  const filters = filtersByTab['warning-center']
   let rows = [...warningCenterList.value]
   if (filters.warnModule) rows = rows.filter((r) => r.module === filters.warnModule)
   if (filters.warnType) rows = rows.filter((r) => r.warnType === filters.warnType)
@@ -232,7 +245,6 @@ const assignedRows = computed(() => {
     return [{ assignmentEntry: true, type: 'inspection', category: '巡检管理', handleLabel: '已指派', applicant: log.from || log.actor, dept: record.project, applyTime: record.issuedAt || record.applyDate, handleTime: log.date, id: record.id + '-' + index, rectifyId: record.id, processName: record.rectifyProcessName || '隐患整改·' + (record.hazard || record.rectifyNo), rectifyNo: record.rectifyNo, project: record.project, from: log.from || log.actor, to: log.to || String(log.comment || '').split('指派给')[1] || '--', time: log.date, node: record.currentNode, currentActor: currentWorkflowStep(record)?.actor || '--', status: record.status }]
   })).sort((a, b) => String(b.time).localeCompare(String(a.time)))
 })
-function viewAssignment(row) { router.push('/safety-inspection/hazard/' + row.rectifyId) }
 function assignmentCompleted() {
   assignmentDialogVisible.value = false
   activeTab.value = 'done'
@@ -247,6 +259,11 @@ const pagedWarningCenter = computed(() => slicePage(filteredWarningCenter.value)
 
 async function focusTaskTodo() {
   if (route.path !== props.basePath || route.query.focus !== 'dispatch-task' || activeTab.value !== 'todo') return
+  const { query } = route
+  const listQuery = { ...query }
+  delete listQuery.focus
+  await router.replace({ path: props.basePath, query: listQuery })
+  if (route.path !== props.basePath || activeTab.value !== 'todo') return
   resetFilters()
   // 等待页签、各模块示例及任务单投影更新，再按完整待办列表计算页码。
   await nextTick()
@@ -267,7 +284,11 @@ watch(
   () => [route.query.tab, route.query.focus],
   async ([tab]) => {
     if (route.path !== props.basePath) return
-    activeTab.value = TAB_NAMES.includes(String(tab || '')) ? String(tab) : 'todo'
+    const nextTab = TAB_NAMES.includes(String(tab || '')) ? String(tab) : 'todo'
+    if (activeTab.value !== nextTab) {
+      activeTab.value = nextTab
+      page.value = 1
+    }
     await nextTick()
     await focusTaskTodo()
   },
@@ -291,21 +312,22 @@ function refreshWarningCenter() {
 }
 
 function openProcessDetail(row, from) {
-  if (from === 'cc' && row?.type === 'inspection_rectification_cc') {
-    router.push(`/safety-inspection/hazard/${row.rectifyId}`)
+  const returnQuery = { returnTo: props.basePath, returnTab: from }
+  if (row.assignmentEntry || (from === 'cc' && row.type === 'inspection_rectification_cc')) {
+    router.push({ path: `/safety-inspection/hazard/${row.rectifyId}`, query: returnQuery })
     return
   }
   if (from === 'cc' && row?.type === 'inspection_dispatch_cc' && row.inspectionPlanId) {
     router.push({
       name: 'InspectionPlanDetail',
       params: { id: row.inspectionPlanId },
-      query: { from: 'personal-center-cc', ccId: row.id },
+      query: { from: 'personal-center-cc', ccId: row.id, ...returnQuery },
     })
     return
   }
   router.push({
     path: '/personal-center/todo/handle',
-    query: { id: row.id, from },
+    query: { id: row.id, from, ...returnQuery },
   })
 }
 
@@ -421,7 +443,6 @@ function handleTodo(row) {
 }
 
 function viewDone(row) {
-  if (row.assignmentEntry) return viewAssignment(row)
   openProcessDetail(row, 'done')
 }
 
@@ -447,27 +468,30 @@ function viewCc(row) {
 }
 
 function markAllNoticesRead() {
-  notices.value.forEach((r) => {
-    r.readStatus = '已读'
-  })
+  markPersonalNoticesRead(notices.value.map(row => row.id))
   ElMessage.success('通知已全部标为已读')
 }
 
 function batchDeleteNotices() {
   if (!noticeSelection.value.length) return ElMessage.warning('请先勾选要删除的通知')
-  const ids = new Set(noticeSelection.value.map((r) => r.id))
-  notices.value = notices.value.filter((r) => !ids.has(r.id))
+  const ids = noticeSelection.value.map(row => row.id)
+  updateSamplingNoticeStatus(ids, 'deleted')
+  deletedNoticeIds.value = new Set([...deletedNoticeIds.value, ...ids])
   noticeSelection.value = []
   ElMessage.success('已批量删除')
 }
 
 function viewNotice(row) {
-  row.readStatus = '已读'
-  ElMessage.info(`通知详情：${row.title}`)
+  markPersonalNoticesRead([row.id])
+  if (isSamplingTaskNotice(row.id)) {
+    ElMessageBox.alert(row.content, row.title, { confirmButtonText: '关闭' }).catch(() => {})
+  } else {
+    ElMessage.info(`通知详情：${row.title}`)
+  }
 }
 
 function onTabChange(name) {
-  resetFilters()
+  page.value = 1
   startedSelection.value = []
   noticeSelection.value = []
   warningSelection.value = []

@@ -12,6 +12,7 @@ import {
   listLaborPersonalStarted,
   listLaborPersonalCc,
   listLaborPersonalNotices,
+  markPersonalNoticesRead,
   ensureLaborWarningCenterSeeds,
   listPersonalWarningCenter,
   markWarningCenterRead,
@@ -226,7 +227,7 @@ function openFlowDetail(item) {
 }
 
 function openNoticeDetail(item) {
-  item.readStatus = '已读'
+  markPersonalNoticesRead([item.id])
   if (!item.laborWarningId) return
   router.push({
     name: 'LaborMobileWarningDetail',

@@ -2,6 +2,8 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { appLoginAccount, appSelectedOrgId } from '../../mock/appSession.js'
+import { selectedProjectId } from '../../composables/useCurrentProject.js'
 import {
   listLaborPersonalTodos,
   listLaborPersonalDone,
@@ -60,7 +62,9 @@ const startedList = computed(() => listLaborPersonalStarted())
 const ccList = computed(() => listLaborPersonalCc())
 const notices = computed(() => {
   noticeTick.value
-  return listLaborPersonalNotices()
+  const org = appSelectedOrgId.value
+  const projectId = org.startsWith('proj-') ? org.slice(5) : selectedProjectId.value
+  return listLaborPersonalNotices({ projectId, account: appLoginAccount.value })
 })
 
 const warningList = computed(() => {

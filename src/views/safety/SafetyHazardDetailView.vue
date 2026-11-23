@@ -1,13 +1,14 @@
 <script setup>
 import HazardSamplingPanel from '../../components/HazardSamplingPanel.vue'
+import InspectionPhotoList from '../../components/InspectionPhotoList.vue'
 import { samplingReturnLocation, restoreSupervisorTaskContext } from '../../utils/hazardSamplingTaskNavigation.js'
+import { personalCenterReturnLocation } from '../../utils/personalCenterNavigation'
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getProjectRectifierLabel, getProjectReviewerLabel } from '../../composables/useInspectionPersonConfig'
+import { getProjectRectifierLabel, getProjectReviewerLabel, getInspectionCopyDetailFields } from '../../composables/useInspectionPersonConfig'
 import { getInspectionHazardDetail } from '../../mock/inspectionHazardQuery'
 import { normalizeHazardCategory } from '../../config/inspectionManagement'
 
-import { getMobileRectification } from '../../composables/useMobileRectification'
 const route = useRoute()
 if (route.query.from === 'sampling-task' && route.query.viewer !== 'hq') restoreSupervisorTaskContext(String(route.query.samplingTask || ''))
 const router = useRouter()
@@ -128,6 +129,7 @@ const info = computed(() => {
     cat: source.cat || (['rec-003', 'rec-004'].includes(rid.value) ? '质量' : '安全'),
     rf: source.rf || getProjectRectifierLabel(projectKey),
     rv: source.rv || getProjectReviewerLabel(projectKey),
+    currentNode: source.currentNode || (source.st === '已关闭' ? '流程结束' : source.flow?.find(item => item.cur)?.a || '--'),
   }
 })
 // 多次整改/复查只展示当前最新一轮；历史失败原因统一保留在流程记录中。
@@ -143,6 +145,8 @@ const latestReviews = computed(() => {
 })
 
 function goBack() {
+  const returnLocation = personalCenterReturnLocation(route.query)
+  if (returnLocation) { router.push(returnLocation); return }
   if (route.query.from === 'sampling-task') { router.push(samplingReturnLocation(route.query)); return }
   if (route.query.from === 'summary') {
     router.push('/hazard-issues/summary')
@@ -171,12 +175,16 @@ function goBack() {
       <div class="ic"><label>巡检任务单编号</label><span>{{ info.tn }}</span></div>
       <div class="ic"><label>项目名称</label><span>{{ info.pj }}</span></div>
       <div class="ic"><label>巡检分类</label><span>{{ info.cat }}</span></div>
+      <div class="ic"><label>巡检人</label><span>{{ info.inspector || '--' }}</span></div>
+      <div class="ic"><label>整改单下发日期</label><span>{{ info.issueDate || '--' }}</span></div>
       <div class="ic"><label>整改人</label><span>{{ info.rf }}</span></div>
       <div class="ic"><label>复查人</label><span>{{ info.rv }}</span></div>
-      <div v-if="info.ccPersons" class="ic"><label>抄送人</label><span>{{ info.ccPersons }}</span></div>
+      <div v-for="field in getInspectionCopyDetailFields(info)" :key="field.key" class="ic">
+        <label>{{ field.label }}</label><span>{{ field.value }}</span>
+      </div>
       <div class="ic"><label>截止日期</label><span>{{ info.dl }}</span></div>
-      <div class="ic"><label>本单登记时间</label><span>{{ info.flow?.find(item => item.a === '下发整改单')?.d || '--' }}</span></div>
       <div class="ic"><label>状态</label><span :style="{color:info.st==='已关闭'?'#34a853':info.st==='待复查'?'#8f0045':'#f5a623',fontWeight:600}">{{ info.st }}</span></div>
+      <div class="ic"><label>当前流程节点</label><span>{{ info.currentNode }}</span></div>
       <div class="ic" v-if="info.cd"><label>关闭日期</label><span>{{ info.cd }}</span></div>
     </div>
 
@@ -188,6 +196,12 @@ function goBack() {
       <div class="rf"><label>整改要求</label><span style="white-space:pre-wrap">{{ info.hazard.rectifyRequirement || '未填写' }}</span></div>
       <div class="rf"><label>隐患说明</label><span>{{ info.hazard.desc }}</span></div>
       <div class="rf" v-if="info.hazard.photos?.length"><label>隐患照片</label><span>{{ info.hazard.photos.join('、') }}</span></div>
+    </div>
+
+    <div class="sc">
+      <div class="sct">巡检照片</div>
+      <InspectionPhotoList v-if="info.inspectionPhotos?.length" :photos="info.inspectionPhotos" />
+      <div v-else class="rf">未上传</div>
     </div>
 
     <!-- ===== 整改信息（有整改记录即展示，含待整改已整改的情况） ===== -->
@@ -259,7 +273,7 @@ function goBack() {
 .ic:nth-child(3n) { border-right:none; }
 .ic:nth-last-child(-n+3) { border-bottom:none; }
 .ic label { width:95px; flex-shrink:0; padding:9px 12px; background:#f8f9fa; color:#868e96; border-right:1px solid #f0f0f0; }
-.ic span { padding:9px 12px; color:#212529; }
+.ic span { min-width:0; padding:9px 12px; color:#212529; overflow-wrap:anywhere; }
 .sc { border:1px solid #dee2e6; border-radius:8px; padding:16px 20px; margin-bottom:20px; background:#fff; }
 .sct { font-size:14px; font-weight:600; color:#212529; padding-left:10px; border-left:3px solid #8f0045; margin-bottom:14px; }
 .sct.colps { cursor:pointer; display:flex; align-items:center; justify-content:space-between; }

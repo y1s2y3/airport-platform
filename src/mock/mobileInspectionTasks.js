@@ -219,6 +219,25 @@ export function getMobileInspectionTask(id) {
   return mobileInspectionTasks.find((t) => t.id === id) || null
 }
 
+/** 优先按任务 ID 或整改单关联定位，旧单再按巡检编号和项目回查。 */
+export function getInspectionTaskForRectification(record) {
+  if (!record) return null
+  if (record.inspectionTaskId) return getMobileInspectionTask(record.inspectionTaskId)
+  const linked = record.id && mobileInspectionTasks.find(task =>
+    task.hazardItems?.some(hazard => hazard.rectifyId === record.id),
+  )
+  if (linked) return linked
+  if (!record.taskNo || record.taskNo === '--') return null
+  const projectId = record.projectId || record.project_id
+  const matches = mobileInspectionTasks.filter(task => {
+    if (task.taskNo !== record.taskNo) return false
+    const taskProjectId = task.projectId || task.project_id
+    if (projectId && taskProjectId) return projectId === taskProjectId
+    return !record.project || !task.project || task.project === record.project || task.projectFullName === record.project
+  })
+  return matches.length === 1 ? matches[0] : null
+}
+
 export function addMobileInspectionTask(task) {
   const item = normalizeInspectionTask(task)
   mobileInspectionTasks.unshift(item)

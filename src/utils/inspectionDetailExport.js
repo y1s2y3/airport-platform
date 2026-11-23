@@ -1,0 +1,161 @@
+import { formatInspectionCategories, normalizeHazardCategory } from '../config/inspectionManagement.js'
+import { getConfiguredPersonLabel } from '../composables/useInspectionPersonConfig.js'
+import { getMobileRectification, getRectificationPhotoFiles, mapMobileRecordToHazardRow } from '../composables/useMobileRectification.js'
+import { buildInspectionHazardDetail, getInspectionHazard } from '../mock/inspectionHazardQuery.js'
+import { listMobileInspectionTasks } from '../mock/mobileInspectionTasks.js'
+import { getInspectionTaskCheckGroups, getMajorHazardPatrolDetail, getMajorHazardSyncDetail } from './inspectionTaskDetailData.js'
+
+// 第四项是照片组的文件名前缀。
+export const inspectionTaskDetailColumns = [
+  ['taskNo', '任务单编号', 26],
+  ['taskName', '任务名称', 36],
+  ['source', '任务来源'],
+  ['project', '项目名称', 28],
+  ['executor', '执行人', 24],
+  ['inspectionCategory', '巡检分类'],
+  ['inspectionType', '检查类型'],
+  ['isMajorHazardPatrol', '危大工程现场巡视', 23],
+  ['majorHazardName', '危大工程名称', 32],
+  ['majorHazardSync', '巡视台账同步', 36],
+  ['companions', '同行人', 28],
+  ['deadline', '任务截止日期'],
+  ['inspectionDate', '巡检日期'],
+  ['status', '状态'],
+  ['itemCount', '检查项数量'],
+  ['checkItems', '检查项明细', 57],
+  ['checkPhotos', '检查项照片', 40, '检查项照片'],
+  ['result', '巡检结果'],
+  ['normalPhotos', '巡检照片', 42, '巡检照片'],
+  ['hazardCount', '隐患数量'],
+  ['requiresConfirmation', '是否需项目经理确认', 25],
+]
+
+export const inspectionTaskHazardColumns = [
+  ['number', '隐患序号', 12],
+  ['category', '隐患类别'],
+  ['level', '隐患等级', 24],
+  ['description', '隐患说明', 46],
+  ['requirement', '整改要求', 46],
+  ['hazardPhotos', '隐患照片', 44, '隐患照片'],
+  ['orderNo', '关联整改单编号', 26],
+  ['orderStatus', '关联整改单状态'],
+  ['rectifier', '整改人', 24],
+  ['reviewer', '复查人', 24],
+  ['rectifyDeadline', '整改截止日期'],
+  ['issueCcPersons', '下发整改单抄送人', 28],
+  ['completionCcPersons', '整改单完成抄送人', 28],
+]
+
+export const rectificationDetailColumns = [
+  ['rn', '整改单编号', 26],
+  ['tn', '巡检任务单编号', 26],
+  ['pj', '项目名称', 28],
+  ['cat', '巡检分类'],
+  ['inspector', '巡检人', 24],
+  ['issueDate', '整改单下发日期', 21],
+  ['rf', '整改人', 24],
+  ['rv', '复查人', 24],
+  ['st', '状态'],
+  ['currentNode', '当前流程节点', 28],
+  ['dl', '截止日期'],
+  ['cd', '关闭日期'],
+  ['category', '隐患类别'],
+  ['level', '隐患等级'],
+  ['requirement', '整改要求', 46],
+  ['description', '隐患说明', 46],
+  ['hazardPhotos', '隐患照片', 44, '隐患照片'],
+  ['rectDate', '整改日期'],
+  ['rectNote', '整改说明', 46],
+  ['rectPhotos', '整改照片', 44, '整改照片'],
+  ['reviewDate', '复查日期'],
+  ['reviewResult', '复查结果'],
+  ['reviewComment', '复查意见', 42],
+  ['approvalManager', '审批人', 24],
+  ['approvalStatus', '审批状态'],
+  ['approvalDate', '审批日期'],
+  ['approvalComment', '审批意见', 44],
+]
+
+const joined = (...values) => values.filter(Boolean).join(' · ')
+const photoGroup = (photos, label = '', names = []) => ({ label, photos: photos || [], names })
+const resultLabel = result => ({ normal: '全部正常', hazard: '有隐患' })[result] || result || ''
+
+export function exportInspectionTaskDetail(task) {
+  const hazards = task.hazardItems || []
+  const groups = task.source === '任务下发' ? getInspectionTaskCheckGroups(task) : []
+  const checks = groups.flatMap(group => group.items.map(item => ({ ...item, group: joined(group.inspectionCategory, group.label) })))
+  return {
+    ...task,
+    taskName: task.taskName || task.planName,
+    executor: task.executor || task.inspector,
+    inspectionCategory: formatInspectionCategories(task.inspectionCategories || task.inspectionCategory),
+    isMajorHazardPatrol: getMajorHazardPatrolDetail(task),
+    majorHazardName: task.isMajorHazardPatrol === '是' ? task.majorHazardName : '',
+    majorHazardSync: getMajorHazardSyncDetail(task),
+    companions: (task.companions || []).join('、'),
+    itemCount: groups.length ? checks.length : task.itemCount,
+    checkItems: checks.map(item => joined(item.group, item.label, resultLabel(item.result), item.desc)).join('\n'),
+    checkPhotos: checks.map(item => photoGroup(item.photos, joined(item.group, item.label))),
+    result: resultLabel(task.result || task.inspectionResult),
+    normalPhotos: [photoGroup(task.normalPhotos?.length ? task.normalPhotos : task.photos)],
+    hazardCount: task.hazardCount ?? hazards.length,
+    requiresConfirmation: task.result === 'hazard' && typeof task.requiresManagerConfirmation === 'boolean'
+      ? (task.requiresManagerConfirmation ? '是' : '否') : '',
+    detailRows: hazards.map((item, index) => {
+      const order = item.rectifyId ? getInspectionHazard(item.rectifyId) : null
+      return {
+        number: index + 1,
+        category: normalizeHazardCategory(item.hazardCategory || order?.hazardCategory) || '安全管理',
+        level: item.hazardLevel || order?.hazardLevel || '未设置',
+        description: item.desc || order?.desc,
+        requirement: item.rectifyRequirement || order?.rectifyRequirement || '未填写',
+        hazardPhotos: [photoGroup(item.photos?.length ? item.photos : order?.hazardPhotos)],
+        orderNo: item.rectifyNo || order?.rectifyNo,
+        orderStatus: order?.status,
+        rectifier: item.rectifier || item.rectifyPerson || order?.rectifier,
+        reviewer: item.reviewer || item.reviewPerson || order?.reviewer,
+        rectifyDeadline: item.rectifyDeadline || order?.deadline,
+        issueCcPersons: item.issueCcPersons ?? item.ccPersons ?? order?.issueCcPersons,
+        completionCcPersons: item.completionCcPersons ?? order?.completionCcPersons,
+      }
+    }),
+  }
+}
+
+export function exportRectificationDetail(row) {
+  const live = getMobileRectification(row.id)
+  const current = live ? mapMobileRecordToHazardRow(live) : row
+  const detail = buildInspectionHazardDetail(current, live)
+  const history = current.workflowHistory || []
+  const photos = getRectificationPhotoFiles(row.id)
+  const originalHazardPhotos = photos?.hazards?.length ? photos.hazards : listMobileInspectionTasks()
+    .find(task => task.taskNo === row.taskNo)?.hazardItems
+    ?.find(item => item.rectifyId === row.id || item.rectifyNo === row.rectifyNo)?.photos
+  const latestRectificationIndex = history.findLastIndex(log => log.stage === 'rectify' && log.type !== 'assignment')
+  const latestRectificationPhotos = photos?.rounds.find(round => round.historyIndex === latestRectificationIndex)?.photos
+  const review = detail.reviews?.at(-1) || detail.prevReview
+  const approval = live?.approvalResult || (!history.length && row.approvalRejected)
+    ? { manager: live?.manager || row.manager, status: live?.approvalResult || '不通过', date: live?.approvalDate || row.approvalDate, comment: live?.approvalComment || row.approvalReason }
+    : detail.managerApproval || {}
+  const project = row.project_id || row.project
+  return {
+    ...detail,
+    rf: detail.rf || getConfiguredPersonLabel(project, row.inspectionCategory, 'rectifierId'),
+    rv: detail.rv || getConfiguredPersonLabel(project, row.inspectionCategory, 'reviewerId'),
+    category: normalizeHazardCategory(detail.hazard.category),
+    level: detail.hazard.level || '未设置',
+    requirement: detail.hazard.rectifyRequirement || '未填写',
+    description: detail.hazard.desc,
+    hazardPhotos: [photoGroup(originalHazardPhotos, '', detail.hazard.photos)],
+    rectDate: detail.rectification?.date,
+    rectNote: detail.rectification?.note,
+    rectPhotos: [photoGroup(latestRectificationPhotos, '', detail.rectification?.photos || [])],
+    reviewDate: review?.date,
+    reviewResult: review?.result,
+    reviewComment: review?.comment,
+    approvalManager: approval.manager,
+    approvalStatus: approval.status,
+    approvalDate: approval.date,
+    approvalComment: approval.comment,
+  }
+}

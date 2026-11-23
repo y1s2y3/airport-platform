@@ -6,6 +6,7 @@
 import { ref, computed, watch } from 'vue'
 import { getCocHazardsByChannel } from '../mock/hazardStats.js'
 import { DISPATCH_HAZARD_RECTIFY_STATUSES } from '../../utils/dispatchHazardStorage.js'
+import { getDispatchHazardTypeLabel } from '../../config/dispatchHazardTypes.js'
 import { SUPERVISION_HAZARD_RECTIFY_STATUSES } from '../../utils/cocAdminDeviceStorage.js'
 import DispatchDraggablePanel from './safety/dispatch/DispatchDraggablePanel.vue'
 import DispatchRecordDetailBody from './safety/dispatch/DispatchRecordDetailBody.vue'
@@ -60,7 +61,7 @@ const rows = computed(() => {
 const filtered = computed(() => {
   let list = rows.value
   if (typeFilter.value) {
-    const want = typeFilter.value === 'quality' ? '质量' : '安全'
+    const want = getDispatchHazardTypeLabel(typeFilter.value)
     list = list.filter((row) => row.hazardCategory === want)
   }
   if (statusFilter.value) {
@@ -151,6 +152,7 @@ function rawStatus(row) {
         >
           <el-option label="安全" value="safety" />
           <el-option label="质量" value="quality" />
+          <el-option v-if="channel === 'dispatch'" label="其他" value="other" />
         </el-select>
         <el-select
           v-model="statusFilter"

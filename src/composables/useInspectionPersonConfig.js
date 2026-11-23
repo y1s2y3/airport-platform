@@ -11,12 +11,26 @@ export const inspectorCandidates = [
   { id: 'quality-reviewer', name: '蒋工', role: '监理单位质量复核人', phone: '138****8104' },
   { id: 'quality-director', name: '冯总监', role: '监理单位项目总监', phone: '138****8105' },
   { id: 'quality-hq-manager', name: '邓经理', role: '指挥部项目经理', phone: '138****8106' },
-  ...COC_PROJECT_OPTIONS.map(project => ({ id: `manager-${project.id}`, name: getDemoInspectionPeople(project.id).manager, role: '项目经理', phone: '138****8000' })),
+  ...COC_PROJECT_OPTIONS.map(project => ({ id: `manager-${project.id}`, name: getDemoInspectionPeople(project.id).manager, role: '指挥部项目经理', phone: '138****8000' })),
 ]
 export const INSPECTION_PERSON_CONFIG_GROUPS = [
   { value: '安全', label: '安全、其他' },
   { value: '质量', label: '质量' },
 ]
+export const INSPECTION_COPY_FIELDS = [
+  { key: 'issueCcPersons', configKey: 'issueCcIds', label: '下发整改单抄送人' },
+  { key: 'completionCcPersons', configKey: 'completionCcIds', label: '整改单完成抄送人' },
+]
+export function getInspectionCopyDetailFields(record, fallback) {
+  return INSPECTION_COPY_FIELDS.map(({ key, label }) => {
+    const recipients = record?.[key] ?? (key === 'issueCcPersons' ? record?.ccPersons : undefined)
+      ?? fallback?.[key] ?? (key === 'issueCcPersons' ? fallback?.ccPersons : undefined)
+    const value = (Array.isArray(recipients) ? recipients : String(recipients ?? '').split('、'))
+      .map(person => String(person ?? '').trim()).filter(Boolean).join('、')
+    return { key, label, value: value || '未设置' }
+  })
+}
+
 const KEY = 'airport-inspection-person-config-shared-v3'
 const LEGACY_KEY = 'airport-inspection-person-config-by-category-v2'
 const personnelCategory = category => category === '其他' ? '安全' : category
@@ -24,7 +38,13 @@ export function inspectionPersonIds(value) {
   return [...new Set((Array.isArray(value) ? value : [value]).filter(Boolean))]
 }
 function normalizePeople(config) {
-  return { ...config, rectifierId: inspectionPersonIds(config.rectifierId), reviewerId: inspectionPersonIds(config.reviewerId) }
+  return {
+    ...config,
+    rectifierId: inspectionPersonIds(config.rectifierId),
+    reviewerId: inspectionPersonIds(config.reviewerId),
+    issueCcIds: inspectionPersonIds(config.issueCcIds ?? config.managerId),
+    completionCcIds: inspectionPersonIds(config.completionCcIds),
+  }
 }
 const defaults = COC_PROJECT_OPTIONS.flatMap(project => INSPECTION_PERSON_CONFIG_GROUPS.map(({ value: inspectionCategory }) => {
   const people = getDemoInspectionPeople(project.id)
@@ -60,6 +80,12 @@ export function getInspectorById(id) { return inspectorCandidates.find(item => i
 export function getConfiguredPersonLabel(project, category, field) {
   return inspectionPersonIds(getInspectionPersonConfig(project, category)?.[field])
     .map(getInspectorById).filter(Boolean).map(person => `${person.name}（${person.role}）`).join('、')
+}
+export function getInspectionCopyDefaults(project, category = '安全') {
+  return {
+    issueCcPersons: getConfiguredPersonLabel(project, category, 'issueCcIds'),
+    completionCcPersons: getConfiguredPersonLabel(project, category, 'completionCcIds'),
+  }
 }
 export function getProjectInspectorLabel(project, category = '安全') {
   return getConfiguredPersonLabel(project, category, 'inspectorId') || DEFAULT_INSPECTOR_LABEL

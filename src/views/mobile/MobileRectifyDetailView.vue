@@ -2,27 +2,29 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getMobileRectification } from '../../composables/useMobileRectification'
-import { formatInspectionCategories } from '../../config/inspectionManagement'
 import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
+import MobileRectifyBasicInfo from '../../components/MobileRectifyBasicInfo.vue'
+import InspectionPhotoList from '../../components/InspectionPhotoList.vue'
+import { getInspectionTaskForRectification } from '../../mock/mobileInspectionTasks'
+import { getInspectionTaskPhotos } from '../../utils/inspectionTaskPhotos'
 
-import { workflowFlowRecords } from '../../utils/inspectionRectificationWorkflow'
+import { workflowFlowRecords, workflowSteps } from '../../utils/inspectionRectificationWorkflow'
 
 const route = useRoute()
 const router = useRouter()
 const { rectifyBase } = useMobileRouteBase()
 const record = computed(() => getMobileRectification(route.params.id))
+const inspectionPhotos = computed(() => getInspectionTaskPhotos(getInspectionTaskForRectification(record.value)))
 const missing = computed(() => !record.value)
-const inspectionCategoryLabel = computed(() =>
-  formatInspectionCategories(record.value?.inspectionCategories || record.value?.inspectionCategory),
-)
 onMounted(() => document.querySelector('.page-viewport')?.scrollTo({ top: 0 }))
 
 const statusText = computed(() => record.value?.status || '--')
 const managerApproval = computed(() => {
   const row = record.value
-  if (!row?.manager || !['待复查', '已关闭'].includes(row.status)) return null
+  if (!row?.manager || row.managerConfirmationResult === '否' || !['待复查', '已关闭'].includes(row.status)) return null
   const closed = row.status === '已关闭'
   return {
+    label: workflowSteps(row).find(step => step.key === 'approval')?.label || '项目经理审批',
     manager: row.manager,
     status: closed ? '通过' : '审批中',
     date: closed ? (row.approvalDate || row.closeDate || '') : '',
@@ -36,7 +38,7 @@ const flowCollapsed = ref(false)
 
 const reviewRecords = computed(() => {
   const row = record.value
-  if (!row) return []
+  if (!row || row.managerConfirmationResult === '否') return []
   if (!(row.reviewDate || row.reviewComment || ['待复查', '已关闭'].includes(row.status))) return []
   return [{
     round: 1,
@@ -74,31 +76,62 @@ function goBack() {
 <template>
   <div class="mp">
     <header class="mh">
-      <button class="mb" @click="goBack">‹</button>
+      <button class="mb" aria-label="返回" @click="goBack">‹</button>
       <h1 class="mt">整改详情</h1>
+      <span v-if="!missing" class="header-status">{{ statusText }}</span>
     </header>
 
     <div v-if="missing" class="empty-tip">未找到该整改单，请返回列表重试。</div>
 
     <template v-else>
-      <div class="ib">
-        <div class="ibn">{{ record.rectifyNo }}</div>
-        <div class="ibm">巡检任务单编号：{{ record.taskNo || '--' }}</div>
-        <div class="ibm">巡检分类：{{ inspectionCategoryLabel || '--' }}</div>
-        <div class="ibm">{{ record.project || '--' }}</div>
-        <div class="ibm">整改人：{{ record.rectifier || '--' }}　复核人：{{ record.reviewer || '--' }}</div>
-        <div v-if="record.ccPersons" class="ibm">抄送人：{{ record.ccPersons }}</div>
-        <div class="ibm">截止日期：{{ record.deadline || '--' }}</div>
-        <div class="ibm">状态：<b :class="'st-' + statusText">{{ statusText }}</b>
-          <template v-if="record.closeDate">　关闭日期：{{ record.closeDate }}</template>
-        </div>
+      <MobileRectifyBasicInfo :record="record" show-copy-recipients />
+
+      <div class="sc">
+        <div class="sct">隐患信息</div>
+        <div class="ir"><span class="il">隐患类别</span><span>{{ record.hazardCategory || '安全管理' }}</span></div>
+        <div class="ir"><span class="il">隐患等级</span><span>{{ record.hazardLevel || '未设置' }}</span></div>
+        <div class="ir"><span class="il">整改要求</span><span style="white-space:pre-wrap">{{ record.rectifyRequirement || '未填写' }}</span></div>
+        <div class="ir"><span class="il">隐患说明</span><span>{{ record.hazard || '--' }}</span></div>
+        <div class="ir"><span class="il">隐患照片</span><span>{{ displayPhotos(record.hazardPhotos) }}</span></div>
       </div>
 
       <div class="sc">
-        <div class="sct colps" @click="flowCollapsed = !flowCollapsed">
+        <div class="sct">巡检照片</div>
+        <InspectionPhotoList v-if="inspectionPhotos.length" :photos="inspectionPhotos" />
+        <div v-else class="ir">未上传</div>
+      </div>
+
+      <div v-if="currentRectifications.length" class="sc">
+        <div class="sct">整改信息</div>
+        <div v-for="(r, i) in currentRectifications" :key="i" class="ic">
+          <div class="ir"><span class="il">整改日期</span><span>{{ r.date }}</span></div>
+          <div class="ir"><span class="il">整改照片</span><span>{{ displayPhotos(r.photos) }}</span></div>
+          <div class="ir"><span class="il">整改说明</span><span>{{ r.note }}</span></div>
+        </div>
+      </div>
+
+      <div v-if="reviewRecords.length && ['待验收', '待复查', '已关闭'].includes(statusText)" class="sc">
+        <div class="sct">复查信息</div>
+        <div v-for="(r, i) in reviewRecords" :key="i" class="ic">
+          <div class="ir"><span class="il">复查日期</span><span>{{ r.date }}</span></div>
+          <div class="ir"><span class="il">复查结果</span><span :class="r.result === '通过' ? 'pass' : 'fail'">{{ r.result }}</span></div>
+          <div class="ir"><span class="il">复查意见</span><span>{{ r.comment }}</span></div>
+        </div>
+      </div>
+
+      <div v-if="managerApproval" class="sc">
+        <div class="sct">{{ managerApproval.label }}</div>
+        <div class="ir"><span class="il">审批人</span><span>{{ managerApproval.manager }}</span></div>
+        <div class="ir"><span class="il">审批状态</span><span :class="managerApproval.status === '通过' ? 'pass' : 'pending'">{{ managerApproval.status }}</span></div>
+        <div class="ir" v-if="managerApproval.date"><span class="il">审批日期</span><span>{{ managerApproval.date }}</span></div>
+        <div class="ir"><span class="il">审批意见</span><span>{{ managerApproval.comment }}</span></div>
+      </div>
+
+      <div class="sc">
+        <button type="button" class="sct colps" :aria-expanded="!flowCollapsed" @click="flowCollapsed = !flowCollapsed">
           <span>流程记录</span>
           <span class="ca">{{ flowCollapsed ? '展开 ▸' : '收起 ▾' }}</span>
-        </div>
+        </button>
         <div v-show="!flowCollapsed" class="fl">
           <div v-for="(f, i) in flowRecords" :key="i" class="fi" :class="{ cur: f.current }">
             <div class="fd" :class="{ cur: f.current }"></div>
@@ -113,41 +146,6 @@ function goBack() {
           </div>
         </div>
       </div>
-
-      <div class="sc">
-        <div class="sct">隐患信息</div>
-        <div class="ir"><span class="il">隐患类别</span><span>{{ record.hazardCategory || '安全管理' }}</span></div>
-        <div class="ir"><span class="il">隐患等级</span><span>{{ record.hazardLevel || '未设置' }}</span></div>
-        <div class="ir"><span class="il">整改要求</span><span style="white-space:pre-wrap">{{ record.rectifyRequirement || '未填写' }}</span></div>
-        <div class="ir"><span class="il">隐患说明</span><span>{{ record.hazard || '--' }}</span></div>
-        <div class="ir"><span class="il">隐患照片</span><span>{{ displayPhotos(record.hazardPhotos) }}</span></div>
-      </div>
-
-      <div v-if="currentRectifications.length" class="sc">
-        <div class="sct">整改信息</div>
-        <div v-for="(r, i) in currentRectifications" :key="i" class="ic">
-          <div class="ir"><span class="il">整改日期</span><span>{{ r.date }}</span></div>
-          <div class="ir"><span class="il">整改照片</span><span>{{ displayPhotos(r.photos) }}</span></div>
-          <div class="ir"><span class="il">整改说明</span><span>{{ r.note }}</span></div>
-        </div>
-      </div>
-
-      <div v-if="reviewRecords.length && ['待验收', '待复查', '已关闭'].includes(statusText)" class="sc">
-        <div class="sct">复核信息</div>
-        <div v-for="(r, i) in reviewRecords" :key="i" class="ic">
-          <div class="ir"><span class="il">复核日期</span><span>{{ r.date }}</span></div>
-          <div class="ir"><span class="il">复核结果</span><span :class="r.result === '通过' ? 'pass' : 'fail'">{{ r.result }}</span></div>
-          <div class="ir"><span class="il">复核意见</span><span>{{ r.comment }}</span></div>
-        </div>
-      </div>
-
-      <div v-if="managerApproval" class="sc">
-        <div class="sct">项目经理审批</div>
-        <div class="ir"><span class="il">审批人</span><span>{{ managerApproval.manager }}</span></div>
-        <div class="ir"><span class="il">审批状态</span><span :class="managerApproval.status === '通过' ? 'pass' : ''">{{ managerApproval.status }}</span></div>
-        <div class="ir" v-if="managerApproval.date"><span class="il">审批日期</span><span>{{ managerApproval.date }}</span></div>
-        <div class="ir"><span class="il">审批意见</span><span>{{ managerApproval.comment }}</span></div>
-      </div>
     </template>
   </div>
 </template>
@@ -158,22 +156,18 @@ function goBack() {
 .mb { background:none; border:none; color:#fff; font-size:28px; padding:0 4px 0 0; line-height:1; cursor:pointer; }
 .mt { flex:1; font-size:18px; font-weight:600; margin:0; }
 .empty-tip { margin:40px 16px; padding:24px; text-align:center; color:#999; background:#fff; border-radius:10px; }
-.ib { background:#fff; padding:14px 16px; border-bottom:1px solid #eee; }
-.ibn { font-size:15px; font-weight:600; color:#1f2329; margin-bottom:6px; }
-.ibm { font-size:12px; line-height:1.7; color:#666; }
-.st-待整改,.st-待验收 { color:#f5a623; }
-.st-待复核 { color:#8f0045; }
-.st-已关闭 { color:#34a853; }
+.header-status { color:#ffd875; font-size:12px; font-weight:600; }
 .sc { background:#fff; border-radius:10px; padding:14px 16px; margin:12px 16px; box-shadow:0 1px 3px rgba(0,0,0,0.04); }
 .sct { font-size:13px; font-weight:600; color:#1f2329; margin-bottom:10px; padding-left:8px; border-left:3px solid #8f0045; }
-.sct.colps { cursor:pointer; display:flex; align-items:center; justify-content:space-between; }
+.sct.colps { width:100%; cursor:pointer; display:flex; align-items:center; justify-content:space-between; border:0; border-left:3px solid #8f0045; background:transparent; padding-right:0; }
 .ca { font-size:12px; color:#999; font-weight:400; }
 .ic { background:#fafafa; border-radius:8px; padding:12px; }
 .ir { display:flex; gap:6px; font-size:13px; line-height:1.6; margin-bottom:4px; }
 .il { color:#999; flex-shrink:0; width:68px; }
-.ir > span:last-child { flex:1; min-width:0; word-break:break-word; }
+.ir > span:last-child { flex:1; min-width:0; overflow-wrap:anywhere; }
 .pass { color:#34a853; font-weight:600; }
 .fail { color:#e53935; font-weight:600; }
+.pending { color:#a75c00; font-weight:600; }
 .fl { padding-left:6px; }
 .fi { display:flex; gap:10px; padding-bottom:14px; position:relative; }
 .fi::before { content:''; position:absolute; left:7px; top:15px; bottom:0; width:1px; background:#e0e0e0; }

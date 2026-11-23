@@ -196,6 +196,12 @@ const routes = [
         meta: { title: '抽查复查任务详情', sidebarKey: 'hazard-sampling-tasks' },
       },
       {
+        path: 'hazard-issues/:source(dispatch|supervision)/:id',
+        name: 'HazardIssueRecordDetail',
+        component: () => import('../views/hazard/HazardIssueRecordDetailView.vue'),
+        meta: { title: '隐患详情', sidebarKey: 'hazard-issue-summary' },
+      },
+      {
         path: 'hazard-issues/quality/:id',
         name: 'ExternalQualityIssueDetail',
         component: () => import('../views/hazard/ExternalQualityIssueDetailView.vue'),

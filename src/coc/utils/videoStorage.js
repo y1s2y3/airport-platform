@@ -1,3 +1,5 @@
+import { isDispatchHazardType } from '../../config/dispatchHazardTypes.js'
+
 const SCREENSHOT_KEY = 'coc-admin-screenshots'
 
 function readList(key) {
@@ -127,7 +129,7 @@ export function saveScreenshotRecord(payload) {
   list.unshift(record)
   writeList(SCREENSHOT_KEY, list)
 
-  if (record.docType === 'safety' || record.docType === 'quality') {
+  if (isDispatchHazardType(record.docType)) {
     import('../../utils/dispatchHazardStorage.js')
       .then((mod) => mod.upsertDispatchHazardFromScreenshot(record))
       .catch(() => {})

@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getScreenshotRecords, removeScreenshotRecord } from '../utils/videoStorage.js'
+import { getDispatchHazardTypeLabel, isDispatchHazardType } from '../../config/dispatchHazardTypes.js'
 import { resolveExecutorDisplay } from '../utils/executorDisplay.js'
 
 const records = ref([])
@@ -46,7 +47,7 @@ function isPenaltyRow(row) {
 }
 
 function isHazardRow(row) {
-  return row.docType === 'safety' || row.docType === 'quality'
+  return isDispatchHazardType(row.docType)
 }
 
 function rowSummary(row) {
@@ -83,12 +84,12 @@ function handleDelete(row) {
 }
 
 function docTypeLabel(type) {
+  const hazardType = getDispatchHazardTypeLabel(type)
+  if (hazardType) return `${hazardType}隐患`
   return {
     notice: '任务单',
     reminder: '提示函',
     penalty: '处罚单',
-    safety: '安全隐患',
-    quality: '质量隐患',
   }[type] || type || '--'
 }
 
@@ -97,6 +98,7 @@ function docTypeTagType(type) {
   if (type === 'reminder') return 'info'
   if (type === 'safety') return 'warning'
   if (type === 'quality') return 'success'
+  if (type === 'other') return 'info'
   return 'primary'
 }
 
@@ -196,7 +198,7 @@ onMounted(load)
           </template>
           <template v-else-if="isHazardRow(current)">
             <el-descriptions-item label="隐患描述">{{ current.description || '--' }}</el-descriptions-item>
-            <el-descriptions-item label="等级">{{ current.hazardLevel || '--' }}</el-descriptions-item>
+            <el-descriptions-item label="隐患等级">{{ current.hazardLevel || '--' }}</el-descriptions-item>
             <el-descriptions-item label="整改人">{{ current.rectifier || '--' }}</el-descriptions-item>
             <el-descriptions-item label="整改期限">{{ current.hazardDeadline || '--' }}</el-descriptions-item>
           </template>

@@ -4,6 +4,7 @@ import { getSupervisionHazards } from './cocAdminDeviceStorage.js'
 import { getDispatchHazards } from './dispatchHazardStorage.js'
 import { externalQualityIssues } from '../mock/externalQualityIssues.js'
 import { normalizeInspectionCategories } from '../config/inspectionManagement.js'
+import { getDispatchHazardTypeLabel } from '../config/dispatchHazardTypes.js'
 import { PROJECT_NAMES, PROJECT_SHORT_NAMES } from '../config/projectCatalog.js'
 
 export const HAZARD_ISSUE_SOURCES = [
@@ -130,7 +131,7 @@ function normalizeSupervision(record) {
 }
 
 function normalizeDispatch(record) {
-  const category = record.hazardType === 'quality' ? '质量' : '安全'
+  const category = getDispatchHazardTypeLabel(record.hazardType)
   return summaryRow('dispatch', record, {
     projectId: record.projectId,
     projectName: record.projectName,

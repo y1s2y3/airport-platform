@@ -1,5 +1,6 @@
 import { getScreenshotRecords } from '../coc/utils/videoStorage.js'
 import { PROJECT_SHORT_NAMES } from '../coc/mock/data.js'
+import { getDispatchHazardTypeLabel, isDispatchHazardType } from '../config/dispatchHazardTypes.js'
 
 const DISPATCH_HAZARD_KEY = 'coc-admin-dispatch-hazards-v5'
 
@@ -108,7 +109,7 @@ export function emptyDispatchHazard(row = {}) {
     projectId: row.projectId || '',
     projectName: row.projectName || '',
     source: row.source || '问题截图',
-    hazardType: row.hazardType === 'quality' ? 'quality' : 'safety',
+    hazardType: isDispatchHazardType(row.hazardType) ? row.hazardType : 'safety',
     description: row.description || '',
     hazardLevel: row.hazardLevel || '一般',
     rectifier: row.rectifier || '',
@@ -126,12 +127,12 @@ export function emptyDispatchHazard(row = {}) {
 }
 
 function mapScreenshotToHazard(ss) {
-  if (ss.docType !== 'safety' && ss.docType !== 'quality') return null
-  const hazardType = ss.docType === 'quality' ? 'quality' : 'safety'
+  if (!isDispatchHazardType(ss.docType)) return null
+  const hazardType = ss.docType
   const snapshot =
     ss.snapshot ||
     buildPlaceholderSnapshot({
-      title: hazardType === 'quality' ? '质量隐患截图' : '安全隐患截图',
+      title: `${getDispatchHazardTypeLabel(hazardType)}隐患截图`,
       subtitle: ss.cameraName || ss.projectName || '',
       hue: hazardType === 'quality' ? 145 : 18,
     })
@@ -287,9 +288,7 @@ function addSeedDays(dateStr, days) {
 }
 
 function syncFromScreenshots(list) {
-  const screenshots = getScreenshotRecords().filter(
-    (item) => item.docType === 'safety' || item.docType === 'quality',
-  )
+  const screenshots = getScreenshotRecords().filter(item => isDispatchHazardType(item.docType))
   let changed = false
   const next = [...list]
   screenshots.forEach((ss) => {
@@ -314,7 +313,7 @@ function syncFromScreenshots(list) {
       cameraLocation: ss.cameraLocation || prev.cameraLocation,
       sourceType: ss.sourceType || prev.sourceType,
       snapshot: ss.snapshot || prev.snapshot,
-      hazardType: ss.docType === 'quality' ? 'quality' : 'safety',
+      hazardType: ss.docType,
       source: '问题截图',
       screenshotId: ss.id,
     })
@@ -355,9 +354,9 @@ export function getDispatchHazardsByProject(projectName) {
   return getDispatchHazards().filter((item) => item.projectName === projectName)
 }
 
-/** 大屏问题截图登记安全/质量隐患时写入调度隐患清单 */
+/** 大屏问题截图登记隐患时写入调度隐患清单 */
 export function upsertDispatchHazardFromScreenshot(screenshot) {
-  if (!screenshot || (screenshot.docType !== 'safety' && screenshot.docType !== 'quality')) {
+  if (!isDispatchHazardType(screenshot?.docType)) {
     return null
   }
   const list = getDispatchHazards()

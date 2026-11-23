@@ -10,14 +10,28 @@ await server?.listen()
 const browser = await chromium.launch({ headless: true, channel: 'msedge' })
 const root = standalone ? pathToFileURL(resolve(import.meta.dirname, '../release/机场工程项目管理平台v2.html')).href : server.resolvedUrls.local[0]
 const errors = []
+const basicFields = ['整改单编号', '巡检任务单编号', '项目名称', '巡检人', '整改人', '复查人', '状态', '截止日期', '当前流程节点']
+const nodeLabels = {
+  rectify: '施工单位整改',
+  contractorAcceptance: '施工单位项目经理验收',
+  review: '监理单位复核',
+  directorAcceptance: '监理单位项目总监验收',
+  approval: '指挥部项目经理审批',
+}
+async function checkBasicInfo(page, expectedNode) {
+  const info = page.locator('.rectify-basic-info')
+  await info.waitFor()
+  assert.deepEqual(await info.locator('dt').allTextContents(), basicFields)
+  assert.equal(await info.locator('dd').last().textContent(), expectedNode)
+  assert.notEqual(await info.locator('dd').nth(3).textContent(), '--')
+}
 async function open(stage, action) {
   const context = await browser.newContext({ viewport: { width: 402, height: 850 } })
   const page = await context.newPage()
   page.on('pageerror', e => errors.push(e.message))
   await page.goto(`${root}#/mobile/rectify/inspection-example-quality-a-${stage}${action === 'detail' ? '' : '/' + action}`)
   await page.locator('.mp .mt').waitFor()
-  assert.ok((await page.locator('.mp').innerText()).includes('截止日期：'))
-  assert.ok((await page.locator('.mp').innerText()).includes('状态：'))
+  await checkBasicInfo(page, nodeLabels[stage])
   assert.ok((await page.locator('.mp').innerText()).includes('处理人：'))
   if (action !== 'detail') assert.equal(await page.locator('input[type=date]').inputValue(), await page.evaluate(() => { const d = new Date(); return [d.getFullYear(), String(d.getMonth()+1).padStart(2,'0'), String(d.getDate()).padStart(2,'0')].join('-') }))
   return { context, page }
@@ -51,6 +65,34 @@ try {
   const { context, page } = await open('approval', 'detail')
   assert.equal(await page.locator('textarea, input[type=date], .actions').count(), 0)
   await context.close()
+  for (const listPath of ['/mobile/rectify', '/app/rectify']) {
+    const list = await browser.newPage({ viewport: { width: 420, height: 850 } })
+    list.on('pageerror', error => errors.push(error.message))
+    if (listPath.startsWith('/app/')) {
+      await list.goto(root + '#/app/login')
+      await list.getByPlaceholder('请输入账号').fill('inspection-demo')
+      await list.getByPlaceholder('请输入密码').fill('demo')
+      await list.getByRole('button', { name: /登\s*录/ }).click()
+      await list.getByRole('button', { name: /通知信息/ }).waitFor()
+    }
+    await list.goto(root + '#' + listPath)
+    await list.locator('.m-tabs').getByRole('button', { name: /^待复查/ }).click()
+    await list.locator('.rec-card').filter({ hasText: 'ZG202607007' }).click()
+    await list.getByRole('heading', { name: '整改详情', exact: true }).filter({ visible: true }).waitFor()
+    assert.ok(new URL(list.url()).hash.startsWith('#' + listPath + '/rec-007?'))
+    await checkBasicInfo(list, '项目经理审批')
+    const sections = await list.locator('.mp .sct').evaluateAll(nodes => nodes.map(node =>
+      (node.matches('button') ? node.firstElementChild : node).textContent.trim(),
+    ))
+    assert.deepEqual(sections, [
+      '基本信息', '隐患信息', '整改信息', '复查信息', '项目经理审批', '流程记录',
+    ])
+    await list.getByText('审批中', { exact: true }).waitFor()
+    assert.equal(await list.locator('.mp textarea, .mp input, .mp .actions').count(), 0)
+    await list.getByRole('button', { name: '返回', exact: true }).click()
+    await list.locator('.m-tabs .active').getByText('待复查', { exact: false }).waitFor()
+    await list.close()
+  }
   const execute = await open('rectify', 'execute')
   await execute.context.close()
   assert.deepEqual(errors, [])

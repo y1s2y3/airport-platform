@@ -1,4 +1,8 @@
 <script setup>
+import { getInspectionTaskPhotos } from '../../utils/inspectionTaskPhotos.js'
+import InspectionPhotoList from '../../components/InspectionPhotoList.vue'
+import { getMobileRectification } from '../../composables/useMobileRectification'
+import { getInspectionCopyDetailFields } from '../../composables/useInspectionPersonConfig'
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getMobileInspectionTask } from '../../mock/mobileInspectionTasks'
@@ -6,6 +10,7 @@ import { DEFAULT_INSPECTOR_LABEL } from '../../config/inspectionManagement'
 import { formatInspectionCategories, normalizeInspectionCategories } from '../../config/inspectionManagement'
 import { checkCategoryTree } from '../../composables/useInspectionPlan'
 import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
+import { getManagerConfirmationDetail } from '../../utils/inspectionTaskDetailData'
 
 const route = useRoute()
 const router = useRouter()
@@ -146,7 +151,8 @@ function normalizeTaskDetail(raw) {
     status: raw.status || '未完成',
     submittedAt: raw.submittedAt || '',
     result: raw.result || '',
-    normalPhotos: Array.isArray(raw.normalPhotos) ? raw.normalPhotos : [],
+    requiresManagerConfirmation: raw.requiresManagerConfirmation,
+    normalPhotos: getInspectionTaskPhotos(raw),
     hazardItems: Array.isArray(raw.hazardItems) ? raw.hazardItems : [],
     checkConfig: Array.isArray(raw.checkConfig) ? raw.checkConfig : [],
     isMajorHazardPatrol: raw.isMajorHazardPatrol || '否',
@@ -165,6 +171,8 @@ const taskInfo = computed(() => {
 
 const isPush = computed(() => taskInfo.value.source === '任务下发')
 const hazardCount = computed(() => taskInfo.value.hazardItems.length)
+const managerConfirmationText = computed(() => getManagerConfirmationDetail(taskInfo.value))
+const hazardCopyFields = hazard => getInspectionCopyDetailFields(getMobileRectification(hazard.rectifyId), hazard)
 const rectifyCount = computed(() => taskInfo.value.hazardItems.filter((h) => h.hasRectify).length)
 const majorHazardPatrolText = computed(() => {
   if (taskInfo.value.status !== '已完成' && !taskInfo.value.majorHazardLedgerId) return '移动端执行时选择'
@@ -300,9 +308,13 @@ function goBack() {
           {{ taskInfo.result === 'hazard' ? `⚠ 有隐患（${hazardCount}项）` : taskInfo.result === 'normal' ? '✓ 全部正常' : '—' }}
         </span>
       </div>
-      <div v-if="taskInfo.result === 'normal' && taskInfo.normalPhotos.length" class="sc-row">
+      <div v-if="managerConfirmationText" class="sc-row">
+        <span class="sc-lbl">是否需项目经理确认</span><span>{{ managerConfirmationText }}</span>
+      </div>
+      <div class="sc-row">
         <span class="sc-lbl">巡检照片</span>
-        <span>{{ taskInfo.normalPhotos.join('、') }}</span>
+        <InspectionPhotoList v-if="taskInfo.normalPhotos.length" :photos="taskInfo.normalPhotos" />
+        <span v-else>未上传</span>
       </div>
     </div>
 
@@ -316,12 +328,18 @@ function goBack() {
         <div class="sc-row"><span class="sc-lbl">隐患等级</span><span>{{ hi.hazardLevel || '未设置' }}</span></div>
         <div class="sc-row"><span class="sc-lbl">整改要求</span><span style="white-space:pre-wrap">{{ hi.rectifyRequirement || '未填写' }}</span></div>
         <div class="sc-row"><span class="sc-lbl">隐患说明</span><span>{{ hi.desc }}</span></div>
-        <div class="sc-row" v-if="hi.photos?.length"><span class="sc-lbl">隐患照片</span><span>{{ hi.photos.join('、') }}</span></div>
+        <div class="sc-row" v-if="hi.photos?.length">
+          <span class="sc-lbl">隐患照片</span>
+          <InspectionPhotoList :photos="hi.photos" name-prefix="隐患照片" />
+        </div>
         <div v-if="hi.hasRectify" class="rectify-card">
           <div class="rectify-title">📋 整改单</div>
           <div class="sc-row"><span class="sc-lbl">整改单编号</span><span class="rectify-no">{{ hi.rectifyNo }}</span></div>
           <div class="sc-row"><span class="sc-lbl">整改人</span><span>{{ hi.rectifyPerson }}</span></div>
           <div class="sc-row"><span class="sc-lbl">复查人</span><span>{{ hi.reviewPerson || '-' }}</span></div>
+          <div v-for="field in hazardCopyFields(hi)" :key="field.key" class="sc-row">
+            <span class="sc-lbl">{{ field.label }}</span><span>{{ field.value }}</span>
+          </div>
           <div class="sc-row"><span class="sc-lbl">整改截止日期</span><span>{{ hi.rectifyDeadline }}</span></div>
         </div>
       </div>

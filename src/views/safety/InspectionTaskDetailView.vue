@@ -1,8 +1,12 @@
 <script setup>
+import { getInspectionTaskPhotos } from '../../utils/inspectionTaskPhotos.js'
+import InspectionPhotoList from '../../components/InspectionPhotoList.vue'
+import { getMobileRectification } from '../../composables/useMobileRectification'
+import { getInspectionCopyDetailFields } from '../../composables/useInspectionPersonConfig'
 import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getMobileInspectionTask } from '../../mock/mobileInspectionTasks'
-import { checkCategoryTree } from '../../composables/useInspectionPlan'
+import { getInspectionTaskCheckGroups, getMajorHazardPatrolDetail, getMajorHazardSyncDetail, getManagerConfirmationDetail } from '../../utils/inspectionTaskDetailData'
 import { formatInspectionCategories, normalizeInspectionCategories } from '../../config/inspectionManagement'
 
 const route = useRoute()
@@ -35,6 +39,7 @@ const taskInfo = computed(() => {
     inspectionCategory: formatInspectionCategories(merged.inspectionCategories || merged.inspectionCategory),
     inspectionType: merged.inspectionType || '值班检查',
     companions: Array.isArray(merged.companions) ? merged.companions : [],
+    normalPhotos: getInspectionTaskPhotos(merged),
     hazardItems: merged.hazardItems || [],
     deadline: merged.deadline || '',
     inspectionDate: merged.inspectionDate || merged.inspDate || '',
@@ -45,76 +50,11 @@ const taskInfo = computed(() => {
 const isPush = computed(() => taskInfo.value.source === '任务下发')
 const isSelf = computed(() => taskInfo.value.source === '系统自建')
 const isPending = computed(() => taskInfo.value.status === '未完成')
-const majorHazardPatrolText = computed(() => {
-  if (taskInfo.value.status !== '已完成' && !taskInfo.value.majorHazardLedgerId) return '移动端执行时选择'
-  return taskInfo.value.isMajorHazardPatrol === '是' ? '是' : '否'
-})
-const majorHazardSyncText = computed(() => {
-  if (taskInfo.value.isMajorHazardPatrol !== '是') return ''
-  return taskInfo.value.status === '已完成' ? '已自动同步至危大工程现场巡视台账' : '任务完成后自动同步至危大工程现场巡视台账'
-})
-// mt-002 有隐患已发整改单, mt-003 无隐患, mt-004 无隐患, mt-005 有隐患已发整改单
-
-// ===== mt-002 检查结果（任务下发·有隐患） =====
-const pushHazardTree = [
-  { id:'cat-2', label:'临时用电',
-    items:[
-      { id:'item-2-1', label:'TN-S系统是否完整设置', result:'normal', photos:['📷 巡检照片1'] },
-      { id:'item-2-2', label:'重复接地电阻值是否符合要求', result:'hazard', desc:'实测值15Ω，规范要求≤10Ω', photos:['📷 巡检照片1'] },
-      { id:'item-2-3', label:'电缆线路是否采取埋地或架空敷设', result:'hazard', desc:'存在沿地明敷现象', photos:['📷 巡检照片2'] },
-    ]},
-  { id:'cat-3', label:'高处作业',
-    items:[
-      { id:'item-3-1', label:'临边防护是否到位', result:'normal', photos:['📷 巡检照片1'] },
-      { id:'item-3-2', label:'安全带是否正确使用', result:'normal', photos:['📷 巡检照片1'] },
-    ]},
-  { id:'cat-4', label:'脚手架工程',
-    items:[
-      { id:'item-4-1', label:'脚手架施工方案是否经审批', result:'normal', photos:['📷 巡检照片1'] },
-    ]},
-]
-
-// ===== mt-003 检查结果（任务下发·全部正常） =====
-const pushNormalTree = [
-  { id:'cat-2', label:'临时用电',
-    items:[
-      { id:'item-2-1', label:'TN-S系统是否完整设置', result:'normal', photos:['📷 巡检照片1'] },
-      { id:'item-2-2', label:'重复接地电阻值是否符合要求', result:'normal', photos:['📷 巡检照片1'] },
-      { id:'item-2-3', label:'电缆线路是否采取埋地或架空敷设', result:'normal', photos:['📷 巡检照片2'] },
-    ]},
-  { id:'cat-3', label:'高处作业',
-    items:[
-      { id:'item-3-1', label:'临边防护是否到位', result:'normal', photos:['📷 巡检照片1'] },
-      { id:'item-3-2', label:'安全带是否正确使用', result:'normal', photos:['📷 巡检照片1'] },
-    ]},
-  { id:'cat-4', label:'脚手架工程',
-    items:[
-      { id:'item-4-1', label:'脚手架施工方案是否经审批', result:'normal', photos:['📷 巡检照片1'] },
-    ]},
-]
-
-// ===== mt-005 隐患项（系统自建·有隐患） =====
-// 数据已合并到 taskMap 中
-
-// ===== 根据场景使用对应的树 =====
-const categoryTree = computed(() => {
-  if (taskInfo.value.checkConfig?.length) {
-    return taskInfo.value.checkConfig.map(config => {
-      const category = checkCategoryTree.find(item => item.id === config.categoryId)
-      return category
-        ? {
-            id: category.id,
-            label: category.label,
-            inspectionCategory: category.inspectionCategory,
-            items: category.items.filter(item => config.itemIds.includes(item.id)),
-          }
-        : null
-    }).filter(Boolean)
-  }
-  if (taskId.value === 'mt-003') return pushNormalTree.map((category) => ({ ...category, inspectionCategory: '安全' }))
-  if (taskId.value === 'mt-002') return pushHazardTree.map((category) => ({ ...category, inspectionCategory: '安全' }))
-  return []
-})
+const majorHazardPatrolText = computed(() => getMajorHazardPatrolDetail(taskInfo.value))
+const majorHazardSyncText = computed(() => getMajorHazardSyncDetail(taskInfo.value))
+const managerConfirmationText = computed(() => getManagerConfirmationDetail(taskInfo.value))
+const hazardCopyFields = hazard => getInspectionCopyDetailFields(getMobileRectification(hazard.rectifyId), hazard)
+const categoryTree = computed(() => getInspectionTaskCheckGroups({ ...taskInfo.value, id: taskId.value }))
 const inspectionTabs = computed(() => taskInfo.value.inspectionCategories.map((category) => {
   const categories = categoryTree.value.filter((item) => item.inspectionCategory === category)
   return { category, categories, itemCount: categories.reduce((total, item) => total + item.items.length, 0) }
@@ -227,24 +167,37 @@ function goRectify(id) {
       <!-- 全部正常 -->
       <div v-if="taskInfo.result === 'normal'" class="result-normal">
         <div class="result-status ok">✓ 全部正常</div>
-        <div v-if="taskInfo.normalPhotos?.length" class="result-photos">巡检照片：{{ taskInfo.normalPhotos.join('、') }}</div>
+      </div>
+      <div v-if="taskInfo.result === 'hazard'" class="result-status hazard">⚠ 有隐患（{{ taskInfo.hazardItems.length }}项）</div>
+      <div v-if="managerConfirmationText" class="result-field">
+        <span>是否需项目经理确认</span><span>{{ managerConfirmationText }}</span>
+      </div>
+      <div class="result-photos">
+        <span>巡检照片</span>
+        <InspectionPhotoList v-if="taskInfo.normalPhotos.length" :photos="taskInfo.normalPhotos" />
+        <span v-else>未上传</span>
       </div>
 
       <!-- 有隐患 -->
       <div v-if="taskInfo.result === 'hazard'">
-        <div class="result-status hazard">⚠ 有隐患（{{ taskInfo.hazardItems.length }}项）</div>
         <div v-for="(hi, idx) in taskInfo.hazardItems" :key="idx" class="hazard-item">
           <div class="hazard-title">隐患 {{ idx + 1 }}</div>
           <div class="hazard-desc">隐患类别：{{ hi.hazardCategory || '安全管理' }}</div>
           <div class="hazard-desc">隐患等级：{{ hi.hazardLevel || '未设置' }}</div>
           <div class="hazard-desc" style="white-space:pre-wrap">整改要求：{{ hi.rectifyRequirement || '未填写' }}</div>
           <div class="hazard-desc">{{ hi.desc }}</div>
-          <div v-if="hi.photos?.length" class="hazard-photos">隐患照片：{{ hi.photos.join('、') }}</div>
+          <div v-if="hi.photos?.length" class="result-photos">
+            <span>隐患照片</span>
+            <InspectionPhotoList :photos="hi.photos" name-prefix="隐患照片" />
+          </div>
           <div v-if="hi.hasRectify" class="rectify-mini">
             <span class="rectify-label">整改单</span>
             <a class="rectify-link" @click="goRectify(hi.rectifyId)">{{ hi.rectifyNo }}</a>
             <span class="rectify-meta">{{ hi.rectifier }} · 截止{{ hi.rectifyDeadline }}</span>
           </div>
+          <template v-if="hi.hasRectify">
+            <div v-for="field in hazardCopyFields(hi)" :key="field.key" class="hazard-desc">{{ field.label }}：{{ field.value }}</div>
+          </template>
         </div>
       </div>
     </div>
@@ -294,14 +247,15 @@ function goRectify(id) {
 .result-status { font-size:13px; font-weight:600; margin-bottom:10px; }
 .result-status.ok { color:#34a853; }
 .result-status.hazard { color:#e53935; }
-.result-photos { font-size:12px; color:#999; }
+.result-field { display:flex; gap:12px; margin:10px 0; font-size:13px; color:#212529; }
+.result-field > span:first-child { color:#616975; }
+.result-photos { display:flex; align-items:flex-start; gap:12px; margin:10px 0; font-size:13px; color:#616975; }
 .result-normal {  }
 
 .hazard-item { padding:10px 0; border-bottom:1px solid #f0f0f0; }
 .hazard-item:last-child { border-bottom:none; }
 .hazard-title { font-size:13px; font-weight:600; color:#e53935; margin-bottom:4px; }
 .hazard-desc { font-size:13px; color:#1f2329; margin-bottom:4px; line-height:1.5; }
-.hazard-photos { font-size:12px; color:#999; margin-bottom:4px; }
 
 .rectify-mini { display:flex; gap:6px; align-items:center; font-size:12px; color:#666; margin-top:4px; padding:6px 8px; background:#fafafa; border-radius:4px; }
 .rectify-label { color:#999; flex-shrink:0; }

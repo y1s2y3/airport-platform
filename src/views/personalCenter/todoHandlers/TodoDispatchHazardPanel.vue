@@ -1,6 +1,7 @@
 <script setup>
 import { computed, reactive, toRef, watch } from 'vue'
 import { DISPATCH_HAZARD_TODO_BIZ } from '../../../mock/personalCenter.js'
+import { getDispatchHazardTypeLabel as hazardTypeLabel } from '../../../config/dispatchHazardTypes.js'
 import {
   getDispatchHazards,
   resolveDispatchHazardPhotoSrc,
@@ -47,10 +48,6 @@ const dispatchHazardForm = reactive({
   decision: 'pass',
   rejectRemark: '',
 })
-
-function hazardTypeLabel(type) {
-  return type === 'quality' ? '质量' : '安全'
-}
 
 function sourceTypeLabel(type) {
   return { live: '实时', playback: '回放', meeting: '会议' }[type] || type || '--'

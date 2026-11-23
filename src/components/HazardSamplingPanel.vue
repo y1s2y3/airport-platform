@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getHazardIssueRows, getCurrentHazardIssueProjectKey } from '../utils/hazardIssueSummary.js'
 import { useCurrentProject } from '../composables/useCurrentProject.js'
-import { useSamplingRole, eligible, submitReview, samplingPreview, registrationDay, visibleTasks, viewableTasks, canHandleTask, samplingPersonId, saveSamplingAttachment, downloadSamplingAttachment, ensureSamplingExamples, sampling } from '../mock/hazardSampling.js'
+import { useSamplingRole, eligible, submitReview, samplingPreview, registrationDay, visibleTasks, viewableTasks, canHandleTask, linkedReviewTask, samplingPersonId, saveSamplingAttachment, ensureSamplingExamples, sampling } from '../mock/hazardSampling.js'
 import { getSamplingPeople } from '../mock/samplingPeople.js'
 import { buildSamplingRounds } from '../mock/hazardSamplingRounds.js'
 import SamplingRoundsTable from './hazard/SamplingRoundsTable.vue'
@@ -20,13 +20,19 @@ ensureSamplingExamples()
 const { selectedProjectId } = useCurrentProject()
 const row = computed(() => getHazardIssueRows().find(item => item.source === props.source && item.sourceId === props.recordId))
 const taskContext = computed(() => route.query.from === 'sampling-task')
-const contextTask = computed(() => taskContext.value ? viewableTasks(viewerRole.value, selectedProjectId.value).find(task => task.id === route.query.samplingTask && task.ids.includes(row.value?.id)) : null)
+const contextTask = computed(() => {
+  if (!taskContext.value || (route.query.viewer === 'project' && viewerRole.value === 'hq')) return null
+  return viewableTasks(viewerRole.value, selectedProjectId.value)
+    .find(task => task.id === route.query.samplingTask && task.ids.includes(row.value?.id))
+})
 const canHandleContext = computed(() => canHandleTask(contextTask.value, viewerRole.value, selectedProjectId.value))
 const allowed = computed(() => row.value && (taskContext.value ? Boolean(contextTask.value) : role.value === 'hq' || row.value.projectKey === getCurrentHazardIssueProjectKey(selectedProjectId.value)))
 const rounds = computed(() => {
   if (!allowed.value) return []
-  const taskIds = new Set(viewableTasks(viewerRole.value, selectedProjectId.value).map(task => task.id))
-  const records = buildSamplingRounds(sampling.value, row.value, role.value).filter(round => role.value === 'hq' || taskIds.has(round.taskId))
+  const tasks = viewableTasks(viewerRole.value, selectedProjectId.value)
+  const taskIds = new Set(tasks.map(task => task.id))
+  const history = role.value === 'hq' ? sampling.value.history : sampling.value.history.filter(log => taskIds.has(log.taskId))
+  const records = buildSamplingRounds({ tasks, history }, row.value, role.value)
   return taskContext.value ? records.filter(round => round.id === contextTask.value.batchId) : records
 })
 /** COC 大屏：抽查记录不按身份过滤，项目内统一展示全部阶段（操作/待办仍按当前身份） */
@@ -36,7 +42,10 @@ const displayRounds = computed(() => {
   return taskContext.value ? records.filter(round => round.id === contextTask.value.batchId) : records
 })
 const inspectionDates = ref([])
-const pendingRounds = computed(() => rounds.value.filter(round => round.actionTaskId))
+const pendingRounds = computed(() => {
+  const owned = new Set(visibleTasks(viewerRole.value, selectedProjectId.value).map(task => task.id))
+  return rounds.value.filter(round => owned.has(round.actionTaskId))
+})
 const editorVisible = ref(false)
 const detailsVisible = ref(false)
 const editingTaskId = ref('')
@@ -47,7 +56,7 @@ const form = reactive({ result: '', note: '', files: [], completed: false, dispa
 const stageNames = { hq: '指挥部抽查', supervisor: '抽检人检查', manager: '全面复查' }
 const assignees = computed(() => getSamplingPeople(row.value?.projectKey))
 const editingTask = computed(() => visibleTasks(viewerRole.value, selectedProjectId.value).find(task => task.id === editingTaskId.value && task.stage === 'supervisor'))
-const existingFollow = computed(() => editingTask.value ? sampling.value.tasks.find(task => task.stage === 'manager' && task.batchId === editingTask.value.batchId) : null)
+const existingFollow = computed(() => linkedReviewTask(editingTask.value))
 const dispatchPreview = computed(() => {
   if (!form.dates?.length || !form.percent) return null
   try { return samplingPreview(row.value, form.dates, form.percent) } catch(error) { return { error:error.message } }

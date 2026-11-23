@@ -21,6 +21,7 @@ export function createInspectionWorkflowExamples() {
     { key: 'quality-a', category: '质量', level: 'A', hazardCategory: '结构实体质量', hazard: '跑道道面混凝土强度检测结果未达到设计要求', requirement: '暂停相关部位后续施工，复核检测报告，按批准方案处理并补充实体检测和验收资料。' },
     { key: 'safety', category: '安全', level: 'Ⅲ一般隐患', stages: ['rectify', 'approval'], hazardCategory: '临边洞口', hazard: '跑道施工区域临边防护栏杆连接不牢固', requirement: '加固栏杆连接节点，补齐警示标识，复核防护设置后提交现场照片。' },
     { key: 'other', category: '其他', level: 'Ⅲ一般隐患', stages: ['review'], hazardCategory: '现场通行', hazard: '施工临时通道指引标识缺失，人员车辆通行路线不明确', requirement: '补齐通行指引标识，明确人车分流路线并组织现场确认。' },
+    { key: 'manager-confirmation', category: '安全', level: 'Ⅲ一般隐患', stages: ['managerConfirmation'], confirmation: true, hazardCategory: '临边洞口', hazard: '跑道施工临边防护缺失，待项目经理确认', requirement: '核查防护缺口并恢复临边防护设施。' },
     { key: 'quality-a-done', category: '质量', level: 'A', closed: true, hidden: true, hazardCategory: '结构实体质量', hazard: '跑道道面平整度复测合格，整改资料已完成归档', requirement: '补齐整改与各级验收资料，完成审批并关闭整改单（仅补已办记录）。' },
     { key: 'safety-done', category: '安全', level: 'Ⅲ一般隐患', closed: true, hidden: true, hazardCategory: '临边洞口', hazard: '跑道施工区域临边防护栏杆已加固并复核', requirement: '完成整改、复核与审批并关闭整改单（仅补已办记录）。' },
     { key: 'other-done', category: '其他', level: 'Ⅲ一般隐患', closed: true, hidden: true, hazardCategory: '现场通行', hazard: '施工临时通道指引标识已补齐并复核', requirement: '完成整改、复核与审批并关闭整改单（仅补已办记录）。' },
@@ -28,7 +29,7 @@ export function createInspectionWorkflowExamples() {
   return cases.flatMap((example, groupIndex) => {
     const projectId = 'p-000'
     const base = {
-      workflowExample: true, projectId, project: '飞行区跑道延长工程',
+      workflowExample: !example.confirmation, managerConfirmationExample: Boolean(example.confirmation), projectId, project: '飞行区跑道延长工程',
       inspectionCategory: example.category, inspectionCategories: [example.category],
       inspectionType: '部门检查', source: '任务推送', taskNo: buildInspectionTaskNo(example.category, day(-2), 901 + groupIndex),
       hazardCategory: example.hazardCategory, hazardLevel: example.level, hazard: example.hazard,
@@ -39,7 +40,9 @@ export function createInspectionWorkflowExamples() {
       manager: getProjectApproverLabel(projectId, example.category),
       contractorManager: getConfiguredPersonLabel(projectId, example.category, 'contractorManagerId'),
       director: getConfiguredPersonLabel(projectId, example.category, 'directorId'),
-      issuedAt: `${day(-2)} 09:00:00`, deadline: day(3), overdue: false,
+      requiresManagerConfirmation: Boolean(example.confirmation),
+      registeredAt: day(-2) + ' 09:00:00',
+      issuedAt: example.confirmation ? '' : `${day(-2)} 09:00:00`, deadline: day(3), overdue: false,
     }
     const steps = workflowSteps(base)
     return (example.closed ? ['closed'] : (example.stages || steps.map(step => step.key))).map((stage, stageIndex) => {

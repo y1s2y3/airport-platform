@@ -12,6 +12,8 @@ import {
 } from './data.js'
 import { getDispatchHazards } from '../../utils/dispatchHazardStorage.js'
 import { getSupervisionHazards } from '../../utils/cocAdminDeviceStorage.js'
+import { getDispatchHazardTypeLabel } from '../../config/dispatchHazardTypes.js'
+import { getHazardLevels } from '../../config/inspectionManagement.js'
 
 /** 统计/筛选用统一整改状态 */
 export const HAZARD_UNIFIED_STATUS_SEGMENTS = [
@@ -85,19 +87,21 @@ function fromInspectPool(item, hazardCategory) {
 
 function fromDispatchRow(row) {
   const rawStatus = row.rectifyStatus || '待整改'
+  const hazardCategory = getDispatchHazardTypeLabel(row.hazardType)
+  const levelIndex = getHazardLevels(hazardCategory).indexOf(row.hazardLevel)
   return {
     id: row.id,
     projectId: row.projectId,
     projectName: row.projectName,
     projectShortName: row.projectName,
-    level: normalizeLevel(row.hazardLevel),
+    level: ['重大', '较大', '一般'][levelIndex] || normalizeLevel(row.hazardLevel),
     status: rawStatus,
     unifiedStatus: mapHazardUnifiedStatus(rawStatus),
     desc: row.description,
     date: String(row.uploadTime || '').slice(0, 10),
     channel: 'dispatch',
     ticketType: '调度隐患',
-    hazardCategory: row.hazardType === 'quality' ? '质量' : '安全',
+    hazardCategory,
     source: 'dispatch',
     raw: row,
   }
@@ -140,7 +144,7 @@ export function toCocHazardListRow(item) {
       projectId: item.projectId,
       projectName: item.projectName,
       projectShortName: item.projectShortName,
-      level: item.level,
+      level: raw.hazardLevel || item.level,
       status: item.status,
       unifiedStatus: item.unifiedStatus,
       desc: item.desc,
@@ -149,7 +153,7 @@ export function toCocHazardListRow(item) {
       ticketType: '调度隐患',
       hazardCategory: item.hazardCategory,
       source: 'dispatch',
-      type: raw.hazardType === 'quality' ? 'quality' : 'safety',
+      type: raw.hazardType || 'safety',
       reporter: '',
       rectifier: raw.rectifier || '',
       detail: {

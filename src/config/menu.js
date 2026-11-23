@@ -28,7 +28,7 @@ export const MENU_SCOPE_PROJECT = 'project'
  *    重排为「二期能力 + 一期系统跳转入口」融合结构（见 §1.5）。
  * ==========================================================================*/
 const rawMenuTree = [
-  { key: 'workbench', label: '工作台', icon: 'Monitor', path: '/workbench', name: 'Workbench', component: 'WorkbenchView', levels: 'both' },
+  { key: 'workbench', label: '工作台', icon: 'Monitor', path: '/workbench', name: 'Workbench', component: 'WorkbenchView', levels: 'both', preserveTabQuery: true },
   /** 建管 APP：顶层全屏壳（router/index.js），不进 AdminLayout；buildRoutes 跳过 /app */
   {
     key: 'jg-app',
@@ -280,7 +280,7 @@ const rawMenuTree = [
       { key: 'coc-admin-redblack', label: '黑红榜单', icon: 'TrophyBase', path: '/coc-admin/red-black', name: 'CocAdminRedBlack', component: 'AdminDispatchRedBlackList', routeComponent: 'CocAdminPageView', levels: 'hq', roles: ['安质部', '项目经理', '施工'], description: '维护项目红榜/黑榜展示。' },
       { key: 'coc-admin-patrol-device', label: '巡检仪管理', icon: 'Camera', path: '/coc-admin/patrol-device', name: 'CocAdminPatrolDevice', component: 'PatrolDeviceManageView', routeComponent: 'CocAdminPageView', levels: 'both', roles: ['COC调度室'], description: '管理巡检仪设备注册、绑定项目及人员。' },
       { key: 'coc-admin-supervision-meeting', label: '监理会议管理', icon: 'ChatLineRound', path: '/coc-admin/supervision-meeting', name: 'CocAdminSupervisionMeeting', component: 'SupervisionMeetingMinutesView', routeComponent: 'CocAdminPageView', levels: 'both', roles: ['COC调度室', '监理', '施工'], description: '项目层级按模版上传监理例会纪要并解析隐患。' },
-      { key: 'coc-admin-dispatch-hazard', label: '调度隐患清单', icon: 'Notebook', path: '/coc-admin/dispatch-hazard', name: 'CocAdminDispatchHazard', component: 'DispatchHazardListView', routeComponent: 'CocAdminPageView', levels: 'both', roles: ['COC调度室', '安质部', '项目经理', '施工'], description: '汇集 COC 调度大屏问题截图登记的安全/质量隐患台账。' },
+      { key: 'coc-admin-dispatch-hazard', label: '调度隐患清单', icon: 'Notebook', path: '/coc-admin/dispatch-hazard', name: 'CocAdminDispatchHazard', component: 'DispatchHazardListView', routeComponent: 'CocAdminPageView', levels: 'both', roles: ['COC调度室', '安质部', '项目经理', '施工'], description: '汇集 COC 调度大屏问题截图登记的隐患。' },
       { key: 'coc-admin-meeting-signin', label: '会议记录', icon: 'CircleCheck', path: '/coc-admin/meeting-signin', name: 'CocAdminMeetingSignIn', component: 'AdminMeetingSignInList', routeComponent: 'CocAdminPageView', levels: 'hq', roles: ['COC调度室'], description: '指挥部会议记录：会议时间、本次调度项目，以及各项目值班人员的已参会/未参会清单（数据源：大屏「项目值班」人员参会标注）。' },
       { key: 'coc-admin-daily-dispatch-check', label: '每日调度检查', icon: 'DocumentChecked', path: '/coc-admin/daily-dispatch-check', name: 'CocAdminDailyDispatchCheck', component: 'DailyDispatchLedgerView', routeComponent: 'CocAdminPageView', levels: 'hq', roles: ['COC调度室', '安质部', '项目经理', '施工'], description: '指挥部每日检查台账及只读检查统计；同日统一调度独占填写，项目部独立保存、关联汇总。' },
       { key: 'coc-admin-duty-roster', label: '每周值班表', icon: 'Calendar', path: '/coc-admin/duty-roster', name: 'CocAdminDutyRoster', component: 'AdminDutyRosterView', routeComponent: 'CocAdminPageView', levels: 'both', roles: ['COC调度室', '项目经理', '施工', '监理'], description: '项目维护每周值班：先白班/夜班，再选施工与监理人员；指挥部按周汇总只读。排班保存即生效；白班/夜班照片分别补录（今天及更早）。' },
@@ -1292,6 +1292,7 @@ export function buildRoutes() {
         sidebarKey: item.sidebarKey || item.key,
         tabKey: item.sidebarKey || item.key,
         title: item.label,
+        preserveTabQuery: item.preserveTabQuery,
         trackKind: item.trackKind,
         cocAdminKey: isCocAdmin ? item.key : undefined,
         videoMonitorKey: isVideoMonitor ? item.key : undefined,

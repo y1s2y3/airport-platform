@@ -2,11 +2,14 @@
  * 巡检隐患查询（合并 Web 种子 + 移动端整改）
  * 独立模块，避免 inspectionDemoData ↔ useMobileRectification ↔ mobileInspectionTasks 循环依赖。
  */
-import { isQualityA, workflowFlowRecords, workflowSteps, currentWorkflowStep } from '../utils/inspectionRectificationWorkflow'
+import { currentWorkflowLabel, workflowFlowRecords, workflowSteps, currentWorkflowStep } from '../utils/inspectionRectificationWorkflow'
 import { inspectionHazards } from './inspectionDemoData.js'
+import { getInspectionTaskForRectification } from './mobileInspectionTasks.js'
+import { getInspectionTaskPhotos } from '../utils/inspectionTaskPhotos.js'
 import {
   getMobileRectification,
   listMobileHazardsAsInspectionRows,
+  mapMobileRecordToHazardRow,
 } from '../composables/useMobileRectification.js'
 import { getInspectionPersonConfig, getInspectorById } from '../composables/useInspectionPersonConfig.js'
 
@@ -29,15 +32,15 @@ function withDisplayDefaults(row) {
   }
   return {
     ...row,
+    inspector: row.inspector || resolveConfiguredInspector(row),
     hazardLevel: row.hazardLevel || (row.inspectionCategory === '质量' ? 'C' : 'Ⅲ一般隐患'),
     currentNode,
   }
 }
 
 export function getInspectionHazard(id) {
-  if (getMobileRectification(id)) {
-    return listMobileHazardsAsInspectionRows().find((item) => item.id === id) || null
-  }
+  const live = getMobileRectification(id)
+  if (live) return mapMobileRecordToHazardRow(live)
   return inspectionHazards.find((item) => item.id === id) || null
 }
 
@@ -54,20 +57,30 @@ function resolveConfiguredInspector(row) {
 
 export function getInspectionHazardDetail(id) {
   const row = getInspectionHazard(id)
-  if (!row) return null
-  const inspector = resolveConfiguredInspector(row)
+  return row ? buildInspectionHazardDetail(row) : null
+}
+
+export function buildInspectionHazardDetail(row, live = getMobileRectification(row.id)) {
+  const inspector = row.inspector || resolveConfiguredInspector(row)
 
   const detail = {
     rn: row.rectifyNo,
     tn: row.taskNo,
+    inspectionPhotos: getInspectionTaskPhotos(getInspectionTaskForRectification(live || row)),
     pj: row.project,
     project_id: row.project_id,
     cat: row.inspectionCategory,
     rf: row.rectifier,
     rv: row.reviewer,
-    ccPersons: row.ccPersons || '',
+    inspector,
+    issueDate: row.issueDate,
+    ccPersons: row.issueCcPersons ?? row.ccPersons ?? '',
+    issueCcPersons: row.issueCcPersons ?? row.ccPersons ?? '',
+    completionCcPersons: row.completionCcPersons || '',
+    managerConfirmationResult: row.managerConfirmationResult || '',
     dl: row.deadline,
     st: row.status,
+    currentNode: live ? currentWorkflowLabel(live) : withDisplayDefaults(row).currentNode,
     cd: row.closeDate,
     hazard: {
       category: row.hazardCategory,
@@ -116,7 +129,7 @@ export function getInspectionHazardDetail(id) {
   if (row.status === '待复查') {
     detail.managerApproval = { manager: row.manager, status: '审批中', comment: '--' }
     detail.flow.push({ a: '待项目经理审批', d: '', cur: true, by: row.manager || '' })
-  } else if (row.status === '已关闭') {
+  } else if (row.status === '已关闭' && row.managerConfirmationResult !== '否') {
     detail.managerApproval = {
       manager: row.manager,
       date: row.closeDate,
@@ -141,7 +154,6 @@ export function getInspectionHazardDetail(id) {
   } else {
     detail.flow.push({ a: '等待整改人执行', d: '', cur: true, by: row.rectifier || '' })
   }
-  const live = getMobileRectification(id)
   if (live) detail.flow = workflowFlowRecords(live)
   return detail
 }

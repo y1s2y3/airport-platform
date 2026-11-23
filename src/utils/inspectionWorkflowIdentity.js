@@ -1,5 +1,5 @@
 import { getCurrentUserSnapshot, getEffectiveUserId } from '../mock/currentUser'
-import { inspectorCandidates } from '../composables/useInspectionPersonConfig'
+import { getInspectorById, inspectorCandidates } from '../composables/useInspectionPersonConfig'
 import { currentWorkflowStep } from './inspectionRectificationWorkflow'
 
 export function inspectionOperator() {
@@ -10,7 +10,12 @@ export function inspectionOperator() {
 }
 export function canExecuteInspectionStep(record, stage) {
   const assignment = record?.workflowAssignees?.[stage]
-  return !assignment || assignment.id === inspectionOperator().id
+  if (assignment) return assignment.id === inspectionOperator().id
+  if (stage !== 'managerConfirmation' || !record?.managerId || record.managerConfirmationExample) return true
+  const operator = inspectionOperator()
+  const manager = getInspectorById(record.managerId)
+  const isDefaultProjectManager = manager?.id === 'manager-' + record.projectId || manager?.id === 'quality-hq-manager'
+  return operator.id === record.managerId || (isDefaultProjectManager && operator.id === 'u-proj-' + record.projectId)
 }
 export function canAssignInspectionStep(record, stage) {
   const step = currentWorkflowStep(record)
@@ -22,8 +27,17 @@ export function canAssignInspectionStep(record, stage) {
   // 指派后仍只允许接收人办理或再次转交。
   return true
 }
-export function isInspectionCopyRecipient(recipients) {
+export function isInspectionCopyRecipient(recipients, projectId, category) {
   const operator = inspectionOperator()
   const labels = Array.isArray(recipients) ? recipients : String(recipients || '').split('、')
-  return labels.some(label => label === operator.label || label === operator.name)
+  const aliases = [operator.label, operator.name]
+  if (operator.id === 'u-proj-' + projectId) {
+    const manager = getInspectorById('manager-' + projectId)
+    if (manager) aliases.push(manager.name + '（' + manager.role + '）', manager.name + '（项目经理）')
+    if (category === '质量') {
+      const qualityManager = getInspectorById('quality-hq-manager')
+      aliases.push(qualityManager.name + '（' + qualityManager.role + '）')
+    }
+  }
+  return labels.some(label => aliases.includes(label))
 }

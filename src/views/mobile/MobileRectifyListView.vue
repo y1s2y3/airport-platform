@@ -11,7 +11,7 @@ defineProps({
   embedded: { type: Boolean, default: false },
 })
 
-import { RECTIFICATION_STATUSES, currentWorkflowStep } from '../../utils/inspectionRectificationWorkflow'
+import { RECTIFICATION_STATUSES, currentWorkflowStep, currentWorkflowLabel } from '../../utils/inspectionRectificationWorkflow'
 const router = useRouter()
 const route = useRoute()
 const { rectifyBase, tasksBase } = useMobileRouteBase()
@@ -60,16 +60,15 @@ const statusStyles = {
 
 function goExecute(id) { router.push(`${rectifyBase.value}/${id}/execute?tab=${activeTab.value}`) }
 function goReview(id) { router.push(`${rectifyBase.value}/${id}/review?tab=${activeTab.value}`) }
-function goApproval(id) { router.push(`${rectifyBase.value}/${id}/approval?tab=${activeTab.value}`) }
 function goDetail(id) { router.push(`${rectifyBase.value}/${id}?tab=${activeTab.value}`) }
 function goBack() { router.push(tasksBase.value) }
 
 function onCardClick(item) {
-  if (!canExecuteInspectionStep(item, currentWorkflowStep(item)?.key)) return goDetail(item.id)
+  const step = currentWorkflowStep(item)
+  if (step?.key === 'managerConfirmation' || !canExecuteInspectionStep(item, step?.key)) return goDetail(item.id)
   // 施工方项目经理验收也属于“待整改”，当前节点为验收时进入验收页。
   if (item.status === '待整改') return String(item.currentNode || '').includes('验收') ? goReview(item.id) : goExecute(item.id)
   if (item.status === '待验收') return goReview(item.id)
-  if (item.status === '待复查') return goApproval(item.id)
   return goDetail(item.id)
 }
 </script>
@@ -128,7 +127,7 @@ function onCardClick(item) {
           <span class="rec-status" :style="{ color: statusStyles[item.status]?.color, background: statusStyles[item.status]?.bg }">{{ item.status }}</span>
         </div>
         <div class="rec-mid">
-          <span>当前流程节点：{{ currentWorkflowStep(item)?.label || (item.status === '已关闭' ? '流程结束' : item.currentNode || '--') }}</span>
+          <span>当前流程节点：{{ currentWorkflowLabel(item) }}</span>
         </div>
         <div v-if="item.isRejected&&item.rejectReason" class="rec-reject">❌ 退回原因：{{ item.rejectReason }}</div>
         <div v-if="item.approvalRejected&&item.approvalReason" class="rec-reject">❌ 审批退回：{{ item.approvalReason }}</div>

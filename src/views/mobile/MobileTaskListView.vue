@@ -2,8 +2,10 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { listMobileInspectionTasks } from '../../mock/mobileInspectionTasks'
+import { listInspectionHazards } from '../../mock/inspectionHazardQuery'
 import { INSPECTION_CATEGORIES, getInspectionTypeFilterOptions, hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
 import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
+import { rectificationIssuedAt } from '../../utils/inspectionRectificationWorkflow'
 
 const router = useRouter()
 const { tasksBase, bizHome } = useMobileRouteBase()
@@ -35,6 +37,20 @@ const filteredTasks = computed(() => {
     list = list.filter(t => t.taskNo.includes(kw) || (t.taskName || '').includes(kw) || t.project.includes(kw) || (t.majorHazardName || '').includes(kw))
   }
   return list
+})
+
+const issuedOrderLabels = computed(() => {
+  const orders = listInspectionHazards()
+  const byId = new Map(orders.map(order => [order.id, order]))
+  const byNumber = new Map(orders.map(order => [order.rectifyNo, order]))
+  return new Map(filteredTasks.value.map(task => {
+    const labels = new Set()
+    for (const hazard of task.hazardItems || []) {
+      const order = byId.get(hazard.rectifyId) || byNumber.get(hazard.rectifyNo)
+      if (rectificationIssuedAt(order)) labels.add(`${order.rectifyNo}-${order.status}`)
+    }
+    return [task.id, [...labels].join('、')]
+  }))
 })
 
 function goExecute(id) { router.push(`${tasksBase.value}/${id}/execute`) }
@@ -98,7 +114,7 @@ function goBack() { router.push(bizHome.value) }
             <div v-if="task.taskName" style="font-size:11px;color:#666;margin-top:2px">{{ task.taskName }}</div>
             <span class="m-inspection-type">检查类型：{{ task.inspectionType || '值班检查' }}</span>
             <span v-if="task.isMajorHazardPatrol === '是'" class="m-major-hazard">危大巡视 · {{ task.majorHazardName || '已关联' }}</span>
-            <span v-if="task.hasRectify" class="m-rectify-badge">📋 已发整改单</span>
+            <span v-if="issuedOrderLabels.get(task.id)" class="m-rectify-badge">📋 已发整改单（{{ issuedOrderLabels.get(task.id) }}）</span>
           </div>
         </div>
         <div class="m-task-mid">
@@ -150,11 +166,11 @@ function goBack() { router.push(bizHome.value) }
 .m-task-card { background:#fff; border-radius:12px; padding:14px 16px; cursor:pointer; box-shadow:0 1px 4px rgba(0,0,0,0.04); }
 .m-task-top { display:flex; align-items:flex-start; gap:10px; margin-bottom:6px; }
 .m-task-icon { font-size:20px; flex-shrink:0; }
-.m-task-info { flex:1; display:flex; flex-direction:column; gap:2px; }
+.m-task-info { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
 .m-task-name-row { display:flex; align-items:center; gap:6px; }
 .m-task-name { font-size:15px; font-weight:600; color:#1f2329; }
 .m-overdue-badge { font-size:10px; color:#e53935; background:#ffebee; padding:1px 6px; border-radius:3px; flex-shrink:0; }
-.m-rectify-badge { font-size:10px; color:#8f0045; background:#fceef4; padding:1px 6px; border-radius:3px; display:inline-block; margin-top:2px; }
+.m-rectify-badge { font-size:10px; color:#8f0045; background:#fceef4; padding:1px 6px; border-radius:3px; display:inline-block; margin-top:2px; overflow-wrap:anywhere; }
 .m-major-hazard { display:inline-block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:10px; color:#c45656; background:#fef0f0; padding:1px 6px; border-radius:3px; margin-top:2px; }
 .m-task-project { font-size:12px; color:#999; }
 .m-inspection-type { font-size:11px; color:#666; margin-top:2px; }

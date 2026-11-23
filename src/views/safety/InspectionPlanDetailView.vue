@@ -5,6 +5,7 @@ import { FolderOpened } from '@element-plus/icons-vue'
 import { getPlanById, userOptions, projectOptions, checkCategoryTree, getItemLabel, getPlanExecutionStatus } from '../../composables/useInspectionPlan'
 import { getProjectInspectorLabel } from '../../composables/useInspectionPersonConfig'
 import { normalizeInspectionCategories } from '../../config/inspectionManagement'
+import { personalCenterReturnLocation } from '../../utils/personalCenterNavigation'
 
 const route = useRoute()
 const router = useRouter()
@@ -71,7 +72,7 @@ watch(detailInspectionCategory, (category) => {
 const isFromPersonalCenterCc = computed(() => route.query.from === 'personal-center-cc')
 function goBack() {
   if (isFromPersonalCenterCc.value) {
-    router.push({ path: '/personal-center', query: { tab: 'cc' } })
+    router.push(personalCenterReturnLocation(route.query, 'cc') || { path: '/personal-center', query: { tab: 'cc' } })
     return
   }
   router.push('/safety-inspection/plan')

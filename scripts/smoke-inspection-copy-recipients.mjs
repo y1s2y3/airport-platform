@@ -7,7 +7,7 @@ try{
  const page=await browser.newPage({viewport:{width:1440,height:1050}}),errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto(server.resolvedUrls.local[0])
  await page.evaluate(async()=>{const {default:r}=await import('/src/router/index.js');await r.push('/mobile/tasks/create')})
  await page.locator('.result-btn.hazard').click()
- const row=page.locator('.form-row').filter({has:page.getByText('抄送人',{exact:true})})
+ const row=page.locator('.form-row').filter({has:page.getByText('整改单完成抄送人',{exact:true})})
  assert.equal(await row.locator('.required-mark').count(),0)
  assert.equal(await row.locator('.el-tag').count(),0)
  await row.locator('.el-select').click()
@@ -18,7 +18,7 @@ try{
  await page.evaluate(async()=>{
  const S=await import('/src/composables/useMobileRectification.js'),PC=await import('/src/mock/personalCenter.js'),U=await import('/src/mock/currentUser.js'),H=await import('/src/mock/inspectionHazardQuery.js')
  const task={id:'cc-test',taskNo:'CC-TEST',inspectionCategory:'安全',projectId:'p-000',project:'飞行区跑道延长工程'}
- S.createMobileRectificationsFromTask(task,[{rectifyId:'cc-empty',desc:'不选抄送人'},{rectifyId:'cc-multi',desc:'多选抄送人',ccPersons:'赵工（项目安全负责人）、周工（质量工程师）'}])
+ S.createMobileRectificationsFromTask(task,[{rectifyId:'cc-empty',desc:'不选抄送人',issueCcPersons:'',completionCcPersons:''},{rectifyId:'cc-multi',desc:'多选抄送人',ccPersons:'赵工（项目安全负责人）、周工（质量工程师）'}])
  const check=(v,m)=>{if(!v)throw Error(m)}
  check(!!S.getMobileRectification('cc-empty'),'抄送留空未生成整改单')
  check(!PC.personalCc.some(x=>x.rectifyId==='cc-empty'),'空抄送生成了消息')

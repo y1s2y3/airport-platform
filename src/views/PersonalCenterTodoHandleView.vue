@@ -26,6 +26,7 @@ import {
 import './personalCenter/styles/todoHandleBlocks.css'
 import { getMobileRectification } from '../composables/useMobileRectification'
 import { workflowApprovalRecords } from '../utils/inspectionRectificationWorkflow'
+import { personalCenterReturnLocation } from '../utils/personalCenterNavigation'
 
 const router = useRouter()
 const route = useRoute()
@@ -144,10 +145,9 @@ const todoSourceLabel = computed(() => {
 
 function goBack() {
   const tab = fromTab.value
-  const returnTo = String(route.query.returnTo || '')
-  const returnTab = String(route.query.returnTab || '')
-  if (['/workbench', '/personal-center'].includes(returnTo) && returnTab === 'warning-center') {
-    router.push({ path: returnTo, query: { tab: returnTab } })
+  const returnLocation = personalCenterReturnLocation(route.query, tab)
+  if (returnLocation) {
+    router.push(returnLocation)
     return
   }
   // 建管 APP 壳内处置页：返回 APP 个人中心

@@ -1,4 +1,6 @@
 <script setup>
+import InspectionLedgerExport from '../../components/InspectionLedgerExport.vue'
+import { exportInspectionTaskDetail, inspectionTaskDetailColumns, inspectionTaskHazardColumns } from '../../utils/inspectionDetailExport'
 import { ref, reactive, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Search, View, ArrowLeft } from '@element-plus/icons-vue'
@@ -114,6 +116,16 @@ const filteredTasks = computed(() => {
   })
 })
 
+const exportRows = computed(() => {
+  if (!isHqSelected.value) return filteredTasks.value
+  const visibleProjects = new Set(filteredHQProjects.value.map(row => row.project_id))
+  return taskData.value.filter(row => visibleProjects.has(row.project_id))
+})
+const exportDates = [
+  { key: 'inspectionDate', label: '巡检日期' },
+  { key: 'deadline', label: '任务截止日期' },
+]
+
 function isOverdue(row) {
   if (row.status === '已完成') return false
   if (!row.deadline) return false
@@ -156,8 +168,6 @@ function goBackToHQ() {
   <div class="task-page">
     <div class="page-head">
       <h3 class="page-title">巡检任务管理</h3>
-      <div class="page-actions" v-if="isHqSelected">
-      </div>
     </div>
 
     <template v-if="isHqSelected">
@@ -171,7 +181,10 @@ function goBackToHQ() {
           <div class="stat-card"><div class="sc-value text-danger">{{ hqTotalStats.hazardCount }}</div><div class="sc-label">隐患总数</div></div>
         </div>
         <div class="hq-filter-bar">
-          <el-button type="primary" @click="goCreateRecord">新增巡检记录</el-button>
+          <div class="ledger-actions">
+            <el-button type="primary" @click="goCreateRecord">新增巡检记录</el-button>
+            <InspectionLedgerExport name="巡检任务台账" :rows="exportRows" :columns="inspectionTaskDetailColumns" :detail-columns="inspectionTaskHazardColumns" :date-options="exportDates" :to-detail="exportInspectionTaskDetail" />
+          </div>
           <el-input v-model="hqProjectKeyword" placeholder="搜索项目名称..." clearable style="width:240px" :prefix-icon="Search" />
         </div>
         <el-table :data="filteredHQProjects" border stripe style="width:100%;margin-top:12px" class="hq-table">
@@ -222,7 +235,10 @@ function goBackToHQ() {
             <el-option label="是" value="是" /><el-option label="否" value="否" />
           </el-select>
           <el-button @click="handleReset">重置</el-button>
-          <el-button type="primary" @click="goCreateRecord">新增巡检记录</el-button>
+          <div class="ledger-actions">
+            <el-button type="primary" @click="goCreateRecord">新增巡检记录</el-button>
+            <InspectionLedgerExport name="巡检任务台账" :rows="exportRows" :columns="inspectionTaskDetailColumns" :detail-columns="inspectionTaskHazardColumns" :date-options="exportDates" :to-detail="exportInspectionTaskDetail" />
+          </div>
         </div>
 
         <!-- 台账表格 -->
@@ -322,6 +338,7 @@ function goBackToHQ() {
 .page-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
 .page-title { font-size:18px; font-weight:600; color:#1f2329; margin:0; }
 .filter-bar { display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
+.ledger-actions { display:inline-flex; align-items:center; }
 .empty-state { text-align:center; padding:60px 0; color:#999; font-size:14px; }
 .el-table { font-size:13px; }
 .hq-dashboard { background:#f5f7fa; border-radius:10px; padding:20px; }

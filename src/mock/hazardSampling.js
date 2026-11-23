@@ -1,14 +1,18 @@
 import { computed, ref, watch } from 'vue'
 import { useCurrentProject, selectedProjectId } from '../composables/useCurrentProject.js'
 import { getHazardIssueRows, getCurrentHazardIssueProjectKey, getHazardIssueProjectOptions } from '../utils/hazardIssueSummary.js'
-import { buildSamplingExamples, buildManualSamplingExamples, buildAssignedReviewExamples, SAMPLING_EXAMPLE_VERSION } from './hazardSamplingExamples.js'
+import { buildSamplingExamples, buildManualSamplingExamples, buildAssignedReviewExamples, buildCocSamplingExamples, SAMPLING_EXAMPLE_VERSION } from './hazardSamplingExamples.js'
 import { getSamplingPeople, getSamplingManager } from './samplingPeople.js'
+import { demoActingUserId } from './currentUser.js'
+import { webLoginAccount } from './webSession.js'
+import { getSysUser } from './sysUsers.js'
 
-const KEY = 'airport-hazard-sampling-v2'
+export const SAMPLING_STORAGE_KEY = 'airport-hazard-sampling-v2'
 /** 抽检规则：全局一套，仅保留取单时间范围、抽取比例、最少抽取数量。 */
 export const DEFAULT_RULE = { days: 90, percent: 30, minimum: 3 }
 export const SAMPLING_STATUS = { PASS: '合格', FAIL: '不合格', PENDING: '未复核' }
 const RECIPIENTS = { supervisor: '责任监理', manager: '项目经理' }
+const COC_DEMO_USER_ID = 'inspection-coc-demo'
 const emptyState = () => ({ rule: { ...DEFAULT_RULE }, tasks: [], history: [] })
 const DEMO_WORDING_FLAG = 'airport-hazard-sampling-demo-wording-v1'
 const DEMO_MARK_PATTERNS = [
@@ -29,22 +33,30 @@ function cleanDemoText(value) {
   return value
 }
 let saved
-try { saved = JSON.parse(localStorage.getItem(KEY) || 'null') } catch { saved = null }
+try { saved = JSON.parse(localStorage.getItem(SAMPLING_STORAGE_KEY) || 'null') } catch { saved = null }
 if (saved && !localStorage.getItem(DEMO_WORDING_FLAG)) {
   saved = cleanDemoText(saved)
-  try { localStorage.setItem(KEY, JSON.stringify(saved)) } catch { /* ignore */ }
+  try { localStorage.setItem(SAMPLING_STORAGE_KEY, JSON.stringify(saved)) } catch { /* ignore */ }
   try { localStorage.setItem(DEMO_WORDING_FLAG, '1') } catch { /* ignore */ }
 }
 const usable = saved && saved.rule && typeof saved.rule.days === 'number' && Array.isArray(saved.tasks) && Array.isArray(saved.history)
 export const sampling = ref(usable ? saved : emptyState())
-watch(sampling, value => localStorage.setItem(KEY, JSON.stringify(value)), { deep: true })
+watch(sampling, value => localStorage.setItem(SAMPLING_STORAGE_KEY, JSON.stringify(value)), { deep: true })
 export const projectSamplingRole = ref(sessionStorage.getItem('hazard-sampling-role') || 'manager')
 watch(projectSamplingRole, value => sessionStorage.setItem('hazard-sampling-role', value))
 export const samplingPersonId = ref(sessionStorage.getItem('hazard-sampling-person') || '')
 watch(samplingPersonId, value => sessionStorage.setItem('hazard-sampling-person', value))
 export function samplingActorId(projectKey, role) {
   const people = getSamplingPeople(projectKey)
-  if (people.some(person => person.id === samplingPersonId.value)) return samplingPersonId.value
+  const account = demoActingUserId.value || webLoginAccount.value || samplingPersonId.value
+  if (account) {
+    const demoUser = getSysUser(COC_DEMO_USER_ID)
+    if (demoUser?.status === true && account === demoUser.loginAccount) return demoUser.id
+    if (people.some(person => person.id === account)) return account
+    const project = getHazardIssueProjectOptions().find(item => item.key === projectKey)
+    if (project?.masterId && account === `pm_${project.masterId}`) return getSamplingManager(projectKey)?.id || ''
+    return ''
+  }
   return role === 'manager' ? getSamplingManager(projectKey)?.id || '' : people[0]?.id || ''
 }
 export function useSamplingRole() {
@@ -75,6 +87,9 @@ export function ensureSamplingExamples(rows = getHazardIssueRows()) {
   const assignedExamples = buildAssignedReviewExamples(rows, getHazardIssueProjectOptions())
   examples.tasks.push(...assignedExamples.tasks)
   examples.history.push(...assignedExamples.history)
+  const cocExamples = buildCocSamplingExamples(rows, getHazardIssueProjectOptions(), getSysUser(COC_DEMO_USER_ID))
+  examples.tasks.push(...cocExamples.tasks)
+  examples.history.push(...cocExamples.history)
   const exampleLogs = new Map(examples.history.map(log => [log.id, log]))
   for (const log of sampling.value.history) {
     if (!log.roundId && exampleLogs.get(log.id)?.roundId) log.roundId = exampleLogs.get(log.id).roundId
@@ -140,34 +155,25 @@ function normalizeExamplePools() {
     for (const key of Object.keys(task.results)) if (!ids.includes(key)) delete task.results[key]
   }
 }
-export function visibleHistory(rowId, role) {
-  return sampling.value.history.filter(log => log.rowId === rowId && (role === 'hq' || (role === 'supervisor' && log.stage !== 'hq') || (role === 'manager' && log.stage === 'manager')))
-}
 export function visibleTasks(role, projectId) {
-  if (role === 'hq') return sampling.value.tasks
-  const key = getCurrentHazardIssueProjectKey(projectId)
-  if (!key) return []
-  return sampling.value.tasks.filter(task => task.projectKey === key && task.stage === role)
-}/** 只读查看权限：本人收到的任务；抽检人可沿父任务追踪其下派的全面复查（仅查看，不计入本人待办）。 */
+  if (role === 'hq') return projectId === 'hq' ? sampling.value.tasks : []
+  return sampling.value.tasks.filter(task => canHandleTask(task, role, projectId))
+}
+/** 只读查看权限：本人收到的任务；抽检人可以追踪本人原任务关联的全面复查。 */
 export function canViewTask(task, role, projectId) {
   if (!task) return false
-  if (role === 'hq') return true
-  const key = getCurrentHazardIssueProjectKey(projectId)
-  if (!key || task.projectKey !== key) return false
-  const actor = samplingActorId(key, role)
-  if (task.stage === role) return true
-  if (role === 'supervisor' && task.stage === 'manager') {
-    const parent = sampling.value.tasks.find(item => item.stage === 'supervisor' && (item.id === task.parentTaskId || (!task.parentTaskId && item.batchId === task.batchId && item.projectKey === task.projectKey)))
-    return Boolean(parent)
-  }
-  return false
+  if (role === 'hq') return projectId === 'hq'
+  if (canHandleTask(task, role, projectId)) return true
+  return role === 'supervisor' && task.stage === 'manager'
+    && canHandleTask(parentSamplingTask(task), role, projectId)
 }
 /** 办理权限：只有本人实际收到的该阶段任务，指挥部与追踪查看者不能代办。 */
 export function canHandleTask(task, role, projectId) {
-  if (!task || role === 'hq') return false
+  if (!task?.assigneeId || task.stage !== role || !['supervisor', 'manager'].includes(role)) return false
   const key = getCurrentHazardIssueProjectKey(projectId)
-  if (!key || task.projectKey !== key) return false
-  return task.stage === role
+  return Boolean(key && task.projectKey === key
+    && (task.assigneeId !== COC_DEMO_USER_ID || task.example)
+    && task.assigneeId === samplingActorId(key, role))
 }
 export function viewableTasks(role, projectId) {
   return sampling.value.tasks.filter(task => canViewTask(task, role, projectId))
@@ -176,17 +182,22 @@ export function viewableTasks(role, projectId) {
 export function hqMainTasks() {
   return sampling.value.tasks.filter(task => task.stage === 'supervisor')
 }
-/** 关联的全面复查任务：新数据用 parentTaskId，历史数据按同项目同批次补关联；多个关联项全部保留。 */
+export function parentSamplingTask(review, tasks = sampling.value.tasks) {
+  if (review?.stage !== 'manager') return null
+  const matches = tasks.filter(task => task.stage === 'supervisor' && task.projectKey === review.projectKey
+    && (review.parentTaskId ? task.id === review.parentTaskId : review.batchId && task.batchId === review.batchId))
+  return matches.length === 1 ? matches[0] : null
+}
+/** 关联的全面复查任务：新数据用父任务 ID，历史数据按同项目、同批次唯一关联。 */
 export function linkedReviewTasks(task) {
-  if (!task) return []
-  const byParent = sampling.value.tasks.filter(item => item.stage === 'manager' && item.parentTaskId === task.id)
-  if (byParent.length) return byParent
-  return sampling.value.tasks.filter(item => item.stage === 'manager' && !item.parentTaskId && item.batchId === task.batchId && item.projectKey === task.projectKey)
+  if (task?.stage !== 'supervisor') return []
+  const tasks = sampling.value.tasks.filter(item => item.projectKey === task.projectKey)
+  return tasks.filter(item => parentSamplingTask(item, tasks)?.id === task.id)
 }
 export function linkedReviewTask(task) { return linkedReviewTasks(task)[0] || null }
 /** 找不到有效父任务的后续任务：保留只读入口，不伪造父任务、不隐藏历史。 */
 export function unlinkedReviewTasks() {
-  return sampling.value.tasks.filter(task => task.stage === 'manager' && !sampling.value.tasks.some(parent => parent.stage === 'supervisor' && (parent.id === task.parentTaskId || (!task.parentTaskId && parent.batchId === task.batchId && parent.projectKey === task.projectKey))))
+  return sampling.value.tasks.filter(task => task.stage === 'manager' && !parentSamplingTask(task))
 }
 /** 有效逐单结果：必须同任务、同单据、同阶段，避免无效或无关历史记录计入进度。 */
 function validLog(task, rowId) {
@@ -210,7 +221,8 @@ function completeTaskIfReady(task) {
   return true
 }
 export function actionableTask(row, role, taskId) {
-  return visibleTasks(projectSamplingRole.value, selectedProjectId.value).find(task => task.stage === role && task.projectKey === row.projectKey && task.ids.includes(row.id) && !task.results[row.id] && (!taskId || task.id === taskId) && !task.submittedAt)
+  if (role !== projectSamplingRole.value) return
+  return visibleTasks(role, selectedProjectId.value).find(task => task.projectKey === row.projectKey && task.ids.includes(row.id) && !task.results[row.id] && (!taskId || task.id === taskId) && !task.submittedAt)
 }
 function addTask(stage, batch, ids, selectedAssigneeId = '') {
   const person = selectedAssigneeId ? getSamplingPeople(batch.projectKey).find(item => item.id === selectedAssigneeId) : stage === 'manager' ? getSamplingManager(batch.projectKey) : getSamplingPeople(batch.projectKey).find(item => item.id === batch.assigneeId)
@@ -242,7 +254,7 @@ export function submitReview(row, role, payload, taskId) {
   if (!['hq', 'supervisor', 'manager'].includes(role)) throw new Error('当前身份无办理权限')
   if (role === 'hq' && selectedProjectId.value !== 'hq') throw new Error('仅指挥部可发起抽查')
   const task = role === 'hq' ? null : actionableTask(row, role, taskId)
-  if (role !== 'hq' && !task) throw new Error('该单据没有分配给当前角色的待办任务')
+  if (role !== 'hq' && !task) throw new Error('该单据没有分配给当前人员的待办任务')
   if (!['合格', '不合格'].includes(payload.result) || (payload.result === '不合格' && !String(payload.note || '').trim())) throw new Error('请选择合格或不合格；不合格时必须填写说明')
   if (role === 'manager' && (payload.files || []).some(file => !/\.(jpe?g|png)$/i.test(file.name))) throw new Error('复查照片仅支持 JPG、JPEG、PNG 格式')
   if (role === 'manager' && (payload.result !== '合格' || !payload.completed)) throw new Error('请在线下整改完成后，确认已完成复查且合格')
@@ -256,7 +268,7 @@ export function submitReview(row, role, payload, taskId) {
       if (!getSamplingPeople(row.projectKey).some(person => person.id === payload.assigneeId)) throw new Error('请选择本项目的一名抽检人')
     }
   }
-  const existingFollow = role === 'supervisor' && payload.result === '不合格' ? sampling.value.tasks.find(item => item.stage === 'manager' && item.batchId === task.batchId) : null
+  const existingFollow = role === 'supervisor' && payload.result === '不合格' ? linkedReviewTask(task) : null
   let reviewer
   if (role === 'supervisor' && payload.result === '不合格') {
     if (existingFollow) {
@@ -315,8 +327,8 @@ export async function downloadSamplingAttachment(file) {
   const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = file.name; link.click(); setTimeout(() => URL.revokeObjectURL(url),1000)
 }
 export function submitTask(task, role) {
-  if (task.projectKey !== getCurrentHazardIssueProjectKey(selectedProjectId.value)) throw new Error('只能提交当前项目的任务')
-  if (task.stage !== role || !taskComplete(task)) throw new Error('请完成每张单据的复查后提交')
+  if (role !== projectSamplingRole.value || !canHandleTask(task, role, selectedProjectId.value)) throw new Error('只能提交分配给本人的任务')
+  if (!taskComplete(task)) throw new Error('请完成每张单据的复查后提交')
   if (task.submittedAt) return
   task.submittedAt = new Date().toISOString()
   if (role === 'supervisor') task.discrepancy = !sampling.value.history.some(h => h.taskId === task.id && h.result === '不合格')

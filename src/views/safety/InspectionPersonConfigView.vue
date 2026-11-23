@@ -1,47 +1,122 @@
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { reactive, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useCurrentProject } from '../../composables/useCurrentProject'
-import { INSPECTION_PERSON_CONFIG_GROUPS, getInspectionPersonConfig, getInspectorById, inspectorCandidates, saveInspectionPersonConfig } from '../../composables/useInspectionPersonConfig'
+import {
+  INSPECTION_COPY_FIELDS,
+  INSPECTION_PERSON_CONFIG_GROUPS,
+  getInspectionPersonConfig,
+  getInspectorById,
+  inspectionPersonIds,
+  inspectorCandidates,
+  saveInspectionPersonConfig,
+} from '../../composables/useInspectionPersonConfig'
+
 const { laborProjectId, projectLabel } = useCurrentProject()
-const category = ref('安全'), isEditing = ref(false)
-const form = reactive({})
-const fields = computed(() => [
-  { key: 'inspectorId', label: '巡检人' },
-  { key: 'rectifierId', label: '施工单位整改人', multiple: true },
-  ...(category.value === '质量' ? [{ key: 'contractorManagerId', label: '施工单位项目经理（A级验收）' }] : []),
-  { key: 'reviewerId', label: '监理单位复核人', multiple: true },
-  ...(category.value === '质量' ? [{ key: 'directorId', label: '监理单位项目总监（A级验收）' }] : []),
-  { key: 'managerId', label: category.value === '质量' ? '指挥部项目经理（审批）' : '项目经理（审批）' },
-])
-function load() {
-  const config = getInspectionPersonConfig(laborProjectId.value, category.value) || {}
-  Object.assign(form, config, { rectifierId: [...(config.rectifierId || [])], reviewerId: [...(config.reviewerId || [])] })
-  isEditing.value = false
+
+const sections = INSPECTION_PERSON_CONFIG_GROUPS.map(({ value, label }) => ({
+  category: value,
+  label,
+  state: reactive({ editing: false, form: {} }),
+  roles: [
+    { key: 'inspectorId', label: '巡检人' },
+    { key: 'rectifierId', label: '施工单位整改人', multiple: true },
+    ...(value === '质量' ? [{ key: 'contractorManagerId', label: '施工单位项目经理', scope: 'A级验收' }] : []),
+    { key: 'reviewerId', label: '监理单位复核人', multiple: true },
+    ...(value === '质量' ? [{ key: 'directorId', label: '监理单位项目总监', scope: 'A级验收' }] : []),
+    { key: 'managerId', label: '指挥部项目经理' },
+  ],
+}))
+const copyFields = INSPECTION_COPY_FIELDS.map(({ configKey, label }) => ({ key: configKey, label, multiple: true }))
+const groups = section => [
+  { label: '流程办理人', fields: section.roles },
+  { label: '抄送设置', fields: copyFields },
+]
+const personLabel = person => person ? `${person.name}（${person.role}）` : ''
+const peopleLabels = value => inspectionPersonIds(value).map(id => personLabel(getInspectorById(id))).filter(Boolean)
+
+function load(section) {
+  const config = getInspectionPersonConfig(laborProjectId.value, section.category) || {}
+  section.state.form = Object.fromEntries([...section.roles, ...copyFields].map(field =>
+    [field.key, field.multiple ? inspectionPersonIds(config[field.key]) : config[field.key] || ''],
+  ))
+  section.state.editing = false
 }
-watch([laborProjectId, category], load, { immediate: true })
-function label(id) {
-  if (Array.isArray(id)) return id.length ? id.map(label).join('、') : '未配置'
-  const person = getInspectorById(id); return person ? `${person.name}（${person.role}）` : '未配置'
-}
-function save() {
+watch(laborProjectId, () => sections.forEach(load), { immediate: true })
+
+function save(section) {
   if (!laborProjectId.value) return ElMessage.warning('请先选择项目')
-  const missing = fields.value.find(field => field.multiple ? !form[field.key]?.length : !form[field.key])
+  const missing = section.roles.find(field => !inspectionPersonIds(section.state.form[field.key]).length)
   if (missing) return ElMessage.warning('请选择' + missing.label)
-  saveInspectionPersonConfig(laborProjectId.value, { ...form }, category.value)
-  isEditing.value = false; ElMessage.success(category.value === '质量' ? '质量人员配置已保存，安全、其他配置不受影响' : '安全、其他共用人员配置已保存，质量配置不受影响')
+  saveInspectionPersonConfig(laborProjectId.value, section.state.form, section.category)
+  load(section)
+  ElMessage.success(section.label + '人员配置已保存')
 }
 </script>
+
 <template>
   <div class="person-config-page">
-    <div class="page-head"><h3>人员配置</h3><el-button v-if="!isEditing" type="primary" @click="isEditing = true">编辑</el-button><div v-else><el-button @click="load">取消</el-button><el-button type="primary" @click="save">保存</el-button></div></div>
-    <el-radio-group v-model="category" size="large"><el-radio-button v-for="item in INSPECTION_PERSON_CONFIG_GROUPS" :key="item.value" :value="item.value">{{ item.label }}</el-radio-button></el-radio-group>
-    <el-alert :closable="false" type="info" :title="category === '质量' ? '质量A级：施工单位整改 → 施工单位项目经理验收 → 监理单位复核 → 监理单位项目总监验收 → 指挥部项目经理审批；B/C级：整改 → 监理复核 → 指挥部项目经理审批。' : '安全、其他共用巡检人、整改人、复核人和项目经理：施工单位整改 → 监理单位复核 → 项目经理审批；质量人员独立配置。'" />
-    <el-card shadow="never"><el-descriptions :column="1" border><el-descriptions-item label="项目">{{ projectLabel }}</el-descriptions-item>
-      <el-descriptions-item v-for="field in fields" :key="field.key" :label="field.label">
-        <el-select v-if="isEditing" v-model="form[field.key]" :multiple="field.multiple" filterable :placeholder="'请选择' + field.label" style="width:100%;max-width:520px"><el-option v-for="person in inspectorCandidates" :key="person.id" :label="label(person.id)" :value="person.id" /></el-select><span v-else>{{ label(form[field.key]) }}</span>
-      </el-descriptions-item>
-    </el-descriptions></el-card>
+    <header class="page-heading">
+      <h3>人员配置</h3>
+      <p>{{ projectLabel }}</p>
+    </header>
+    <div class="config-grid">
+      <section v-for="section in sections" :key="section.category" class="config-card">
+        <header class="card-heading">
+          <h4>{{ section.label }}</h4>
+          <el-button v-if="!section.state.editing" size="small" @click="section.state.editing = true">编辑</el-button>
+          <div v-else>
+            <el-button size="small" @click="load(section)">取消</el-button>
+            <el-button size="small" type="primary" @click="save(section)">保存</el-button>
+          </div>
+        </header>
+        <div v-for="group in groups(section)" :key="group.label" class="config-group">
+          <h5>{{ group.label }}</h5>
+          <dl>
+            <div v-for="field in group.fields" :key="field.key" class="config-row">
+              <dt>{{ field.label }} <span v-if="field.scope" class="role-scope">{{ field.scope }}</span></dt>
+              <dd>
+                <el-select
+                  v-if="section.state.editing"
+                  v-model="section.state.form[field.key]"
+                  :aria-label="field.label"
+                  :multiple="field.multiple"
+                  filterable
+                  placeholder="请选择人员"
+                >
+                  <el-option v-for="person in inspectorCandidates" :key="person.id" :label="personLabel(person)" :value="person.id" />
+                </el-select>
+                <ul v-else-if="peopleLabels(section.state.form[field.key]).length">
+                  <li v-for="label in peopleLabels(section.state.form[field.key])" :key="label">{{ label }}</li>
+                </ul>
+                <span v-else class="empty-value">未配置</span>
+              </dd>
+            </div>
+          </dl>
+        </div>
+      </section>
+    </div>
   </div>
 </template>
-<style scoped>.person-config-page { display:flex;flex-direction:column;gap:18px; }.page-head { display:flex;justify-content:space-between;align-items:center; }.page-head h3 { margin:0; }</style>
+
+<style scoped>
+.person-config-page { color: #252a34; }
+.page-heading h3 { margin: 0; font-size: 20px; }
+.page-heading p { margin: 7px 0 18px; color: #616975; }
+.config-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 16px; align-items: start; }
+.config-card { min-width: 0; background: #fff; border: 1px solid #e4e7ee; border-radius: 12px; }
+.card-heading { display: flex; align-items: center; justify-content: space-between; min-height: 56px; padding: 0 20px; border-bottom: 1px solid #e4e7ee; }
+.card-heading h4 { margin: 0; font-size: 17px; }
+.config-group { padding: 16px 20px 10px; }
+.config-group + .config-group { border-top: 1px solid #e4e7ee; background: #fafbfc; border-radius: 0 0 12px 12px; }
+.config-group h5 { margin: 0 0 8px; font-size: 13px; color: #505967; }
+.config-group dl { margin: 0; }
+.config-row { display: grid; grid-template-columns: minmax(125px, 42%) minmax(0, 1fr); align-items: start; gap: 12px; padding: 9px 0; line-height: 1.45; }
+.config-row + .config-row { border-top: 1px solid #f0f1f4; }
+.config-row dt { color: #505967; }
+.config-row dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.config-row ul { list-style: none; margin: 0; padding: 0; }
+.config-row li + li { margin-top: 4px; }
+.role-scope { display: block; font-size: 12px; color: #697484; }
+.empty-value { color: #697484; }
+</style>

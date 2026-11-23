@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getMobileRectification, submitInspectionWorkflowStep } from '../../composables/useMobileRectification'
 import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
+import MobileRectifyBasicInfo from '../../components/MobileRectifyBasicInfo.vue'
 
 import { workflowFlowRecords, currentWorkflowStep, workflowSteps, isAcceptanceStage } from '../../utils/inspectionRectificationWorkflow'
 
@@ -102,16 +103,7 @@ function goBack() {
 
     <template v-else>
       <div v-if="!canHandle" class="empty-tip">任务已指派给其他人员，你无法继续执行。</div>
-      <div class="ib">
-        <div class="ibn"><span class="ibn-label">整改单编号：</span>{{ record.rectifyNo }}</div>
-        <div class="ibm"><span class="ibm-label">巡检任务单编号：</span><span class="ibm-value">{{ record.taskNo || '--' }}</span></div>
-        <div class="ibm"><span class="ibm-label">巡检分类：</span><span class="ibm-value">{{ record.inspectionCategory || '--' }}</span></div>
-        <div class="ibm"><span class="ibm-label">截止日期：</span><span class="ibm-value">{{ record.deadline || '--' }}</span></div>
-        <div class="ibm"><span class="ibm-label">状态：</span><span class="ibm-value">{{ record.status || '--' }}</span></div>
-        <div class="ibm"><span class="ibm-label">项目名称：</span><span class="ibm-value">{{ record.project || '--' }}</span></div>
-        <div class="ibm"><span class="ibm-label">整改人：</span><span class="ibm-value">{{ record.rectifier || '--' }}</span></div>
-        <div class="ibm"><span class="ibm-label">复核人：</span><span class="ibm-value">{{ record.reviewer || '--' }}</span></div>
-      </div>
+      <MobileRectifyBasicInfo :record="record" />
 
       <div v-if="record.approvalRejected" class="approval-reject-tip">
         <strong>项目经理审批不通过</strong>
@@ -187,12 +179,6 @@ function goBack() {
 .mt { flex:1; font-size:18px; font-weight:600; margin:0; }
 .empty-tip { margin:40px 16px; padding:24px; text-align:center; color:#999; background:#fff; border-radius:10px; }
 
-.ib { background:#fff; padding:14px 16px; border-bottom:1px solid #eee; }
-.ibn { font-size:15px; font-weight:600; color:#1f2329; margin-bottom:6px; }
-.ibn-label { font-size:12px; font-weight:400; color:#999; }
-.ibm { display:flex; align-items:flex-start; gap:4px; font-size:12px; line-height:1.6; color:#999; }
-.ibm-label { flex:0 0 96px; text-align:right; white-space:nowrap; }
-.ibm-value { flex:1; min-width:0; color:#666; word-break:break-word; }
 .approval-reject-tip { margin:12px 16px 0; padding:12px 14px; border-radius:10px; background:#fff2f2; border:1px solid #ffc9c9; display:flex; flex-direction:column; gap:4px; color:#d93025; font-size:13px; }
 .approval-reject-tip small { color:#999; }
 
