@@ -15,11 +15,11 @@ const routes = [
     meta: { title: 'COC 调度中心' },
   },
   {
-    /** 「大屏样式」样板屏：顶栏「COC调度大屏」之后的新入口，新开页签查看 */
+    /** 指挥部安全态势展厅，沿用原大屏样式路由 */
     path: '/screen-style',
     name: 'ScreenStyle',
     component: () => import('../views/ScreenStyleView.vue'),
-    meta: { title: '大屏样式' },
+    meta: { title: '安全态势展厅' },
   },
   {
     path: '/safety-situation-screen-v1',

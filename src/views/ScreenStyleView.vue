@@ -1,6 +1,5 @@
 <script setup>
 import ScreenStyleApp from '../screenStyle/App.vue'
-import '../screenStyle/styles/screen-style.css'
 </script>
 
 <template>

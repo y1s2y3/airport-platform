@@ -284,7 +284,7 @@ function resolveScreenHref(routeName, fallbackPath, query = {}) {
 }
 
 const cocScreenHref = computed(() => resolveScreenHref('CocScreen', 'coc'))
-/** 「大屏样式」样板屏（COC 调度大屏之后的新入口，新开页签查看） */
+/** 指挥部安全态势展厅，沿用原大屏样式入口 */
 const screenStyleHref = computed(() => resolveScreenHref('ScreenStyle', 'screen-style'))
 const safetyScreenHref = computed(() => resolveScreenHref(
   'SafetySituationScreen',
@@ -448,10 +448,10 @@ function skipToMain(e) {
           :href="screenStyleHref"
           target="_blank"
           rel="noopener noreferrer"
-          title="打开大屏样式"
-          aria-label="打开大屏样式"
+          title="打开安全态势展厅"
+          aria-label="打开安全态势展厅"
         >
-          大屏样式
+          安全态势展厅
         </a>
         <button
           class="screen-btn safety-screen-btn"

@@ -239,7 +239,7 @@ export function getInspectionTaskForRectification(record) {
 }
 
 export function addMobileInspectionTask(task) {
-  const item = normalizeInspectionTask(task)
+  const item = normalizeInspectionTask({ ...task, createdAt: task.createdAt || new Date().toISOString() })
   mobileInspectionTasks.unshift(item)
   syncInspectionTaskToMajorHazard(item)
   notifyTask(item)

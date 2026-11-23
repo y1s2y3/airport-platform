@@ -17,7 +17,16 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
-    version: APP_VERSION,
+    version: 'v3.1.1.5',
+    date: '2026-11-23',
+    highlights: [
+      '原「大屏样式」入口升级为指挥部安全态势展厅，新增巡检执行、隐患闭环、抽检与复查、当日作业、危大工程和月度考核六块面板。',
+      '大屏支持按项目查看明细，巡检展示本月任务总数与逾期项目轮播，作业按日查看，考核展示专项平均分及前三、倒三。',
+      '底部页签点击后换到正中央，质量态势和项目要素可切换到各自的开发中页面。',
+    ],
+  },
+  {
+    version: 'v3.1.1.4',
     date: '2026-11-23',
     highlights: [
       '巡检整改单支持项目经理下发前确认；两端详情回显巡检照片和下发、完成抄送人。',
