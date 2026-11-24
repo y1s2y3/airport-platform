@@ -1,4 +1,5 @@
 <script setup>
+import { SHOW_HAZARD_SAMPLING } from '../../config/hazardSamplingVisibility.js'
 import HazardSamplingPanel from '../../components/HazardSamplingPanel.vue'
 import { samplingReturnLocation, restoreSupervisorTaskContext } from '../../utils/hazardSamplingTaskNavigation.js'
 import { computed } from 'vue'
@@ -30,7 +31,7 @@ function goBack() {
       <el-button type="primary" @click="goBack">{{ route.query.from === 'sampling-task' ? '返回任务' : '返回汇总' }}</el-button>
     </el-empty>
     <template v-else>
-      <HazardSamplingPanel v-if="!embedded" source="externalQuality" :record-id="String(props.recordId || route.params.id)" />
+      <HazardSamplingPanel v-if="SHOW_HAZARD_SAMPLING && !embedded" source="externalQuality" :record-id="String(props.recordId || route.params.id)" />
       <section class="detail-card">
         <div class="section-title">基础信息</div>
         <el-descriptions :column="2" border>

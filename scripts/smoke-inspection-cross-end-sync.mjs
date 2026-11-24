@@ -42,7 +42,7 @@ try {
   T.updateMobileInspectionTask(mobile.task.id, { status: '已完成', result: 'normal', normalPhotos: ['照片.jpg'], inspDate: '2026-11-17', submittedAt: '2026-11-17 08:12:34' })
   check(!PC.personalTodoStore.todos.some(x => x.inspectionTaskId === mobile.task.id), '移动完成未清理WEB待办')
   check(PC.personalTodoStore.done.some(x => x.inspectionTaskId === mobile.task.id && x.detail.inspectionDate === '2026-11-17'), '移动完成未同步已办资料')
-  const categories = [['安全','Ⅲ一般隐患'], ['其他','Ⅲ一般隐患'], ['质量','B'], ['质量','A']]
+  const categories = [['安全','Ⅲ一般隐患'], ['其他','Ⅲ一般隐患'], ['质量','B'], ['质量','C'], ['质量','A'], ['安全','Ⅱ重点关注的一般隐患'], ['其他','Ⅱ重点关注的一般隐患'], ['安全','Ⅰ重大隐患'], ['其他','Ⅰ重大隐患']]
   for (const [category, grade] of categories) {
    const {task,todo} = makeTask('核查隐患' + category + grade, category)
    const hazard = { hazardCategory: D.getHazardCategoryOptions(category)[0].value, hazardLevel: grade, rectifyRequirement: '按规范整改', desc: '核查隐患', photos: [{name:'隐患.jpg'}], rectifier: '整改甲、整改乙', reviewer: '复核甲、复核乙', rectifyDeadline: '2026-11-20' }
@@ -59,19 +59,22 @@ try {
    }
    parity()
    const step = (key, pass = true) => { check(S.submitInspectionWorkflowStep(row.id,key,pass,{date:'2026-11-17',comment:'核查意见',rectificationPhotos:['整改.jpg']}), '节点提交失败 '+key); parity() }
-   step('rectify')
-   if (grade === 'A') step('contractorAcceptance')
-   step('review', false)
-   check(PC.personalTodoStore.todos.find(x => x.rectifyId === row.id).approvalFlow.some(x => x.title.includes('不通过')), '个人待办丢失退回历史')
-   step('rectify')
-   if (grade === 'A') step('contractorAcceptance')
-   step('review')
-   if (grade === 'A') step('directorAcceptance')
-   step('approval',false)
-   step('review')
-   if (grade === 'A') step('directorAcceptance')
-   check(row.status !== '已关闭', '审批前错误关闭')
-   step('approval')
+   const major = grade === 'A' || grade === 'Ⅰ重大隐患'
+   const chain = major ? ['rectify', 'contractorAcceptance', 'review', 'directorAcceptance', 'approval', 'departmentConfirmation'] : ['rectify', 'review', 'approval']
+   check(JSON.stringify(W.workflowSteps(row).map(node => node.key)) === JSON.stringify(chain), '流程未按隐患等级分流')
+   for (const [index, key] of chain.entries()) {
+    if (!index) continue
+    chain.slice(0, index).forEach(previous => step(previous))
+    step(key, false)
+    check(row.status === '待整改' && W.currentWorkflowStep(row)?.key === 'rectify', '驳回未退到整改人 ' + key)
+    check(!row.rectificationPhotos.length && !row.submitDate, '旧整改材料仍留在当前轮')
+    check(PC.personalTodoStore.todos.find(x => x.rectifyId === row.id).approvalFlow.some(x => x.title.includes('不通过')), '个人待办丢失退回历史')
+   }
+   for (const [index, key] of chain.entries()) {
+    check(row.status !== '已关闭', '最终确认前流程提前关闭')
+    step(key)
+    if (index < chain.length - 1) check(row.status !== '已关闭', '最终确认前流程提前关闭')
+   }
    check(row.status === '已关闭', '最终未关闭')
   }
   const cfg = C.getInspectionPersonConfig('p-000')

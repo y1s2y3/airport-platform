@@ -2,19 +2,26 @@
 import { reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Plus } from '@element-plus/icons-vue'
+import { useCurrentProject } from '../../composables/useCurrentProject'
 import { planData, userOptions, getPlanExecutionStatus } from '../../composables/useInspectionPlan'
 import { listMobileInspectionTasks } from '../../mock/mobileInspectionTasks'
 import { getProjectInspectorLabel } from '../../composables/useInspectionPersonConfig'
 import { INSPECTION_CATEGORIES, getInspectionTypeFilterOptions, hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
 
 const router = useRouter()
+const { isHqSelected } = useCurrentProject()
 
-const filterForm = reactive({ category: '', inspectionType: '', keyword: '' })
+const createFilters = () => ({ category: '', inspectionType: '', keyword: '', project: '', executionStatus: '' })
+const filterForm = reactive(createFilters())
+
+const projectOptions = computed(() => [...new Set(planData.flatMap(p => p.projects || []).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-CN')))
 
 const filteredPlans = computed(() => {
   return planData.filter(p => {
     if (filterForm.category && !hasInspectionCategory(p.inspectionCategories || p.inspectionCategory, filterForm.category)) return false
     if (filterForm.inspectionType && p.inspectionType !== filterForm.inspectionType) return false
+    if (filterForm.project && !(p.projects || []).includes(filterForm.project)) return false
+    if (filterForm.executionStatus && getPlanExecutionStatus(p) !== filterForm.executionStatus) return false
     if (filterForm.keyword && !p.name.includes(filterForm.keyword)) return false
     return true
   })
@@ -55,16 +62,25 @@ function goTaskDetail(row) {
   <div class="plan-page">
     <div class="page-head">
       <h3 class="page-title">巡检任务下发</h3>
-      <el-button type="primary" size="default" @click="goCreate">
-        <el-icon><Plus /></el-icon>下发任务
-      </el-button>
+      <div class="plan-actions">
+        <el-button v-if="isHqSelected" @click="router.push({ name: 'InspectionCopyConfig' })">抄送人配置</el-button>
+        <el-button type="primary" size="default" @click="goCreate">
+          <el-icon><Plus /></el-icon>下发任务
+        </el-button>
+      </div>
     </div>
     <div class="filter-bar">
       <el-select v-model="filterForm.category" placeholder="巡检分类" clearable style="width: 110px">
         <el-option v-for="category in INSPECTION_CATEGORIES" :key="category" :label="category" :value="category" />
       </el-select>
       <el-select v-model="filterForm.inspectionType" placeholder="检查类型" clearable style="width: 130px">
-        <el-option v-for="type in getInspectionTypeFilterOptions()" :key="type" :label="type" :value="type" />
+        <el-option v-for="type in getInspectionTypeFilterOptions(planData)" :key="type" :label="type" :value="type" />
+      </el-select>
+      <el-select v-model="filterForm.project" placeholder="项目" clearable filterable style="width: 180px">
+        <el-option v-for="name in projectOptions" :key="name" :label="name" :value="name" />
+      </el-select>
+      <el-select v-model="filterForm.executionStatus" placeholder="任务执行状态" clearable style="width: 130px">
+        <el-option label="未完成" value="未完成" /><el-option label="已完成" value="已完成" /><el-option label="已作废" value="已作废" />
       </el-select>
       <el-input v-model="filterForm.keyword" placeholder="搜索任务名称..." clearable style="width: 240px" />
     </div>
@@ -112,7 +128,7 @@ function goTaskDetail(row) {
         <el-table-column label="操作" width="110" align="center" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="goDetail(row.id)">详情</el-button>
-            <el-button v-if="getExecutionStatus(row) !== '已完成'" link type="primary" size="small" @click="goEdit(row.id)">编辑</el-button>
+            <el-button v-if="getExecutionStatus(row) === '未完成'" link type="primary" size="small" @click="goEdit(row.id)">编辑</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -125,6 +141,7 @@ function goTaskDetail(row) {
 .plan-page { display: flex; flex-direction: column; gap: 16px; height: 100%; }
 .page-head { display: flex; align-items: center; justify-content: space-between; }
 .page-title { font-size: 18px; font-weight: 700; color: var(--ap-text); margin: 0; }
+.plan-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; }
 .filter-bar { display: flex; gap: 12px; flex-wrap: wrap; }
 .table-wrap { flex: 1; background: var(--ap-card); border: 1px solid var(--ap-border); border-radius: 8px; padding: 16px; overflow: hidden; }
 .empty-row { text-align: center; padding: 40px 0; color: var(--ap-text-muted); font-size: 14px; }

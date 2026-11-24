@@ -67,8 +67,3 @@ export function getMajorHazardSyncDetail(task) {
   return task.status === '已完成' ? '已自动同步至危大工程现场巡视台账' : '完成巡检后自动同步至危大工程现场巡视台账'
 }
 
-export function getManagerConfirmationDetail(task) {
-  if (task.result !== 'hazard') return ''
-  if (typeof task.requiresManagerConfirmation !== 'boolean') return '未记录'
-  return task.requiresManagerConfirmation ? '是' : '否'
-}

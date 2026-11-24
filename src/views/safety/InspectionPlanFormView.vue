@@ -20,6 +20,10 @@ import { useInspectionCategoryForm } from '../../composables/useInspectionCatego
 
 const router = useRouter()
 const isEdit = computed(() => !!route.params.id)
+const inspectionTypeOptions = computed(() => {
+  const existingType = isEdit.value ? getPlanById(route.params.id)?.inspectionType : ''
+  return existingType && !INSPECTION_TYPES.includes(existingType) ? [...INSPECTION_TYPES, existingType] : INSPECTION_TYPES
+})
 const pageTitle = computed(() => isEdit.value ? '编辑巡检任务' : '下发巡检任务')
 
 const form = reactive({
@@ -213,7 +217,7 @@ function handleSave() {
     ElMessage.warning('检查项与当前巡检分类不一致，请重新选择检查项')
     return
   }
-  if (!INSPECTION_TYPES.includes(form.inspectionType)) { ElMessage.warning('请选择检查类型'); return }
+  if (!inspectionTypeOptions.value.includes(form.inspectionType)) { ElMessage.warning('请选择检查类型'); return }
   if (form.projectIds.length === 0) { ElMessage.warning('请选择所属项目'); return }
   const incompleteProject = projectOptions.find(project =>
     form.projectIds.includes(project.id) && !hasCompleteInspectionPersonConfig(project.id, selectedCategory.value),
@@ -271,7 +275,7 @@ function handleCancel() { router.push('/safety-inspection/plan') }
       </el-form-item>
       <el-form-item label="检查类型" required>
         <el-select v-model="form.inspectionType" placeholder="请选择检查类型" style="width: 100%">
-          <el-option v-for="type in INSPECTION_TYPES" :key="type" :label="type" :value="type" />
+          <el-option v-for="type in inspectionTypeOptions" :key="type" :label="type" :value="type" />
         </el-select>
       </el-form-item>
       <el-form-item label="所属项目" required>

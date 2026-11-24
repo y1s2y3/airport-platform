@@ -20,13 +20,9 @@ const { rectifyBase } = useMobileRouteBase()
 const rid = computed(() => route.params.id)
 
 const record = computed(() => getMobileRectification(rid.value))
-const missing = computed(() => !record.value)
-const assignmentRevision = ref(record.value?.workflowAssignmentRevision || 0)
-const canHandle = computed(() => canExecuteInspectionStep(record.value, expectedStage.value))
+const missing = computed(() => !record.value)const canHandle = computed(() => canExecuteInspectionStep(record.value, expectedStage.value))
 const expectedStage = ref('')
-watch(rid, () => {
-  assignmentRevision.value = record.value?.workflowAssignmentRevision || 0
-  const stage = currentWorkflowStep(record.value)?.key
+watch(rid, () => {  const stage = currentWorkflowStep(record.value)?.key
   expectedStage.value = ['contractorAcceptance', 'review', 'directorAcceptance'].includes(stage) ? stage : ''
 }, { immediate: true })
 const actionStep = computed(() => workflowSteps(record.value).find(step => step.key === expectedStage.value))
@@ -72,9 +68,7 @@ function handleReview(pass) {
     ElMessage.warning(`请选择${actionLabel.value}日期`)
     return
   }
-  const ok = submitInspectionWorkflowStep(rid.value, expectedStage.value, pass, {
-    assignmentRevision: assignmentRevision.value,
-    date: reviewDate.value,
+  const ok = submitInspectionWorkflowStep(rid.value, expectedStage.value, pass, {    date: reviewDate.value,
     comment: reviewComment.value.trim(),
   })
   if (!ok) {
@@ -102,7 +96,6 @@ function goBack() {
     <div v-if="missing" class="empty-tip">未找到该整改单，请返回列表重试。</div>
 
     <template v-else>
-      <div v-if="!canHandle" class="empty-tip">任务已指派给其他人员，你无法继续执行。</div>
       <MobileRectifyBasicInfo :record="record" />
 
       <div v-if="record.approvalRejected" class="approval-reject-tip">

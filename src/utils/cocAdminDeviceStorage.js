@@ -305,6 +305,14 @@ function appendStatusLog(logs, entry) {
   return [entry, ...(Array.isArray(logs) ? logs : [])]
 }
 
+/** 演示用登记人（历史数据无该字段时按 id 稳定分配，保证详情与筛选有值）。 */
+const SUPERVISION_REGISTRANTS = ['陈工（监理工程师）', '黄工（专业监理工程师）', '周工（监理员）', '吴工（监理员）']
+function pickSupervisionRegistrant(key = '') {
+  let hash = 0
+  for (const ch of String(key)) hash = (hash * 31 + ch.charCodeAt(0)) % 997
+  return SUPERVISION_REGISTRANTS[hash % SUPERVISION_REGISTRANTS.length]
+}
+
 export function emptySupervisionHazard(row = {}) {
   const rectifyStatus = normalizeRectifyStatus(row.rectifyStatus)
   const uploadTime = row.uploadTime || ''
@@ -332,7 +340,14 @@ export function emptySupervisionHazard(row = {}) {
     hazardPhotos: Array.isArray(row.hazardPhotos) ? row.hazardPhotos : [],
     statusLogs,
     uploadTime,
+    registrant: row.registrant || pickSupervisionRegistrant(row.id),
   }
+}
+
+/** 历史图片同时兼容 URL 字符串和带 url 的附件对象。 */
+export function getSupervisionHazardPhotoUrls(photos) {
+  if (!Array.isArray(photos)) return []
+  return photos.map(photo => typeof photo === 'string' ? photo : photo?.url || '').filter(Boolean)
 }
 
 export function getSupervisionHazards() {

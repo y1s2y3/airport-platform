@@ -1,4 +1,5 @@
 <script setup>
+import { isHazardSamplingIndicatorVisible } from '../../config/hazardSamplingVisibility.js'
 /**
  * 考核配置。等级配置、考核项目仅指挥部可用（指标配置已并入「指标配置」页）。
  */
@@ -52,10 +53,11 @@ function formatUnitText(value) {
 }
 
 /** 指标按分类分组（顺序与指标配置页一致），用于考核项目矩阵的两行表头：分类 + 具体指标 */
+const visibleIndicators = computed(() => indicators.value.filter((item) => isHazardSamplingIndicatorVisible(item.id)))
 const indicatorGroups = computed(() =>
   INDICATOR_CATEGORIES.map((category) => ({
     ...category,
-    indicators: indicators.value.filter((item) => item.category === category.id),
+    indicators: visibleIndicators.value.filter((item) => item.category === category.id),
   })).filter((group) => group.indicators.length),
 )
 
@@ -137,11 +139,11 @@ const filteredProjects = computed(() => {
 })
 
 function rowAllOn(row) {
-  return indicators.value.length > 0 && indicators.value.every((item) => !!row.switches?.[item.id])
+  return visibleIndicators.value.length > 0 && visibleIndicators.value.every((item) => !!row.switches?.[item.id])
 }
 
 function setRowIndicators(row, value) {
-  indicators.value.forEach((item) => {
+  visibleIndicators.value.forEach((item) => {
     row.switches[item.id] = value
   })
 }

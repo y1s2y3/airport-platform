@@ -1,8 +1,13 @@
 <script setup>
+import { SHOW_HAZARD_SAMPLING } from '../../config/hazardSamplingVisibility.js'
 import { computed, nextTick, onActivated, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { hqSamplingStatus, SAMPLING_STATUS, ensureSamplingExamples } from '../../mock/hazardSampling.js'
-import { Search } from '@element-plus/icons-vue'
+import { Search, Download, Setting } from '@element-plus/icons-vue'
+import { useFilterVisibility } from '../../composables/useFilterVisibility'
+import { ElMessage } from 'element-plus'
+import DispatchHazardDetailDialog from '../../components/hazard/DispatchHazardDetailDialog.vue'
+import SupervisionHazardDetailDialog from '../../components/hazard/SupervisionHazardDetailDialog.vue'
 import { useCurrentProject } from '../../composables/useCurrentProject.js'
 import {
   getHazardIssueRows,
@@ -11,6 +16,8 @@ import {
   HAZARD_ISSUE_SOURCES,
   isHazardIssueOverdue,
 } from '../../utils/hazardIssueSummary.js'
+import { buildHazardSummaryExportFile } from '../../utils/hazardSummaryExport.js'
+import { isWithinInspectionDateRange } from '../../utils/inspectionLedgerDates.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -19,10 +26,16 @@ const rows = ref([])
 const projectTreeRef = ref(null)
 const projectSearch = ref('')
 const selectedTreeProjectId = ref('all')
-const filters = reactive({ keyword: '', source: '', category: '', status: '', samplingStatus: '' })
+const filters = reactive({ keyword: '', source: '', category: '', status: '', samplingStatus: '', registrant: '', hazardLevel: '', hazardCategory: '' })
 const dateRange = ref([])
 const currentPage = ref(1)
 const pageSize = ref(10)
+const meetingHazardDialogs = {
+  dispatch: DispatchHazardDetailDialog,
+  supervision: SupervisionHazardDetailDialog,
+}
+const selectedMeetingHazard = ref(null)
+const meetingHazardVisible = ref(false)
 
 const projectOptions = computed(() => getHazardIssueProjectOptions())
 /** 汇总始终展示全部原业务状态。 */
@@ -40,7 +53,7 @@ const projectTreeData = computed(() => [{
 
 function loadRows() {
   rows.value = getHazardIssueRows()
-  ensureSamplingExamples(rows.value)
+  if (SHOW_HAZARD_SAMPLING) ensureSamplingExamples(rows.value)
 }
 
 function selectProject(node) {
@@ -54,6 +67,7 @@ function filterProjectNode(value, node) {
 
 watch(projectSearch, (value) => projectTreeRef.value?.filter(value))
 watch([selectedProjectId, isHqSelected], async () => {
+  meetingHazardVisible.value = false
   filters.samplingStatus = ''
   selectedTreeProjectId.value = 'all'
   currentPage.value = 1
@@ -61,7 +75,7 @@ watch([selectedProjectId, isHqSelected], async () => {
   await nextTick()
   projectTreeRef.value?.setCurrentKey('all')
 })
-watch([() => filters.keyword, () => filters.source, () => filters.category, () => filters.status, () => filters.samplingStatus, dateRange], () => {
+watch([() => filters.keyword, () => filters.source, () => filters.category, () => filters.status, () => filters.samplingStatus, () => filters.registrant, () => filters.hazardLevel, () => filters.hazardCategory, dateRange], () => {
   currentPage.value = 1
 })
 watch(selectedTreeProjectId, () => { currentPage.value = 1 })
@@ -85,6 +99,22 @@ onMounted(async () => {
 })
 onActivated(loadRows)
 
+const optionPool = (field) => [...new Set(rows.value.map((row) => row[field]).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-CN'))
+const registrantOptions = computed(() => optionPool('registrant'))
+const hazardLevelOptions = computed(() => optionPool('hazardLevel'))
+/** 隐患类别选项：与巡检隐患清单一致，展示为「分类 / 类别」。 */
+const hazardCategoryOptions = computed(() => {
+  const map = new Map()
+  for (const row of rows.value) {
+    const name = row.hazardCategory
+    if (!name) continue
+    const category = (row.categories || [])[0] || ''
+    if (!category) continue
+    map.set(`${category}::${name}`, `${category} / ${name}`)
+  }
+  return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1], 'zh-CN')).map(([value, label]) => ({ value, label }))
+})
+
 const scopedRows = computed(() => {
   if (isHqSelected.value) {
     return selectedTreeProjectId.value === 'all'
@@ -98,6 +128,12 @@ const scopedRows = computed(() => {
 const baseRows = computed(() => scopedRows.value.filter((row) => {
   if (filters.source && row.source !== filters.source) return false
   if (filters.category && !row.categories.includes(filters.category)) return false
+  if (filters.registrant && row.registrant !== filters.registrant) return false
+  if (filters.hazardLevel && row.hazardLevel !== filters.hazardLevel) return false
+  if (filters.hazardCategory) {
+    const [category, name] = String(filters.hazardCategory).split('::')
+    if (!(row.hazardCategory === name && (row.categories || []).includes(category))) return false
+  }
   if (dateRange.value?.length === 2) {
     const date = String(row.registeredAt).slice(0, 10)
     if (!date || date < dateRange.value[0] || date > dateRange.value[1]) return false
@@ -105,7 +141,7 @@ const baseRows = computed(() => scopedRows.value.filter((row) => {
   const keyword = filters.keyword.trim().toLowerCase()
   if (keyword) {
     const text = [row.title, row.originalNo, row.projectName, row.originalProjectName,
-      row.raw.sectionName, row.rectifier, row.status].join(' ').toLowerCase()
+      row.raw.sectionName, row.rectifier, row.status, row.registrant, row.inspector, row.hazardLevel, row.hazardCategory].join(' ').toLowerCase()
     if (!text.includes(keyword)) return false
   }
   return true
@@ -122,7 +158,7 @@ const rawStatuses = computed(() => [...new Set(rows.value.map((row) => row.statu
 const statusOptions = rawStatuses
 const filteredRows = computed(() => baseRows.value.filter((row) => {
   if (filters.status && row.status !== filters.status) return false
-  if (isHqSelected.value && filters.samplingStatus && hqSamplingStatus(row) !== filters.samplingStatus) return false
+  if (SHOW_HAZARD_SAMPLING && isHqSelected.value && filters.samplingStatus && hqSamplingStatus(row) !== filters.samplingStatus) return false
   return true
 }))
 const pagedRows = computed(() => filteredRows.value.slice(
@@ -130,21 +166,89 @@ const pagedRows = computed(() => filteredRows.value.slice(
   currentPage.value * pageSize.value,
 ))
 
+const exportVisible = ref(false)
+const exportRange = ref([])
+const exportSources = ref(['inspection', 'supervision', 'dispatch', 'externalQuality'])
+const exporting = ref(false)
+
+/** 本次将导出的单据数量（随日期区间与来源勾选实时变化）。 */
+const exportCount = computed(() => {
+  let list = filteredRows.value.filter((row) => exportSources.value.includes(row.source))
+  if (exportRange.value?.length === 2) {
+    list = list.filter((row) => isWithinInspectionDateRange(row.registeredAt, exportRange.value))
+  }
+  return list.length
+})
+
+function openExport() {
+  exportRange.value = []
+  exportSources.value = ['inspection', 'supervision', 'dispatch', 'externalQuality']
+  exportVisible.value = true
+}
+
+/** 日期非必填：不填导出当前筛选下的全部记录；填了按「登记日期」过滤。 */
+async function doExport() {
+  if (!exportSources.value.length) return ElMessage.warning('请至少选择一个来源')
+  let list = filteredRows.value.filter((row) => exportSources.value.includes(row.source))
+  if (exportRange.value?.length === 2) {
+    list = list.filter((row) => isWithinInspectionDateRange(row.registeredAt, exportRange.value))
+  }
+  if (!list.length) return ElMessage.warning('所选范围内没有可导出的记录')
+  exporting.value = true
+  try {
+    const { filename, blob } = await buildHazardSummaryExportFile({
+      rows: list,
+      range: exportRange.value,
+      sources: exportSources.value,
+      name: '隐患问题清单汇总',
+    })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    link.click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+    exportVisible.value = false
+    ElMessage.success('导出成功')
+  } catch {
+    ElMessage.error('导出失败，请重试')
+  } finally {
+    exporting.value = false
+  }
+}
+
+const SUMMARY_FILTER_FIELDS = [
+  { key: 'keyword', label: '搜索框' },
+  { key: 'source', label: '全部来源' },
+  { key: 'category', label: '问题类别' },
+  { key: 'registrant', label: '登记人' },
+  { key: 'hazardLevel', label: '隐患等级' },
+  { key: 'hazardCategory', label: '隐患类别' },
+  { key: 'status', label: '整改状态' },
+  { key: 'dateRange', label: '登记日期' },
+]
+const { visible: summaryFilterVisible, isVisible: isSummaryFilterVisible, clearHidden: clearHiddenSummaryFilters } = useFilterVisibility('hazard-summary-filters', SUMMARY_FILTER_FIELDS)
+function applySummaryFilterVisibility() {
+  clearHiddenSummaryFilters(filters, {})
+  if (!isSummaryFilterVisible('dateRange')) dateRange.value = []
+}
+
 function resetFilters() {
-  Object.assign(filters, { keyword: '', source: '', category: '', status: '', samplingStatus: '' })
+  Object.assign(filters, { keyword: '', source: '', category: '', status: '', samplingStatus: '', registrant: '', inspector: '', hazardLevel: '', hazardCategory: '' })
   dateRange.value = []
   currentPage.value = 1
 }
 
 function openOriginal(row) {
+  if (row.source === 'supervision' || row.source === 'dispatch') {
+    selectedMeetingHazard.value = row
+    meetingHazardVisible.value = true
+    return
+  }
   try { sessionStorage.setItem('airport-hazard-summary-view', JSON.stringify({projectId:selectedProjectId.value,filters:{...filters},dateRange:dateRange.value,currentPage:currentPage.value,pageSize:pageSize.value,tree:selectedTreeProjectId.value,search:projectSearch.value})) } catch { /* 不影响跳转 */ }
   const target = row.source === 'inspection'
     ? { path: `/safety-inspection/hazard/${encodeURIComponent(row.sourceId)}`, query: { from: 'summary' } }
-    : row.source === 'supervision'
-      ? { path: '/hazard-issues/supervision/'+encodeURIComponent(row.sourceId), query: { from: 'summary' } }
-      : row.source === 'dispatch'
-        ? { path: '/hazard-issues/dispatch/'+encodeURIComponent(row.sourceId), query: { from: 'summary' } }
-        : { path: `/hazard-issues/quality/${encodeURIComponent(row.sourceId)}`, query: { from: 'summary' } }
+    : { path: `/hazard-issues/quality/${encodeURIComponent(row.sourceId)}`, query: { from: 'summary' } }
   router.push(target)
 }
 
@@ -193,24 +297,42 @@ function statusTagType(row) {
         <div class="list-panel">
           <div class="list-heading">
             <div><h3>问题清单</h3><span>共 {{ filteredRows.length }} 条</span></div>
-            
+            <el-button type="primary" :icon="Download" @click="openExport">导出</el-button>
           </div>
           <div class="filter-bar">
-            <el-input v-model="filters.keyword" clearable :prefix-icon="Search" placeholder="搜索问题、编号、项目或整改人" class="keyword-input" />
-            <el-select v-model="filters.source" clearable placeholder="全部来源" class="filter-select">
+            <el-input v-if="isSummaryFilterVisible('keyword')" v-model="filters.keyword" clearable :prefix-icon="Search" placeholder="搜索问题、编号、项目或整改人" class="keyword-input" />
+            <el-select v-if="isSummaryFilterVisible('source')" v-model="filters.source" clearable placeholder="全部来源" class="filter-select">
               <el-option v-for="source in HAZARD_ISSUE_SOURCES" :key="source.value" :label="source.label" :value="source.value" />
             </el-select>
-            <el-select v-model="filters.category" clearable placeholder="问题类别" class="filter-select">
+            <el-select v-if="isSummaryFilterVisible('category')" v-model="filters.category" clearable placeholder="问题类别" class="filter-select">
               <el-option label="安全" value="安全" /><el-option label="质量" value="质量" />
             </el-select>
-            <el-select v-model="filters.status" clearable placeholder="整改状态" class="filter-select">
+            <el-select v-if="isSummaryFilterVisible('registrant')" v-model="filters.registrant" clearable filterable placeholder="登记人" class="filter-select">
+            <el-option v-for="name in registrantOptions" :key="name" :label="name" :value="name" />
+          </el-select>
+          <el-select v-if="isSummaryFilterVisible('hazardLevel')" v-model="filters.hazardLevel" clearable placeholder="隐患等级" class="filter-select">
+            <el-option v-for="level in hazardLevelOptions" :key="level" :label="level" :value="level" />
+          </el-select>
+          <el-select v-if="isSummaryFilterVisible('hazardCategory')" v-model="filters.hazardCategory" clearable filterable placeholder="隐患类别" class="filter-select">
+            <el-option v-for="cat in hazardCategoryOptions" :key="cat.value" :label="cat.label" :value="cat.value" />
+          </el-select>
+          <el-select v-if="isSummaryFilterVisible('status')" v-model="filters.status" clearable placeholder="整改状态" class="filter-select">
               <el-option v-for="status in statusOptions" :key="status" :label="status" :value="status" />
             </el-select>
-            <el-select v-if="isHqSelected" v-model="filters.samplingStatus" clearable placeholder="抽查结果" aria-label="抽查结果" class="filter-select sampling-status-filter">
+            <el-select v-if="SHOW_HAZARD_SAMPLING && isHqSelected" v-model="filters.samplingStatus" clearable placeholder="抽查结果" aria-label="抽查结果" class="filter-select sampling-status-filter">
               <el-option v-for="status in SAMPLING_STATUS" :key="status" :label="status" :value="status" />
             </el-select>
-            <el-date-picker v-model="dateRange" type="daterange" value-format="YYYY-MM-DD" start-placeholder="开始日期" end-placeholder="结束日期" style="width: 230px" />
+            <el-date-picker v-if="isSummaryFilterVisible('dateRange')" v-model="dateRange" type="daterange" value-format="YYYY-MM-DD" start-placeholder="开始日期" end-placeholder="结束日期" style="width: 230px" />
             <el-button @click="resetFilters">重置</el-button>
+          <el-popover placement="bottom-end" :width="230" trigger="click">
+            <template #reference>
+              <el-button :icon="Setting" circle title="设置筛选条件" aria-label="设置筛选条件" />
+            </template>
+            <div class="filter-setting">
+              <div class="filter-setting-title">汇总筛选设置</div>
+              <el-checkbox v-for="field in SUMMARY_FILTER_FIELDS" :key="field.key" v-model="summaryFilterVisible[field.key]" @change="applySummaryFilterVisibility">{{ field.label }}</el-checkbox>
+            </div>
+          </el-popover>
           </div>
 
           <el-table :data="pagedRows" stripe border class="issue-table" empty-text="当前范围暂无问题记录">
@@ -220,13 +342,22 @@ function statusTagType(row) {
             </el-table-column>
             <el-table-column v-if="isHqSelected" prop="projectName" label="项目" min-width="90" show-overflow-tooltip />
             <el-table-column prop="categoryLabel" label="类别" width="66" align="center" />
+            <el-table-column prop="hazardCategory" label="隐患类别" min-width="110" show-overflow-tooltip>
+              <template #default="{ row }">{{ row.hazardCategory || '--' }}</template>
+            </el-table-column>
+            <el-table-column prop="hazardLevel" label="隐患等级" width="96" align="center">
+              <template #default="{ row }">{{ row.hazardLevel || '--' }}</template>
+            </el-table-column>
             <el-table-column label="隐患／问题内容" min-width="220">
               <template #default="{ row }"><div class="issue-title" :title="row.title">{{ row.title || '--' }}</div><div class="issue-number" :title="row.originalNo">{{ row.originalNo }}</div></template>
             </el-table-column>
             <el-table-column label="整改状态" width="96" align="center">
               <template #default="{ row }"><el-tag :type="statusTagType(row)" size="small">{{ row.status || '--' }}</el-tag></template>
             </el-table-column>
-            <el-table-column v-if="isHqSelected" label="抽查结果" width="96" align="center">
+            <el-table-column label="登记人" min-width="120" show-overflow-tooltip>
+              <template #default="{ row }">{{ row.registrant || '--' }}</template>
+            </el-table-column>
+            <el-table-column v-if="SHOW_HAZARD_SAMPLING && isHqSelected" label="抽查结果" width="96" align="center">
               <template #default="{ row }"><el-tag :type="samplingStatusType(row)" size="small" effect="plain">{{ samplingStatusTag(row) }}</el-tag></template>
             </el-table-column>
             <el-table-column label="整改人" min-width="88" show-overflow-tooltip>
@@ -252,11 +383,40 @@ function statusTagType(row) {
       </section>
     </div>
 
+    <el-dialog v-model="exportVisible" title="导出隐患问题清单" width="520px">
+      <el-form label-width="90px">
+        <el-form-item label="登记日期">
+          <el-date-picker v-model="exportRange" type="daterange" unlink-panels value-format="YYYY-MM-DD" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" style="width: 100%" clearable />
+        </el-form-item>
+        <el-form-item label="导出来源">
+          <el-checkbox-group v-model="exportSources">
+            <el-checkbox v-for="item in HAZARD_ISSUE_SOURCES" :key="item.value" :value="item.value">{{ item.label }}</el-checkbox>
+          </el-checkbox-group>
+        </el-form-item>
+      </el-form>
+      <div class="export-count">本次导出：<strong>{{ exportCount }}</strong> 条</div>
+      <el-alert type="info" :closable="false" show-icon title="日期可不填：留空时导出全部记录；每个来源导出为一个独立 Sheet。" />
+      <template #footer>
+        <el-button @click="exportVisible = false">取消</el-button>
+        <el-button type="primary" :loading="exporting" @click="doExport">开始导出</el-button>
+      </template>
+    </el-dialog>
 
+    <component
+      :is="meetingHazardDialogs[selectedMeetingHazard.source]"
+      v-if="selectedMeetingHazard"
+      v-model="meetingHazardVisible"
+      :record="selectedMeetingHazard.raw"
+    />
   </div>
 </template>
 
 <style scoped>
+.filter-setting { display: flex; flex-direction: column; gap: 6px; }
+.filter-setting-title { margin-bottom: 4px; font-size: 13px; font-weight: 600; color: #1f2329; }
+.filter-setting :deep(.el-checkbox) { margin-right: 0; }
+.export-count { margin: 4px 0 12px; padding-left: 90px; color: #606266; font-size: 13px; }
+.export-count strong { color: #8f0045; font-size: 16px; }
 .hazard-summary-page { padding: 4px 0 24px; color: #303133; }
 .summary-layout { display:grid; grid-template-columns:220px minmax(0, 1fr); align-items:start; gap:16px; }
 .summary-layout.project-only { grid-template-columns:minmax(0, 1fr); }

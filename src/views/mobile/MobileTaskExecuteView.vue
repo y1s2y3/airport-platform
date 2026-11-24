@@ -86,10 +86,6 @@ watch(() => patrolLink.value.isMajorHazardPatrol, (value) => {
   patrolLink.value.ledgerId = ''
 })
 
-function chooseMajorHazard(ledgerId) {
-  patrolLink.value.ledgerId = ledgerId || ''
-}
-
 function setMajorHazardPatrol(value) {
   patrolLink.value.isMajorHazardPatrol = value
   if (value === '是' && !patrolLink.value.projectId && taskProjectOptions.value.length === 1) {
@@ -139,7 +135,6 @@ const currentCatItems = computed(() => {
 
 // 隐患列表（类似系统自建）
 const hazardItems = ref([])
-const requiresManagerConfirmation = ref('是')
 const taskCategory = computed(() => normalizeInspectionCategories(taskInfo.inspectionCategories || taskInfo.inspectionCategory).join('、'))
 const { hazardCategoryOptions, hazardLevelOptions } = useInspectionHazardOptions(taskCategory, hazardItems)
 
@@ -211,9 +206,7 @@ function submitCheck() {
     ElMessage.warning('全部正常时请至少上传一张巡检照片')
     return
   }
-  if (inspectResult.value === 'hazard') {
-    if (!['是', '否'].includes(requiresManagerConfirmation.value)) return ElMessage.warning('请选择是否需项目经理确认')
-    if (hazardItems.value.length === 0) { ElMessage.warning('请至少新增一条隐患'); return }
+  if (inspectResult.value === 'hazard') {    if (hazardItems.value.length === 0) { ElMessage.warning('请至少新增一条隐患'); return }
     for (const [i, item] of hazardItems.value.entries()) {
       const dictionaryError = validateInspectionHazard(item, taskCategory.value)
       if (dictionaryError) { ElMessage.warning(`第 ${i + 1} 条隐患：${dictionaryError}`); return }
@@ -278,7 +271,6 @@ function submitCheck() {
     inspDate: new Date().toISOString().slice(0, 10),
     submittedAt: new Date().toLocaleString('sv-SE', { hour12: false }),
     result: inspectResult.value,
-    requiresManagerConfirmation: inspectResult.value === 'hazard' && requiresManagerConfirmation.value === '是',
     normalPhotos: [...normalPhotos.value],
     hazardItems: savedHazards,
     hazardCount: savedHazards.length,
@@ -290,7 +282,7 @@ function submitCheck() {
 
   ElMessage.success(
     inspectResult.value === 'hazard'
-      ? `检查结果已提交${rectifyCount ? `，${requiresManagerConfirmation.value === '是' ? '待项目经理确认' : '已下发'} ${rectifyCount} 份整改单` : ''}`
+      ? `检查结果已提交${rectifyCount ? `，已下发 ${rectifyCount} 份整改单` : ''}`
       : '检查结果已提交',
   )
   router.push(`${tasksBase.value}/${taskId}`)
@@ -349,8 +341,8 @@ function goBack() { router.push(tasksBase.value) }
             <span v-else class="tbf-static-value">{{ selectedPatrolProject?.label || taskInfo.project || '—' }}</span>
           </div>
           <div class="tbf-row">
-            <span class="tbf-label">危大工程名称 <i class="req">*</i></span>
-            <select :value="patrolLink.ledgerId" class="tbf-select" :disabled="!patrolLink.projectId" @change="chooseMajorHazard($event.target.value)">
+            <label for="patrol-major-hazard" class="tbf-label">危大工程名称 <i class="req">*</i></label>
+            <select id="patrol-major-hazard" v-model="patrolLink.ledgerId" class="tbf-select" :disabled="!patrolLink.projectId" required>
               <option value="" disabled>{{ patrolLink.projectId ? '请选择危大工程' : '请先选择本次实际巡视项目' }}</option>
               <option v-for="item in majorHazardOptions" :key="item.id" :value="item.id">{{ item.label }}</option>
             </select>
@@ -401,13 +393,6 @@ function goBack() { router.push(tasksBase.value) }
       <div class="result-detail" :class="{ idle: !inspectResult }">
         <div v-show="!inspectResult" class="result-placeholder">请选择巡检结果后填写明细</div>
 
-        <div v-if="inspectResult === 'hazard'" class="form-row">
-          <span class="form-label">是否需项目经理确认 <i class="req">*</i></span>
-          <el-radio-group v-model="requiresManagerConfirmation" aria-label="是否需项目经理确认">
-            <el-radio value="是">是</el-radio>
-            <el-radio value="否">否</el-radio>
-          </el-radio-group>
-        </div>
 
         <div v-show="inspectResult" class="normal-photo">
           <div class="form-row">
@@ -494,7 +479,7 @@ function goBack() { router.push(tasksBase.value) }
 .task-bar-form { margin-top:10px; padding-top:10px; border-top:1px solid #f0f0f0; }
 .tbf-row { display:flex; align-items:flex-start; gap:8px; margin-bottom:8px; }
 .tbf-label { font-size:13px; color:#666; width:56px; flex-shrink:0; padding-top:6px; }
-.tbf-select { flex:1; padding:6px 8px; border:1px solid #ddd; border-radius:6px; font-size:13px; background:#fff; }
+.tbf-select { flex:1; min-width:0; padding:6px 8px; border:1px solid #ddd; border-radius:6px; font-family:inherit; font-size:13px; background:#fff; text-overflow:ellipsis; }
 .tbf-select-sm { padding:4px 6px; font-size:12px; min-width:110px; }
 .tbf-tags { flex:1; display:flex; gap:4px; flex-wrap:wrap; align-items:center; }
 .tbf-tag { display:inline-flex; align-items:center; gap:2px; padding:2px 8px; background:#f0f0f0; border-radius:4px; font-size:12px; color:#333; }

@@ -1,3 +1,4 @@
+import { SHOW_HAZARD_SAMPLING } from '../config/hazardSamplingVisibility.js'
 /**
  * 数字周报 · 指标定义与演示数据
  *
@@ -1701,7 +1702,7 @@ export const WEEKLY_SECTION_ORDER = [
   'cocSupervisionMeeting',
   'cocMeeting',
   'cocHazard',
-  'cocSampling',
+  ...(SHOW_HAZARD_SAMPLING ? ['cocSampling'] : []),
   'anziTask',
   'anziHazard',
   'qmInspect',

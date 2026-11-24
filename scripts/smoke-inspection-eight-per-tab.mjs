@@ -32,5 +32,5 @@ try{
  assert.equal(await p.locator('.block--action').count(),row.from==='todo'?1:0)
  }
  assert.deepEqual(errors,[])
- console.log('PASS 图中8种任务在待办/已办/发起各1条，共24条；已办本节点已完成且资料齐全；24个详情可打开、只读状态正确；巡检执行仍为3条')
+ console.log('PASS 待办、已办和发起示例各节点完整，详情可打开，巡检执行仍为3条')
 }finally{await browser.close();await server.close()}

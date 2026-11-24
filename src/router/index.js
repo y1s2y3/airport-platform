@@ -1,3 +1,4 @@
+import { SHOW_HAZARD_SAMPLING } from '../config/hazardSamplingVisibility.js'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import AdminLayout from '../layout/AdminLayout.vue'
 import { buildRoutes, redirects } from '../config/menu'
@@ -139,7 +140,7 @@ const routes = [
         path: 'rectify/:id/approval',
         name: 'AppRectifyApproval',
         component: () => import('../views/app/AppBizRectifyApprovalView.vue'),
-        meta: { title: '项目经理审批', hideTabBar: true, appBiz: true },
+        meta: { title: '整改单审批', hideTabBar: true, appBiz: true },
       },
       {
         path: 'rectify/:id',
@@ -189,12 +190,15 @@ const routes = [
     },
     children: [
       ...buildRoutes(),
-      {
+      ...(SHOW_HAZARD_SAMPLING ? [{
         path: 'hazard-issues/sampling-task/:id',
         name: 'SupervisorSamplingTaskDetail',
         component: () => import('../views/hazard/SupervisorSamplingTaskDetailView.vue'),
         meta: { title: '抽查复查任务详情', sidebarKey: 'hazard-sampling-tasks' },
-      },
+      }] : ['tasks', 'sampling', 'review', 'sampling-task'].map(entry => ({
+        path: 'hazard-issues/' + entry + '/:rest(.*)*',
+        redirect: () => ({ name: 'HazardIssueSummary' }),
+      }))),
       {
         path: 'hazard-issues/:source(dispatch|supervision)/:id',
         name: 'HazardIssueRecordDetail',
@@ -234,6 +238,9 @@ const router = createRouter({
 })
 
 router.beforeEach((to) => {
+  if (!SHOW_HAZARD_SAMPLING && to.query.from === 'sampling-task') {
+    return { name: 'HazardIssueSummary', replace: true }
+  }
   const isHqSelected = selectedProjectId.value === HQ_PROJECT_OPTION.id
   const redirectTarget = resolveHqLevelPathRedirect(to, isHqSelected)
   if (redirectTarget) return redirectTarget

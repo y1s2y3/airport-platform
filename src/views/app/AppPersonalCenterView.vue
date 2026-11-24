@@ -1,4 +1,7 @@
 <script setup>
+import InspectionVoidButton from '../../components/InspectionVoidButton.vue'
+import { ensureInspectionVoidDemo } from '../../composables/useMobileRectification'
+import { canExecuteInspectionStep } from '../../utils/inspectionWorkflowIdentity'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -34,6 +37,10 @@ const selectedNoticeIds = ref([])
 const noticeTick = ref(0)
 const warningTick = ref(0)
 
+watch([activeTab, selectedProjectId], ([tab, scope]) => {
+  if (tab === 'initiated') ensureInspectionVoidDemo('hq')
+})
+
 const pageTitle = computed(() => activeCenter.value)
 
 onMounted(() => {
@@ -56,9 +63,13 @@ watch(activeCenter, (name) => {
   router.replace({ query: { ...route.query, tab: map[name] || 'todo' } })
 })
 
-const todos = computed(() => listLaborPersonalTodos())
+const todos = computed(() => listLaborPersonalTodos().filter(item =>
+  item.expectedWorkflowStage !== 'voidApproval' || canExecuteInspectionStep(item.detail, 'voidApproval'),
+))
 const doneList = computed(() => listLaborPersonalDone())
-const startedList = computed(() => listLaborPersonalStarted())
+const startedList = computed(() => listLaborPersonalStarted().filter(item =>
+  !item.detail?.voidDemoScope || item.detail.voidDemoScope === selectedProjectId.value,
+))
 const ccList = computed(() => listLaborPersonalCc())
 const notices = computed(() => {
   noticeTick.value
@@ -313,6 +324,7 @@ function handleMessage(item) {
           <div class="message-field"><span>所属项目：</span><b>{{ item.detail?.project || '--' }}</b></div>
           <div class="message-field"><span>申请日期：</span><b>{{ applyDate(item) }}</b></div>
           <footer>
+            <InspectionVoidButton v-if="activeTab === 'initiated' && item.liveInspectionWorkflow" :record-id="item.rectifyId" />
             <button type="button" @click="handleMessage(item)">
               {{ resolveStatus(item) === '待办' ? '处理' : '详情' }}
             </button>

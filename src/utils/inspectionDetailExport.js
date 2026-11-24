@@ -26,9 +26,7 @@ export const inspectionTaskDetailColumns = [
   ['checkPhotos', '检查项照片', 40, '检查项照片'],
   ['result', '巡检结果'],
   ['normalPhotos', '巡检照片', 42, '巡检照片'],
-  ['hazardCount', '隐患数量'],
-  ['requiresConfirmation', '是否需项目经理确认', 25],
-]
+  ['hazardCount', '隐患数量'],]
 
 export const inspectionTaskHazardColumns = [
   ['number', '隐患序号', 12],
@@ -51,29 +49,37 @@ export const rectificationDetailColumns = [
   ['tn', '巡检任务单编号', 26],
   ['pj', '项目名称', 28],
   ['cat', '巡检分类'],
-  ['inspector', '巡检人', 24],
+  ['inspector', '登记人', 24],
   ['issueDate', '整改单下发日期', 21],
   ['rf', '整改人', 24],
   ['rv', '复查人', 24],
+  ['dl', '截止日期'],
   ['st', '状态'],
   ['currentNode', '当前流程节点', 28],
-  ['dl', '截止日期'],
   ['cd', '关闭日期'],
   ['category', '隐患类别'],
   ['level', '隐患等级'],
   ['requirement', '整改要求', 46],
   ['description', '隐患说明', 46],
   ['hazardPhotos', '隐患照片', 44, '隐患照片'],
+  ['inspectionPhotos', '巡检照片', 44, '巡检照片'],
   ['rectDate', '整改日期'],
-  ['rectNote', '整改说明', 46],
   ['rectPhotos', '整改照片', 44, '整改照片'],
+  ['rectNote', '整改说明', 46],
   ['reviewDate', '复查日期'],
-  ['reviewResult', '复查结果'],
+  ['reviewResult', '复查结论'],
   ['reviewComment', '复查意见', 42],
   ['approvalManager', '审批人', 24],
-  ['approvalStatus', '审批状态'],
+  ['approvalStatus', '审批结果'],
   ['approvalDate', '审批日期'],
   ['approvalComment', '审批意见', 44],
+  ['confirmActor', '确认人', 24],
+  ['confirmStatus', '确认结果'],
+  ['confirmDate', '确认日期'],
+  ['confirmComment', '确认意见', 44],
+  ['issueCc', '下发整改单抄送', 28],
+  ['completionCc', '整改单完成抄送', 28],
+  ['overdue', '逾期'],
 ]
 
 const joined = (...values) => values.filter(Boolean).join(' · ')
@@ -98,10 +104,7 @@ export function exportInspectionTaskDetail(task) {
     checkPhotos: checks.map(item => photoGroup(item.photos, joined(item.group, item.label))),
     result: resultLabel(task.result || task.inspectionResult),
     normalPhotos: [photoGroup(task.normalPhotos?.length ? task.normalPhotos : task.photos)],
-    hazardCount: task.hazardCount ?? hazards.length,
-    requiresConfirmation: task.result === 'hazard' && typeof task.requiresManagerConfirmation === 'boolean'
-      ? (task.requiresManagerConfirmation ? '是' : '否') : '',
-    detailRows: hazards.map((item, index) => {
+    hazardCount: task.hazardCount ?? hazards.length,    detailRows: hazards.map((item, index) => {
       const order = item.rectifyId ? getInspectionHazard(item.rectifyId) : null
       return {
         number: index + 1,
@@ -157,5 +160,13 @@ export function exportRectificationDetail(row) {
     approvalStatus: approval.status,
     approvalDate: approval.date,
     approvalComment: approval.comment,
+    inspectionPhotos: [photoGroup(detail.inspectionPhotos, '巡检照片')],
+    confirmActor: detail.departmentConfirmation?.actor,
+    confirmStatus: detail.departmentConfirmation?.status,
+    confirmDate: detail.departmentConfirmation?.date,
+    confirmComment: detail.departmentConfirmation?.comment,
+    issueCc: current.issueCcPersons ?? row.issueCcPersons,
+    completionCc: current.completionCcPersons ?? row.completionCcPersons,
+    overdue: current.status !== '已关闭' && current.deadline && String(current.deadline) < '2026-08-27' ? '是' : '否',
   }
 }

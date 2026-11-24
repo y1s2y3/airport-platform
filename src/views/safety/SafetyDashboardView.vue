@@ -89,14 +89,14 @@ function calcOverdue(d) {
 }
 
 const hazardData = computed(() => listInspectionHazards())
-const taskData = listMobileInspectionTasks()
+const taskData = computed(() => listMobileInspectionTasks())
 
 // ===== 统计 =====
 const scopedHazardData = computed(() =>
   inspectionCategory.value ? hazardData.value.filter(item => hasInspectionCategory(item.inspectionCategories || getInspectionCategory(item), inspectionCategory.value)) : hazardData.value
 )
 const scopedTaskData = computed(() =>
-  inspectionCategory.value ? taskData.filter(item => hasInspectionCategory(item.inspectionCategories || getInspectionCategory(item), inspectionCategory.value)) : taskData
+  inspectionCategory.value ? taskData.value.filter(item => hasInspectionCategory(item.inspectionCategories || getInspectionCategory(item), inspectionCategory.value)) : taskData.value
 )
 
 const hazardStats = computed(() => {

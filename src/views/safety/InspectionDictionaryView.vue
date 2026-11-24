@@ -1,23 +1,18 @@
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { INSPECTION_CATEGORIES, inspectionDictionaries, saveInspectionDictionary } from '../../config/inspectionManagement'
 import { useCurrentProject } from '../../composables/useCurrentProject'
 
-const route = useRoute()
 const { isHqSelected } = useCurrentProject()
-const isHazard = computed(() => route.path.endsWith('/hazard-categories'))
-const kind = computed(() => isHazard.value ? 'hazards' : 'types')
-const title = computed(() => isHazard.value ? '隐患类别配置' : '检查类型配置')
+
 const category = ref('安全')
 const keyword = ref('')
 const status = ref('')
 const visible = ref(false)
 const form = reactive({ id: '', category: '安全', name: '', sort: 1, enabled: true, remark: '' })
-watch(() => route.path, () => { visible.value = false; keyword.value = ''; status.value = '' })
-const rows = computed(() => inspectionDictionaries[kind.value].filter(item =>
-  (!isHazard.value || item.category === category.value)
+const rows = computed(() => inspectionDictionaries.hazards.filter(item =>
+  item.category === category.value
   && (!keyword.value || item.name.includes(keyword.value.trim()))
   && (status.value === '' || item.enabled === (status.value === 'enabled')),
 ).sort((a, b) => a.sort - b.sort))
@@ -28,37 +23,37 @@ function edit(row) {
 }
 function save() {
   if (!isHqSelected.value) return
-  try { saveInspectionDictionary(kind.value, { ...form }); visible.value = false; ElMessage.success('配置已保存') }
+  try { saveInspectionDictionary('hazards', { ...form }); visible.value = false; ElMessage.success('配置已保存') }
   catch (error) { ElMessage.warning(error.message) }
 }
 function toggle(row) {
   if (!isHqSelected.value) return
-  saveInspectionDictionary(kind.value, { ...row, enabled: !row.enabled })
+  saveInspectionDictionary('hazards', { ...row, enabled: !row.enabled })
   ElMessage.success(row.enabled ? '已启用' : '已停用，历史记录不受影响')
 }
 </script>
 
 <template>
   <div class="page-card dictionary-page">
-    <h3>{{ title }}</h3>
+    <h3>隐患类别配置</h3>
     <el-empty v-if="!isHqSelected" description="仅工程指挥部可维护巡检配置" />
     <template v-else>
-      <el-radio-group v-if="isHazard" v-model="category" size="large" class="category-tabs">
+      <el-radio-group v-model="category" size="large" class="category-tabs">
         <el-radio-button v-for="item in INSPECTION_CATEGORIES" :key="item" :value="item">{{ item }}</el-radio-button>
       </el-radio-group>
-      <p class="tip">{{ isHazard ? '按巡检分类维护隐患类别，新增隐患仅可选择当前分类下已启用的类别。' : '检查类型供安全、质量、其他三个巡检分类共用。' }} 停用或修改不回写历史记录；配置在当前浏览器保存，同源页签同步。</p>
+      <p class="tip">按巡检分类维护隐患类别，新增隐患仅可选择当前分类下已启用的类别。 停用或修改不回写历史记录；配置在当前浏览器保存，同源页签同步。</p>
       <div class="toolbar">
         <el-input v-model="keyword" placeholder="搜索名称" clearable style="width:240px" />
         <el-select v-model="status" placeholder="启用状态" clearable style="width:140px">
           <el-option label="启用" value="enabled" /><el-option label="停用" value="disabled" />
         </el-select>
         <el-button @click="keyword = ''; status = ''">重置</el-button>
-        <el-button type="primary" @click="edit()">新增{{ isHazard ? '隐患类别' : '检查类型' }}</el-button>
+        <el-button type="primary" @click="edit()">新增隐患类别</el-button>
       </div>
       <el-table :data="rows" border stripe>
         <el-table-column type="index" label="序号" width="65" />
-        <el-table-column v-if="isHazard" prop="category" label="巡检分类" width="120" />
-        <el-table-column prop="name" :label="isHazard ? '隐患类别名称' : '检查类型名称'" min-width="180" />
+        <el-table-column prop="category" label="巡检分类" width="120" />
+        <el-table-column prop="name" label="隐患类别名称" min-width="180" />
         <el-table-column prop="sort" label="排序" width="90" />
         <el-table-column label="是否启用" width="110"><template #default="{ row }"><el-tag :type="row.enabled ? 'success' : 'info'">{{ row.enabled ? '启用' : '停用' }}</el-tag></template></el-table-column>
         <el-table-column prop="remark" label="备注" min-width="180" show-overflow-tooltip />
@@ -68,9 +63,9 @@ function toggle(row) {
         </template></el-table-column>
       </el-table>
     </template>
-    <el-dialog v-model="visible" :title="`${form.id ? '编辑' : '新增'}${isHazard ? '隐患类别' : '检查类型'}`" width="520px" destroy-on-close>
+    <el-dialog v-model="visible" :title="`${form.id ? '编辑' : '新增'}隐患类别`" width="520px" destroy-on-close>
       <el-form label-width="110px" @submit.prevent="save">
-        <el-form-item v-if="isHazard" label="巡检分类" required><el-select v-model="form.category"><el-option v-for="item in INSPECTION_CATEGORIES" :key="item" :label="item" :value="item" /></el-select></el-form-item>
+        <el-form-item label="巡检分类" required><el-select v-model="form.category"><el-option v-for="item in INSPECTION_CATEGORIES" :key="item" :label="item" :value="item" /></el-select></el-form-item>
         <el-form-item label="名称" required><el-input v-model="form.name" maxlength="50" placeholder="请输入名称" /></el-form-item>
         <el-form-item label="排序" required><el-input-number v-model="form.sort" :min="0" :precision="0" /></el-form-item>
         <el-form-item label="是否启用" required><el-switch v-model="form.enabled" /></el-form-item>

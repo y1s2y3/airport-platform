@@ -1,4 +1,6 @@
-<script setup>
+<script setup>import { usesExtendedInspectionWorkflow } from '../../utils/inspectionRectificationWorkflow.js'
+
+import { SHOW_HAZARD_SAMPLING } from '../../config/hazardSamplingVisibility.js'
 import HazardSamplingPanel from '../../components/HazardSamplingPanel.vue'
 import InspectionPhotoList from '../../components/InspectionPhotoList.vue'
 import { samplingReturnLocation, restoreSupervisorTaskContext } from '../../utils/hazardSamplingTaskNavigation.js'
@@ -133,6 +135,12 @@ const info = computed(() => {
   }
 })
 // 多次整改/复查只展示当前最新一轮；历史失败原因统一保留在流程记录中。
+/** 质量A / Ⅰ重大隐患走扩展流程，统一展示「项目部长确认」节点（未办理时显示 --）。 */
+const needsDepartmentConfirmation = computed(() => usesExtendedInspectionWorkflow({
+  inspectionCategory: info.value.cat,
+  hazardLevel: info.value.hazard?.level,
+}))
+
 const latestRectifications = computed(() => {
   if (info.value.rectifications?.length) {
     return [info.value.rectifications[info.value.rectifications.length - 1]]
@@ -164,7 +172,7 @@ function goBack() {
     </div>
     <!-- 隐患清单只展示隐患及整改闭环；抽查内容仅在抽查业务入口展示。 -->
     <HazardSamplingPanel
-      v-if="!embedded && ['summary', 'sampling-task'].includes(route.query.from)"
+      v-if="SHOW_HAZARD_SAMPLING && !embedded && ['summary', 'sampling-task'].includes(route.query.from)"
       source="inspection"
       :record-id="String(rid)"
     />
@@ -175,7 +183,7 @@ function goBack() {
       <div class="ic"><label>巡检任务单编号</label><span>{{ info.tn }}</span></div>
       <div class="ic"><label>项目名称</label><span>{{ info.pj }}</span></div>
       <div class="ic"><label>巡检分类</label><span>{{ info.cat }}</span></div>
-      <div class="ic"><label>巡检人</label><span>{{ info.inspector || '--' }}</span></div>
+      <div class="ic"><label>登记人</label><span>{{ info.inspector || '--' }}</span></div>
       <div class="ic"><label>整改单下发日期</label><span>{{ info.issueDate || '--' }}</span></div>
       <div class="ic"><label>整改人</label><span>{{ info.rf }}</span></div>
       <div class="ic"><label>复查人</label><span>{{ info.rv }}</span></div>
@@ -188,6 +196,12 @@ function goBack() {
       <div class="ic" v-if="info.cd"><label>关闭日期</label><span>{{ info.cd }}</span></div>
     </div>
 
+    <div class="sc">
+      <div class="sct">巡检照片</div>
+      <InspectionPhotoList v-if="info.inspectionPhotos?.length" :photos="info.inspectionPhotos" />
+      <div v-else class="rf">未上传</div>
+    </div>
+
     <!-- ===== 隐患信息 ===== -->
     <div class="sc">
       <div class="sct">隐患信息</div>
@@ -196,12 +210,6 @@ function goBack() {
       <div class="rf"><label>整改要求</label><span style="white-space:pre-wrap">{{ info.hazard.rectifyRequirement || '未填写' }}</span></div>
       <div class="rf"><label>隐患说明</label><span>{{ info.hazard.desc }}</span></div>
       <div class="rf" v-if="info.hazard.photos?.length"><label>隐患照片</label><span>{{ info.hazard.photos.join('、') }}</span></div>
-    </div>
-
-    <div class="sc">
-      <div class="sct">巡检照片</div>
-      <InspectionPhotoList v-if="info.inspectionPhotos?.length" :photos="info.inspectionPhotos" />
-      <div v-else class="rf">未上传</div>
     </div>
 
     <!-- ===== 整改信息（有整改记录即展示，含待整改已整改的情况） ===== -->
@@ -237,9 +245,16 @@ function goBack() {
     <div v-if="info.managerApproval" class="sc">
       <div class="sct">项目经理审批</div>
       <div class="rf"><label>审批人</label><span>{{ info.managerApproval.manager }}</span></div>
-      <div class="rf"><label>审批状态</label><span :style="{ color:info.managerApproval.status === '通过' ? '#34a853' : '#8f0045', fontWeight:600 }">{{ info.managerApproval.status }}</span></div>
+      <div class="rf"><label>审批结果</label><span :style="{ color:info.managerApproval.status === '通过' ? '#34a853' : '#8f0045', fontWeight:600 }">{{ info.managerApproval.status }}</span></div>
       <div v-if="info.managerApproval.date" class="rf"><label>审批日期</label><span>{{ info.managerApproval.date }}</span></div>
       <div class="rf"><label>审批意见</label><span>{{ info.managerApproval.comment }}</span></div>
+    </div>
+    <div v-if="info.departmentConfirmation || needsDepartmentConfirmation" class="sc">
+      <div class="sct">项目部长确认</div>
+      <div class="rf"><label>确认人</label><span>{{ info.departmentConfirmation?.actor || '--' }}</span></div>
+      <div class="rf"><label>确认结果</label><span>{{ info.departmentConfirmation?.status || '--' }}</span></div>
+      <div v-if="info.departmentConfirmation?.date" class="rf"><label>确认日期</label><span>{{ info.departmentConfirmation?.date }}</span></div>
+      <div v-if="info.departmentConfirmation?.comment" class="rf"><label>确认意见</label><span>{{ info.departmentConfirmation?.comment }}</span></div>
     </div>
 
     <!-- ===== 原业务流程记录 ===== -->

@@ -8,7 +8,7 @@ import InspectionPhotoList from '../../components/InspectionPhotoList.vue'
 import { getInspectionTaskForRectification } from '../../mock/mobileInspectionTasks'
 import { getInspectionTaskPhotos } from '../../utils/inspectionTaskPhotos'
 
-import { workflowFlowRecords, workflowSteps } from '../../utils/inspectionRectificationWorkflow'
+import { workflowFlowRecords, workflowSteps, currentWorkflowStep } from '../../utils/inspectionRectificationWorkflow'
 
 const route = useRoute()
 const router = useRouter()
@@ -21,14 +21,14 @@ onMounted(() => document.querySelector('.page-viewport')?.scrollTo({ top: 0 }))
 const statusText = computed(() => record.value?.status || '--')
 const managerApproval = computed(() => {
   const row = record.value
-  if (!row?.manager || row.managerConfirmationResult === '否' || !['待复查', '已关闭'].includes(row.status)) return null
-  const closed = row.status === '已关闭'
+  if (!row?.manager || !['待复查', '已关闭'].includes(row.status)) return null
+  const passed = row.approvalResult === '通过' || row.status === '已关闭'
   return {
     label: workflowSteps(row).find(step => step.key === 'approval')?.label || '项目经理审批',
     manager: row.manager,
-    status: closed ? '通过' : '审批中',
-    date: closed ? (row.approvalDate || row.closeDate || '') : '',
-    comment: closed ? (row.approvalComment || '--') : '--',
+    status: passed ? '通过' : '审批中',
+    date: passed ? (row.approvalDate || row.closeDate || '') : '',
+    comment: passed ? (row.approvalComment || '--') : '--',
   }
 })
 
@@ -38,7 +38,7 @@ const flowCollapsed = ref(false)
 
 const reviewRecords = computed(() => {
   const row = record.value
-  if (!row || row.managerConfirmationResult === '否') return []
+  if (!row) return []
   if (!(row.reviewDate || row.reviewComment || ['待复查', '已关闭'].includes(row.status))) return []
   return [{
     round: 1,
@@ -87,18 +87,18 @@ function goBack() {
       <MobileRectifyBasicInfo :record="record" show-copy-recipients />
 
       <div class="sc">
+        <div class="sct">巡检照片</div>
+        <InspectionPhotoList v-if="inspectionPhotos.length" :photos="inspectionPhotos" />
+        <div v-else class="ir">未上传</div>
+      </div>
+
+      <div class="sc">
         <div class="sct">隐患信息</div>
         <div class="ir"><span class="il">隐患类别</span><span>{{ record.hazardCategory || '安全管理' }}</span></div>
         <div class="ir"><span class="il">隐患等级</span><span>{{ record.hazardLevel || '未设置' }}</span></div>
         <div class="ir"><span class="il">整改要求</span><span style="white-space:pre-wrap">{{ record.rectifyRequirement || '未填写' }}</span></div>
         <div class="ir"><span class="il">隐患说明</span><span>{{ record.hazard || '--' }}</span></div>
         <div class="ir"><span class="il">隐患照片</span><span>{{ displayPhotos(record.hazardPhotos) }}</span></div>
-      </div>
-
-      <div class="sc">
-        <div class="sct">巡检照片</div>
-        <InspectionPhotoList v-if="inspectionPhotos.length" :photos="inspectionPhotos" />
-        <div v-else class="ir">未上传</div>
       </div>
 
       <div v-if="currentRectifications.length" class="sc">
@@ -122,9 +122,17 @@ function goBack() {
       <div v-if="managerApproval" class="sc">
         <div class="sct">{{ managerApproval.label }}</div>
         <div class="ir"><span class="il">审批人</span><span>{{ managerApproval.manager }}</span></div>
-        <div class="ir"><span class="il">审批状态</span><span :class="managerApproval.status === '通过' ? 'pass' : 'pending'">{{ managerApproval.status }}</span></div>
+        <div class="ir"><span class="il">审批结果</span><span :class="managerApproval.status === '通过' ? 'pass' : 'pending'">{{ managerApproval.status }}</span></div>
         <div class="ir" v-if="managerApproval.date"><span class="il">审批日期</span><span>{{ managerApproval.date }}</span></div>
         <div class="ir"><span class="il">审批意见</span><span>{{ managerApproval.comment }}</span></div>
+      </div>
+
+      <div v-if="record.departmentConfirmationDate || currentWorkflowStep(record)?.key === 'departmentConfirmation'" class="sc">
+        <div class="sct">项目部长确认</div>
+        <div class="ir"><span class="il">确认人</span><span>{{ record.projectDepartmentHead || '项目部长' }}</span></div>
+        <div class="ir"><span class="il">确认结果</span><span>{{ record.departmentConfirmationResult || '待确认' }}</span></div>
+        <div v-if="record.departmentConfirmationDate" class="ir"><span class="il">确认日期</span><span>{{ record.departmentConfirmationDate }}</span></div>
+        <div v-if="record.departmentConfirmationComment" class="ir"><span class="il">确认意见</span><span>{{ record.departmentConfirmationComment }}</span></div>
       </div>
 
       <div class="sc">

@@ -35,6 +35,8 @@ import {
   submitDispatchHazardRectify,
   acceptDispatchHazard,
   rejectDispatchHazard,
+  reviewDispatchHazard,
+  approveDispatchHazard,
   resolveDispatchHazardPhotoName,
 } from '../../../utils/dispatchHazardStorage.js'
 import { getMajorHazardLedgerOptions, syncInspectionTaskToMajorHazard } from '../../../utils/inspectionMajorHazardLink.js'
@@ -113,30 +115,35 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
     afterSubmit('提交整改', '整改已提交，已生成验收待办')
   }
 
+  /** 调度隐患办理：待验收 → 监理复查；待复查 → 项目经理审批（与巡检流程一致）。 */
   function submitDispatchHazardAcceptTodo(mergedHazard, dispatchHazardForm) {
-    const row = todo.value
     const hazard = mergedHazard
-    if (!row || !hazard?.id) return
-    if (dispatchHazardForm.decision === 'pass') {
-      const result = acceptDispatchHazard(hazard.id, {
-        remark: dispatchHazardForm.remark.trim() || '现场核查整改到位，予以关闭',
-        operator: '当前用户',
-        operatorRole: '安质部',
-      })
-      if (!result || result.rectifyStatus !== '已关闭') {
-        return ElMessage.warning('验收失败，请确认当前隐患仍为待验收')
+    if (!todo.value || !hazard?.id) return
+    const stage = hazard.rectifyStatus === '待复查' ? 'approve' : 'review'
+    if (!dispatchHazardForm.remark.trim()) return ElMessage.warning(`请填写${stage === 'review' ? '复查' : '审批'}意见`)
+    const pass = dispatchHazardForm.decision === 'pass'
+    if (pass) {
+      const remark = dispatchHazardForm.remark.trim() || (stage === 'review' ? '整改到位，监理复查通过，提交项目经理审批' : '资料齐全，审批通过')
+      const result = stage === 'review'
+        ? reviewDispatchHazard(hazard.id, { pass: true, remark })
+        : approveDispatchHazard(hazard.id, { pass: true, remark })
+      const expected = stage === 'review' ? '待复查' : '已关闭'
+      if (!result || result.rectifyStatus !== expected) {
+        return ElMessage.warning('办理失败，请确认当前隐患状态未变化')
       }
-      afterSubmit('验收通过', '验收通过，隐患已关闭')
+      if (stage === 'review') {
+        enqueueDispatchHazardAcceptTodo(result)
+        afterSubmit('复查通过', '复查通过，已生成项目经理审批待办')
+        return
+      }
+      afterSubmit('审批通过', '审批通过，隐患已关闭')
       return
     }
-    if (!dispatchHazardForm.rejectRemark.trim()) return ElMessage.warning('请填写驳回原因')
-    const result = rejectDispatchHazard(hazard.id, {
-      remark: dispatchHazardForm.rejectRemark.trim(),
-      operator: '当前用户',
-      operatorRole: '安质部',
-    })
+    const result = stage === 'review'
+      ? reviewDispatchHazard(hazard.id, { pass: false, remark: dispatchHazardForm.remark.trim() })
+      : approveDispatchHazard(hazard.id, { pass: false, remark: dispatchHazardForm.remark.trim() })
     if (!result || result.rectifyStatus !== '待整改') {
-      return ElMessage.warning('驳回失败，请确认当前隐患仍为待验收')
+      return ElMessage.warning('驳回失败，请确认当前隐患状态未变化')
     }
     personalTodoStore.todos.unshift({
       id: `todo-dispatch-hazard-rectify-${result.id}-${Date.now()}`,
@@ -149,15 +156,14 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
         result.description || result.id,
         result.rectifyStatus || '待整改',
       ),
-      applicant: '安质部',
+      applicant: '指挥部安质部',
       dept: '指挥部安质部',
       applyTime: new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-'),
       hazard: { ...result },
       approvalFlow: [],
     })
-    afterSubmit('验收驳回', '已驳回，已重新生成整改待办')
+    afterSubmit(stage === 'review' ? '复查驳回' : '审批不通过', '已退回整改，已重新生成整改待办')
   }
-
   function submitProcessReport(reportForm) {
     if (!reportForm.penaltyClause.trim()) return ElMessage.warning('请填写条款')
     if (!reportForm.amount.trim()) return ElMessage.warning('请填写金额')
@@ -406,9 +412,7 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
       if (inspectionForm.inspectionResult === 'normal' && !inspectionForm.attachments.length) {
         return ElMessage.warning('全部正常时请至少上传一张巡检照片')
       }
-      if (inspectionForm.inspectionResult === 'hazard') {
-        if (!['是', '否'].includes(inspectionForm.requiresManagerConfirmation)) return ElMessage.warning('请选择是否需项目经理确认')
-        const hazards = inspectionForm.hazardItems || []
+      if (inspectionForm.inspectionResult === 'hazard') {        const hazards = inspectionForm.hazardItems || []
         if (!hazards.length) return ElMessage.warning('请至少新增一条隐患')
         for (const [index, hazard] of hazards.entries()) {
           const category = normalizeInspectionCategories(row.detail?.inspectionCategories || row.detail?.inspectionCategory).join('、')
@@ -440,27 +444,27 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
     } else {
       if (!inspectionForm.processDate) {
         return ElMessage.warning(
-          `请选择${bizType === '整改' ? '整改' : bizType === '复查' ? '复查' : bizType === '项目经理确认' ? '确认' : '审批'}日期`,
+          `请选择${bizType === '整改' ? '整改' : bizType === '复查' ? '复查' : '审批'}日期`,
         )
       }
       if (bizType === '整改' && inspectionForm.attachments.length === 0) {
         return ElMessage.warning('请至少上传一张整改照片')
       }
       const acceptancePass = ['施工验收', '总监验收'].includes(bizType) && inspectionForm.decision === 'pass'
-      if (!inspectionForm.remark.trim() && !acceptancePass && bizType !== '项目经理确认') {
+      if (!inspectionForm.remark.trim() && !acceptancePass) {
         return ElMessage.warning(`请填写${inspectionActionMeta.remarkLabel}`)
       }
     }
 
     const approved = inspectionForm.decision === 'pass'
     if (bizType !== '巡检' && row.liveInspectionWorkflow) {
-      const ok = submitInspectionWorkflowStep(row.rectifyId, row.expectedWorkflowStage, bizType === '整改' || approved, {
-        assignmentRevision: row.detail?.workflowAssignmentRevision || 0,
-        date: inspectionForm.processDate, comment: inspectionForm.remark.trim(),
+      const ok = submitInspectionWorkflowStep(row.rectifyId, row.expectedWorkflowStage, bizType === '整改' || approved, {        date: inspectionForm.processDate, comment: inspectionForm.remark.trim(),
         rectificationPhotos: [...inspectionForm.attachments],
       })
       if (!ok) return ElMessage.warning('节点已变化或资料不完整，请刷新待办后重新办理')
-      ElMessage.success(bizType === '项目经理确认' ? (approved ? '确认完成，整改单已下发' : '已确认非隐患，整改单已关闭') : '当前节点已处理')
+      ElMessage.success(bizType === '作废审批'
+        ? (approved ? '整改单已作废，关联巡检单已移出台账' : '作废申请未通过，原流程继续办理')
+        : approved || bizType === '整改' ? '当前节点已处理' : '已退回整改人重新整改')
       goBack()
       return
     }
@@ -507,9 +511,7 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
       processRemark: remark,
       inspector: row.detail?.executor || inspectionForm.inspector || row.detail?.inspector,
       companions: [...inspectionForm.companions],
-      inspectionResult: inspectionForm.inspectionResult || row.detail?.inspectionResult,
-      requiresManagerConfirmation: bizType === '巡检' ? inspectionForm.inspectionResult === 'hazard' && inspectionForm.requiresManagerConfirmation === '是' : row.detail?.requiresManagerConfirmation,
-      inspectionDate:
+      inspectionResult: inspectionForm.inspectionResult || row.detail?.inspectionResult,      inspectionDate:
         bizType === '巡检' ? new Date().toISOString().slice(0, 10) : row.detail?.inspectionDate,
       normalPhotos:
         bizType === '巡检'

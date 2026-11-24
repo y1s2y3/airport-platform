@@ -10,6 +10,7 @@ export const inspectorCandidates = [
   { id: 'quality-contractor-manager', name: '许经理', role: '施工单位项目经理', phone: '138****8103' },
   { id: 'quality-reviewer', name: '蒋工', role: '监理单位质量复核人', phone: '138****8104' },
   { id: 'quality-director', name: '冯总监', role: '监理单位项目总监', phone: '138****8105' },
+  { id: 'project-department-head', name: '何部长', role: '项目部长', phone: '138****8107' },
   { id: 'quality-hq-manager', name: '邓经理', role: '指挥部项目经理', phone: '138****8106' },
   ...COC_PROJECT_OPTIONS.map(project => ({ id: `manager-${project.id}`, name: getDemoInspectionPeople(project.id).manager, role: '指挥部项目经理', phone: '138****8000' })),
 ]
@@ -42,6 +43,9 @@ function normalizePeople(config) {
     ...config,
     rectifierId: inspectionPersonIds(config.rectifierId),
     reviewerId: inspectionPersonIds(config.reviewerId),
+    contractorManagerId: config.contractorManagerId || 'quality-contractor-manager',
+    directorId: config.directorId || 'quality-director',
+    departmentHeadId: config.departmentHeadId || 'project-department-head',
     issueCcIds: inspectionPersonIds(config.issueCcIds ?? config.managerId),
     completionCcIds: inspectionPersonIds(config.completionCcIds),
   }
@@ -55,8 +59,9 @@ const defaults = COC_PROJECT_OPTIONS.flatMap(project => INSPECTION_PERSON_CONFIG
     rectifierId: quality ? 'quality-rectifier' : people.rectifier.id,
     reviewerId: quality ? 'quality-reviewer' : people.reviewer.id,
     managerId: quality ? 'quality-hq-manager' : `manager-${project.id}`,
-    contractorManagerId: quality ? 'quality-contractor-manager' : '',
-    directorId: quality ? 'quality-director' : '',
+    contractorManagerId: 'quality-contractor-manager',
+    directorId: 'quality-director',
+    departmentHeadId: 'project-department-head',
   }
 }))
 try {
@@ -110,11 +115,19 @@ export function hasInspectionInspectorConfig(project, category = '安全') {
 export function saveInspectionPersonConfig(projectId, data, category = '安全') {
   if (!INSPECTION_CATEGORIES.includes(category)) throw new Error('请选择有效巡检分类')
   projectId = resolveInspectionProjectId(projectId)
-  const value = normalizePeople({ ...data, projectId, inspectionCategory: personnelCategory(category) })
-  if (category !== '质量') Object.assign(value, { contractorManagerId: '', directorId: '' })
   const existing = getInspectionPersonConfig(projectId, category)
+  const value = normalizePeople({ ...existing, ...data, projectId, inspectionCategory: personnelCategory(category) })
   if (existing) { Object.assign(existing, value); return existing }
   const created = value
   inspectionPersonConfigs.push(created)
   return created
+}
+
+export function saveInspectionCopyConfig(projectId, category, recipients) {
+  const config = getInspectionPersonConfig(projectId, category)
+  if (!config) return false
+  for (const { configKey } of INSPECTION_COPY_FIELDS) {
+    config[configKey] = inspectionPersonIds(recipients[configKey]).filter(id => getInspectorById(id))
+  }
+  return true
 }

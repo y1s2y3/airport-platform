@@ -4,7 +4,7 @@ import { getDispatchHazardTypeLabel, isDispatchHazardType } from '../config/disp
 
 const DISPATCH_HAZARD_KEY = 'coc-admin-dispatch-hazards-v5'
 
-export const DISPATCH_HAZARD_RECTIFY_STATUSES = ['待整改', '待验收', '已关闭']
+export const DISPATCH_HAZARD_RECTIFY_STATUSES = ['待整改', '待验收', '待复查', '已关闭']
 export const DISPATCH_HAZARD_RECTIFY_STATUS_DEFAULT = '待整改'
 
 export const DISPATCH_HAZARD_ACTOR_ROLES = {
@@ -93,6 +93,77 @@ function appendStatusLog(logs, entry) {
   return [entry, ...(Array.isArray(logs) ? logs : [])]
 }
 
+/** 演示用登记人（历史数据无该字段时按 id 稳定分配，保证列表/筛选有值）。 */
+const DISPATCH_REGISTRANTS = ['张明（调度值班员）', '李强（安全值班员）', '王海（质量值班员）', '刘洋（调度值班员）']
+function pickDispatchRegistrant(key = '') {
+  let hash = 0
+  for (const ch of String(key)) hash = (hash * 31 + ch.charCodeAt(0)) % 997
+  return DISPATCH_REGISTRANTS[hash % DISPATCH_REGISTRANTS.length]
+}
+
+/** 旧等级（重大/较大/一般）映射到巡检体系；质量类映射为 A/B/C。 */
+const DISPATCH_HAZARD_LEVEL_MAP = { 重大: 'Ⅰ重大隐患', 较大: 'Ⅱ重点关注的一般隐患', 一般: 'Ⅲ一般隐患' }
+const DISPATCH_HAZARD_QUALITY_LEVEL_MAP = { 重大: 'A', 较大: 'B', 一般: 'C', A: 'A', B: 'B', C: 'C' }
+export function normalizeDispatchHazardLevel(level, hazardType) {
+  const text = String(level || '').trim()
+  if (!text) return hazardType === 'quality' ? 'C' : 'Ⅲ一般隐患'
+  if (hazardType === 'quality') return DISPATCH_HAZARD_QUALITY_LEVEL_MAP[text] || text
+  return DISPATCH_HAZARD_LEVEL_MAP[text] || text
+}
+
+/** 当前流程节点：与巡检口径一致。 */
+/** 流程记录：与巡检一致（登记隐患 → 下发整改单 → 整改 → 复查 → 审批 → 当前节点/流程结束）。 */
+export function dispatchHazardFlowRecords(row) {
+  if (!row) return []
+  const logs = Array.isArray(row.statusLogs) ? [...row.statusLogs].reverse() : []
+  const records = [
+    { label: '登记隐患', actor: row.registrant || '系统', date: row.uploadTime || '', comment: '问题截图登记生成隐患' },
+    { label: '下发整改单', actor: row.registrant || '系统', date: row.uploadTime || '', comment: '' },
+  ]
+  for (const log of logs) {
+    if (log.action === '提交整改') {
+      records.push({ label: '施工单位整改', actor: log.operator, date: log.time, comment: log.remark })
+      continue
+    }
+    if (log.action === '复查通过' || log.action === '复查不通过') {
+      records.push({ label: log.action === '复查通过' ? '监理单位复核' : '监理单位复核（不通过）', actor: log.operator, date: log.time, comment: log.remark })
+      continue
+    }
+    if (log.action === '审批通过' || log.action === '审批不通过') {
+      const label = dispatchHazardCurrentNode('待复查', row.hazardType, row.hazardLevel)
+      records.push({ label: log.action === '审批通过' ? label : `${label}（不通过）`, actor: log.operator, date: log.time, comment: log.remark })
+      continue
+    }
+    if (log.action === '验收通过' || log.action === '验收驳回') {
+      records.push({ label: log.action === '验收通过' ? '项目经理审批' : '项目经理审批（不通过）', actor: log.operator, date: log.time, comment: log.remark })
+    }
+  }
+  const closed = row.rectifyStatus === '已关闭'
+  const lastLog = records[records.length - 1]
+  if (closed) {
+    records.push({ label: '流程结束', actor: '', date: lastLog?.date || '', comment: '整改单已关闭' })
+  } else {
+    const label = row.currentNode || dispatchHazardCurrentNode(row)
+    const actor = ({ 施工单位整改: row.rectifier, 监理单位复核: row.reviewer }[label]) || '项目经理'
+    records.push({ label, actor, date: '', comment: '当前节点', current: true })
+  }
+  return records
+}
+
+export function dispatchHazardCurrentNode(rowOrStatus, hazardType, hazardLevel) {
+  const status = typeof rowOrStatus === 'string' ? rowOrStatus : rowOrStatus?.rectifyStatus
+  const type = typeof rowOrStatus === 'object' ? rowOrStatus?.hazardType : hazardType
+  const level = typeof rowOrStatus === 'object' ? rowOrStatus?.hazardLevel : hazardLevel
+  if (status === '待验收') return '监理单位复核'
+  if (status === '待复查') {
+    const major = ['Ⅰ重大隐患', '重大'].includes(String(level || ''))
+    const qualityA = type === 'quality' && String(level || '') === 'A'
+    return major || qualityA ? '指挥部项目经理审批' : '项目经理审批'
+  }
+  if (status === '已关闭') return '流程结束'
+  return '施工单位整改'
+}
+
 export function emptyDispatchHazard(row = {}) {
   const rectifyStatus = DISPATCH_HAZARD_RECTIFY_STATUSES.includes(row.rectifyStatus)
     ? row.rectifyStatus
@@ -111,7 +182,14 @@ export function emptyDispatchHazard(row = {}) {
     source: row.source || '问题截图',
     hazardType: isDispatchHazardType(row.hazardType) ? row.hazardType : 'safety',
     description: row.description || '',
-    hazardLevel: row.hazardLevel || '一般',
+    hazardLevel: normalizeDispatchHazardLevel(row.hazardLevel, row.hazardType || 'safety'),
+    hazardCategory: row.hazardCategory || ((row.hazardType || 'safety') === 'quality' ? '结构实体质量' : '安全管理'),
+    rectifyRequirement: row.rectifyRequirement || '',
+    reviewer: row.reviewer || '',
+    issueCcPersons: row.issueCcPersons || '',
+    completionCcPersons: row.completionCcPersons || '',
+    hazardPhotos: Array.isArray(row.hazardPhotos) ? row.hazardPhotos : [],
+    currentNode: dispatchHazardCurrentNode(row),
     rectifier: row.rectifier || '',
     hazardDeadline: row.hazardDeadline || '',
     cameraName: row.cameraName || '',
@@ -123,6 +201,7 @@ export function emptyDispatchHazard(row = {}) {
     rectifyPhotos: Array.isArray(row.rectifyPhotos) ? row.rectifyPhotos : [],
     statusLogs,
     uploadTime,
+    registrant: row.registrant || pickDispatchRegistrant(row.id),
   }
 }
 
@@ -144,6 +223,13 @@ function mapScreenshotToHazard(ss) {
     hazardType,
     description: ss.description || '',
     hazardLevel: ss.hazardLevel || '一般',
+    hazardCategory: ss.hazardCategory || '',
+    rectifyRequirement: ss.rectifyRequirement || '',
+    reviewer: ss.reviewer || '',
+    issueCcPersons: ss.issueCcPersons || '',
+    completionCcPersons: ss.completionCcPersons || '',
+    hazardPhotos: Array.isArray(ss.hazardPhotos) ? ss.hazardPhotos : [],
+    registrant: ss.registrant || '',
     rectifier: ss.rectifier || '',
     hazardDeadline: ss.hazardDeadline || '',
     cameraName: ss.cameraName || '',
@@ -416,6 +502,54 @@ export function submitDispatchHazardRectify(id, payload = {}) {
       statusLogs: appendStatusLog(row.statusLogs, log),
     }
   })
+}
+
+/** 监理复查：待验收 → 待复查（通过）/ 待整改（驳回）。 */
+export function reviewDispatchHazard(id, { pass = true, remark = '', photos = [] } = {}) {
+  const list = readList(DISPATCH_HAZARD_KEY, buildSeedFromScreenHazards())
+  const index = list.findIndex((item) => item.id === id)
+  if (index < 0) return null
+  const row = emptyDispatchHazard(list[index])
+  if (row.rectifyStatus !== '待验收') return row
+  const now = hazardNow()
+  const log = {
+    action: pass ? '复查通过' : '复查不通过',
+    fromStatus: '待验收',
+    toStatus: pass ? '待复查' : '待整改',
+    operator: '监理单位',
+    operatorRole: DISPATCH_HAZARD_ACTOR_ROLES.SAFETY,
+    remark: remark || (pass ? '监理已复核整改结果，同意进入审批' : '整改不到位，退回继续整改'),
+    photos: Array.isArray(photos) ? photos : [],
+    time: now,
+  }
+  const next = emptyDispatchHazard({ ...row, rectifyStatus: log.toStatus, rectifyRemark: log.remark, rectifyPhotos: log.photos, statusLogs: [log, ...(row.statusLogs || [])] })
+  list[index] = next
+  writeList(DISPATCH_HAZARD_KEY, list)
+  return next
+}
+
+/** 项目经理审批：待复查 → 已关闭（通过）/ 待整改（驳回）；兼容历史「待验收」直接关闭。 */
+export function approveDispatchHazard(id, { pass = true, remark = '', photos = [] } = {}) {
+  const list = readList(DISPATCH_HAZARD_KEY, buildSeedFromScreenHazards())
+  const index = list.findIndex((item) => item.id === id)
+  if (index < 0) return null
+  const row = emptyDispatchHazard(list[index])
+  if (!['待复查', '待验收'].includes(row.rectifyStatus)) return row
+  const now = hazardNow()
+  const log = {
+    action: pass ? '审批通过' : '审批不通过',
+    fromStatus: row.rectifyStatus,
+    toStatus: pass ? '已关闭' : '待整改',
+    operator: '项目经理',
+    operatorRole: DISPATCH_HAZARD_ACTOR_ROLES.SAFETY,
+    remark: remark || (pass ? '资料齐全，同意关闭' : '退回继续整改'),
+    photos: Array.isArray(photos) ? photos : [],
+    time: now,
+  }
+  const next = emptyDispatchHazard({ ...row, rectifyStatus: log.toStatus, rectifyRemark: log.remark, rectifyPhotos: log.photos, statusLogs: [log, ...(row.statusLogs || [])] })
+  list[index] = next
+  writeList(DISPATCH_HAZARD_KEY, list)
+  return next
 }
 
 export function acceptDispatchHazard(id, payload = {}) {

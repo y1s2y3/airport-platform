@@ -1,4 +1,5 @@
 <script setup>
+import { SHOW_HAZARD_SAMPLING } from '../../config/hazardSamplingVisibility.js'
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import HazardRecordDetail from '../../components/hazard/HazardRecordDetail.vue'
@@ -32,7 +33,7 @@ const row = computed(() => {
     <template v-if="row">
       <h2>{{ row.sourceLabel }} · 隐患详情</h2>
       <HazardRecordDetail :row="row" />
-      <HazardSamplingPanel :source="row.source" :record-id="row.sourceId" />
+      <HazardSamplingPanel v-if="SHOW_HAZARD_SAMPLING" :source="row.source" :record-id="row.sourceId" />
     </template>
     <el-empty v-else description="未找到当前范围内的隐患记录" />
   </section>

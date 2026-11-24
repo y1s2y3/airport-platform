@@ -1,3 +1,4 @@
+import { SHOW_HAZARD_SAMPLING } from './hazardSamplingVisibility.js'
 import { resolveQmInspectHandleRedirect } from '../mock/personalCenter.js'
 import { PHASE1_MENU_GROUPS, PHASE1_CATALOGS } from './phase1Menu.js'
 
@@ -169,7 +170,6 @@ const rawMenuTree = [
         children: [
           { key: 'safety-plan', label: '任务下发', icon: 'Position', path: '/safety-inspection/plan', name: 'InspectionPlan', component: 'InspectionPlanView', levels: 'hq' },
           { key: 'safety-check-items', label: '巡检检查项', icon: 'List', path: '/safety-inspection/check-items', name: 'SafetyCheckItems', component: 'SafetyCheckItemsView', levels: 'hq' },
-          { key: 'inspection-type-config', label: '检查类型配置', icon: 'Setting', path: '/safety-inspection/inspection-types', name: 'InspectionTypeConfig', component: 'InspectionDictionaryView', levels: 'hq' },
           { key: 'inspection-hazard-category-config', label: '隐患类别配置', icon: 'Setting', path: '/safety-inspection/hazard-categories', name: 'InspectionHazardCategoryConfig', component: 'InspectionDictionaryView', levels: 'hq' },
           { key: 'safety-inspector-config', label: '人员配置', icon: 'User', path: '/safety-inspection/inspector-config', name: 'InspectionPersonConfig', component: 'InspectionPersonConfigView', levels: 'project' },
           { key: 'safety-task-manage', label: '巡检任务', icon: 'Tickets', path: '/safety-inspection/task', name: 'InspectionTaskManage', component: 'InspectionTaskManageView', levels: 'both' },
@@ -567,9 +567,11 @@ export function buildFusedMenuTree(raw = rawMenuTree) {
           levels: 'both',
           children: [
             { key: 'hazard-issue-summary', label: '隐患问题清单汇总', icon: 'Warning', path: '/hazard-issues/summary', name: 'HazardIssueSummary', component: 'HazardIssueSummaryView', levels: 'both' },
-            { key: 'hazard-sampling-tasks', label: '抽检任务', icon: 'List', path: '/hazard-issues/tasks', name: 'HazardSamplingTasks', component: 'HazardSamplingTasksView', levels: 'hq' },
-            { key: 'hazard-sampling-supervisor', label: '隐患抽检', icon: 'List', path: '/hazard-issues/sampling', name: 'HazardSamplingSupervisor', component: 'HazardSamplingTasksView', levels: 'project' },
-            { key: 'hazard-sampling-manager', label: '施工隐患复查', icon: 'List', path: '/hazard-issues/review', name: 'HazardSamplingManager', component: 'HazardSamplingTasksView', levels: 'project' },
+            ...(SHOW_HAZARD_SAMPLING ? [
+              { key: 'hazard-sampling-tasks', label: '抽检任务', icon: 'List', path: '/hazard-issues/tasks', name: 'HazardSamplingTasks', component: 'HazardSamplingTasksView', levels: 'hq' },
+              { key: 'hazard-sampling-supervisor', label: '隐患抽检', icon: 'List', path: '/hazard-issues/sampling', name: 'HazardSamplingSupervisor', component: 'HazardSamplingTasksView', levels: 'project' },
+              { key: 'hazard-sampling-manager', label: '施工隐患复查', icon: 'List', path: '/hazard-issues/review', name: 'HazardSamplingManager', component: 'HazardSamplingTasksView', levels: 'project' },
+            ] : []),
           ],
         },
         node('major-hazard-management'),
@@ -698,6 +700,7 @@ export const hiddenRoutes = [
   { key: 'labor-mobile-warning-detail', path: '/labor/mobile/personal-center/warning/:id', name: 'LaborMobileWarningDetail', component: 'LaborMobileWarningDetailView', label: '预警详情', sidebarKey: 'labor-mobile-personal-center' },
 
   // 巡检管理子页
+  { key: 'safety-plan-copy-config', path: '/safety-inspection/plan/copy-config', name: 'InspectionCopyConfig', component: 'InspectionCopyConfigView', label: '抄送人配置', sidebarKey: 'safety-plan', levels: 'hq' },
   { key: 'safety-plan-create', path: '/safety-inspection/plan/create', name: 'InspectionPlanCreate', component: 'InspectionPlanFormView', label: '下发巡检任务', sidebarKey: 'safety-plan' },
   { key: 'safety-plan-edit', path: '/safety-inspection/plan/:id/edit', name: 'InspectionPlanEdit', component: 'InspectionPlanFormView', label: '编辑巡检任务', sidebarKey: 'safety-plan' },
   { key: 'safety-plan-detail', path: '/safety-inspection/plan/:id', name: 'InspectionPlanDetail', component: 'InspectionPlanDetailView', label: '巡检任务详情', sidebarKey: 'safety-plan' },
@@ -711,7 +714,7 @@ export const hiddenRoutes = [
   { key: 'mobile-task-detail', path: '/mobile/tasks/:id', name: 'MobileTaskDetail', component: 'MobileTaskDetailView', label: '检查结果', sidebarKey: 'mobile-safety-inspection' },
   { key: 'mobile-rectify-execute', path: '/mobile/rectify/:id/execute', name: 'MobileRectifyExecute', component: 'MobileRectifyExecuteView', label: '整改执行', sidebarKey: 'mobile-rectify' },
   { key: 'mobile-rectify-review', path: '/mobile/rectify/:id/review', name: 'MobileRectifyReview', component: 'MobileRectifyReviewView', label: '整改复查', sidebarKey: 'mobile-rectify' },
-  { key: 'mobile-rectify-approval', path: '/mobile/rectify/:id/approval', name: 'MobileRectifyApproval', component: 'MobileRectifyApprovalView', label: '项目经理审批', sidebarKey: 'mobile-message-center' },
+  { key: 'mobile-rectify-approval', path: '/mobile/rectify/:id/approval', name: 'MobileRectifyApproval', component: 'MobileRectifyApprovalView', label: '整改单审批', sidebarKey: 'mobile-message-center' },
   { key: 'mobile-rectify-detail', path: '/mobile/rectify/:id', name: 'MobileRectifyDetail', component: 'MobileRectifyDetailView', label: '整改详情', sidebarKey: 'mobile-rectify' },
 
   // 工程作业申报子页
@@ -938,6 +941,7 @@ export const viewLoaders = {
 
   SafetyDashboardView: () => import('../views/safety/SafetyDashboardView.vue'),
   InspectionPlanView: () => import('../views/safety/InspectionPlanView.vue'),
+  InspectionCopyConfigView: () => import('../views/safety/InspectionCopyConfigView.vue'),
   InspectionPlanFormView: () => import('../views/safety/InspectionPlanFormView.vue'),
   InspectionPlanDetailView: () => import('../views/safety/InspectionPlanDetailView.vue'),
   SafetyCheckItemsView: () => import('../views/safety/SafetyCheckItemsView.vue'),

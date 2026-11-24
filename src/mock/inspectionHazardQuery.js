@@ -9,15 +9,16 @@ import { getInspectionTaskPhotos } from '../utils/inspectionTaskPhotos.js'
 import {
   getMobileRectification,
   listMobileHazardsAsInspectionRows,
+  listMobileHazardsIncludingVoided,
   mapMobileRecordToHazardRow,
 } from '../composables/useMobileRectification.js'
 import { getInspectionPersonConfig, getInspectorById } from '../composables/useInspectionPersonConfig.js'
 
-/** Web 批量种子 + 移动端整改记录（同一 id 以移动端为准） */
-export function listInspectionHazards() {
-  const mobileRows = listMobileHazardsAsInspectionRows().map(withDisplayDefaults)
+/** Web 批量种子 + 移动端整改记录（同一 id 以移动端为准）；includeVoided=true 时包含已作废整改单。 */
+export function listInspectionHazards({ includeVoided = false } = {}) {
+  const mobileRows = (includeVoided ? listMobileHazardsIncludingVoided() : listMobileHazardsAsInspectionRows()).map(withDisplayDefaults)
   const mobileIds = new Set(mobileRows.map((item) => item.id))
-  return [...mobileRows, ...inspectionHazards.filter((item) => !mobileIds.has(item.id)).map(withDisplayDefaults)]
+  return [...mobileRows, ...inspectionHazards.filter((item) => !mobileIds.has(item.id) && getMobileRectification(item.id)?.status !== '已作废').map(withDisplayDefaults)]
 }
 
 /** 历史种子缺少隐患等级/当前节点时，按分类与状态补齐展示值（不改原始数据）。 */
@@ -77,7 +78,6 @@ export function buildInspectionHazardDetail(row, live = getMobileRectification(r
     ccPersons: row.issueCcPersons ?? row.ccPersons ?? '',
     issueCcPersons: row.issueCcPersons ?? row.ccPersons ?? '',
     completionCcPersons: row.completionCcPersons || '',
-    managerConfirmationResult: row.managerConfirmationResult || '',
     dl: row.deadline,
     st: row.status,
     currentNode: live ? currentWorkflowLabel(live) : withDisplayDefaults(row).currentNode,
@@ -127,12 +127,17 @@ export function buildInspectionHazardDetail(row, live = getMobileRectification(r
     }
   }
   if (row.status === '待复查') {
-    detail.managerApproval = { manager: row.manager, status: '审批中', comment: '--' }
-    detail.flow.push({ a: '待项目经理审批', d: '', cur: true, by: row.manager || '' })
-  } else if (row.status === '已关闭' && row.managerConfirmationResult !== '否') {
     detail.managerApproval = {
       manager: row.manager,
-      date: row.closeDate,
+      status: live?.approvalResult === '通过' ? '通过' : '审批中',
+      date: live?.approvalDate,
+      comment: live?.approvalComment || '--',
+    }
+    detail.flow.push({ a: '待项目经理审批', d: '', cur: true, by: row.manager || '' })
+  } else if (row.status === '已关闭') {
+    detail.managerApproval = {
+      manager: row.manager,
+      date: live?.approvalDate || row.closeDate,
       status: '通过',
       comment: row.approvalComment || '--',
     }
@@ -153,6 +158,15 @@ export function buildInspectionHazardDetail(row, live = getMobileRectification(r
     detail.flow.push({ a: '等待整改人重新整改', d: '', cur: true, by: row.rectifier || '' })
   } else {
     detail.flow.push({ a: '等待整改人执行', d: '', cur: true, by: row.rectifier || '' })
+  }
+  const currentStep = currentWorkflowStep(live || row)
+  if (row.departmentConfirmationDate || currentStep?.key === 'departmentConfirmation') {
+    detail.departmentConfirmation = {
+      actor: row.projectDepartmentHead || '项目部长',
+      date: row.departmentConfirmationDate,
+      status: row.departmentConfirmationResult || '待确认',
+      comment: row.departmentConfirmationComment,
+    }
   }
   if (live) detail.flow = workflowFlowRecords(live)
   return detail

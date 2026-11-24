@@ -1,5 +1,5 @@
 <script setup>
-import HazardSamplingPanel from '../../components/HazardSamplingPanel.vue'
+import DispatchHazardDetailDialog from '../../components/hazard/DispatchHazardDetailDialog.vue'
 import { samplingReturnLocation, restoreSupervisorTaskContext } from '../../utils/hazardSamplingTaskNavigation.js'
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -10,10 +10,7 @@ import { DISPATCH_HAZARD_TYPE_OPTIONS, getDispatchHazardTypeLabel as hazardTypeL
 import {
   getDispatchHazards,
   DISPATCH_HAZARD_RECTIFY_STATUSES,
-  resolveDispatchHazardPhotoSrc,
-  resolveDispatchHazardPhotoName,
 } from '../../utils/dispatchHazardStorage.js'
-import PersonalCenterReadonlyHint from '../../components/PersonalCenterReadonlyHint.vue'
 
 defineProps({
   title: { type: String, default: '调度隐患清单' },
@@ -26,17 +23,12 @@ if (route.query.from === 'sampling-task' && route.query.viewer !== 'hq') restore
 const router = useRouter()
 
 const keyword = ref('')
+const registrantFilter = ref('')
 const statusFilter = ref('')
 const typeFilter = ref('')
 const list = ref([])
 const detailVisible = ref(false)
 const current = ref(null)
-
-const currentRectifyPhotoUrls = computed(() =>
-  (current.value?.rectifyPhotos || []).map((photo, index) =>
-    resolveDispatchHazardPhotoSrc(photo, index),
-  ),
-)
 
 const readonly = computed(() => isHqSelected.value)
 const scopeProjectName = computed(() => (isHqSelected.value ? '' : headerProjectLabel.value))
@@ -49,10 +41,15 @@ function load() {
   if (focused) openDetail(focused)
 }
 
+const registrantOptions = computed(() => [...new Set(list.value.map((row) => row.registrant).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-CN')))
+
 const filtered = computed(() => {
   let rows = list.value
   if (statusFilter.value) {
     rows = rows.filter((row) => row.rectifyStatus === statusFilter.value)
+  }
+  if (registrantFilter.value) {
+    rows = rows.filter((row) => row.registrant === registrantFilter.value)
   }
   if (typeFilter.value) {
     rows = rows.filter((row) => row.hazardType === typeFilter.value)
@@ -62,6 +59,7 @@ const filtered = computed(() => {
   return rows.filter((row) =>
     [
       row.description,
+      row.registrant,
       row.rectifier,
       row.hazardLevel,
       row.projectName,
@@ -85,10 +83,6 @@ function rectifyStatusTag(status) {
     已关闭: 'success',
   }
   return map[status] || 'info'
-}
-
-function sourceTypeLabel(type) {
-  return { live: '实时', playback: '回放', meeting: '会议' }[type] || type || '--'
 }
 
 function openDetail(row) {
@@ -125,6 +119,9 @@ onMounted(load)
     </div>
 
     <div class="tab-toolbar">
+      <el-select v-model="registrantFilter" placeholder="登记人" clearable filterable class="status-filter" aria-label="登记人">
+        <el-option v-for="name in registrantOptions" :key="name" :label="name" :value="name" />
+      </el-select>
       <el-select v-model="typeFilter" placeholder="隐患类型" clearable class="status-filter" aria-label="隐患类型">
         <el-option v-for="item in DISPATCH_HAZARD_TYPE_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
       </el-select>
@@ -168,10 +165,18 @@ onMounted(load)
           </el-tag>
         </template>
       </el-table-column>
+      <el-table-column prop="currentNode" label="当前流程节点" min-width="140" align="center">
+        <template #default="{ row }">{{ row.currentNode || '--' }}</template>
+      </el-table-column>
       <el-table-column prop="rectifier" label="整改人" width="88" show-overflow-tooltip />
+      <el-table-column prop="hazardCategory" label="隐患类别" min-width="110" align="center">
+        <template #default="{ row }">{{ row.hazardCategory || '--' }}</template>
+      </el-table-column>
+      <el-table-column prop="reviewer" label="复查人" min-width="130" show-overflow-tooltip />
       <el-table-column prop="hazardDeadline" label="整改期限" width="112" />
       <el-table-column prop="cameraName" label="摄像头" min-width="110" show-overflow-tooltip />
       <el-table-column prop="source" label="来源" width="96" />
+      <el-table-column prop="registrant" label="登记人" min-width="130" show-overflow-tooltip />
       <el-table-column prop="uploadTime" label="登记时间" width="148" />
       <el-table-column label="操作" width="88" fixed="right">
         <template #default="{ row }">
@@ -180,78 +185,7 @@ onMounted(load)
       </el-table-column>
     </el-table>
 
-    <el-dialog v-model="detailVisible" title="调度隐患详情" width="720px" destroy-on-close>
-      <template v-if="current">
-          <HazardSamplingPanel v-if="current" source="dispatch" :record-id="current.id" />
-        <el-descriptions :column="2" border size="small">
-          <el-descriptions-item label="项目名称">{{ current.projectName || '--' }}</el-descriptions-item>
-          <el-descriptions-item label="隐患类型">{{ hazardTypeLabel(current.hazardType) }}</el-descriptions-item>
-          <el-descriptions-item label="隐患描述" :span="2">{{ current.description || '--' }}</el-descriptions-item>
-          <el-descriptions-item label="隐患等级">{{ current.hazardLevel || '--' }}</el-descriptions-item>
-          <el-descriptions-item label="整改状态">{{ current.rectifyStatus || '待整改' }}</el-descriptions-item>
-          <el-descriptions-item label="整改人">{{ current.rectifier || '--' }}</el-descriptions-item>
-          <el-descriptions-item label="整改期限">{{ current.hazardDeadline || '--' }}</el-descriptions-item>
-          <el-descriptions-item label="摄像头">{{ current.cameraName || '--' }}</el-descriptions-item>
-          <el-descriptions-item label="监控点位">{{ current.cameraLocation || '--' }}</el-descriptions-item>
-          <el-descriptions-item label="截图方式">{{ sourceTypeLabel(current.sourceType) }}</el-descriptions-item>
-          <el-descriptions-item label="登记来源">{{ current.source || '问题截图' }}</el-descriptions-item>
-          <el-descriptions-item label="登记时间" :span="2">{{ current.uploadTime || '--' }}</el-descriptions-item>
-          <el-descriptions-item :label="`${hazardTypeLabel(current.hazardType)}隐患截图`" :span="2">
-            <div class="detail-snapshot-thumb">
-              <el-image
-                v-if="current.snapshot"
-                :src="current.snapshot"
-                :preview-src-list="[current.snapshot]"
-                fit="cover"
-                class="detail-photo-thumb"
-                alt="隐患截图"
-              />
-              <div v-else class="detail-snapshot-empty">暂无截图</div>
-            </div>
-          </el-descriptions-item>
-          <el-descriptions-item v-if="current.rectifyStatus !== '待整改'" label="整改说明" :span="2">
-            {{ current.rectifyRemark || '--' }}
-          </el-descriptions-item>
-          <el-descriptions-item v-if="current.rectifyStatus !== '待整改'" label="整改照片" :span="2">
-            <div v-if="current.rectifyPhotos?.length" class="detail-photo-thumbs">
-              <el-image
-                v-for="(photo, index) in current.rectifyPhotos"
-                :key="`${resolveDispatchHazardPhotoName(photo, index)}-${index}`"
-                :src="resolveDispatchHazardPhotoSrc(photo, index)"
-                :preview-src-list="currentRectifyPhotoUrls"
-                :initial-index="index"
-                fit="cover"
-                class="detail-photo-thumb"
-                :alt="resolveDispatchHazardPhotoName(photo, index)"
-              />
-            </div>
-            <span v-else>--</span>
-          </el-descriptions-item>
-        </el-descriptions>
-
-        <div v-if="current.statusLogs?.length" class="status-logs">
-          <h4>操作留痕</h4>
-          <el-timeline>
-            <el-timeline-item
-              v-for="(log, index) in current.statusLogs"
-              :key="`${log.time}-${log.action}-${index}`"
-              :timestamp="log.time"
-              placement="top"
-            >
-              <div class="log-title">
-                {{ log.action }}：{{ log.fromStatus || '--' }} → {{ log.toStatus }}
-              </div>
-              <div class="log-meta">{{ log.operator }}（{{ log.operatorRole }}）</div>
-              <div v-if="log.remark" class="log-remark">备注：{{ log.remark }}</div>
-            </el-timeline-item>
-          </el-timeline>
-        </div>
-        <PersonalCenterReadonlyHint
-          v-if="current.rectifyStatus === '待整改' || current.rectifyStatus === '待验收'"
-          title="整改提交与验收请在「个人中心 → 我的待办」中处理；本页仅查看详情。"
-        />
-      </template>
-    </el-dialog>
+    <DispatchHazardDetailDialog v-model="detailVisible" :record="current" />
   </div>
 </template>
 
@@ -303,62 +237,6 @@ onMounted(load)
 
 .search-input {
   width: 280px;
-}
-
-.detail-photo-thumbs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.detail-photo-thumb {
-  width: 120px;
-  height: 68px;
-  border-radius: 4px;
-  overflow: hidden;
-  border: 1px solid var(--ap-border, #e4e7ed);
-  cursor: pointer;
-}
-
-.detail-snapshot-thumb {
-  display: flex;
-}
-
-.detail-snapshot-empty {
-  width: 120px;
-  height: 68px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  color: #a3a6ad;
-  background: #f5f7fa;
-  border-radius: 4px;
-  border: 1px solid var(--ap-border, #e4e7ed);
-}
-
-.status-logs {
-  margin-top: 20px;
-}
-
-.status-logs h4 {
-  margin: 0 0 12px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #303133;
-}
-
-.log-title {
-  font-weight: 600;
-  color: #303133;
-}
-
-.log-meta,
-.log-remark {
-  margin-top: 4px;
-  font-size: 13px;
-  color: #606266;
-  line-height: 1.6;
 }
 
 </style>

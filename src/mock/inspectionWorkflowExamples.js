@@ -1,13 +1,14 @@
 import { buildInspectionTaskNo } from '../config/inspectionManagement.js'
 import { getConfiguredPersonLabel, getProjectInspectorLabel, getProjectRectifierLabel, getProjectReviewerLabel, getProjectApproverLabel } from '../composables/useInspectionPersonConfig.js'
-import { workflowSteps, rectifyNamePrefix, rectificationProcessName } from '../utils/inspectionRectificationWorkflow.js'
+import { workflowSteps, rectifyNamePrefix, rectificationProcessName, INSPECTION_VOID_APPROVER } from '../utils/inspectionRectificationWorkflow.js'
 
 /** 个人中心只展示这 8 个整改流程示例名称。 */
 export const INSPECTION_WORKFLOW_EXAMPLE_NAMES = [
-  ...[['rectify'], ['contractorAcceptance'], ['review'], ['directorAcceptance'], ['approval']].map(([key]) => rectificationProcessName({ inspectionCategory: '质量', hazardLevel: 'A' }, key)),
+  ...[['rectify'], ['contractorAcceptance'], ['review'], ['directorAcceptance'], ['approval'], ['departmentConfirmation']].map(([key]) => rectificationProcessName({ inspectionCategory: '质量', hazardLevel: 'A' }, key)),
   rectificationProcessName({ inspectionCategory: '安全' }, 'rectify'),
   rectificationProcessName({ inspectionCategory: '其他' }, 'review'),
   rectificationProcessName({ inspectionCategory: '安全' }, 'approval'),
+  ...['安全', '其他'].map(inspectionCategory => rectificationProcessName({ inspectionCategory, hazardLevel: 'Ⅰ重大隐患' }, 'departmentConfirmation')),
 ]
 
 /** 每个节点使用独立整改单，处理一个示例不会改变另一个节点的演示状态。 */
@@ -21,15 +22,17 @@ export function createInspectionWorkflowExamples() {
     { key: 'quality-a', category: '质量', level: 'A', hazardCategory: '结构实体质量', hazard: '跑道道面混凝土强度检测结果未达到设计要求', requirement: '暂停相关部位后续施工，复核检测报告，按批准方案处理并补充实体检测和验收资料。' },
     { key: 'safety', category: '安全', level: 'Ⅲ一般隐患', stages: ['rectify', 'approval'], hazardCategory: '临边洞口', hazard: '跑道施工区域临边防护栏杆连接不牢固', requirement: '加固栏杆连接节点，补齐警示标识，复核防护设置后提交现场照片。' },
     { key: 'other', category: '其他', level: 'Ⅲ一般隐患', stages: ['review'], hazardCategory: '现场通行', hazard: '施工临时通道指引标识缺失，人员车辆通行路线不明确', requirement: '补齐通行指引标识，明确人车分流路线并组织现场确认。' },
-    { key: 'manager-confirmation', category: '安全', level: 'Ⅲ一般隐患', stages: ['managerConfirmation'], confirmation: true, hazardCategory: '临边洞口', hazard: '跑道施工临边防护缺失，待项目经理确认', requirement: '核查防护缺口并恢复临边防护设施。' },
+    { key: 'safety-major', category: '安全', level: 'Ⅰ重大隐患', stages: ['departmentConfirmation'], hazardCategory: '起重吊装', hazard: '重大隐患演示：起重吊装作业区域存在重大安全隐患', requirement: '停止相关作业，落实隔离和整改措施，验收合格后恢复作业。' },
+    { key: 'other-major', category: '其他', level: 'Ⅰ重大隐患', stages: ['departmentConfirmation'], hazardCategory: '现场通行', hazard: '重大隐患演示：施工通道存在重大通行隐患', requirement: '封控相关通道、消除隐患，验收后恢复通行。' },
     { key: 'quality-a-done', category: '质量', level: 'A', closed: true, hidden: true, hazardCategory: '结构实体质量', hazard: '跑道道面平整度复测合格，整改资料已完成归档', requirement: '补齐整改与各级验收资料，完成审批并关闭整改单（仅补已办记录）。' },
     { key: 'safety-done', category: '安全', level: 'Ⅲ一般隐患', closed: true, hidden: true, hazardCategory: '临边洞口', hazard: '跑道施工区域临边防护栏杆已加固并复核', requirement: '完成整改、复核与审批并关闭整改单（仅补已办记录）。' },
+    { key: 'void-approval', category: '安全', level: 'Ⅲ一般隐患', stages: ['voidApproval'], voidPending: true, hazardCategory: '临边洞口', hazard: '作废审批演示：同一处临边防护隐患被重复登记', requirement: '经现场复核为重复登记，申请作废本整改单。' },
     { key: 'other-done', category: '其他', level: 'Ⅲ一般隐患', closed: true, hidden: true, hazardCategory: '现场通行', hazard: '施工临时通道指引标识已补齐并复核', requirement: '完成整改、复核与审批并关闭整改单（仅补已办记录）。' },
   ]
   return cases.flatMap((example, groupIndex) => {
     const projectId = 'p-000'
     const base = {
-      workflowExample: !example.confirmation, managerConfirmationExample: Boolean(example.confirmation), projectId, project: '飞行区跑道延长工程',
+      workflowExample: true, initiatorId: 'u-proj-' + projectId, projectId, project: '飞行区跑道延长工程',
       inspectionCategory: example.category, inspectionCategories: [example.category],
       inspectionType: '部门检查', source: '任务推送', taskNo: buildInspectionTaskNo(example.category, day(-2), 901 + groupIndex),
       hazardCategory: example.hazardCategory, hazardLevel: example.level, hazard: example.hazard,
@@ -40,10 +43,29 @@ export function createInspectionWorkflowExamples() {
       manager: getProjectApproverLabel(projectId, example.category),
       contractorManager: getConfiguredPersonLabel(projectId, example.category, 'contractorManagerId'),
       director: getConfiguredPersonLabel(projectId, example.category, 'directorId'),
-      requiresManagerConfirmation: Boolean(example.confirmation),
+      projectDepartmentHead: getConfiguredPersonLabel(projectId, example.category, 'departmentHeadId'),
       registeredAt: day(-2) + ' 09:00:00',
-      issuedAt: example.confirmation ? '' : `${day(-2)} 09:00:00`, deadline: day(3), overdue: false,
+      issuedAt: `${day(-2)} 09:00:00`, deadline: day(3), overdue: false,
     }
+    // 作废审批示例：整改单已提交作废申请，等待指挥部安全和整改负责人审批。
+    if (example.voidPending) {
+      const requestedAt = `${day(-1)} 10:00:00`
+      const record = {
+        ...base,
+        id: `inspection-example-${example.key}`,
+        rectifyNo: `ZG${day(-2).replaceAll('-', '')}91`,
+        workflowHistory: [{ stage: 'voidRequest', label: '申请作废整改单', actor: base.inspector, date: requestedAt, comment: '同一隐患重复登记，申请作废' }],
+        voidRequest: { status: 'pending', reason: '同一隐患重复登记，申请作废', requestedAt, applicant: base.inspector, approver: INSPECTION_VOID_APPROVER },
+        status: '待整改',
+        currentNode: '指挥部安全和整改负责人审批',
+        applicant: base.inspector,
+        applyDate: requestedAt,
+      }
+      record.rectifyNamePrefix = rectifyNamePrefix(record)
+      record.rectifyProcessName = '整改单作废审批'
+      return [record]
+    }
+
     const steps = workflowSteps(base)
     return (example.closed ? ['closed'] : (example.stages || steps.map(step => step.key))).map((stage, stageIndex) => {
       const record = { ...base, id: `inspection-example-${example.key}-${stage}`, rectifyNo: `ZG${day(-2).replaceAll('-', '')}${groupIndex + 1}${String(stageIndex + 1).padStart(2, '0')}`, workflowHistory: [], exampleHidden: Boolean(example.hidden), exampleAllowedProcessNames: INSPECTION_WORKFLOW_EXAMPLE_NAMES }
@@ -55,7 +77,8 @@ export function createInspectionWorkflowExamples() {
           contractorAcceptance: '施工单位项目经理已核对方案执行、实体检测及整改资料，验收通过。',
           review: '监理已现场核查整改结果，复核通过，资料与现场一致。',
           directorAcceptance: '项目总监已核验监理复核依据及实体质量，验收通过。',
-          approval: '整改及各级验收资料齐全，同意审批通过并关闭整改单。',
+          approval: '整改及各级验收资料齐全，项目经理验收通过。',
+          departmentConfirmation: '项目部长确认整改和验收结果，同意关闭整改单。',
         }[step.key]
         record[step.date] = day(-1)
         record[step.note] = comment
@@ -76,28 +99,5 @@ export function createInspectionWorkflowExamples() {
       record.rectifyProcessName = rectificationProcessName(record, current?.key || 'approval')
       return record
     })
-  })
-}
-
-/** 独立指派演示，不改变原有八条可办理的节点示例。 */
-export function createInspectionAssignmentExamples() {
-  const originals = createInspectionWorkflowExamples()
-  return [
-    { suffix: 'rectify', source: 'inspection-example-safety-rectify', stage: 'rectify', name: '指派示例1·整改 A→B', targets: [{ id: 'insp-005', label: '赵工（项目安全负责人）' }] },
-    { suffix: 'review', source: 'inspection-example-other-review', stage: 'review', name: '指派示例2·复查 A→B', targets: [{ id: 'insp-007', label: '黄工（专业监理工程师）' }] },
-    { suffix: 'chain', source: 'inspection-example-safety-rectify', stage: 'rectify', name: '指派示例3·连续指派 A→B→C', targets: [{ id: 'insp-005', label: '赵工（项目安全负责人）' }, { id: 'insp-006', label: '周工（质量工程师）' }] },
-  ].map(example => {
-    const row = JSON.parse(JSON.stringify(originals.find(item => item.id === example.source)))
-    Object.assign(row, { id: `inspection-assignment-demo-${example.suffix}`, rectifyNo: `ZG-ASSIGN-${example.suffix.toUpperCase()}`, workflowExample: false, assignmentExample: true, exampleHidden: true, rectifyProcessName: example.name })
-    let from = { id: 'insp-002', label: '刘工（专职安全员）' }
-    for (const [index, target] of example.targets.entries()) {
-      const label = workflowSteps(row).find(step => step.key === example.stage).label
-      row.workflowHistory.push({ type: 'assignment', stage: example.stage, label, actor: from.label, fromId: from.id, toId: target.id, from: from.label, to: target.label, date: `${(row.workflowHistory.at(-1)?.date || row.issuedAt).slice(0, 10)} ${index ? '11' : '10'}:00:00`, comment: `${from.label}指派给${target.label}`, result: '指派' })
-      row[example.stage === 'rectify' ? 'rectifier' : 'reviewer'] = target.label
-      row.workflowAssignees = { [example.stage]: { id: target.id, label: target.label } }
-      from = target
-    }
-    row.workflowAssignmentRevision = example.targets.length
-    return row
   })
 }

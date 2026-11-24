@@ -1,12 +1,15 @@
 import { computed, reactive, watch } from 'vue'
 import { getProjectRectifierLabel, getProjectReviewerLabel, getConfiguredPersonLabel, getProjectApproverLabel, getInspectionCopyDefaults, getInspectionPersonConfig } from './useInspectionPersonConfig'
-import { mobileInspectionTasks } from '../mock/mobileInspectionTasks'
+import { addMobileInspectionTask, getMobileInspectionTask, listMobileInspectionTasks, markInspectionTaskVoided } from '../mock/mobileInspectionTasks'
+import { getCurrentUserSnapshot } from '../mock/currentUser'
+import { getHeaderProjectLabel } from './useCurrentProject'
 import { normalizeHazardCategory } from '../config/inspectionManagement'
-import { createInspectionWorkflowExamples, createInspectionAssignmentExamples } from '../mock/inspectionWorkflowExamples.js'
+import { COC_PROJECT_OPTIONS } from '../config/projectOptions.js'
+import { createInspectionWorkflowExamples } from '../mock/inspectionWorkflowExamples.js'
 
 import { inspectionDateKey } from '../utils/inspectionLedgerDates'
-import { workflowSteps, currentWorkflowStep, isAcceptanceStage, rectificationIssuedAt, rectificationCopyEvents } from '../utils/inspectionRectificationWorkflow'
-import { canExecuteInspectionStep, canAssignInspectionStep, inspectionOperator, isInspectionCopyRecipient } from '../utils/inspectionWorkflowIdentity'
+import { workflowSteps, currentWorkflowStep, isAcceptanceStage, rectificationIssuedAt, rectificationCopyEvents, INSPECTION_VOID_APPROVER, currentWorkflowLabel } from '../utils/inspectionRectificationWorkflow'
+import { canExecuteInspectionStep, inspectionOperator, isInspectionCopyRecipient, canRequestInspectionVoid } from '../utils/inspectionWorkflowIdentity'
 import { inspectorCandidates } from './useInspectionPersonConfig'
 const workflowListeners = new Set()
 export function registerInspectionWorkflowListener(listener) { workflowListeners.add(listener) }
@@ -49,7 +52,6 @@ export function mapMobileRecordToHazardRow(record) {
     issueDate,
     issuedAt: rectificationIssuedAt(record),
     registeredAt: record.registeredAt,
-    managerConfirmationResult: record.managerConfirmationResult,
     issueCcPersons: record.issueCcPersons ?? record.ccPersons ?? '',
     completionCcPersons: record.completionCcPersons || '',
     deadline: record.deadline,
@@ -76,8 +78,13 @@ export function mapMobileRecordToHazardRow(record) {
     directorAcceptanceDate: record.directorAcceptanceDate,
     directorAcceptanceComment: record.directorAcceptanceComment,
     directorAcceptanceResult: record.directorAcceptanceResult,
+    projectDepartmentHead: record.projectDepartmentHead,
+    departmentConfirmationDate: record.departmentConfirmationDate,
+    departmentConfirmationComment: record.departmentConfirmationComment,
+    departmentConfirmationResult: record.departmentConfirmationResult,
+    voidRequest: record.voidRequest,
     workflowHistory: record.workflowHistory,
-    currentNode: record.currentNode,
+    currentNode: currentWorkflowLabel(record),
     source: 'mobile-rectify',
   }
 }
@@ -297,7 +304,6 @@ export const mobileRectificationRecords = reactive([
     approvalComment: '同意关闭',
   },
   ...createInspectionWorkflowExamples(),
-  ...createInspectionAssignmentExamples(),
 ].map((record) => ({
   ...record,
   // 旧台账示例仍可查看详情，但不再重复投影到消息中心的待办清单。
@@ -309,7 +315,7 @@ const ASSIGNMENT_ARCHIVE_KEY = 'airport-inspection-assigned-records-v1'
 function readAssignedRecords() {
   try {
     const saved = JSON.parse(localStorage.getItem(ASSIGNMENT_ARCHIVE_KEY) || '[]')
-    return Array.isArray(saved) ? saved.filter(item => item?.id && item.workflowAssignees) : []
+    return Array.isArray(saved) ? saved.filter(item => item?.id && item.voidRequest) : []
   } catch { return [] }
 }
 function restoreAssignedRecords() {
@@ -317,20 +323,38 @@ function restoreAssignedRecords() {
     const current = mobileRectificationRecords.find(item => item.id === saved.id)
     if (current) Object.assign(current, saved)
     else mobileRectificationRecords.unshift(saved)
+    if (saved.voidDemoScope) ensureInspectionVoidDemo(saved.voidDemoScope)
+    if (saved.status === '已作废') markInspectionTaskVoided(saved)
   }
 }
 function persistAssignedRecords() {
-  const value = JSON.stringify(mobileRectificationRecords.filter(item => item.workflowAssignees))
-  if (localStorage.getItem(ASSIGNMENT_ARCHIVE_KEY) !== value) localStorage.setItem(ASSIGNMENT_ARCHIVE_KEY, value)
+  const value = JSON.stringify(mobileRectificationRecords.filter(item => item.voidRequest))
+  try {
+    if (localStorage.getItem(ASSIGNMENT_ARCHIVE_KEY) !== value) localStorage.setItem(ASSIGNMENT_ARCHIVE_KEY, value)
+  } catch { /* 当前会话仍可继续办理。 */ }
+}
+/** 已废弃流程节点：清理本地缓存中仍「待项目经理确认」的历史单。 */
+function dropLegacyManagerConfirmationRecords() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(ASSIGNMENT_ARCHIVE_KEY) || '[]')
+    if (!Array.isArray(saved)) return
+    const kept = saved.filter((item) => !(item?.requiresManagerConfirmation && !item?.managerConfirmationDate))
+    if (kept.length !== saved.length) localStorage.setItem(ASSIGNMENT_ARCHIVE_KEY, JSON.stringify(kept))
+  } catch { /* 无存储权限时忽略。 */ }
+}
+dropLegacyManagerConfirmationRecords()
+for (let i = mobileRectificationRecords.length - 1; i >= 0; i--) {
+  const item = mobileRectificationRecords[i]
+  if (item.requiresManagerConfirmation && !item.managerConfirmationDate && !item.managerConfirmationResult) mobileRectificationRecords.splice(i, 1)
 }
 restoreAssignedRecords()
-// 已指派的演示单属于原办理历史，不能恢复执行权；另补独立演示单，保证八种示例可再次演示。
+// 示例单被办理或作废后，另补独立演示单，保证各类示例可再次演示。
 export function ensureInspectionWorkflowExamples() {
   const availableRecords = []
   for (const template of createInspectionWorkflowExamples().filter(item => !item.exampleHidden)) {
     const expectedStage = currentWorkflowStep(template)?.key
     const related = mobileRectificationRecords.filter(item => item.id === template.id || item.demoTemplateId === template.id)
-    const available = related.find(item => !item.workflowAssignees && currentWorkflowStep(item)?.key === expectedStage)
+    const available = related.find(item => currentWorkflowStep(item)?.key === expectedStage)
     if (available) { availableRecords.push(available); continue }
     for (const item of related) item.workflowExample = false
     let sequence = 1
@@ -347,14 +371,118 @@ export function ensureInspectionWorkflowExamples() {
   return availableRecords
 }
 ensureInspectionWorkflowExamples()
+/** 作废审批示例：绑定独立演示巡检单，审批通过后该巡检任务同步显示「已作废」。 */
+function ensureVoidApprovalTask(record) {
+  if (!record) return
+  const taskId = 'inspection-void-approval-task'
+  if (!getMobileInspectionTask(taskId)) {
+    addMobileInspectionTask({
+      id: taskId, taskNo: 'AQXJ-VOID-APPROVAL', taskName: '整改单作废审批演示巡检单',
+      projectId: record.projectId, project: record.project, inspectionCategory: record.inspectionCategory || '安全',
+      status: '已完成', result: 'hazard', source: '系统自建', inspector: record.inspector,
+      submittedAt: record.registeredAt,
+      hazardItems: [{ rectifyId: record.id, rectifyNo: record.rectifyNo, hazardCategory: record.hazardCategory, hazardLevel: record.hazardLevel, desc: record.hazard }],
+    })
+  }
+  record.inspectionTaskId = taskId
+}
+ensureVoidApprovalTask(mobileRectificationRecords.find(item => item.id === 'inspection-example-void-approval'))
+
+/** 业务台账「已作废」示例：每个项目各一条整改单 + 关联巡检任务，任意项目下都能演示筛选与删除。 */
+const DELETED_KEY_PREFIX = 'airport-inspection-deleted:'
+function readDeleted(key) { try { return localStorage.getItem(DELETED_KEY_PREFIX + key) === '1' } catch { return false } }
+function markDeleted(key) { try { localStorage.setItem(DELETED_KEY_PREFIX + key, '1') } catch { /* 忽略存储失败 */ } }
+export function ensureInspectionVoidedExamples() {
+  COC_PROJECT_OPTIONS.forEach((project, index) => {
+    const recordId = `inspection-voided-example-${project.id}`
+    const taskId = `inspection-voided-example-task-${project.id}`
+    const seq = String(index + 1).padStart(2, '0')
+    const inspector = getConfiguredPersonLabel(project.id, '安全', 'inspectorId') || '陈工（监理工程师）'
+    if (!getMobileInspectionTask(taskId) && !readDeleted(taskId)) {
+      addMobileInspectionTask({
+        id: taskId,
+        taskNo: `AQXJ-VOIDED-DEMO-${seq}`,
+        taskName: `已作废示例巡检单（${project.label}）`,
+        projectId: project.id, project: project.label,
+        inspectionCategory: '安全', inspectionCategories: ['安全'],
+        inspectionType: '部门检查', status: '已完成', result: 'hazard', source: '系统自建',
+        inspector,
+        submittedAt: '2026-11-20 10:00:00', inspectionDate: '2026-11-20', hazardCount: 1, hasRectify: true,
+        hazardItems: [{
+          rectifyId: recordId, rectifyNo: `ZG-VOIDED-DEMO-${seq}`,
+          hazardCategory: '临边洞口', hazardLevel: 'Ⅲ一般隐患', desc: '已作废示例：同一隐患重复登记，经审批作废', hasRectify: true,
+        }],
+      })
+    }
+    if (!mobileRectificationRecords.some((item) => item.id === recordId) && !readDeleted(recordId)) {
+      mobileRectificationRecords.unshift({
+        id: recordId,
+        rectifyNo: `ZG-VOIDED-DEMO-${seq}`,
+        inspectionTaskId: taskId,
+        taskNo: `AQXJ-VOIDED-DEMO-${seq}`,
+        inspectionCategory: '安全', inspectionCategories: ['安全'],
+        hazardCategory: '临边洞口', hazardLevel: 'Ⅲ一般隐患',
+        hazard: '已作废示例：同一隐患重复登记，经审批作废',
+        rectifyRequirement: '经核实为重复登记，本单已审批作废。',
+        projectId: project.id, project: project.label,
+        rectifier: getProjectRectifierLabel(project.id, '安全'),
+        reviewer: getProjectReviewerLabel(project.id, '安全'),
+        manager: getProjectApproverLabel(project.id, '安全'),
+        inspector, applicant: inspector,
+        status: '已作废', currentNode: '已作废',
+        registeredAt: '2026-11-20 10:00:00', issueDate: '2026-11-20', issuedAt: '2026-11-20 10:00:00',
+        applyDate: '2026-11-20 10:00:00', closeDate: '2026-11-21 09:30:00', deadline: '2026-11-27',
+        voidRequest: {
+          status: 'approved', reason: '同一隐患重复登记，申请作废',
+          requestedAt: '2026-11-20 15:00:00', applicant: inspector,
+          approver: INSPECTION_VOID_APPROVER,
+          decidedAt: '2026-11-21 09:30:00', comment: '核实为重复登记，同意作废。',
+        },
+        workflowHistory: [{ stage: 'voidRequest', label: '申请作废整改单', actor: inspector, date: '2026-11-20 15:00:00', comment: '同一隐患重复登记，申请作废' },
+          { stage: 'voidApproval', label: '作废审批', actor: INSPECTION_VOID_APPROVER, date: '2026-11-21 09:30:00', comment: '核实为重复登记，同意作废。', result: '通过' }],
+      })
+    }
+    const current = getMobileInspectionTask(taskId)
+    if (current && !current.rectificationVoided) {
+      current.rectificationVoided = true
+      current.voidedAt = '2026-11-21 09:30:00'
+    }
+  })
+}
+ensureInspectionVoidedExamples()
 watch(mobileRectificationRecords, persistAssignedRecords, { deep: true })
-// 另一标签页发生指派时，及时收回原处理人的待办和执行权限。
+// 另一标签页发生作废申请时，及时刷新待办。
 window.addEventListener('storage', event => {
   if (event.key !== ASSIGNMENT_ARCHIVE_KEY) return
   restoreAssignedRecords()
-  for (const row of mobileRectificationRecords.filter(item => item.workflowAssignees)) notifyWorkflow(row, { assignment: true })
+  for (const row of mobileRectificationRecords.filter(item => item.voidRequest)) notifyWorkflow(row, { assignment: true })
 })
 export const getMobileRectification = (id) => mobileRectificationRecords.find((item) => item.id === id)
+
+/** 每个演示范围使用独立的巡检单和整改单，避免作废其他流程示例。 */
+export function ensureInspectionVoidDemo(scopeId) {
+  const id = `inspection-void-demo-${scopeId}`
+  const taskId = `${id}-task`
+  if (getMobileInspectionTask(taskId)) return
+  const stored = mobileRectificationRecords.find(item => item.id === id)
+  const projectId = scopeId === 'hq' ? 'p-000' : scopeId
+  const inspector = getCurrentUserSnapshot(scopeId)
+  const numberSuffix = scopeId.toUpperCase()
+  const task = addMobileInspectionTask({
+    id: taskId, taskNo: `AQXJ-VOID-DEMO-${numberSuffix}`, taskName: '整改单作废演示巡检单',
+    projectId, project: getHeaderProjectLabel(projectId), inspectionCategory: '安全',
+    status: '已完成', result: 'hazard', source: '系统自建', inspector: inspector.name,
+    submittedAt: stored?.registeredAt || nowText(),
+    rectificationInitiatorId: inspector.id, voidDemoScope: scopeId,
+    hazardItems: [{
+      rectifyId: id, rectifyNo: `ZG-VOID-DEMO-${numberSuffix}`,
+      hazardCategory: '临边洞口', hazardLevel: 'Ⅲ一般隐患',
+      desc: '整改单作废演示：临边防护隐患重复登记',
+    }],
+  })
+  if (!stored) createMobileRectificationsFromTask(task, task.hazardItems)
+  else if (stored.status === '已作废') markInspectionTaskVoided(stored)
+}
 
 /** 将巡检中逐条生成的整改单同步进整改复查台账。 */
 export function createMobileRectificationsFromTask(task = {}, hazardItems = []) {
@@ -368,11 +496,13 @@ export function createMobileRectificationsFromTask(task = {}, hazardItems = []) 
     const issueCcPersons = copyLabels(hazard.issueCcPersons ?? hazard.ccPersons ?? copyDefaults.issueCcPersons)
     const completionCcPersons = copyLabels(hazard.completionCcPersons ?? copyDefaults.completionCcPersons)
     const registeredAt = task.submittedAt ? String(task.submittedAt).replaceAll('/', '-') : nowText()
-    const requiresManagerConfirmation = task.requiresManagerConfirmation === true
+    const initiator = inspectionOperator()
     const record = {
       id,
       rectifyNo: hazard.rectifyNo || id,
       inspectionTaskId: task.id,
+      initiatorId: task.rectificationInitiatorId || initiator.id,
+      ...(task.voidDemoScope ? { voidDemoScope: task.voidDemoScope } : {}),
       taskNo: task.taskNo || '--',
       inspectionCategories: task.inspectionCategories,
       inspectionCategory: task.inspectionCategory || '安全',
@@ -390,10 +520,10 @@ export function createMobileRectificationsFromTask(task = {}, hazardItems = []) 
       managerId: getInspectionPersonConfig(project, category)?.managerId || '',
       contractorManager: getConfiguredPersonLabel(project, category, 'contractorManagerId'),
       director: getConfiguredPersonLabel(project, category, 'directorId'),
+      projectDepartmentHead: getConfiguredPersonLabel(project, category, 'departmentHeadId'),
       workflowHistory: [],
       registeredAt,
-      requiresManagerConfirmation,
-      issuedAt: requiresManagerConfirmation ? '' : registeredAt,
+      issuedAt: registeredAt,
       deadline: hazard.rectifyDeadline || '',
       status: '待整改',
       currentNode: '整改人整改',
@@ -412,29 +542,83 @@ export function createMobileRectificationsFromTask(task = {}, hazardItems = []) 
 }
 
 export function listMobileHazardsAsInspectionRows() {
+  return mobileRectificationRecords.filter(record => record.status !== '已作废').map(mapMobileRecordToHazardRow)
+}
+
+/** 台账用：含已作废整改单（列表可见、可删除）；统计请自行排除 status === '已作废'。 */
+export function listMobileHazardsIncludingVoided() {
   return mobileRectificationRecords.map(mapMobileRecordToHazardRow)
 }
 
-/** 所有端共用同一状态机，禁止跳级或重复办理；退回后清空下游结论，日志保留。 */
+/** 删除已作废整改单，并同步清理本地缓存。 */
+export function deleteMobileRectificationRecord(id) {
+  const index = mobileRectificationRecords.findIndex((item) => item.id === id)
+  if (index < 0) return false
+  if (mobileRectificationRecords[index].status !== '已作废') return false
+  mobileRectificationRecords.splice(index, 1)
+  markDeleted(id)
+  persistAssignedRecords()
+  return true
+}
+
+function ensureRectificationHistory(record) {
+  if (record.workflowHistory?.length) return
+  record.workflowHistory = workflowSteps(record).filter(step => record[step.date]).map(step => ({
+    stage: step.key, label: step.label, actor: step.actor, date: record[step.date],
+    comment: record[step.note] || '', result: step.result ? record[step.result] || '通过' : '通过',
+  }))
+}
+
+export function requestInspectionVoid(id, reason) {
+  restoreAssignedRecords()
+  const record = getMobileRectification(id)
+  const comment = String(reason || '').trim()
+  if (!comment || !canRequestInspectionVoid(record)) return false
+  const operator = inspectionOperator()
+  const date = nowText()
+  ensureRectificationHistory(record)
+  record.voidRequest = { status: 'pending', reason: comment, requestedAt: date, applicant: operator.label, approver: INSPECTION_VOID_APPROVER }
+  record.workflowHistory.push({ type: 'voidRequest', stage: 'voidRequest', label: '申请作废整改单', actor: operator.label, date, comment })
+  record.currentNode = currentWorkflowLabel(record)
+  persistAssignedRecords()
+  notifyWorkflow(record, { voidRequest: true })
+  return true
+}
+
+function decideInspectionVoid(record, pass, comment) {
+  const date = nowText()
+  const step = currentWorkflowStep(record)
+  if (!comment || step?.key !== 'voidApproval' || !canExecuteInspectionStep(record, step.key)) return false
+  Object.assign(record.voidRequest, { status: pass ? 'approved' : 'rejected', decidedAt: date, comment })
+  record.workflowHistory.push({ stage: 'voidApproval', label: '作废审批', actor: step.actor, date, comment, result: pass ? '通过' : '不通过' })
+  if (pass) {
+    record.status = '已作废'
+    record.closeDate = date
+    markInspectionTaskVoided(record)
+  }
+  record.currentNode = currentWorkflowLabel(record)
+  persistAssignedRecords()
+  notifyWorkflow(record, step)
+  return true
+}
+
+/** 所有端共用同一状态机，禁止跳级或重复办理；驳回后从整改节点重新开始。 */
 export function submitInspectionWorkflowStep(id, expectedStage, pass, payload = {}) {
   restoreAssignedRecords()
   const record = getMobileRectification(id)
   const step = currentWorkflowStep(record)
   if (!record || !step || step.key !== expectedStage) return false
-  if (!canExecuteInspectionStep(record, step.key)) return false
-  if (record.workflowAssignees?.[step.key] && payload.assignmentRevision !== record.workflowAssignmentRevision) return false
+  if (!canExecuteInspectionStep(record, step.key)) return false  if (step.key === 'voidApproval') return decideInspectionVoid(record, pass, String(payload.comment || '').trim())
   const steps = workflowSteps(record), index = steps.findIndex(item => item.key === step.key)
   const date = payload.date || payload[step.date] || nowText().slice(0, 10)
   const comment = String(payload.comment || payload[step.note] || '').trim()
-  const confirming = step.key === 'managerConfirmation'
-  if (!date || (!comment && !confirming && !(pass && isAcceptanceStage(step.key)))) return false
-  if (step.key === 'rectify' && !(payload.rectificationPhotos || payload.rectPhotos || []).length) return false
+  if (!date || (!comment && !(pass && isAcceptanceStage(step.key)))) return false
+  if (step.key === 'rectify' && (!pass || !(payload.rectificationPhotos || payload.rectPhotos || []).length)) return false
   // 历史单据首次办理时固化原始登记时间，后续 applyDate 更新不影响下发记录。
-  if (confirming && pass) record.issuedAt = nowText()
-  if (!record.requiresManagerConfirmation) record.issuedAt ||= record.applyDate || nowText()
-  const result = confirming ? (pass ? '是' : '否') : (pass ? '通过' : '不通过')
-  record.workflowHistory ||= []
-  record.workflowHistory.push({ stage: step.key, label: step.label, actor: record.workflowAssignees?.[step.key] ? inspectionOperator().label : step.actor, date: confirming ? nowText() : date, comment, result })
+  record.issuedAt ||= record.applyDate || nowText()
+  const result = pass ? '通过' : '不通过'
+  ensureRectificationHistory(record)
+  record.workflowHistory.push({ stage: step.key, label: step.label, actor: step.actor, date, comment, result })
   record[step.date] = date
   record[step.note] = comment
   if (step.result) record[step.result] = result
@@ -447,17 +631,18 @@ export function submitInspectionWorkflowStep(id, expectedStage, pass, payload = 
     photoFilesByRecordId.set(id, sources)
     record.submitDate = date
   }
-  let nextIndex = index + 1
-  const rectifyIndex = steps.findIndex(item => item.key === 'rectify')
-  const returnsToRectifier = step.key === 'contractorAcceptance' || step.key === 'review'
-  if (!pass) nextIndex = confirming ? steps.length : returnsToRectifier ? rectifyIndex : steps.findIndex(item => item.key === 'review')
-  // 重新流转时作废本次所经过的下游旧结论，历史处理留在 workflowHistory。
-  for (let i = pass ? index + 1 : nextIndex; i < steps.length; i++) {
-    if (i === index && !pass) continue
+  const rejected = !pass && !confirming
+  const nextIndex = pass ? index + 1 : confirming ? steps.length : steps.findIndex(item => item.key === 'rectify')
+  // 每轮结论保留在流程记录；驳回后清空当前轮所有节点的材料和办理结果。
+  for (let i = nextIndex; i < steps.length; i++) {
     const later = steps[i]
     record[later.date] = ''
     record[later.note] = ''
     if (later.result) record[later.result] = ''
+  }
+  if (rejected) {
+    record.submitDate = ''
+    record.rectificationPhotos = []
   }
   const next = steps[nextIndex]
   Object.assign(record, {
@@ -466,43 +651,15 @@ export function submitInspectionWorkflowStep(id, expectedStage, pass, payload = 
     applicant: step.actor,
     applyDate: nowText(),
     closeDate: next ? '' : date,
-    isRejected: !pass && returnsToRectifier,
-    rejectReason: !pass && returnsToRectifier ? comment : '',
-    approvalRejected: !pass && !confirming && !returnsToRectifier,
-    approvalReason: !pass && !confirming && !returnsToRectifier ? comment : '',
+    isRejected: rejected,
+    rejectReason: rejected ? comment : '',
+    approvalRejected: false,
+    approvalReason: '',
   })
   notifyWorkflow(record, step)
-  if (record.workflowAssignees) persistAssignedRecords()
+  if (record.voidRequest) persistAssignedRecords()
   return true
 }
-export function assignInspectionWorkflowStep(id, expectedStage, targetId, expectedRevision = 0) {
-  restoreAssignedRecords()
-  const record = getMobileRectification(id)
-  if (!canAssignInspectionStep(record, expectedStage)) return { ok: false, message: '只有当前任务处理人可以指派整改或复查任务' }
-  if ((record.workflowAssignmentRevision || 0) !== expectedRevision) return { ok: false, message: '任务已被指派，请刷新后重试' }
-  const target = inspectorCandidates.find(item => item.id === targetId)
-  const operator = inspectionOperator()
-  if (!target || target.id === operator.id) return { ok: false, message: '请选择其他处理人' }
-  const label = `${target.name}（${target.role}）`
-  const step = currentWorkflowStep(record)
-  if (step.actor === label) return { ok: false, message: '该人员已是当前处理人' }
-  record.workflowAssignees ||= {}
-  record.legacyWorkflowExample = false
-  record.workflowAssignees[expectedStage] = { id: target.id, label }
-  record[expectedStage === 'rectify' ? 'rectifier' : 'reviewer'] = label
-  record.workflowAssignmentRevision = (record.workflowAssignmentRevision || 0) + 1
-  record.workflowHistory ||= []
-  if (!record.workflowHistory.length) {
-    for (const previous of workflowSteps(record)) if (record[previous.date]) {
-      record.workflowHistory.push({ stage: previous.key, label: previous.label, actor: previous.actor, date: record[previous.date], comment: record[previous.note] || '', result: previous.result ? record[previous.result] : '通过' })
-    }
-  }
-  record.workflowHistory.push({ type: 'assignment', stage: expectedStage, label: step.label, actor: operator.label, fromId: operator.id, toId: target.id, from: operator.label, to: label, date: nowText(), comment: `${operator.label}指派给${label}`, result: '指派' })
-  notifyWorkflow(record, { assignment: true })
-  persistAssignedRecords()
-  return { ok: true }
-}
-
 export function submitRectification(id, payload = {}) {
   return submitInspectionWorkflowStep(id, 'rectify', true, { ...payload, date: payload.rectificationDate || payload.rectDate, comment: payload.rectificationNote || payload.rectNote })
 }
@@ -514,7 +671,7 @@ export function submitManagerApproval(id, pass, payload = {}) {
 }
 
 export const mobileWorkflowMessages = computed(() => {
-  const inspectionTodo = mobileInspectionTasks
+  const inspectionTodo = listMobileInspectionTasks()
     .filter((item) => item.status === '未完成')
     .map((item) => ({
       id: `todo-task-${item.id}`,
@@ -528,7 +685,7 @@ export const mobileWorkflowMessages = computed(() => {
       action: 'task-execute',
     }))
   const rectifyTodo = mobileRectificationRecords
-    .filter((item) => !item.legacyWorkflowExample && currentWorkflowStep(item) && currentWorkflowStep(item).key !== 'managerConfirmation' && canExecuteInspectionStep(item, currentWorkflowStep(item)?.key))
+    .filter((item) => !item.legacyWorkflowExample && currentWorkflowStep(item) && canExecuteInspectionStep(item, currentWorkflowStep(item)?.key))
     .map((item) => ({
       id: `todo-${item.id}`,
       inspectionCategory: item.inspectionCategory,
@@ -543,7 +700,7 @@ export const mobileWorkflowMessages = computed(() => {
       applicant: item.applicant,
       applyDate: item.applyDate,
       status: '待办',
-      action: currentWorkflowStep(item)?.key === 'rectify' ? 'execute' : currentWorkflowStep(item)?.key === 'approval' ? 'approve' : 'review',
+      action: currentWorkflowStep(item)?.key === 'rectify' ? 'execute' : ['approval', 'departmentConfirmation', 'voidApproval'].includes(currentWorkflowStep(item)?.key) ? 'approve' : 'review',
     }))
   const todo = [...inspectionTodo, ...rectifyTodo]
   const initiated = mobileRectificationRecords.filter(item => !item.legacyWorkflowExample).map((item) => ({
@@ -554,7 +711,7 @@ export const mobileWorkflowMessages = computed(() => {
     owner: currentWorkflowStep(item)?.actor || '-',
     applicant: item.applicant,
     applyDate: item.applyDate,
-    status: item.status === '已关闭' ? '已办结' : '流转中',
+    status: item.status === '已作废' ? '已作废' : item.voidRequest?.status === 'pending' ? '作废审批中' : item.status === '已关闭' ? '已办结' : '流转中',
     action: 'detail',
   }))
   const done = mobileRectificationRecords
@@ -563,7 +720,7 @@ export const mobileWorkflowMessages = computed(() => {
       id: `done-${item.id}`,
       recordId: item.id,
       flowName: '隐患整改',
-      currentNode: item.managerConfirmationResult === '否' ? '项目经理确认非隐患' : '项目经理审批通过',
+      currentNode: item.departmentConfirmationResult === '通过' ? '项目部长确认通过' : '项目经理审批通过',
       owner: item.manager,
       applicant: item.applicant,
       applyDate: item.applyDate,

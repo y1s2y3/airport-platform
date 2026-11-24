@@ -3,7 +3,6 @@ import { reactive, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useCurrentProject } from '../../composables/useCurrentProject'
 import {
-  INSPECTION_COPY_FIELDS,
   INSPECTION_PERSON_CONFIG_GROUPS,
   getInspectionPersonConfig,
   getInspectorById,
@@ -21,23 +20,20 @@ const sections = INSPECTION_PERSON_CONFIG_GROUPS.map(({ value, label }) => ({
   roles: [
     { key: 'inspectorId', label: '巡检人' },
     { key: 'rectifierId', label: '施工单位整改人', multiple: true },
-    ...(value === '质量' ? [{ key: 'contractorManagerId', label: '施工单位项目经理', scope: 'A级验收' }] : []),
+    { key: 'contractorManagerId', label: '施工单位项目经理', scope: value === '质量' ? 'A级验收' : '重大隐患验收' },
     { key: 'reviewerId', label: '监理单位复核人', multiple: true },
-    ...(value === '质量' ? [{ key: 'directorId', label: '监理单位项目总监', scope: 'A级验收' }] : []),
+    { key: 'directorId', label: '监理单位项目总监', scope: value === '质量' ? 'A级验收' : '重大隐患验收' },
     { key: 'managerId', label: '指挥部项目经理' },
+    { key: 'departmentHeadId', label: '项目部长', scope: value === '质量' ? 'A级确认' : '重大隐患确认' },
   ],
 }))
-const copyFields = INSPECTION_COPY_FIELDS.map(({ configKey, label }) => ({ key: configKey, label, multiple: true }))
-const groups = section => [
-  { label: '流程办理人', fields: section.roles },
-  { label: '抄送设置', fields: copyFields },
-]
+
 const personLabel = person => person ? `${person.name}（${person.role}）` : ''
 const peopleLabels = value => inspectionPersonIds(value).map(id => personLabel(getInspectorById(id))).filter(Boolean)
 
 function load(section) {
   const config = getInspectionPersonConfig(laborProjectId.value, section.category) || {}
-  section.state.form = Object.fromEntries([...section.roles, ...copyFields].map(field =>
+  section.state.form = Object.fromEntries(section.roles.map(field =>
     [field.key, field.multiple ? inspectionPersonIds(config[field.key]) : config[field.key] || ''],
   ))
   section.state.editing = false
@@ -70,10 +66,10 @@ function save(section) {
             <el-button size="small" type="primary" @click="save(section)">保存</el-button>
           </div>
         </header>
-        <div v-for="group in groups(section)" :key="group.label" class="config-group">
-          <h5>{{ group.label }}</h5>
+        <div class="config-group">
+          <h5>流程办理人</h5>
           <dl>
-            <div v-for="field in group.fields" :key="field.key" class="config-row">
+            <div v-for="field in section.roles" :key="field.key" class="config-row">
               <dt>{{ field.label }} <span v-if="field.scope" class="role-scope">{{ field.scope }}</span></dt>
               <dd>
                 <el-select
@@ -108,7 +104,6 @@ function save(section) {
 .card-heading { display: flex; align-items: center; justify-content: space-between; min-height: 56px; padding: 0 20px; border-bottom: 1px solid #e4e7ee; }
 .card-heading h4 { margin: 0; font-size: 17px; }
 .config-group { padding: 16px 20px 10px; }
-.config-group + .config-group { border-top: 1px solid #e4e7ee; background: #fafbfc; border-radius: 0 0 12px 12px; }
 .config-group h5 { margin: 0 0 8px; font-size: 13px; color: #505967; }
 .config-group dl { margin: 0; }
 .config-row { display: grid; grid-template-columns: minmax(125px, 42%) minmax(0, 1fr); align-items: start; gap: 12px; padding: 9px 0; line-height: 1.45; }

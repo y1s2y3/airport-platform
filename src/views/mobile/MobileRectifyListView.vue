@@ -16,7 +16,7 @@ const router = useRouter()
 const route = useRoute()
 const { rectifyBase, tasksBase } = useMobileRouteBase()
 
-const rectifyList = computed(() => mobileRectificationRecords)
+const rectifyList = computed(() => mobileRectificationRecords.filter(record => record.status !== '已作废'))
 
 const activeTab = ref('全部')
 if (route.query.tab) activeTab.value = route.query.tab
@@ -65,9 +65,9 @@ function goBack() { router.push(tasksBase.value) }
 
 function onCardClick(item) {
   const step = currentWorkflowStep(item)
-  if (step?.key === 'managerConfirmation' || !canExecuteInspectionStep(item, step?.key)) return goDetail(item.id)
+  if (['voidApproval'].includes(step?.key) || !canExecuteInspectionStep(item, step?.key)) return goDetail(item.id)
   // 施工方项目经理验收也属于“待整改”，当前节点为验收时进入验收页。
-  if (item.status === '待整改') return String(item.currentNode || '').includes('验收') ? goReview(item.id) : goExecute(item.id)
+  if (item.status === '待整改') return step?.key === 'contractorAcceptance' ? goReview(item.id) : goExecute(item.id)
   if (item.status === '待验收') return goReview(item.id)
   return goDetail(item.id)
 }

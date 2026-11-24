@@ -36,13 +36,20 @@ const mergedHazard = computed(() => {
     : { ...base, id: base.id || props.todo.hazardId }
 })
 
+/** 与巡检一致：待验收=监理复查，待复查=项目经理审批。 */
+const dispatchStageLabel = computed(() => (mergedHazard.value?.rectifyStatus === '待复查' ? '审批' : '复查'))
+const dispatchDecisionLabel = computed(() => `${dispatchStageLabel.value}结果`)
+const dispatchOpinionLabel = computed(() => `${dispatchStageLabel.value}意见`)
+
 const rectifyPhotoUrls = computed(() =>
   (mergedHazard.value?.rectifyPhotos || []).map((photo, index) =>
     resolveDispatchHazardPhotoSrc(photo, index),
   ),
 )
 
+const todayText = () => new Date().toISOString().slice(0, 10)
 const dispatchHazardForm = reactive({
+  processDate: todayText(),
   remark: '',
   photos: [],
   decision: 'pass',
@@ -55,6 +62,7 @@ function sourceTypeLabel(type) {
 
 function resetForm() {
   Object.assign(dispatchHazardForm, {
+    processDate: todayText(),
     remark: '',
     photos: [],
     decision: 'pass',
@@ -126,7 +134,10 @@ watch(() => props.todo, resetForm, { immediate: true })
     </div>
 
     <template v-if="todo.bizType === DISPATCH_HAZARD_TODO_BIZ.RECTIFY">
-      <el-form label-width="96px" class="op-form">
+      <el-form label-width="110px" class="op-form">
+        <el-form-item label="整改日期" required>
+          <el-date-picker v-model="dispatchHazardForm.processDate" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" style="width: 100%" aria-label="整改日期" />
+        </el-form-item>
         <el-form-item label="整改说明" required>
           <el-input
             v-model="dispatchHazardForm.remark"
@@ -149,29 +160,23 @@ watch(() => props.todo, resetForm, { immediate: true })
     </template>
 
     <template v-else-if="todo.bizType === DISPATCH_HAZARD_TODO_BIZ.ACCEPT">
-      <el-form label-width="96px" class="op-form">
-        <el-form-item label="验收结果" required>
+      <el-form label-width="110px" class="op-form">
+        <el-form-item label="办理日期" required>
+          <el-date-picker v-model="dispatchHazardForm.processDate" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" style="width: 100%" aria-label="办理日期" />
+        </el-form-item>
+        <el-form-item :label="dispatchDecisionLabel" required>
           <el-radio-group v-model="dispatchHazardForm.decision">
-            <el-radio value="pass">验收通过</el-radio>
-            <el-radio value="reject">驳回</el-radio>
+            <el-radio value="pass">通过</el-radio>
+            <el-radio value="reject">不通过</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item v-if="dispatchHazardForm.decision === 'pass'" label="验收意见">
+        <el-form-item :label="dispatchOpinionLabel" required>
           <el-input
             v-model="dispatchHazardForm.remark"
             type="textarea"
             :rows="3"
-            placeholder="可填写验收说明"
+            :placeholder="`可填写${dispatchStageLabel}说明`"
             aria-label="可填写验收说明"
-          />
-        </el-form-item>
-        <el-form-item v-else label="驳回原因" required>
-          <el-input
-            v-model="dispatchHazardForm.rejectRemark"
-            type="textarea"
-            :rows="4"
-            placeholder="请说明整改不到位之处，退回继续整改"
-            aria-label="请说明整改不到位之处，退回继续整改"
           />
         </el-form-item>
       </el-form>
@@ -181,7 +186,7 @@ watch(() => props.todo, resetForm, { immediate: true })
           :type="dispatchHazardForm.decision === 'pass' ? 'success' : 'danger'"
           @click="submitDispatchHazardAcceptTodo(mergedHazard, dispatchHazardForm)"
         >
-          {{ dispatchHazardForm.decision === 'pass' ? '确认通过' : '确认驳回' }}
+          {{ dispatchHazardForm.decision === 'pass' ? '提交' : '退回整改' }}
         </el-button>
       </div>
     </template>

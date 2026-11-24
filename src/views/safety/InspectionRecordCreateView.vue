@@ -71,14 +71,11 @@ const form = ref({
   companions: [],
   photos: [],
   result: '',
-  requiresManagerConfirmation: '是',
   hazardItems: [],
 })
 
 const { selectedCategory } = useInspectionCategoryForm(form)
 const { hazardCategoryOptions, hazardLevelOptions } = useInspectionHazardOptions(selectedCategory, computed(() => form.value.hazardItems))
-const showManagerConfirmation = computed(() => form.value.result === 'hazard')
-const needsManagerConfirmation = computed(() => showManagerConfirmation.value && form.value.requiresManagerConfirmation === '是')
 
 const submitting = ref(false)
 
@@ -139,7 +136,6 @@ function submitInspection() {
     return ElMessage.warning('全部正常时请至少上传一张巡检照片')
   }
   if (form.value.result === 'hazard') {
-    if (!['是', '否'].includes(form.value.requiresManagerConfirmation)) return ElMessage.warning('请选择是否需项目经理确认')
     if (form.value.hazardItems.length === 0) return ElMessage.warning('请至少添加一条隐患')
     for (const [i, item] of form.value.hazardItems.entries()) {
       const dictionaryError = validateInspectionHazard(item, selectedCategory.value)
@@ -206,7 +202,6 @@ function submitInspection() {
     hazardCount: form.value.hazardItems.length,
     photos: form.value.photos,
     result: form.value.result,
-    requiresManagerConfirmation: needsManagerConfirmation.value,
     normalPhotos: [...form.value.photos],
     hazardItems,
     hasRectify: rectifyCount > 0,
@@ -217,7 +212,7 @@ function submitInspection() {
   try {
     addMobileInspectionTask(newTask)
     createMobileRectificationsFromTask(newTask, hazardItems)
-    ElMessage.success(`巡检记录已提交${rectifyCount ? `，${newTask.requiresManagerConfirmation ? '待项目经理确认' : '已下发'} ${rectifyCount} 份整改单` : ''}`)
+    ElMessage.success(`巡检记录已提交${rectifyCount ? `，已下发 ${rectifyCount} 份整改单` : ''}`)
     router.push('/safety-inspection/task')
   } finally {
     submitting.value = false
@@ -276,8 +271,8 @@ function submitInspection() {
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="巡检人" required>
-              <el-input v-model="form.inspector" disabled aria-label="巡检人（默认当前用户，不可修改）" />
+            <el-form-item label="登记人" required>
+              <el-input v-model="form.inspector" disabled aria-label="登记人（默认当前用户，不可修改）" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -316,12 +311,6 @@ function submitInspection() {
           <el-radio-group v-model="form.result">
             <el-radio value="normal">全部正常</el-radio>
             <el-radio value="hazard">有隐患</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item v-if="showManagerConfirmation" label="是否需项目经理确认" required>
-          <el-radio-group v-model="form.requiresManagerConfirmation" aria-label="是否需项目经理确认">
-            <el-radio value="是">是</el-radio>
-            <el-radio value="否">否</el-radio>
           </el-radio-group>
         </el-form-item>
         <el-form-item v-if="form.result" :label="form.result === 'hazard' ? '巡检照片（选填）' : '巡检照片'" :required="form.result === 'normal'">
@@ -385,7 +374,7 @@ function submitInspection() {
           </div>
         </div>
         <el-button class="hazard-add" @click="addHazard">+ 新增隐患</el-button>
-        <div class="rectify-summary">已录入 {{ form.hazardItems.length }} 条隐患，生成 {{ form.hazardItems.length }} 份整改单{{ needsManagerConfirmation ? '，项目经理确认后下发' : '，提交后下发' }}</div>
+        <div class="rectify-summary">已录入 {{ form.hazardItems.length }} 条隐患，生成 {{ form.hazardItems.length }} 份整改单，提交后下发</div>
       </div>
     </section>
 

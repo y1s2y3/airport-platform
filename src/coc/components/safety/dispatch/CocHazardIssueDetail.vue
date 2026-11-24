@@ -1,4 +1,5 @@
 <script setup>
+import { SHOW_HAZARD_SAMPLING } from '../../../../config/hazardSamplingVisibility.js'
 import { computed } from 'vue'
 import HazardSamplingPanel from '../../../../components/HazardSamplingPanel.vue'
 import { getInspectionHazardDetail } from '../../../../mock/inspectionHazardQuery.js'
@@ -43,7 +44,7 @@ const photoUrl=(file,index)=>resolveDispatchHazardPhotoSrc(file,index)
 </script>
 <template>
  <div class="coc-hazard-issue-detail">
-  <HazardSamplingPanel :source="row.source" :record-id="row.sourceId" coc/>
+  <HazardSamplingPanel v-if="SHOW_HAZARD_SAMPLING" :source="row.source" :record-id="row.sourceId" coc/>
   <section>
    <h3>基本信息</h3>
    <div class="source-fields"><div v-for="[label,value] in fields" :key="label" class="source-field"><span>{{label}}</span><strong>{{value||'--'}}</strong></div></div>

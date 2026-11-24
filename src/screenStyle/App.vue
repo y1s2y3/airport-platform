@@ -1,4 +1,5 @@
 <script setup>
+import { SHOW_HAZARD_SAMPLING } from '../config/hazardSamplingVisibility.js'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { Aim, ArrowLeft, ArrowRight, Clock, FullScreen, Location, Refresh, VideoPause, VideoPlay } from '@element-plus/icons-vue'
 import SafetyPanel from './components/SafetyPanel.vue'
@@ -8,7 +9,7 @@ import aerialImage from './assets/airport-aerial.jpg'
 import situationTabs from './assets/situation-tabs.png'
 import {
   assessmentPeriods, clockText, dayKey, getAssessmentPreview, getDisplayedWork,
-  getGeneratedInspectionTasks, getInspectionPeriod, getWorkGroups, getWorkRows, groupProjects,
+  getGeneratedInspectionTasks, getInspectionPeriod, getSamplingRowsInRange, getWorkGroups, getWorkRows, groupProjects,
   hazardStates, loadDashboard, percent, workColor,
 } from './dashboardData.js'
 import './styles/screen-style.css'
@@ -17,6 +18,7 @@ const WIDTH = 1920
 const HEIGHT = 1080
 const OVERDUE_PAGE_SIZE = 5
 const OVERDUE_PAGE_INTERVAL = 5000
+const REVIEW_BACKLOG_LABEL = '施工全面复查未办结'
 const sections = [
   { key: 'quality', label: '质量态势' },
   { key: 'safety', label: '安全态势' },
@@ -95,13 +97,15 @@ const hazards = computed(() => {
   }
 })
 const sampling = computed(() => {
-  const covers = data.value.coverage.length
-  const covered = data.value.coverage.filter(row => row.check).length
-  const samples = data.value.results.length
-  const failed = data.value.results.filter(row => row.outcome === '不合格').length
+  const monthStart = today.value.slice(0, 7) + '-01'
+  const coverage = getSamplingRowsInRange(data.value.coverage, 'registered', monthStart, today.value)
+  const results = getSamplingRowsInRange(data.value.results, 'time', monthStart, today.value)
   const pending = data.value.batches.filter(row => !row.complete)
   return {
-    covers, covered, samples, failed,
+    covers: coverage.length,
+    covered: coverage.filter(row => row.check).length,
+    samples: results.length,
+    failed: results.filter(row => row.outcome === '不合格').length,
     monitor: pending.filter(row => row.stage === 'supervisor'),
     review: pending.filter(row => row.stage === 'manager'),
   }
@@ -121,7 +125,7 @@ const major = computed(() => ({
 const spotlight = computed(() => {
   const topics = [
     { label: '整改及验收逾期', unit: '条', tone: 'amber', kind: 'hazards', view: 'overdue', rows: hazards.value.overdue },
-    { label: '待完成全面复查', unit: '批', tone: 'cyan', kind: 'sampling', view: 'review', filter: '待完成', rows: sampling.value.review },
+    ...(SHOW_HAZARD_SAMPLING ? [{ label: REVIEW_BACKLOG_LABEL, unit: '批', tone: 'cyan', kind: 'sampling', view: 'review', rows: sampling.value.review }] : []),
     { label: '危大工程超期未验收', unit: '项', tone: 'red', kind: 'major', view: 'overdue', rows: major.value.overdue },
     { label: '当日危险作业', unit: '项', tone: 'cyan', kind: 'work', view: 'danger',
       rows: getWorkRows(data.value, today.value, 'danger') },
@@ -145,7 +149,7 @@ const pinSlots = [
 const activePin = computed(() => spotlight.value[focusIndex.value])
 const totals = computed(() => [
   { label: '整改及验收逾期', count: hazards.value.overdue.length, unit: '条', tone: 'amber', kind: 'hazards', view: 'overdue' },
-  { label: '待完成全面复查', count: sampling.value.review.length, unit: '批', tone: 'cyan', kind: 'sampling', view: 'review', filter: '待完成' },
+  ...(SHOW_HAZARD_SAMPLING ? [{ label: REVIEW_BACKLOG_LABEL, count: sampling.value.review.length, unit: '批', tone: 'cyan', kind: 'sampling', view: 'review' }] : []),
   { label: '危大工程超期未验收', count: major.value.overdue.length, unit: '项', tone: 'red', kind: 'major', view: 'overdue' },
 ])
 
@@ -281,7 +285,6 @@ onBeforeUnmount(() => {
         <div class="hd-frame" aria-hidden="true"></div>
         <img class="hd-frame-header" :src="headerImage" alt="" draggable="false">
         <header class="hd-header">
-          <div class="hd-scope"><Location /><div><strong>工程指挥部</strong><span>深圳机场扩建工程</span></div></div>
           <h1>工程建设智慧管控一体化平台</h1>
           <div class="hd-clock"><strong>{{ clock }}</strong><span>{{ today }}<br>北京时间</span></div>
         </header>
@@ -381,22 +384,31 @@ onBeforeUnmount(() => {
               </div>
             </SafetyPanel>
 
-            <SafetyPanel title="抽检与全面复查" @details="openDetail('sampling')">
-              <div class="hd-stat-grid hd-stat-four">
-                <button class="hd-stat" type="button" @click="openDetail('sampling', 'coverage')">
-                  <span>指挥部抽查覆盖率</span><strong>{{ percent(sampling.covered, sampling.covers) }}</strong>
-                  <em>{{ sampling.covered }} / {{ sampling.covers }} 张{{ sampling.covers ? '' : ' · 无样本' }}</em>
-                </button>
-                <button class="hd-stat is-amber" type="button" @click="openDetail('sampling', 'results')">
-                  <span>项目抽检不合格率</span><strong>{{ percent(sampling.failed, sampling.samples) }}</strong>
-                  <em>{{ sampling.failed }} / {{ sampling.samples }} 张{{ sampling.samples ? '' : ' · 无样本' }}</em>
-                </button>
-                <button class="hd-stat" type="button" @click="openDetail('sampling', 'sampling', '', '待完成')">
-                  <span>待完成抽检</span><strong>{{ sampling.monitor.length }}<small>批</small></strong>
-                </button>
-                <button class="hd-stat is-amber" type="button" @click="openDetail('sampling', 'review', '', '待完成')">
-                  <span>待完成全面复查</span><strong>{{ sampling.review.length }}<small>批</small></strong>
-                </button>
+            <SafetyPanel v-if="SHOW_HAZARD_SAMPLING" title="抽检与全面复查" @details="openDetail('sampling')">
+              <div class="hd-sampling-flow">
+                <section class="hd-sampling-step" aria-label="指挥部抽查">
+                  <h3>指挥部抽查</h3>
+                  <button class="hd-stat hd-sampling-wide" type="button" @click="openDetail('sampling', 'coverage')">
+                    <span>本月登记单据抽查覆盖率</span><strong>{{ percent(sampling.covered, sampling.covers) }}</strong>
+                    <em>{{ sampling.covers ? `${sampling.covers} 张中已查 ${sampling.covered} 张` : '本月暂无可抽查单据' }}</em>
+                  </button>
+                </section>
+                <section class="hd-sampling-step" aria-label="监理抽检">
+                  <h3>监理抽检</h3>
+                  <button class="hd-stat is-amber" type="button" @click="openDetail('sampling', 'results')">
+                    <span>本月不合格率</span><strong>{{ percent(sampling.failed, sampling.samples) }}</strong>
+                    <em>{{ sampling.samples ? `${sampling.samples} 张中 ${sampling.failed} 张不合格` : '本月暂无抽检结果' }}</em>
+                  </button>
+                  <button class="hd-stat" type="button" @click="openDetail('sampling', 'sampling')">
+                    <span>未办结</span><strong>{{ sampling.monitor.length }}<small>批</small></strong><em>截至今日</em>
+                  </button>
+                </section>
+                <section class="hd-sampling-step" aria-label="施工全面复查">
+                  <h3>施工全面复查</h3>
+                  <button class="hd-stat hd-sampling-wide is-amber" type="button" @click="openDetail('sampling', 'review')">
+                    <span>未办结</span><strong>{{ sampling.review.length }}<small>批</small></strong><em>截至今日</em>
+                  </button>
+                </section>
               </div>
             </SafetyPanel>
           </div>

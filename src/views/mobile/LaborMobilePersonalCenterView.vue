@@ -1,4 +1,5 @@
 <script setup>
+import InspectionVoidButton from '../../components/InspectionVoidButton.vue'
 /**
  * 人员实名制 · 个人中心（移动端）
  * 消息中心与 Web 个人中心同源；预警中心独立展示。
@@ -349,6 +350,7 @@ function goBack() {
           <div class="message-field"><span>所属项目：</span><b>{{ item.detail?.project || '--' }}</b></div>
           <div class="message-field"><span>触发时间：</span><b>{{ applyDate(item) }}</b></div>
           <footer>
+            <InspectionVoidButton v-if="activeTab === 'initiated' && item.liveInspectionWorkflow" :record-id="item.rectifyId" />
             <button type="button" @click="openFlowDetail(item)">详情</button>
           </footer>
         </article>

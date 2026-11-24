@@ -1,5 +1,5 @@
 <script setup>
-import HazardSamplingPanel from '../../components/HazardSamplingPanel.vue'
+import SupervisionHazardDetailDialog from '../../components/hazard/SupervisionHazardDetailDialog.vue'
 import AttachmentUpload from '../../components/common/AttachmentUpload.vue'
 import { matchesHazardIssueProject } from '../../utils/hazardIssueSummary.js'
 import { ref, computed, onMounted, watch } from 'vue'
@@ -8,7 +8,7 @@ import { ElMessage } from 'element-plus'
 import { View, Plus, Edit } from '@element-plus/icons-vue'
 import {
   getSupervisionHazards,
-  getSupervisionMeetings,
+  getSupervisionHazardPhotoUrls,
   SUPERVISION_HAZARD_RECTIFY_STATUSES,
   closeSupervisionHazard,
   saveSupervisionHazard,
@@ -42,6 +42,7 @@ const props = defineProps({
 const route = useRoute()
 
 const keyword = ref('')
+const registrantFilter = ref('')
 const statusFilter = ref('')
 const list = ref([])
 const detailVisible = ref(false)
@@ -80,39 +81,6 @@ function emptyManualForm() {
   }
 }
 
-/** 隐患图片：兼容 { name, url } 对象与裸 dataURL 字符串 */
-function photoSrc(photo) {
-  if (!photo) return ''
-  if (typeof photo === 'string') return photo
-  return photo.url || ''
-}
-
-function hazardPhotos(row) {
-  return Array.isArray(row?.hazardPhotos) ? row.hazardPhotos.filter((item) => photoSrc(item)) : []
-}
-
-function hazardPreviewList(row) {
-  return hazardPhotos(row).map(photoSrc)
-}
-
-/** 整改图片：结构同隐患图片 */
-function rectifyPhotos(row) {
-  return Array.isArray(row?.rectifyPhotos) ? row.rectifyPhotos.filter((item) => photoSrc(item)) : []
-}
-
-function rectifyPreviewList(row) {
-  return rectifyPhotos(row).map(photoSrc)
-}
-
-/** 关联会议展示：会议日期（会议编号）；找不到时回退会议编号 */
-function meetingLabel(meetingId) {
-  if (!meetingId) return '--'
-  const meeting = getSupervisionMeetings().find((item) => item.id === meetingId)
-  if (!meeting) return meetingId
-  const date = meeting.meetingDate || ''
-  return date ? `${date}（${meetingId}）` : meetingId
-}
-
 function load() {
   let rows = props.projectName
     ? getSupervisionHazards().filter(row => row.projectName === props.projectName || matchesHazardIssueProject('supervision', row, props.projectId))
@@ -125,8 +93,13 @@ function load() {
   if (focused) openDetail(focused)
 }
 
+const registrantOptions = computed(() => [...new Set(list.value.map((row) => row.registrant).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-CN')))
+
 const filtered = computed(() => {
   let rows = list.value
+  if (registrantFilter.value) {
+    rows = rows.filter((row) => row.registrant === registrantFilter.value)
+  }
   if (statusFilter.value) {
     rows = rows.filter((row) => row.rectifyStatus === statusFilter.value)
   }
@@ -135,6 +108,7 @@ const filtered = computed(() => {
   return rows.filter((row) =>
     [
       row.description,
+      row.registrant,
       row.remark,
       row.hazardLevel,
       row.projectName,
@@ -251,6 +225,7 @@ function submitForm() {
     projectName: props.projectName,
     meetingId: props.meetingId || '',
     source: '人工登记',
+    registrant: props.operator || '',
     hazardType: form.value.hazardType,
     description: String(form.value.description).trim(),
     hazardLevel: form.value.hazardLevel,
@@ -324,6 +299,9 @@ defineExpose({ reload: load })
 <template>
   <div class="hazard-tab">
     <div class="tab-toolbar">
+      <el-select v-model="registrantFilter" placeholder="登记人" clearable filterable class="status-filter" aria-label="登记人">
+        <el-option v-for="name in registrantOptions" :key="name" :label="name" :value="name" />
+      </el-select>
       <el-select v-model="statusFilter" placeholder="整改状态" clearable class="status-filter" aria-label="整改状态">
         <el-option
           v-for="item in SUPERVISION_HAZARD_RECTIFY_STATUSES"
@@ -362,9 +340,9 @@ defineExpose({ reload: load })
       <el-table-column label="图片" width="84" align="center">
         <template #default="{ row }">
           <el-image
-            v-if="hazardPhotos(row).length"
-            :src="photoSrc(hazardPhotos(row)[0])"
-            :preview-src-list="hazardPreviewList(row)"
+            v-if="getSupervisionHazardPhotoUrls(row.hazardPhotos).length"
+            :src="getSupervisionHazardPhotoUrls(row.hazardPhotos)[0]"
+            :preview-src-list="getSupervisionHazardPhotoUrls(row.hazardPhotos)"
             :z-index="3000"
             preview-teleported
             fit="cover"
@@ -390,9 +368,9 @@ defineExpose({ reload: load })
       <el-table-column label="整改图片" width="84" align="center">
         <template #default="{ row }">
           <el-image
-            v-if="rectifyPhotos(row).length"
-            :src="photoSrc(rectifyPhotos(row)[0])"
-            :preview-src-list="rectifyPreviewList(row)"
+            v-if="getSupervisionHazardPhotoUrls(row.rectifyPhotos).length"
+            :src="getSupervisionHazardPhotoUrls(row.rectifyPhotos)[0]"
+            :preview-src-list="getSupervisionHazardPhotoUrls(row.rectifyPhotos)"
             :z-index="3000"
             preview-teleported
             fit="cover"
@@ -403,6 +381,7 @@ defineExpose({ reload: load })
         </template>
       </el-table-column>
       <el-table-column prop="source" label="来源" width="96" />
+      <el-table-column prop="registrant" label="登记人" min-width="130" show-overflow-tooltip />
       <el-table-column prop="uploadTime" label="登记时间" width="148" />
       <el-table-column label="操作" width="200" fixed="right">
         <template #default="{ row }">
@@ -508,85 +487,16 @@ defineExpose({ reload: load })
       </template>
     </el-dialog>
 
-    <el-dialog v-model="detailVisible" title="监理隐患详情" width="660px">
-      <template v-if="current">
-        <HazardSamplingPanel v-if="current" source="supervision" :record-id="current.id" />
-        <el-descriptions :column="1" border>
-          <el-descriptions-item label="项目名称">{{ current.projectName || '--' }}</el-descriptions-item>
-          <el-descriptions-item label="隐患编号">{{ current.id || '--' }}</el-descriptions-item>
-          <el-descriptions-item label="隐患类型">{{ hazardTypeLabel(current.hazardType) }}</el-descriptions-item>
-          <el-descriptions-item label="隐患描述">{{ current.description || '--' }}</el-descriptions-item>
-          <el-descriptions-item label="隐患等级">{{ current.hazardLevel || '--' }}</el-descriptions-item>
-          <el-descriptions-item label="隐患图片">
-            <div v-if="hazardPhotos(current).length" class="detail-photos">
-              <el-image
-                v-for="(photo, index) in hazardPhotos(current)"
-                :key="index"
-                :src="photoSrc(photo)"
-                :preview-src-list="hazardPreviewList(current)"
-                :initial-index="index"
-                :z-index="3000"
-                preview-teleported
-                fit="cover"
-                class="detail-photo"
-                :alt="`隐患图片 ${index + 1}`"
-              />
-            </div>
-            <span v-else>--</span>
-          </el-descriptions-item>
-          <el-descriptions-item label="整改说明">{{ current.rectifyRemark || '--' }}</el-descriptions-item>
-          <el-descriptions-item label="整改图片">
-            <div v-if="rectifyPhotos(current).length" class="detail-photos">
-              <el-image
-                v-for="(photo, index) in rectifyPhotos(current)"
-                :key="index"
-                :src="photoSrc(photo)"
-                :preview-src-list="rectifyPreviewList(current)"
-                :initial-index="index"
-                :z-index="3000"
-                preview-teleported
-                fit="cover"
-                class="detail-photo"
-                :alt="`整改图片 ${index + 1}`"
-              />
-            </div>
-            <span v-else>--</span>
-          </el-descriptions-item>
-          <el-descriptions-item label="备注">{{ current.remark || '--' }}</el-descriptions-item>
-          <el-descriptions-item label="整改状态">{{ current.rectifyStatus || '待整改' }}</el-descriptions-item>
-          <el-descriptions-item label="来源">{{ current.source || '--' }}</el-descriptions-item>
-          <el-descriptions-item label="关联会议">{{ meetingLabel(current.meetingId) }}</el-descriptions-item>
-          <el-descriptions-item label="登记时间">{{ current.uploadTime }}</el-descriptions-item>
-        </el-descriptions>
-
-        <div v-if="current.statusLogs?.length" class="status-logs">
-          <h4>操作留痕</h4>
-          <el-timeline>
-            <el-timeline-item
-              v-for="(log, index) in current.statusLogs"
-              :key="`${log.time}-${log.action}-${index}`"
-              :timestamp="log.time"
-              placement="top"
-            >
-              <div class="log-title">
-                {{ log.action }}：{{ log.fromStatus || '--' }} → {{ log.toStatus }}
-              </div>
-              <div class="log-meta">{{ log.operator }}（{{ log.operatorRole }}）</div>
-              <div v-if="log.remark" class="log-remark">备注：{{ log.remark }}</div>
-            </el-timeline-item>
-          </el-timeline>
-        </div>
-
-        <div v-if="canEditRow(current) || canConfirmClose(current)" class="detail-actions">
-          <el-button v-if="canEditRow(current)" type="primary" :icon="Edit" @click="detailVisible = false; openEdit(current)">
-            编辑
-          </el-button>
-          <el-button v-if="canConfirmClose(current)" type="success" @click="openCloseDialog(current)">
-            确认关闭
-          </el-button>
-        </div>
+    <SupervisionHazardDetailDialog v-model="detailVisible" :record="current">
+      <template v-if="current && (canEditRow(current) || canConfirmClose(current))" #actions>
+        <el-button v-if="canEditRow(current)" type="primary" :icon="Edit" @click="detailVisible = false; openEdit(current)">
+          编辑
+        </el-button>
+        <el-button v-if="canConfirmClose(current)" type="success" @click="openCloseDialog(current)">
+          确认关闭
+        </el-button>
       </template>
-    </el-dialog>
+    </SupervisionHazardDetailDialog>
   </div>
 </template>
 
@@ -612,21 +522,6 @@ defineExpose({ reload: load })
   width: 280px;
 }
 
-.detail-photos {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.detail-photo {
-  width: 96px;
-  height: 68px;
-  border-radius: 6px;
-  overflow: hidden;
-  border: 1px solid #ebeef5;
-  cursor: zoom-in;
-}
-
 .cell-photo {
   width: 46px;
   height: 46px;
@@ -635,36 +530,5 @@ defineExpose({ reload: load })
   border: 1px solid #ebeef5;
   cursor: zoom-in;
   vertical-align: middle;
-}
-
-.status-logs {
-  margin-top: 20px;
-}
-
-.status-logs h4 {
-  margin: 0 0 12px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #303133;
-}
-
-.log-title {
-  font-weight: 600;
-  color: #303133;
-}
-
-.log-meta,
-.log-remark {
-  margin-top: 4px;
-  font-size: 13px;
-  color: #606266;
-  line-height: 1.6;
-}
-
-.detail-actions {
-  display: flex;
-  gap: 10px;
-  margin-top: 20px;
-  flex-wrap: wrap;
 }
 </style>

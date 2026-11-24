@@ -20,9 +20,7 @@ const { rectifyBase } = useMobileRouteBase()
 const rid = route.params.id
 
 const record = computed(() => getMobileRectification(rid))
-const missing = computed(() => !record.value)
-const assignmentRevision = ref(record.value?.workflowAssignmentRevision || 0)
-const isRectification = computed(() => currentWorkflowStep(record.value)?.key === 'rectify')
+const missing = computed(() => !record.value)const isRectification = computed(() => currentWorkflowStep(record.value)?.key === 'rectify')
 const canHandle = computed(() => isRectification.value && canExecuteInspectionStep(record.value, 'rectify'))
 
 const rectDate = ref(today())
@@ -76,9 +74,7 @@ function submitRectify() {
     ElMessage.warning('请填写整改说明')
     return
   }
-  const ok = submitRectification(rid, {
-    assignmentRevision: assignmentRevision.value,
-    rectificationDate: rectDate.value,
+  const ok = submitRectification(rid, {    rectificationDate: rectDate.value,
     rectificationNote: rectNote.value.trim(),
     rectificationPhotos: [...rectPhotos.value],
   })
@@ -113,7 +109,6 @@ function displayPhotos(list) {
 
     <template v-else>
       <div v-if="!isRectification" class="empty-tip">当前节点：{{ record.currentNode || '流程结束' }}</div>
-      <div v-else-if="!canHandle" class="empty-tip">任务已指派给其他人员，你无法继续执行。</div>
       <MobileRectifyBasicInfo :record="record" />
 
       <div class="section">

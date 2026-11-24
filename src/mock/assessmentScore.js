@@ -1,3 +1,4 @@
+import { isHazardSamplingIndicatorVisible } from '../config/hazardSamplingVisibility.js'
 /**
  * 考核评分原型数据。
  * 计分：满分 100，未达标扣分，不涉及扣 0 且不转移扣分上限。
@@ -1304,6 +1305,7 @@ export function buildRankingConclusion(periodId) {
   const indicatorMap = new Map()
   rows.forEach((row) => {
     row.lines.forEach((line) => {
+      if (!isHazardSamplingIndicatorVisible(line.indicator_id)) return
       if (!indicatorMap.has(line.indicator_id)) {
         indicatorMap.set(line.indicator_id, {
           indicator_id: line.indicator_id,
@@ -1352,7 +1354,7 @@ export function buildRankingConclusion(periodId) {
   const yoy = String(periodId).startsWith('month') ? compareWith(buildRanking('month-yoy')) : null
 
   const bottomRow = rows[rows.length - 1]
-  const bottomMain = (bottomRow.lines || []).filter((line) => line.deduct > 0).sort((a, b) => b.deduct - a.deduct)[0]
+  const bottomMain = (bottomRow.lines || []).filter((line) => isHazardSamplingIndicatorVisible(line.indicator_id) && line.deduct > 0).sort((a, b) => b.deduct - a.deduct)[0]
 
   const gradeText = gradeStats.filter((item) => item.count > 0).map((item) => `${item.name} ${item.count} 个`).join('、')
   const typeText = typeStats.filter((item) => item.count > 0).map((item) => `${item.name} ${item.count} 个`).join('、')

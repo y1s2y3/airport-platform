@@ -3,7 +3,8 @@ import { normalizeInspectionCategories } from '../config/inspectionManagement.js
 import { planData } from '../composables/useInspectionPlan.js'
 import { listMobileInspectionTasks } from '../mock/mobileInspectionTasks.js'
 import { listInspectionHazards } from '../mock/inspectionHazardQuery.js'
-import { eligible, ensureSamplingExamples, sampling, taskProgress } from '../mock/hazardSampling.js'
+import { SHOW_HAZARD_SAMPLING } from '../config/hazardSamplingVisibility.js'
+import { eligible, ensureSamplingExamples, parentSamplingTask, sampling, taskProgress } from '../mock/hazardSampling.js'
 import { getHazardIssueProjectOptions, getHazardIssueRows } from '../utils/hazardIssueSummary.js'
 import {
   ensureDailyWorkSeed, getDailyWorkRecords, toDangerWorkListItem, toDispatchMajorWorkItem,
@@ -78,6 +79,14 @@ export function dateGap(later, earlier) {
 function inMonth(value, today) {
   const day = dayKey(value)
   return day >= today.slice(0, 7) + '-01' && day <= today
+}
+
+export function getSamplingRowsInRange(rows, dateField, start, end) {
+  if (!start && !end) return rows
+  return rows.filter(row => {
+    const day = dayKey(row[dateField] || '')
+    return day && (!start || day >= start) && (!end || day <= end)
+  })
 }
 
 function inspectionGeneration(task, dispatchDate) {
@@ -161,7 +170,6 @@ export function loadDashboard(today) {
     const issued = dayKey(row.issuedAt || row.issueDate)
     const registered = dayKey(row.registeredAt || row.issueDate)
     const deadline = dayKey(row.deadline)
-    const unconfirmed = row.managerConfirmationResult === '否'
     return {
       id: row.id,
       projectId: projectId(row.project_id, row.project),
@@ -175,22 +183,22 @@ export function loadDashboard(today) {
       issued,
       deadline,
       closed: dayKey(row.closeDate),
-      issuedThisMonth: !unconfirmed && inMonth(issued, today),
-      newThisMonth: !unconfirmed && inMonth(registered, today),
-      overdue: Boolean(!unconfirmed && issued && deadline && deadline < today && ['待整改', '待验收'].includes(row.status)),
+      issuedThisMonth: !false && inMonth(issued, today),
+      newThisMonth: !false && inMonth(registered, today),
+      overdue: Boolean(!false && issued && deadline && deadline < today && ['待整改', '待验收'].includes(row.status)),
     }
   })
 
-  const rawIssues = getHazardIssueRows()
-  ensureSamplingExamples(rawIssues)
-  const history = sampling.value.history
+  const rawIssues = SHOW_HAZARD_SAMPLING ? getHazardIssueRows() : []
+  if (SHOW_HAZARD_SAMPLING) ensureSamplingExamples(rawIssues)
+  const history = SHOW_HAZARD_SAMPLING ? sampling.value.history : []
   const latestHqChecks = new Map()
   for (const log of history) {
     if (log.stage !== 'hq' || !['合格', '不合格'].includes(log.result) || dayKey(log.time) > today) continue
     const previous = latestHqChecks.get(log.rowId)
     if (!previous || String(log.time) > String(previous.time)) latestHqChecks.set(log.rowId, log)
   }
-  const coverage = rawIssues.filter(row => eligible(row) && inMonth(row.registeredAt, today)).map(row => ({
+  const coverage = rawIssues.filter(row => eligible(row) && dayKey(row.registeredAt) <= today).map(row => ({
     id: row.id,
     projectId: samplingProject(row.projectKey, row.projectName),
     source: row.sourceLabel,
@@ -201,7 +209,8 @@ export function loadDashboard(today) {
   }))
   const issuesById = new Map(rawIssues.map(row => [row.id, row]))
   const logsById = new Map(history.map(row => [row.id, row]))
-  const batches = sampling.value.tasks.filter(row => ['supervisor', 'manager'].includes(row.stage)).map(row => {
+  const samplingTasks = SHOW_HAZARD_SAMPLING ? sampling.value.tasks : []
+  const batches = samplingTasks.filter(row => ['supervisor', 'manager'].includes(row.stage) && dayKey(row.createdAt) <= today).map(row => {
     const project = samplingProject(row.projectKey, row.projectName)
     const entries = row.ids.map(id => {
       const issue = issuesById.get(id)
@@ -221,14 +230,13 @@ export function loadDashboard(today) {
       source: [...new Set(entries.map(item => item.source).filter(Boolean))].join('、'),
       recipient: row.recipient || row.assigneeName,
       sent: displayTime(row.createdAt),
-      parent: row.parentTaskId,
-      group: row.batchId,
+      parent: row.stage === 'manager' ? parentSamplingTask(row, samplingTasks)?.id : '',
       entries,
       ...taskProgress(row),
     }
   })
   const results = batches.filter(row => row.stage === 'supervisor')
-    .flatMap(row => row.entries.filter(entry => entry.outcome && inMonth(entry.time, today)))
+    .flatMap(row => row.entries.filter(entry => entry.outcome && dayKey(entry.time) <= today))
 
   ensureDailyWorkSeed()
   const rawWork = getDailyWorkRecords()

@@ -46,15 +46,12 @@ const form = ref({
   companions: [],
   photos: [],
   result: '',
-  requiresManagerConfirmation: '是',
   // 每条隐患独立配置整改单，巡检单：隐患：整改单 = 1：n：n
   hazardItems: [],
 })
 
 const { selectedCategory } = useInspectionCategoryForm(form)
 const { hazardCategoryOptions, hazardLevelOptions } = useInspectionHazardOptions(selectedCategory, computed(() => form.value.hazardItems))
-const showManagerConfirmation = computed(() => form.value.result === 'hazard')
-const needsManagerConfirmation = computed(() => showManagerConfirmation.value && form.value.requiresManagerConfirmation === '是')
 
 /**
  * 所属项目可选范围：指挥部级可选全部项目；项目级直接带出当前项目且不允许选择。
@@ -165,7 +162,6 @@ function submitInspection() {
     return
   }
   if (form.value.result === 'hazard') {
-    if (!['是', '否'].includes(form.value.requiresManagerConfirmation)) return ElMessage.warning('请选择是否需项目经理确认')
     if (form.value.hazardItems.length === 0) { ElMessage.warning('请至少添加一条隐患'); return }
     for (const [i,item] of form.value.hazardItems.entries()) {
       const dictionaryError = validateInspectionHazard(item, selectedCategory.value)
@@ -238,7 +234,6 @@ function submitInspection() {
     itemCount: 0, hazardCount: form.value.hazardItems.length,
     photos: form.value.photos,
     result: form.value.result,
-    requiresManagerConfirmation: needsManagerConfirmation.value,
     normalPhotos: [...form.value.photos],
     hazardItems,
     hasRectify: rectifyCount > 0,
@@ -247,7 +242,7 @@ function submitInspection() {
 
   addMobileInspectionTask(newTask)
   createMobileRectificationsFromTask(newTask, hazardItems)
-  ElMessage.success(`巡检记录已提交${rectifyCount ? `，${newTask.requiresManagerConfirmation ? '待项目经理确认' : '已下发'} ${rectifyCount} 份整改单` : ''}`)
+  ElMessage.success(`巡检记录已提交${rectifyCount ? `，已下发 ${rectifyCount} 份整改单` : ''}`)
   router.push(tasksBase.value)
 }
 
@@ -312,7 +307,7 @@ function goBack() { router.push(tasksBase.value) }
         <div v-if="form.isMajorHazardPatrol === '是'" class="link-tip link-tip--full">完成巡检后将自动写入危大工程的现场巡视台账。</div>
 
         <div class="form-row">
-          <span class="form-label">执行人</span>
+          <span class="form-label">登记人</span>
           <input :value="form.inspector" class="form-input" disabled />
         </div>
 
@@ -339,13 +334,6 @@ function goBack() { router.push(tasksBase.value) }
           </div>
         </div>
 
-        <div v-if="showManagerConfirmation" class="form-row">
-          <span class="form-label">是否需项目经理确认<span class="required-mark">*</span></span>
-          <el-radio-group v-model="form.requiresManagerConfirmation" aria-label="是否需项目经理确认">
-            <el-radio value="是">是</el-radio>
-            <el-radio value="否">否</el-radio>
-          </el-radio-group>
-        </div>
 
         <div v-if="form.result" class="form-row form-row--stacked">
           <span class="form-label">{{ form.result === 'hazard' ? '巡检照片（选填）' : '巡检照片' }}<span v-if="form.result === 'normal'" class="required-mark">*</span></span>
@@ -413,7 +401,7 @@ function goBack() { router.push(tasksBase.value) }
           </div>
           <button class="add-hazard-btn" @click="addHazard">+ 新增隐患项</button>
           <div class="rectify-summary">
-            已录入 {{ form.hazardItems.length }} 条隐患，生成 {{ form.hazardItems.length }} 份整改单{{ needsManagerConfirmation ? '，项目经理确认后下发' : '，提交后下发' }}
+            已录入 {{ form.hazardItems.length }} 条隐患，生成 {{ form.hazardItems.length }} 份整改单，提交后下发
           </div>
         </div>
       </div>

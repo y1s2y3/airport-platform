@@ -1,4 +1,5 @@
 <script setup>
+import { isHazardSamplingIndicatorVisible } from '../../config/hazardSamplingVisibility.js'
 /**
  * 指标配置（按前期 / 在建 / 收尾三类分页配置，页签为按钮样式）。
  * 三类共用同一套指标池：每类页面**列出全部指标**，用「启用」开关决定该指标在本类是否参与考核；
@@ -61,14 +62,18 @@ function load() {
 
 watch(typeId, load, { immediate: true })
 
+const displayGroups = computed(() => groups.value.map((group) => ({
+  ...group,
+  indicators: group.indicators.filter((item) => isHazardSamplingIndicatorVisible(item.id)),
+})).filter((group) => group.indicators.length))
 const allRows = computed(() => groups.value.flatMap((group) => group.indicators))
 const capTotal = computed(() => Math.round(allRows.value.reduce((sum, item) => sum + Number(item.cap || 0), 0) * 10) / 10)
 /** 本类型合计是否满足「扣分上限合计 = 100 分」 */
 const totalOk = computed(() => capTotal.value === 100)
 
 /** 已启用的指标行（该类型下上限 > 0 即视为启用） */
-const enabledRows = computed(() => allRows.value.filter((item) => Number(item.cap) > 0))
-const enabledCount = computed(() => enabledRows.value.length)
+const visibleRows = computed(() => displayGroups.value.flatMap((group) => group.indicators))
+const enabledCount = computed(() => visibleRows.value.filter(isRowEnabled).length)
 
 function isRowEnabled(row) {
   return Number(row.cap) > 0
@@ -200,11 +205,11 @@ function resetBands() {
     <div class="cap-summary" :class="{ 'is-warn': !totalOk }">
       <span class="cap-summary-label">已启用指标合计</span>
       <b class="cap-summary-value">{{ capTotal }} 分</b>
-      <span class="cap-summary-count">已启用 {{ enabledCount }} 项 / 共 {{ allRows.length }} 项</span>
+      <span class="cap-summary-count">已启用 {{ enabledCount }} 项 / 共 {{ visibleRows.length }} 项</span>
       <span class="cap-summary-hint">{{ totalOk ? '（已满足 100 分，可保存）' : `（须为 100 分，当前 ${capTotal} 分）` }}</span>
     </div>
 
-    <div v-for="group in groups" :key="group.id" class="type-group">
+    <div v-for="group in displayGroups" :key="group.id" class="type-group">
       <div class="group-head">
         <span class="group-name">{{ group.name }}</span>
         <span class="group-desc">{{ group.desc }}</span>

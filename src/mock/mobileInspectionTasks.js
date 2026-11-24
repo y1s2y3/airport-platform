@@ -212,7 +212,34 @@ export function retainPatrolInspectionTask(task, { initialization = false } = {}
 }
 
 export function listMobileInspectionTasks() {
+  return mobileInspectionTasks.filter(task => !task.rectificationVoided)
+}
+
+/** 台账用：含已作废任务（整改单作废后仍要可见、可删除）；统计请自行排除 status === '已作废'。 */
+export function listAllMobileInspectionTasks() {
   return mobileInspectionTasks
+}
+
+/** 删除任务（仅已作废任务提供入口），同时清理现场巡视归档。 */
+export function deleteMobileInspectionTask(id) {
+  const index = mobileInspectionTasks.findIndex((task) => task.id === id)
+  if (index < 0) return false
+  mobileInspectionTasks.splice(index, 1)
+  try { localStorage.setItem('airport-inspection-deleted:' + id, '1') } catch { /* 忽略存储失败 */ }
+  try {
+    const archive = readPatrolTaskArchive().filter((task) => task.id !== id)
+    localStorage.setItem(PATROL_TASK_ARCHIVE_KEY, JSON.stringify(archive))
+  } catch { /* 无存储权限时仅移除当前会话。 */ }
+  return true
+}
+
+export function markInspectionTaskVoided(record) {
+  const task = getInspectionTaskForRectification(record)
+  if (task && !task.rectificationVoided) {
+    task.rectificationVoided = true
+    task.voidedAt = record.closeDate
+    notifyTask(task)
+  }
 }
 
 export function getMobileInspectionTask(id) {

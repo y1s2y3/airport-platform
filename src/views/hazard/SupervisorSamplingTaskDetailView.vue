@@ -97,13 +97,14 @@ const currentRow = computed(() => currentRecord.value?.row || null)
 const recordRounds = computed(() => {
   const row = currentRow.value
   const target = phaseTask.value
-  if (!row || !target || !currentRecord.value.log) return []
+  if (!row || !target || (!isHq.value && !currentRecord.value.log)) return []
   const tasks = [supervisorTask.value, reviewTask.value].filter(entry => entry && canViewTask(entry, role.value, selectedProjectId.value))
   const history = sampling.value.history.filter(log => log.rowId === row.id && (
     tasks.some(entry => logOf(entry, row.id)?.id === log.id)
-    || (isHq.value && log.stage === 'hq' && (log.roundId || log.id) === target.batchId)
+    || (isHq.value && log.stage === 'hq')
   ))
-  return buildSamplingRounds({ tasks, history }, row, isHq.value ? 'hq' : phaseRole.value)
+  const rounds = buildSamplingRounds({ tasks, history }, row, isHq.value ? 'hq' : phaseRole.value)
+  return isHq.value ? rounds.filter(round => round.id === target.batchId) : rounds
 })
 const detailComponent = computed(() => currentRow.value?.source === 'externalQuality' ? ExternalQualityDetail : currentRow.value?.source === 'inspection' ? SafetyDetail : HazardRecordDetail)
 const people = computed(() => getSamplingPeople(supervisorTask.value?.projectKey || task.value?.projectKey || ''))
@@ -225,7 +226,10 @@ const formatTime = value => value ? new Date(value).toLocaleString('sv-SE') : '-
 
             <component :is="detailComponent" :row="currentRow" :record-id="currentRow?.sourceId" embedded />
 
-            <div class="ws-block" v-if="recordRounds.length"><h4>本单记录</h4><SamplingRoundsTable :rounds="recordRounds" :role="phaseRole" /></div>
+            <div v-if="recordRounds.length" class="ws-block">
+              <h4>{{ isHq ? '抽查记录' : '本单记录' }}</h4>
+              <SamplingRoundsTable :rounds="recordRounds" :role="isHq ? 'hq' : phaseRole" :summary-stage="isHq ? phaseRole : ''" />
+            </div>
           </template>
           <el-empty v-else description="左列选择一张单据查看详情" :image-size="60" />
         </section>

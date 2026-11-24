@@ -1,12 +1,13 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { getMobileRectification, submitManagerApproval } from '../../composables/useMobileRectification'
+import { getMobileRectification, submitInspectionWorkflowStep } from '../../composables/useMobileRectification'
 import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
 import MobileRectifyBasicInfo from '../../components/MobileRectifyBasicInfo.vue'
 
-import { workflowFlowRecords, workflowSteps } from '../../utils/inspectionRectificationWorkflow'
+import { workflowFlowRecords, currentWorkflowStep, usesExtendedInspectionWorkflow } from '../../utils/inspectionRectificationWorkflow'
+import { canExecuteInspectionStep } from '../../utils/inspectionWorkflowIdentity'
 
 function today() {
  const date = new Date()
@@ -20,7 +21,14 @@ const record = computed(() => getMobileRectification(route.params.id))
 const missing = computed(() => !record.value)
 const approvalDate = ref(today())
 const approvalComment = ref('')
-const approvalLabel = computed(() => workflowSteps(record.value).find(step => step.key === 'approval')?.label || '项目经理审批')
+const step = computed(() => currentWorkflowStep(record.value))
+const expectedStage = ref('')
+watch(() => route.params.id, () => { expectedStage.value = step.value?.key || '' }, { immediate: true })
+const canHandle = computed(() => ['approval', 'departmentConfirmation', 'voidApproval'].includes(expectedStage.value)
+  && step.value?.key === expectedStage.value && canExecuteInspectionStep(record.value, expectedStage.value))
+const approvalLabel = computed(() => canHandle.value ? step.value.label : '整改单审批')
+const isVoidApproval = computed(() => expectedStage.value === 'voidApproval')
+const followsDepartmentConfirmation = computed(() => expectedStage.value === 'approval' && usesExtendedInspectionWorkflow(record.value))
 const flowCollapsed = ref(false)
 onMounted(() => document.querySelector('.page-viewport')?.scrollTo({ top: 0 }))
 
@@ -44,17 +52,20 @@ function handleApproval(pass) {
     ElMessage.warning('请输入审批意见')
     return
   }
-  const ok = submitManagerApproval(record.value.id, pass, {
-    approvalDate: approvalDate.value,
-    approvalComment: approvalComment.value.trim(),
+  if (!canHandle.value) return
+  const ok = submitInspectionWorkflowStep(record.value.id, expectedStage.value, pass, {
+    date: approvalDate.value,
+    comment: approvalComment.value.trim(),
   })
   if (!ok) {
     ElMessage.error('提交失败，当前节点可能已变更，请返回列表刷新后重试')
     return
   }
-  ElMessage.success(pass ? '审批通过，整改流程已闭环' : '审批不通过，已退回复核人重新复核')
-  const tab = route.query.tab
-  router.push(tab ? `${rectifyBase.value}?tab=${pass ? '已关闭' : '待验收'}` : rectifyBase.value)
+  ElMessage.success(isVoidApproval.value
+    ? (pass ? '整改单已作废' : '作废申请未通过，原流程继续办理')
+    : !pass ? '已退回整改人重新整改'
+      : record.value.status === '已关闭' ? '确认通过，整改流程已关闭' : '验收通过，已转项目部长确认')
+  router.push(route.query.from === 'message' ? '/mobile/messages' : rectifyBase.value)
 }
 
 function goBack() {
@@ -108,7 +119,13 @@ function goBack() {
         <div class="info-row"><span>复核意见</span><p>{{ record.reviewComment || '--' }}</p></div>
       </div>
 
-      <div class="section approval-card">
+      <div v-if="isVoidApproval && record.voidRequest" class="section">
+        <div class="section-title">作废申请</div>
+        <div class="info-row"><span>申请人</span><p>{{ record.voidRequest.applicant }}</p></div>
+        <div class="info-row"><span>作废理由</span><p style="white-space:pre-wrap">{{ record.voidRequest.reason }}</p></div>
+      </div>
+
+      <div v-if="canHandle" class="section approval-card">
         <div class="section-title">审批意见</div>
         <label class="form-row">
           <span>审批日期 <i>*</i></span>
@@ -119,8 +136,8 @@ function goBack() {
           <textarea v-model="approvalComment" rows="3" placeholder="请输入审批意见..." />
         </label>
         <div class="actions">
-          <button class="reject" @click="handleApproval(false)">不通过，退回复核</button>
-          <button class="pass" @click="handleApproval(true)">通过并关闭</button>
+          <button class="reject" @click="handleApproval(false)">{{ isVoidApproval ? '不通过' : '不通过，退回整改' }}</button>
+          <button class="pass" @click="handleApproval(true)">{{ isVoidApproval ? '通过' : followsDepartmentConfirmation ? '通过，提交项目部长' : '通过并关闭' }}</button>
         </div>
       </div>
     </template>

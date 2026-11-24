@@ -10,19 +10,21 @@ await server?.listen()
 const browser = await chromium.launch({ headless: true, channel: 'msedge' })
 const root = standalone ? pathToFileURL(resolve(import.meta.dirname, '../release/机场工程项目管理平台v2.html')).href : server.resolvedUrls.local[0]
 const errors = []
-const basicFields = ['整改单编号', '巡检任务单编号', '项目名称', '巡检人', '整改人', '复查人', '状态', '截止日期', '当前流程节点']
+const basicFields = ['整改单编号', '巡检任务单编号', '项目名称', '巡检人', '整改人', '复查人', '状态', '当前流程节点', '截止日期']
 const nodeLabels = {
   rectify: '施工单位整改',
   contractorAcceptance: '施工单位项目经理验收',
   review: '监理单位复核',
   directorAcceptance: '监理单位项目总监验收',
   approval: '指挥部项目经理审批',
+  departmentConfirmation: '项目部长确认',
 }
 async function checkBasicInfo(page, expectedNode) {
   const info = page.locator('.rectify-basic-info')
   await info.waitFor()
-  assert.deepEqual(await info.locator('dt').allTextContents(), basicFields)
-  assert.equal(await info.locator('dd').last().textContent(), expectedNode)
+  const fields = await info.locator('dt').allTextContents()
+  assert.deepEqual(fields.filter(field => !['下发整改单抄送人', '整改单完成抄送人'].includes(field)), basicFields)
+  assert.equal(await info.locator('.field').filter({ has: page.getByText('当前流程节点', { exact: true }) }).locator('dd').textContent(), expectedNode)
   assert.notEqual(await info.locator('dd').nth(3).textContent(), '--')
 }
 async function open(stage, action) {
@@ -47,12 +49,17 @@ try {
     await context.close()
   }
   console.log('PASS 两个验收节点：空意见不通过被拦截，通过可提交')
-  for (const [stage, action, button] of [['review','review','.ab.pass'], ['approval','approval','.actions .pass']]) {
+  for (const [stage, action, button] of [['review','review','.ab.pass'], ['approval','approval','.actions .pass'], ['departmentConfirmation','approval','.actions .pass']]) {
     const { context, page } = await open(stage, action)
     await page.locator(button).click()
     await page.getByText(/请输入.*意见/, { exact: false }).last().waitFor()
     assert.ok(page.url().endsWith(`/${action}`))
+    if (stage === 'departmentConfirmation') {
+      await page.getByRole('heading', { name: '项目部长确认', exact: true }).waitFor()
+      assert.equal(await page.getByRole('button', { name: '通过并关闭', exact: true }).count(), 1)
+    }
     if (stage === 'approval') {
+      assert.equal(await page.getByRole('button', { name: '通过，提交项目部长', exact: true }).count(), 1)
       const text = await page.locator('.mp').innerText()
       for (const label of ['指挥部项目经理审批', '隐患照片', '复核日期', '施工单位项目经理验收通过', '监理单位项目总监验收通过']) assert.ok(text.includes(label), label)
     }
@@ -85,7 +92,7 @@ try {
       (node.matches('button') ? node.firstElementChild : node).textContent.trim(),
     ))
     assert.deepEqual(sections, [
-      '基本信息', '隐患信息', '整改信息', '复查信息', '项目经理审批', '流程记录',
+      '基本信息', '隐患信息', '巡检照片', '整改信息', '复查信息', '项目经理审批', '流程记录',
     ])
     await list.getByText('审批中', { exact: true }).waitFor()
     assert.equal(await list.locator('.mp textarea, .mp input, .mp .actions').count(), 0)

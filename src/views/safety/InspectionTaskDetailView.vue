@@ -6,7 +6,7 @@ import { getInspectionCopyDetailFields } from '../../composables/useInspectionPe
 import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getMobileInspectionTask } from '../../mock/mobileInspectionTasks'
-import { getInspectionTaskCheckGroups, getMajorHazardPatrolDetail, getMajorHazardSyncDetail, getManagerConfirmationDetail } from '../../utils/inspectionTaskDetailData'
+import { getInspectionTaskCheckGroups, getMajorHazardPatrolDetail, getMajorHazardSyncDetail } from '../../utils/inspectionTaskDetailData'
 import { formatInspectionCategories, normalizeInspectionCategories } from '../../config/inspectionManagement'
 
 const route = useRoute()
@@ -52,7 +52,6 @@ const isSelf = computed(() => taskInfo.value.source === '系统自建')
 const isPending = computed(() => taskInfo.value.status === '未完成')
 const majorHazardPatrolText = computed(() => getMajorHazardPatrolDetail(taskInfo.value))
 const majorHazardSyncText = computed(() => getMajorHazardSyncDetail(taskInfo.value))
-const managerConfirmationText = computed(() => getManagerConfirmationDetail(taskInfo.value))
 const hazardCopyFields = hazard => getInspectionCopyDetailFields(getMobileRectification(hazard.rectifyId), hazard)
 const categoryTree = computed(() => getInspectionTaskCheckGroups({ ...taskInfo.value, id: taskId.value }))
 const inspectionTabs = computed(() => taskInfo.value.inspectionCategories.map((category) => {
@@ -110,7 +109,7 @@ function goRectify(id) {
       <div class="info-row"><span class="il">任务名称</span><span class="iv">{{ taskInfo.taskName || taskInfo.planName || '-' }}</span></div>
       <div class="info-row"><span class="il">任务来源</span><span class="iv">{{ taskInfo.source }}</span></div>
       <div class="info-row"><span class="il">项目名称</span><span class="iv">{{ taskInfo.project }}</span></div>
-      <div class="info-row"><span class="il">执行人</span><span class="iv">{{ taskInfo.executor || '-' }}</span></div>
+      <div class="info-row"><span class="il">登记人</span><span class="iv">{{ taskInfo.executor || '-' }}</span></div>
       <div class="info-row"><span class="il">巡检分类</span><span class="iv">{{ taskInfo.inspectionCategory }}</span></div>
       <div class="info-row"><span class="il">检查类型</span><span class="iv">{{ taskInfo.inspectionType }}</span></div>
       <div class="info-row"><span class="il">危大工程现场巡视</span><span class="iv">{{ majorHazardPatrolText }}</span></div>
@@ -169,9 +168,6 @@ function goRectify(id) {
         <div class="result-status ok">✓ 全部正常</div>
       </div>
       <div v-if="taskInfo.result === 'hazard'" class="result-status hazard">⚠ 有隐患（{{ taskInfo.hazardItems.length }}项）</div>
-      <div v-if="managerConfirmationText" class="result-field">
-        <span>是否需项目经理确认</span><span>{{ managerConfirmationText }}</span>
-      </div>
       <div class="result-photos">
         <span>巡检照片</span>
         <InspectionPhotoList v-if="taskInfo.normalPhotos.length" :photos="taskInfo.normalPhotos" />

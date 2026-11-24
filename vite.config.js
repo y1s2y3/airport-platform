@@ -23,6 +23,21 @@ export default defineConfig({
   ],
   server: {
     host: true,
+    // 构建产物写在 release/ 下，dev 期间构建会让监听器去 watch 正在写入的 html
+    // （Windows 报 EBUSY 并直接终止 dev 进程）。忽略产物目录，避免「构建一次就停服」。
+    watch: {
+      ignored: [
+        '**/release/**',
+        '**/dist/**',
+        '**/dist-app/**',
+        '**/_probe_*',
+        '**/_stub_*',
+        '**/_bundle_*',
+        '**/_tmp_*',
+        '**/.*tmpdir/**',
+        '**/*.tmp',
+      ],
+    },
     port: 5173,
     strictPort: false,
     // 置 false：DSH 沙箱禁 spawn，open: true 会在每次启动时多报一次无害的 spawn EPERM

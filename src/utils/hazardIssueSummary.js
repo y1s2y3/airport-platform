@@ -109,6 +109,10 @@ function normalizeInspection(record) {
     categoryLabel: categories.join('、') || '--',
     status: normalizeExternalQualityStatus(record.status),
     rectifier: record.rectifier || '',
+    registrant: record.inspector || record.applicant || '',
+    inspector: record.inspector || '',
+    hazardLevel: record.hazardLevel || '',
+    hazardCategory: record.hazardCategory || '',
     registeredAt: record.issueDate || '',
     deadline: record.deadline || '',
   })
@@ -125,6 +129,10 @@ function normalizeSupervision(record) {
     categoryLabel: category,
     status: normalizeExternalQualityStatus(record.rectifyStatus) || '待整改',
     rectifier: record.rectifier || '',
+    registrant: record.registrant || '',
+    inspector: '',
+    hazardLevel: record.hazardLevel || '',
+    hazardCategory: '',
     registeredAt: record.uploadTime || '',
     deadline: record.hazardDeadline || '',
   })
@@ -141,6 +149,10 @@ function normalizeDispatch(record) {
     categoryLabel: category,
     status: normalizeExternalQualityStatus(record.rectifyStatus) || '待整改',
     rectifier: record.rectifier || '',
+    registrant: record.registrant || '',
+    inspector: '',
+    hazardLevel: record.hazardLevel || '',
+    hazardCategory: '',
     registeredAt: record.uploadTime || '',
     deadline: record.hazardDeadline || '',
   })
@@ -156,6 +168,10 @@ function normalizeExternal(record) {
     categoryLabel: '质量',
     status: normalizeExternalQualityStatus(record.status),
     rectifier: record.rectifier || '',
+    registrant: record.initiator || record.finder || record.creator || record.reporter || '',
+    inspector: '',
+    hazardLevel: record.hazardLevel || '',
+    hazardCategory: '',
     registeredAt: record.createdAt || '',
     deadline: record.dueAt || '',
   })

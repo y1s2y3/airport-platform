@@ -1,4 +1,5 @@
 <script setup>
+import { isHazardSamplingIndicatorVisible } from '../../config/hazardSamplingVisibility.js'
 /**
  * 考核排名。指挥部按月看已纳入项目名次；项目只看本项目得分、扣分和自己的名次。
  * 查看明细用抽屉，不切换顶栏项目。
@@ -242,7 +243,7 @@ function exportRank() {
             </div>
           </div>
           <span class="drawer-subtitle">指标明细</span>
-          <el-table :data="drawerRow.lines" stripe border empty-text="暂无指标">
+          <el-table :data="drawerRow.lines.filter(line => isHazardSamplingIndicatorVisible(line.indicator_id))" stripe border empty-text="暂无指标">
             <el-table-column label="指标" min-width="130" prop="indicator_name" />
             <el-table-column label="指标值" min-width="110">
               <template #default="{ row }">{{ formatValue(row) }}</template>
@@ -287,7 +288,7 @@ function exportRank() {
             <span class="stat-value">{{ formatScore(mine.deduct_total) }} 分</span>
           </div>
         </div>
-        <el-table :data="mine.lines" stripe border empty-text="暂无指标">
+        <el-table :data="mine.lines.filter(line => isHazardSamplingIndicatorVisible(line.indicator_id))" stripe border empty-text="暂无指标">
           <el-table-column label="指标" min-width="150" prop="indicator_name" />
           <el-table-column label="指标值" min-width="120">
             <template #default="{ row }">{{ formatValue(row) }}</template>

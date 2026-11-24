@@ -9,7 +9,7 @@ export const INSPECTION_CATEGORIES = ['安全', '质量', '其他']
 export const HAZARD_LEVELS = ['Ⅰ重大隐患', 'Ⅱ重点关注的一般隐患', 'Ⅲ一般隐患']
 
 /** 检查类型供安全、质量、其他共用。 */
-const DEFAULT_INSPECTION_TYPES = [
+export const INSPECTION_TYPES = Object.freeze([
   '第三方检查',
   '值班检查',
   '部门检查',
@@ -18,7 +18,7 @@ const DEFAULT_INSPECTION_TYPES = [
   '视频检查',
   '复查',
   '第三方飞检',
-]
+])
 
 export const QUALITY_HAZARD_LEVELS = ['A', 'B', 'C']
 export function getHazardLevels(category = '') {
@@ -63,7 +63,7 @@ function loadDictionaries() {
     if (Array.isArray(saved?.types) && Array.isArray(saved?.hazards)) value = saved
   } catch { /* 首次使用或历史缓存损坏时使用初始字典。 */ }
   value ||= {
-    types: DEFAULT_INSPECTION_TYPES.map((name, index) => ({ id: `type-${index}`, name, sort: index + 1, enabled: true, remark: '' })),
+    types: INSPECTION_TYPES.map((name, index) => ({ id: `type-${index}`, name, sort: index + 1, enabled: true, remark: '' })),
     hazards: HAZARD_CATEGORIES.map((name, index) => ({ id: `hazard-${index}`, name, category: '安全', sort: index + 1, enabled: true, remark: '' })),
   }
   if (!value.hazardExamplesVersion) {
@@ -73,15 +73,13 @@ function loadDictionaries() {
   return value
 }
 export const inspectionDictionaries = reactive(loadDictionaries())
-export const INSPECTION_TYPES = reactive([])
 export function getInspectionTypeFilterOptions(records = []) {
   return [...new Set([
-    ...inspectionDictionaries.types.slice().sort((a, b) => a.sort - b.sort).map(item => item.name),
+    ...INSPECTION_TYPES,
     ...records.map(item => item.inspectionType).filter(Boolean),
   ])]
 }
 watch(inspectionDictionaries, (value) => {
-  INSPECTION_TYPES.splice(0, INSPECTION_TYPES.length, ...value.types.filter(item => item.enabled).sort((a, b) => a.sort - b.sort).map(item => item.name))
   try { localStorage.setItem(DICTIONARY_KEY, JSON.stringify(value)) } catch { /* 无存储权限时仍可使用当前会话。 */ }
 }, { deep: true, immediate: true })
 if (typeof window !== 'undefined') window.addEventListener('storage', (event) => {

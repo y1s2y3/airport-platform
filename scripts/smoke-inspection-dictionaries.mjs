@@ -14,7 +14,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
   page.setDefaultTimeout(12000)
   page.on('pageerror', e => errors.push(e.message))
-  await page.goto(server.resolvedUrls.local[0] + '#/safety-inspection/inspection-types')
+  await page.goto(server.resolvedUrls.local[0] + '#/safety-inspection/hazard-categories')
   async function navigate(path, projectId = 'hq') {
     await page.evaluate(async ({ path, projectId }) => {
       const { selectedProjectId } = await import('/src/composables/useCurrentProject.js')
@@ -23,28 +23,27 @@ try {
       await router.push(path)
     }, { path, projectId })
   }
-  await navigate('/safety-inspection/inspection-types')
-  await page.getByRole('button', { name: '新增检查类型', exact: true }).click()
-  await page.getByPlaceholder('请输入名称', { exact: true }).fill('联动回归检查')
-  await page.getByRole('dialog').getByRole('button', { name: '保存', exact: true }).click()
-  await page.locator('.dictionary-page .el-table__body-wrapper').getByText('联动回归检查', { exact: true }).waitFor()
-  console.log('PASS 配置菜单可新增检查类型')
+  await navigate('/safety-inspection/hazard-categories')
+  await page.getByRole('heading', { name: '隐患类别配置', exact: true }).waitFor()
+  const defaultTypes = ['第三方检查', '值班检查', '部门检查', '联合检查', '上级检查', '视频检查', '复查', '第三方飞检']
 
   const checks = await page.evaluate(async () => {
     const D = await import('/src/config/inspectionManagement.js')
     const { menuTree, filterMenuByLevel } = await import('/src/config/menu.js')
     const flatten = nodes => nodes.flatMap(n => [n, ...flatten(n.children || [])])
     const hq = flatten(filterMenuByLevel(menuTree, 'hq')), project = flatten(filterMenuByLevel(menuTree, 'project'))
-    const keys = ['inspection-type-config', 'inspection-hazard-category-config']
+    const hazardKey = 'inspection-hazard-category-config'
     const results = {
       categories: D.INSPECTION_CATEGORIES,
       levels: D.INSPECTION_CATEGORIES.map(c => D.getHazardLevels(c)),
       numbers: D.INSPECTION_CATEGORIES.map(c => D.buildInspectionTaskNo(c, '2026-11-16', 1)),
-      menus: keys.every(k => hq.some(n => n.key === k) && !project.some(n => n.key === k)),
+      menus: hq.some(n => n.key === hazardKey) && !project.some(n => n.key === hazardKey) && [...hq, ...project].every(n => n.key !== 'inspection-type-config'),
       historicalType: D.normalizeInspectionType('已停用的历史检查类型') === '已停用的历史检查类型',
-      newType: D.INSPECTION_TYPES.includes('联动回归检查'),
+      types: [...D.INSPECTION_TYPES],
       qualityHasExamples: D.getHazardCategoryOptions('质量').length === 8,
     }
+    D.saveInspectionDictionary('types', { name: '旧缓存新增类型', enabled: true, sort: 0 })
+    D.saveInspectionDictionary('types', { ...D.inspectionDictionaries.types.find(item => item.name === '值班检查'), enabled: false })
     for (const category of ['质量', '其他']) D.saveInspectionDictionary('hazards', { category, name: `${category}回归类别`, enabled: true, sort: 1 })
     let duplicateRejected = false
     try { D.saveInspectionDictionary('hazards', { category: '质量', name: '质量回归类别', enabled: true }) } catch { duplicateRejected = true }
@@ -62,6 +61,7 @@ try {
     D.saveInspectionDictionary('hazards', { ...disabled, enabled: true })
     return results
   })
+  assert.deepEqual(checks.types, defaultTypes)
   assert.deepEqual(checks.categories, ['安全', '质量', '其他'])
   assert.deepEqual(checks.levels[1], ['A', 'B', 'C'])
   assert.deepEqual(checks.levels[0], checks.levels[2])
@@ -71,7 +71,7 @@ try {
 
   await page.reload()
   await page.locator('.dictionary-page h3').waitFor()
-  assert.equal(await page.evaluate(async () => (await import('/src/config/inspectionManagement.js')).INSPECTION_TYPES.includes('联动回归检查')), true)
+  assert.deepEqual(await page.evaluate(async () => [...(await import('/src/config/inspectionManagement.js')).INSPECTION_TYPES]), defaultTypes)
   console.log('PASS 刷新后配置保留')
   await navigate('/mobile/tasks/create', 'p-000')
   const mobile = page.locator('.mp')
@@ -79,6 +79,7 @@ try {
   assert.equal(await mobile.locator('.form-tags .tag-btn.active').filter({ hasText: /^(安全|质量|其他|其他)$/ }).count(), 1)
   await mobile.getByRole('button', { name: /有隐患/ }).click()
   const row = label => mobile.locator('.form-row').filter({ has: page.locator('.form-label', { hasText: label }) })
+  assert.deepEqual((await row('检查类型').locator('select option').allTextContents()).slice(1), defaultTypes)
   assert.deepEqual(await row('隐患等级').locator('select option').allTextContents(), ['请选择隐患等级', 'A', 'B', 'C'])
   await row('隐患类别').locator('select').selectOption('质量回归类别')
   await row('隐患等级').locator('select').selectOption('A')
@@ -97,7 +98,7 @@ try {
   await mobile.getByRole('button', { name: '否', exact: true }).click()
   await mobile.locator('.rectify-section input[type=date]').fill('2026-12-31')
   const chooser = page.waitForEvent('filechooser')
-  await mobile.getByRole('button', { name: '+ 拍照', exact: true }).click()
+  await mobile.getByRole('button', { name: '上传隐患照片', exact: true }).click()
   await (await chooser).setFiles({ name: '隐患.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+iK1cAAAAASUVORK5CYII=','base64') })
   await mobile.getByRole('button', { name: /提交巡检记录/ }).click()
   await page.waitForURL(url => url.hash === '#/mobile/tasks')
@@ -131,7 +132,7 @@ try {
   const qualityTaskId = await page.evaluate(async () => {
     const { addPlan } = await import('/src/composables/useInspectionPlan.js')
     const { mobileInspectionTasks } = await import('/src/mock/mobileInspectionTasks.js')
-    addPlan({ name: '质量联动下发测试', inspectionCategories: ['质量'], inspectionCategory: '质量', inspectionType: '联动回归检查', projects: ['T2航站区配套'], projectIds: ['p-000'], checkConfig: [{ categoryId: 'cat-q1', itemIds: ['item-q1-1'] }], deadlineDate: '2026-12-31', ccPersons: [] })
+    addPlan({ name: '质量联动下发测试', inspectionCategories: ['质量'], inspectionCategory: '质量', inspectionType: '值班检查', projects: ['T2航站区配套'], projectIds: ['p-000'], checkConfig: [{ categoryId: 'cat-q1', itemIds: ['item-q1-1'] }], deadlineDate: '2026-12-31', ccPersons: [] })
     return mobileInspectionTasks.find(item => item.taskName === '质量联动下发测试').id
   })
   await navigate(`/mobile/tasks/${qualityTaskId}/execute`, 'p-000')
@@ -180,8 +181,6 @@ try {
 
   const builtUrl = new URL('../release/机场工程项目管理平台v2.html', import.meta.url).href
   if (existsSync(new URL(builtUrl))) {
-    await page.goto(builtUrl + '#/safety-inspection/inspection-types')
-    await page.getByRole('button', { name: '新增检查类型', exact: true }).waitFor()
     await page.goto(builtUrl + '#/safety-inspection/hazard-categories')
     await page.locator('.dictionary-page h3').getByText('隐患类别配置', { exact: true }).waitFor()
     assert.equal(await page.locator('.dictionary-page .category-tabs input[type=radio]').count(), 3)

@@ -1,6 +1,6 @@
 import { getCurrentUserSnapshot, getEffectiveUserId } from '../mock/currentUser'
 import { getInspectorById, inspectorCandidates } from '../composables/useInspectionPersonConfig'
-import { currentWorkflowStep } from './inspectionRectificationWorkflow'
+import { currentWorkflowStep, INSPECTION_VOID_APPROVER_ID, rectificationIssuedAt } from './inspectionRectificationWorkflow'
 
 export function inspectionOperator() {
   const snapshot = getCurrentUserSnapshot()
@@ -8,23 +8,18 @@ export function inspectionOperator() {
   const person = inspectorCandidates.find(item => item.id === id)
   return { id, name: person?.name || snapshot.name, label: person ? `${person.name}（${person.role}）` : snapshot.name }
 }
-export function canExecuteInspectionStep(record, stage) {
-  const assignment = record?.workflowAssignees?.[stage]
-  if (assignment) return assignment.id === inspectionOperator().id
-  if (stage !== 'managerConfirmation' || !record?.managerId || record.managerConfirmationExample) return true
+export function canRequestInspectionVoid(record) {
+  if (!record || !rectificationIssuedAt(record) || ['已关闭', '已作废'].includes(record.status) || record.voidRequest?.status === 'pending') return false
   const operator = inspectionOperator()
-  const manager = getInspectorById(record.managerId)
-  const isDefaultProjectManager = manager?.id === 'manager-' + record.projectId || manager?.id === 'quality-hq-manager'
-  return operator.id === record.managerId || (isDefaultProjectManager && operator.id === 'u-proj-' + record.projectId)
+  return record.initiatorId ? record.initiatorId === operator.id : [operator.label, operator.name].includes(record.inspector || record.applicant)
 }
-export function canAssignInspectionStep(record, stage) {
-  const step = currentWorkflowStep(record)
-  if (!step || step.key !== stage || !['rectify', 'review'].includes(stage)) return false
-  const operator = inspectionOperator()
-  const assignment = record.workflowAssignees?.[stage]
-  if (assignment) return assignment.id === operator.id
-  // 演示原型允许从待办列表直接演示首次指派，无需切换为配置中的处理人。
-  // 指派后仍只允许接收人办理或再次转交。
+
+export function canExecuteInspectionStep(record, stage) {
+  // 示例单据在指挥部/项目级都可查看与演示办理，保证两级示例数据一致。
+  if (record?.workflowExample) return true
+  if (record?.status === '已作废') return false
+  if (record?.voidRequest?.status === 'pending') return stage === 'voidApproval' && inspectionOperator().id === INSPECTION_VOID_APPROVER_ID
+  if (stage === 'voidApproval') return false
   return true
 }
 export function isInspectionCopyRecipient(recipients, projectId, category) {

@@ -8,15 +8,17 @@ const props = defineProps({
   role: { type: String, default: 'hq' },
   dateRange: { type: Array, default: () => [] },
   coc: { type: Boolean, default: false },
+  summaryStage: { type: String, default: '' },
   emptyText: { type: String, default: '尚未提交本身份的抽查记录' },
 })
 const formatTime = value => value ? new Date(value).toLocaleString('sv-SE') : '--'
 const STAGE_NAMES = { hq: '指挥部抽查', supervisor: '抽检人检查', manager: '全面复查' }
 const tableRows = computed(() => {
-  if (props.coc) {
-    /** COC 大屏：抽查记录不按当前身份过滤，项目内统一展示；每轮取最新一条记录 */
+  if (props.coc || props.summaryStage) {
     return props.rounds.map(round => {
-      const log = [...round.logs].sort((a, b) => String(a.time || '').localeCompare(String(b.time || ''))).at(-1) || null
+      const logs = [...round.logs].sort((a, b) => String(a.time || '').localeCompare(String(b.time || '')))
+      const phaseLog = props.summaryStage ? logs.filter(item => item.stage === props.summaryStage).at(-1) : null
+      const log = phaseLog || logs.at(-1)
       const latestStage = round.stages.find(stage => stage.complete) || null
       return {
         ...round,
@@ -50,7 +52,7 @@ const download = file => downloadSamplingAttachment(file).catch(error => ElMessa
   <div class="sampling-rounds">
     <el-table :data="filteredRounds" border class="sampling-round-table" :empty-text="dateRange?.length ? '暂无符合日期条件的抽查记录' : emptyText">
       <el-table-column label="抽查日期" width="172"><template #default="{ row: round }">{{ formatTime(round.inspectionTime) }}</template></el-table-column>
-      <el-table-column v-if="coc" label="环节" width="110"><template #default="{ row: round }">{{ round.inspectionStage }}</template></el-table-column>
+      <el-table-column v-if="coc || summaryStage" label="环节" width="110"><template #default="{ row: round }">{{ round.inspectionStage }}</template></el-table-column>
       <el-table-column label="抽查结果" width="100"><template #default="{ row: round }"><span :class="round.inspectionResult === '不合格' ? 'inspection-fail' : ['合格', '已复查'].includes(round.inspectionResult) ? 'inspection-pass' : 'sampling-hint'">{{ round.inspectionResult }}</span></template></el-table-column>
       <el-table-column prop="inspectionNote" label="不合格说明" min-width="180" show-overflow-tooltip />
       <el-table-column prop="inspector" label="抽查人" width="150" show-overflow-tooltip />

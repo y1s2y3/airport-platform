@@ -10,8 +10,6 @@ import { DEFAULT_INSPECTOR_LABEL } from '../../config/inspectionManagement'
 import { formatInspectionCategories, normalizeInspectionCategories } from '../../config/inspectionManagement'
 import { checkCategoryTree } from '../../composables/useInspectionPlan'
 import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
-import { getManagerConfirmationDetail } from '../../utils/inspectionTaskDetailData'
-
 const route = useRoute()
 const router = useRouter()
 const { tasksBase } = useMobileRouteBase()
@@ -151,7 +149,6 @@ function normalizeTaskDetail(raw) {
     status: raw.status || '未完成',
     submittedAt: raw.submittedAt || '',
     result: raw.result || '',
-    requiresManagerConfirmation: raw.requiresManagerConfirmation,
     normalPhotos: getInspectionTaskPhotos(raw),
     hazardItems: Array.isArray(raw.hazardItems) ? raw.hazardItems : [],
     checkConfig: Array.isArray(raw.checkConfig) ? raw.checkConfig : [],
@@ -171,7 +168,6 @@ const taskInfo = computed(() => {
 
 const isPush = computed(() => taskInfo.value.source === '任务下发')
 const hazardCount = computed(() => taskInfo.value.hazardItems.length)
-const managerConfirmationText = computed(() => getManagerConfirmationDetail(taskInfo.value))
 const hazardCopyFields = hazard => getInspectionCopyDetailFields(getMobileRectification(hazard.rectifyId), hazard)
 const rectifyCount = computed(() => taskInfo.value.hazardItems.filter((h) => h.hasRectify).length)
 const majorHazardPatrolText = computed(() => {
@@ -251,7 +247,7 @@ function goBack() {
       <div class="sc-row"><span class="sc-lbl">任务名称</span><span>{{ taskInfo.taskName }}</span></div>
       <div class="sc-row"><span class="sc-lbl">任务来源</span><span>{{ taskInfo.source }}</span></div>
       <div class="sc-row"><span class="sc-lbl">项目名称</span><span>{{ taskInfo.project }}</span></div>
-      <div class="sc-row"><span class="sc-lbl">执行人</span><span>{{ taskInfo.executor || '-' }}</span></div>
+      <div class="sc-row"><span class="sc-lbl">登记人</span><span>{{ taskInfo.executor || '-' }}</span></div>
       <div class="sc-row"><span class="sc-lbl">巡检分类</span><span>{{ taskInfo.inspectionCategory }}</span></div>
       <div class="sc-row"><span class="sc-lbl">检查类型</span><span>{{ taskInfo.inspectionType }}</span></div>
       <div class="sc-row"><span class="sc-lbl">危大工程现场巡视</span><span>{{ majorHazardPatrolText }}</span></div>
@@ -307,9 +303,6 @@ function goBack() {
         <span :style="{ color: taskInfo.result === 'hazard' ? '#e53935' : '#34a853', fontWeight: 600 }">
           {{ taskInfo.result === 'hazard' ? `⚠ 有隐患（${hazardCount}项）` : taskInfo.result === 'normal' ? '✓ 全部正常' : '—' }}
         </span>
-      </div>
-      <div v-if="managerConfirmationText" class="sc-row">
-        <span class="sc-lbl">是否需项目经理确认</span><span>{{ managerConfirmationText }}</span>
       </div>
       <div class="sc-row">
         <span class="sc-lbl">巡检照片</span>
