@@ -1,12 +1,12 @@
 <script setup>
 import { getInspectionTaskPhotos } from '../../utils/inspectionTaskPhotos.js'
 import InspectionPhotoList from '../../components/InspectionPhotoList.vue'
-import { getMobileRectification } from '../../composables/useMobileRectification'
+import { areTaskRectificationsVoided, getTaskHazardRectification } from '../../composables/useMobileRectification'
 import { getInspectionCopyDetailFields } from '../../composables/useInspectionPersonConfig'
 import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getMobileInspectionTask } from '../../mock/mobileInspectionTasks'
-import { getInspectionTaskCheckGroups, getMajorHazardPatrolDetail, getMajorHazardSyncDetail } from '../../utils/inspectionTaskDetailData'
+import { getInspectionTaskCheckGroups, getMajorHazardPatrolDetail } from '../../utils/inspectionTaskDetailData'
 import { formatInspectionCategories, normalizeInspectionCategories } from '../../config/inspectionManagement'
 
 const route = useRoute()
@@ -51,8 +51,10 @@ const isPush = computed(() => taskInfo.value.source === '任务下发')
 const isSelf = computed(() => taskInfo.value.source === '系统自建')
 const isPending = computed(() => taskInfo.value.status === '未完成')
 const majorHazardPatrolText = computed(() => getMajorHazardPatrolDetail(taskInfo.value))
-const majorHazardSyncText = computed(() => getMajorHazardSyncDetail(taskInfo.value))
-const hazardCopyFields = hazard => getInspectionCopyDetailFields(getMobileRectification(hazard.rectifyId), hazard)
+const hazardsWithRectifications = computed(() => taskInfo.value.hazardItems.map(hazard => ({
+  hazard,
+  order: getTaskHazardRectification(hazard),
+})))
 const categoryTree = computed(() => getInspectionTaskCheckGroups({ ...taskInfo.value, id: taskId.value }))
 const inspectionTabs = computed(() => taskInfo.value.inspectionCategories.map((category) => {
   const categories = categoryTree.value.filter((item) => item.inspectionCategory === category)
@@ -91,7 +93,7 @@ function goRectify(id) {
   if (!id) return
   router.push({
     path: `/safety-inspection/hazard/${id}`,
-    query: route.query.from === 'dashboard' ? { from: 'dashboard' } : {},
+    query: { inspectionTaskId: taskId.value, from: route.query.from },
   })
 }
 </script>
@@ -114,7 +116,6 @@ function goRectify(id) {
       <div class="info-row"><span class="il">检查类型</span><span class="iv">{{ taskInfo.inspectionType }}</span></div>
       <div class="info-row"><span class="il">危大工程现场巡视</span><span class="iv">{{ majorHazardPatrolText }}</span></div>
       <div v-if="taskInfo.isMajorHazardPatrol === '是'" class="info-row"><span class="il">危大工程名称</span><span class="iv">{{ taskInfo.majorHazardName || '—' }}</span></div>
-      <div v-if="majorHazardSyncText" class="info-row"><span class="il">巡视台账同步</span><span class="iv major-hazard-sync" :class="{ completed: taskInfo.status === '已完成' }">{{ majorHazardSyncText }}</span></div>
       <div class="info-row"><span class="il">同行人</span><span class="iv">{{ taskInfo.companions.length ? taskInfo.companions.join('、') : '' }}</span></div>
       <div class="info-row"><span class="il">截止日期</span><span class="iv">{{ taskInfo.deadline }}</span></div>
       <div class="info-row"><span class="il">巡检日期</span><span class="iv">{{ taskInfo.inspectionDate }}</span></div>
@@ -176,7 +177,7 @@ function goRectify(id) {
 
       <!-- 有隐患 -->
       <div v-if="taskInfo.result === 'hazard'">
-        <div v-for="(hi, idx) in taskInfo.hazardItems" :key="idx" class="hazard-item">
+        <div v-for="({ hazard: hi, order }, idx) in hazardsWithRectifications" :key="idx" class="hazard-item">
           <div class="hazard-title">隐患 {{ idx + 1 }}</div>
           <div class="hazard-desc">隐患类别：{{ hi.hazardCategory || '安全管理' }}</div>
           <div class="hazard-desc">隐患等级：{{ hi.hazardLevel || '未设置' }}</div>
@@ -186,13 +187,15 @@ function goRectify(id) {
             <span>隐患照片</span>
             <InspectionPhotoList :photos="hi.photos" name-prefix="隐患照片" />
           </div>
-          <div v-if="hi.hasRectify" class="rectify-mini">
+          <div v-if="hi.hasRectify || hi.rectifyId || hi.rectifyNo" class="rectify-mini">
             <span class="rectify-label">整改单</span>
-            <a class="rectify-link" @click="goRectify(hi.rectifyId)">{{ hi.rectifyNo }}</a>
+            <a v-if="order?.id || (hi.rectifyId && !order?.deletion)" class="rectify-link" @click="goRectify(order?.id || hi.rectifyId)">{{ hi.rectifyNo || order?.rectifyNo }}</a>
+            <span v-else>{{ hi.rectifyNo || '—' }}</span>
+            <span v-if="order?.status" class="rectify-meta">{{ order.status }}{{ order.deletion ? '（已删除）' : '' }}</span>
             <span class="rectify-meta">{{ hi.rectifier }} · 截止{{ hi.rectifyDeadline }}</span>
           </div>
           <template v-if="hi.hasRectify">
-            <div v-for="field in hazardCopyFields(hi)" :key="field.key" class="hazard-desc">{{ field.label }}：{{ field.value }}</div>
+            <div v-for="field in getInspectionCopyDetailFields(order, hi)" :key="field.key" class="hazard-desc">{{ field.label }}：{{ field.value }}</div>
           </template>
         </div>
       </div>

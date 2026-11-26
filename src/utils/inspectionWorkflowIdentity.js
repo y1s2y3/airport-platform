@@ -8,10 +8,19 @@ export function inspectionOperator() {
   const person = inspectorCandidates.find(item => item.id === id)
   return { id, name: person?.name || snapshot.name, label: person ? `${person.name}（${person.role}）` : snapshot.name }
 }
+function isInspectionInitiator(record, operator) {
+  return record.initiatorId ? record.initiatorId === operator.id : [operator.label, operator.name].includes(record.inspector || record.applicant)
+}
+
 export function canRequestInspectionVoid(record) {
   if (!record || !rectificationIssuedAt(record) || ['已关闭', '已作废'].includes(record.status) || record.voidRequest?.status === 'pending') return false
+  return isInspectionInitiator(record, inspectionOperator())
+}
+
+export function canDeleteInspectionRectification(record) {
+  if (record?.status !== '已作废' || record.deletion) return false
   const operator = inspectionOperator()
-  return record.initiatorId ? record.initiatorId === operator.id : [operator.label, operator.name].includes(record.inspector || record.applicant)
+  return operator.id === INSPECTION_VOID_APPROVER_ID || isInspectionInitiator(record, operator)
 }
 
 export function canExecuteInspectionStep(record, stage) {

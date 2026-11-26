@@ -125,6 +125,11 @@ const scopedRows = computed(() => {
   return rows.value.filter((row) => row.projectKey === currentKey)
 })
 
+const activeStat = ref('')
+function selectStat(key) {
+  activeStat.value = activeStat.value === key ? '' : key
+}
+
 const baseRows = computed(() => scopedRows.value.filter((row) => {
   if (filters.source && row.source !== filters.source) return false
   if (filters.category && !row.categories.includes(filters.category)) return false
@@ -156,9 +161,14 @@ const stats = computed(() => ({
 
 const rawStatuses = computed(() => [...new Set(rows.value.map((row) => row.status).filter(Boolean))])
 const statusOptions = rawStatuses
+/** 顶部统计卡片联动：open=未闭环，overdue=逾期未闭环，closed=已闭环 */
+
 const filteredRows = computed(() => baseRows.value.filter((row) => {
   if (filters.status && row.status !== filters.status) return false
   if (SHOW_HAZARD_SAMPLING && isHqSelected.value && filters.samplingStatus && hqSamplingStatus(row) !== filters.samplingStatus) return false
+  if (activeStat.value === 'closed') return row.closed
+  if (activeStat.value === 'open') return !row.closed
+  if (activeStat.value === 'overdue') return !row.closed && isHazardIssueOverdue(row)
   return true
 }))
 const pagedRows = computed(() => filteredRows.value.slice(
@@ -236,11 +246,16 @@ function applySummaryFilterVisibility() {
 function resetFilters() {
   Object.assign(filters, { keyword: '', source: '', category: '', status: '', samplingStatus: '', registrant: '', inspector: '', hazardLevel: '', hazardCategory: '' })
   dateRange.value = []
+  activeStat.value = ''
   currentPage.value = 1
 }
 
 function openOriginal(row) {
-  if (row.source === 'supervision' || row.source === 'dispatch') {
+  if (row.source === 'dispatch') {
+    router.push({ name: 'DispatchHazardDetail', params: { id: row.sourceId }, query: { from: 'summary' } })
+    return
+  }
+  if (row.source === 'supervision') {
     selectedMeetingHazard.value = row
     meetingHazardVisible.value = true
     return
@@ -288,10 +303,10 @@ function statusTagType(row) {
 
       <section class="main-panel">
         <div class="stats-grid">
-          <div class="stat-card"><span class="stat-label">问题记录总数</span><strong>{{ stats.total }}</strong></div>
-          <div class="stat-card"><span class="stat-label">未闭环</span><strong class="stat-warn">{{ stats.open }}</strong></div>
-          <div class="stat-card"><span class="stat-label">逾期未闭环</span><strong class="stat-danger">{{ stats.overdue }}</strong></div>
-          <div class="stat-card"><span class="stat-label">已闭环</span><strong class="stat-success">{{ stats.closed }}</strong></div>
+          <div class="stat-card stat-card--clickable" :class="{ 'is-active': activeStat === '' }" @click="selectStat('')"><span class="stat-label">问题记录总数</span><strong>{{ stats.total }}</strong></div>
+          <div class="stat-card stat-card--clickable" :class="{ 'is-active': activeStat === 'open' }" @click="selectStat('open')"><span class="stat-label">未闭环</span><strong class="stat-warn">{{ stats.open }}</strong></div>
+          <div class="stat-card stat-card--clickable" :class="{ 'is-active': activeStat === 'overdue' }" @click="selectStat('overdue')"><span class="stat-label">逾期未闭环</span><strong class="stat-danger">{{ stats.overdue }}</strong></div>
+          <div class="stat-card stat-card--clickable" :class="{ 'is-active': activeStat === 'closed' }" @click="selectStat('closed')"><span class="stat-label">已闭环</span><strong class="stat-success">{{ stats.closed }}</strong></div>
         </div>
 
         <div class="list-panel">
@@ -412,6 +427,9 @@ function statusTagType(row) {
 </template>
 
 <style scoped>
+.stat-card--clickable { cursor: pointer; transition: box-shadow .15s, border-color .15s; }
+.stat-card--clickable:hover { box-shadow: 0 2px 10px rgba(143, 0, 69, .12); }
+.stat-card--clickable.is-active { border: 1px solid #8f0045; box-shadow: 0 0 0 2px rgba(143, 0, 69, .12); }
 .filter-setting { display: flex; flex-direction: column; gap: 6px; }
 .filter-setting-title { margin-bottom: 4px; font-size: 13px; font-weight: 600; color: #1f2329; }
 .filter-setting :deep(.el-checkbox) { margin-right: 0; }

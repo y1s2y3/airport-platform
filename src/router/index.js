@@ -200,6 +200,16 @@ const routes = [
         redirect: () => ({ name: 'HazardIssueSummary' }),
       }))),
       {
+        path: 'coc-admin/dispatch-hazard/:id',
+        name: 'DispatchHazardDetail',
+        component: () => import('../views/cocAdmin/DispatchHazardDetailView.vue'),
+        meta: { title: '调度隐患详情', sidebarKey: 'coc-admin-dispatch-hazard' },
+      },
+      {
+        path: 'hazard-issues/dispatch/:id',
+        redirect: (to) => ({ name: 'DispatchHazardDetail', params: { id: to.params.id } }),
+      },
+      {
         path: 'hazard-issues/:source(dispatch|supervision)/:id',
         name: 'HazardIssueRecordDetail',
         component: () => import('../views/hazard/HazardIssueRecordDetailView.vue'),

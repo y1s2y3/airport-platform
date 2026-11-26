@@ -35,11 +35,10 @@ const flowRecords = computed(() => dispatchHazardFlowRecords(props.record))
         <el-descriptions-item label="复查人">{{ record.reviewer || '--' }}</el-descriptions-item>
         <el-descriptions-item label="下发整改单抄送">{{ record.issueCcPersons || '--' }}</el-descriptions-item>
         <el-descriptions-item label="完成抄送">{{ record.completionCcPersons || '--' }}</el-descriptions-item>
-        <el-descriptions-item label="隐患照片" :span="2">
-          <div v-if="record.hazardPhotos?.length" class="detail-photos">
+        <el-descriptions-item v-if="record.hazardPhotos?.length" label="隐患照片" :span="2">
+          <div class="detail-photos">
             <el-image v-for="(url, index) in record.hazardPhotos" :key="index" :src="url" :preview-src-list="record.hazardPhotos" :initial-index="index" :z-index="3000" preview-teleported fit="cover" class="detail-photo" />
           </div>
-          <span v-else>--</span>
         </el-descriptions-item>
         <el-descriptions-item label="整改状态">{{ record.rectifyStatus || '待整改' }}</el-descriptions-item>
         <el-descriptions-item label="当前流程节点">{{ record.currentNode || '--' }}</el-descriptions-item>

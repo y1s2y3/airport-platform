@@ -4,14 +4,13 @@ import { exportInspectionTaskDetail, inspectionTaskDetailColumns, inspectionTask
 import { ref, reactive, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Search, View, ArrowLeft } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
 import { Setting } from '@element-plus/icons-vue'
 import { useFilterVisibility } from '../../composables/useFilterVisibility'
 import { useLaborProjectScope, selectedProjectId } from '../../composables/useCurrentProject'
 import { HQ_PROJECT_OPTION } from '../../config/projectOptions'
 import { getProjectInspectorLabel } from '../../composables/useInspectionPersonConfig'
 import { INSPECTION_CATEGORIES, DEFAULT_INSPECTOR_LABEL, getInspectionTypeFilterOptions, hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
-import { listAllMobileInspectionTasks, deleteMobileInspectionTask } from '../../mock/mobileInspectionTasks'
+import { listMobileInspectionTasks } from '../../mock/mobileInspectionTasks'
 import { INSPECTION_DEMO_TODAY, inspectionProjectTree } from '../../mock/inspectionDemoData'
 import { isWithinInspectionDateRange } from '../../utils/inspectionLedgerDates'
 
@@ -38,7 +37,7 @@ const treeDataWithCount = computed(() => {
   const root = inspectionProjectTree[0]
   const children = root.children
     .map(node => {
-      const count = taskData.value.filter(t => t.project_id === node.id && t.status !== '已作废').length
+      const count = taskData.value.filter(t => t.project_id === node.id).length
       const label = treeSearch.value
         ? (node.label.includes(treeSearch.value) ? `${node.label}（${count}）` : '')
         : `${node.label}（${count}）`
@@ -48,14 +47,13 @@ const treeDataWithCount = computed(() => {
   return [{ ...root, label: treeSearch.value ? '搜索结果' : root.label, children }]
 })
 
-// 与移动端共用任务数据，下发后立即出现在 Web 台账和移动端待办中；已作废任务也保留，便于筛选与删除。
-const taskData = computed(() => listAllMobileInspectionTasks().map(task => ({
+// 与移动端共用巡检单及其执行状态。
+const taskData = computed(() => listMobileInspectionTasks().map(task => ({
   ...task,
   project_id: task.project_id || task.projectId,
   inspector: task.inspector || task.executor || getProjectInspectorLabel(task.project_id || task.projectId) || DEFAULT_INSPECTOR_LABEL,
   inspectionDate: task.inspectionDate || task.inspDate || '',
   hazardItems: task.hazardItems || [],
-  status: task.rectificationVoided ? '已作废' : task.status,
 })))
 
 // ===== 项目树数据 =====
@@ -70,7 +68,7 @@ const filterForm = reactive(createFilters())
 
 const hqProjectKeyword = ref('')
 const hqProjectStats = computed(() => inspectionProjectTree[0].children.map(project => {
-  const rows = taskData.value.filter(item => item.project_id === project.id && item.status !== '已作废')
+  const rows = taskData.value.filter(item => item.project_id === project.id)
   const completedCount = rows.filter(item => item.status === '已完成').length
   return {
     project_id: project.id,
@@ -143,7 +141,7 @@ const exportDates = [
 ]
 
 function isOverdue(row) {
-  if (row.status === '已完成' || row.status === '已作废') return false
+  if (row.status === '已完成') return false
   if (!row.deadline) return false
   return new Date(row.deadline) < new Date(INSPECTION_DEMO_TODAY)
 }
@@ -166,16 +164,6 @@ function viewDetail(row) { router.push(`/safety-inspection/task/${row.id}`) }
 function goRectify(id) { router.push(`/safety-inspection/hazard/${id}`) }
 function goCreateRecord() {
   router.push('/safety-inspection/task/create')
-}
-
-/** 仅已作废任务可删除（二次确认，删除后不可恢复）。 */
-function deleteVoidedTask(row) {
-  ElMessageBox.confirm(`确定删除已作废任务「${row.taskName || row.taskNo}」？删除后不可恢复。`, '删除确认', { type: 'warning' })
-    .then(() => {
-      if (deleteMobileInspectionTask(row.id)) ElMessage.success('已删除')
-      else ElMessage.warning('删除失败，请刷新后重试')
-    })
-    .catch(() => {})
 }
 
 const INSPECTION_TASK_FILTER_FIELDS = [
@@ -267,7 +255,7 @@ function goBackToHQ() {
             <el-option v-for="type in getInspectionTypeFilterOptions(taskData)" :key="type" :label="type" :value="type" />
           </el-select>
           <el-select v-if="isTaskFilterVisible('status')" v-model="filterForm.status" placeholder="任务状态" clearable style="width:100px">
-            <el-option label="未完成" value="未完成" /><el-option label="已完成" value="已完成" /><el-option label="已作废" value="已作废" />
+            <el-option label="未完成" value="未完成" /><el-option label="已完成" value="已完成" />
           </el-select>
           <el-select v-if="isTaskFilterVisible('source')" v-model="filterForm.source" placeholder="任务来源" clearable style="width:110px">
             <el-option label="任务下发" value="任务下发" /><el-option label="系统自建" value="系统自建" />
@@ -320,7 +308,6 @@ function goBackToHQ() {
               </el-tag>
               <div v-if="row.isMajorHazardPatrol === '是'" class="major-hazard-cell">
                 <span :title="row.majorHazardName || '未关联危大工程'">{{ row.majorHazardName || '未关联危大工程' }}</span>
-                <small v-if="row.status === '已完成'">已同步现场巡视台账</small>
               </div>
             </template>
           </el-table-column>
@@ -386,7 +373,6 @@ function goBackToHQ() {
           <el-table-column label="操作" width="110" align="center">
             <template #default="{ row }">
               <el-button link type="primary" size="small" @click="viewDetail(row)">查看</el-button>
-              <el-button v-if="row.status === '已作废'" link type="danger" size="small" @click="deleteVoidedTask(row)">删除</el-button>
             </template>
           </el-table-column>
         </el-table>

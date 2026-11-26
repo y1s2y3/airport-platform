@@ -418,13 +418,12 @@ export function togglePlanEnabled(id) {
 
 /**
  * 任务执行状态（用户 2026-10-20）：
- * 由移动端执行任务反查（任务单编号 → 执行任务），区分已完成、未完成和作废的执行单。
+ * 由移动端执行任务反查（任务单编号 → 执行任务），按巡检单自身状态区分已完成、未完成。
  * 列表页与详情页共用本方法，避免两处各写一套导致口径漂移。
  */
 export function getPlanExecutionStatus(plan) {
   const taskNo = plan?.planNo
   if (!taskNo) return '未完成'
   const task = mobileInspectionTasks.find(item => item.taskNo === taskNo)
-  if (task?.rectificationVoided) return '已作废'
   return task?.status === '已完成' ? '已完成' : '未完成'
 }

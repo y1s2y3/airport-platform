@@ -11,6 +11,7 @@ defineProps({
   embedded: { type: Boolean, default: false },
 })
 
+import { normalizeFlowNodeName } from '../../config/hazardFlowNodes.js'
 import { RECTIFICATION_STATUSES, currentWorkflowStep, currentWorkflowLabel } from '../../utils/inspectionRectificationWorkflow'
 const router = useRouter()
 const route = useRoute()
@@ -127,14 +128,14 @@ function onCardClick(item) {
           <span class="rec-status" :style="{ color: statusStyles[item.status]?.color, background: statusStyles[item.status]?.bg }">{{ item.status }}</span>
         </div>
         <div class="rec-mid">
-          <span>当前流程节点：{{ currentWorkflowLabel(item) }}</span>
+          <span>当前流程节点：{{ normalizeFlowNodeName(currentWorkflowLabel(item)) }}</span>
         </div>
         <div v-if="item.isRejected&&item.rejectReason" class="rec-reject">❌ 退回原因：{{ item.rejectReason }}</div>
         <div v-if="item.approvalRejected&&item.approvalReason" class="rec-reject">❌ 审批退回：{{ item.approvalReason }}</div>
         <div class="rec-bottom">
           <span v-if="item.status==='待整改'">截止：{{ item.deadline }}</span>
           <span v-else-if="item.status==='待验收'">提交：{{ item.submitDate }}</span>
-          <span v-else-if="item.status==='待复查'">复查已通过，待 {{ item.manager }} 审批</span>
+          <span v-else-if="item.status==='待复查'"></span>
           <span v-else>已关闭：{{ item.closeDate }}</span>
         </div>
       </div>

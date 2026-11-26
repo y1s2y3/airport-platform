@@ -35,7 +35,6 @@ function goBack() {
       <section class="detail-card">
         <div class="section-title">基础信息</div>
         <el-descriptions :column="2" border>
-          <el-descriptions-item label="问题编号">{{ issue.id }}</el-descriptions-item>
           <el-descriptions-item label="问题状态"><el-tag :type="issue.status === '已完成' ? 'success' : 'warning'">{{ issue.status }}</el-tag></el-descriptions-item>
           <el-descriptions-item label="问题名称" :span="2">{{ issue.title }}</el-descriptions-item>
           <el-descriptions-item label="项目名称">{{ issue.projectName }}</el-descriptions-item>
@@ -43,9 +42,6 @@ function goBack() {
           <el-descriptions-item label="问题类型">{{ issue.issueType }}</el-descriptions-item>
           <el-descriptions-item label="问题来源">{{ issue.source }}</el-descriptions-item>
           <el-descriptions-item label="发现人">{{ issue.finder }}</el-descriptions-item>
-          <el-descriptions-item label="发起人">{{ issue.initiator }}</el-descriptions-item>
-          <el-descriptions-item label="整改人">{{ issue.rectifier }}</el-descriptions-item>
-          <el-descriptions-item label="审核人">{{ issue.reviewer }}</el-descriptions-item>
           <el-descriptions-item label="填写日期">{{ issue.createdAt }}</el-descriptions-item>
           <el-descriptions-item label="要求完成日期">{{ issue.dueAt }}</el-descriptions-item>
         </el-descriptions>

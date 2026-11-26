@@ -1,4 +1,5 @@
 <script setup>
+import { normalizeFlowNodeName } from '../../config/hazardFlowNodes.js'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { mobileWorkflowMessages } from '../../composables/useMobileRectification'
@@ -111,7 +112,7 @@ function goBack() { router.push('/mobile/tasks') }
           <div v-if="item.inspectionCategory" class="message-field"><span>巡检分类：</span><b>{{ item.inspectionCategory }}<template v-if="item.hazardLevel"> / {{ item.hazardLevel }}</template></b></div>
           <div v-if="item.rectifyNo" class="message-field"><span>整改单号：</span><b>{{ item.rectifyNo }}</b></div>
           <div v-if="item.hazard" class="message-field"><span>隐患说明：</span><b>{{ item.hazard }}</b></div>
-          <div class="message-field"><span>当前节点：</span><b>{{ item.currentNode }}</b></div>
+          <div class="message-field"><span>当前节点：</span><b>{{ normalizeFlowNodeName(item.currentNode) }}</b></div>
           <div class="message-field"><span>负责人：</span><b>{{ item.owner }}</b></div>
           <div class="message-field"><span>申请人：</span><b>{{ item.applicant }}</b></div>
           <div class="message-field"><span>申请日期：</span><b>{{ item.applyDate }}</b></div>

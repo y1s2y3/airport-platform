@@ -18,13 +18,13 @@ const sections = INSPECTION_PERSON_CONFIG_GROUPS.map(({ value, label }) => ({
   label,
   state: reactive({ editing: false, form: {} }),
   roles: [
-    { key: 'inspectorId', label: '巡检人' },
+    { key: 'inspectorId', label: '巡检人', multiple: true },
     { key: 'rectifierId', label: '施工单位整改人', multiple: true },
-    { key: 'contractorManagerId', label: '施工单位项目经理', scope: value === '质量' ? 'A级验收' : '重大隐患验收' },
+    { key: 'contractorManagerId', label: '施工单位项目经理', multiple: true, scope: value === '质量' ? 'A级验收' : '重大隐患验收' },
     { key: 'reviewerId', label: '监理单位复核人', multiple: true },
-    { key: 'directorId', label: '监理单位项目总监', scope: value === '质量' ? 'A级验收' : '重大隐患验收' },
-    { key: 'managerId', label: '指挥部项目经理' },
-    { key: 'departmentHeadId', label: '项目部长', scope: value === '质量' ? 'A级确认' : '重大隐患确认' },
+    { key: 'directorId', label: '监理单位项目总监', multiple: true, scope: value === '质量' ? 'A级验收' : '重大隐患验收' },
+    { key: 'managerId', label: '指挥部项目经理', multiple: true },
+    { key: 'departmentHeadId', label: '项目部长', multiple: true, scope: value === '质量' ? 'A级确认' : '重大隐患确认' },
   ],
 }))
 

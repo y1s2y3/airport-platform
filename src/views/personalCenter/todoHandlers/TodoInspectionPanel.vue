@@ -13,7 +13,7 @@ import { getMajorHazardLedgerOptions } from '../../../utils/inspectionMajorHazar
 import { usePersonalTodoSubmit } from '../composables/usePersonalTodoSubmit.js'
 import '../styles/todoHandleBlocks.css'
 import { inspectorCandidates, getProjectRectifierLabel, getProjectReviewerLabel, getInspectionCopyDefaults, getInspectionCopyDetailFields, INSPECTION_COPY_FIELDS } from '../../../composables/useInspectionPersonConfig'
-import { getMobileRectification } from '../../../composables/useMobileRectification'
+import { getMobileRectification, getTaskHazardRectification } from '../../../composables/useMobileRectification'
 import { currentWorkflowStep, rectificationIssuedAt } from '../../../utils/inspectionRectificationWorkflow'
 
 import { useInspectionHazardOptions } from '../../../composables/useInspectionCategoryForm'
@@ -32,7 +32,7 @@ const rectificationInspectionPhotos = computed(() => getInspectionTaskPhotos(get
   assignmentRecord.value || { ...props.todo.detail, id: props.todo.rectifyId },
 )))
 const rectificationCopyFields = computed(() => getInspectionCopyDetailFields(assignmentRecord.value, props.todo.detail))
-const hazardCopyFields = hazard => getInspectionCopyDetailFields(getMobileRectification(hazard.rectifyId), hazard)
+const hazardCopyFields = hazard => getInspectionCopyDetailFields(getTaskHazardRectification(hazard), hazard)
 const assignmentStage = computed(() => props.todo.expectedWorkflowStage)
 const emit = defineEmits(['back'])
 
@@ -268,9 +268,6 @@ function onSubmit() {
       </el-descriptions-item>
       <el-descriptions-item label="检查类型">{{ todo.detail?.inspectionType || '值班检查' }}</el-descriptions-item>
       <el-descriptions-item v-if="todo.detail?.isMajorHazardPatrol === '是'" label="危大工程名称">{{ todo.detail?.majorHazardName || '—' }}</el-descriptions-item>
-      <el-descriptions-item v-if="todo.detail?.isMajorHazardPatrol === '是'" label="巡视台账同步" :span="todo.detail?.majorHazardName ? 1 : 2">
-        {{ todo.detail?.status === '已完成' ? '已自动同步至危大工程现场巡视台账' : '完成巡检后自动同步至危大工程现场巡视台账' }}
-      </el-descriptions-item>
       <el-descriptions-item label="截止日期">{{ todo.detail?.deadline || '—' }}</el-descriptions-item>
       <el-descriptions-item label="巡检日期">{{ todo.detail?.inspectionDate || '—' }}</el-descriptions-item>
       <el-descriptions-item label="状态">{{ todo.detail?.status || '—' }}</el-descriptions-item>
@@ -400,6 +397,9 @@ function onSubmit() {
         <span>下发整改单：{{ hazard.issueRectify || hazard.hasRectify ? '是' : '否' }}</span>
         <span v-if="hazard.issueRectify || hazard.hasRectify">
           整改单编号：{{ hazard.rectifyNo || '—' }}
+        </span>
+        <span v-if="getTaskHazardRectification(hazard)?.status">
+          整改单状态：{{ getTaskHazardRectification(hazard).status }}{{ getTaskHazardRectification(hazard).deletion ? '（已删除）' : '' }}
         </span>
         <span v-if="hazard.issueRectify || hazard.hasRectify">
           整改人：{{ hazard.rectifier || hazard.rectifyPerson || '—' }}　复查人：{{

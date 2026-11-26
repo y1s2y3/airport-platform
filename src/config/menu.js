@@ -559,21 +559,28 @@ export function buildFusedMenuTree(raw = rawMenuTree) {
       levels: 'both',
       children: [
         safetyInspection,
-        // 隐患清单汇总（2026-10-26 用户要求：由一级菜单归入安全管理，二级带三级）
-        {
-          key: 'hazard-issue-summary-group',
-          label: '隐患清单汇总',
-          icon: 'Warning',
-          levels: 'both',
-          children: [
-            { key: 'hazard-issue-summary', label: '隐患问题清单汇总', icon: 'Warning', path: '/hazard-issues/summary', name: 'HazardIssueSummary', component: 'HazardIssueSummaryView', levels: 'both' },
-            ...(SHOW_HAZARD_SAMPLING ? [
+        // 隐患清单汇总（2026-11-25 用户要求：去掉唯一的三级菜单，点击二级直达汇总页）
+        ...(SHOW_HAZARD_SAMPLING
+          ? [{
+            key: 'hazard-issue-summary-group',
+            label: '隐患清单汇总',
+            icon: 'Warning',
+            levels: 'both',
+            children: [
               { key: 'hazard-sampling-tasks', label: '抽检任务', icon: 'List', path: '/hazard-issues/tasks', name: 'HazardSamplingTasks', component: 'HazardSamplingTasksView', levels: 'hq' },
               { key: 'hazard-sampling-supervisor', label: '隐患抽检', icon: 'List', path: '/hazard-issues/sampling', name: 'HazardSamplingSupervisor', component: 'HazardSamplingTasksView', levels: 'project' },
               { key: 'hazard-sampling-manager', label: '施工隐患复查', icon: 'List', path: '/hazard-issues/review', name: 'HazardSamplingManager', component: 'HazardSamplingTasksView', levels: 'project' },
-            ] : []),
-          ],
-        },
+            ],
+          }]
+          : [{
+            key: 'hazard-issue-summary',
+            label: '隐患清单汇总',
+            icon: 'Warning',
+            levels: 'both',
+            path: '/hazard-issues/summary',
+            name: 'HazardIssueSummary',
+            component: 'HazardIssueSummaryView',
+          }]),
         node('major-hazard-management'),
         node('risk-manage-group'),
         workManage,

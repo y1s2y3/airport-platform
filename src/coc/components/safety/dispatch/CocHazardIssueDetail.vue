@@ -13,11 +13,15 @@ const fields=computed(()=>{
  const common=[['单据编号',r.originalNo],['项目',r.projectName],['来源',r.sourceLabel],['类别',r.categoryLabel],['整改状态',r.status],['检查／登记时间',r.registeredAt],['整改人',r.rectifier],['完成期限',r.deadline]]
  if(r.source==='inspection')common.push(['巡检任务编号',d.taskNo],['复查人',d.reviewer],['项目经理',d.manager])
  if(r.source==='supervision')common.push(['会议编号',d.meetingId],['隐患等级',d.hazardLevel],['备注',d.remark])
- if(r.source==='dispatch')common.push(['隐患等级',d.hazardLevel],['摄像头',d.cameraName],['摄像头位置',d.cameraLocation],['截图来源',d.sourceType])
+ if(r.source==='dispatch')common.push(['复查人',d.reviewer],['隐患等级',d.hazardLevel],['摄像头',d.cameraName],['摄像头位置',d.cameraLocation],['截图来源',d.sourceType])
  if(r.source==='externalQuality')common.push(['标段',d.sectionName],['问题类型',d.issueType],['问题来源',d.source],['发现人',d.finder],['发起人',d.initiator],['审核人',d.reviewer])
  return common
 })
-const photos=computed(()=>inspection.value?.hazard?.photos||raw.value.hazardPhotos||(raw.value.snapshot?[raw.value.snapshot]:[]))
+const photos = computed(() => {
+ const { snapshot, hazardPhotos } = raw.value
+ if (props.row.source === 'dispatch' && snapshot) return [snapshot, ...(hazardPhotos || [])]
+ return inspection.value?.hazard?.photos || hazardPhotos || (snapshot ? [snapshot] : [])
+})
 const rectPhotos=computed(()=>inspection.value?.rectification?.photos||raw.value.rectifyPhotos||[])
 const rectification=computed(()=>inspection.value?.rectification?.note||raw.value.rectifyRemark||'')
 /** 流程记录：结构对齐工作台「我的待办」流程记录（节点标题 + 处理人 + 备注 + 时间 + 当前态），样式按大屏深色展示 */

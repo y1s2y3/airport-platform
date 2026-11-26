@@ -45,7 +45,8 @@ import {
   registerWarningCenterBizDisposedHook,
   runWithoutBizToWarningCenterSync,
 } from './warningCenterBizHook.js'
-import { INSPECTION_DEMO_TODAY, inspectionHazards } from './inspectionDemoData.js'
+import { INSPECTION_DEMO_TODAY } from './inspectionDemoData.js'
+import { listInspectionHazards } from './inspectionHazardQuery.js'
 import { mobileInspectionTasks, registerInspectionTaskListener, inspectionSeedTaskIds } from './mobileInspectionTasks.js'
 import { submitRectification, registerInspectionWorkflowListener, mobileRectificationRecords, ensureInspectionWorkflowExamples } from '../composables/useMobileRectification.js'
 import { workflowSteps, currentWorkflowStep, rectificationProcessName, workflowFlowRecords, workflowApprovalRecords, rectificationCopyEvents } from '../utils/inspectionRectificationWorkflow.js'
@@ -4014,8 +4015,8 @@ function buildInspectionReminder(type, rows) {
 }
 
 export function ensureInspectionOverdueReminders() {
-  const overdueTasks = mobileInspectionTasks.filter((item) => !item.rectificationVoided && isInspectionOverdue(item, ['已完成']))
-  const overdueRectifications = inspectionHazards.filter((item) =>
+  const overdueTasks = mobileInspectionTasks.filter((item) => isInspectionOverdue(item, ['已完成']))
+  const overdueRectifications = listInspectionHazards().filter((item) =>
     isInspectionOverdue(item, ['待复查', '已关闭']),
   )
   for (const [type, rows] of [
@@ -4452,12 +4453,6 @@ function syncInspectionTaskTodo(task) {
     approvalFlow: [{ title: '巡检任务执行', user: task.executor || task.inspector, time: completed ? task.submittedAt || '' : '', remark: completed ? '巡检已完成' : '', status: completed ? 'done' : 'current' }],
   }
   const pending = personalTodoStore.todos.find(item => item.inspectionTaskId === task.id && item.inspectionBizType === '巡检')
-  if (task.rectificationVoided) {
-    if (pending) personalTodoStore.todos.splice(personalTodoStore.todos.indexOf(pending), 1)
-    const started = personalStarted.find(item => item.inspectionTaskId === task.id && item.inspectionBizType === '巡检')
-    if (started) Object.assign(started, base, { status: '已作废', endTime: task.voidedAt || '' })
-    return
-  }
   if (pending) {
     Object.assign(pending, base)
     if (completed) finishPersonalTodo(pending.id, '完成巡检')
@@ -4470,11 +4465,14 @@ function syncInspectionTaskTodo(task) {
 }
 registerInspectionTaskListener(syncInspectionTaskTodo)
 const personalInspectionTaskExampleIds = new Set(['mt-001', 'mt-demo-000-1', 'mt-demo-000-2'])
-for (const task of mobileInspectionTasks.filter(item => item.status !== '已完成' && !item.rectificationVoided
-  && (!inspectionSeedTaskIds.has(item.id) || personalInspectionTaskExampleIds.has(item.id)))) syncInspectionTaskTodo(task)
+for (const task of mobileInspectionTasks) {
+  if (!inspectionSeedTaskIds.has(task.id) || (task.status !== '已完成' && personalInspectionTaskExampleIds.has(task.id))) {
+    syncInspectionTaskTodo(task)
+  }
+}
 
 // 待办、已办、发起各保留各类节点示例；已办使用独立的已完成快照。
-for (const record of mobileRectificationRecords.filter(item => item.workflowExample || item.voidRequest)) {
+for (const record of mobileRectificationRecords.filter(item => item.workflowExample || item.voidRequest || (item.inspectionTaskId && !item.legacyWorkflowExample))) {
   syncInspectionWorkflowTodo(record)
   if (!record.workflowExample || record.exampleHidden) continue
   const steps = workflowSteps(record)

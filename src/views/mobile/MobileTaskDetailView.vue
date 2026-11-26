@@ -1,7 +1,7 @@
 <script setup>
 import { getInspectionTaskPhotos } from '../../utils/inspectionTaskPhotos.js'
 import InspectionPhotoList from '../../components/InspectionPhotoList.vue'
-import { getMobileRectification } from '../../composables/useMobileRectification'
+import { areTaskRectificationsVoided, getTaskHazardRectification } from '../../composables/useMobileRectification'
 import { getInspectionCopyDetailFields } from '../../composables/useInspectionPersonConfig'
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -12,7 +12,7 @@ import { checkCategoryTree } from '../../composables/useInspectionPlan'
 import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
 const route = useRoute()
 const router = useRouter()
-const { tasksBase } = useMobileRouteBase()
+const { tasksBase, rectifyBase } = useMobileRouteBase()
 
 /** 静态补充详情（列表 seed 字段不全时兜底，避免白屏） */
 const taskMap = {
@@ -168,15 +168,29 @@ const taskInfo = computed(() => {
 
 const isPush = computed(() => taskInfo.value.source === '任务下发')
 const hazardCount = computed(() => taskInfo.value.hazardItems.length)
-const hazardCopyFields = hazard => getInspectionCopyDetailFields(getMobileRectification(hazard.rectifyId), hazard)
+/** 整改单信息兜底：历史/演示单缺字段时从整改单记录补齐。 */
+function rectifyInfo(hazard) {
+  const live = getTaskHazardRectification(hazard)
+  return {
+    no: hazard.rectifyNo || live?.rectifyNo || '未设置',
+    id: live?.id,
+    status: live?.status,
+    deleted: Boolean(live?.deletion),
+    person: hazard.rectifyPerson || hazard.rectifier || live?.rectifier || '未设置',
+    review: hazard.reviewPerson || live?.reviewer || '-',
+    deadline: hazard.rectifyDeadline || live?.rectifyDeadline || live?.deadline || '未设置',
+  }
+}
+
+const hazardCopyFields = hazard => getInspectionCopyDetailFields(getTaskHazardRectification(hazard), hazard)
+const allRectificationsVoided = computed(() => areTaskRectificationsVoided(taskInfo.value.hazardItems))
+function openRectification(id) {
+  router.push({ path: rectifyBase.value + '/' + encodeURIComponent(id), query: { inspectionTaskId: route.params.id } })
+}
 const rectifyCount = computed(() => taskInfo.value.hazardItems.filter((h) => h.hasRectify).length)
 const majorHazardPatrolText = computed(() => {
   if (taskInfo.value.status !== '已完成' && !taskInfo.value.majorHazardLedgerId) return '移动端执行时选择'
   return taskInfo.value.isMajorHazardPatrol === '是' ? '是' : '否'
-})
-const majorHazardSyncText = computed(() => {
-  if (taskInfo.value.isMajorHazardPatrol !== '是') return ''
-  return taskInfo.value.status === '已完成' ? '已自动同步至现场巡视台账' : '完成巡检后自动同步至现场巡视台账'
 })
 
 const configuredCheckTree = computed(() => taskInfo.value.checkConfig.map((config) => {
@@ -252,8 +266,7 @@ function goBack() {
       <div class="sc-row"><span class="sc-lbl">检查类型</span><span>{{ taskInfo.inspectionType }}</span></div>
       <div class="sc-row"><span class="sc-lbl">危大工程现场巡视</span><span>{{ majorHazardPatrolText }}</span></div>
       <div v-if="taskInfo.isMajorHazardPatrol === '是'" class="sc-row"><span class="sc-lbl">危大工程名称</span><span>{{ taskInfo.majorHazardName || '—' }}</span></div>
-      <div v-if="majorHazardSyncText" class="sc-row"><span class="sc-lbl">巡视台账同步</span><span :class="{ 'sync-completed': taskInfo.status === '已完成' }">{{ majorHazardSyncText }}</span></div>
-      <div class="sc-row"><span class="sc-lbl">同行人</span><span>{{ taskInfo.companions.length ? taskInfo.companions.join('、') : '' }}</span></div>
+            <div class="sc-row"><span class="sc-lbl">同行人</span><span>{{ taskInfo.companions.length ? taskInfo.companions.join('、') : '' }}</span></div>
       <div class="sc-row"><span class="sc-lbl">截止日期</span><span>{{ taskInfo.deadline }}</span></div>
       <div class="sc-row"><span class="sc-lbl">巡检日期</span><span>{{ taskInfo.inspDate }}</span></div>
       <div class="sc-row"><span class="sc-lbl">状态</span><span :style="{ color: taskInfo.status === '已完成' ? '#34a853' : '#f5a623', fontWeight: 600 }">{{ taskInfo.status }}</span></div>
@@ -325,22 +338,27 @@ function goBack() {
           <span class="sc-lbl">隐患照片</span>
           <InspectionPhotoList :photos="hi.photos" name-prefix="隐患照片" />
         </div>
-        <div v-if="hi.hasRectify" class="rectify-card">
+        <div v-if="hi.hasRectify || hi.rectifyNo || hi.rectifyId" class="rectify-card">
           <div class="rectify-title">📋 整改单</div>
-          <div class="sc-row"><span class="sc-lbl">整改单编号</span><span class="rectify-no">{{ hi.rectifyNo }}</span></div>
-          <div class="sc-row"><span class="sc-lbl">整改人</span><span>{{ hi.rectifyPerson }}</span></div>
-          <div class="sc-row"><span class="sc-lbl">复查人</span><span>{{ hi.reviewPerson || '-' }}</span></div>
+          <div class="sc-row">
+            <span class="sc-lbl">整改单编号</span>
+            <button v-if="rectifyInfo(hi).id" type="button" class="rectify-no rectify-no-link" @click="openRectification(rectifyInfo(hi).id)">{{ rectifyInfo(hi).no }}</button>
+            <span v-else class="rectify-no">{{ rectifyInfo(hi).no }}</span>
+          </div>
+          <div v-if="rectifyInfo(hi).status" class="sc-row"><span class="sc-lbl">整改单状态</span><span>{{ rectifyInfo(hi).status }}{{ rectifyInfo(hi).deleted ? '（已删除）' : '' }}</span></div>
+          <div class="sc-row"><span class="sc-lbl">整改人</span><span>{{ rectifyInfo(hi).person }}</span></div>
+          <div class="sc-row"><span class="sc-lbl">复查人</span><span>{{ rectifyInfo(hi).review }}</span></div>
           <div v-for="field in hazardCopyFields(hi)" :key="field.key" class="sc-row">
             <span class="sc-lbl">{{ field.label }}</span><span>{{ field.value }}</span>
           </div>
-          <div class="sc-row"><span class="sc-lbl">整改截止日期</span><span>{{ hi.rectifyDeadline }}</span></div>
+          <div class="sc-row"><span class="sc-lbl">整改截止日期</span><span>{{ rectifyInfo(hi).deadline }}</span></div>
         </div>
       </div>
     </div>
 
     <div class="bottom-bar">
       <div v-if="taskInfo.status === '已完成' && taskInfo.result === 'hazard'" class="bottom-info warn">
-        ⚠ 已发现 {{ hazardCount }} 项隐患，已下发 {{ rectifyCount }} 份整改单
+        ⚠ 已发现 {{ hazardCount }} 项隐患<template v-if="!allRectificationsVoided">，已下发 {{ rectifyCount }} 份整改单</template>
       </div>
       <div v-else-if="taskInfo.status === '已完成'" class="bottom-info ok">✓ 全部正常，无需整改</div>
       <div v-else class="bottom-info" style="color: #f5a623; font-weight: 500; text-align: center">未完成，请先完成巡检</div>
@@ -387,6 +405,7 @@ function goBack() {
 .rectify-card { margin-top:10px; padding:10px; background:#fafafa; border-radius:8px; border:1px solid #eee; }
 .rectify-title { font-size:12px; font-weight:600; color:#8f0045; margin-bottom:6px; }
 .rectify-no { color:#8f0045; font-weight:600; }
+.rectify-no-link { padding:0; border:0; background:none; font:inherit; text-decoration:underline; cursor:pointer; }
 
 .bottom-bar { padding:12px 16px 24px; }
 .bottom-info { font-size:13px; text-align:center; padding:10px; border-radius:8px; }

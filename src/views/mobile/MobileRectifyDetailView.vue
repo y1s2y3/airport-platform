@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import { normalizeFlowNodeName } from '../../config/hazardFlowNodes.js'
 import { useRoute, useRouter } from 'vue-router'
 import { getMobileRectification } from '../../composables/useMobileRectification'
 import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
@@ -12,7 +13,7 @@ import { workflowFlowRecords, workflowSteps, currentWorkflowStep } from '../../u
 
 const route = useRoute()
 const router = useRouter()
-const { rectifyBase } = useMobileRouteBase()
+const { rectifyBase, tasksBase } = useMobileRouteBase()
 const record = computed(() => getMobileRectification(route.params.id))
 const inspectionPhotos = computed(() => getInspectionTaskPhotos(getInspectionTaskForRectification(record.value)))
 const missing = computed(() => !record.value)
@@ -68,6 +69,11 @@ function displayPhotos(list) {
 }
 
 function goBack() {
+  const taskId = route.query.inspectionTaskId
+  if (taskId) {
+    router.push(tasksBase.value + '/' + encodeURIComponent(taskId))
+    return
+  }
   const tab = route.query.tab
   router.push(tab ? `${rectifyBase.value}?tab=${tab}` : rectifyBase.value)
 }
@@ -78,7 +84,7 @@ function goBack() {
     <header class="mh">
       <button class="mb" aria-label="返回" @click="goBack">‹</button>
       <h1 class="mt">整改详情</h1>
-      <span v-if="!missing" class="header-status">{{ statusText }}</span>
+      <span v-if="!missing" class="header-status">{{ statusText }}{{ record.deletion ? '（已删除）' : '' }}</span>
     </header>
 
     <div v-if="missing" class="empty-tip">未找到该整改单，请返回列表重试。</div>
@@ -94,11 +100,13 @@ function goBack() {
 
       <div class="sc">
         <div class="sct">隐患信息</div>
+        <div class="ic">
         <div class="ir"><span class="il">隐患类别</span><span>{{ record.hazardCategory || '安全管理' }}</span></div>
         <div class="ir"><span class="il">隐患等级</span><span>{{ record.hazardLevel || '未设置' }}</span></div>
         <div class="ir"><span class="il">整改要求</span><span style="white-space:pre-wrap">{{ record.rectifyRequirement || '未填写' }}</span></div>
         <div class="ir"><span class="il">隐患说明</span><span>{{ record.hazard || '--' }}</span></div>
         <div class="ir"><span class="il">隐患照片</span><span>{{ displayPhotos(record.hazardPhotos) }}</span></div>
+        </div>
       </div>
 
       <div v-if="currentRectifications.length" class="sc">
@@ -110,8 +118,9 @@ function goBack() {
         </div>
       </div>
 
+
       <div v-if="reviewRecords.length && ['待验收', '待复查', '已关闭'].includes(statusText)" class="sc">
-        <div class="sct">复查信息</div>
+        <div class="sct">监理复核信息</div>
         <div v-for="(r, i) in reviewRecords" :key="i" class="ic">
           <div class="ir"><span class="il">复查日期</span><span>{{ r.date }}</span></div>
           <div class="ir"><span class="il">复查结果</span><span :class="r.result === '通过' ? 'pass' : 'fail'">{{ r.result }}</span></div>
@@ -120,19 +129,23 @@ function goBack() {
       </div>
 
       <div v-if="managerApproval" class="sc">
-        <div class="sct">{{ managerApproval.label }}</div>
+        <div class="sct">{{ normalizeFlowNodeName(managerApproval.label) || '指挥部项目经理确认' }}</div>
+        <div class="ic">
         <div class="ir"><span class="il">审批人</span><span>{{ managerApproval.manager }}</span></div>
         <div class="ir"><span class="il">审批结果</span><span :class="managerApproval.status === '通过' ? 'pass' : 'pending'">{{ managerApproval.status }}</span></div>
         <div class="ir" v-if="managerApproval.date"><span class="il">审批日期</span><span>{{ managerApproval.date }}</span></div>
         <div class="ir"><span class="il">审批意见</span><span>{{ managerApproval.comment }}</span></div>
+        </div>
       </div>
 
       <div v-if="record.departmentConfirmationDate || currentWorkflowStep(record)?.key === 'departmentConfirmation'" class="sc">
         <div class="sct">项目部长确认</div>
+        <div class="ic">
         <div class="ir"><span class="il">确认人</span><span>{{ record.projectDepartmentHead || '项目部长' }}</span></div>
         <div class="ir"><span class="il">确认结果</span><span>{{ record.departmentConfirmationResult || '待确认' }}</span></div>
         <div v-if="record.departmentConfirmationDate" class="ir"><span class="il">确认日期</span><span>{{ record.departmentConfirmationDate }}</span></div>
         <div v-if="record.departmentConfirmationComment" class="ir"><span class="il">确认意见</span><span>{{ record.departmentConfirmationComment }}</span></div>
+        </div>
       </div>
 
       <div class="sc">

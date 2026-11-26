@@ -80,7 +80,7 @@ function goTaskDetail(row) {
         <el-option v-for="name in projectOptions" :key="name" :label="name" :value="name" />
       </el-select>
       <el-select v-model="filterForm.executionStatus" placeholder="任务执行状态" clearable style="width: 130px">
-        <el-option label="未完成" value="未完成" /><el-option label="已完成" value="已完成" /><el-option label="已作废" value="已作废" />
+        <el-option label="未完成" value="未完成" /><el-option label="已完成" value="已完成" />
       </el-select>
       <el-input v-model="filterForm.keyword" placeholder="搜索任务名称..." clearable style="width: 240px" />
     </div>

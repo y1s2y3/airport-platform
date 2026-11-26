@@ -1,5 +1,4 @@
 <script setup>
-import DispatchHazardDetailDialog from '../../components/hazard/DispatchHazardDetailDialog.vue'
 import { samplingReturnLocation, restoreSupervisorTaskContext } from '../../utils/hazardSamplingTaskNavigation.js'
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -11,6 +10,7 @@ import {
   getDispatchHazards,
   DISPATCH_HAZARD_RECTIFY_STATUSES,
 } from '../../utils/dispatchHazardStorage.js'
+import { HAZARD_FLOW_NODES, normalizeFlowNodeName } from '../../config/hazardFlowNodes.js'
 
 defineProps({
   title: { type: String, default: '调度隐患清单' },
@@ -23,12 +23,14 @@ if (route.query.from === 'sampling-task' && route.query.viewer !== 'hq') restore
 const router = useRouter()
 
 const keyword = ref('')
+const projectFilter = ref('')
+const levelFilter = ref('')
+const categoryFilter = ref('')
+const nodeFilter = ref('')
 const registrantFilter = ref('')
 const statusFilter = ref('')
 const typeFilter = ref('')
 const list = ref([])
-const detailVisible = ref(false)
-const current = ref(null)
 
 const readonly = computed(() => isHqSelected.value)
 const scopeProjectName = computed(() => (isHqSelected.value ? '' : headerProjectLabel.value))
@@ -41,10 +43,37 @@ function load() {
   if (focused) openDetail(focused)
 }
 
+const projectOptions = computed(() => [...new Set(list.value.map((row) => row.projectName).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-CN')))
+const levelOptions = computed(() => [...new Set(list.value.map((row) => row.hazardLevel).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-CN')))
+/** 隐患类别选项：与巡检隐患清单一致，展示「分类 / 类别」。 */
+const categoryOptions = computed(() => {
+  const map = new Map()
+  for (const row of list.value) {
+    if (!row.hazardCategory) continue
+    map.set(`${row.hazardType}::${row.hazardCategory}`, `${hazardTypeLabel(row.hazardType)} / ${row.hazardCategory}`)
+  }
+  return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1], 'zh-CN')).map(([value, label]) => ({ value, label }))
+})
+
+const nodeOptions = HAZARD_FLOW_NODES
+
 const registrantOptions = computed(() => [...new Set(list.value.map((row) => row.registrant).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-CN')))
 
 const filtered = computed(() => {
   let rows = list.value
+  if (projectFilter.value) {
+    rows = rows.filter((row) => row.projectName === projectFilter.value)
+  }
+  if (levelFilter.value) {
+    rows = rows.filter((row) => row.hazardLevel === levelFilter.value)
+  }
+  if (categoryFilter.value) {
+    const [type, name] = String(categoryFilter.value).split('::')
+    rows = rows.filter((row) => row.hazardType === type && row.hazardCategory === name)
+  }
+  if (nodeFilter.value) {
+    rows = rows.filter((row) => normalizeFlowNodeName(row.currentNode) === nodeFilter.value)
+  }
   if (statusFilter.value) {
     rows = rows.filter((row) => row.rectifyStatus === statusFilter.value)
   }
@@ -80,19 +109,18 @@ function rectifyStatusTag(status) {
   const map = {
     待整改: 'warning',
     待验收: '',
+    待复查: '',
     已关闭: 'success',
   }
   return map[status] || 'info'
 }
 
 function openDetail(row) {
-  current.value = row
-  detailVisible.value = true
+  router.push({ name: 'DispatchHazardDetail', params: { id: row.id } })
 }
 
 watch([isHqSelected, headerProjectLabel], () => load())
 watch(() => route.query.hazardId, () => {
-  if (!route.query.hazardId) detailVisible.value = false
   load()
 })
 
@@ -119,11 +147,23 @@ onMounted(load)
     </div>
 
     <div class="tab-toolbar">
+      <el-select v-model="projectFilter" placeholder="项目名称" clearable filterable class="status-filter" aria-label="项目名称">
+        <el-option v-for="name in projectOptions" :key="name" :label="name" :value="name" />
+      </el-select>
+      <el-select v-model="levelFilter" placeholder="隐患等级" clearable class="status-filter" aria-label="隐患等级">
+        <el-option v-for="level in levelOptions" :key="level" :label="level" :value="level" />
+      </el-select>
+      <el-select v-model="categoryFilter" placeholder="隐患类别" clearable filterable class="status-filter" aria-label="隐患类别">
+        <el-option v-for="cat in categoryOptions" :key="cat.value" :label="cat.label" :value="cat.value" />
+      </el-select>
       <el-select v-model="registrantFilter" placeholder="登记人" clearable filterable class="status-filter" aria-label="登记人">
         <el-option v-for="name in registrantOptions" :key="name" :label="name" :value="name" />
       </el-select>
       <el-select v-model="typeFilter" placeholder="隐患类型" clearable class="status-filter" aria-label="隐患类型">
         <el-option v-for="item in DISPATCH_HAZARD_TYPE_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
+      </el-select>
+      <el-select v-model="nodeFilter" placeholder="当前流程节点" clearable filterable class="status-filter" aria-label="当前流程节点">
+        <el-option v-for="node in nodeOptions" :key="node" :label="node" :value="node" />
       </el-select>
       <el-select v-model="statusFilter" placeholder="整改状态" clearable class="status-filter" aria-label="整改状态">
         <el-option
@@ -166,7 +206,7 @@ onMounted(load)
         </template>
       </el-table-column>
       <el-table-column prop="currentNode" label="当前流程节点" min-width="140" align="center">
-        <template #default="{ row }">{{ row.currentNode || '--' }}</template>
+        <template #default="{ row }">{{ normalizeFlowNodeName(row.currentNode) || '--' }}</template>
       </el-table-column>
       <el-table-column prop="rectifier" label="整改人" width="88" show-overflow-tooltip />
       <el-table-column prop="hazardCategory" label="隐患类别" min-width="110" align="center">
@@ -185,7 +225,6 @@ onMounted(load)
       </el-table-column>
     </el-table>
 
-    <DispatchHazardDetailDialog v-model="detailVisible" :record="current" />
   </div>
 </template>
 

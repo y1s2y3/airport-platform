@@ -1,7 +1,8 @@
 import { COC_PROJECT_OPTIONS, HQ_SELECTION_ID } from '../../config/projectOptions.js'
 import { AI_ALERT_TYPES, AI_CATEGORY_META, aiAlerts, getProjectAiSummary } from '../../mock/aiApp.js'
 import { buildHqRealNameSupervisionStatsByProject } from '../../mock/laborManagement.js'
-import { INSPECTION_DEMO_TODAY, inspectionHazards } from '../../mock/inspectionDemoData.js'
+import { INSPECTION_DEMO_TODAY } from '../../mock/inspectionDemoData.js'
+import { listInspectionHazards } from '../../mock/inspectionHazardQuery.js'
 import { listMobileInspectionTasks } from '../../mock/mobileInspectionTasks.js'
 import { getProjectAccessRecords } from '../../mock/vehicleManagement.js'
 import { getAlertRecords, getDeviceStats, getMonitorStats } from '../../mock/majorHazard.js'
@@ -75,6 +76,7 @@ function getMajorStats(projectId) {
 export function buildProjectRows() {
   const laborRows = getLaborRows()
   const inspectionTasks = listMobileInspectionTasks()
+  const inspectionHazards = listInspectionHazards()
   return SCREEN_PROJECTS.map((project, index) => {
     const seed = numberFromId(project.id) + index + 1
     const labor = laborRows.get(project.id)

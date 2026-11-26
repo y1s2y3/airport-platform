@@ -105,6 +105,7 @@ export function saveScreenshotRecord(payload) {
     cameraLocation: payload.cameraLocation || '',
     description: payload.description || '',
     rectifier: payload.rectifier || '',
+    reviewer: payload.reviewer || '',
     workType: payload.workType || payload.penaltyReason || '',
     workRequirement: payload.workRequirement || '',
     executor: payload.executor || payload.executeDept || '',

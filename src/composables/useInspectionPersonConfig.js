@@ -43,9 +43,11 @@ function normalizePeople(config) {
     ...config,
     rectifierId: inspectionPersonIds(config.rectifierId),
     reviewerId: inspectionPersonIds(config.reviewerId),
-    contractorManagerId: config.contractorManagerId || 'quality-contractor-manager',
-    directorId: config.directorId || 'quality-director',
-    departmentHeadId: config.departmentHeadId || 'project-department-head',
+    inspectorId: inspectionPersonIds(config.inspectorId),
+    managerId: inspectionPersonIds(config.managerId),
+    contractorManagerId: inspectionPersonIds(config.contractorManagerId || 'quality-contractor-manager'),
+    directorId: inspectionPersonIds(config.directorId || 'quality-director'),
+    departmentHeadId: inspectionPersonIds(config.departmentHeadId || 'project-department-head'),
     issueCcIds: inspectionPersonIds(config.issueCcIds ?? config.managerId),
     completionCcIds: inspectionPersonIds(config.completionCcIds),
   }
@@ -106,11 +108,12 @@ export function getProjectApproverLabel(project, category = '安全') {
 }
 export function hasCompleteInspectionPersonConfig(project, category = '安全') {
   const config = getInspectionPersonConfig(project, category)
-  return Boolean(config?.inspectorId && inspectionPersonIds(config.rectifierId).length && inspectionPersonIds(config.reviewerId).length && config.managerId
-    && (category !== '质量' || (config.contractorManagerId && config.directorId)))
+  return Boolean(inspectionPersonIds(config?.inspectorId).length && inspectionPersonIds(config?.rectifierId).length && inspectionPersonIds(config?.reviewerId).length
+    && inspectionPersonIds(config?.managerId).length && inspectionPersonIds(config?.departmentHeadId).length
+    && (category !== '质量' || (inspectionPersonIds(config?.contractorManagerId).length && inspectionPersonIds(config?.directorId).length)))
 }
 export function hasInspectionInspectorConfig(project, category = '安全') {
-  return Boolean(getInspectionPersonConfig(project, category)?.inspectorId)
+  return Boolean(inspectionPersonIds(getInspectionPersonConfig(project, category)?.inspectorId).length)
 }
 export function saveInspectionPersonConfig(projectId, data, category = '安全') {
   if (!INSPECTION_CATEGORIES.includes(category)) throw new Error('请选择有效巡检分类')

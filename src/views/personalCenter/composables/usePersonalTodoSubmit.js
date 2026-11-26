@@ -108,10 +108,10 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
       operator: '当前用户',
       operatorRole: '施工方',
     })
-    if (!result || result.rectifyStatus !== '待验收') {
+    if (!result || !['待验收', '待整改'].includes(result.rectifyStatus)) {
       return ElMessage.warning('提交失败，请确认当前隐患仍为待整改')
     }
-    enqueueDispatchHazardAcceptTodo(result)
+    if (result.rectifyStatus === '待验收' || result.currentNode === '施工单位项目经理验收') enqueueDispatchHazardAcceptTodo(result)
     afterSubmit('提交整改', '整改已提交，已生成验收待办')
   }
 
@@ -119,29 +119,67 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
   function submitDispatchHazardAcceptTodo(mergedHazard, dispatchHazardForm) {
     const hazard = mergedHazard
     if (!todo.value || !hazard?.id) return
-    const stage = hazard.rectifyStatus === '待复查' ? 'approve' : 'review'
-    if (!dispatchHazardForm.remark.trim()) return ElMessage.warning(`请填写${stage === 'review' ? '复查' : '审批'}意见`)
+    const stage = hazard.currentNode === '施工单位项目经理验收'
+      ? 'contractor'
+      : hazard.currentNode === '监理单位项目总监验收'
+        ? 'director'
+        : hazard.rectifyStatus === '待复查'
+          ? (hazard.currentNode === '项目部长确认' ? 'confirm' : 'approve')
+          : 'review'
+    const stageName = ({ contractor: '施工经理验收', director: '总监验收', confirm: '项目部长确认', approve: '审批', review: '复查' })[stage]
+    if (!dispatchHazardForm.remark.trim()) return ElMessage.warning(`请填写${stageName}意见`)
     const pass = dispatchHazardForm.decision === 'pass'
     if (pass) {
-      const remark = dispatchHazardForm.remark.trim() || (stage === 'review' ? '整改到位，监理复查通过，提交项目经理审批' : '资料齐全，审批通过')
-      const result = stage === 'review'
-        ? reviewDispatchHazard(hazard.id, { pass: true, remark })
-        : approveDispatchHazard(hazard.id, { pass: true, remark })
-      const expected = stage === 'review' ? '待复查' : '已关闭'
+      const remark = dispatchHazardForm.remark.trim() || (stage === 'review' ? '整改到位，监理复查通过，提交项目经理审批' : stage === 'confirm' ? '确认整改与验收结果，同意关闭' : '资料齐全，审批通过')
+      const result = stage === 'contractor'
+        ? acceptDispatchContractor(hazard.id, { pass: true, remark })
+        : stage === 'director'
+          ? acceptDispatchDirector(hazard.id, { pass: true, remark })
+          : stage === 'review'
+            ? reviewDispatchHazard(hazard.id, { pass: true, remark })
+            : stage === 'confirm'
+              ? confirmDispatchHazard(hazard.id, { pass: true, remark })
+              : approveDispatchHazard(hazard.id, { pass: true, remark })
+      const expected = stage === 'contractor' ? '待验收' : stage === 'director' ? '待复查' : stage === 'review' ? '待复查' : stage === 'confirm' ? '已关闭' : (result?.rectifyStatus === '待复查' ? '待复查' : '已关闭')
       if (!result || result.rectifyStatus !== expected) {
         return ElMessage.warning('办理失败，请确认当前隐患状态未变化')
+      }
+      if (stage === 'contractor') {
+        enqueueDispatchHazardAcceptTodo(result)
+        afterSubmit('施工经理验收通过', '施工经理验收通过，已生成监理复核待办')
+        return
+      }
+      if (stage === 'director') {
+        enqueueDispatchHazardAcceptTodo(result)
+        afterSubmit('总监验收通过', '总监验收通过，已生成项目经理审批待办')
+        return
       }
       if (stage === 'review') {
         enqueueDispatchHazardAcceptTodo(result)
         afterSubmit('复查通过', '复查通过，已生成项目经理审批待办')
         return
       }
+      if (stage === 'confirm') {
+        afterSubmit('确认通过', '项目部长确认通过，隐患已关闭')
+        return
+      }
+      if (result?.rectifyStatus === '待复查') {
+        enqueueDispatchHazardAcceptTodo(result)
+        afterSubmit('审批通过', '审批通过，已生成项目部长确认待办')
+        return
+      }
       afterSubmit('审批通过', '审批通过，隐患已关闭')
       return
     }
-    const result = stage === 'review'
-      ? reviewDispatchHazard(hazard.id, { pass: false, remark: dispatchHazardForm.remark.trim() })
-      : approveDispatchHazard(hazard.id, { pass: false, remark: dispatchHazardForm.remark.trim() })
+    const result = stage === 'contractor'
+      ? acceptDispatchContractor(hazard.id, { pass: false, remark: dispatchHazardForm.remark.trim() })
+      : stage === 'director'
+        ? acceptDispatchDirector(hazard.id, { pass: false, remark: dispatchHazardForm.remark.trim() })
+        : stage === 'review'
+          ? reviewDispatchHazard(hazard.id, { pass: false, remark: dispatchHazardForm.remark.trim() })
+          : stage === 'confirm'
+            ? confirmDispatchHazard(hazard.id, { pass: false, remark: dispatchHazardForm.remark.trim() })
+            : approveDispatchHazard(hazard.id, { pass: false, remark: dispatchHazardForm.remark.trim() })
     if (!result || result.rectifyStatus !== '待整改') {
       return ElMessage.warning('驳回失败，请确认当前隐患状态未变化')
     }
@@ -162,7 +200,7 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
       hazard: { ...result },
       approvalFlow: [],
     })
-    afterSubmit(stage === 'review' ? '复查驳回' : '审批不通过', '已退回整改，已重新生成整改待办')
+    afterSubmit(stage === 'review' ? '复查驳回' : stage === 'confirm' ? '确认不通过' : '审批不通过', '已退回整改，已重新生成整改待办')
   }
   function submitProcessReport(reportForm) {
     if (!reportForm.penaltyClause.trim()) return ElMessage.warning('请填写条款')
@@ -463,7 +501,7 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
       })
       if (!ok) return ElMessage.warning('节点已变化或资料不完整，请刷新待办后重新办理')
       ElMessage.success(bizType === '作废审批'
-        ? (approved ? '整改单已作废，关联巡检单已移出台账' : '作废申请未通过，原流程继续办理')
+        ? (approved ? '整改单已作废' : '作废申请未通过，原流程继续办理')
         : approved || bizType === '整改' ? '当前节点已处理' : '已退回整改人重新整改')
       goBack()
       return

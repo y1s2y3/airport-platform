@@ -12,9 +12,9 @@ export function workflowSteps(row = {}) {
   return [
     { key: 'rectify', label: '施工单位整改', actor: row.rectifier, status: '待整改', biz: '整改', date: 'rectificationDate', note: 'rectificationNote', result: '' },
     ...(usesExtendedInspectionWorkflow(row) ? [{ key: 'contractorAcceptance', label: '施工单位项目经理验收', actor: row.contractorManager || '施工单位项目经理', status: '待整改', biz: '施工验收', date: 'contractorAcceptanceDate', note: 'contractorAcceptanceComment', result: 'contractorAcceptanceResult' }] : []),
-    { key: 'review', label: '监理单位复核', actor: row.reviewer, status: '待验收', biz: '复查', date: 'reviewDate', note: 'reviewComment', result: 'reviewResult' },
-    ...(usesExtendedInspectionWorkflow(row) ? [{ key: 'directorAcceptance', label: '监理单位项目总监验收', actor: row.director || '监理单位项目总监', status: '待验收', biz: '总监验收', date: 'directorAcceptanceDate', note: 'directorAcceptanceComment', result: 'directorAcceptanceResult' }] : []),
-    { key: 'approval', label: row.inspectionCategory === '质量' || isMajorInspectionHazard(row) ? '指挥部项目经理审批' : '项目经理审批', actor: row.manager, status: '待复查', biz: '审批', date: 'approvalDate', note: 'approvalComment', result: 'approvalResult' },
+    { key: 'review', label: '监理工程师复核', actor: row.reviewer, status: '待验收', biz: '复查', date: 'reviewDate', note: 'reviewComment', result: 'reviewResult' },
+    ...(usesExtendedInspectionWorkflow(row) ? [{ key: 'directorAcceptance', label: '监理总监验收', actor: row.director || '监理单位项目总监', status: '待验收', biz: '总监验收', date: 'directorAcceptanceDate', note: 'directorAcceptanceComment', result: 'directorAcceptanceResult' }] : []),
+    { key: 'approval', label: row.inspectionCategory === '质量' || isMajorInspectionHazard(row) ? '指挥部项目经理确认' : '指挥部项目经理确认', actor: row.manager, status: '待复查', biz: '审批', date: 'approvalDate', note: 'approvalComment', result: 'approvalResult' },
     ...(usesExtendedInspectionWorkflow(row) ? [{ key: 'departmentConfirmation', label: '项目部长确认', actor: row.projectDepartmentHead || '项目部长', status: '待复查', biz: '项目部长确认', date: 'departmentConfirmationDate', note: 'departmentConfirmationComment', result: 'departmentConfirmationResult' }] : []),
   ]
 }
@@ -33,7 +33,7 @@ export function currentWorkflowStep(row) {
 }
 export function currentWorkflowLabel(row) {
   if (row?.status === '已作废') return '已作废'
-  if (row?.status === '已关闭') return '流程结束'
+  if (row?.status === '已关闭') return '流程关闭'
   return currentWorkflowStep(row)?.label || row?.currentNode || '--'
 }
 /** 个人中心流程名称前缀：A/B/C 级质量问题、安全问题、其他问题。 */
@@ -76,8 +76,10 @@ export function workflowFlowRecords(row) {
   if (!logs.length) for (const step of workflowSteps(row)) if (row[step.date]) logs.push({ a: step.label, d: row[step.date], dt: row[step.note], by: step.actor })
   const current = currentWorkflowStep(row)
   const issue = { a: '下发整改单', d: rectificationIssuedAt(row), by: row.inspector || row.applicant }
-  const start = issue
-  return [start, ...logs, { a: current?.label || (row.status === '已作废' ? '已作废' : '流程结束'), d: current ? '' : row.closeDate, by: current?.actor || '', cur: !!current }]
+  const end = { a: current?.label || (row.status === '已作废' ? '已作废' : '流程结束'), d: current ? '' : row.closeDate, by: current?.actor || '', cur: !!current }
+  const records = [issue, ...logs, end]
+  if (row.deletion) records.push({ a: '已从隐患清单删除', d: row.deletion.date || '', by: row.deletion.actor || '' })
+  return records
 }
 export function workflowApprovalRecords(row) {
   return workflowFlowRecords(row).map(item => ({ title: item.a, user: item.by || '', time: item.d || '', remark: item.dt || '', status: item.cur ? 'current' : 'done' }))

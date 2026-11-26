@@ -13,7 +13,8 @@ import { getAiAlerts } from '../mock/aiApp.js'
 import { getAttendanceDetails } from '../mock/laborAttendanceDetail.js'
 import { getProjectPersonnel, maskPhone } from '../mock/laborRealName.js'
 import { getProjectWarnings } from '../mock/laborWarningList.js'
-import { INSPECTION_DEMO_TODAY, inspectionHazards } from '../mock/inspectionDemoData.js'
+import { INSPECTION_DEMO_TODAY } from '../mock/inspectionDemoData.js'
+import { listInspectionHazards } from '../mock/inspectionHazardQuery.js'
 import { listMobileInspectionTasks } from '../mock/mobileInspectionTasks.js'
 import { formatInspectionCategories } from '../config/inspectionManagement.js'
 import { getAlertRecords, getDevices, getMonitorStats } from '../mock/majorHazard.js'
@@ -630,7 +631,7 @@ function projectInspectionTaskRows(filter = 'all') {
 }
 
 function projectInspectionHazardRows(filter = 'all') {
-  return inspectionHazards
+  return listInspectionHazards()
     .filter((item) => (item.project_id || item.projectId) === currentProjectId())
     .filter((item) => {
       const overdue = item.deadline < INSPECTION_DEMO_TODAY && !['待复查', '已关闭'].includes(item.status)

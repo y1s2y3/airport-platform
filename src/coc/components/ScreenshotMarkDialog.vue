@@ -23,7 +23,7 @@ import { taskWorkTypeOptions } from '../config/screenshotTaskOrderFields.js'
 import { TASK_EXECUTION_MODES, TASK_EXECUTION_MODE_OPTIONS } from '../utils/dispatchTaskWorkflow.js'
 import { getHazardLevels, getHazardCategoryOptions } from '../../config/inspectionManagement.js'
 import { inspectorCandidates, getProjectRectifierLabel, getProjectReviewerLabel, getInspectionCopyDefaults } from '../../composables/useInspectionPersonConfig.js'
-import DispatchImageAttachments from '../../coc/components/DispatchImageAttachments.vue'
+import InspectionPersonMultiSelect from '../../components/InspectionPersonMultiSelect.vue'
 import { DISPATCH_HAZARD_TYPE_OPTIONS, getDispatchHazardTypeLabel } from '../../config/dispatchHazardTypes.js'
 
 const props = defineProps({
@@ -55,7 +55,6 @@ const form = reactive({
   hazardLevel: '',
   hazardCategory: '',
   rectifyRequirement: '',
-  hazardPhotos: [],
   reviewer: '',
   issueCcPersons: [],
   completionCcPersons: [],
@@ -93,6 +92,8 @@ const docTypeOptions = [
 ]
 
 const isDispatchDoc = computed(() => form.docType !== 'hazard')
+const currentProjectName = computed(() => (props.project?.shortName || props.project?.name || '').trim())
+const registrationProjectName = computed(() => isDispatchDoc.value ? form.projectName : currentProjectName.value)
 const hazardTypeLabel = computed(() => getDispatchHazardTypeLabel(form.hazardType))
 const hazardLevelOptions = computed(() => hazardTypeLabel.value ? getHazardLevels(hazardTypeLabel.value) : [])
 const hazardCategoryOptions = computed(() => hazardTypeLabel.value ? getHazardCategoryOptions(hazardTypeLabel.value) : [])
@@ -100,19 +101,18 @@ const inspectorOptions = inspectorCandidates.map((person) => `${person.name}（$
 /** 与巡检新增隐患一致：整改人 / 复查人 / 抄送默认取巡检人员配置。 */
 function applyInspectionDefaults() {
   const category = hazardTypeLabel.value || '安全'
-  const project = form.projectName
+  const project = currentProjectName.value
   const copyDefaults = getInspectionCopyDefaults(project, category)
   form.rectifier = form.rectifier || getProjectRectifierLabel(project, category)
   form.reviewer = form.reviewer || getProjectReviewerLabel(project, category)
   if (!form.issueCcPersons.length) form.issueCcPersons = [...(copyDefaults.issueCcPersons || [])]
   if (!form.completionCcPersons.length) form.completionCcPersons = [...(copyDefaults.completionCcPersons || [])]
 }
-/** 切换隐患类型：清空类别/等级，并按巡检配置重新带出整改人/复查人/抄送。 */
-/** 项目变化时同步刷新默认整改人/复查人/抄送（仅填空值，不覆盖手工选择）。 */
-watch(() => form.projectName, () => {
-  if (form.docType === 'hazard' && hazardTypeLabel.value) applyInspectionDefaults()
+watch(currentProjectName, () => {
+  if (props.visible && hazardTypeLabel.value) onHazardTypeChange()
 })
 
+/** 切换隐患类型时，按当前项目和类型重新带入人员配置。 */
 function onHazardTypeChange() {
   form.hazardCategory = ''
   form.hazardLevel = ''
@@ -124,7 +124,7 @@ function onHazardTypeChange() {
 }
 
 const formContextText = computed(() =>
-  [form.projectName, form.cameraName, form.cameraLocation].filter(Boolean).join(' · ') || '--',
+  [registrationProjectName.value, form.cameraName, form.cameraLocation].filter(Boolean).join(' · ') || '--',
 )
 
 const brushColors = ['#f56c6c', '#e6a23c', '#409eff', '#67c23a', '#ffffff']
@@ -147,7 +147,7 @@ function guessCameraLocation(name = '') {
 
 function resetForm() {
   form.docType = 'notice'
-  form.projectName = props.project?.shortName || props.project?.name || ''
+  form.projectName = currentProjectName.value
   form.cameraName = props.camera?.name || ''
   form.cameraLocation = props.camera?.location || guessCameraLocation(props.camera?.name)
   form.description = ''
@@ -156,12 +156,10 @@ function resetForm() {
   form.hazardLevel = ''
   form.hazardCategory = ''
   form.rectifyRequirement = ''
-  form.hazardPhotos = []
   form.reviewer = ''
   form.issueCcPersons = []
   form.completionCcPersons = []
   form.hazardDeadline = defaultDeadline()
-  if (form.docType === 'hazard' && form.hazardType) applyInspectionDefaults()
   form.workType = ''
   form.workRequirement = ''
   form.executor = ''
@@ -441,8 +439,8 @@ function handleSubmit(issueNow = false) {
       return
     }
   } else {
-    if (!form.projectName.trim()) {
-      ElMessage.warning('请选择项目名称')
+    if (!currentProjectName.value) {
+      ElMessage.warning('未获取到当前调度项目，请重新打开问题截图')
       return
     }
     if (!hazardTypeLabel.value) {
@@ -465,16 +463,12 @@ function handleSubmit(issueNow = false) {
       ElMessage.warning('请填写整改要求')
       return
     }
-    if (!form.hazardPhotos?.length) {
-      ElMessage.warning('请至少上传一张隐患照片')
+    if (!form.rectifier.trim()) {
+      ElMessage.warning('请至少选择一位整改人')
       return
     }
-    if (!form.rectifier) {
-      ElMessage.warning('请选择整改人')
-      return
-    }
-    if (!form.reviewer) {
-      ElMessage.warning('请选择复查人')
+    if (!form.reviewer.trim()) {
+      ElMessage.warning('请至少选择一位复查人')
       return
     }
     if (!form.hazardDeadline) {
@@ -490,10 +484,10 @@ function handleSubmit(issueNow = false) {
   const payload = {
     ...form,
     docType: isDispatchDoc.value ? form.docType : form.hazardType,
+    projectName: registrationProjectName.value,
     hazardLevel: isDispatchDoc.value ? '' : form.hazardLevel,
     hazardCategory: isDispatchDoc.value ? '' : form.hazardCategory,
     rectifyRequirement: isDispatchDoc.value ? '' : String(form.rectifyRequirement || '').trim(),
-    hazardPhotos: isDispatchDoc.value ? [] : [...(form.hazardPhotos || [])],
     reviewer: isDispatchDoc.value ? '' : form.reviewer,
     issueCcPersons: isDispatchDoc.value ? '' : (form.issueCcPersons || []).join('、'),
     completionCcPersons: isDispatchDoc.value ? '' : (form.completionCcPersons || []).join('、'),
@@ -843,17 +837,7 @@ watch(
 
               <template v-else>
                 <el-form-item label="项目名称" required>
-                  <el-select
-                    v-model="form.projectName"
-                    filterable
-                    allow-create
-                    default-first-option
-                    :popper-class="MARK_POPPER_CLASS"
-                    placeholder="选择或输入项目名称"
-                    aria-label="选择或输入项目名称"
-                  >
-                    <el-option v-for="item in projectOptions" :key="item" :label="item" :value="item" />
-                  </el-select>
+                  <el-input :model-value="currentProjectName" readonly aria-label="项目名称" />
                 </el-form-item>
                 <el-form-item label="隐患类型" required>
                   <el-select
@@ -896,9 +880,6 @@ watch(
                     aria-label="整改要求"
                   />
                 </el-form-item>
-                <el-form-item label="隐患照片" required>
-                  <DispatchImageAttachments v-model="form.hazardPhotos" :min="1" :max="9" name-prefix="隐患照片" upload-text="上传隐患照片" />
-                </el-form-item>
                 <el-form-item label="隐患等级" required>
                   <el-select
                     v-model="form.hazardLevel"
@@ -911,24 +892,26 @@ watch(
                   </el-select>
                 </el-form-item>
                 <el-form-item label="整改人" required>
-                  <el-select
+                  <InspectionPersonMultiSelect
                     v-model="form.rectifier"
-                    filterable
+                    :options="inspectorOptions"
                     :popper-class="MARK_POPPER_CLASS"
-                    placeholder="选择整改人"
-                    style="width: 100%" aria-label="选择整改人">
-                    <el-option v-for="name in inspectorOptions" :key="name" :label="name" :value="name" />
-                  </el-select>
+                    collapse-tags
+                    collapse-tags-tooltip
+                    placeholder="请选择整改人（可多选）"
+                    aria-label="选择整改人"
+                  />
                 </el-form-item>
                 <el-form-item label="复查人" required>
-                  <el-select
+                  <InspectionPersonMultiSelect
                     v-model="form.reviewer"
-                    filterable
+                    :options="inspectorOptions"
                     :popper-class="MARK_POPPER_CLASS"
-                    placeholder="选择复查人"
-                    style="width: 100%" aria-label="选择复查人">
-                    <el-option v-for="name in inspectorOptions" :key="name" :label="name" :value="name" />
-                  </el-select>
+                    collapse-tags
+                    collapse-tags-tooltip
+                    placeholder="请选择复查人（可多选）"
+                    aria-label="选择复查人"
+                  />
                 </el-form-item>
                 <el-form-item label="下发整改单抄送">
                   <el-select v-model="form.issueCcPersons" multiple filterable collapse-tags collapse-tags-tooltip :popper-class="MARK_POPPER_CLASS" placeholder="可不选，多人" style="width: 100%" aria-label="下发整改单抄送">

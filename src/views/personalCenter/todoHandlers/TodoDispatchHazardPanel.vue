@@ -36,8 +36,15 @@ const mergedHazard = computed(() => {
     : { ...base, id: base.id || props.todo.hazardId }
 })
 
-/** 与巡检一致：待验收=监理复查，待复查=项目经理审批。 */
-const dispatchStageLabel = computed(() => (mergedHazard.value?.rectifyStatus === '待复查' ? '审批' : '复查'))
+/** 与巡检一致：待验收=监理复查；待复查=项目经理审批；扩展流程审批后=项目部长确认。 */
+const dispatchStageLabel = computed(() => {
+  const node = mergedHazard.value?.currentNode || ''
+  if (node === '施工单位项目经理验收') return '施工经理验收'
+  if (node === '监理单位项目总监验收') return '总监验收'
+  if (node === '项目部长确认') return '项目部长确认'
+  if (mergedHazard.value?.rectifyStatus === '待复查') return '审批'
+  return '复查'
+})
 const dispatchDecisionLabel = computed(() => `${dispatchStageLabel.value}结果`)
 const dispatchOpinionLabel = computed(() => `${dispatchStageLabel.value}意见`)
 
@@ -88,7 +95,8 @@ watch(() => props.todo, resetForm, { immediate: true })
       <el-descriptions-item label="隐患等级">{{ mergedHazard.hazardLevel || '--' }}</el-descriptions-item>
       <el-descriptions-item label="整改状态">{{ mergedHazard.rectifyStatus || '待整改' }}</el-descriptions-item>
       <el-descriptions-item label="整改人">{{ mergedHazard.rectifier || '--' }}</el-descriptions-item>
-      <el-descriptions-item label="整改期限">{{ mergedHazard.hazardDeadline || '--' }}</el-descriptions-item>
+      <el-descriptions-item label="复查人">{{ mergedHazard.reviewer || '--' }}</el-descriptions-item>
+      <el-descriptions-item label="整改期限" :span="2">{{ mergedHazard.hazardDeadline || '--' }}</el-descriptions-item>
       <el-descriptions-item label="摄像头">{{ mergedHazard.cameraName || '--' }}</el-descriptions-item>
       <el-descriptions-item label="监控点位">{{ mergedHazard.cameraLocation || '--' }}</el-descriptions-item>
       <el-descriptions-item label="截图方式">{{ sourceTypeLabel(mergedHazard.sourceType) }}</el-descriptions-item>

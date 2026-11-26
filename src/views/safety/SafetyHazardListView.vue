@@ -2,6 +2,7 @@
 import InspectionLedgerExport from '../../components/InspectionLedgerExport.vue'
 import { exportRectificationDetail, rectificationDetailColumns } from '../../utils/inspectionDetailExport'
 import { isWithinInspectionDateRange } from '../../utils/inspectionLedgerDates'
+import { HAZARD_FLOW_NODES, normalizeFlowNodeName } from '../../config/hazardFlowNodes.js'
 import { ref, reactive, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Search, View, ArrowLeft } from '@element-plus/icons-vue'
@@ -15,7 +16,8 @@ import {
   inspectionProjectTree,
 } from '../../mock/inspectionDemoData'
 import { listInspectionHazards } from '../../mock/inspectionHazardQuery'
-import { deleteMobileRectificationRecord } from '../../composables/useMobileRectification'
+import { deleteMobileRectificationRecord, getMobileRectification } from '../../composables/useMobileRectification'
+import { canDeleteInspectionRectification } from '../../utils/inspectionWorkflowIdentity'
 import { INSPECTION_CATEGORIES, getHazardCategoryOptions, getHazardLevels, hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
 
 const router = useRouter()
@@ -55,6 +57,7 @@ const treeDataWithCount = computed(() => {
 const rectifyData = computed(() => listInspectionHazards({ includeVoided: true }))
 
 const createFilters = () => ({ keyword: '', category: '', hazardCategory: '', hazardLevel: '', status: '', overdue: '', inspectors: [], rectifiers: [], reviewers: [], issueRange: null })
+const nodeFilter = ref('')
 const filterForm = reactive(createFilters())
 const scopedRows = computed(() => !isHqSelected.value && scopeProjectId.value
   ? rectifyData.value.filter(row => row.project_id === scopeProjectId.value)
@@ -107,14 +110,9 @@ const filteredData = computed(() => {
     if (filterForm.hazardCategory && d.hazardCategory !== filterForm.hazardCategory) return false
     if (filterForm.hazardLevel && d.hazardLevel !== filterForm.hazardLevel) return false
     if (filterForm.status && d.status !== filterForm.status) return false
-    if (filterForm.overdue === '是') {
-      if (!d.deadline) return false
-      if (['待复查', '已关闭'].includes(d.status)) return false
-      if (new Date(d.deadline) >= new Date(INSPECTION_DEMO_TODAY)) return false
-    }
-    if (filterForm.overdue === '否') {
-      if (isOverdue(d)) return false
-    }
+  if (nodeFilter.value && normalizeFlowNodeName(d.currentNode) !== nodeFilter.value) return false
+    if (filterForm.overdue === '是' && !isOverdue(d)) return false
+    if (filterForm.overdue === '否' && isOverdue(d)) return false
     if (filterForm.keyword) {
       const kw = filterForm.keyword
       if (!d.rectifyNo.includes(kw) && !d.taskNo.includes(kw) && !d.project.includes(kw) && !d.desc?.includes(kw)) return false
@@ -147,15 +145,18 @@ function personShort(value) {
 }
 
 function viewDetail(row) { router.push(`/safety-inspection/hazard/${row.id}`) }
-/** 仅已作废整改单可删除（二次确认，删除后不可恢复）。 */
+function canDelete(row) {
+  return row.status === '已作废' && canDeleteInspectionRectification(getMobileRectification(row.id))
+}
+
 function deleteVoidedHazard(row) {
-  ElMessageBox.confirm(`确定删除已作废整改单「${row.rectifyNo}」？删除后不可恢复。`, '删除确认', { type: 'warning' })
+  ElMessageBox.confirm(`确定删除已作废整改单「${row.rectifyNo}」？删除后将从隐患清单移除，仍可从原巡检单查看作废和删除记录。`, '删除确认', { type: 'warning' })
     .then(() => {
       if (deleteMobileRectificationRecord(row.id)) {
         ElMessage.success('已删除')
         return
       }
-      ElMessage.warning('该记录为系统内置示例，暂不支持删除')
+      ElMessage.warning('删除失败，请确认单据状态和权限后重试')
     })
     .catch(() => {})
 }
@@ -243,6 +244,9 @@ function goBackToHQ() {
           </el-select>
           <el-select v-if="isHazardFilterVisible('hazardCategory')" v-model="filterForm.hazardCategory" placeholder="隐患类别" clearable filterable style="width:150px">
             <el-option v-for="option in hazardCategoryOptions" :key="`${option.category}-${option.value}`" :label="option.label" :value="option.value" />
+          </el-select>
+          <el-select v-model="nodeFilter" placeholder="当前流程节点" clearable filterable style="width:160px" aria-label="当前流程节点">
+            <el-option v-for="node in HAZARD_FLOW_NODES" :key="node" :label="node" :value="node" />
           </el-select>
           <el-select v-if="isHazardFilterVisible('status')" v-model="filterForm.status" placeholder="整改状态" clearable style="width:110px">
             <el-option label="待整改" value="待整改" /><el-option label="已作废" value="已作废" /><el-option label="待验收" value="待验收" /><el-option label="待复查" value="待复查" /><el-option label="已关闭" value="已关闭" />
@@ -370,10 +374,10 @@ function goBackToHQ() {
             </template>
           </el-table-column>
           <el-table-column prop="status" label="状态" width="76" align="center" />
-          <el-table-column label="操作" width="110" align="center">
+          <el-table-column label="操作" min-width="110" align="center">
             <template #default="{ row }">
               <el-button link type="primary" size="small" @click="viewDetail(row)">查看</el-button>
-              <el-button v-if="row.status === '已作废'" link type="danger" size="small" @click="deleteVoidedHazard(row)">删除</el-button>
+              <el-button v-if="canDelete(row)" link type="danger" size="small" @click="deleteVoidedHazard(row)">删除</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -383,6 +387,13 @@ function goBackToHQ() {
 </template>
 
 <style scoped>
+/* 表格右侧不再保留滚动条占位列（避免出现空白列） */
+:deep(.el-table__cell.gutter),
+:deep(.el-table colgroup col:last-child) {
+  display: none !important;
+  width: 0 !important;
+}
+
 .filter-setting { display: flex; flex-direction: column; gap: 6px; }
 .filter-setting-title { margin-bottom: 4px; font-size: 13px; font-weight: 600; color: #1f2329; }
 .filter-setting :deep(.el-checkbox) { margin-right: 0; }

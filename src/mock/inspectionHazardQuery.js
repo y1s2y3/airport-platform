@@ -80,6 +80,7 @@ export function buildInspectionHazardDetail(row, live = getMobileRectification(r
     completionCcPersons: row.completionCcPersons || '',
     dl: row.deadline,
     st: row.status,
+    deletion: row.deletion,
     currentNode: live ? currentWorkflowLabel(live) : withDisplayDefaults(row).currentNode,
     cd: row.closeDate,
     hazard: {

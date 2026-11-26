@@ -168,8 +168,14 @@ const seedTasks = [
 
 export function normalizeInspectionTask(task = {}) {
   const inspectionCategories = normalizeInspectionCategories(task.inspectionCategories || task.inspectionCategory)
+  const normalized = { ...task }
+  delete normalized.rectificationVoided
+  delete normalized.voidedAt
+  if (normalized.status === '已作废') {
+    normalized.status = task.submittedAt || ['normal', 'hazard'].includes(task.result) ? '已完成' : '未完成'
+  }
   return {
-    ...task,
+    ...normalized,
     inspectionCategories,
     // 保留旧字段，供既有列表、详情与统计组件平滑兼容。
     inspectionCategory: formatInspectionCategories(inspectionCategories),
@@ -178,7 +184,7 @@ export function normalizeInspectionTask(task = {}) {
   }
 }
 
-// 现场巡视仍由巡检模块持有原单；危大清单只保存任务引用。
+// 沿用现场巡视原单缓存键，供关联单据在刷新后查看原巡检记录。
 const PATROL_TASK_ARCHIVE_KEY = 'airport-inspection-patrol-tasks-v1'
 const initializationPatrolFallback = new Map()
 function readPatrolTaskArchive() {
@@ -191,8 +197,8 @@ export const inspectionSeedTaskIds = new Set([...seedTasks, ...inspectionTaskSee
 const taskEntries = new Map([...seedTasks, ...inspectionTaskSeeds, ...readPatrolTaskArchive()].map((task) => [task.id, normalizeInspectionTask(task)]))
 export const mobileInspectionTasks = reactive([...taskEntries.values()])
 
-/** 保留原巡检单供刷新后查看；历史内联原单只在任务不存在时恢复，不覆盖现行单据。 */
-export function retainPatrolInspectionTask(task, { initialization = false } = {}) {
+/** 保留原巡检单供刷新后查看，历史内联记录只在任务不存在时恢复。 */
+export function retainInspectionTask(task, { initialization = false } = {}) {
   if (!task?.id) return null
   let stored = getMobileInspectionTask(task.id)
   if (!stored) {
@@ -211,35 +217,22 @@ export function retainPatrolInspectionTask(task, { initialization = false } = {}
   return stored
 }
 
+export { retainInspectionTask as retainPatrolInspectionTask }
+
 export function listMobileInspectionTasks() {
-  return mobileInspectionTasks.filter(task => !task.rectificationVoided)
+  return mobileInspectionTasks.slice()
 }
 
-/** 台账用：含已作废任务（整改单作废后仍要可见、可删除）；统计请自行排除 status === '已作废'。 */
-export function listAllMobileInspectionTasks() {
-  return mobileInspectionTasks
-}
-
-/** 删除任务（仅已作废任务提供入口），同时清理现场巡视归档。 */
-export function deleteMobileInspectionTask(id) {
-  const index = mobileInspectionTasks.findIndex((task) => task.id === id)
-  if (index < 0) return false
-  mobileInspectionTasks.splice(index, 1)
-  try { localStorage.setItem('airport-inspection-deleted:' + id, '1') } catch { /* 忽略存储失败 */ }
-  try {
-    const archive = readPatrolTaskArchive().filter((task) => task.id !== id)
-    localStorage.setItem(PATROL_TASK_ARCHIVE_KEY, JSON.stringify(archive))
-  } catch { /* 无存储权限时仅移除当前会话。 */ }
-  return true
-}
-
-export function markInspectionTaskVoided(record) {
-  const task = getInspectionTaskForRectification(record)
-  if (task && !task.rectificationVoided) {
-    task.rectificationVoided = true
-    task.voidedAt = record.closeDate
-    notifyTask(task)
-  }
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (event.key !== PATROL_TASK_ARCHIVE_KEY) return
+    for (const task of readPatrolTaskArchive()) {
+      if (getMobileInspectionTask(task.id)) continue
+      const restored = normalizeInspectionTask(task)
+      mobileInspectionTasks.push(restored)
+      notifyTask(restored)
+    }
+  })
 }
 
 export function getMobileInspectionTask(id) {
@@ -249,7 +242,8 @@ export function getMobileInspectionTask(id) {
 /** 优先按任务 ID 或整改单关联定位，旧单再按巡检编号和项目回查。 */
 export function getInspectionTaskForRectification(record) {
   if (!record) return null
-  if (record.inspectionTaskId) return getMobileInspectionTask(record.inspectionTaskId)
+  const task = getMobileInspectionTask(record.inspectionTaskId)
+  if (task) return task
   const linked = record.id && mobileInspectionTasks.find(task =>
     task.hazardItems?.some(hazard => hazard.rectifyId === record.id),
   )
@@ -278,7 +272,7 @@ export function updateMobileInspectionTask(id, patch) {
   const target = mobileInspectionTasks.find((t) => t.id === id)
   if (!target) return null
   Object.assign(target, normalizeInspectionTask({ ...target, ...patch }))
-  if (target.isMajorHazardPatrol === '是' || readPatrolTaskArchive().some((item) => item.id === target.id)) retainPatrolInspectionTask(target)
+  if (target.isMajorHazardPatrol === '是' || readPatrolTaskArchive().some((item) => item.id === target.id)) retainInspectionTask(target)
   syncInspectionTaskToMajorHazard(target)
   notifyTask(target)
   return target
@@ -289,7 +283,7 @@ export function updateMobileInspectionTaskByNo(taskNo, patch) {
   const target = mobileInspectionTasks.find((task) => task.taskNo === taskNo)
   if (!target) return null
   Object.assign(target, normalizeInspectionTask({ ...target, ...patch }))
-  if (target.isMajorHazardPatrol === '是' || readPatrolTaskArchive().some((item) => item.id === target.id)) retainPatrolInspectionTask(target)
+  if (target.isMajorHazardPatrol === '是' || readPatrolTaskArchive().some((item) => item.id === target.id)) retainInspectionTask(target)
   syncInspectionTaskToMajorHazard(target)
   notifyTask(target)
   return target

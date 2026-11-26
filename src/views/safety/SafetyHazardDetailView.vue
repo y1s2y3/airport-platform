@@ -5,6 +5,7 @@ import HazardSamplingPanel from '../../components/HazardSamplingPanel.vue'
 import InspectionPhotoList from '../../components/InspectionPhotoList.vue'
 import { samplingReturnLocation, restoreSupervisorTaskContext } from '../../utils/hazardSamplingTaskNavigation.js'
 import { personalCenterReturnLocation } from '../../utils/personalCenterNavigation'
+import { normalizeFlowNodeName } from '../../config/hazardFlowNodes.js'
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getProjectRectifierLabel, getProjectReviewerLabel, getInspectionCopyDetailFields } from '../../composables/useInspectionPersonConfig'
@@ -155,6 +156,10 @@ const latestReviews = computed(() => {
 function goBack() {
   const returnLocation = personalCenterReturnLocation(route.query)
   if (returnLocation) { router.push(returnLocation); return }
+  if (route.query.inspectionTaskId) {
+    router.push({ name: 'InspectionTaskDetail', params: { id: route.query.inspectionTaskId }, query: { from: route.query.from } })
+    return
+  }
   if (route.query.from === 'sampling-task') { router.push(samplingReturnLocation(route.query)); return }
   if (route.query.from === 'summary') {
     router.push('/hazard-issues/summary')
@@ -192,7 +197,8 @@ function goBack() {
       </div>
       <div class="ic"><label>截止日期</label><span>{{ info.dl }}</span></div>
       <div class="ic"><label>状态</label><span :style="{color:info.st==='已关闭'?'#34a853':info.st==='待复查'?'#8f0045':'#f5a623',fontWeight:600}">{{ info.st }}</span></div>
-      <div class="ic"><label>当前流程节点</label><span>{{ info.currentNode }}</span></div>
+      <div v-if="info.deletion" class="ic"><label>台账状态</label><span>已从隐患清单删除</span></div>
+      <div class="ic"><label>当前流程节点</label><span>{{ normalizeFlowNodeName(info.currentNode) }}</span></div>
       <div class="ic" v-if="info.cd"><label>关闭日期</label><span>{{ info.cd }}</span></div>
     </div>
 
@@ -228,6 +234,14 @@ function goBack() {
     </template>
 
     <!-- ===== 复查信息（已有复查结论即展示，待总监验收/待复查/已关闭均可见） ===== -->
+    <div v-if="info.contractorAcceptanceDate || info.directorAcceptanceDate" class="sc">
+      <div class="sct">验收信息</div>
+      <div class="rf"><label>施工单位项目经理验收</label><span>{{ info.contractorAcceptanceDate ? `${info.contractorAcceptanceResult || '通过'} · ${info.contractorAcceptanceDate}` : '待办理' }}</span></div>
+      <div class="rf" v-if="info.contractorAcceptanceComment"><label>验收意见</label><span>{{ info.contractorAcceptanceComment }}</span></div>
+      <div class="rf"><label>监理总监验收</label><span>{{ info.directorAcceptanceDate ? `${info.directorAcceptanceResult || '通过'} · ${info.directorAcceptanceDate}` : '待办理' }}</span></div>
+      <div class="rf" v-if="info.directorAcceptanceComment"><label>验收意见</label><span>{{ info.directorAcceptanceComment }}</span></div>
+    </div>
+
     <template v-if="latestReviews.length">
       <div class="sc">
         <div class="sct">复查信息</div>
@@ -243,13 +257,13 @@ function goBack() {
     </template>
 
     <div v-if="info.managerApproval" class="sc">
-      <div class="sct">项目经理审批</div>
+      <div class="sct">指挥部项目经理确认</div>
       <div class="rf"><label>审批人</label><span>{{ info.managerApproval.manager }}</span></div>
       <div class="rf"><label>审批结果</label><span :style="{ color:info.managerApproval.status === '通过' ? '#34a853' : '#8f0045', fontWeight:600 }">{{ info.managerApproval.status }}</span></div>
       <div v-if="info.managerApproval.date" class="rf"><label>审批日期</label><span>{{ info.managerApproval.date }}</span></div>
       <div class="rf"><label>审批意见</label><span>{{ info.managerApproval.comment }}</span></div>
     </div>
-    <div v-if="info.departmentConfirmation || needsDepartmentConfirmation" class="sc">
+    <div v-if="info.departmentConfirmation?.status || (needsDepartmentConfirmation && info.managerApproval?.status === '通过')" class="sc">
       <div class="sct">项目部长确认</div>
       <div class="rf"><label>确认人</label><span>{{ info.departmentConfirmation?.actor || '--' }}</span></div>
       <div class="rf"><label>确认结果</label><span>{{ info.departmentConfirmation?.status || '--' }}</span></div>
