@@ -17,6 +17,16 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v3.1.1.13',
+    date: '2026-11-27',
+    highlights: [
+      '考核评分「巡检任务完成率」拆分为「安全巡检任务完成率」和「质量巡检任务完成率」，按巡检分类分别统计。',
+      '考核指标分类取消「巡检管理」，安全巡检任务归入安全管理、质量隐患归入质量管控。',
+      'COC 调度单据「工作来源」统一为 后台录入 / 项目调度 / 视频截图 / 调度会议。',
+      '项目调度页危险作业清单去掉「施工日期」列，列表更紧凑。',
+    ],
+  },
+  {
     version: 'v3.1.1.12',
     date: '2026-11-27',
     highlights: [

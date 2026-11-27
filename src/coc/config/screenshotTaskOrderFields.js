@@ -86,7 +86,7 @@ export function resolveTaskWorkType(value, extraText = '') {
   return ''
 }
 
-export const TASK_WORK_SOURCES = ['视频监控', '监控回放', '调度会议', '远程对讲', '现场抽检']
+export const TASK_WORK_SOURCES = ['后台录入', '项目调度', '视频截图', '调度会议']
 
 export const TASK_EXECUTE_DEPTS = ['安监部', '质量部', '工程管理部', 'COC调度室', '责任单位']
 

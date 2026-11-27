@@ -1434,7 +1434,7 @@ export {
   saveTaskWorkTypes,
   WORK_TYPE_CHANGE_EVENT,
 } from '../config/screenshotTaskOrderFields.js'
-export const TASK_WORK_SOURCES = ['实时监控', '视频回放', '调度会议', '视频截屏']
+export const TASK_WORK_SOURCES = ['后台录入', '项目调度', '视频截图', '调度会议']
 export const TASK_EXECUTE_DEPARTMENTS = ['安监部', '质量部', '工程管理部', 'COC调度室', '责任单位']
 export const TASK_LEDGER_HANDLING_OPTIONS = ['纳入任务单台账', '同步隐患台账', '仅问题截图存档']
 

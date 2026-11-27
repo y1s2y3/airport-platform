@@ -1769,6 +1769,7 @@ function buildScreenshotNoticeRecord(payload) {
     project: payload.projectName || '',
     workType: payload.workType || '',
     workRequirement: payload.workRequirement || payload.description || '',
+    workSource: '视频截图',
     executor: payload.executor || payload.executeDept || payload.rectifier || '',
     executors: payload.executors || [],
     executionMode: payload.executionMode || TASK_EXECUTION_MODES.SINGLE,

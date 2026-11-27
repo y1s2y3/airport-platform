@@ -233,7 +233,7 @@ function buildNoticeSavePayload(draft) {
     type: workType,
     workType,
     workRequirement,
-    workSource: '远程调度',
+    workSource: '项目调度',
     executors,
     executor,
     executeDept: executor,

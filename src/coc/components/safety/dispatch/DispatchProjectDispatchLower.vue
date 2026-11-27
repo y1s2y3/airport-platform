@@ -217,7 +217,6 @@ function closeDetail() {
         <table v-if="activeTab === 'danger'" class="mini-table more-table split-more-table">
           <thead>
             <tr>
-              <th>施工日期</th>
               <th>施工项目</th>
               <th>施工单位</th>
               <th>作业类型</th>
@@ -234,7 +233,6 @@ function closeDetail() {
               class="clickable-row"
               @click="openDangerDetail(row)"
             >
-              <td>{{ row.date || '--' }}</td>
               <td :title="row.projectName || row.projectShortName">
                 <span class="cell-ellipsis">{{ row.projectShortName || row.projectName || '--' }}</span>
               </td>
@@ -256,14 +254,13 @@ function closeDetail() {
               </td>
             </tr>
             <tr v-if="!moreList.length">
-              <td colspan="8" class="empty-row">暂无符合条件的危险作业</td>
+              <td colspan="7" class="empty-row">暂无符合条件的危险作业</td>
             </tr>
           </tbody>
         </table>
         <table v-else class="mini-table more-table split-more-table">
           <thead>
             <tr>
-              <th>施工日期</th>
               <th>施工项目</th>
               <th>施工单位</th>
               <th>危大工程类别</th>
@@ -279,7 +276,6 @@ function closeDetail() {
               class="clickable-row"
               @click="openMajorDetail(row)"
             >
-              <td>{{ row.date || '--' }}</td>
               <td class="col-desc" :title="row.projectName">
                 <span class="cell-ellipsis">{{ row.projectName || '--' }}</span>
               </td>
@@ -300,7 +296,7 @@ function closeDetail() {
               </td>
             </tr>
             <tr v-if="!moreList.length">
-              <td colspan="7" class="empty-row">暂无符合条件的危大工程</td>
+              <td colspan="6" class="empty-row">暂无符合条件的危大工程</td>
             </tr>
           </tbody>
         </table>

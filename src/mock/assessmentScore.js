@@ -187,10 +187,10 @@ export function validateIndicatorRule(text) {
 export const ASSESSMENT_INDICATORS = [
   {
     id: 'inspect',
-    name: '巡检任务完成率',
+    name: '安全巡检任务完成率',
     cap: 10,
     value_unit: '百分比',
-    calc_rule: '每月 1 日统计上月。只计入上月生成的巡检任务。完成率 = 已完成数 / 上月生成任务数',
+    calc_rule: '每月 1 日统计上月。只计入上月生成的安全巡检任务。完成率 = 已完成安全巡检任务数 / 上月生成安全巡检任务数',
     not_involved: '应完成任务数为 0',
     bands: [
       { min: 80, max: 100, min_inclusive: false, max_inclusive: true, deduct: 0 },
@@ -354,9 +354,8 @@ export const ASSESSMENT_INDICATORS = [
 export const INDICATOR_CATEGORIES = [
   { id: 'progress', name: '施工进度', desc: '进度计划、作业申报、里程碑' },
   { id: 'coc', name: 'COC 调度', desc: '调度会、值班、例会、任务单' },
-  { id: 'inspection', name: '巡检管理', desc: '巡检任务、安全隐患与质量隐患' },
-  { id: 'safety', name: '安全管理', desc: '人员出勤、设备与 AI 预警' },
-  { id: 'quality', name: '质量管控', desc: '验评、报审、材料与样板' },
+  { id: 'safety', name: '安全管理', desc: '巡检任务、安全隐患、人员出勤、设备与 AI 预警' },
+  { id: 'quality', name: '质量管控', desc: '验评、报审、材料与样板、质量隐患' },
   { id: 'pre', name: '前期专项', desc: '报审报批、定样、开工条件（前期类型）' },
   { id: 'close', name: '收尾专项', desc: '验收、资料、缺陷整改（收尾类型）' },
 ]
@@ -377,7 +376,8 @@ export const ASSESSMENT_TYPE_CAPS = {
     duty_report: 7,
     meeting_report: 7,
     manage_att: 10,
-    inspect: 10,
+    inspect: 5,
+    qm_inspect_task: 5,
     hazard: 11,
     brand_apply: 15,
     mat_doc: 10,
@@ -390,7 +390,8 @@ export const ASSESSMENT_TYPE_CAPS = {
     daily_work: 5,
     duty_report: 5,
     meeting_report: 5,
-    inspect: 8,
+    inspect: 4,
+    qm_inspect_task: 4,
     hazard: 10,
     hazard_overdue: 4,
     manage_att: 6,
@@ -406,7 +407,8 @@ export const ASSESSMENT_TYPE_CAPS = {
     task_order: 17,
     hazard: 17,
     hazard_overdue: 13,
-    inspect: 11,
+    inspect: 6,
+    qm_inspect_task: 5,
     qm_inspect: 17,
     qm_pass: 17,
     qm_hazard: 8,
@@ -415,10 +417,10 @@ export const ASSESSMENT_TYPE_CAPS = {
 
 const typeCapState = JSON.parse(JSON.stringify(ASSESSMENT_TYPE_CAPS))
 
-/** 现有 10 个指标的分类归属（巡检任务与隐患类归入「巡检管理」） */
+/** 现有 10 个指标的分类归属（巡检任务与隐患类归入「安全管理」） */
 const BASE_INDICATOR_CATEGORY = {
-  inspect: 'inspection',
-  hazard: 'inspection',
+  inspect: 'safety',
+  hazard: 'safety',
   manage_att: 'safety',
   crane: 'safety',
   camera: 'safety',
@@ -457,16 +459,47 @@ const EXTRA_INDICATORS = [
   makeIndicator('dispatch_hazard', '调度隐患闭环率', 'coc', '百分比', '闭环率 = 调度来源已闭环数 / 调度来源新增数', '本期无调度隐患'),
   makeIndicator('task_order', '调度任务单按期办结率', 'coc', '百分比', '办结率 = 按期办结单数 / 应办结单数', '本期无任务单'),
   // 安全管理及隐患管控
-  makeIndicator('inspect_overdue', '巡检任务逾期率', 'inspection', '百分比', '逾期率 = 逾期未完成任务数 / 应完成任务数', '本期无巡检任务'),
-  makeIndicator('hazard_overdue', '隐患逾期未闭环数', 'inspection', '条', '按条数扣分。统计期末逾期未闭环隐患条数', '本期无逾期隐患'),
-  makeIndicator('major_hazard', '重大隐患处置及时率', 'inspection', '百分比', '及时率 = 按期处置重大隐患数 / 重大隐患总数', '本期无重大隐患'),
-  makeIndicator('sampling_coop_supervisor', '监理单位隐患抽检完成率', 'inspection', '百分比', '完成率 = 监理单位已完成抽检隐患数 / 已下发监理单位抽检隐患数', '本期无监理单位抽检任务'),
-  makeIndicator('sampling_coop_construction', '施工单位隐患抽检完成率', 'inspection', '百分比', '完成率 = 施工单位已完成抽检隐患数 / 已下发施工单位抽检隐患数', '本期无施工单位抽检任务'),
+  makeIndicator('inspect_overdue', '安全巡检任务逾期率', 'safety', '百分比', '逾期率 = 逾期未完成安全巡检任务数 / 应完成安全巡检任务数', '本期无安全巡检任务'),
+  makeIndicator('hazard_overdue', '隐患逾期未闭环数', 'safety', '条', '按条数扣分。统计期末逾期未闭环隐患条数', '本期无逾期隐患'),
+  makeIndicator('major_hazard', '重大隐患处置及时率', 'safety', '百分比', '及时率 = 按期处置重大隐患数 / 重大隐患总数', '本期无重大隐患'),
+  makeIndicator('sampling_coop_supervisor', '监理单位隐患抽检完成率', 'safety', '百分比', '完成率 = 监理单位已完成抽检隐患数 / 已下发监理单位抽检隐患数', '本期无监理单位抽检任务'),
+  makeIndicator('sampling_coop_construction', '施工单位隐患抽检完成率', 'safety', '百分比', '完成率 = 施工单位已完成抽检隐患数 / 已下发施工单位抽检隐患数', '本期无施工单位抽检任务'),
   // 质量管控
+  {
+    id: 'qm_inspect_task',
+    name: '质量巡检任务完成率',
+    category: 'quality',
+    cap: 0,
+    value_unit: '百分比',
+    calc_rule: '每月 1 日统计上月。只计入上月生成的质量巡检任务。完成率 = 已完成质量巡检任务数 / 上月生成质量巡检任务数',
+    not_involved: '本期无质量巡检任务',
+    bands: [
+      { min: 80, max: 100, min_inclusive: false, max_inclusive: true, deduct: 0 },
+      { min: 60, max: 80, min_inclusive: false, max_inclusive: true, deduct: 2 },
+      { min: 40, max: 60, min_inclusive: false, max_inclusive: true, deduct: 4 },
+      { min: null, max: 40, min_inclusive: false, max_inclusive: true, deduct: 7 },
+    ],
+  },
+  {
+    id: 'qm_inspect_task_overdue',
+    name: '质量巡检任务逾期率',
+    category: 'quality',
+    cap: 0,
+    value_unit: '百分比',
+    calc_rule: '逾期率 = 逾期未完成质量巡检任务数 / 应完成质量巡检任务数',
+    not_involved: '本期无质量巡检任务',
+    bands: [
+      { min: null, max: 2, min_inclusive: false, max_inclusive: true, deduct: 0 },
+      { min: 2, max: 5, min_inclusive: false, max_inclusive: true, deduct: 1 },
+      { min: 5, max: 10, min_inclusive: false, max_inclusive: true, deduct: 2 },
+      { min: 10, max: 20, min_inclusive: false, max_inclusive: true, deduct: 3 },
+      { min: 20, max: null, min_inclusive: false, max_inclusive: true, deduct: 4 },
+    ],
+  },
   makeIndicator('qm_inspect', '质量验评任务完成率', 'quality', '百分比', '完成率 = 已完成验收任务数 / 应验收任务数', '本期无验收任务'),
   makeIndicator('qm_pass', '质量验评一次通过率', 'quality', '百分比', '通过率 = 一次通过任务数 / 验收任务数', '本期无验收任务'),
-  makeIndicator('qm_hazard', '质量隐患整改率', 'inspection', '百分比', '整改率 = 已闭环质量隐患数 / 新增质量隐患数', '本期无质量隐患'),
-  makeIndicator('qm_hazard_overdue', '质量隐患逾期数', 'inspection', '条', '按条数扣分。统计期末逾期未闭环质量隐患条数', '本期无逾期质量隐患'),
+  makeIndicator('qm_hazard', '质量隐患整改率', 'quality', '百分比', '整改率 = 已闭环质量隐患数 / 新增质量隐患数', '本期无质量隐患'),
+  makeIndicator('qm_hazard_overdue', '质量隐患逾期数', 'quality', '条', '按条数扣分。统计期末逾期未闭环质量隐患条数', '本期无逾期质量隐患'),
   makeIndicator('brand_apply', '品牌报审一次通过率', 'quality', '百分比', '通过率 = 一次通过报审数 / 报审总数', '本期无品牌报审'),
   makeIndicator('mat_doc', '材料设备进场资料齐全率', 'quality', '百分比', '齐全率 = 资料齐全批次 / 进场批次', '本期无材料设备进场'),
   // 前期专项
@@ -1075,7 +1108,9 @@ function round1(value) {
 
 /** 指标整改建议话术（自动结论文案用） */
 const INDICATOR_ADVICE = {
-  inspect: '加强巡检任务派发与过程督促，确保按期完成',
+  inspect: '加强安全巡检任务派发与时限提醒，确保按期完成',
+  qm_inspect_task: '加强质量巡检任务派发与过程督促，确保按期完成',
+  qm_inspect_task_overdue: '压缩质量巡检任务逾期数量，按周通报并督办整改',
   hazard: '压实隐患整改责任，逾期未闭环隐患需挂牌督办',
   manage_att: '严格考勤管理，落实施工与监理人员到岗履职',
   crane: '加强塔吊日常检查与报警处置，降低报警强度',
@@ -1101,7 +1136,6 @@ const INDICATOR_ADVICE = {
 const CATEGORY_SUGGEST_META = {
   progress: { owner: '工程管理部 · 进度工程师', due: '次月 15 日前' },
   coc: { owner: 'COC 调度中心 · 调度员', due: '次月 5 日前' },
-  inspection: { owner: '安质部 · 隐患督办员', due: '次月 10 日前' },
   safety: { owner: '安质部 · 安全管理员', due: '次月 10 日前' },
   quality: { owner: '质量管理部 · 质量工程师', due: '次月 10 日前' },
   pre: { owner: '工程管理部 · 前期报建专员', due: '次月 15 日前' },
