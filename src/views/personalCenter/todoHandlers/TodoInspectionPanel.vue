@@ -13,7 +13,7 @@ import { getMajorHazardLedgerOptions } from '../../../utils/inspectionMajorHazar
 import { usePersonalTodoSubmit } from '../composables/usePersonalTodoSubmit.js'
 import '../styles/todoHandleBlocks.css'
 import { listInspectionPersonCandidates, getProjectRectifierLabel, getProjectReviewerLabel, getInspectionCopyDefaults, getInspectionCopyDetailFields, INSPECTION_COPY_FIELDS } from '../../../composables/useInspectionPersonConfig'
-import { getLatestInspectionRectification, getMobileRectification, getTaskHazardRectification } from '../../../composables/useMobileRectification'
+import { getLatestInspectionRectification, getMobileRectification, getTaskHazardPhotos, getTaskHazardRectification } from '../../../composables/useMobileRectification'
 import { useInspectionRectificationPhotoPreviews } from '../../../composables/useInspectionRectificationPhotoPreviews'
 import { currentWorkflowStep, isInspectionRectificationReturned, rectificationIssuedAt } from '../../../utils/inspectionRectificationWorkflow'
 
@@ -414,9 +414,9 @@ async function onSubmit() {
         <span>等级：{{ hazard.hazardLevel || '未设置' }}</span>
         <span>说明：{{ hazard.desc }}</span>
         <span style="white-space:pre-wrap">整改要求：{{ hazard.rectifyRequirement || '未填写' }}</span>
-        <div v-if="hazard.photos?.length">
+        <div>
           <span>隐患照片</span>
-          <InspectionPhotoList :photos="hazard.photos" name-prefix="隐患照片" />
+          <InspectionPhotoList :photos="getTaskHazardPhotos(hazard)" name-prefix="隐患照片" empty-text="未上传" />
         </div>
         <span>下发整改单：{{ hazard.issueRectify || hazard.hasRectify ? '是' : '否' }}</span>
         <span v-if="hazard.issueRectify || hazard.hasRectify">

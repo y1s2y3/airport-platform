@@ -5,6 +5,7 @@ const props = defineProps({
   photos: { type: Array, default: () => [] },
   previewZIndex: Number,
   namePrefix: { type: String, default: '巡检照片' },
+  emptyText: { type: String, default: '' },
 })
 const entries = computed(() => props.photos.map((photo, index) => {
   const url = typeof photo === 'string' ? (/^(blob:|data:image\/)/.test(photo) ? photo : '') : photo?.url
@@ -16,6 +17,7 @@ const previews = computed(() => entries.value.map(item => item.url).filter(Boole
 
 <template>
   <div class="inspection-photos">
+    <span v-if="!entries.length && emptyText">{{ emptyText }}</span>
     <div v-for="(item, index) in entries" :key="index">
       <el-image
         v-if="item.url"

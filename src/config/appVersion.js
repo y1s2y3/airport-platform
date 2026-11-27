@@ -17,6 +17,15 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v3.1.1.11',
+    date: '2026-11-27',
+    highlights: [
+      '巡检任务详情补齐整改人和复查人，每条隐患统一显示隐患照片字段。',
+      '任务下发详情移除危大工程现场巡视关联说明。',
+      '巡检与调度隐患导出统一项目经理审批及项目部长确认的表头。',
+    ],
+  },
+  {
     version: 'v3.1.1.10',
     date: '2026-11-27',
     highlights: [

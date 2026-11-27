@@ -1,7 +1,7 @@
 <script setup>
 import { getInspectionTaskPhotos } from '../../utils/inspectionTaskPhotos.js'
 import InspectionPhotoList from '../../components/InspectionPhotoList.vue'
-import { areTaskRectificationsVoided, getTaskHazardRectification } from '../../composables/useMobileRectification'
+import { areTaskRectificationsVoided, getTaskHazardPhotos, getTaskHazardRectification } from '../../composables/useMobileRectification'
 import InspectionVoidStamp from '../../components/InspectionVoidStamp.vue'
 import { getInspectionCopyDetailFields } from '../../composables/useInspectionPersonConfig'
 import { computed, ref, watch } from 'vue'
@@ -336,9 +336,9 @@ function goBack() {
         <div class="sc-row"><span class="sc-lbl">隐患等级</span><span>{{ hi.hazardLevel || '未设置' }}</span></div>
         <div class="sc-row"><span class="sc-lbl">整改要求</span><span style="white-space:pre-wrap">{{ hi.rectifyRequirement || '未填写' }}</span></div>
         <div class="sc-row"><span class="sc-lbl">隐患说明</span><span>{{ hi.desc }}</span></div>
-        <div class="sc-row" v-if="hi.photos?.length">
+        <div class="sc-row">
           <span class="sc-lbl">隐患照片</span>
-          <InspectionPhotoList :photos="hi.photos" name-prefix="隐患照片" />
+          <InspectionPhotoList :photos="getTaskHazardPhotos(hi)" name-prefix="隐患照片" empty-text="未上传" />
         </div>
         <div v-if="!rectifyInfo(hi).deleted && (hi.hasRectify || hi.rectifyNo || hi.rectifyId)" class="rectify-card">
           <div class="rectify-title">📋 整改单</div>

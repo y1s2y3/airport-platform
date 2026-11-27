@@ -695,6 +695,12 @@ export function getTaskHazardRectification(hazard) {
   return mobileRectificationRecords.find(item => item.rectifyNo === hazard.rectifyNo) || null
 }
 
+export function getTaskHazardPhotos(hazard, order = getTaskHazardRectification(hazard)) {
+  const stored = !order?.deletion && order?.id ? getRectificationPhotoFiles(order.id)?.hazards : null
+  return [hazard.photos, hazard.hazardPhotos, stored, order?.deletion ? null : order?.hazardPhotos]
+    .find(photos => Array.isArray(photos) && photos.length) || []
+}
+
 export function areTaskRectificationsVoided(hazards) {
   const linked = hazards.filter(hazard => hazard.hasRectify || hazard.rectifyId || hazard.rectifyNo)
   return linked.length > 0 && linked.every(hazard => getTaskHazardRectification(hazard)?.status === '已作废')
