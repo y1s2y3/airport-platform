@@ -36,16 +36,16 @@ try{
    await router.push(path)
  }, { path, projectId })
  await navigate('/safety-inspection/plan', 'hq')
- await page.getByRole('button', { name: '抄送人配置', exact: true }).click()
+ await page.getByRole('menuitem', { name: '人员配置', exact: true }).click()
  await page.waitForURL('**/#/safety-inspection/plan/copy-config')
  const config = page.locator('.copy-config-page')
- await config.getByRole('heading', { name: '抄送人配置', exact: true }).waitFor()
+ await config.getByRole('heading', { name: '人员配置', exact: true }).waitFor()
  const { projectLabel, projectCount } = await page.evaluate(async () => {
    const { COC_PROJECT_OPTIONS } = await import('/src/config/projectOptions.js')
    return { projectLabel: COC_PROJECT_OPTIONS.find(project => project.id === 'p-000').label, projectCount: COC_PROJECT_OPTIONS.length }
  })
  assert.deepEqual(await config.getByRole('columnheader').allTextContents(), [
-   '项目名称', '安全下发整改单抄送人', '质量下发整改单抄送人', '安全整改完成抄送人', '质量整改完成抄送人', '操作',
+   '项目名称', '安全/其他下发整改单抄送人', '质量下发整改单抄送人', '安全/其他整改完成抄送人', '质量整改完成抄送人', '操作',
  ])
  const tableRows = config.locator('.el-table__body-wrapper tbody tr')
  assert.equal(await tableRows.count(), projectCount)
@@ -62,7 +62,7 @@ try{
  await projectRow.getByRole('button', { name: '保存', exact: true }).click()
  assert.equal(await projectRow.getByRole('cell').nth(3).textContent(), '赵工（项目安全负责人）、周工（质量工程师）')
  assert.deepEqual(await otherProject.getByRole('cell').allTextContents(), otherValues)
- await config.getByRole('button', { name: /返回/ }).click()
+ await navigate('/safety-inspection/plan', 'hq')
  await page.waitForURL('**/#/safety-inspection/plan')
  await page.reload({ waitUntil: 'domcontentloaded' })
  await navigate('/safety-inspection/inspector-config', 'p-000')

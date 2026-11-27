@@ -1,5 +1,6 @@
 <script setup>
 import InspectionLedgerExport from '../../components/InspectionLedgerExport.vue'
+import { useClientPagination } from '../../composables/useClientPagination'
 import { exportInspectionTaskDetail, inspectionTaskDetailColumns, inspectionTaskHazardColumns } from '../../utils/inspectionDetailExport'
 import { ref, reactive, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
@@ -84,6 +85,7 @@ const hqProjectStats = computed(() => inspectionProjectTree[0].children.map(proj
 const filteredHQProjects = computed(() => hqProjectStats.value.filter(item =>
   !hqProjectKeyword.value || item.project_name.includes(hqProjectKeyword.value),
 ).sort((a, b) => a.executionRate - b.executionRate || b.totalCount - a.totalCount))
+const { page: hqPage, pageSize: hqPageSize, total: hqProjectTotal, rows: pagedHQProjects } = useClientPagination(filteredHQProjects)
 const hqTotalStats = computed(() => ({
   totalCount: filteredHQProjects.value.reduce((sum, item) => sum + item.totalCount, 0),
   pendingCount: filteredHQProjects.value.reduce((sum, item) => sum + item.pendingCount, 0),
@@ -135,10 +137,6 @@ const exportRows = computed(() => {
   const visibleProjects = new Set(filteredHQProjects.value.map(row => row.project_id))
   return taskData.value.filter(row => visibleProjects.has(row.project_id))
 })
-const exportDates = [
-  { key: 'inspectionDate', label: '巡检日期' },
-  { key: 'deadline', label: '任务截止日期' },
-]
 
 function isOverdue(row) {
   if (row.status === '已完成') return false
@@ -215,12 +213,12 @@ function goBackToHQ() {
         <div class="hq-filter-bar">
           <div class="ledger-actions">
             <el-button type="primary" @click="goCreateRecord">新增巡检记录</el-button>
-            <InspectionLedgerExport name="巡检任务台账" :rows="exportRows" :columns="inspectionTaskDetailColumns" :detail-columns="inspectionTaskHazardColumns" :date-options="exportDates" :to-detail="exportInspectionTaskDetail" />
+            <InspectionLedgerExport name="巡检任务台账" :rows="exportRows" :columns="inspectionTaskDetailColumns" :detail-columns="inspectionTaskHazardColumns" :to-detail="exportInspectionTaskDetail" />
           </div>
           <el-input v-model="hqProjectKeyword" placeholder="搜索项目名称..." clearable style="width:240px" :prefix-icon="Search" />
         </div>
-        <el-table :data="filteredHQProjects" border stripe style="width:100%;margin-top:12px" class="hq-table">
-          <el-table-column type="index" label="序号" width="55" align="center" />
+        <el-table :data="pagedHQProjects" row-key="project_id" border stripe style="width:100%;margin-top:12px" class="hq-table">
+          <el-table-column type="index" :index="index => (hqPage - 1) * hqPageSize + index + 1" label="序号" width="55" align="center" />
           <el-table-column prop="project_name" label="项目名称" min-width="180" />
           <el-table-column prop="totalCount" label="任务数量" align="center" />
           <el-table-column prop="pendingCount" label="未完成数量" align="center" />
@@ -236,6 +234,14 @@ function goBackToHQ() {
             <template #default="{ row }"><el-button link type="primary" :icon="View" @click="viewProjectDetail(row)">查看详情</el-button></template>
           </el-table-column>
         </el-table>
+        <el-pagination
+          v-model:current-page="hqPage"
+          v-model:page-size="hqPageSize"
+          :total="hqProjectTotal"
+          :page-sizes="[10, 20, 50]"
+          layout="total, sizes, prev, pager, next"
+          class="ledger-pagination"
+        />
       </div>
     </template>
 
@@ -288,7 +294,7 @@ function goBackToHQ() {
           </el-popover>
           <div class="ledger-actions">
             <el-button type="primary" @click="goCreateRecord">新增巡检记录</el-button>
-            <InspectionLedgerExport name="巡检任务台账" :rows="exportRows" :columns="inspectionTaskDetailColumns" :detail-columns="inspectionTaskHazardColumns" :date-options="exportDates" :to-detail="exportInspectionTaskDetail" />
+            <InspectionLedgerExport name="巡检任务台账" :rows="exportRows" :columns="inspectionTaskDetailColumns" :detail-columns="inspectionTaskHazardColumns" :to-detail="exportInspectionTaskDetail" />
           </div>
         </div>
 
@@ -384,6 +390,7 @@ function goBackToHQ() {
 </template>
 
 <style scoped>
+.ledger-pagination { justify-content:flex-end; margin-top:16px; }
 .filter-setting { display: flex; flex-direction: column; gap: 6px; }
 .filter-setting-title { margin-bottom: 4px; font-size: 13px; font-weight: 600; color: #1f2329; }
 .filter-setting :deep(.el-checkbox) { margin-right: 0; }

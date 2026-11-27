@@ -1,15 +1,16 @@
 <script setup>
 import { normalizeFlowNodeName } from '../../config/hazardFlowNodes.js'
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { mobileWorkflowMessages } from '../../composables/useMobileRectification'
 import { useCurrentProject } from '../../composables/useCurrentProject'
-import { ensureInspectionOverdueReminders, inspectionOverdueReminders } from '../../mock/personalCenter.js'
+import { deletedInspectionProcess, ensureInspectionOverdueReminders, inspectionOverdueReminders, listLaborPersonalStarted } from '../../mock/personalCenter.js'
 
+const route = useRoute()
 const router = useRouter()
 const { isHqSelected } = useCurrentProject()
 const activeCenter = ref('流程中心')
-const activeTab = ref('todo')
+const activeTab = ref(route.query.tab === 'initiated' ? 'initiated' : 'todo')
 const keyword = ref('')
 const showFilter = ref(false)
 const nodeFilter = ref('')
@@ -22,6 +23,13 @@ const scopedWorkflowMessages = computed(() => {
   const messages = mobileWorkflowMessages.value
   return {
     ...messages,
+    initiated: listLaborPersonalStarted()
+      .filter(row => row.liveInspectionWorkflow && row.rectifyId && !deletedInspectionProcess(row))
+      .map(row => ({
+        id: row.id, action: 'started-detail', flowName: row.processName, rectifyNo: row.detail?.rectifyNo,
+        currentNode: row.detail?.currentNode, owner: row.assignee || '—',
+        applicant: row.applicant, applyDate: row.applyTime, status: row.status,
+      })),
     todo: isHqSelected.value
       ? messages.todo.filter(item => item.action !== 'execute' && !['contractorAcceptance', 'directorAcceptance'].includes(item.workflowStage))
       : messages.todo,
@@ -49,7 +57,8 @@ const nodeOptions = computed(() => [...new Set((scopedWorkflowMessages.value[act
 const reminderMessages = computed(() => [...inspectionOverdueReminders])
 
 function handleMessage(item) {
-  if (item.action === 'task-execute') router.push(`/mobile/tasks/${item.recordId}/execute?from=message`)
+  if (item.action === 'started-detail') router.push({ path: '/personal-center/todo/handle', query: { id: item.id, from: 'started', returnTo: '/mobile/messages' } })
+  else if (item.action === 'task-execute') router.push(`/mobile/tasks/${item.recordId}/execute?from=message`)
   else if (item.action === 'execute') router.push(`/mobile/rectify/${item.recordId}/execute?from=message`)
   else if (item.action === 'review') router.push(`/mobile/rectify/${item.recordId}/review?from=message`)
   else if (item.action === 'approve') router.push(`/mobile/rectify/${item.recordId}/approval?from=message`)
@@ -112,7 +121,7 @@ function goBack() { router.push('/mobile/tasks') }
           <div v-if="item.inspectionCategory" class="message-field"><span>巡检分类：</span><b>{{ item.inspectionCategory }}<template v-if="item.hazardLevel"> / {{ item.hazardLevel }}</template></b></div>
           <div v-if="item.rectifyNo" class="message-field"><span>整改单号：</span><b>{{ item.rectifyNo }}</b></div>
           <div v-if="item.hazard" class="message-field"><span>隐患说明：</span><b>{{ item.hazard }}</b></div>
-          <div class="message-field"><span>当前节点：</span><b>{{ normalizeFlowNodeName(item.currentNode) }}</b></div>
+          <div class="message-field"><span>当前节点：</span><b>{{ item.action === 'started-detail' ? item.currentNode : normalizeFlowNodeName(item.currentNode) }}</b></div>
           <div class="message-field"><span>负责人：</span><b>{{ item.owner }}</b></div>
           <div class="message-field"><span>申请人：</span><b>{{ item.applicant }}</b></div>
           <div class="message-field"><span>申请日期：</span><b>{{ item.applyDate }}</b></div>

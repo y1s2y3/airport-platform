@@ -1,5 +1,5 @@
 import { COC_PROJECT_OPTIONS } from '../config/projectOptions.js'
-import { HAZARD_CATEGORIES } from '../config/inspectionManagement.js'
+import { PROJECT_NAMES, PROJECT_SHORT_NAMES } from '../config/projectCatalog.js'
 import { getDemoInspectionPeople, inspectionPeoplePool } from './inspectionPeople.js'
 
 export { getDemoInspectionPeople, inspectionPeoplePool }
@@ -47,20 +47,131 @@ const MAJOR_HAZARD_PATROL_LEDGER = {
   categoryName: '基坑工程',
 }
 
-const hazardDescriptions = [
-  '临时配电箱门未关闭，箱体接地标识缺失',
-  '作业面临边防护栏杆局部缺失',
-  '消防通道堆放材料，影响应急疏散',
-  '进场材料检验报告归档不完整',
-  '高处作业人员安全带低挂高用',
-  '施工机具保护零线连接不规范',
-]
+/** 各流程环节的示例办理说明，与环节一一对应。 */
+const STAGE_COMMENTS = {
+  rectify: '已按整改要求完成现场处理，整改照片与复测记录已提交。',
+  contractorAcceptance: '施工单位项目经理已核对整改资料与实体质量，验收通过。',
+  review: '监理已现场核查整改结果，复核通过，资料与现场一致。',
+  directorAcceptance: '项目总监已核验复核依据与实体质量，验收通过。',
+  approval: '整改及各级验收资料齐全，指挥部项目经理确认通过。',
+  departmentConfirmation: '项目部长确认整改与验收结果，同意关闭整改单。',
+}
 
-const qualityHazardDescriptions = [
-  '进场材料复试报告未及时归档',
-  '关键工序技术交底签字不完整',
-  '混凝土养护记录填写不连续',
-  '隐蔽工程验收影像资料缺失',
+/** 质量 A 级走扩展流程，各环节办理人按质量口径展示。 */
+const EXTENDED_PEOPLE = {
+  inspector: '郑工（质量巡检人（监理））',
+  rectifier: '林工（施工单位质量整改人）',
+  reviewer: '蒋工（监理单位质量复核人）',
+  manager: '邓经理（指挥部项目经理）',
+  contractorManager: '许经理（施工单位项目经理）',
+  director: '冯总监（监理单位项目总监）',
+  projectDepartmentHead: '何部长（项目部长）',
+}
+
+/**
+ * 每个项目 7 条示例：一条对应一个流程节点。
+ * done 为该节点之前已办结的环节及日期，节点之后的环节一律留空，
+ * 保证「状态 / 当前流程节点 / 详情各信息块」三者一致。
+ */
+const NODE_EXAMPLE_SEEDS = [
+  {
+    stage: 'rectify',
+    status: '待整改',
+    category: '质量',
+    level: 'A',
+    hazardCategory: '结构实体质量',
+    desc: '道面基层局部平整度超差，雨后出现低洼积水',
+    requirement: '对低洼部位重新找平并复测，复测合格后提交施工单位项目经理验收。',
+    issueDate: '2026-11-20',
+    deadline: '2026-11-30',
+    done: {},
+  },
+  {
+    stage: 'contractorAcceptance',
+    status: '待整改',
+    category: '质量',
+    level: 'A',
+    hazardCategory: '材料质量',
+    desc: '进场钢筋复试报告未及时归档，批次无法追溯',
+    requirement: '补齐进场钢筋复试报告并按批次归档，报施工单位项目经理验收。',
+    issueDate: '2026-11-18',
+    deadline: '2026-11-15',
+    done: { rectify: '2026-11-21' },
+  },
+  {
+    stage: 'review',
+    status: '待验收',
+    category: '安全',
+    level: 'Ⅱ重点关注的一般隐患',
+    hazardCategory: '临边洞口',
+    desc: '作业面临边防护栏杆局部缺失，警示标识不完整',
+    requirement: '补齐临边防护栏杆及警示标识，整改完成后由监理工程师复核。',
+    issueDate: '2026-11-19',
+    deadline: '2026-11-24',
+    done: { rectify: '2026-11-22' },
+  },
+  {
+    stage: 'directorAcceptance',
+    status: '待验收',
+    category: '质量',
+    level: 'A',
+    hazardCategory: '施工工艺',
+    desc: '道面混凝土切缝深度不足，局部出现收缩裂缝',
+    requirement: '按方案补切缝并做封闭处理，监理复核后由项目总监验收。',
+    issueDate: '2026-11-17',
+    deadline: '2026-11-28',
+    done: { rectify: '2026-11-19', contractorAcceptance: '2026-11-20', review: '2026-11-21' },
+  },
+  {
+    stage: 'approval',
+    status: '待复查',
+    category: '其他',
+    level: 'Ⅲ一般隐患',
+    hazardCategory: '现场通行',
+    desc: '施工临时通道指引标识缺失，人车分流路线不明确',
+    requirement: '补齐通行指引标识、明确人车分流路线，复核后提交指挥部项目经理确认。',
+    issueDate: '2026-11-16',
+    deadline: '2026-11-26',
+    done: { rectify: '2026-11-18', review: '2026-11-20' },
+  },
+  {
+    stage: 'departmentConfirmation',
+    status: '待复查',
+    category: '质量',
+    level: 'A',
+    hazardCategory: '防水工程',
+    desc: '地下室顶板防水附加层搭接宽度不足',
+    requirement: '按规范补做防水附加层并做蓄水试验，各级验收后报项目部长确认。',
+    issueDate: '2026-11-13',
+    deadline: '2026-11-20',
+    done: {
+      rectify: '2026-11-14',
+      contractorAcceptance: '2026-11-15',
+      review: '2026-11-16',
+      directorAcceptance: '2026-11-17',
+      approval: '2026-11-18',
+    },
+  },
+  {
+    stage: 'closed',
+    status: '已关闭',
+    category: '质量',
+    level: 'A',
+    hazardCategory: '隐蔽工程验收',
+    desc: '隐蔽工程验收影像资料缺失，无法支撑验收结论',
+    requirement: '补拍并归档隐蔽工程验收影像资料，完成各级验收后关闭整改单。',
+    issueDate: '2026-11-05',
+    deadline: '2026-11-15',
+    closeDate: '2026-11-21',
+    done: {
+      rectify: '2026-11-14',
+      contractorAcceptance: '2026-11-15',
+      review: '2026-11-16',
+      directorAcceptance: '2026-11-17',
+      approval: '2026-11-18',
+      departmentConfirmation: '2026-11-20',
+    },
+  },
 ]
 
 function taskNo(index, slot, category) {
@@ -70,138 +181,142 @@ function taskNo(index, slot, category) {
   return `${prefix}202608${day}${sequence}`
 }
 
+/** 隐患台账单独一套巡检任务单号，避免与巡检任务示例重复。 */
+function hazardTaskNo(index, slot, category) {
+  const prefix = category === '质量' ? 'ZLXJ' : 'AQXJ'
+  return `${prefix}202611${String(index * 10 + slot + 1).padStart(3, '0')}`
+}
+
 function hazardId(index, slot) {
   return `rec-demo-${String(index).padStart(3, '0')}-${slot + 1}`
 }
 
 function rectifyNo(index, slot) {
-  return `ZG202608${String(index * 4 + slot + 1).padStart(3, '0')}`
+  return `ZG202611${String(index * 10 + slot + 1).padStart(3, '0')}`
+}
+
+/** 把已办结环节写进台账行（整改环节同时写 rectDate，供详情与导出读取）。 */
+function applyDoneStages(row, done) {
+  for (const [stage, date] of Object.entries(done)) {
+    const comment = STAGE_COMMENTS[stage]
+    if (stage === 'rectify') {
+      row.rectificationDate = date
+      row.rectDate = date
+      row.rectificationPhotos = ['整改完成照片1.jpg', '整改完成照片2.jpg']
+      row.rectificationNote = comment
+      continue
+    }
+    row[`${stage}Date`] = date
+    row[`${stage}Comment`] = comment
+    row[`${stage}Result`] = '通过'
+  }
+  return row
 }
 
 function buildHazards(project, index) {
-  const people = getDemoInspectionPeople(project.id)
-  const category = index % 3 === 0 ? '质量' : '安全'
-  const descriptions = category === '质量' ? qualityHazardDescriptions : hazardDescriptions
-  const linkedTaskNo = taskNo(index, 3, category)
-  const base = {
-    taskNo: linkedTaskNo,
-    inspectionCategory: category,
+  const people = getDemoInspectionPeople(project.id, index)
+  return NODE_EXAMPLE_SEEDS.map((seed, slot) => {
+    const extended = seed.category === '质量' && seed.level === 'A'
+    const rolePeople = extended ? EXTENDED_PEOPLE : {
+      inspector: people.inspectorLabel,
+      rectifier: people.rectifierLabel,
+      reviewer: people.reviewerLabel,
+      manager: `${people.manager}（项目经理）`,
+    }
+    const row = {
+      ...rolePeople,
+      id: hazardId(index, slot),
+      taskNo: hazardTaskNo(index, slot, seed.category),
+      rectifyNo: rectifyNo(index, slot),
+      project: project.label,
+      projectFullName: project.fullName,
+      project_id: project.id,
+      inspectionCategory: seed.category,
+      inspectionCategories: [seed.category],
+      hazardLevel: seed.level,
+      hazardCategory: seed.hazardCategory,
+      desc: seed.desc,
+      rectifyRequirement: seed.requirement,
+      hazardPhotos: ['隐患照片1.jpg', '隐患照片2.jpg'],
+      issueDate: seed.issueDate,
+      deadline: seed.deadline,
+      status: seed.status,
+      issueCcPersons: '陈工（安全主管）、吴工（巡检员）',
+      nodeExample: seed.stage,
+    }
+    if (seed.closeDate) {
+      row.closeDate = seed.closeDate
+      row.completionCcPersons = '陈工（安全主管）、吴工（巡检员）'
+    }
+    applyDoneStages(row, seed.done)
+    return row
+  })
+}
+
+/**
+ * 隐患台账覆盖全部项目：项目目录 40 项 + COC 里不在目录中的独立项目。
+ * 每个项目 7 条，一条对应一个流程节点，打开任意项目的 COC「巡检隐患明细」都能看到完整节点示例。
+ */
+const HAZARD_SEED_PROJECTS = [
+  ...PROJECT_NAMES.map((fullName, index) => {
+    const master = COC_PROJECT_OPTIONS.find(project => project.fullName === fullName)
+    return {
+      id: master?.id || '',
+      label: master?.label || PROJECT_SHORT_NAMES[index] || fullName,
+      fullName,
+    }
+  }),
+  ...COC_PROJECT_OPTIONS.filter(project => !PROJECT_NAMES.includes(project.fullName)),
+]
+
+/**
+ * 作废审批中示例（T2 项目）：单据状态与流程节点保持原样，列表只多一个「作废中」标签。
+ * 用于演示「申请作废后原状态不变、仅挂起」的口径。
+ */
+function buildVoidPendingExample() {
+  const index = HAZARD_SEED_PROJECTS.findIndex(item => item.id === 'p-000')
+  const project = HAZARD_SEED_PROJECTS[index >= 0 ? index : 0]
+  const row = applyDoneStages({
+    ...EXTENDED_PEOPLE,
+    id: 'rec-demo-void-000',
+    taskNo: hazardTaskNo(index, 7, '质量'),
+    rectifyNo: rectifyNo(index, 7),
     project: project.label,
     projectFullName: project.fullName,
     project_id: project.id,
-    rectifier: people.rectifierLabel,
-    reviewer: people.reviewerLabel,
-    manager: `${people.manager}（项目经理）`,
-  }
-  const projectHazards = [
-    {
-      ...base,
-      hazardCategory: HAZARD_CATEGORIES[(index * 4) % HAZARD_CATEGORIES.length],
-      id: hazardId(index, 0),
-      rectifyNo: rectifyNo(index, 0),
-      issueDate: '2026-08-24',
-      deadline: index % 3 === 0 ? '2026-08-22' : '2026-09-03',
-      status: '待整改',
-      rectDate: '',
-      reviewDate: '',
-      closeDate: '',
-      desc: descriptions[index % descriptions.length],
-      hazardPhotos: ['隐患照片1.jpg', '隐患照片2.jpg'],
-    },
-    {
-      ...base,
-      hazardCategory: HAZARD_CATEGORIES[(index * 4 + 1) % HAZARD_CATEGORIES.length],
-      id: hazardId(index, 1),
-      rectifyNo: rectifyNo(index, 1),
-      issueDate: '2026-08-20',
-      deadline: '2026-08-27',
-      status: '待验收',
-      rectDate: '2026-08-25',
-      reviewDate: '',
-      closeDate: '',
-      desc: descriptions[(index + 1) % descriptions.length],
-      hazardPhotos: ['隐患照片1.jpg'],
-      rectificationPhotos: ['整改后照片1.jpg', '整改后照片2.jpg'],
-      rectificationNote: '已按要求完成整改并清理作业区域，请复查。',
-    },
-    {
-      ...base,
-      hazardCategory: HAZARD_CATEGORIES[(index * 4 + 2) % HAZARD_CATEGORIES.length],
-      id: hazardId(index, 2),
-      rectifyNo: rectifyNo(index, 2),
-      issueDate: '2026-08-18',
-      deadline: '2026-08-25',
-      status: '待复查',
-      rectDate: '2026-08-22',
-      reviewDate: '2026-08-24',
-      closeDate: '',
-      desc: descriptions[(index + 2) % descriptions.length],
-      hazardPhotos: ['隐患照片1.jpg'],
-      rectificationPhotos: ['整改后照片1.jpg'],
-      rectificationNote: '现场整改已完成，相关资料已补充归档。',
-      reviewComment: '复查合格，同意提交项目经理审批。',
-      reviewResult: '通过',
-    },
-    {
-      ...base,
-      hazardCategory: HAZARD_CATEGORIES[(index * 4 + 3) % HAZARD_CATEGORIES.length],
-      id: hazardId(index, 3),
-      rectifyNo: rectifyNo(index, 3),
-      issueDate: '2026-08-10',
-      deadline: '2026-08-18',
-      status: '已关闭',
-      rectDate: '2026-08-15',
-      reviewDate: '2026-08-17',
-      closeDate: '2026-08-18',
-      desc: descriptions[(index + 3) % descriptions.length],
-      hazardPhotos: ['隐患照片1.jpg'],
-      rectificationPhotos: ['整改后照片1.jpg'],
-      rectificationNote: '整改措施落实到位，现场已恢复正常。',
-      reviewComment: '复查合格。',
-      reviewResult: '通过',
-      approvalComment: '同意关闭。',
-    },
-    ]
-  // 每个项目补 4 条 A 级质量隐患，覆盖待整改/待验收/待复查/已关闭四个状态。
-  const qualityPeople = {
-    rectifier: '林工（施工单位质量整改人）',
-    reviewer: '蒋工（监理单位质量复核人）',
-    manager: '邓经理（指挥部项目经理）',
-    contractorManager: '许经理（施工单位项目经理）',
-    director: '冯总监（监理单位项目总监）',
-  }
-  const qualityStatuses = [
-    { status: '待整改', issueDate: '2026-08-24', deadline: '2026-09-03', hazardCategory: '结构实体质量', desc: '回填土含水量偏高，压实度复检结果不合格', rectDate: '', reviewDate: '', closeDate: '' },
-    { status: '待验收', issueDate: '2026-08-20', deadline: '2026-08-27', hazardCategory: '材料质量', desc: '进场钢筋复试报告未及时归档', rectDate: '2026-08-25', reviewDate: '', closeDate: '', rectificationNote: '复试报告已补齐并归档，请监理复查。' },
-    { status: '待复查', issueDate: '2026-08-18', deadline: '2026-08-25', hazardCategory: '施工工艺', desc: '道面混凝土切缝深度不足，局部出现裂缝', rectDate: '2026-08-22', reviewDate: '2026-08-24', closeDate: '', reviewComment: '复查合格，同意提交指挥部项目经理审批。', reviewResult: '通过' },
-    { status: '已关闭', issueDate: '2026-08-10', deadline: '2026-08-18', hazardCategory: '隐蔽工程验收', desc: '隐蔽工程验收影像资料缺失', rectDate: '2026-08-15', reviewDate: '2026-08-17', closeDate: '2026-08-18', reviewComment: '复查合格。', reviewResult: '通过', approvalComment: '同意关闭。' },
-  ]
-  const qualityAExamples = qualityStatuses.map((item, slot) => ({
-    ...base,
     inspectionCategory: '质量',
     inspectionCategories: ['质量'],
     hazardLevel: 'A',
-    ...qualityPeople,
-    taskNo: taskNo(index, 4 + slot, '质量'),
-    hazardCategory: item.hazardCategory,
-    id: hazardId(index, 4 + slot),
-    rectifyNo: `ZGQA${String(index + 1).padStart(2, '0')}${slot + 1}`,
-    issueDate: item.issueDate,
-    deadline: item.deadline,
-    status: item.status,
-    rectDate: item.rectDate,
-    reviewDate: item.reviewDate,
-    closeDate: item.closeDate,
-    desc: item.desc,
+    hazardCategory: '结构实体质量',
+    desc: '道面混凝土养护不到位，表面出现细微裂缝（与既有隐患重复登记）',
+    rectifyRequirement: '完成裂缝封闭处理并补做养护记录；本条与既有隐患重复，已提交作废申请等待审批。',
     hazardPhotos: ['隐患照片1.jpg', '隐患照片2.jpg'],
-    ...(item.rectificationNote ? { rectificationPhotos: ['整改后照片1.jpg'], rectificationNote: item.rectificationNote } : {}),
-    ...(item.reviewComment ? { reviewComment: item.reviewComment, reviewResult: item.reviewResult } : {}),
-    ...(item.approvalComment ? { approvalComment: item.approvalComment } : {}),
-  }))
-  return [...projectHazards, ...qualityAExamples]
+    issueDate: '2026-11-15',
+    deadline: '2026-11-25',
+    status: '待验收',
+    issueCcPersons: '陈工（安全主管）、吴工（巡检员）',
+    nodeExample: 'voidPending',
+    // 作废审批期间状态与当前节点都不变，只在列表/详情多加一个「作废中」标签。
+    currentNode: '监理总监验收',
+    voidRequest: {
+      status: 'pending',
+      reason: '与既有隐患重复登记，申请作废本整改单',
+      requestedAt: '2026-11-25 10:00:00',
+      applicant: EXTENDED_PEOPLE.inspector,
+      approverId: 'u-007',
+      approver: '刘文强（指挥部安全和整改负责人）',
+    },
+    workflowHistory: [{
+      type: 'voidRequest', stage: 'voidRequest', label: '申请作废整改单',
+      actor: EXTENDED_PEOPLE.inspector, date: '2026-11-25 10:00:00',
+      comment: '与既有隐患重复登记，申请作废本整改单',
+      approverId: 'u-007', approver: '刘文强（指挥部安全和整改负责人）',
+    }],
+  }, { rectify: '2026-11-19', contractorAcceptance: '2026-11-20', review: '2026-11-21' })
+  return row
 }
 
-export const inspectionHazards = COC_PROJECT_OPTIONS.flatMap(buildHazards)
+export const inspectionHazards = [...HAZARD_SEED_PROJECTS.flatMap(buildHazards), buildVoidPendingExample()]
 
 function buildTasks(project, index) {
   const people = getDemoInspectionPeople(project.id)

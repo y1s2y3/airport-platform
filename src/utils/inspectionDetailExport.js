@@ -1,13 +1,15 @@
 import { formatInspectionCategories, normalizeHazardCategory } from '../config/inspectionManagement.js'
 import { getConfiguredPersonLabel } from '../composables/useInspectionPersonConfig.js'
-import { getMobileRectification, getRectificationPhotoFiles, mapMobileRecordToHazardRow } from '../composables/useMobileRectification.js'
+import { getMobileRectification, getRectificationPhotoFiles, getTaskHazardRectification, mapMobileRecordToHazardRow } from '../composables/useMobileRectification.js'
 import { buildInspectionHazardDetail, getInspectionHazard } from '../mock/inspectionHazardQuery.js'
 import { listMobileInspectionTasks } from '../mock/mobileInspectionTasks.js'
 import { getInspectionTaskCheckGroups, getMajorHazardPatrolDetail, getMajorHazardSyncDetail } from './inspectionTaskDetailData.js'
 
+import { isInspectionRectificationOverdue } from './inspectionLedgerDates.js'
+
 // 第四项是照片组的文件名前缀。
 export const inspectionTaskDetailColumns = [
-  ['taskNo', '任务单编号', 26],
+  ['taskNo', '巡检任务单编号', 26],
   ['taskName', '任务名称', 36],
   ['source', '任务来源'],
   ['project', '项目名称', 28],
@@ -24,14 +26,15 @@ export const inspectionTaskDetailColumns = [
   ['checkItems', '检查项明细', 57],
   ['result', '巡检结果'],
   ['normalPhotos', '巡检照片', 42, '巡检照片'],
-  ['hazardCount', '隐患数量'],]
+  ['hazardCount', '隐患数量'],
+]
 
 export const inspectionTaskHazardColumns = [
   ['number', '隐患序号', 12],
   ['category', '隐患类别'],
   ['level', '隐患等级', 24],
-  ['description', '隐患说明', 46],
   ['requirement', '整改要求', 46],
+  ['description', '隐患说明', 46],
   ['hazardPhotos', '隐患照片', 44, '隐患照片'],
   ['orderNo', '关联整改单编号', 26],
   ['orderStatus', '关联整改单状态'],
@@ -51,6 +54,8 @@ export const rectificationDetailColumns = [
   ['issueDate', '整改单下发日期', 21],
   ['rf', '整改人', 24],
   ['rv', '复查人', 24],
+  ['issueCc', '下发整改单抄送人', 28],
+  ['completionCc', '整改完成抄送人', 28],
   ['dl', '截止日期'],
   ['st', '状态'],
   ['currentNode', '当前流程节点', 28],
@@ -75,8 +80,6 @@ export const rectificationDetailColumns = [
   ['confirmStatus', '确认结果'],
   ['confirmDate', '确认日期'],
   ['confirmComment', '确认意见', 44],
-  ['issueCc', '下发整改单抄送人', 28],
-  ['completionCc', '整改完成抄送人', 28],
   ['overdue', '逾期'],
 ]
 
@@ -101,8 +104,11 @@ export function exportInspectionTaskDetail(task) {
     checkItems: checks.map(item => joined(item.group, item.label, resultLabel(item.result), item.desc)).join('\n'),
     result: resultLabel(task.result || task.inspectionResult),
     normalPhotos: [photoGroup(task.normalPhotos?.length ? task.normalPhotos : task.photos)],
-    hazardCount: task.hazardCount ?? hazards.length,    detailRows: hazards.map((item, index) => {
-      const order = item.rectifyId ? getInspectionHazard(item.rectifyId) : null
+    hazardCount: task.hazardCount ?? hazards.length,
+    detailRows: hazards.map((item, index) => {
+      const archived = getTaskHazardRectification(item)
+      const order = !archived?.deletion && item.rectifyId ? getInspectionHazard(item.rectifyId) : null
+      const showOrder = !archived?.deletion
       return {
         number: index + 1,
         category: normalizeHazardCategory(item.hazardCategory || order?.hazardCategory) || '安全管理',
@@ -110,13 +116,13 @@ export function exportInspectionTaskDetail(task) {
         description: item.desc || order?.desc,
         requirement: item.rectifyRequirement || order?.rectifyRequirement || '未填写',
         hazardPhotos: [photoGroup(item.photos?.length ? item.photos : order?.hazardPhotos)],
-        orderNo: item.rectifyNo || order?.rectifyNo,
+        orderNo: showOrder ? item.rectifyNo || order?.rectifyNo : '',
         orderStatus: order?.status,
-        rectifier: item.rectifier || item.rectifyPerson || order?.rectifier,
-        reviewer: item.reviewer || item.reviewPerson || order?.reviewer,
-        rectifyDeadline: item.rectifyDeadline || order?.deadline,
-        issueCcPersons: item.issueCcPersons ?? item.ccPersons ?? order?.issueCcPersons,
-        completionCcPersons: item.completionCcPersons ?? order?.completionCcPersons,
+        rectifier: showOrder ? item.rectifier || item.rectifyPerson || order?.rectifier : '',
+        reviewer: showOrder ? item.reviewer || item.reviewPerson || order?.reviewer : '',
+        rectifyDeadline: showOrder ? item.rectifyDeadline || order?.deadline : '',
+        issueCcPersons: showOrder ? item.issueCcPersons ?? item.ccPersons ?? order?.issueCcPersons : '',
+        completionCcPersons: showOrder ? item.completionCcPersons ?? order?.completionCcPersons : '',
       }
     }),
   }
@@ -132,12 +138,14 @@ export function exportRectificationDetail(row) {
     .find(task => task.taskNo === row.taskNo)?.hazardItems
     ?.find(item => item.rectifyId === row.id || item.rectifyNo === row.rectifyNo)?.photos
   const latestRectificationIndex = history.findLastIndex(log => log.stage === 'rectify' && log.type !== 'assignment')
-  const latestRectificationPhotos = photos?.rounds.find(round => round.historyIndex === latestRectificationIndex)?.photos
+  const latestRectificationPhotos = history[latestRectificationIndex]?.photoFiles
+    || photos?.rounds.find(round => round.historyIndex === latestRectificationIndex)?.photos
   const review = detail.reviews?.at(-1) || detail.prevReview
   const approval = live?.approvalResult || (!history.length && row.approvalRejected)
     ? { manager: live?.manager || row.manager, status: live?.approvalResult || '不通过', date: live?.approvalDate || row.approvalDate, comment: live?.approvalComment || row.approvalReason }
     : detail.managerApproval || {}
   const project = row.project_id || row.project
+  const overdue = isInspectionRectificationOverdue(current)
   return {
     ...detail,
     rf: detail.rf || getConfiguredPersonLabel(project, row.inspectionCategory, 'rectifierId'),
@@ -164,6 +172,6 @@ export function exportRectificationDetail(row) {
     confirmComment: detail.departmentConfirmation?.comment,
     issueCc: current.issueCcPersons ?? row.issueCcPersons,
     completionCc: current.completionCcPersons ?? row.completionCcPersons,
-    overdue: current.status !== '已关闭' && current.deadline && String(current.deadline) < '2026-08-27' ? '是' : '否',
+    overdue: overdue === null ? '--' : overdue ? '是' : '否',
   }
 }

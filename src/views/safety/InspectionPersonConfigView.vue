@@ -7,7 +7,7 @@ import {
   getInspectionPersonConfig,
   getInspectorById,
   inspectionPersonIds,
-  inspectorCandidates,
+  listInspectionPersonCandidates,
   saveInspectionPersonConfig,
 } from '../../composables/useInspectionPersonConfig'
 
@@ -80,7 +80,7 @@ function save(section) {
                   filterable
                   placeholder="请选择人员"
                 >
-                  <el-option v-for="person in inspectorCandidates" :key="person.id" :label="personLabel(person)" :value="person.id" />
+                  <el-option v-for="person in listInspectionPersonCandidates()" :key="person.id" :label="personLabel(person)" :value="person.id" />
                 </el-select>
                 <ul v-else-if="peopleLabels(section.state.form[field.key]).length">
                   <li v-for="label in peopleLabels(section.state.form[field.key])" :key="label">{{ label }}</li>

@@ -10,6 +10,12 @@ import { getDispatchHazardTypeLabel } from '../../config/dispatchHazardTypes.js'
 import { SUPERVISION_HAZARD_RECTIFY_STATUSES } from '../../utils/cocAdminDeviceStorage.js'
 import DispatchDraggablePanel from './safety/dispatch/DispatchDraggablePanel.vue'
 import DispatchRecordDetailBody from './safety/dispatch/DispatchRecordDetailBody.vue'
+import InspectionHazardLedgerFilters from '../../components/hazard/InspectionHazardLedgerFilters.vue'
+import InspectionHazardLedgerTable from '../../components/hazard/InspectionHazardLedgerTable.vue'
+import SafetyHazardDetailView from '../../views/safety/SafetyHazardDetailView.vue'
+import { useInspectionHazardLedger } from '../../composables/useInspectionHazardLedger'
+import { useClientPagination } from '../../composables/useClientPagination'
+import DispatchHazardDetailContent from '../../components/hazard/DispatchHazardDetailContent.vue'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -58,6 +64,20 @@ const rows = computed(() => {
   return getCocHazardsByChannel(props.projectId, props.channel)
 })
 
+const inspectionRows = computed(() => props.channel === 'inspection' ? rows.value.map(row => row.raw) : [])
+const inspectionScope = computed(() => [props.modelValue, props.channel, props.projectId])
+// 大屏明细不展示整改单编号/巡检任务单编号，关键词只搜列表中可见的内容。
+const inspectionLedger = useInspectionHazardLedger(inspectionRows, inspectionScope, {
+  keywordFields: ['desc', 'hazardCategory', 'hazardLevel', 'project'],
+})
+const { filteredData: filteredInspectionRows } = inspectionLedger
+const {
+  page: inspectionPage,
+  pageSize: inspectionPageSize,
+  total: inspectionTotal,
+  rows: pagedInspectionRows,
+} = useClientPagination(filteredInspectionRows)
+
 const filtered = computed(() => {
   let list = rows.value
   if (typeFilter.value) {
@@ -66,7 +86,6 @@ const filtered = computed(() => {
   }
   if (statusFilter.value) {
     list = list.filter((row) => {
-      if (props.channel === 'inspection') return row.status === statusFilter.value
       const raw = row.raw?.rectifyStatus || row.status
       return raw === statusFilter.value
     })
@@ -134,12 +153,28 @@ function rawStatus(row) {
   <DispatchDraggablePanel
     v-if="visible"
     :title="title"
-    :width="920"
+    :width="channel === 'inspection' ? 1440 : 920"
     :z-index="120020"
     placement="right"
     right-backdrop
     @close="close"
   >
+    <template v-if="channel === 'inspection'">
+      <InspectionHazardLedgerFilters :ledger="inspectionLedger" active-only in-screen />
+      <div class="src-more-count inspection-count">共 {{ filteredInspectionRows.length }} 条</div>
+      <InspectionHazardLedgerTable :rows="pagedInspectionRows" in-screen @view="openDetail" />
+      <el-pagination
+        v-model:current-page="inspectionPage"
+        v-model:page-size="inspectionPageSize"
+        :total="inspectionTotal"
+        :page-sizes="[10, 20, 50]"
+        layout="sizes, prev, pager, next, jumper"
+        class="inspection-pagination"
+        small
+      />
+    </template>
+
+    <template v-else>
     <div class="src-more-toolbar">
       <span class="src-more-count">共 {{ filtered.length }} 条</span>
       <div class="src-more-filters">
@@ -174,38 +209,8 @@ function rawStatus(row) {
     </div>
 
     <div class="src-table-wrap">
-      <!-- 巡检：对齐隐患清单/巡检整改四态 -->
-      <table v-if="channel === 'inspection'" class="src-table">
-        <thead>
-          <tr>
-            <th>类别</th>
-            <th>日期</th>
-            <th>描述</th>
-            <th>隐患等级</th>
-            <th>整改状态</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="row in filtered"
-            :key="row.id"
-            class="clickable"
-            @click="openDetail(row)"
-          >
-            <td>{{ typeLabel(row) }}</td>
-            <td>{{ row.date || '--' }}</td>
-            <td class="desc" :title="row.desc">{{ row.desc || '--' }}</td>
-            <td>{{ row.level || '--' }}</td>
-            <td>{{ row.status || '--' }}</td>
-          </tr>
-          <tr v-if="!filtered.length">
-            <td colspan="5" class="empty">暂无巡检隐患记录</td>
-          </tr>
-        </tbody>
-      </table>
-
       <!-- 监理例会：对齐监理隐患清单 -->
-      <table v-else-if="channel === 'supervision'" class="src-table">
+      <table v-if="channel === 'supervision'" class="src-table">
         <thead>
           <tr>
             <th>隐患类型</th>
@@ -277,21 +282,59 @@ function rawStatus(row) {
       </table>
     </div>
 
+    </template>
+
     <DispatchDraggablePanel
       v-if="detailView"
       :title="`${title} · 详情`"
-      :width="560"
+      :width="channel === 'supervision' ? 560 : 940"
       :z-index="120030"
       placement="right"
       right-backdrop
       @close="closeDetail"
     >
-      <DispatchRecordDetailBody :kind="detailView.kind" :record="detailView.data" />
+      <DispatchHazardDetailContent v-if="channel === 'dispatch'" :record="detailView.data.raw" in-screen dark />
+      <SafetyHazardDetailView v-else-if="channel === 'inspection'" :record-id="detailView.data.id"
+        :legacy-record="detailView.data.legacyCocInspection ? detailView.data : undefined" embedded in-screen />
+      <DispatchRecordDetailBody v-else :kind="detailView.kind" :record="detailView.data" />
     </DispatchDraggablePanel>
   </DispatchDraggablePanel>
 </template>
 
 <style scoped>
+.inspection-count { margin-bottom:8px; }
+
+/* 大屏暗色面板里的分页控件，沿用面板文字色，避免默认深色文字看不清 */
+.inspection-pagination {
+  justify-content: flex-end;
+  margin-top: 10px;
+  --el-pagination-bg-color: transparent;
+  --el-pagination-button-bg-color: rgba(255, 255, 255, 0.06);
+  --el-pagination-text-color: var(--coc-text-secondary, #cfd3dc);
+  --el-pagination-button-color: var(--coc-text-secondary, #cfd3dc);
+  --el-pagination-hover-color: #ffffff;
+  --el-pagination-button-disabled-bg-color: transparent;
+  --el-pagination-button-disabled-color: rgba(255, 255, 255, 0.25);
+}
+.inspection-pagination :deep(.el-pager li) { color: var(--coc-text-secondary, #cfd3dc); background: transparent; }
+.inspection-pagination :deep(.el-pager li.is-active) { color: #fff; background: rgba(20, 152, 246, 0.38); border-radius: 4px; }
+.inspection-pagination :deep(.btn-prev),
+.inspection-pagination :deep(.btn-next) { color: var(--coc-text-secondary, #cfd3dc); background: transparent; }
+.inspection-pagination :deep(.el-select__wrapper),
+.inspection-pagination :deep(.el-input__wrapper) {
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: none;
+  border-radius: 4px;
+  min-height: 24px;
+  padding: 0 8px;
+}
+.inspection-pagination :deep(.el-select__placeholder),
+.inspection-pagination :deep(.el-select__selected-item),
+.inspection-pagination :deep(.el-select__suffix),
+.inspection-pagination :deep(.el-input__inner),
+.inspection-pagination :deep(.el-pagination__jump) { color: var(--coc-text-secondary, #cfd3dc); }
+.inspection-pagination :deep(.el-input__inner) { color: #fff; }
+
 .src-more-toolbar {
   display: flex;
   align-items: center;

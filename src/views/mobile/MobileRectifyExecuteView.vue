@@ -1,13 +1,15 @@
 <script setup>
 import { canExecuteInspectionStep } from '../../utils/inspectionWorkflowIdentity'
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onScopeDispose, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { getMobileRectification, submitRectification } from '../../composables/useMobileRectification'
+import { getLatestInspectionRectification, getVisibleMobileRectification, submitInspectionRectification } from '../../composables/useMobileRectification'
+import { useInspectionRectificationPhotoPreviews } from '../../composables/useInspectionRectificationPhotoPreviews'
+import { validateAttachFile } from '../../constants/attachmentUpload.js'
 import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
 import MobileRectifyBasicInfo from '../../components/MobileRectifyBasicInfo.vue'
 
-import { workflowFlowRecords, currentWorkflowStep } from '../../utils/inspectionRectificationWorkflow'
+import { workflowFlowRecords, currentWorkflowStep, isInspectionRectificationReturned } from '../../utils/inspectionRectificationWorkflow'
 
 function today() {
  const date = new Date()
@@ -17,28 +19,42 @@ function today() {
 const route = useRoute()
 const router = useRouter()
 const { rectifyBase } = useMobileRouteBase()
-const rid = route.params.id
+const rid = computed(() => route.params.id)
 
-const record = computed(() => getMobileRectification(rid))
-const missing = computed(() => !record.value)const isRectification = computed(() => currentWorkflowStep(record.value)?.key === 'rectify')
+const record = computed(() => getVisibleMobileRectification(rid.value))
+const missing = computed(() => !record.value)
+const isRectification = computed(() => currentWorkflowStep(record.value)?.key === 'rectify')
 const canHandle = computed(() => isRectification.value && canExecuteInspectionStep(record.value, 'rectify'))
 
 const rectDate = ref(today())
 const rectPhotos = ref([])
 const rectNote = ref('')
 const flowCollapsed = ref(false)
+const submitting = ref(false)
+const editingReturned = computed(() => canHandle.value && isInspectionRectificationReturned(record.value))
+const photoPreviews = useInspectionRectificationPhotoPreviews()
+const uploadedUrls = new Set()
 
-onMounted(() => {
-  document.querySelector('.page-viewport')?.scrollTo({ top: 0 })
-  const row = record.value
-  if (!row) return
-  // 重新整改时回显上一轮提交内容
-  if (row.isRejected && (row.rectificationDate || row.rectificationNote || row.rectificationPhotos?.length)) {
-    rectDate.value = row.rectificationDate || today()
-    rectPhotos.value = [...(row.rectificationPhotos || [])]
-    rectNote.value = row.rectificationNote || ''
-  }
-})
+function clearUploadedPhotos() {
+  uploadedUrls.forEach(url => URL.revokeObjectURL(url))
+  uploadedUrls.clear()
+}
+
+onScopeDispose(clearUploadedPhotos)
+
+onMounted(() => document.querySelector('.page-viewport')?.scrollTo({ top: 0 }))
+
+watch([rid, editingReturned], async () => {
+  photoPreviews.clear()
+  clearUploadedPhotos()
+  const previous = editingReturned.value ? getLatestInspectionRectification(record.value) : null
+  rectDate.value = previous?.date || today()
+  rectNote.value = previous?.note || ''
+  rectPhotos.value = []
+  if (!previous?.photos.length) return
+  const restored = await photoPreviews.load(previous.photos)
+  if (restored) rectPhotos.value = restored
+}, { immediate: true })
 
 const flowRecords = computed(() => workflowFlowRecords(record.value))
 
@@ -48,16 +64,23 @@ function triggerPhoto() {
   input.accept = 'image/*'
   input.capture = 'environment'
   input.onchange = (e) => {
-    const f = e.target.files[0]
-    if (f) rectPhotos.value.push(URL.createObjectURL(f))
+    const file = e.target.files[0]
+    if (!file) return
+    const error = validateAttachFile(file, 'image', { currentCount: rectPhotos.value.length })
+    if (error) return ElMessage.warning(error)
+    const url = URL.createObjectURL(file)
+    uploadedUrls.add(url)
+    rectPhotos.value.push({ name: file.name, url })
   }
   input.click()
 }
 function removePhoto(i) {
-  rectPhotos.value.splice(i, 1)
+  const [removed] = rectPhotos.value.splice(i, 1)
+  if (uploadedUrls.delete(removed?.url)) URL.revokeObjectURL(removed.url)
 }
 
-function submitRectify() {
+async function submitRectify() {
+  if (!canHandle.value || submitting.value || photoPreviews.loading.value) return
   if (missing.value) {
     ElMessage.error('未找到整改单，无法提交')
     return
@@ -74,13 +97,18 @@ function submitRectify() {
     ElMessage.warning('请填写整改说明')
     return
   }
-  const ok = submitRectification(rid, {    rectificationDate: rectDate.value,
-    rectificationNote: rectNote.value.trim(),
-    rectificationPhotos: [...rectPhotos.value],
-  })
-  if (!ok) {
-    ElMessage.error('提交失败，当前节点可能已变更，请返回列表刷新后重试')
-    return
+  submitting.value = true
+  try {
+    const ok = await submitInspectionRectification(rid.value, {
+      rectificationDate: rectDate.value,
+      rectificationNote: rectNote.value.trim(),
+      rectificationPhotos: [...rectPhotos.value],
+    })
+    if (!ok) return ElMessage.error('提交失败，当前节点可能已变更，请返回列表刷新后重试')
+  } catch {
+    return ElMessage.error('整改照片保存失败，请检查浏览器存储空间后重试')
+  } finally {
+    submitting.value = false
   }
   ElMessage.success(`整改结果已提交，已流转至${record.value.currentNode}`)
   const tab = route.query.tab
@@ -102,7 +130,7 @@ function displayPhotos(list) {
   <div class="mp">
     <header class="mh">
       <button class="mb" @click="goBack">‹</button>
-      <h1 class="mt">整改执行</h1>
+      <h1 class="mt">{{ editingReturned ? '编辑整改' : '整改执行' }}</h1>
     </header>
 
     <div v-if="missing" class="empty-tip">未找到该整改单，请返回列表重试。</div>
@@ -140,21 +168,25 @@ function displayPhotos(list) {
         <div class="ir"><span class="il">隐患照片</span><span>{{ displayPhotos(record.hazardPhotos) }}</span></div>
       </div>
 
-      <div class="sc">
-        <div class="sct">📝 本次整改</div>
+      <div v-if="canHandle" class="sc">
+        <div class="sct">{{ editingReturned ? '编辑上次整改内容' : '本次整改' }}</div>
         <div class="fr"><span class="fl-label">整改日期 <i class="req">*</i></span><input type="date" v-model="rectDate" class="fi-input" /></div>
         <div class="fr">
           <span class="fl-label">整改照片 <i class="req">*</i></span>
           <div class="pg">
-            <div v-for="(u, i) in rectPhotos" :key="i" class="pb"><span>📷 已拍</span><button class="pd" @click="removePhoto(i)">✕</button></div>
-            <button class="pa" @click="triggerPhoto">+ 拍照</button>
+            <div v-for="(photo, i) in rectPhotos" :key="i" class="pb">
+              <el-image v-if="photo.url" :src="photo.url" :alt="photo.name" fit="cover" :preview-src-list="[photo.url]" preview-teleported />
+              <span v-else>{{ photo.name }}</span>
+              <button class="pd" type="button" :aria-label="'移除整改照片 ' + (i + 1)" @click="removePhoto(i)">✕</button>
+            </div>
+            <button class="pa" type="button" :disabled="photoPreviews.loading.value" @click="triggerPhoto">+ 拍照</button>
           </div>
         </div>
         <div class="fr"><span class="fl-label">整改说明 <i class="req">*</i></span><textarea v-model="rectNote" class="fta" placeholder="请描述整改情况..." rows="3"></textarea></div>
       </div>
 
-      <div class="bb">
-        <button class="sb" :disabled="!canHandle" @click="submitRectify">✓ 提交整改结果</button>
+      <div v-if="canHandle" class="bb">
+        <button class="sb" :disabled="submitting || photoPreviews.loading.value" @click="submitRectify">✓ 提交整改结果</button>
       </div>
     </template>
   </div>
@@ -179,6 +211,7 @@ function displayPhotos(list) {
 .fi-input { flex:1; padding:8px 10px; border:1px solid #ddd; border-radius:8px; font-size:13px; background:#fff; }
 .fta { flex:1; padding:8px 10px; border:1px solid #ddd; border-radius:8px; font-size:13px; font-family:inherit; resize:none; background:#fff; }
 .pg { flex:1; display:flex; gap:6px; flex-wrap:wrap; }
+.pb :deep(.el-image) { width:100%; height:100%; border-radius:8px; }
 .pb { width:68px; height:68px; border:1px solid #ddd; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:11px; position:relative; background:#f0faf0; }
 .pd { position:absolute; top:2px; right:2px; width:18px; height:18px; border-radius:50%; border:none; background:rgba(0,0,0,0.4); color:#fff; font-size:10px; cursor:pointer; }
 .pa { width:68px; height:68px; border:1.5px dashed #ddd; border-radius:8px; background:#fafafa; font-size:12px; color:#999; cursor:pointer; }

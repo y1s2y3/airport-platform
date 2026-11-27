@@ -168,6 +168,7 @@ const rawMenuTree = [
       {
         key: 'safety-inspection', label: '巡检管理', icon: 'View', levels: 'both',
         children: [
+          { key: 'safety-plan-copy-config', label: '人员配置', icon: 'Setting', path: '/safety-inspection/plan/copy-config', name: 'InspectionCopyConfig', component: 'InspectionCopyConfigView', levels: 'hq' },
           { key: 'safety-plan', label: '任务下发', icon: 'Position', path: '/safety-inspection/plan', name: 'InspectionPlan', component: 'InspectionPlanView', levels: 'hq' },
           { key: 'safety-check-items', label: '巡检检查项', icon: 'List', path: '/safety-inspection/check-items', name: 'SafetyCheckItems', component: 'SafetyCheckItemsView', levels: 'hq' },
           { key: 'inspection-hazard-category-config', label: '隐患类别配置', icon: 'Setting', path: '/safety-inspection/hazard-categories', name: 'InspectionHazardCategoryConfig', component: 'InspectionDictionaryView', levels: 'hq' },
@@ -707,7 +708,6 @@ export const hiddenRoutes = [
   { key: 'labor-mobile-warning-detail', path: '/labor/mobile/personal-center/warning/:id', name: 'LaborMobileWarningDetail', component: 'LaborMobileWarningDetailView', label: '预警详情', sidebarKey: 'labor-mobile-personal-center' },
 
   // 巡检管理子页
-  { key: 'safety-plan-copy-config', path: '/safety-inspection/plan/copy-config', name: 'InspectionCopyConfig', component: 'InspectionCopyConfigView', label: '抄送人配置', sidebarKey: 'safety-plan', levels: 'hq' },
   { key: 'safety-plan-create', path: '/safety-inspection/plan/create', name: 'InspectionPlanCreate', component: 'InspectionPlanFormView', label: '下发巡检任务', sidebarKey: 'safety-plan' },
   { key: 'safety-plan-edit', path: '/safety-inspection/plan/:id/edit', name: 'InspectionPlanEdit', component: 'InspectionPlanFormView', label: '编辑巡检任务', sidebarKey: 'safety-plan' },
   { key: 'safety-plan-detail', path: '/safety-inspection/plan/:id', name: 'InspectionPlanDetail', component: 'InspectionPlanDetailView', label: '巡检任务详情', sidebarKey: 'safety-plan' },

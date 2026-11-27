@@ -3,6 +3,7 @@ import { computed, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { INSPECTION_CATEGORIES, inspectionDictionaries, saveInspectionDictionary } from '../../config/inspectionManagement'
 import { useCurrentProject } from '../../composables/useCurrentProject'
+import { useClientPagination } from '../../composables/useClientPagination'
 
 const { isHqSelected } = useCurrentProject()
 
@@ -16,6 +17,7 @@ const rows = computed(() => inspectionDictionaries.hazards.filter(item =>
   && (!keyword.value || item.name.includes(keyword.value.trim()))
   && (status.value === '' || item.enabled === (status.value === 'enabled')),
 ).sort((a, b) => a.sort - b.sort))
+const { page, pageSize, total, rows: pagedRows } = useClientPagination(rows)
 function edit(row) {
   if (!isHqSelected.value) return
   Object.assign(form, row || { id: '', category: category.value, name: '', sort: rows.value.length + 1, enabled: true, remark: '' })
@@ -50,8 +52,8 @@ function toggle(row) {
         <el-button @click="keyword = ''; status = ''">重置</el-button>
         <el-button type="primary" @click="edit()">新增隐患类别</el-button>
       </div>
-      <el-table :data="rows" border stripe>
-        <el-table-column type="index" label="序号" width="65" />
+      <el-table :data="pagedRows" row-key="id" border stripe>
+        <el-table-column type="index" :index="index => (page - 1) * pageSize + index + 1" label="序号" width="65" />
         <el-table-column prop="category" label="巡检分类" width="120" />
         <el-table-column prop="name" label="隐患类别名称" min-width="180" />
         <el-table-column prop="sort" label="排序" width="90" />
@@ -62,6 +64,14 @@ function toggle(row) {
           <el-button link :type="row.enabled ? 'warning' : 'success'" @click="toggle(row)">{{ row.enabled ? '停用' : '启用' }}</el-button>
         </template></el-table-column>
       </el-table>
+      <el-pagination
+        v-model:current-page="page"
+        v-model:page-size="pageSize"
+        :total="total"
+        :page-sizes="[10, 20, 50]"
+        layout="total, sizes, prev, pager, next"
+        class="ledger-pagination"
+      />
     </template>
     <el-dialog v-model="visible" :title="`${form.id ? '编辑' : '新增'}隐患类别`" width="520px" destroy-on-close>
       <el-form label-width="110px" @submit.prevent="save">
@@ -79,5 +89,6 @@ function toggle(row) {
 <style scoped>
 .dictionary-page h3 { margin:0 0 20px; }
 .toolbar { display:flex; flex-wrap:wrap; gap:12px; margin:16px 0; }
+.ledger-pagination { justify-content:flex-end; margin-top:16px; }
 .tip { color:#909399; font-size:13px; line-height:1.7; margin-top:16px; }
 </style>

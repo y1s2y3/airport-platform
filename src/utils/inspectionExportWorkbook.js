@@ -1,5 +1,6 @@
 import JSZip from 'jszip'
 import { utils, write } from 'xlsx'
+import { readRectificationPhoto } from './inspectionRectificationPhotos.js'
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 const PHOTO_EXTENSIONS = {
@@ -13,8 +14,9 @@ function safeFileName(name) {
 
 async function availablePhoto(photo) {
   const source = typeof photo === 'string' ? photo : photo?.url
-  if (!/^(blob:|data:image\/)/.test(source || '')) return null
   try {
+    if (photo?.storageKey) return await readRectificationPhoto(photo)
+    if (!/^(blob:|data:image\/)/.test(source || '')) return null
     const response = await fetch(source)
     if (!response.ok) return null
     const contents = await response.blob()
@@ -68,7 +70,10 @@ function buildSheet(columns, values, rowGroups, commonColumnCount) {
   const widths = []
   const merges = []
   const data = values.map(() => [])
-  columns.forEach(([, label, width = 18], column) => {
+  const indexes = columns.map((_, index) => index)
+  const columnOrder = [...indexes.filter(index => !columns[index][3]), ...indexes.filter(index => columns[index][3])]
+  columnOrder.forEach(column => {
+    const [, label, width = 18] = columns[column]
     const parts = values.map(row => splitCell(row[column]))
     const count = parts.reduce((max, row) => Math.max(max, row.length), 1)
     for (let index = 0; index < count; index++) {

@@ -20,8 +20,8 @@ function getProjectIndex(projectId) {
   return index >= 0 ? index : 0
 }
 
-export function getDemoInspectionPeople(projectId) {
-  const index = getProjectIndex(projectId)
+export function getDemoInspectionPeople(projectId, indexHint) {
+  const index = getProjectIndex(projectId) || (Number.isInteger(indexHint) ? indexHint : 0)
   const inspector = inspectionPeoplePool[index % inspectionPeoplePool.length]
   const rectifier = inspectionPeoplePool[(index + 2) % inspectionPeoplePool.length]
   const reviewer = inspectionPeoplePool[(index + 4) % inspectionPeoplePool.length]

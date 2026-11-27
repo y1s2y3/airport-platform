@@ -1,5 +1,4 @@
 <script setup>
-import { normalizeFlowNodeName } from '../config/hazardFlowNodes.js'
 import { computed } from 'vue'
 import { getConfiguredPersonLabel, getInspectionCopyDetailFields } from '../composables/useInspectionPersonConfig'
 import { currentWorkflowLabel } from '../utils/inspectionRectificationWorkflow'
@@ -21,7 +20,7 @@ const fields = computed(() => {
     { label: '复查人', value: row.reviewer },
     ...(props.showCopyRecipients ? getInspectionCopyDetailFields(row) : []),
     { label: '状态', value: row.status },
-    { label: '当前流程节点', value: normalizeFlowNodeName(currentWorkflowLabel(row)) },
+    { label: '当前流程节点', value: currentWorkflowLabel(row) },
     { label: '截止日期', value: row.deadline },
   ]
 })

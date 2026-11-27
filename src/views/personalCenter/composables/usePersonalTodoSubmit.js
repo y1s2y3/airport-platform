@@ -26,9 +26,10 @@ import {
 } from '../../../coc/utils/dispatchMeetingStorage.js'
 import {
   createMobileRectificationsFromTask,
+  saveInspectionResult,
   submitInspectionWorkflowStep,
   submitManagerApproval,
-  submitRectification,
+  submitInspectionRectification,
   submitRectificationReview,
 } from '../../../composables/useMobileRectification.js'
 import {
@@ -41,7 +42,7 @@ import {
 } from '../../../utils/dispatchHazardStorage.js'
 import { getMajorHazardLedgerOptions, syncInspectionTaskToMajorHazard } from '../../../utils/inspectionMajorHazardLink.js'
 import { COC_PROJECT_OPTIONS } from '../../../config/projectOptions.js'
-import { getMobileInspectionTask, updateMobileInspectionTask } from '../../../mock/mobileInspectionTasks.js'
+import { getMobileInspectionTask } from '../../../mock/mobileInspectionTasks.js'
 import { validateInspectionHazard, normalizeInspectionCategories, resolveInspectionProjectId } from '../../../config/inspectionManagement.js'
 
 /**
@@ -428,7 +429,7 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
     afterSubmit(approved ? '审批通过' : '审批驳回', approved ? '已审批通过' : '已驳回')
   }
 
-  function submitInspectionHandle(inspectionForm, inspectionActionMeta) {
+  async function submitInspectionHandle(inspectionForm, inspectionActionMeta) {
     const row = todo.value
     if (!row) return
     const bizType = row.inspectionBizType
@@ -450,7 +451,8 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
       if (inspectionForm.inspectionResult === 'normal' && !inspectionForm.attachments.length) {
         return ElMessage.warning('全部正常时请至少上传一张巡检照片')
       }
-      if (inspectionForm.inspectionResult === 'hazard') {        const hazards = inspectionForm.hazardItems || []
+      if (inspectionForm.inspectionResult === 'hazard') {
+        const hazards = inspectionForm.hazardItems || []
         if (!hazards.length) return ElMessage.warning('请至少新增一条隐患')
         for (const [index, hazard] of hazards.entries()) {
           const category = normalizeInspectionCategories(row.detail?.inspectionCategories || row.detail?.inspectionCategory).join('、')
@@ -488,17 +490,27 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
       if (bizType === '整改' && inspectionForm.attachments.length === 0) {
         return ElMessage.warning('请至少上传一张整改照片')
       }
-      const acceptancePass = ['施工验收', '总监验收'].includes(bizType) && inspectionForm.decision === 'pass'
-      if (!inspectionForm.remark.trim() && !acceptancePass) {
+      const optionalOnPass = ['施工验收', '总监验收', '作废审批'].includes(bizType) && inspectionForm.decision === 'pass'
+      if (!inspectionForm.remark.trim() && !optionalOnPass) {
         return ElMessage.warning(`请填写${inspectionActionMeta.remarkLabel}`)
       }
     }
 
     const approved = inspectionForm.decision === 'pass'
     if (bizType !== '巡检' && row.liveInspectionWorkflow) {
-      const ok = submitInspectionWorkflowStep(row.rectifyId, row.expectedWorkflowStage, bizType === '整改' || approved, {        date: inspectionForm.processDate, comment: inspectionForm.remark.trim(),
+      const payload = {
+        date: inspectionForm.processDate, comment: inspectionForm.remark.trim(),
+        voidSequence: row.voidSequence,
         rectificationPhotos: [...inspectionForm.attachments],
-      })
+      }
+      let ok
+      try {
+        ok = bizType === '整改'
+          ? await submitInspectionRectification(row.rectifyId, payload)
+          : submitInspectionWorkflowStep(row.rectifyId, row.expectedWorkflowStage, approved, payload)
+      } catch {
+        return ElMessage.error('整改照片保存失败，请检查浏览器存储空间后重试')
+      }
       if (!ok) return ElMessage.warning('节点已变化或资料不完整，请刷新待办后重新办理')
       ElMessage.success(bizType === '作废审批'
         ? (approved ? '整改单已作废' : '作废申请未通过，原流程继续办理')
@@ -549,7 +561,8 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
       processRemark: remark,
       inspector: row.detail?.executor || inspectionForm.inspector || row.detail?.inspector,
       companions: [...inspectionForm.companions],
-      inspectionResult: inspectionForm.inspectionResult || row.detail?.inspectionResult,      inspectionDate:
+      inspectionResult: inspectionForm.inspectionResult || row.detail?.inspectionResult,
+      inspectionDate:
         bizType === '巡检' ? new Date().toISOString().slice(0, 10) : row.detail?.inspectionDate,
       normalPhotos:
         bizType === '巡检'
@@ -606,14 +619,18 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
     }
 
     if (bizType === '巡检' && row.inspectionTaskId) {
-      const task = updateMobileInspectionTask(row.inspectionTaskId, {
-        ...row.detail, result: inspectionForm.inspectionResult,
-        inspDate: row.detail.inspectionDate, submittedAt: now,
-        hazardCount: row.detail.hazardItems?.length || 0,
-        rectifyCount: row.detail.hazardItems?.length || 0,
-        hasRectify: inspectionForm.inspectionResult === 'hazard', overdue: false,
-      })
-      if (inspectionForm.inspectionResult === 'hazard') createMobileRectificationsFromTask(task, row.detail.hazardItems)
+      const hazards = inspectionForm.inspectionResult === 'hazard' ? row.detail.hazardItems || [] : []
+      try {
+        const task = saveInspectionResult({
+          ...row.detail, status: '已完成', result: inspectionForm.inspectionResult,
+          inspDate: row.detail.inspectionDate, submittedAt: now,
+          hazardCount: hazards.length, rectifyCount: hazards.length,
+          hasRectify: hazards.length > 0, overdue: false,
+        }, hazards, { existingId: row.inspectionTaskId })
+        if (!task) return ElMessage.warning('任务已完成或不存在，请返回列表刷新后重试')
+      } catch {
+        return ElMessage.error('巡检结果保存失败，请确认浏览器存储空间后重试')
+      }
       ElMessage.success('巡检已提交，任务状态和个人待办已同步')
       goBack()
       return
@@ -644,12 +661,16 @@ export function usePersonalTodoSubmit({ todo, todoId, goBack }) {
     }
 
     if (bizType === '整改' && row.rectifyId) {
-      const ok = submitRectification(row.rectifyId, {
-        rectificationDate: inspectionForm.processDate,
-        rectificationNote: remark,
-        rectificationPhotos: [...inspectionForm.attachments],
-      })
-      if (!ok) return ElMessage.error('未找到关联整改单，无法提交整改')
+      try {
+        const ok = await submitInspectionRectification(row.rectifyId, {
+          rectificationDate: inspectionForm.processDate,
+          rectificationNote: remark,
+          rectificationPhotos: [...inspectionForm.attachments],
+        })
+        if (!ok) return ElMessage.error('未找到可办理的关联整改单，无法提交整改')
+      } catch {
+        return ElMessage.error('整改照片保存失败，请检查浏览器存储空间后重试')
+      }
     }
     if (bizType === '复查' && row.rectifyId) {
       const ok = submitRectificationReview(row.rectifyId, approved, {

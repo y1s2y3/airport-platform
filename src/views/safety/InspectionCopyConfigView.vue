@@ -1,6 +1,5 @@
 <script setup>
-import { reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { COC_PROJECT_OPTIONS } from '../../config/projectOptions'
 import { useCurrentProject } from '../../composables/useCurrentProject'
@@ -8,21 +7,56 @@ import {
   getConfiguredPersonLabel,
   getInspectionPersonConfig,
   inspectionPersonIds,
-  inspectorCandidates,
+  listInspectionPersonCandidates,
   saveInspectionCopyConfig,
 } from '../../composables/useInspectionPersonConfig'
+import { getInspectionVoidConfig, inspectionVoidApproverOptions, saveInspectionVoidConfig } from '../../composables/useInspectionVoidConfig'
 
-const router = useRouter()
 const { isHqSelected } = useCurrentProject()
 const editingProjectId = ref('')
 const drafts = reactive({})
 const columns = [
-  { category: '安全', key: 'issueCcIds', label: '安全下发整改单抄送人' },
+  { category: '安全', key: 'issueCcIds', label: '安全/其他下发整改单抄送人' },
   { category: '质量', key: 'issueCcIds', label: '质量下发整改单抄送人' },
-  { category: '安全', key: 'completionCcIds', label: '安全整改完成抄送人' },
+  { category: '安全', key: 'completionCcIds', label: '安全/其他整改完成抄送人' },
   { category: '质量', key: 'completionCcIds', label: '质量整改完成抄送人' },
 ]
 const categories = ['安全', '质量']
+const projectKeyword = ref('')
+const recipientKeyword = ref('')
+const currentPage = ref(1)
+const pageSize = ref(10)
+const filteredProjects = computed(() => {
+  const projectQuery = projectKeyword.value.trim().toLowerCase()
+  const recipientQuery = recipientKeyword.value.trim().toLowerCase()
+  return COC_PROJECT_OPTIONS.filter(project => {
+    if (projectQuery && ![project.label, project.fullName].join(' ').toLowerCase().includes(projectQuery)) return false
+    return !recipientQuery || columns.some(column =>
+      getConfiguredPersonLabel(project.id, column.category, column.key).toLowerCase().includes(recipientQuery),
+    )
+  })
+})
+const pagedProjects = computed(() => {
+  const offset = (currentPage.value - 1) * pageSize.value
+  return filteredProjects.value.slice(offset, offset + pageSize.value)
+})
+watch([projectKeyword, recipientKeyword, pageSize], () => { currentPage.value = 1 })
+watch(() => filteredProjects.value.length, total => {
+  currentPage.value = Math.min(currentPage.value, Math.max(1, Math.ceil(total / pageSize.value)))
+})
+
+const voidApprovers = computed(inspectionVoidApproverOptions)
+const voidDraft = reactive(getInspectionVoidConfig())
+
+function saveVoidApprovers() {
+  if (!isHqSelected.value) return
+  try {
+    if (!saveInspectionVoidConfig(voidDraft)) return ElMessage.warning('请分别选择安全/其他、质量的作废审批人')
+    ElMessage.success('作废审批人配置已保存')
+  } catch {
+    ElMessage.error('保存失败，请重试')
+  }
+}
 
 function edit(projectId) {
   if (!isHqSelected.value || editingProjectId.value) return
@@ -42,25 +76,54 @@ function save(projectId) {
   if (!isHqSelected.value || editingProjectId.value !== projectId) return
   for (const category of categories) saveInspectionCopyConfig(projectId, category, drafts[category])
   cancel()
-  ElMessage.success('抄送人配置已保存')
+  ElMessage.success('人员配置已保存')
 }
 
-function goBack() {
-  router.push(isHqSelected.value ? { name: 'InspectionPlan' } : { name: 'Workbench' })
-}
-watch(isHqSelected, selected => { if (!selected) cancel() })
+watch(isHqSelected, selected => {
+  cancel()
+  if (selected) Object.assign(voidDraft, getInspectionVoidConfig())
+})
 </script>
 
 <template>
   <div class="copy-config-page">
     <header class="copy-config-header">
-      <el-button @click="goBack">‹ 返回</el-button>
-      <h3>抄送人配置</h3>
+      <h3>人员配置</h3>
     </header>
-    <el-empty v-if="!isHqSelected" description="仅工程指挥部可维护抄送人配置" />
-    <section v-else class="copy-config-card" aria-label="项目抄送人配置">
-      <p class="copy-config-tip">安全配置也适用于其他类隐患。抄送人可多选或留空，保存后自动带入新整改单。</p>
-      <el-table :data="COC_PROJECT_OPTIONS" row-key="id" border stripe>
+    <el-empty v-if="!isHqSelected" description="仅工程指挥部可维护抄送人和作废审批人" />
+    <template v-else>
+    <section class="copy-config-card" aria-label="作废审批人配置">
+      <h4>作废审批人</h4>
+      <p class="copy-config-tip">两组各选一名工程指挥部人员，配置适用于所有项目。新申请按整改单分类送审。</p>
+      <el-form class="config-filters" inline @submit.prevent="saveVoidApprovers">
+        <el-form-item required label="安全/其他作废审批人">
+          <el-select v-model="voidDraft['安全']" filterable placeholder="请选择审批人">
+            <el-option v-for="person in voidApprovers" :key="person.id" :label="person.label" :value="person.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item required label="质量作废审批人">
+          <el-select v-model="voidDraft['质量']" filterable placeholder="请选择审批人">
+            <el-option v-for="person in voidApprovers" :key="person.id" :label="person.label" :value="person.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item><el-button type="primary" native-type="submit">保存审批人</el-button></el-form-item>
+      </el-form>
+    </section>
+    <section class="copy-config-card" aria-label="项目抄送人">
+      <h4>项目抄送人</h4>
+      <p class="copy-config-tip">按项目配置四组名单。每组可多选或留空，保存后自动带入新整改单。</p>
+      <el-form class="config-filters" inline @submit.prevent>
+        <el-form-item label="项目名称">
+          <el-input v-model="projectKeyword" :disabled="!!editingProjectId" placeholder="搜索项目名称" clearable />
+        </el-form-item>
+        <el-form-item label="抄送人">
+          <el-input v-model="recipientKeyword" :disabled="!!editingProjectId" placeholder="搜索抄送人姓名" clearable />
+        </el-form-item>
+        <el-form-item>
+          <el-button :disabled="!!editingProjectId" @click="projectKeyword = ''; recipientKeyword = ''">重置</el-button>
+        </el-form-item>
+      </el-form>
+      <el-table :data="pagedProjects" row-key="id" border stripe>
         <el-table-column prop="label" label="项目名称" min-width="155">
           <template #default="{ row }"><span :title="row.fullName || row.label">{{ row.label }}</span></template>
         </el-table-column>
@@ -80,7 +143,7 @@ watch(isHqSelected, selected => { if (!selected) cancel() })
               filterable
               clearable
             >
-              <el-option v-for="person in inspectorCandidates" :key="person.id" :label="`${person.name}（${person.role}）`" :value="person.id" />
+              <el-option v-for="person in listInspectionPersonCandidates()" :key="person.id" :label="`${person.name}（${person.role}）`" :value="person.id" />
             </el-select>
             <span v-else class="copy-recipient-text">{{ getConfiguredPersonLabel(row.id, column.category, column.key) || '未配置' }}</span>
           </template>
@@ -95,7 +158,17 @@ watch(isHqSelected, selected => { if (!selected) cancel() })
           </template>
         </el-table-column>
       </el-table>
+      <el-pagination
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :page-sizes="[10, 20, 50]"
+        :total="filteredProjects.length"
+        :disabled="!!editingProjectId"
+        layout="total, sizes, prev, pager, next"
+        class="config-pagination"
+      />
     </section>
+    </template>
   </div>
 </template>
 
@@ -104,7 +177,11 @@ watch(isHqSelected, selected => { if (!selected) cancel() })
 .copy-config-header { display: flex; align-items: center; gap: 12px; }
 .copy-config-header h3 { margin: 0; font-size: 18px; }
 .copy-config-card { min-width: 0; padding: 16px; background: var(--ap-card, #fff); border: 1px solid var(--ap-border, #e4e7ee); border-radius: 8px; }
+.copy-config-card h4 { margin: 0 0 12px; font-size: 16px; }
 .copy-config-tip { margin: 0 0 12px; color: var(--ap-text-muted, #606266); line-height: 1.6; }
 .copy-recipient-text { overflow-wrap: anywhere; }
+.config-filters .el-select { width: 250px; }
+.config-filters .el-input { width: 200px; }
+.config-pagination { justify-content: flex-end; margin-top: 16px; }
 .el-select { width: 100%; }
 </style>

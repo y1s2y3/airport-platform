@@ -1,24 +1,21 @@
 <script setup>
 import InspectionLedgerExport from '../../components/InspectionLedgerExport.vue'
 import { exportRectificationDetail, rectificationDetailColumns } from '../../utils/inspectionDetailExport'
-import { isWithinInspectionDateRange } from '../../utils/inspectionLedgerDates'
-import { HAZARD_FLOW_NODES, normalizeFlowNodeName } from '../../config/hazardFlowNodes.js'
-import { ref, reactive, computed, watch } from 'vue'
+import InspectionHazardLedgerFilters from '../../components/hazard/InspectionHazardLedgerFilters.vue'
+import InspectionHazardLedgerTable from '../../components/hazard/InspectionHazardLedgerTable.vue'
+import { isOverdue, useInspectionHazardLedger } from '../../composables/useInspectionHazardLedger'
+import { useClientPagination } from '../../composables/useClientPagination'
+import { confirmInspectionVoidDelete } from '../../composables/useInspectionVoidDelete'
+
+import { ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Search, View, ArrowLeft } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Setting } from '@element-plus/icons-vue'
-import { useFilterVisibility } from '../../composables/useFilterVisibility'
 import { useLaborProjectScope, selectedProjectId } from '../../composables/useCurrentProject'
 import { HQ_PROJECT_OPTION } from '../../config/projectOptions'
-import {
-  INSPECTION_DEMO_TODAY,
-  inspectionProjectTree,
-} from '../../mock/inspectionDemoData'
+import { inspectionProjectTree } from '../../mock/inspectionDemoData'
 import { listInspectionHazards } from '../../mock/inspectionHazardQuery'
-import { deleteMobileRectificationRecord, getMobileRectification } from '../../composables/useMobileRectification'
+import { getMobileRectification } from '../../composables/useMobileRectification'
 import { canDeleteInspectionRectification } from '../../utils/inspectionWorkflowIdentity'
-import { INSPECTION_CATEGORIES, getHazardCategoryOptions, getHazardLevels, hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
 
 const router = useRouter()
 const route = useRoute()
@@ -56,21 +53,11 @@ const treeDataWithCount = computed(() => {
 // 整改单状态：待整改 → 待验收 → 待复查（项目经理审批中）→ 已关闭
 const rectifyData = computed(() => listInspectionHazards({ includeVoided: true }))
 
-const createFilters = () => ({ keyword: '', category: '', hazardCategory: '', hazardLevel: '', status: '', overdue: '', inspectors: [], rectifiers: [], reviewers: [], issueRange: null })
-const nodeFilter = ref('')
-const filterForm = reactive(createFilters())
 const scopedRows = computed(() => !isHqSelected.value && scopeProjectId.value
   ? rectifyData.value.filter(row => row.project_id === scopeProjectId.value)
   : rectifyData.value)
-const personOptionsOf = (field) => [...new Set(scopedRows.value.map(row => row[field]).filter(Boolean))].sort((a, b) => personShort(a).localeCompare(personShort(b), 'zh-CN'))
-const inspectors = computed(() => personOptionsOf('inspector'))
-const rectifiers = computed(() => personOptionsOf('rectifier'))
-const reviewers = computed(() => personOptionsOf('reviewer'))
-watch(scopeProjectId, () => Object.assign(filterForm, createFilters()))
-
-const hazardCategoryOptions = computed(() => getHazardCategoryOptions(filterForm.category, true))
-const hazardLevelOptions = computed(() => getHazardLevels(filterForm.category))
-watch(() => filterForm.category, () => { filterForm.hazardCategory = ''; filterForm.hazardLevel = '' })
+const ledger = useInspectionHazardLedger(scopedRows, scopeProjectId)
+const { filteredData } = ledger
 
 const hqProjectKeyword = ref('')
 const hqProjectStats = computed(() => inspectionProjectTree[0].children.map(project => {
@@ -89,6 +76,7 @@ const hqProjectStats = computed(() => inspectionProjectTree[0].children.map(proj
 const filteredHQProjects = computed(() => hqProjectStats.value.filter(item =>
   !hqProjectKeyword.value || item.project_name.includes(hqProjectKeyword.value),
 ).sort((a, b) => b.totalCount - a.totalCount || b.overdueCount - a.overdueCount))
+const { page: hqPage, pageSize: hqPageSize, total: hqProjectTotal, rows: pagedHQProjects } = useClientPagination(filteredHQProjects)
 const hqTotalStats = computed(() => ({
   totalCount: filteredHQProjects.value.reduce((sum, item) => sum + item.totalCount, 0),
   pendingCount: filteredHQProjects.value.reduce((sum, item) => sum + item.pendingCount, 0),
@@ -100,85 +88,16 @@ const hqTotalStats = computed(() => ({
 
 const treeData = computed(() => inspectionProjectTree)
 
-const filteredData = computed(() => {
-  return scopedRows.value.filter(d => {
-    if (filterForm.inspectors.length && !filterForm.inspectors.includes(d.inspector)) return false
-    if (filterForm.rectifiers.length && !filterForm.rectifiers.includes(d.rectifier)) return false
-    if (filterForm.reviewers.length && !filterForm.reviewers.includes(d.reviewer)) return false
-    if (!isWithinInspectionDateRange(d.issueDate, filterForm.issueRange)) return false
-    if (filterForm.category && !hasInspectionCategory(d.inspectionCategories || d.inspectionCategory, filterForm.category)) return false
-    if (filterForm.hazardCategory && d.hazardCategory !== filterForm.hazardCategory) return false
-    if (filterForm.hazardLevel && d.hazardLevel !== filterForm.hazardLevel) return false
-    if (filterForm.status && d.status !== filterForm.status) return false
-  if (nodeFilter.value && normalizeFlowNodeName(d.currentNode) !== nodeFilter.value) return false
-    if (filterForm.overdue === '是' && !isOverdue(d)) return false
-    if (filterForm.overdue === '否' && isOverdue(d)) return false
-    if (filterForm.keyword) {
-      const kw = filterForm.keyword
-      if (!d.rectifyNo.includes(kw) && !d.taskNo.includes(kw) && !d.project.includes(kw) && !d.desc?.includes(kw)) return false
-    }
-    return true
-  })
-})
-
 const exportRows = computed(() => {
   const visibleProjects = new Set(filteredHQProjects.value.map(row => row.project_id))
-  const rows = isHqSelected.value ? rectifyData.value.filter(row => visibleProjects.has(row.project_id)) : filteredData.value
-  return rows.map(row => ({ ...row, registeredAt: row.registeredAt || row.issueDate }))
+  return isHqSelected.value ? rectifyData.value.filter(row => visibleProjects.has(row.project_id)) : filteredData.value
 })
-const exportDates = [
-  { key: 'issueDate', label: '整改单下发日期' },
-  { key: 'registeredAt', label: '隐患登记日期' },
-]
-
-function isOverdue(row) {
-  if (['待复查', '已关闭', '已作废'].includes(row.status)) return false
-  if (!row.deadline) return false
-  return new Date(row.deadline) < new Date(INSPECTION_DEMO_TODAY)
-}
-
-/** 列表只显示姓名，岗位放在 title 提示里，避免窄列逐字换行。 */
-function personShort(value) {
-  const text = String(value || '').trim()
-  if (!text) return '--'
-  return text.replace(/[（(].*?[)）]/g, '').trim() || text
-}
 
 function viewDetail(row) { router.push(`/safety-inspection/hazard/${row.id}`) }
 function canDelete(row) {
   return row.status === '已作废' && canDeleteInspectionRectification(getMobileRectification(row.id))
 }
 
-function deleteVoidedHazard(row) {
-  ElMessageBox.confirm(`确定删除已作废整改单「${row.rectifyNo}」？删除后将从隐患清单移除，仍可从原巡检单查看作废和删除记录。`, '删除确认', { type: 'warning' })
-    .then(() => {
-      if (deleteMobileRectificationRecord(row.id)) {
-        ElMessage.success('已删除')
-        return
-      }
-      ElMessage.warning('删除失败，请确认单据状态和权限后重试')
-    })
-    .catch(() => {})
-}
-
-const HAZARD_FILTER_FIELDS = [
-  { key: 'keyword', label: '搜索框' },
-  { key: 'category', label: '巡检分类' },
-  { key: 'hazardCategory', label: '隐患类别' },
-  { key: 'status', label: '整改状态' },
-  { key: 'hazardLevel', label: '隐患等级' },
-  { key: 'overdue', label: '是否逾期' },
-  { key: 'inspectors', label: '登记人' },
-  { key: 'rectifiers', label: '整改人' },
-  { key: 'reviewers', label: '复查人' },
-  { key: 'issueRange', label: '整改单下发日期' },
-]
-const { visible: hazardFilterVisible, isVisible: isHazardFilterVisible, clearHidden: clearHiddenHazardFilters } = useFilterVisibility('inspection-hazard-filters', HAZARD_FILTER_FIELDS)
-function applyHazardFilterVisibility() {
-  clearHiddenHazardFilters(filterForm, { inspectors: [], rectifiers: [], reviewers: [], issueRange: null })
-}
-
-function handleReset() { Object.assign(filterForm, createFilters()) }
 function viewProjectDetail(row) {
   router.push({ path:'/safety-inspection/hazard', query:{ from:'hq' } }).then(() => {
     selectedProjectId.value = row.project_id
@@ -196,7 +115,7 @@ function goBackToHQ() {
       <h3 class="page-title">隐患清单</h3>
       <div class="page-actions">
         <span class="total-count">共 {{ exportRows.length }} 条</span>
-        <InspectionLedgerExport name="隐患清单台账" :rows="exportRows" :columns="rectificationDetailColumns" :date-options="exportDates" :to-detail="exportRectificationDetail" font-family="宋体" />
+        <InspectionLedgerExport name="隐患清单台账" :rows="exportRows" :columns="rectificationDetailColumns" :to-detail="exportRectificationDetail" font-family="宋体" />
       </div>
     </div>
 
@@ -213,8 +132,8 @@ function goBackToHQ() {
         <div class="hq-filter-bar">
           <el-input v-model="hqProjectKeyword" placeholder="搜索项目名称..." clearable style="width:240px" :prefix-icon="Search" />
         </div>
-        <el-table :data="filteredHQProjects" border stripe style="width:100%;margin-top:12px" class="hq-table">
-          <el-table-column type="index" label="序号" width="55" align="center" />
+        <el-table :data="pagedHQProjects" row-key="project_id" border stripe style="width:100%;margin-top:12px" class="hq-table">
+          <el-table-column type="index" :index="index => (hqPage - 1) * hqPageSize + index + 1" label="序号" width="55" align="center" />
           <el-table-column prop="project_name" label="项目名称" min-width="180" />
           <el-table-column prop="totalCount" label="隐患数量" align="center" />
           <el-table-column prop="pendingCount" label="待整改数量" align="center" />
@@ -228,6 +147,14 @@ function goBackToHQ() {
             <template #default="{ row }"><el-button link type="primary" :icon="View" @click="viewProjectDetail(row)">查看详情</el-button></template>
           </el-table-column>
         </el-table>
+        <el-pagination
+          v-model:current-page="hqPage"
+          v-model:page-size="hqPageSize"
+          :total="hqProjectTotal"
+          :page-sizes="[10, 20, 50]"
+          layout="total, sizes, prev, pager, next"
+          class="ledger-pagination"
+        />
       </div>
     </template>
 
@@ -237,150 +164,12 @@ function goBackToHQ() {
         <span>当前项目隐患台账</span>
       </div>
       <div class="page-panel">
-        <div class="filter-bar">
-          <el-input v-if="isHazardFilterVisible('keyword')" v-model="filterForm.keyword" placeholder="搜索整改单编号/巡检任务单编号..." clearable style="width:280px" :prefix-icon="Search" />
-          <el-select v-if="isHazardFilterVisible('category')" v-model="filterForm.category" placeholder="巡检分类" clearable style="width:100px">
-            <el-option v-for="category in INSPECTION_CATEGORIES" :key="category" :label="category" :value="category" />
-          </el-select>
-          <el-select v-if="isHazardFilterVisible('hazardCategory')" v-model="filterForm.hazardCategory" placeholder="隐患类别" clearable filterable style="width:150px">
-            <el-option v-for="option in hazardCategoryOptions" :key="`${option.category}-${option.value}`" :label="option.label" :value="option.value" />
-          </el-select>
-          <el-select v-model="nodeFilter" placeholder="当前流程节点" clearable filterable style="width:160px" aria-label="当前流程节点">
-            <el-option v-for="node in HAZARD_FLOW_NODES" :key="node" :label="node" :value="node" />
-          </el-select>
-          <el-select v-if="isHazardFilterVisible('status')" v-model="filterForm.status" placeholder="整改状态" clearable style="width:110px">
-            <el-option label="待整改" value="待整改" /><el-option label="已作废" value="已作废" /><el-option label="待验收" value="待验收" /><el-option label="待复查" value="待复查" /><el-option label="已关闭" value="已关闭" />
-          </el-select>
-          <el-select v-if="isHazardFilterVisible('hazardLevel')" v-model="filterForm.hazardLevel" placeholder="隐患等级" clearable style="width:200px">
-            <el-option v-for="level in hazardLevelOptions" :key="level" :label="level" :value="level" />
-          </el-select>
-          <el-select v-if="isHazardFilterVisible('overdue')" v-model="filterForm.overdue" placeholder="是否逾期" clearable style="width:100px">
-            <el-option label="是" value="是" /><el-option label="否" value="否" />
-          </el-select>
-          <el-select v-if="isHazardFilterVisible('inspectors')"
-            v-model="filterForm.inspectors"
-            aria-label="登记人"
-            placeholder="登记人"
-            multiple
-            collapse-tags
-            collapse-tags-tooltip
-            clearable
-            filterable
-            style="width:170px"
-          >
-            <el-option v-for="inspector in inspectors" :key="inspector" :label="inspector" :value="inspector" />
-          </el-select>
-          <el-select v-if="isHazardFilterVisible('rectifiers')"
-            v-model="filterForm.rectifiers"
-            aria-label="整改人"
-            placeholder="整改人"
-            multiple
-            collapse-tags
-            collapse-tags-tooltip
-            clearable
-            filterable
-            style="width:170px"
-          >
-            <el-option v-for="name in rectifiers" :key="name" :label="personShort(name)" :value="name" />
-          </el-select>
-          <el-select v-if="isHazardFilterVisible('reviewers')"
-            v-model="filterForm.reviewers"
-            aria-label="复查人"
-            placeholder="复查人"
-            multiple
-            collapse-tags
-            collapse-tags-tooltip
-            clearable
-            filterable
-            style="width:170px"
-          >
-            <el-option v-for="name in reviewers" :key="name" :label="personShort(name)" :value="name" />
-          </el-select>
-          <el-date-picker v-if="isHazardFilterVisible('issueRange')"
-            v-model="filterForm.issueRange"
-            type="daterange"
-            value-format="YYYY-MM-DD"
-            range-separator="至"
-            start-placeholder="整改单下发开始日期"
-            end-placeholder="整改单下发结束日期"
-            unlink-panels
-            style="width:340px"
-          />
-          <el-button @click="handleReset">重置</el-button>
-          <el-popover placement="bottom-end" :width="230" trigger="click">
-            <template #reference>
-              <el-button :icon="Setting" circle title="设置筛选条件" aria-label="设置筛选条件" />
-            </template>
-            <div class="filter-setting">
-              <div class="filter-setting-title">隐患清单筛选设置</div>
-              <el-checkbox v-for="field in HAZARD_FILTER_FIELDS" :key="field.key" v-model="hazardFilterVisible[field.key]" @change="applyHazardFilterVisibility">{{ field.label }}</el-checkbox>
-            </div>
-          </el-popover>
-        </div>
-        <el-table :data="filteredData" stripe border style="width:100%" class="hazard-table">
-          <el-table-column type="index" label="序号" width="52" align="center" />
-          <el-table-column prop="rectifyNo" label="整改单编号" width="118" />
-          <el-table-column prop="taskNo" label="巡检任务单编号" width="135" />
-          <el-table-column prop="inspectionCategory" label="巡检分类" width="84" align="center">
-            <template #default="{ row }">
-              <el-tag
-                v-for="category in normalizeInspectionCategories(row.inspectionCategories || row.inspectionCategory)"
-                :key="category"
-                size="small"
-                :type="category === '质量' ? 'warning' : 'success'"
-                style="margin:1px 2px"
-              >{{ category }}</el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="登记人" width="100" show-overflow-tooltip>
-            <template #default="{ row }"><span :title="row.inspector || '--'">{{ personShort(row.inspector) }}</span></template>
-          </el-table-column>
-          <el-table-column prop="hazardCategory" label="隐患类别" width="110" show-overflow-tooltip />
-          <el-table-column label="隐患等级" width="120" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.hazardLevel || '未设置' }}</template>
-          </el-table-column>
-          <el-table-column prop="currentNode" label="当前节点" width="150" show-overflow-tooltip />
-          <el-table-column label="整改人" width="100" align="center">
-            <template #default="{ row }"><span :title="row.rectifier || '--'" class="person-cell">{{ personShort(row.rectifier) }}</span></template>
-          </el-table-column>
-          <el-table-column label="复查人" width="100" align="center">
-            <template #default="{ row }"><span :title="row.reviewer || '--'" class="person-cell">{{ personShort(row.reviewer) }}</span></template>
-          </el-table-column>
-          <el-table-column label="整改单下发日期" width="138" align="center">
-            <template #default="{ row }">{{ row.issueDate || '--' }}</template>
-          </el-table-column>
-          <el-table-column label="整改日期" width="100" align="center">
-            <template #default="{ row }">
-              <span v-if="row.rectDate">{{ row.rectDate }}</span>
-              <span v-else style="color:#999">-</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="复查日期" width="100" align="center">
-            <template #default="{ row }">
-              <span v-if="row.reviewDate">{{ row.reviewDate }}</span>
-              <span v-else style="color:#999">-</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="整改截止日期" width="108" align="center">
-            <template #default="{ row }">
-              <span v-if="row.deadline">{{ row.deadline }}</span>
-              <span v-else style="color:#999">-</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="是否逾期" width="76" align="center">
-            <template #default="{ row }">
-              <span v-if="isOverdue(row)" style="color:#e53935;font-weight:600">是</span>
-              <span v-else style="color:#999">-</span>
-            </template>
-          </el-table-column>
-          <el-table-column prop="status" label="状态" width="76" align="center" />
-          <el-table-column label="操作" min-width="110" align="center">
-            <template #default="{ row }">
-              <el-button link type="primary" size="small" @click="viewDetail(row)">查看</el-button>
-              <el-button v-if="canDelete(row)" link type="danger" size="small" @click="deleteVoidedHazard(row)">删除</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
+        <InspectionHazardLedgerFilters :ledger="ledger" />
+        <InspectionHazardLedgerTable :rows="filteredData" @view="viewDetail">
+          <template #actions="{ row }">
+            <el-button v-if="canDelete(row)" link type="danger" size="small" @click="confirmInspectionVoidDelete(row)">删除</el-button>
+          </template>
+        </InspectionHazardLedgerTable>
       </div>
     </template>
   </div>
@@ -394,15 +183,11 @@ function goBackToHQ() {
   width: 0 !important;
 }
 
-.filter-setting { display: flex; flex-direction: column; gap: 6px; }
-.filter-setting-title { margin-bottom: 4px; font-size: 13px; font-weight: 600; color: #1f2329; }
-.filter-setting :deep(.el-checkbox) { margin-right: 0; }
 .hazard-page { padding:0; }
 .page-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
 .page-actions { display:flex; align-items:center; gap:12px; }
 .page-title { font-size:18px; font-weight:600; color:#1f2329; margin:0; }
 .total-count { font-size:12px; color:#999; }
-.filter-bar { display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
 .el-table { font-size:13px; }
 .hq-dashboard { background:#f5f7fa; border-radius:10px; padding:20px; }
 .stat-cards { display:flex; gap:14px; margin-bottom:16px; }
@@ -416,6 +201,7 @@ function goBackToHQ() {
 .text-danger { color:#e53935; }
 .overdue-count { color:#e53935; font-weight:600; }
 .hq-filter-bar { display:flex; justify-content:flex-end; }
+.ledger-pagination { justify-content:flex-end; margin-top:16px; }
 .back-bar { display:flex; align-items:center; gap:10px; margin-bottom:12px; padding:8px 12px; background:#f5f7fa; border-radius:6px; font-size:14px; font-weight:600; }
 
 /* 左树右表布局 */
@@ -426,7 +212,4 @@ function goBackToHQ() {
 .project-tree { font-size:13px; }
 .project-tree :deep(.el-tree-node__content) { height:36px; }
 .project-tree :deep(.el-tree-node.is-current > .el-tree-node__content) { background:#fceef4; color:#8f0045; font-weight:600; }
-.hazard-table :deep(.el-table__cell .cell) { word-break: keep-all; }
-.hazard-table :deep(.el-table__cell) { vertical-align: middle; }
-.person-cell { display:inline-block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 </style>

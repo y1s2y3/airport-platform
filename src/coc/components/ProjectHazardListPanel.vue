@@ -1,4 +1,5 @@
 <script setup>
+import SafetyHazardDetailView from '../../views/safety/SafetyHazardDetailView.vue'
 import { ref, computed } from 'vue'
 import { getCocHazardListRows } from '../mock/hazardStats.js'
 import DispatchDraggablePanel from './safety/dispatch/DispatchDraggablePanel.vue'
@@ -138,13 +139,15 @@ function closeDetail() {
     <DispatchDraggablePanel
       v-if="detailView"
       :title="detailTitle"
-      :width="560"
+      :width="detailView.data.channel === 'inspection' ? 940 : 560"
       :z-index="120010"
       placement="right"
       right-backdrop
       @close="closeDetail"
     >
-      <DispatchRecordDetailBody :kind="detailView.kind" :record="detailView.data" />
+      <SafetyHazardDetailView v-if="detailView.data.channel === 'inspection'" :record-id="detailView.data.id"
+        :legacy-record="detailView.data.raw?.legacyCocInspection ? detailView.data.raw : undefined" embedded in-screen />
+      <DispatchRecordDetailBody v-else :kind="detailView.kind" :record="detailView.data" />
     </DispatchDraggablePanel>
   </div>
 </template>

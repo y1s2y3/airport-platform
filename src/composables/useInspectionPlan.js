@@ -207,7 +207,7 @@ export function normalizeInspectionPlan(plan = {}) {
   }
 }
 
-export const planData = reactive([
+const seedPlans = [
   {
     id: 'plan-003',
     inspectionCategories: ['安全', '质量'], inspectionCategory: '安全、质量',
@@ -281,7 +281,22 @@ export const planData = reactive([
       createdAt: `2026-08-${String(12 + (index % 12)).padStart(2, '0')} 09:30`,
       updatedAt: `2026-08-${String(12 + (index % 12)).padStart(2, '0')} 10:15`,
     })),
-].map(normalizeInspectionPlan))
+].map(normalizeInspectionPlan)
+
+const PLAN_ARCHIVE_KEY = 'airport-inspection-plans-v1'
+function readInspectionPlans() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PLAN_ARCHIVE_KEY) || 'null')
+    if (Array.isArray(saved)) return saved.filter(plan => plan?.id).map(normalizeInspectionPlan)
+  } catch { /* 旧缓存异常时恢复示例任务。 */ }
+  return seedPlans
+}
+
+export const planData = reactive(readInspectionPlans())
+
+function saveInspectionPlans() {
+  localStorage.setItem(PLAN_ARCHIVE_KEY, JSON.stringify(planData))
+}
 
 export function getPlanById(id) {
   return planData.find(p => p.id === id)
@@ -360,6 +375,7 @@ export function addPlan(plan) {
     }
   })
   planData.unshift(...records)
+  saveInspectionPlans()
   return records.length
 }
 
@@ -382,6 +398,8 @@ export function updatePlan(id, data) {
       inspectionType: item.inspectionType,
       // 编辑 WEB 下发任务时不覆盖移动端执行后产生的危大工程关联。
       project: primaryProject.label,
+      projects: [primaryProject.label],
+      projectIds: [primaryProject.id],
       projectId: primaryProject.id,
       project_id: primaryProject.id,
       executor: getProjectInspectorLabel(primaryProject.id, item.inspectionCategory) || DEFAULT_INSPECTOR_LABEL,
@@ -390,6 +408,7 @@ export function updatePlan(id, data) {
       itemCount: item.checkConfig.reduce((sum, config) => sum + config.itemIds.length, 0),
       checkConfig: item.checkConfig.map(config => ({ categoryId: config.categoryId, itemIds: [...config.itemIds] })),
     })
+    saveInspectionPlans()
     if (additionalProjects.length > 0) {
       return addPlan({
         ...data,
@@ -403,7 +422,10 @@ export function updatePlan(id, data) {
 
 export function deletePlan(id) {
   const idx = planData.findIndex(p => p.id === id)
-  if (idx > -1) planData.splice(idx, 1)
+  if (idx > -1) {
+    planData.splice(idx, 1)
+    saveInspectionPlans()
+  }
 }
 
 export function togglePlanEnabled(id) {
@@ -413,6 +435,7 @@ export function togglePlanEnabled(id) {
     item.status = item.assigned ? '已下发' : '未下发'
     item.updatedAt = now()
     item.updatedBy = '当前用户'
+    saveInspectionPlans()
   }
 }
 

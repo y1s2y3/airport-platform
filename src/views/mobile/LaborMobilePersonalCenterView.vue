@@ -1,10 +1,14 @@
 <script setup>
 import InspectionVoidButton from '../../components/InspectionVoidButton.vue'
+import { ensureInspectionVoidDemo } from '../../composables/useMobileRectification'
+import { selectedProjectId } from '../../composables/useCurrentProject.js'
+import { signedInInspectionUser } from '../../utils/inspectionWorkflowIdentity'
+import { isInspectionRectificationReturned } from '../../utils/inspectionRectificationWorkflow'
 /**
  * 人员实名制 · 个人中心（移动端）
  * 消息中心与 Web 个人中心同源；预警中心独立展示。
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
@@ -34,6 +38,10 @@ const warnTypeFilter = ref('')
 const warnStatusFilter = ref('')
 const selectedWarningIds = ref([])
 const warningTick = ref(0)
+
+watch([activeTab, selectedProjectId, () => signedInInspectionUser().id], ([tab, scope]) => {
+  if (tab === 'initiated') ensureInspectionVoidDemo(scope)
+})
 
 onMounted(() => {
   ensureLaborWarningCenterSeeds()
@@ -199,9 +207,9 @@ function openFlowDetail(item) {
     activeTab.value === 'done'
       ? 'done'
       : activeTab.value === 'initiated'
-        ? 'initiated'
+        ? 'started'
         : activeTab.value === 'copied'
-          ? 'copied'
+          ? 'cc'
           : 'todo'
 
   if (item.type === 'labor_warning' && item.laborWarningId) {
@@ -350,8 +358,10 @@ function goBack() {
           <div class="message-field"><span>所属项目：</span><b>{{ item.detail?.project || '--' }}</b></div>
           <div class="message-field"><span>触发时间：</span><b>{{ applyDate(item) }}</b></div>
           <footer>
-            <InspectionVoidButton v-if="activeTab === 'initiated' && item.liveInspectionWorkflow" :record-id="item.rectifyId" />
-            <button type="button" @click="openFlowDetail(item)">详情</button>
+            <InspectionVoidButton v-if="activeTab === 'initiated' && item.liveInspectionWorkflow && !item.voidProcess" :record-id="item.rectifyId" assume-initiator />
+            <button type="button" @click="openFlowDetail(item)">
+              {{ activeTab === 'todo' && item.inspectionBizType === '整改' && isInspectionRectificationReturned(item.detail) ? '编辑' : '详情' }}
+            </button>
           </footer>
         </article>
         <div v-if="flowMessages.length === 0" class="empty-state">暂无相关消息</div>

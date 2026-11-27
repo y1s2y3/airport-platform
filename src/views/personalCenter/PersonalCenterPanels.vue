@@ -7,8 +7,9 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, ArrowDown } from '@element-plus/icons-vue'
 import {
   personalTodoStore,
-  personalStarted,
-  personalCc,
+  listLaborPersonalStarted,
+  listLaborPersonalDone,
+  listLaborPersonalCc,
   listLaborPersonalNotices,
   markPersonalNoticesRead,
   PROCESS_STATUS_OPTIONS,
@@ -36,7 +37,8 @@ import { taskProcessVisible } from '../../coc/utils/dispatchTaskWorkflow.js'
 import { dispatchTaskOperator } from '../../coc/utils/dispatchTaskIdentity.js'
 import { getDispatchNoticeRecords } from '../../coc/utils/dispatchMeetingStorage.js'
 import { useCurrentProject } from '../../composables/useCurrentProject.js'
-import { canExecuteInspectionStep, canRequestInspectionVoid, isInspectionCopyRecipient } from '../../utils/inspectionWorkflowIdentity'
+import { canExecuteInspectionStep, canRequestInspectionVoid, signedInInspectionUser } from '../../utils/inspectionWorkflowIdentity'
+import { isInspectionRectificationReturned } from '../../utils/inspectionRectificationWorkflow'
 import { PERSONAL_CENTER_TABS as TAB_NAMES } from '../../utils/personalCenterNavigation'
 import { isSamplingTaskNotice, updateSamplingNoticeStatus } from '../../mock/hazardSamplingNotices'
 
@@ -69,8 +71,8 @@ onMounted(async () => {
 const activeTab = ref(
   TAB_NAMES.includes(String(route.query.tab || '')) ? String(route.query.tab) : 'todo',
 )
-watch([activeTab, selectedProjectId], ([tab]) => {
-  if (tab === 'started') ensureInspectionVoidDemo('hq')
+watch([activeTab, selectedProjectId, () => signedInInspectionUser().id], ([tab, scope]) => {
+  if (tab === 'started') ensureInspectionVoidDemo(scope)
 }, { immediate: true })
 
 watch(() => dispatchTaskOperator().id, () => getDispatchNoticeRecords(), { immediate: true })
@@ -100,6 +102,7 @@ const filtersByTab = reactive(Object.fromEntries(TAB_NAMES.map(tab => [
   tab,
   Object.fromEntries(Object.keys(emptyFilters).map(key => {
     const value = savedFilters?.[tab]?.[key]
+    if (key === 'processStatus' && value === '作废审批中') return [key, '审批中']
     if (key === 'noticeModule' && !NOTICE_MODULE_OPTIONS.includes(value)) return [key, '']
     return [key, typeof value === 'string' ? value : '']
   })),
@@ -121,14 +124,14 @@ const todos = computed(() => {
 })
 const isTaskExample = row => row.type === 'dispatch_notice' && row.taskId?.startsWith('GZ-REPLY-DEMO-')
 const doneList = computed(() => {
-  const rows = personalTodoStore.done.filter(row => inspectionProcessVisible(row) && taskProcessVisible(row, dispatchTaskOperator()))
+  const rows = listLaborPersonalDone().filter(row => inspectionProcessVisible(row) && taskProcessVisible(row, dispatchTaskOperator()))
   return [...rows.filter(isTaskExample), ...rows.filter(row => !isTaskExample(row))]
 })
-const startedList = computed(() => personalStarted.filter(row => {
+const startedList = computed(() => listLaborPersonalStarted().filter(row => {
   const record = row.liveInspectionWorkflow ? row.detail : null
   return inspectionProcessVisible(row) || canRequestInspectionVoid(record)
 }))
-const ccList = computed(() => personalCc.filter(row => row.inspectionCopyExample || row.type !== 'inspection_rectification_cc' || isInspectionCopyRecipient(row.recipient, row.detail?.projectId, row.detail?.inspectionCategory)))
+const ccList = computed(() => listLaborPersonalCc())
 const deletedNoticeIds = ref(new Set())
 const notices = computed(() => listLaborPersonalNotices().filter(item => !deletedNoticeIds.value.has(item.id)))
 const warningCenterTick = ref(0)
@@ -525,7 +528,7 @@ watch([activeTotal, pageSize], () => {
         <el-table-column prop="applyTime" label="申请时间" width="170" />
         <el-table-column label="操作" width="90" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="handleTodo(row)">处理</el-button>
+            <el-button link type="primary" @click="handleTodo(row)">{{ row.inspectionBizType === '整改' && isInspectionRectificationReturned(row.detail) ? '编辑' : '处理' }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -600,7 +603,7 @@ watch([activeTotal, pageSize], () => {
         <el-table-column label="操作" width="125" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="viewStarted(row)">详情</el-button>
-            <InspectionVoidButton v-if="row.liveInspectionWorkflow" :record-id="row.rectifyId" />
+            <InspectionVoidButton v-if="row.liveInspectionWorkflow && !row.voidProcess" :record-id="row.rectifyId" assume-initiator />
           </template>
         </el-table-column>
       </el-table>

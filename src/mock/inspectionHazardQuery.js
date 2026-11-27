@@ -2,7 +2,7 @@
  * 巡检隐患查询（合并 Web 种子 + 移动端整改）
  * 独立模块，避免 inspectionDemoData ↔ useMobileRectification ↔ mobileInspectionTasks 循环依赖。
  */
-import { currentWorkflowLabel, workflowFlowRecords, workflowSteps, currentWorkflowStep } from '../utils/inspectionRectificationWorkflow'
+import { currentWorkflowLabel, workflowFlowRecords, workflowSteps } from '../utils/inspectionRectificationWorkflow'
 import { inspectionHazards } from './inspectionDemoData.js'
 import { getInspectionTaskForRectification } from './mobileInspectionTasks.js'
 import { getInspectionTaskPhotos } from '../utils/inspectionTaskPhotos.js'
@@ -13,6 +13,7 @@ import {
   mapMobileRecordToHazardRow,
 } from '../composables/useMobileRectification.js'
 import { getInspectionPersonConfig, getInspectorById } from '../composables/useInspectionPersonConfig.js'
+import { normalizeFlowNodeName } from '../config/hazardFlowNodes.js'
 
 /** Web 批量种子 + 移动端整改记录（同一 id 以移动端为准）；includeVoided=true 时包含已作废整改单。 */
 export function listInspectionHazards({ includeVoided = false } = {}) {
@@ -23,11 +24,13 @@ export function listInspectionHazards({ includeVoided = false } = {}) {
 
 /** 历史种子缺少隐患等级/当前节点时，按分类与状态补齐展示值（不改原始数据）。 */
 function withDisplayDefaults(row) {
-  const statusNode = { 待整改: '施工单位整改', 待验收: '监理单位复核', 待复查: '项目经理审批', 已关闭: '流程结束' }[row.status] || row.status || ''
+  const statusNode = { 待整改: '施工单位整改', 待验收: '监理单位复核', 待复查: '项目经理审批' }[row.status] || row.status || ''
   // 历史种子里的旧节点措辞统一为新流程名称。
   const legacyNode = { 整改人整改: '施工单位整改', 复查人复查: '监理单位复核' }[row.currentNode] || ''
   let currentNode = legacyNode || row.currentNode || ''
-  if (!currentNode) {
+  if (['已关闭', '已作废'].includes(row.status)) {
+    currentNode = '已关闭'
+  } else if (!currentNode) {
     const step = workflowSteps(row).find(item => item.status === row.status && !row[item.date] && !(item.result && row[item.result]))
     currentNode = step?.label || statusNode
   }
@@ -35,13 +38,13 @@ function withDisplayDefaults(row) {
     ...row,
     inspector: row.inspector || resolveConfiguredInspector(row),
     hazardLevel: row.hazardLevel || (row.inspectionCategory === '质量' ? 'C' : 'Ⅲ一般隐患'),
-    currentNode,
+    currentNode: currentNode === '已关闭' ? currentNode : normalizeFlowNodeName(currentNode),
   }
 }
 
 export function getInspectionHazard(id) {
   const live = getMobileRectification(id)
-  if (live) return mapMobileRecordToHazardRow(live)
+  if (live) return live.deletion ? null : mapMobileRecordToHazardRow(live)
   return inspectionHazards.find((item) => item.id === id) || null
 }
 
@@ -80,6 +83,7 @@ export function buildInspectionHazardDetail(row, live = getMobileRectification(r
     completionCcPersons: row.completionCcPersons || '',
     dl: row.deadline,
     st: row.status,
+    voidRequest: row.voidRequest,
     deletion: row.deletion,
     currentNode: live ? currentWorkflowLabel(live) : withDisplayDefaults(row).currentNode,
     cd: row.closeDate,
@@ -101,13 +105,13 @@ export function buildInspectionHazardDetail(row, live = getMobileRectification(r
     }
   }
 
-  if (row.rectDate || (row.rectificationPhotos && row.rectificationPhotos.length) || row.rectificationNote) {
+  const rectDate = row.rectificationDate || row.rectDate
+  if (rectDate || (row.rectificationPhotos && row.rectificationPhotos.length) || row.rectificationNote) {
     detail.rectification = {
-      date: row.rectDate || '--',
+      date: rectDate || '--',
       photos: [...(row.rectificationPhotos || [])],
       note: row.rectificationNote || '--',
     }
-    detail.flow.push({ a: '整改人提交整改结果', d: row.rectDate ? `${row.rectDate} 16:20` : '', by: row.rectifier || '' })
   }
   if (row.reviewDate || row.reviewComment || row.reviewResult) {
     detail.reviews = [{
@@ -116,59 +120,27 @@ export function buildInspectionHazardDetail(row, live = getMobileRectification(r
       comment: row.reviewComment || row.rejectReason || '--',
       result: row.reviewResult || (row.isRejected ? '不通过' : '--'),
     }]
-    if (row.isRejected) {
-      detail.flow.push({
-        a: '复查不通过，退回继续整改',
-        d: row.reviewDate ? `${row.reviewDate} 10:10` : '',
-        dt: row.rejectReason || row.reviewComment,
-        by: row.reviewer || '',
-      })
-    } else if (row.reviewResult === '通过' || (!row.isRejected && row.reviewDate)) {
-      detail.flow.push({ a: '复查人复查通过', d: row.reviewDate ? `${row.reviewDate} 10:10` : '', by: row.reviewer || '' })
-    }
   }
-  if (row.status === '待复查') {
+  // 只有节点已办结（有结论）才展示确认信息；仍在办理中的节点不展示空块。
+  const approvalDone = Boolean(row.approvalDate || row.approvalResult || row.status === '已关闭')
+  if (approvalDone) {
     detail.managerApproval = {
       manager: row.manager,
-      status: live?.approvalResult === '通过' ? '通过' : '审批中',
-      date: live?.approvalDate,
-      comment: live?.approvalComment || '--',
-    }
-    detail.flow.push({ a: '待项目经理审批', d: '', cur: true, by: row.manager || '' })
-  } else if (row.status === '已关闭') {
-    detail.managerApproval = {
-      manager: row.manager,
-      date: live?.approvalDate || row.closeDate,
-      status: '通过',
+      status: row.approvalResult || '通过',
+      date: row.approvalDate || (row.status === '已关闭' ? row.closeDate : ''),
       comment: row.approvalComment || '--',
     }
-    detail.flow.push({ a: '项目经理审批通过，整改单关闭', d: row.closeDate ? `${row.closeDate} 11:00` : '', by: row.manager || '' })
-  } else if (row.status === '待验收') {
-    if (row.approvalRejected) {
-      detail.flow.push({
-        a: '项目经理审批不通过，退回复查',
-        d: '',
-        dt: row.approvalReason || '',
-        by: row.manager || '',
-      })
-    }
-    // 待验收阶段可能停在“监理单位复核”或“监理单位项目总监验收”，按实际节点展示。
-    const acceptanceNode = currentWorkflowStep(row)
-    detail.flow.push({ a: acceptanceNode ? `待${acceptanceNode.label}` : '待监理复查', d: '', cur: true, by: acceptanceNode?.actor || row.reviewer || '' })
-  } else if (row.isRejected) {
-    detail.flow.push({ a: '等待整改人重新整改', d: '', cur: true, by: row.rectifier || '' })
-  } else {
-    detail.flow.push({ a: '等待整改人执行', d: '', cur: true, by: row.rectifier || '' })
   }
-  const currentStep = currentWorkflowStep(live || row)
-  if (row.departmentConfirmationDate || currentStep?.key === 'departmentConfirmation') {
+  const departmentDone = Boolean(row.departmentConfirmationDate || row.departmentConfirmationResult)
+  if (departmentDone) {
     detail.departmentConfirmation = {
       actor: row.projectDepartmentHead || '项目部长',
       date: row.departmentConfirmationDate,
-      status: row.departmentConfirmationResult || '待确认',
+      status: row.departmentConfirmationResult || '已提交',
       comment: row.departmentConfirmationComment,
     }
   }
-  if (live) detail.flow = workflowFlowRecords(live)
+  // 流程记录统一按流程节点生成，保证与「状态 / 当前流程节点」一致。
+  detail.flow = workflowFlowRecords(live || row)
   return detail
 }

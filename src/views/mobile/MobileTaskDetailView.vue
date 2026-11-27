@@ -2,6 +2,7 @@
 import { getInspectionTaskPhotos } from '../../utils/inspectionTaskPhotos.js'
 import InspectionPhotoList from '../../components/InspectionPhotoList.vue'
 import { areTaskRectificationsVoided, getTaskHazardRectification } from '../../composables/useMobileRectification'
+import InspectionVoidStamp from '../../components/InspectionVoidStamp.vue'
 import { getInspectionCopyDetailFields } from '../../composables/useInspectionPersonConfig'
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -176,6 +177,7 @@ function rectifyInfo(hazard) {
     id: live?.id,
     status: live?.status,
     deleted: Boolean(live?.deletion),
+    voidPending: live?.voidRequest?.status === 'pending',
     person: hazard.rectifyPerson || hazard.rectifier || live?.rectifier || '未设置',
     review: hazard.reviewPerson || live?.reviewer || '-',
     deadline: hazard.rectifyDeadline || live?.rectifyDeadline || live?.deadline || '未设置',
@@ -338,14 +340,14 @@ function goBack() {
           <span class="sc-lbl">隐患照片</span>
           <InspectionPhotoList :photos="hi.photos" name-prefix="隐患照片" />
         </div>
-        <div v-if="hi.hasRectify || hi.rectifyNo || hi.rectifyId" class="rectify-card">
+        <div v-if="!rectifyInfo(hi).deleted && (hi.hasRectify || hi.rectifyNo || hi.rectifyId)" class="rectify-card">
           <div class="rectify-title">📋 整改单</div>
           <div class="sc-row">
             <span class="sc-lbl">整改单编号</span>
             <button v-if="rectifyInfo(hi).id" type="button" class="rectify-no rectify-no-link" @click="openRectification(rectifyInfo(hi).id)">{{ rectifyInfo(hi).no }}</button>
             <span v-else class="rectify-no">{{ rectifyInfo(hi).no }}</span>
           </div>
-          <div v-if="rectifyInfo(hi).status" class="sc-row"><span class="sc-lbl">整改单状态</span><span>{{ rectifyInfo(hi).status }}{{ rectifyInfo(hi).deleted ? '（已删除）' : '' }}</span></div>
+          <div v-if="rectifyInfo(hi).status" class="sc-row"><span class="sc-lbl">整改单状态</span><span>{{ rectifyInfo(hi).status }} <InspectionVoidStamp v-if="rectifyInfo(hi).voidPending" /></span></div>
           <div class="sc-row"><span class="sc-lbl">整改人</span><span>{{ rectifyInfo(hi).person }}</span></div>
           <div class="sc-row"><span class="sc-lbl">复查人</span><span>{{ rectifyInfo(hi).review }}</span></div>
           <div v-for="field in hazardCopyFields(hi)" :key="field.key" class="sc-row">

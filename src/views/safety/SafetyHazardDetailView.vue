@@ -1,21 +1,23 @@
-<script setup>import { usesExtendedInspectionWorkflow } from '../../utils/inspectionRectificationWorkflow.js'
+<script setup>
+import InspectionVoidStamp from '../../components/InspectionVoidStamp.vue'
+import { isInspectionVoidPending } from '../../utils/inspectionRectificationWorkflow.js'
 
 import { SHOW_HAZARD_SAMPLING } from '../../config/hazardSamplingVisibility.js'
 import HazardSamplingPanel from '../../components/HazardSamplingPanel.vue'
 import InspectionPhotoList from '../../components/InspectionPhotoList.vue'
 import { samplingReturnLocation, restoreSupervisorTaskContext } from '../../utils/hazardSamplingTaskNavigation.js'
 import { personalCenterReturnLocation } from '../../utils/personalCenterNavigation'
-import { normalizeFlowNodeName } from '../../config/hazardFlowNodes.js'
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getProjectRectifierLabel, getProjectReviewerLabel, getInspectionCopyDetailFields } from '../../composables/useInspectionPersonConfig'
-import { getInspectionHazardDetail } from '../../mock/inspectionHazardQuery'
+import { buildInspectionHazardDetail, getInspectionHazardDetail } from '../../mock/inspectionHazardQuery'
+import { getMobileRectification } from '../../composables/useMobileRectification'
 import { normalizeHazardCategory } from '../../config/inspectionManagement'
 
 const route = useRoute()
 if (route.query.from === 'sampling-task' && route.query.viewer !== 'hq') restoreSupervisorTaskContext(String(route.query.samplingTask || ''))
 const router = useRouter()
-const props = defineProps({ recordId: String, embedded: Boolean })
+const props = defineProps({ recordId: String, embedded: Boolean, inScreen: Boolean, legacyRecord: Object })
 const rid = computed(() => props.recordId || route.params.id)
 
 const flowCollapsed = ref(false)
@@ -120,8 +122,13 @@ const d = {
     ],
   },
 }
+const recordDeleted = computed(() => Boolean(getMobileRectification(rid.value)?.deletion))
 const info = computed(() => {
-  const source = getInspectionHazardDetail(rid.value) || d[rid.value] || d['rec-001']
+  if (recordDeleted.value) return null
+  const source = props.legacyRecord
+    ? buildInspectionHazardDetail(props.legacyRecord, null)
+    : getInspectionHazardDetail(rid.value) || d[rid.value]
+  if (!source) return null
   const projectKey = source.project_id || source.pj
   return {
     ...source,
@@ -132,24 +139,19 @@ const info = computed(() => {
     cat: source.cat || (['rec-003', 'rec-004'].includes(rid.value) ? '质量' : '安全'),
     rf: source.rf || getProjectRectifierLabel(projectKey),
     rv: source.rv || getProjectReviewerLabel(projectKey),
-    currentNode: source.currentNode || (source.st === '已关闭' ? '流程结束' : source.flow?.find(item => item.cur)?.a || '--'),
+    currentNode: source.currentNode || (['已关闭', '已作废'].includes(source.st) ? '已关闭' : source.flow?.find(item => item.cur)?.a || '--'),
   }
 })
 // 多次整改/复查只展示当前最新一轮；历史失败原因统一保留在流程记录中。
-/** 质量A / Ⅰ重大隐患走扩展流程，统一展示「项目部长确认」节点（未办理时显示 --）。 */
-const needsDepartmentConfirmation = computed(() => usesExtendedInspectionWorkflow({
-  inspectionCategory: info.value.cat,
-  hazardLevel: info.value.hazard?.level,
-}))
-
 const latestRectifications = computed(() => {
+  if (!info.value) return []
   if (info.value.rectifications?.length) {
     return [info.value.rectifications[info.value.rectifications.length - 1]]
   }
   return info.value.rectification ? [info.value.rectification] : []
 })
 const latestReviews = computed(() => {
-  if (!info.value.reviews?.length) return []
+  if (!info.value?.reviews?.length) return []
   return [info.value.reviews[info.value.reviews.length - 1]]
 })
 
@@ -170,11 +172,13 @@ function goBack() {
 </script>
 
 <template>
-  <div class="pg">
+  <div class="pg" :class="{ 'pg--coc': inScreen }">
     <div v-if="!embedded" class="hd">
       <button class="bk" @click="goBack">‹ 返回</button>
       <h3 class="pt">隐患详情</h3>
     </div>
+    <el-empty v-if="!info" :description="recordDeleted ? '该整改单已删除，仅保留巡检单的隐患结果与照片；历史留痕见「我的发起 / 我的已办」' : '该单不存在'" />
+    <template v-else>
     <!-- 隐患清单只展示隐患及整改闭环；抽查内容仅在抽查业务入口展示。 -->
     <HazardSamplingPanel
       v-if="SHOW_HAZARD_SAMPLING && !embedded && ['summary', 'sampling-task'].includes(route.query.from)"
@@ -184,34 +188,33 @@ function goBack() {
 
     <!-- ===== 基本信息 ===== -->
     <div class="ig">
-      <div class="ic"><label>整改单编号</label><span>{{ info.rn }}</span></div>
-      <div class="ic"><label>巡检任务单编号</label><span>{{ info.tn }}</span></div>
+      <div class="ic"><label>整改单编号</label><span>{{ info.rn || '—' }}</span></div>
+      <div class="ic"><label>巡检任务单编号</label><span>{{ info.tn || '—' }}</span></div>
       <div class="ic"><label>项目名称</label><span>{{ info.pj }}</span></div>
       <div class="ic"><label>巡检分类</label><span>{{ info.cat }}</span></div>
       <div class="ic"><label>登记人</label><span>{{ info.inspector || '--' }}</span></div>
       <div class="ic"><label>整改单下发日期</label><span>{{ info.issueDate || '--' }}</span></div>
-      <div class="ic"><label>整改人</label><span>{{ info.rf }}</span></div>
-      <div class="ic"><label>复查人</label><span>{{ info.rv }}</span></div>
+      <div class="ic"><label>整改人</label><span>{{ info.rf || '—' }}</span></div>
+      <div class="ic"><label>复查人</label><span>{{ info.rv || '—' }}</span></div>
       <div v-for="field in getInspectionCopyDetailFields(info)" :key="field.key" class="ic">
         <label>{{ field.label }}</label><span>{{ field.value }}</span>
       </div>
       <div class="ic"><label>截止日期</label><span>{{ info.dl }}</span></div>
-      <div class="ic"><label>状态</label><span :style="{color:info.st==='已关闭'?'#34a853':info.st==='待复查'?'#8f0045':'#f5a623',fontWeight:600}">{{ info.st }}</span></div>
-      <div v-if="info.deletion" class="ic"><label>台账状态</label><span>已从隐患清单删除</span></div>
-      <div class="ic"><label>当前流程节点</label><span>{{ normalizeFlowNodeName(info.currentNode) }}</span></div>
+      <div class="ic"><label>状态</label><span :style="{color:info.st==='已关闭'?'#34a853':info.st==='待复查'?'#8f0045':'#f5a623',fontWeight:600}">{{ info.st }} <InspectionVoidStamp v-if="isInspectionVoidPending(info)" /></span></div>
+      <div class="ic"><label>当前流程节点</label><span>{{ info.currentNode }}</span></div>
       <div class="ic" v-if="info.cd"><label>关闭日期</label><span>{{ info.cd }}</span></div>
     </div>
 
     <div class="sc">
       <div class="sct">巡检照片</div>
-      <InspectionPhotoList v-if="info.inspectionPhotos?.length" :photos="info.inspectionPhotos" />
+      <InspectionPhotoList v-if="info.inspectionPhotos?.length" :photos="info.inspectionPhotos" :preview-z-index="inScreen ? 240000 : undefined" />
       <div v-else class="rf">未上传</div>
     </div>
 
     <!-- ===== 隐患信息 ===== -->
     <div class="sc">
       <div class="sct">隐患信息</div>
-      <div class="rf"><label>隐患类别</label><span>{{ info.hazard.category }}</span></div>
+      <div class="rf"><label>隐患类别</label><span>{{ info.hazard.category || '—' }}</span></div>
       <div class="rf"><label>隐患等级</label><span>{{ info.hazard.level || '未设置' }}</span></div>
       <div class="rf"><label>整改要求</label><span style="white-space:pre-wrap">{{ info.hazard.rectifyRequirement || '未填写' }}</span></div>
       <div class="rf"><label>隐患说明</label><span>{{ info.hazard.desc }}</span></div>
@@ -234,14 +237,6 @@ function goBack() {
     </template>
 
     <!-- ===== 复查信息（已有复查结论即展示，待总监验收/待复查/已关闭均可见） ===== -->
-    <div v-if="info.contractorAcceptanceDate || info.directorAcceptanceDate" class="sc">
-      <div class="sct">验收信息</div>
-      <div class="rf"><label>施工单位项目经理验收</label><span>{{ info.contractorAcceptanceDate ? `${info.contractorAcceptanceResult || '通过'} · ${info.contractorAcceptanceDate}` : '待办理' }}</span></div>
-      <div class="rf" v-if="info.contractorAcceptanceComment"><label>验收意见</label><span>{{ info.contractorAcceptanceComment }}</span></div>
-      <div class="rf"><label>监理总监验收</label><span>{{ info.directorAcceptanceDate ? `${info.directorAcceptanceResult || '通过'} · ${info.directorAcceptanceDate}` : '待办理' }}</span></div>
-      <div class="rf" v-if="info.directorAcceptanceComment"><label>验收意见</label><span>{{ info.directorAcceptanceComment }}</span></div>
-    </div>
-
     <template v-if="latestReviews.length">
       <div class="sc">
         <div class="sct">复查信息</div>
@@ -263,7 +258,7 @@ function goBack() {
       <div v-if="info.managerApproval.date" class="rf"><label>审批日期</label><span>{{ info.managerApproval.date }}</span></div>
       <div class="rf"><label>审批意见</label><span>{{ info.managerApproval.comment }}</span></div>
     </div>
-    <div v-if="info.departmentConfirmation?.status || (needsDepartmentConfirmation && info.managerApproval?.status === '通过')" class="sc">
+    <div v-if="info.departmentConfirmation" class="sc">
       <div class="sct">项目部长确认</div>
       <div class="rf"><label>确认人</label><span>{{ info.departmentConfirmation?.actor || '--' }}</span></div>
       <div class="rf"><label>确认结果</label><span>{{ info.departmentConfirmation?.status || '--' }}</span></div>
@@ -288,6 +283,7 @@ function goBack() {
         </div>
       </div>
     </div>
+    </template>
   </div>
 </template>
 
@@ -342,4 +338,26 @@ function goBack() {
 .fa { color:#212529; font-weight:500; }
 .fd2 { color:#868e96; font-size:12px; }
 .fdl { color:#606266; font-size:12px; margin-top:2px; background:#f5f7fa; padding:1px 6px; border-radius:3px; display:inline-block; }
+
+.pg--coc { container-type:inline-size; }
+.pg--coc .ig, .pg--coc .sc { background:#162438; border-color:#34475f; }
+.pg--coc .ic { border-color:#34475f; }
+.pg--coc .ic label { background:#102036; border-color:#34475f; }
+.pg--coc .ic span, .pg--coc .sct, .pg--coc .rf span, .pg--coc .fa,
+.pg--coc .rv-round, .pg--coc .rv-comment { color:#e1eaf5; }
+.pg--coc .ic label, .pg--coc .rf label, .pg--coc .ar,
+.pg--coc .rv-date, .pg--coc .fd2 { color:#afc2d9; }
+.pg--coc .sct { border-left-color:#56bcf0; }
+.pg--coc .sc-inner, .pg--coc .rv-item { background:#1b2e46; border-top-color:#34475f; border-right-color:#34475f; border-bottom-color:#34475f; }
+.pg--coc .inner-title { color:#6acbf5; }
+.pg--coc .fdl { color:#d5e3f4; background:#233a54; }
+.pg--coc .fi::before { background:#34475f; }
+.pg--coc .fd.cur { background:#56bcf0; box-shadow:0 0 0 3px #233a54; }
+@container (max-width: 740px) {
+  .pg--coc .ig { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@container (max-width: 470px) {
+  .pg--coc .ig { grid-template-columns: minmax(0,1fr); }
+  .pg--coc .sc { padding:14px; }
+}
 </style>

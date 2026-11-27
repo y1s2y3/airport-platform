@@ -3,7 +3,7 @@ import { canExecuteInspectionStep } from '../../utils/inspectionWorkflowIdentity
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { getMobileRectification, submitInspectionWorkflowStep } from '../../composables/useMobileRectification'
+import { getVisibleMobileRectification, submitInspectionWorkflowStep } from '../../composables/useMobileRectification'
 import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
 import MobileRectifyBasicInfo from '../../components/MobileRectifyBasicInfo.vue'
 
@@ -19,10 +19,12 @@ const router = useRouter()
 const { rectifyBase } = useMobileRouteBase()
 const rid = computed(() => route.params.id)
 
-const record = computed(() => getMobileRectification(rid.value))
-const missing = computed(() => !record.value)const canHandle = computed(() => canExecuteInspectionStep(record.value, expectedStage.value))
+const record = computed(() => getVisibleMobileRectification(rid.value))
+const missing = computed(() => !record.value)
+const canHandle = computed(() => canExecuteInspectionStep(record.value, expectedStage.value))
 const expectedStage = ref('')
-watch(rid, () => {  const stage = currentWorkflowStep(record.value)?.key
+watch(rid, () => {
+  const stage = currentWorkflowStep(record.value)?.key
   expectedStage.value = ['contractorAcceptance', 'review', 'directorAcceptance'].includes(stage) ? stage : ''
 }, { immediate: true })
 const actionStep = computed(() => workflowSteps(record.value).find(step => step.key === expectedStage.value))
@@ -68,7 +70,8 @@ function handleReview(pass) {
     ElMessage.warning(`请选择${actionLabel.value}日期`)
     return
   }
-  const ok = submitInspectionWorkflowStep(rid.value, expectedStage.value, pass, {    date: reviewDate.value,
+  const ok = submitInspectionWorkflowStep(rid.value, expectedStage.value, pass, {
+    date: reviewDate.value,
     comment: reviewComment.value.trim(),
   })
   if (!ok) {

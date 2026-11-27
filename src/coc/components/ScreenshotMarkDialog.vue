@@ -22,7 +22,7 @@ import { buildExecutorOptions } from '../utils/executorDisplay.js'
 import { taskWorkTypeOptions } from '../config/screenshotTaskOrderFields.js'
 import { TASK_EXECUTION_MODES, TASK_EXECUTION_MODE_OPTIONS } from '../utils/dispatchTaskWorkflow.js'
 import { getHazardLevels, getHazardCategoryOptions } from '../../config/inspectionManagement.js'
-import { inspectorCandidates, getProjectRectifierLabel, getProjectReviewerLabel, getInspectionCopyDefaults } from '../../composables/useInspectionPersonConfig.js'
+import { listInspectionPersonCandidates, getProjectRectifierLabel, getProjectReviewerLabel, getInspectionCopyDefaults } from '../../composables/useInspectionPersonConfig.js'
 import InspectionPersonMultiSelect from '../../components/InspectionPersonMultiSelect.vue'
 import { DISPATCH_HAZARD_TYPE_OPTIONS, getDispatchHazardTypeLabel } from '../../config/dispatchHazardTypes.js'
 
@@ -97,7 +97,7 @@ const registrationProjectName = computed(() => isDispatchDoc.value ? form.projec
 const hazardTypeLabel = computed(() => getDispatchHazardTypeLabel(form.hazardType))
 const hazardLevelOptions = computed(() => hazardTypeLabel.value ? getHazardLevels(hazardTypeLabel.value) : [])
 const hazardCategoryOptions = computed(() => hazardTypeLabel.value ? getHazardCategoryOptions(hazardTypeLabel.value) : [])
-const inspectorOptions = inspectorCandidates.map((person) => `${person.name}（${person.role}）`)
+const inspectorOptions = listInspectionPersonCandidates().map((person) => `${person.name}（${person.role}）`)
 /** 与巡检新增隐患一致：整改人 / 复查人 / 抄送默认取巡检人员配置。 */
 function applyInspectionDefaults() {
   const category = hazardTypeLabel.value || '安全'

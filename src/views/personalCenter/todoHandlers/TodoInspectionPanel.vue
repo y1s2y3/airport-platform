@@ -12,18 +12,20 @@ import { COC_PROJECT_OPTIONS } from '../../../config/projectOptions.js'
 import { getMajorHazardLedgerOptions } from '../../../utils/inspectionMajorHazardLink.js'
 import { usePersonalTodoSubmit } from '../composables/usePersonalTodoSubmit.js'
 import '../styles/todoHandleBlocks.css'
-import { inspectorCandidates, getProjectRectifierLabel, getProjectReviewerLabel, getInspectionCopyDefaults, getInspectionCopyDetailFields, INSPECTION_COPY_FIELDS } from '../../../composables/useInspectionPersonConfig'
-import { getMobileRectification, getTaskHazardRectification } from '../../../composables/useMobileRectification'
-import { currentWorkflowStep, rectificationIssuedAt } from '../../../utils/inspectionRectificationWorkflow'
+import { listInspectionPersonCandidates, getProjectRectifierLabel, getProjectReviewerLabel, getInspectionCopyDefaults, getInspectionCopyDetailFields, INSPECTION_COPY_FIELDS } from '../../../composables/useInspectionPersonConfig'
+import { getLatestInspectionRectification, getMobileRectification, getTaskHazardRectification } from '../../../composables/useMobileRectification'
+import { useInspectionRectificationPhotoPreviews } from '../../../composables/useInspectionRectificationPhotoPreviews'
+import { currentWorkflowStep, isInspectionRectificationReturned, rectificationIssuedAt } from '../../../utils/inspectionRectificationWorkflow'
 
 import { useInspectionHazardOptions } from '../../../composables/useInspectionCategoryForm'
 
-const inspectionPersonOptions = inspectorCandidates.map(person => `${person.name}（${person.role}）`)
+const inspectionPersonOptions = listInspectionPersonCandidates().map(person => `${person.name}（${person.role}）`)
 
 const props = defineProps({
   todo: { type: Object, required: true },
   todoId: { type: String, default: '' },
   isReadonly: { type: Boolean, default: false },
+  onBack: { type: Function, default: undefined },
 })
 
 const assignmentRecord = computed(() => getMobileRectification(props.todo.rectifyId))
@@ -34,14 +36,14 @@ const rectificationInspectionPhotos = computed(() => getInspectionTaskPhotos(get
 const rectificationCopyFields = computed(() => getInspectionCopyDetailFields(assignmentRecord.value, props.todo.detail))
 const hazardCopyFields = hazard => getInspectionCopyDetailFields(getTaskHazardRectification(hazard), hazard)
 const assignmentStage = computed(() => props.todo.expectedWorkflowStage)
-const emit = defineEmits(['back'])
+const goBack = props.onBack || (() => {})
 
 const todoRef = toRef(props, 'todo')
 const todoIdRef = computed(() => props.todoId)
 const { submitInspectionHandle } = usePersonalTodoSubmit({
   todo: todoRef,
   todoId: todoIdRef,
-  goBack: () => emit('back'),
+  goBack,
 })
 
 /** 单条隐患结构：与移动端执行巡检的 hazardItems 保持一致（有隐患即生成整改单，无需开关） */
@@ -66,7 +68,8 @@ const inspectionForm = reactive({
   inspector: '',
   // 同行人与移动端一致：执行巡检时按现场实际参加人员选择，不从下发任务预填
   companions: [],
-  inspectionResult: '',  // 巡检照片 / 整改照片（整改环节）
+  inspectionResult: '',
+  // 巡检照片 / 整改照片（整改环节）
   attachments: [],
   // 危大工程现场巡视：与移动端执行巡检一致，在执行时判定并选择危大清单
   isMajorHazardPatrol: '否',
@@ -128,8 +131,9 @@ const inspectionActionMeta = computed(() => {
     整改: { title: '整改处理', remarkLabel: '整改说明', pass: '提交整改', reject: '退回' },
     复查: { title: '复查处理', remarkLabel: '复查意见', pass: '复查通过', reject: '复查不通过' },
     施工验收: { title: '施工单位项目经理验收', remarkLabel: '施工单位验收意见', pass: '验收通过', reject: '验收不通过' },
-    总监验收: { title: '监理单位项目总监验收', remarkLabel: '总监验收意见', pass: '验收通过', reject: '验收不通过' },    项目部长确认: { title: '项目部长确认', remarkLabel: '确认意见', pass: '通过', reject: '不通过' },
-    作废审批: { title: '指挥部安全和整改负责人审批', remarkLabel: '作废审批意见', pass: '通过', reject: '不通过' },
+    总监验收: { title: '监理单位项目总监验收', remarkLabel: '总监验收意见', pass: '验收通过', reject: '验收不通过' },
+    项目部长确认: { title: '项目部长确认', remarkLabel: '确认意见', pass: '通过', reject: '不通过' },
+    作废审批: { title: '作废审批', remarkLabel: '审批意见', pass: '通过', reject: '不通过' },
     审批: { title: '项目经理审批', remarkLabel: '审批意见', pass: '审批通过', reject: '审批不通过' },
   }
   if (['项目部长确认', '作废审批'].includes(type)) return map[type]
@@ -141,8 +145,7 @@ const inspectionActionMeta = computed(() => {
   return map[type] || map.巡检
 })
 const processDateLabel = computed(() => ({ 项目部长确认: '确认日期', 整改: '整改日期', 复查: '复核日期', 施工验收: '施工验收日期', 总监验收: '总监验收日期' })[props.todo.inspectionBizType] || '审批日期')
-// 两类验收通过时意见可不填；其余节点仍必填。
-const remarkRequired = computed(() => !(['施工验收', '总监验收'].includes(props.todo?.inspectionBizType) && inspectionForm.decision === 'pass'))
+const remarkRequired = computed(() => !(['施工验收', '总监验收', '作废审批'].includes(props.todo?.inspectionBizType) && inspectionForm.decision === 'pass'))
 
 const personalCheckTree = computed(() => {
   const detail = props.todo?.detail || {}
@@ -197,15 +200,25 @@ const activePersonalCheckCategory = computed(() =>
   personalCheckTree.value.find((item) => item.id === activePersonalCheckCategoryId.value),
 )
 
-function resetInspectionForm() {
+const photoPreviews = useInspectionRectificationPhotoPreviews()
+const loadingRectificationPhotos = photoPreviews.loading
+const submitting = ref(false)
+
+async function resetInspectionForm() {
+  photoPreviews.clear()
+  const record = assignmentRecord.value || props.todo.detail
+  const previous = !props.isReadonly && props.todo.inspectionBizType === '整改' && isInspectionRectificationReturned(record)
+    ? getLatestInspectionRectification(record)
+    : null
   Object.assign(inspectionForm, {
     decision: 'pass',
-    processDate: new Date().toISOString().slice(0, 10),
-    remark: '',
+    processDate: previous?.date || new Date().toISOString().slice(0, 10),
+    remark: previous?.note || '',
     inspector: props.todo?.detail?.executor || '',
     // 同行人与移动端一致：执行巡检时按现场实际参加人员选择，不从下发任务预填
     companions: [],
-    inspectionResult: props.todo?.detail?.inspectionResult || '',    attachments: [],
+    inspectionResult: props.todo?.detail?.inspectionResult || '',
+    attachments: [],
     hazardItems: [createHazardItem()],
     // 危大工程现场巡视：已选择过则回显，否则按任务项目预置（多项目任务留空待选）
     isMajorHazardPatrol: props.todo?.detail?.isMajorHazardPatrol === '是' ? '是' : '否',
@@ -214,6 +227,10 @@ function resetInspectionForm() {
       || (patrolProjectOptions.value.length === 1 ? patrolProjectOptions.value[0].id : ''),
     majorHazardLedgerId: props.todo?.detail?.majorHazardLedgerId || '',
   })
+  if (previous?.photos.length) {
+    const restored = await photoPreviews.load(previous.photos)
+    if (restored) inspectionForm.attachments = restored
+  }
 }
 
 watch(() => props.todo, resetInspectionForm, { immediate: true })
@@ -226,8 +243,14 @@ watch(
   },
 )
 
-function onSubmit() {
-  submitInspectionHandle(inspectionForm, inspectionActionMeta.value)
+async function onSubmit() {
+  if (submitting.value || loadingRectificationPhotos.value) return
+  submitting.value = true
+  try {
+    await submitInspectionHandle(inspectionForm, inspectionActionMeta.value)
+  } finally {
+    submitting.value = false
+  }
 }
 </script>
 
@@ -243,6 +266,7 @@ function onSubmit() {
       </div>
       <el-tag type="warning" effect="light">{{ todo.detail?.currentNode || '—' }}</el-tag>
     </div>
+    <!-- 作废审批同样要看得到整改单本身：基本信息、巡检照片、隐患/整改/复查信息 -->
     <el-descriptions
       v-if="todo.inspectionBizType === '巡检'"
       :column="2"
@@ -411,18 +435,20 @@ function onSubmit() {
         </template>
       </div>
     </div>
-    <div v-if="todo.detail?.voidRequest" class="inspection-detail-block">
+    <div v-if="todo.voidProcess && todo.detail?.voidRequest" class="inspection-detail-block">
       <div class="inspection-section-title">作废申请</div>
+      <div class="inspection-kv"><span>整改单编号</span><b>{{ todo.detail.rectifyNo }}</b></div>
       <div class="inspection-kv"><span>申请人</span><b>{{ todo.detail.voidRequest.applicant }}</b></div>
       <div class="inspection-kv"><span>申请时间</span><b>{{ todo.detail.voidRequest.requestedAt }}</b></div>
       <div class="inspection-kv"><span>作废理由</span><b style="white-space:pre-wrap">{{ todo.detail.voidRequest.reason }}</b></div>
       <div class="inspection-kv"><span>审批人</span><b>{{ todo.detail.voidRequest.approver }}</b></div>
-      <div class="inspection-kv"><span>结果</span><b>{{ { pending: '作废审批中', approved: '已作废', rejected: '作废申请未通过' }[todo.detail.voidRequest.status] }}</b></div>
+      <div class="inspection-kv"><span>结果</span><b>{{ { pending: '审批中', approved: '已作废', rejected: '作废申请未通过' }[todo.detail.voidRequest.status] }}</b></div>
       <div v-if="todo.detail.voidRequest.decidedAt" class="inspection-kv"><span>审批意见</span><b>{{ todo.detail.voidRequest.comment }}</b></div>
     </div>
   </section>
 
-  <section v-if="!isReadonly" class="block block--panel block--action">    <div class="block-head">
+  <section v-if="!isReadonly" class="block block--panel block--action">
+    <div class="block-head">
       <div class="block-title">{{ inspectionActionMeta.title }}</div>
     </div>
     <el-form label-width="108px" class="op-form inspection-op-form">
@@ -617,7 +643,8 @@ function onSubmit() {
           />
         </el-form-item>
         <el-form-item v-if="todo.inspectionBizType === '整改'" label="整改照片" required>
-          <DispatchImageAttachments v-model="inspectionForm.attachments" :min="1" :max="9" name-prefix="整改照片" />
+          <span v-if="loadingRectificationPhotos">正在加载上次提交的整改照片…</span>
+          <DispatchImageAttachments v-else v-model="inspectionForm.attachments" :min="1" :max="9" name-prefix="整改照片" />
         </el-form-item>
         <el-form-item v-if="todo.inspectionBizType !== '整改'" label="办理结果" required>
           <el-radio-group v-model="inspectionForm.decision">
@@ -637,8 +664,8 @@ function onSubmit() {
       </template>
     </el-form>
     <div class="op-actions">
-      <el-button @click="emit('back')">取消</el-button>
-      <el-button type="primary" @click="onSubmit">
+      <el-button @click="goBack">取消</el-button>
+      <el-button type="primary" :disabled="loadingRectificationPhotos" :loading="submitting" @click="onSubmit">
         {{
           todo.inspectionBizType === '巡检'
             ? '提交检查结果'

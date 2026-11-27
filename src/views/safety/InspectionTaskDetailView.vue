@@ -1,7 +1,10 @@
 <script setup>
 import { getInspectionTaskPhotos } from '../../utils/inspectionTaskPhotos.js'
 import InspectionPhotoList from '../../components/InspectionPhotoList.vue'
-import { areTaskRectificationsVoided, getTaskHazardRectification } from '../../composables/useMobileRectification'
+import { areTaskRectificationsVoided, getMobileRectification, getTaskHazardRectification } from '../../composables/useMobileRectification'
+import { getInspectionHazard } from '../../mock/inspectionHazardQuery'
+import { ElMessage } from 'element-plus'
+import InspectionVoidStamp from '../../components/InspectionVoidStamp.vue'
 import { getInspectionCopyDetailFields } from '../../composables/useInspectionPersonConfig'
 import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -51,10 +54,15 @@ const isPush = computed(() => taskInfo.value.source === '任务下发')
 const isSelf = computed(() => taskInfo.value.source === '系统自建')
 const isPending = computed(() => taskInfo.value.status === '未完成')
 const majorHazardPatrolText = computed(() => getMajorHazardPatrolDetail(taskInfo.value))
-const hazardsWithRectifications = computed(() => taskInfo.value.hazardItems.map(hazard => ({
-  hazard,
-  order: getTaskHazardRectification(hazard),
-})))
+const hazardsWithRectifications = computed(() => taskInfo.value.hazardItems.map(hazard => {
+  const order = getTaskHazardRectification(hazard)
+  const recordId = order?.id || hazard.rectifyId || ''
+  const live = recordId ? getMobileRectification(recordId) : null
+  const deleted = Boolean(order?.deletion || live?.deletion)
+  // 台账里被删除的整改单不再提供跳转，避免点进去只看到「该单不存在」。
+  const linkable = Boolean(recordId) && !deleted && (live ? true : Boolean(getInspectionHazard(recordId)))
+  return { hazard, order, recordId, deleted, linkable }
+}))
 const categoryTree = computed(() => getInspectionTaskCheckGroups({ ...taskInfo.value, id: taskId.value }))
 const inspectionTabs = computed(() => taskInfo.value.inspectionCategories.map((category) => {
   const categories = categoryTree.value.filter((item) => item.inspectionCategory === category)
@@ -91,10 +99,20 @@ function goBack() {
 }
 function goRectify(id) {
   if (!id) return
+  // 已删除的整改单只保留巡检单结果，不再跳转整改单详情。
+  if (!hazardLinkable(id)) {
+    ElMessage.warning('该整改单已删除，仅保留巡检单的隐患结果与照片')
+    return
+  }
   router.push({
     path: `/safety-inspection/hazard/${id}`,
     query: { inspectionTaskId: taskId.value, from: route.query.from },
   })
+}
+function hazardLinkable(id) {
+  const live = getMobileRectification(id)
+  if (live) return !live.deletion
+  return Boolean(getInspectionHazard(id))
 }
 </script>
 
@@ -177,24 +195,27 @@ function goRectify(id) {
 
       <!-- 有隐患 -->
       <div v-if="taskInfo.result === 'hazard'">
-        <div v-for="({ hazard: hi, order }, idx) in hazardsWithRectifications" :key="idx" class="hazard-item">
+        <div v-for="({ hazard: hi, order, recordId, deleted, linkable }, idx) in hazardsWithRectifications" :key="idx" class="hazard-item">
           <div class="hazard-title">隐患 {{ idx + 1 }}</div>
           <div class="hazard-desc">隐患类别：{{ hi.hazardCategory || '安全管理' }}</div>
           <div class="hazard-desc">隐患等级：{{ hi.hazardLevel || '未设置' }}</div>
           <div class="hazard-desc" style="white-space:pre-wrap">整改要求：{{ hi.rectifyRequirement || '未填写' }}</div>
-          <div class="hazard-desc">{{ hi.desc }}</div>
+          <div class="hazard-desc" style="white-space:pre-wrap">隐患说明：{{ hi.desc || '未填写' }}</div>
           <div v-if="hi.photos?.length" class="result-photos">
             <span>隐患照片</span>
             <InspectionPhotoList :photos="hi.photos" name-prefix="隐患照片" />
           </div>
           <div v-if="hi.hasRectify || hi.rectifyId || hi.rectifyNo" class="rectify-mini">
             <span class="rectify-label">整改单</span>
-            <a v-if="order?.id || (hi.rectifyId && !order?.deletion)" class="rectify-link" @click="goRectify(order?.id || hi.rectifyId)">{{ hi.rectifyNo || order?.rectifyNo }}</a>
-            <span v-else>{{ hi.rectifyNo || '—' }}</span>
-            <span v-if="order?.status" class="rectify-meta">{{ order.status }}{{ order.deletion ? '（已删除）' : '' }}</span>
+            <a v-if="linkable" class="rectify-link" @click="goRectify(recordId)">{{ hi.rectifyNo || order?.rectifyNo }}</a>
+            <span v-else>
+              {{ hi.rectifyNo || order?.rectifyNo || '—' }}
+              <em v-if="deleted" class="rectify-deleted">已删除</em>
+            </span>
+            <span v-if="order?.status" class="rectify-meta">{{ order.status }} <InspectionVoidStamp v-if="order.voidRequest?.status === 'pending'" /></span>
             <span class="rectify-meta">{{ hi.rectifier }} · 截止{{ hi.rectifyDeadline }}</span>
           </div>
-          <template v-if="hi.hasRectify">
+          <template v-if="hi.hasRectify && !order?.deletion">
             <div v-for="field in getInspectionCopyDetailFields(order, hi)" :key="field.key" class="hazard-desc">{{ field.label }}：{{ field.value }}</div>
           </template>
         </div>
@@ -261,4 +282,5 @@ function goRectify(id) {
 .rectify-link { color:#e53935; font-weight:600; cursor:pointer; text-decoration:underline; }
 .rectify-link:hover { opacity:0.8; }
 .rectify-meta { color:#999; }
+.rectify-deleted { margin-left:4px; padding:0 5px; border-radius:3px; background:#f0f0f0; color:#999; font-style:normal; font-size:11px; }
 </style>

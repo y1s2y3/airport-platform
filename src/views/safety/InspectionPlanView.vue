@@ -2,14 +2,12 @@
 import { reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Plus } from '@element-plus/icons-vue'
-import { useCurrentProject } from '../../composables/useCurrentProject'
 import { planData, userOptions, getPlanExecutionStatus } from '../../composables/useInspectionPlan'
 import { listMobileInspectionTasks } from '../../mock/mobileInspectionTasks'
 import { getProjectInspectorLabel } from '../../composables/useInspectionPersonConfig'
 import { INSPECTION_CATEGORIES, getInspectionTypeFilterOptions, hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
 
 const router = useRouter()
-const { isHqSelected } = useCurrentProject()
 
 const createFilters = () => ({ category: '', inspectionType: '', keyword: '', project: '', executionStatus: '' })
 const filterForm = reactive(createFilters())
@@ -63,7 +61,6 @@ function goTaskDetail(row) {
     <div class="page-head">
       <h3 class="page-title">巡检任务下发</h3>
       <div class="plan-actions">
-        <el-button v-if="isHqSelected" @click="router.push({ name: 'InspectionCopyConfig' })">抄送人配置</el-button>
         <el-button type="primary" size="default" @click="goCreate">
           <el-icon><Plus /></el-icon>下发任务
         </el-button>

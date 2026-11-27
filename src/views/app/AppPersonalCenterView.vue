@@ -1,7 +1,8 @@
 <script setup>
 import InspectionVoidButton from '../../components/InspectionVoidButton.vue'
 import { ensureInspectionVoidDemo } from '../../composables/useMobileRectification'
-import { canExecuteInspectionStep } from '../../utils/inspectionWorkflowIdentity'
+import { canExecuteInspectionStep, signedInInspectionUser } from '../../utils/inspectionWorkflowIdentity'
+import { isInspectionRectificationReturned } from '../../utils/inspectionRectificationWorkflow'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -37,8 +38,8 @@ const selectedNoticeIds = ref([])
 const noticeTick = ref(0)
 const warningTick = ref(0)
 
-watch([activeTab, selectedProjectId], ([tab, scope]) => {
-  if (tab === 'initiated') ensureInspectionVoidDemo('hq')
+watch([activeTab, selectedProjectId, () => signedInInspectionUser().id], ([tab, scope]) => {
+  if (tab === 'initiated') ensureInspectionVoidDemo(scope)
 })
 
 const pageTitle = computed(() => activeCenter.value)
@@ -324,9 +325,11 @@ function handleMessage(item) {
           <div class="message-field"><span>所属项目：</span><b>{{ item.detail?.project || '--' }}</b></div>
           <div class="message-field"><span>申请日期：</span><b>{{ applyDate(item) }}</b></div>
           <footer>
-            <InspectionVoidButton v-if="activeTab === 'initiated' && item.liveInspectionWorkflow" :record-id="item.rectifyId" />
+            <InspectionVoidButton v-if="activeTab === 'initiated' && item.liveInspectionWorkflow && !item.voidProcess" :record-id="item.rectifyId" assume-initiator />
             <button type="button" @click="handleMessage(item)">
-              {{ resolveStatus(item) === '待办' ? '处理' : '详情' }}
+              {{ activeTab === 'todo' && item.inspectionBizType === '整改' && isInspectionRectificationReturned(item.detail)
+                ? '编辑'
+                : resolveStatus(item) === '待办' ? '处理' : '详情' }}
             </button>
           </footer>
         </article>

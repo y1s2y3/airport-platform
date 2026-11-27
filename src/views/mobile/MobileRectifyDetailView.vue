@@ -1,67 +1,47 @@
 <script setup>
+import InspectionVoidStamp from '../../components/InspectionVoidStamp.vue'
 import { computed, onMounted, ref } from 'vue'
-import { normalizeFlowNodeName } from '../../config/hazardFlowNodes.js'
 import { useRoute, useRouter } from 'vue-router'
-import { getMobileRectification } from '../../composables/useMobileRectification'
+import { getVisibleMobileRectification } from '../../composables/useMobileRectification'
 import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
+import { rectifyDepartmentConfirmInfo, rectifyManagerConfirmInfo, rectifyRectificationRounds, rectifyReviewRounds } from '../../composables/useInspectionRectifySections'
 import MobileRectifyBasicInfo from '../../components/MobileRectifyBasicInfo.vue'
 import InspectionPhotoList from '../../components/InspectionPhotoList.vue'
 import { getInspectionTaskForRectification } from '../../mock/mobileInspectionTasks'
 import { getInspectionTaskPhotos } from '../../utils/inspectionTaskPhotos'
 
-import { workflowFlowRecords, workflowSteps, currentWorkflowStep } from '../../utils/inspectionRectificationWorkflow'
+import { workflowFlowRecords, currentWorkflowStep, isInspectionVoidPending } from '../../utils/inspectionRectificationWorkflow'
+import { canDeleteInspectionRectification } from '../../utils/inspectionWorkflowIdentity'
+import { confirmInspectionVoidDelete } from '../../composables/useInspectionVoidDelete'
 
 const route = useRoute()
 const router = useRouter()
 const { rectifyBase, tasksBase } = useMobileRouteBase()
-const record = computed(() => getMobileRectification(route.params.id))
+const record = computed(() => getVisibleMobileRectification(route.params.id))
 const inspectionPhotos = computed(() => getInspectionTaskPhotos(getInspectionTaskForRectification(record.value)))
 const missing = computed(() => !record.value)
 onMounted(() => document.querySelector('.page-viewport')?.scrollTo({ top: 0 }))
 
 const statusText = computed(() => record.value?.status || '--')
-const managerApproval = computed(() => {
-  const row = record.value
-  if (!row?.manager || !['待复查', '已关闭'].includes(row.status)) return null
-  const passed = row.approvalResult === '通过' || row.status === '已关闭'
-  return {
-    label: workflowSteps(row).find(step => step.key === 'approval')?.label || '项目经理审批',
-    manager: row.manager,
-    status: passed ? '通过' : '审批中',
-    date: passed ? (row.approvalDate || row.closeDate || '') : '',
-    comment: passed ? (row.approvalComment || '--') : '--',
-  }
-})
+const managerConfirm = computed(() => rectifyManagerConfirmInfo(record.value))
+const departmentConfirm = computed(() => rectifyDepartmentConfirmInfo(record.value, currentWorkflowStep(record.value)?.key))
 
 const flowRecords = computed(() => workflowFlowRecords(record.value).map(item => ({ ...item, action: item.a, date: item.d, detail: item.dt, current: item.cur })))
 
 const flowCollapsed = ref(false)
 
-const reviewRecords = computed(() => {
-  const row = record.value
-  if (!row) return []
-  if (!(row.reviewDate || row.reviewComment || ['待复查', '已关闭'].includes(row.status))) return []
-  return [{
-    round: 1,
-    date: row.reviewDate || '--',
-    comment: row.reviewComment || '--',
-    result: row.reviewResult || (row.isRejected ? '不通过' : '通过'),
-  }]
-})
+const reviewRecords = computed(() => rectifyReviewRounds(record.value))
 
-const currentRectifications = computed(() => {
-  const row = record.value
-  if (!row) return []
-  if (!(row.rectificationDate || row.rectificationNote || row.rectificationPhotos?.length || row.submitDate)) {
-    return []
-  }
-  return [{
-    round: 1,
-    date: row.rectificationDate || row.submitDate || '--',
-    photos: row.rectificationPhotos?.length ? [...row.rectificationPhotos] : [],
-    note: row.rectificationNote || '--',
-  }]
-})
+const currentRectifications = computed(() => rectifyRectificationRounds(record.value))
+
+/** 已作废单在详情页也提供删除入口（权限与列表一致：发起人 / 作废审批人 / 演示单）。 */
+const canDelete = computed(() => canDeleteInspectionRectification(record.value))
+
+async function handleDelete() {
+  const target = record.value
+  await confirmInspectionVoidDelete(target)
+  if (target?.deletion) goBack()
+}
 
 function displayPhotos(list) {
   if (!list?.length) return '--'
@@ -84,7 +64,9 @@ function goBack() {
     <header class="mh">
       <button class="mb" aria-label="返回" @click="goBack">‹</button>
       <h1 class="mt">整改详情</h1>
-      <span v-if="!missing" class="header-status">{{ statusText }}{{ record.deletion ? '（已删除）' : '' }}</span>
+      <span v-if="!missing" class="header-status">
+        {{ statusText }} <InspectionVoidStamp v-if="isInspectionVoidPending(record)" />
+      </span>
     </header>
 
     <div v-if="missing" class="empty-tip">未找到该整改单，请返回列表重试。</div>
@@ -119,32 +101,33 @@ function goBack() {
       </div>
 
 
-      <div v-if="reviewRecords.length && ['待验收', '待复查', '已关闭'].includes(statusText)" class="sc">
-        <div class="sct">监理复核信息</div>
+      <div v-if="reviewRecords.length" class="sc">
+        <div class="sct">监理复核记录</div>
         <div v-for="(r, i) in reviewRecords" :key="i" class="ic">
-          <div class="ir"><span class="il">复查日期</span><span>{{ r.date }}</span></div>
-          <div class="ir"><span class="il">复查结果</span><span :class="r.result === '通过' ? 'pass' : 'fail'">{{ r.result }}</span></div>
-          <div class="ir"><span class="il">复查意见</span><span>{{ r.comment }}</span></div>
+          <div class="ir"><span class="il">复核人</span><span>{{ r.reviewer }}</span></div>
+          <div class="ir"><span class="il">复核日期</span><span>{{ r.date }}</span></div>
+          <div class="ir"><span class="il">复核结果</span><span :class="r.result === '通过' ? 'pass' : 'fail'">{{ r.result }}</span></div>
+          <div class="ir"><span class="il">复核意见</span><span>{{ r.comment }}</span></div>
         </div>
       </div>
 
-      <div v-if="managerApproval" class="sc">
-        <div class="sct">{{ normalizeFlowNodeName(managerApproval.label) || '指挥部项目经理确认' }}</div>
+      <div v-if="managerConfirm" class="sc">
+        <div class="sct">{{ managerConfirm.label }}</div>
         <div class="ic">
-        <div class="ir"><span class="il">审批人</span><span>{{ managerApproval.manager }}</span></div>
-        <div class="ir"><span class="il">审批结果</span><span :class="managerApproval.status === '通过' ? 'pass' : 'pending'">{{ managerApproval.status }}</span></div>
-        <div class="ir" v-if="managerApproval.date"><span class="il">审批日期</span><span>{{ managerApproval.date }}</span></div>
-        <div class="ir"><span class="il">审批意见</span><span>{{ managerApproval.comment }}</span></div>
+        <div class="ir"><span class="il">确认人</span><span>{{ managerConfirm.person }}</span></div>
+        <div class="ir"><span class="il">确认结果</span><span :class="managerConfirm.passed ? 'pass' : 'pending'">{{ managerConfirm.result }}</span></div>
+        <div class="ir"><span class="il">确认日期</span><span>{{ managerConfirm.date || '--' }}</span></div>
+        <div class="ir"><span class="il">确认意见</span><span>{{ managerConfirm.comment }}</span></div>
         </div>
       </div>
 
-      <div v-if="record.departmentConfirmationDate || currentWorkflowStep(record)?.key === 'departmentConfirmation'" class="sc">
+      <div v-if="departmentConfirm" class="sc">
         <div class="sct">项目部长确认</div>
         <div class="ic">
-        <div class="ir"><span class="il">确认人</span><span>{{ record.projectDepartmentHead || '项目部长' }}</span></div>
-        <div class="ir"><span class="il">确认结果</span><span>{{ record.departmentConfirmationResult || '待确认' }}</span></div>
-        <div v-if="record.departmentConfirmationDate" class="ir"><span class="il">确认日期</span><span>{{ record.departmentConfirmationDate }}</span></div>
-        <div v-if="record.departmentConfirmationComment" class="ir"><span class="il">确认意见</span><span>{{ record.departmentConfirmationComment }}</span></div>
+        <div class="ir"><span class="il">确认人</span><span>{{ departmentConfirm.person }}</span></div>
+        <div class="ir"><span class="il">确认结果</span><span :class="departmentConfirm.result === '通过' ? 'pass' : 'pending'">{{ departmentConfirm.result }}</span></div>
+        <div class="ir"><span class="il">确认日期</span><span>{{ departmentConfirm.date || '--' }}</span></div>
+        <div class="ir"><span class="il">确认意见</span><span>{{ departmentConfirm.comment || '--' }}</span></div>
         </div>
       </div>
 
@@ -166,6 +149,10 @@ function goBack() {
             </div>
           </div>
         </div>
+      </div>
+
+      <div v-if="canDelete" class="sc">
+        <button type="button" class="delete-btn" @click="handleDelete">删除已作废整改单</button>
       </div>
     </template>
   </div>
@@ -189,6 +176,7 @@ function goBack() {
 .pass { color:#34a853; font-weight:600; }
 .fail { color:#e53935; font-weight:600; }
 .pending { color:#a75c00; font-weight:600; }
+.delete-btn { width:100%; padding:13px; border:1px solid #e53935; border-radius:10px; background:#fff2f2; color:#e53935; font-size:15px; font-weight:600; cursor:pointer; }
 .fl { padding-left:6px; }
 .fi { display:flex; gap:10px; padding-bottom:14px; position:relative; }
 .fi::before { content:''; position:absolute; left:7px; top:15px; bottom:0; width:1px; background:#e0e0e0; }

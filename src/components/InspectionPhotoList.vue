@@ -3,6 +3,7 @@ import { computed } from 'vue'
 
 const props = defineProps({
   photos: { type: Array, default: () => [] },
+  previewZIndex: Number,
   namePrefix: { type: String, default: '巡检照片' },
 })
 const entries = computed(() => props.photos.map((photo, index) => {
@@ -24,6 +25,7 @@ const previews = computed(() => entries.value.map(item => item.url).filter(Boole
         :initial-index="previews.indexOf(item.url)"
         fit="cover"
         preview-teleported
+        :z-index="previewZIndex"
       />
       <span v-else>{{ item.name }}</span>
     </div>

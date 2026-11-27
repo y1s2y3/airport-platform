@@ -2,6 +2,7 @@ import { reactive, watch } from 'vue'
 import { DEFAULT_INSPECTOR_LABEL, INSPECTION_CATEGORIES, resolveInspectionProjectId } from '../config/inspectionManagement'
 import { getDemoInspectionPeople, inspectionPeoplePool } from '../mock/inspectionPeople'
 import { COC_PROJECT_OPTIONS } from '../config/projectOptions'
+import { listSysUsers } from '../mock/sysUsers'
 
 export const inspectorCandidates = [
   ...inspectionPeoplePool,
@@ -83,7 +84,22 @@ export function getInspectionPersonConfig(projectIdOrName, category = '安全') 
   const projectId = resolveInspectionProjectId(projectIdOrName)
   return inspectionPersonConfigs.find(item => item.projectId === projectId && item.inspectionCategory === personnelCategory(category))
 }
-export function getInspectorById(id) { return inspectorCandidates.find(item => item.id === id) }
+export function listInspectionPersonCandidates() {
+  const users = listSysUsers().filter(user => user.status === true && user.loginAccount)
+  return [...inspectorCandidates, ...users.map(user => ({
+    id: user.id,
+    name: user.name,
+    role: users.some(other => other.id !== user.id && other.name === user.name)
+      ? `系统用户 · ${user.loginAccount}`
+      : '系统用户',
+  }))]
+}
+
+export function getInspectorById(id) {
+  if (!id) return undefined
+  return inspectorCandidates.find(person => person.id === id)
+    || listInspectionPersonCandidates().find(person => person.id === id)
+}
 export function getConfiguredPersonLabel(project, category, field) {
   return inspectionPersonIds(getInspectionPersonConfig(project, category)?.[field])
     .map(getInspectorById).filter(Boolean).map(person => `${person.name}（${person.role}）`).join('、')

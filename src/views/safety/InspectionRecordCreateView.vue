@@ -11,8 +11,7 @@ import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
-import { addMobileInspectionTask } from '../../mock/mobileInspectionTasks'
-import { createMobileRectificationsFromTask } from '../../composables/useMobileRectification'
+import { saveInspectionResult } from '../../composables/useMobileRectification'
 import {
   INSPECTION_CATEGORIES,
   INSPECTION_TYPES,
@@ -20,7 +19,7 @@ import {
   buildInspectionTaskNo,
   formatInspectionCategories,
 } from '../../config/inspectionManagement'
-import { inspectorCandidates, getProjectRectifierLabel, getProjectReviewerLabel, getInspectionCopyDefaults, INSPECTION_COPY_FIELDS } from '../../composables/useInspectionPersonConfig'
+import { listInspectionPersonCandidates, getProjectRectifierLabel, getProjectReviewerLabel, getInspectionCopyDefaults, INSPECTION_COPY_FIELDS } from '../../composables/useInspectionPersonConfig'
 import { getMajorHazardLedgerOptions } from '../../utils/inspectionMajorHazardLink'
 import { useCurrentProject } from '../../composables/useCurrentProject'
 import { COC_PROJECT_OPTIONS } from '../../config/projectOptions'
@@ -41,7 +40,7 @@ const projectLabel = computed(() => {
   return headerProjectLabel.value || ''
 })
 
-const personOptions = inspectorCandidates.map((p) => `${p.name}（${p.role}）`)
+const personOptions = listInspectionPersonCandidates().map((p) => `${p.name}（${p.role}）`)
 const companionOptions = personOptions
 
 function createHazardItem() {
@@ -210,10 +209,11 @@ function submitInspection() {
 
   submitting.value = true
   try {
-    addMobileInspectionTask(newTask)
-    createMobileRectificationsFromTask(newTask, hazardItems)
+    saveInspectionResult(newTask, hazardItems)
     ElMessage.success(`巡检记录已提交${rectifyCount ? `，已下发 ${rectifyCount} 份整改单` : ''}`)
     router.push('/safety-inspection/task')
+  } catch {
+    ElMessage.error('巡检记录保存失败，请确认浏览器存储空间后重试')
   } finally {
     submitting.value = false
   }

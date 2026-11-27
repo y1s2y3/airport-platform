@@ -136,7 +136,7 @@ export function dispatchHazardFlowRecords(row) {
     steps.push({
       label: '施工单位项目经理验收',
       log: row.contractorAcceptanceDate
-        ? { operator: row.contractorManager || '施工单位项目经理', time: row.contractorAcceptanceDate, remark: row.contractorAcceptanceComment, result: row.contractorAcceptanceResult }
+        ? { operator: row.contractorManager || '施工单位项目经理', time: row.contractorAcceptanceDate, remark: row.contractorAcceptanceComment, result: row.contractorAcceptanceResult || '通过' }
         : null,
     })
   }
@@ -145,7 +145,7 @@ export function dispatchHazardFlowRecords(row) {
     steps.push({
       label: '监理总监验收',
       log: row.directorAcceptanceDate
-        ? { operator: row.director || '监理单位项目总监', time: row.directorAcceptanceDate, remark: row.directorAcceptanceComment, result: row.directorAcceptanceResult }
+        ? { operator: row.director || '监理单位项目总监', time: row.directorAcceptanceDate, remark: row.directorAcceptanceComment, result: row.directorAcceptanceResult || '通过' }
         : null,
     })
   }
@@ -159,12 +159,13 @@ export function dispatchHazardFlowRecords(row) {
   const currentLabel = row.currentNode || dispatchHazardCurrentNode(row)
   for (const step of steps) {
     if (step.log) {
+      const result = step.log.result || (step.rejected ? '不通过' : '')
       records.push({
-        label: step.rejected ? `${step.label}（不通过）` : step.label,
+        label: result ? `${step.label}（${result}）` : step.label,
         actor: step.log.operator,
         date: step.log.time,
         comment: step.log.remark,
-        rejected: step.rejected,
+        rejected: result === '不通过',
       })
       continue
     }

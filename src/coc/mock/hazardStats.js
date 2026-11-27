@@ -1,12 +1,10 @@
 /**
  * COC 隐患统计口径（与 PRD 对齐）
  * - 统一展示态：待整改｜待验收｜待复查｜已关闭
- * - 来源：巡检（安全/质量）｜监理例会登记｜调度隐患清单
+ * - 来源：巡检隐患清单｜监理例会登记｜调度隐患清单
  * - 本期不含随手拍
  */
 import {
-  SAFETY_HAZARDS,
-  QUALITY_HAZARDS,
   HQ_SELECTION_ID,
   HQ_HAZARD_LEVEL_SEGMENTS,
 } from './data.js'
@@ -14,6 +12,7 @@ import { getDispatchHazards } from '../../utils/dispatchHazardStorage.js'
 import { getSupervisionHazards } from '../../utils/cocAdminDeviceStorage.js'
 import { getDispatchHazardTypeLabel } from '../../config/dispatchHazardTypes.js'
 import { getHazardLevels } from '../../config/inspectionManagement.js'
+import { getCocInspectionHazardRows } from '../../utils/hazardIssueSummary.js'
 
 /** 统计/筛选用统一整改状态 */
 export const HAZARD_UNIFIED_STATUS_SEGMENTS = [
@@ -50,12 +49,10 @@ export function resolveHazardTicketType(item) {
   return String(item?.ticketType || item?.detail?.ticketType || '').trim()
 }
 
-/** 巡检 / 监理例会（COC 安质隐患池）渠道 */
 export function resolveInspectPoolChannel(item) {
   const ticket = resolveHazardTicketType(item)
   if (ticket === '监理会议隐患' || ticket === '监理例会隐患') return 'supervision'
-  if (ticket === '调度隐患') return 'dispatch'
-  return 'inspection'
+  return ticket === '调度隐患' ? 'dispatch' : 'inspection'
 }
 
 function normalizeLevel(level) {
@@ -64,24 +61,24 @@ function normalizeLevel(level) {
   return '一般'
 }
 
-function fromInspectPool(item, hazardCategory) {
-  const channel = resolveInspectPoolChannel(item)
-  const rawStatus = item.status
+function fromInspectionRow(row) {
+  const levelIndex = getHazardLevels(row.categories[0]).indexOf(row.hazardLevel)
+  const catalogIndex = /^catalog:(\d+)$/.exec(row.projectKey)?.[1]
   return {
-    id: item.id,
-    projectId: item.projectId,
-    projectName: item.projectName,
-    projectShortName: item.projectShortName || item.projectName,
-    level: normalizeLevel(item.level),
-    status: rawStatus,
-    unifiedStatus: mapHazardUnifiedStatus(rawStatus),
-    desc: item.desc,
-    date: item.date,
-    channel,
-    ticketType: resolveHazardTicketType(item) || (channel === 'supervision' ? '监理会议隐患' : '巡检隐患'),
-    hazardCategory,
-    source: 'inspect_pool',
-    raw: item,
+    id: row.sourceId,
+    projectId: catalogIndex == null ? '' : 'p-' + catalogIndex.padStart(3, '0'),
+    projectName: row.originalProjectName || row.projectName,
+    projectShortName: row.projectName,
+    level: ['重大', '较大', '一般'][levelIndex] || normalizeLevel(row.hazardLevel),
+    status: row.status,
+    unifiedStatus: mapHazardUnifiedStatus(row.status),
+    desc: row.title,
+    date: row.registeredAt,
+    channel: 'inspection',
+    ticketType: '巡检隐患',
+    hazardCategory: row.categoryLabel,
+    source: 'inspection',
+    raw: row.raw,
   }
 }
 
@@ -252,7 +249,7 @@ function matchProject(row, projectId) {
 
 /**
  * 汇总全来源隐患：
- * - 巡检：安质池中 ticketType=巡检隐患
+ * - 巡检：后台巡检隐患清单中的有效记录
  * - 监理例会：监理隐患清单（后台模块）
  * - 调度：调度隐患清单
  */
@@ -260,14 +257,10 @@ export function collectCocHazards(projectId) {
   const dispatchRows = getDispatchHazards().map(fromDispatchRow)
   const supervisionRows = getSupervisionHazards().map(fromSupervisionModuleRow)
 
-  const inspectionRows = [
-    ...SAFETY_HAZARDS.map((h) => fromInspectPool(h, '安全')),
-    ...QUALITY_HAZARDS.map((h) => fromInspectPool(h, '质量')),
-  ].filter((row) => row.channel === 'inspection')
-
-  return [...inspectionRows, ...supervisionRows, ...dispatchRows].filter((row) =>
-    matchProject(row, projectId),
-  )
+  // 巡检来源统一取后台巡检台账（每个项目都有完整节点示例），不再叠加 COC 自带的旧巡检记录。
+  const inspectionRows = getCocInspectionHazardRows(projectId).map(fromInspectionRow)
+  const otherRows = [...supervisionRows, ...dispatchRows].filter(row => matchProject(row, projectId))
+  return [...inspectionRows, ...otherRows]
 }
 
 export function getProjectHazardStats(projectId) {

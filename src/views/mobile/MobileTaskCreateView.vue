@@ -5,8 +5,7 @@ import InspectionPersonMultiSelect from '../../components/InspectionPersonMultiS
 import { ref, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { addMobileInspectionTask } from '../../mock/mobileInspectionTasks'
-import { createMobileRectificationsFromTask } from '../../composables/useMobileRectification'
+import { saveInspectionResult } from '../../composables/useMobileRectification'
 import {
   INSPECTION_CATEGORIES,
   INSPECTION_TYPES,
@@ -16,7 +15,7 @@ import {
   resolveInspectionProjectId,
 } from '../../config/inspectionManagement'
 import {
-  inspectorCandidates,
+  listInspectionPersonCandidates,
   getProjectRectifierLabel,
   getProjectReviewerLabel,
   getInspectionCopyDefaults,
@@ -72,7 +71,7 @@ watch([isHqSelected, currentProjectId, headerProjectLabel], () => {
   if (label) form.value.project = label
 }, { immediate: true })
 
-const personOptions = inspectorCandidates.map(p => `${p.name}（${p.role}）`)
+const personOptions = listInspectionPersonCandidates().map(p => `${p.name}（${p.role}）`)
 const companionOptions = ['刘工（安全员）', '陈工（技术员）', '周工（施工员）', '吴工（质检员）']
 
 const selectedCompanion = ref('')
@@ -240,8 +239,12 @@ function submitInspection() {
     rectifyCount,
   }
 
-  addMobileInspectionTask(newTask)
-  createMobileRectificationsFromTask(newTask, hazardItems)
+  try {
+    saveInspectionResult(newTask, hazardItems)
+  } catch {
+    ElMessage.error('巡检记录保存失败，请确认浏览器存储空间后重试')
+    return
+  }
   ElMessage.success(`巡检记录已提交${rectifyCount ? `，已下发 ${rectifyCount} 份整改单` : ''}`)
   router.push(tasksBase.value)
 }

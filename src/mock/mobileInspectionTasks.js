@@ -198,23 +198,25 @@ const taskEntries = new Map([...seedTasks, ...inspectionTaskSeeds, ...readPatrol
 export const mobileInspectionTasks = reactive([...taskEntries.values()])
 
 /** 保留原巡检单供刷新后查看，历史内联记录只在任务不存在时恢复。 */
-export function retainInspectionTask(task, { initialization = false } = {}) {
+export function retainInspectionTask(task, options = {}) {
   if (!task?.id) return null
-  let stored = getMobileInspectionTask(task.id)
-  if (!stored) {
-    stored = normalizeInspectionTask(task)
-    mobileInspectionTasks.push(stored)
-  }
+  const existing = getMobileInspectionTask(task.id)
+  const stored = existing || normalizeInspectionTask(task)
+  writeTaskArchive(stored, options)
+  if (!existing) mobileInspectionTasks.push(stored)
+  return stored
+}
+
+function writeTaskArchive(task, { initialization = false } = {}) {
   const archive = new Map(readPatrolTaskArchive().map((item) => [item.id, item]))
-  archive.set(stored.id, JSON.parse(JSON.stringify(stored)))
+  archive.set(task.id, task)
   try {
     localStorage.setItem(PATROL_TASK_ARCHIVE_KEY, JSON.stringify([...archive.values()]))
     initializationPatrolFallback.clear()
   } catch (error) {
     if (!initialization || !['QuotaExceededError', 'NS_ERROR_DOM_QUOTA_REACHED', 'SecurityError'].includes(error?.name)) throw error
-    initializationPatrolFallback.set(stored.id, JSON.parse(JSON.stringify(stored)))
+    initializationPatrolFallback.set(task.id, JSON.parse(JSON.stringify(task)))
   }
-  return stored
 }
 
 export { retainInspectionTask as retainPatrolInspectionTask }
@@ -227,10 +229,11 @@ if (typeof window !== 'undefined') {
   window.addEventListener('storage', (event) => {
     if (event.key !== PATROL_TASK_ARCHIVE_KEY) return
     for (const task of readPatrolTaskArchive()) {
-      if (getMobileInspectionTask(task.id)) continue
+      const stored = getMobileInspectionTask(task.id)
       const restored = normalizeInspectionTask(task)
-      mobileInspectionTasks.push(restored)
-      notifyTask(restored)
+      if (stored) Object.assign(stored, restored)
+      else mobileInspectionTasks.unshift(restored)
+      notifyTask(stored || restored)
     }
   })
 }
@@ -259,8 +262,11 @@ export function getInspectionTaskForRectification(record) {
   return matches.length === 1 ? matches[0] : null
 }
 
-export function addMobileInspectionTask(task) {
+export function addMobileInspectionTask(task, { persist = true } = {}) {
+  const existing = getMobileInspectionTask(task.id)
+  if (existing) return existing
   const item = normalizeInspectionTask({ ...task, createdAt: task.createdAt || new Date().toISOString() })
+  if (persist) writeTaskArchive(item)
   mobileInspectionTasks.unshift(item)
   syncInspectionTaskToMajorHazard(item)
   notifyTask(item)
@@ -268,11 +274,12 @@ export function addMobileInspectionTask(task) {
 }
 
 /** 更新已有任务（执行巡检提交结果等） */
-export function updateMobileInspectionTask(id, patch) {
-  const target = mobileInspectionTasks.find((t) => t.id === id)
+export function updateMobileInspectionTask(id, patch, { persist = true } = {}) {
+  const target = getMobileInspectionTask(id)
   if (!target) return null
-  Object.assign(target, normalizeInspectionTask({ ...target, ...patch }))
-  if (target.isMajorHazardPatrol === '是' || readPatrolTaskArchive().some((item) => item.id === target.id)) retainInspectionTask(target)
+  const next = normalizeInspectionTask({ ...target, ...patch })
+  if (persist) writeTaskArchive(next)
+  Object.assign(target, next)
   syncInspectionTaskToMajorHazard(target)
   notifyTask(target)
   return target
@@ -281,10 +288,5 @@ export function updateMobileInspectionTask(id, patch) {
 /** 按任务单编号同步 Web 下发记录的可编辑信息。 */
 export function updateMobileInspectionTaskByNo(taskNo, patch) {
   const target = mobileInspectionTasks.find((task) => task.taskNo === taskNo)
-  if (!target) return null
-  Object.assign(target, normalizeInspectionTask({ ...target, ...patch }))
-  if (target.isMajorHazardPatrol === '是' || readPatrolTaskArchive().some((item) => item.id === target.id)) retainInspectionTask(target)
-  syncInspectionTaskToMajorHazard(target)
-  notifyTask(target)
-  return target
+  return target ? updateMobileInspectionTask(target.id, patch) : null
 }

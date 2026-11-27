@@ -1,10 +1,12 @@
 <script setup>
+import SafetyHazardDetailView from '../../../../views/safety/SafetyHazardDetailView.vue'
 import { SHOW_HAZARD_SAMPLING } from '../../../../config/hazardSamplingVisibility.js'
 import {ref,computed,inject,watch} from 'vue'
 import {getCocHazardIssueRows,HAZARD_ISSUE_SOURCES,isHazardIssueOverdue} from '../../../../utils/hazardIssueSummary.js'
 import {hqSamplingStatus,SAMPLING_STATUS,ensureSamplingExamples,sampling} from '../../../../mock/hazardSampling.js'
 import DispatchDraggablePanel from './DispatchDraggablePanel.vue'
 import DispatchHqPanelTitle from './DispatchHqPanelTitle.vue'
+import DispatchHazardDetailContent from '../../../../components/hazard/DispatchHazardDetailContent.vue'
 import CocHazardIssueDetail from './CocHazardIssueDetail.vue'
 const dispatchHqUi=inject('dispatchHqUi',false)
 const props=defineProps({projectId:{type:String,default:''}})
@@ -47,7 +49,11 @@ function hazardStatusClass(row){const status=String(row.status||'');if(status.in
    <table class="mini-table more-table"><thead><tr><th>数据源</th><th>类别</th><th>登记时间</th><th>隐患／问题内容</th><th>整改状态</th><th v-if="SHOW_HAZARD_SAMPLING">抽查结果</th></tr></thead><tbody><tr v-for="row in pagedHazard" :key="row.id" class="clickable-row" @dblclick="openDetail(row)"><td>{{row.sourceLabel}}</td><td>{{row.categoryLabel}}</td><td>{{row.registeredAt||'--'}}</td><td class="desc" :title="row.title">{{row.title}}</td><td>{{row.status}}</td><td v-if="SHOW_HAZARD_SAMPLING">{{hqSamplingStatus(row)}}</td></tr><tr v-if="!filtered.length"><td :colspan="SHOW_HAZARD_SAMPLING ? 6 : 5" class="empty-row">暂无符合条件的隐患记录</td></tr></tbody></table>
    <div class="hazard-pager"><el-pagination v-model:current-page="hazardPage" v-model:page-size="hazardPageSize" :total="filtered.length" :page-sizes="[10,20,50]" layout="total, sizes, prev, pager, next" small background/></div>
   </DispatchDraggablePanel>
-  <DispatchDraggablePanel v-if="detailView" :title="detailView.sourceLabel+' · 隐患详情'" :width="940" :z-index="120030" placement="right" right-backdrop @close="detailView=null"><CocHazardIssueDetail :row="detailView" @back="detailView=null"/></DispatchDraggablePanel>
+  <DispatchDraggablePanel v-if="detailView" :title="detailView.sourceLabel+' · 隐患详情'" :width="940" :z-index="120030" placement="right" right-backdrop @close="detailView=null">
+    <DispatchHazardDetailContent v-if="detailView.source === 'dispatch'" :record="detailView.raw" in-screen :dark="dispatchHqUi" />
+    <SafetyHazardDetailView v-else-if="detailView.source === 'inspection'" :record-id="detailView.sourceId" embedded in-screen />
+    <CocHazardIssueDetail v-else :row="detailView" @back="detailView=null" />
+  </DispatchDraggablePanel>
  </div>
 </template>
 <style scoped>

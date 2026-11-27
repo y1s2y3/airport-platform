@@ -4,14 +4,14 @@ import InspectionPersonMultiSelect from '../../components/InspectionPersonMultiS
 import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getMobileInspectionTask, updateMobileInspectionTask } from '../../mock/mobileInspectionTasks'
-import { createMobileRectificationsFromTask } from '../../composables/useMobileRectification'
+import { getMobileInspectionTask } from '../../mock/mobileInspectionTasks'
+import { saveInspectionResult } from '../../composables/useMobileRectification'
 import { checkCategoryTree, getItemLabel } from '../../composables/useInspectionPlan'
 import { validateInspectionHazard, hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
 import { COC_PROJECT_OPTIONS } from '../../config/projectOptions'
 import { getMajorHazardLedgerOptions } from '../../utils/inspectionMajorHazardLink'
 import {
-  inspectorCandidates,
+  listInspectionPersonCandidates,
   getProjectRectifierLabel,
   getProjectReviewerLabel,
   getInspectionCopyDefaults,
@@ -170,7 +170,7 @@ function removeHazardPhoto(itemIdx, photoIdx) {
   hazardItems.value[itemIdx].photos.splice(photoIdx, 1)
 }
 
-const personOptions = inspectorCandidates.map(p => `${p.name}（${p.role}）`)
+const personOptions = listInspectionPersonCandidates().map(p => `${p.name}（${p.role}）`)
 const companionOptions = ['刘工（安全员）', '陈工（技术员）', '周工（施工员）', '吴工（质检员）']
 const hasHazard = computed(() => hazardItems.value.length > 0)
 
@@ -206,7 +206,8 @@ function submitCheck() {
     ElMessage.warning('全部正常时请至少上传一张巡检照片')
     return
   }
-  if (inspectResult.value === 'hazard') {    if (hazardItems.value.length === 0) { ElMessage.warning('请至少新增一条隐患'); return }
+  if (inspectResult.value === 'hazard') {
+    if (hazardItems.value.length === 0) { ElMessage.warning('请至少新增一条隐患'); return }
     for (const [i, item] of hazardItems.value.entries()) {
       const dictionaryError = validateInspectionHazard(item, taskCategory.value)
       if (dictionaryError) { ElMessage.warning(`第 ${i + 1} 条隐患：${dictionaryError}`); return }
@@ -264,7 +265,7 @@ function submitCheck() {
         majorHazardName: '',
       }
 
-  const savedTask = updateMobileInspectionTask(taskId, {
+  const patch = {
     status: '已完成',
     overdue: false,
     companions: [...companions.value],
@@ -277,8 +278,14 @@ function submitCheck() {
     hasRectify: rectifyCount > 0,
     rectifyCount,
     ...majorHazardPatch,
-  })
-  if (savedTask) createMobileRectificationsFromTask(savedTask, savedHazards)
+  }
+  try {
+    if (!saveInspectionResult(patch, savedHazards, { existingId: taskId })) {
+      return ElMessage.warning('任务已完成或不存在，请返回列表刷新后重试')
+    }
+  } catch {
+    return ElMessage.error('巡检结果保存失败，请确认浏览器存储空间后重试')
+  }
 
   ElMessage.success(
     inspectResult.value === 'hazard'

@@ -14,6 +14,7 @@ import {
 import {
   buildPenaltyApprovalFlow,
   buildDispatchHazardApprovalFlow,
+  deletedInspectionProcess,
 } from '../mock/personalCenter.js'
 import { findSubcontractorApplication } from '../mock/subcontractorManagement.js'
 import {
@@ -41,6 +42,7 @@ const {
   emptyText,
   embedType,
 } = useTodoHandleContext()
+const deletedInspection = computed(() => deletedInspectionProcess(todo.value))
 
 // 办理 / 转交 两个操作页签（COC 任务单在处理页内已自带转交，不重复展示）
 const handleTab = ref('handle')
@@ -99,6 +101,7 @@ const subcontractorLiveDetail = computed(() => {
 
 const approvalFlow = computed(() => {
   if (!todo.value) return []
+  if (todo.value.voidProcess) return todo.value.approvalFlow || []
   if (todo.value.type === 'inspection' && todo.value.rectifyId) {
     const record = getMobileRectification(todo.value.rectifyId)
     if (record) return workflowApprovalRecords(record)
@@ -145,6 +148,10 @@ const todoSourceLabel = computed(() => {
 
 function goBack() {
   const tab = fromTab.value
+  if (tab === 'started' && route.query.returnTo === '/mobile/messages') {
+    router.push({ path: '/mobile/messages', query: { tab: 'initiated' } })
+    return
+  }
   const returnLocation = personalCenterReturnLocation(route.query, tab)
   if (returnLocation) {
     router.push(returnLocation)
@@ -157,7 +164,7 @@ function goBack() {
         ? {}
         : tab === 'warning-center'
           ? { tab: 'warning-center' }
-          : { tab }
+          : { tab: { started: 'initiated', cc: 'copied' }[tab] || tab }
     router.push({ path: '/app/personal', query: q })
     return
   }
@@ -190,6 +197,17 @@ watch(todo, (value, previous) => {
     <el-empty v-if="!todo && !handlerMeta" :description="emptyText" :image-size="80">
       <el-button type="primary" @click="goBack">返回</el-button>
     </el-empty>
+
+    <template v-else-if="deletedInspection">
+      <el-descriptions :title="todo.voidProcess ? '已删除整改单的作废记录' : '已删除整改单的发起记录'" :column="1" border>
+        <el-descriptions-item label="整改单编号">{{ deletedInspection.rectifyNo }}</el-descriptions-item>
+        <el-descriptions-item label="状态">已作废</el-descriptions-item>
+      </el-descriptions>
+      <TodoApprovalFlowSection
+        :approval-flow="todo.voidProcess ? approvalFlow : approvalFlow.map(({ title, time, user, status }) => ({ title, time, user, status }))"
+        :is-inspection="true"
+      />
+    </template>
 
     <template v-else-if="handlerMeta?.kind === 'embed' && todo">
       <component

@@ -44,8 +44,13 @@ const { selectedCategory } = useInspectionCategoryForm(form)
 const receiverSummary = computed(() => {
   const selected = projectOptions.filter(project => form.projectIds.includes(project.id))
   if (!selected.length) return '选择项目后自动带入已配置的巡检人'
+  const categories = form.inspectionCategories.length ? form.inspectionCategories : [selectedCategory.value]
   return selected
-    .map(project => `${project.label}：${getProjectInspectorLabel(project.id, selectedCategory.value) || '未配置'}`)
+    .map(project => {
+      const labels = categories.map(category => getProjectInspectorLabel(project.id, category) || '未配置')
+      const text = categories.length > 1 ? categories.map((category, index) => `${category} ${labels[index]}`).join('，') : labels[0]
+      return `${project.label}：${text}`
+    })
     .join('；')
 })
 
@@ -209,18 +214,20 @@ watch(() => route.params.id, () => {
 // ===== 保存 =====
 function handleSave() {
   if (!form.name.trim()) { ElMessage.warning('请输入任务名称'); return }
-  if (form.checkConfig.length === 0 || form.inspectionCategories.length !== 1) {
-    ElMessage.warning('请先选择一个巡检分类，并配置该分类下的检查项')
-    return
-  }
-  if (form.checkConfig.some(config => checkCategoryTree.find(item => item.id === config.categoryId)?.inspectionCategory !== selectedCategory.value)) {
+  // 编辑已下发任务时巡检分类锁定，沿用任务原有分类（历史复合分类任务保持原值，不强制改成单一分类）。
+  const categories = [...form.inspectionCategories]
+  if (!categories.length) { ElMessage.warning('请先选择一个巡检分类'); return }
+  if (!isEdit.value && categories.length !== 1) { ElMessage.warning('请选择一个巡检分类'); return }
+  if (form.checkConfig.length === 0) { ElMessage.warning('请配置该分类下的检查项'); return }
+  const categoryOf = config => checkCategoryTree.find(item => item.id === config.categoryId)?.inspectionCategory
+  if (form.checkConfig.some(config => !categories.includes(categoryOf(config)))) {
     ElMessage.warning('检查项与当前巡检分类不一致，请重新选择检查项')
     return
   }
   if (!inspectionTypeOptions.value.includes(form.inspectionType)) { ElMessage.warning('请选择检查类型'); return }
   if (form.projectIds.length === 0) { ElMessage.warning('请选择所属项目'); return }
   const incompleteProject = projectOptions.find(project =>
-    form.projectIds.includes(project.id) && !hasCompleteInspectionPersonConfig(project.id, selectedCategory.value),
+    form.projectIds.includes(project.id) && categories.some(category => !hasCompleteInspectionPersonConfig(project.id, category)),
   )
   if (incompleteProject) {
     ElMessage.warning(`${incompleteProject.label}尚未完整配置巡检人、整改人和复查人，请先完成人员配置`)
@@ -239,14 +246,18 @@ function handleSave() {
     responsiblePerson: form.responsiblePerson, ccPersons: [...form.ccPersons],
     deadlineDate: form.deadlineDate, remark: form.remark.trim(),
   }
-  if (isEdit.value) {
-    const addedCount = updatePlan(route.params.id, payload)
-    ElMessage.success(addedCount > 0 ? `任务已更新，并新增下发 ${addedCount} 条任务` : '任务已更新')
-  } else {
-    const count = addPlan(payload)
-    ElMessage.success(`已向 ${count} 个项目直接下发巡检任务`)
+  try {
+    if (isEdit.value) {
+      const addedCount = updatePlan(route.params.id, payload)
+      ElMessage.success(addedCount > 0 ? `任务已更新，并新增下发 ${addedCount} 条任务` : '任务已更新')
+    } else {
+      const count = addPlan(payload)
+      ElMessage.success(`已向 ${count} 个项目直接下发巡检任务`)
+    }
+    router.push('/safety-inspection/plan')
+  } catch {
+    ElMessage.error('巡检任务保存失败，请确认浏览器存储空间后重试')
   }
-  router.push('/safety-inspection/plan')
 }
 function handleCancel() { router.push('/safety-inspection/plan') }
 </script>
@@ -266,12 +277,21 @@ function handleCancel() { router.push('/safety-inspection/plan') }
         <el-input v-model="form.name" placeholder="如：雨季临时用电检查" maxlength="50" />
       </el-form-item>
       <el-form-item label="巡检分类" required>
-        <el-radio-group v-model="selectedCategory">
-          <el-radio v-for="category in INSPECTION_CATEGORIES" :key="category" :value="category" border>
-            {{ category }}
-          </el-radio>
-        </el-radio-group>
-        <div class="form-tip">一次只能选择一个巡检分类；检查项、隐患类别、隐患等级和编号随分类联动。历史复合分类任务需重新选择分类后保存。</div>
+        <!-- 已下发任务不允许修改巡检分类：分类决定检查项、隐患类别/等级与单号规则 -->
+        <template v-if="isEdit">
+          <div class="category-readonly">
+            <el-tag v-for="category in form.inspectionCategories" :key="category" type="info" disable-transitions>{{ category }}</el-tag>
+          </div>
+          <div class="form-tip">任务已下发，巡检分类不可修改；如需更换分类，请重新下发任务。</div>
+        </template>
+        <template v-else>
+          <el-radio-group v-model="selectedCategory">
+            <el-radio v-for="category in INSPECTION_CATEGORIES" :key="category" :value="category" border>
+              {{ category }}
+            </el-radio>
+          </el-radio-group>
+          <div class="form-tip">一次只能选择一个巡检分类；检查项、隐患类别、隐患等级和编号随分类联动。</div>
+        </template>
       </el-form-item>
       <el-form-item label="检查类型" required>
         <el-select v-model="form.inspectionType" placeholder="请选择检查类型" style="width: 100%">
@@ -452,6 +472,7 @@ function handleCancel() { router.push('/safety-inspection/plan') }
 .form-tip { font-size: 11px; color: var(--ap-text-muted); margin-top: 4px; }
 .project-config-tip { color: #e6a23c; }
 .project-disabled-note { color: #999; margin-left: 4px; }
+.category-readonly { display: flex; align-items: center; gap: 6px; min-height: 32px; }
 .sel-dialog-tip { margin-top: 10px; color: var(--ap-text-muted); font-size: 12px; line-height: 1.5; }
 .rule-tip { margin-top:14px; }
 .date-sep { display: block; text-align: center; font-size: 12px; color: var(--ap-text-muted); padding: 4px 0; }

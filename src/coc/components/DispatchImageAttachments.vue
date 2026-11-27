@@ -65,6 +65,7 @@ function normalizeList(list) {
     .map((item, index) => ({
       name: item.name || `${props.namePrefix}-${index + 1}`,
       url: item.url || '',
+      ...(item.storageKey ? { storageKey: item.storageKey } : {}),
     }))
 }
 

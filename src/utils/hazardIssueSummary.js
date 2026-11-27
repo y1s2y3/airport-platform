@@ -6,6 +6,7 @@ import { externalQualityIssues } from '../mock/externalQualityIssues.js'
 import { normalizeInspectionCategories } from '../config/inspectionManagement.js'
 import { getDispatchHazardTypeLabel } from '../config/dispatchHazardTypes.js'
 import { PROJECT_NAMES, PROJECT_SHORT_NAMES } from '../config/projectCatalog.js'
+import { isInspectionRectificationOverdue } from './inspectionLedgerDates.js'
 
 export const HAZARD_ISSUE_SOURCES = [
   { value: 'inspection', label: '安质巡检' },
@@ -189,17 +190,28 @@ export function getHazardIssueRows() {
 
 /** COC 项目 ID 属于目录序列，不能当成项目主数据 ID 直接比较。 */
 export function getCocHazardIssueRows(projectId) {
-  const rows = getHazardIssueRows()
+  return filterCocProjectRows(getHazardIssueRows(), projectId)
+}
+
+export function getCocInspectionHazardRows(projectId) {
+  return filterCocProjectRows(listInspectionHazards().map(normalizeInspection), projectId)
+}
+
+function filterCocProjectRows(rows, projectId) {
   if (!projectId || projectId === 'hq') return rows
-  const index = /^p-\d+$/.test(projectId) ? Number(projectId.slice(2)) : -1
-  return rows.filter(row => row.projectKey === `catalog:${index}`)
+  // COC 项目 ID 既有 p-序号也有 p-英文名：优先用项目主数据映射，目录项目退化为按目录序号对应。
+  const key = getCurrentHazardIssueProjectKey(projectId)
+  if (key) return rows.filter(row => row.projectKey === key)
+  const index = /^p-(\d+)$/.exec(projectId)?.[1]
+  if (index == null) return []
+  return rows.filter(row => row.projectKey === `catalog:${Number(index)}`)
 }
 
 /** 无期限时返回 null，便于页面区分“未逾期”和“无法判断”。 */
 export function isHazardIssueOverdue(row, now = new Date()) {
+  if (row.source === 'inspection') return isInspectionRectificationOverdue(row, now)
   if (!row.deadline) return null
   if (row.closed) return false
-  if (row.source === 'inspection' && row.status === '待复查') return false
   const raw = String(row.deadline).trim()
   const timestamp = /^\d{4}-\d{2}-\d{2}$/.test(raw)
     ? new Date(`${raw}T23:59:59`)
