@@ -1,5 +1,4 @@
 <script setup>
-import InspectionVoidStamp from '../../components/InspectionVoidStamp.vue'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getVisibleMobileRectification } from '../../composables/useMobileRectification'
@@ -10,7 +9,7 @@ import InspectionPhotoList from '../../components/InspectionPhotoList.vue'
 import { getInspectionTaskForRectification } from '../../mock/mobileInspectionTasks'
 import { getInspectionTaskPhotos } from '../../utils/inspectionTaskPhotos'
 
-import { workflowFlowRecords, currentWorkflowStep, isInspectionVoidPending } from '../../utils/inspectionRectificationWorkflow'
+import { workflowFlowRecords, currentWorkflowStep } from '../../utils/inspectionRectificationWorkflow'
 import { canDeleteInspectionRectification } from '../../utils/inspectionWorkflowIdentity'
 import { confirmInspectionVoidDelete } from '../../composables/useInspectionVoidDelete'
 
@@ -64,9 +63,7 @@ function goBack() {
     <header class="mh">
       <button class="mb" aria-label="返回" @click="goBack">‹</button>
       <h1 class="mt">整改详情</h1>
-      <span v-if="!missing" class="header-status">
-        {{ statusText }} <InspectionVoidStamp v-if="isInspectionVoidPending(record)" />
-      </span>
+      <span v-if="!missing" class="header-status">{{ statusText }}</span>
     </header>
 
     <div v-if="missing" class="empty-tip">未找到该整改单，请返回列表重试。</div>

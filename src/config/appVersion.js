@@ -17,6 +17,15 @@ export const APP_VERSION = `v${APP_VERSION_BASE}.${APP_VERSION_PATCH}`
  */
 export const VERSION_CHANGELOG = [
   {
+    version: 'v3.1.1.12',
+    date: '2026-11-27',
+    highlights: [
+      '巡检隐患筛选统一显示「分类 / 类别」，同名类别按所属分类区分。',
+      '移动端整改详情和审批详情将「作废中」印章放在状态右侧，样式与 Web 端一致。',
+      '移动端巡检任务去掉来源分组，按单据日期从新到旧显示。',
+    ],
+  },
+  {
     version: 'v3.1.1.11',
     date: '2026-11-27',
     highlights: [

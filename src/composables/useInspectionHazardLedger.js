@@ -1,5 +1,5 @@
 import { computed, reactive, ref, watch } from 'vue'
-import { getHazardCategoryOptions, getHazardLevels, hasInspectionCategory } from '../config/inspectionManagement'
+import { getHazardCategoryFilterOptions, getHazardLevels, hasInspectionCategory, matchesHazardCategoryFilter } from '../config/inspectionManagement'
 import { isInspectionRectificationOverdue, isWithinInspectionDateRange } from '../utils/inspectionLedgerDates'
 import { useFilterVisibility } from './useFilterVisibility'
 
@@ -39,7 +39,7 @@ export function useInspectionHazardLedger(scopedRows, scope, options = {}) {
   const reviewers = computed(() => personOptionsOf('reviewer'))
   watch(scope, handleReset)
 
-  const hazardCategoryOptions = computed(() => getHazardCategoryOptions(filterForm.category, true))
+  const hazardCategoryOptions = computed(() => getHazardCategoryFilterOptions(filterForm.category))
   const hazardLevelOptions = computed(() => {
     const levels = getHazardLevels(filterForm.category)
     const legacyLevels = scopedRows.value
@@ -67,7 +67,7 @@ export function useInspectionHazardLedger(scopedRows, scope, options = {}) {
       if (filterForm.reviewers.length && !filterForm.reviewers.includes(d.reviewer)) return false
       if (!isWithinInspectionDateRange(d.issueDate, filterForm.issueRange)) return false
       if (filterForm.category && !hasInspectionCategory(d.inspectionCategories || d.inspectionCategory, filterForm.category)) return false
-      if (filterForm.hazardCategory && d.hazardCategory !== filterForm.hazardCategory) return false
+      if (!matchesHazardCategoryFilter(d, filterForm.hazardCategory)) return false
       if (filterForm.hazardLevel && d.hazardLevel !== filterForm.hazardLevel) return false
       if (filterForm.status && d.status !== filterForm.status) return false
       if (nodeFilter.value && d.currentNode !== nodeFilter.value) return false

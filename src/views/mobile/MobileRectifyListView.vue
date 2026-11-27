@@ -2,7 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { mobileRectificationRecords } from '../../composables/useMobileRectification'
-import { INSPECTION_CATEGORIES, getHazardCategoryOptions, getHazardLevels, normalizeInspectionCategories } from '../../config/inspectionManagement'
+import { INSPECTION_CATEGORIES, getHazardCategoryFilterOptions, getHazardLevels, matchesHazardCategoryFilter, normalizeInspectionCategories } from '../../config/inspectionManagement'
 import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
 import InspectionVoidStamp from '../../components/InspectionVoidStamp.vue'
 import { isInspectionRectificationOverdue } from '../../utils/inspectionLedgerDates'
@@ -28,7 +28,7 @@ const searchKeyword = ref('')
 const hazardCategory = ref('')
 const hazardLevel = ref('')
 const categoryFilter = ref('')
-const hazardCategoryOptions = computed(() => getHazardCategoryOptions(categoryFilter.value, true))
+const hazardCategoryOptions = computed(() => getHazardCategoryFilterOptions(categoryFilter.value))
 const hazardLevelOptions = computed(() => getHazardLevels(categoryFilter.value))
 watch(categoryFilter, () => { hazardCategory.value = ''; hazardLevel.value = '' })
 const tabs = computed(() => {
@@ -49,7 +49,7 @@ const filteredList = computed(() => {
     const kw = searchKeyword.value.trim()
     list = list.filter(t => t.rectifyNo?.includes(kw) || t.taskNo?.includes(kw) || t.project?.includes(kw) || t.hazard?.includes(kw))
   }
-  if (hazardCategory.value) list = list.filter(t => t.hazardCategory === hazardCategory.value)
+  if (hazardCategory.value) list = list.filter(t => matchesHazardCategoryFilter(t, hazardCategory.value))
   if (hazardLevel.value) list = list.filter(t => t.hazardLevel === hazardLevel.value)
   return list
 })
@@ -108,7 +108,7 @@ function onCardClick(item) {
       </select>
       <select v-model="hazardCategory" class="m-category-select">
         <option value="">全部隐患类别</option>
-        <option v-for="option in hazardCategoryOptions" :key="`${option.category}-${option.value}`" :value="option.value">{{ option.label }}</option>
+        <option v-for="option in hazardCategoryOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
       </select>
       <select v-model="hazardLevel" class="m-category-select" aria-label="隐患等级筛选">
         <option value="">全部隐患等级</option>

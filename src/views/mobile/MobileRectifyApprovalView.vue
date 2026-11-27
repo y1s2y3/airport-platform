@@ -7,9 +7,8 @@ import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
 import { rectifyDepartmentConfirmInfo, rectifyManagerConfirmInfo, rectifyRectificationRounds, rectifyReviewRounds } from '../../composables/useInspectionRectifySections'
 import MobileRectifyBasicInfo from '../../components/MobileRectifyBasicInfo.vue'
 import InspectionPhotoList from '../../components/InspectionPhotoList.vue'
-import InspectionVoidStamp from '../../components/InspectionVoidStamp.vue'
 
-import { workflowFlowRecords, inspectionVoidFlowRecords, inspectionVoidRequests, currentWorkflowStep, isInspectionVoidPending } from '../../utils/inspectionRectificationWorkflow'
+import { workflowFlowRecords, inspectionVoidFlowRecords, inspectionVoidRequests, currentWorkflowStep } from '../../utils/inspectionRectificationWorkflow'
 import { canExecuteInspectionStep } from '../../utils/inspectionWorkflowIdentity'
 
 function today() {
@@ -101,9 +100,7 @@ function goBack() {
     <header class="mh">
       <button class="mb" aria-label="返回" @click="goBack">‹</button>
       <h1 class="mt">{{ approvalLabel }}</h1>
-      <span v-if="!missing" class="header-status">
-        {{ record.status }} <InspectionVoidStamp v-if="isInspectionVoidPending(record)" />
-      </span>
+      <span v-if="!missing" class="header-status">{{ record.status }}</span>
     </header>
 
     <div v-if="missing" class="empty-tip">未找到该整改单，请返回列表重试。</div>

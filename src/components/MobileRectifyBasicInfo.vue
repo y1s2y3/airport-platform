@@ -1,7 +1,8 @@
 <script setup>
 import { computed } from 'vue'
 import { getConfiguredPersonLabel, getInspectionCopyDetailFields } from '../composables/useInspectionPersonConfig'
-import { currentWorkflowLabel } from '../utils/inspectionRectificationWorkflow'
+import { currentWorkflowLabel, isInspectionVoidPending } from '../utils/inspectionRectificationWorkflow'
+import InspectionVoidStamp from './InspectionVoidStamp.vue'
 
 const props = defineProps({
   record: { type: Object, required: true },
@@ -19,7 +20,7 @@ const fields = computed(() => {
     { label: '整改人', value: row.rectifier },
     { label: '复查人', value: row.reviewer },
     ...(props.showCopyRecipients ? getInspectionCopyDetailFields(row) : []),
-    { label: '状态', value: row.status },
+    { label: '状态', value: row.status, showVoidStamp: isInspectionVoidPending(row) },
     { label: '当前流程节点', value: currentWorkflowLabel(row) },
     { label: '截止日期', value: row.deadline },
   ]
@@ -32,7 +33,7 @@ const fields = computed(() => {
     <dl class="fields">
       <div v-for="field in fields" :key="field.label" class="field">
         <dt>{{ field.label }}</dt>
-        <dd>{{ field.value || '--' }}</dd>
+        <dd>{{ field.value || '--' }} <InspectionVoidStamp v-if="field.showVoidStamp" /></dd>
       </div>
     </dl>
   </section>

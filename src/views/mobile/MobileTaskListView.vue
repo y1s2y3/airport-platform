@@ -6,12 +6,19 @@ import { listInspectionHazards } from '../../mock/inspectionHazardQuery'
 import { INSPECTION_CATEGORIES, getInspectionTypeFilterOptions, hasInspectionCategory, normalizeInspectionCategories } from '../../config/inspectionManagement'
 import { useMobileRouteBase } from '../../composables/useMobileRouteBase'
 import { rectificationIssuedAt } from '../../utils/inspectionRectificationWorkflow'
+import { inspectionDateKey } from '../../utils/inspectionLedgerDates'
 
 const router = useRouter()
 const { tasksBase, bizHome } = useMobileRouteBase()
 
+function taskDocumentDate(task) {
+  const numberDate = task.taskNo?.match(/^[A-Z]+(\d{4})(\d{2})(\d{2})\d+$/)
+  if (numberDate) return `${numberDate[1]}-${numberDate[2]}-${numberDate[3]}`
+  return inspectionDateKey(task.inspectionDate || task.inspDate) || inspectionDateKey(task.createdAt)
+}
+
 /** 直接读共享 reactive，提交后列表状态可即时刷新 */
-const tasks = computed(() => listMobileInspectionTasks())
+const tasks = computed(() => listMobileInspectionTasks().sort((a, b) => taskDocumentDate(b).localeCompare(taskDocumentDate(a))))
 
 const activeTab = ref('全部')
 const searchKeyword = ref('')
@@ -95,13 +102,7 @@ function goBack() { router.push(bizHome.value) }
     </div>
 
     <div class="m-list">
-      <template v-for="(task, idx) in filteredTasks" :key="task.id">
-        <!-- 分组标题 -->
-        <div v-if="idx === 0 || filteredTasks[idx-1].source !== task.source" class="m-section-title">
-          <span class="m-section-label">{{ task.source }}</span>
-          <span class="m-section-count">{{ filteredTasks.filter(t => t.source === task.source).length }}项</span>
-        </div>
-        <div class="m-task-card" :class="task.source" @click="task.status === '未完成' ? goExecute(task.id) : goDetail(task.id)">
+      <div v-for="task in filteredTasks" :key="task.id" class="m-task-card" :class="task.source" @click="task.status === '未完成' ? goExecute(task.id) : goDetail(task.id)">
         <div class="m-task-top">
           <span class="m-task-icon">📋</span>
           <div class="m-task-info">
@@ -126,8 +127,7 @@ function goBack() { router.push(bizHome.value) }
           <span>截止：{{ task.deadline }}</span>
           <span>{{ task.itemCount }} 项</span>
         </div>
-        </div>
-      </template>
+      </div>
       <div v-if="filteredTasks.length === 0" class="m-empty"><p>暂无任务</p></div>
       <div v-if="filteredTasks.length > 0" class="m-more">—— 没有更多了 ——</div>
     </div>
@@ -148,9 +148,6 @@ function goBack() { router.push(bizHome.value) }
 .m-chip { padding:4px 12px; border:1px solid #ddd; border-radius:12px; background:#fff; font-size:12px; color:#666; cursor:pointer; }
 .m-chip.active { background:#fceef4; color:#8f0045; border-color:#8f0045; font-weight:500; }
 
-.m-section-title { display:flex; align-items:center; gap:8px; padding:12px 16px 4px; font-size:13px; color:#999; }
-.m-section-label { font-weight:600; color:#666; }
-.m-section-count { font-size:11px; }
 .m-header { display:flex; align-items:center; padding:12px 16px; background:#8f0045; color:#fff; position:sticky; top:0; z-index:10; }
 .m-back { background:none; border:none; color:#fff; font-size:28px; padding:0 4px 0 0; line-height:1; cursor:pointer; }
 .m-title { flex:1; font-size:18px; font-weight:600; margin:0; }

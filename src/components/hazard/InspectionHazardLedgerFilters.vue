@@ -27,7 +27,7 @@ const {
       <el-option v-for="category in INSPECTION_CATEGORIES" :key="category" :label="category" :value="category" />
     </el-select>
     <el-select v-if="isHazardFilterVisible('hazardCategory')" v-model="filterForm.hazardCategory" placeholder="隐患类别" clearable filterable style="width:150px">
-      <el-option v-for="option in hazardCategoryOptions" :key="`${option.category}-${option.value}`" :label="option.label" :value="option.value" />
+      <el-option v-for="option in hazardCategoryOptions" :key="option.value" :label="option.label" :value="option.value" />
     </el-select>
     <el-select v-model="nodeFilter" placeholder="当前流程节点" clearable filterable style="width:160px" aria-label="当前流程节点">
       <el-option v-for="node in INSPECTION_FLOW_NODES" :key="node" :label="node" :value="node" />

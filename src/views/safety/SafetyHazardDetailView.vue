@@ -298,7 +298,7 @@ function goBack() {
 .ic:nth-child(3n) { border-right:none; }
 .ic:nth-last-child(-n+3) { border-bottom:none; }
 .ic label { width:95px; flex-shrink:0; padding:9px 12px; background:#f8f9fa; color:#868e96; border-right:1px solid #f0f0f0; }
-.ic span { min-width:0; padding:9px 12px; color:#212529; overflow-wrap:anywhere; }
+.ic > span { min-width:0; padding:9px 12px; color:#212529; overflow-wrap:anywhere; }
 .sc { border:1px solid #dee2e6; border-radius:8px; padding:16px 20px; margin-bottom:20px; background:#fff; }
 .sct { font-size:14px; font-weight:600; color:#212529; padding-left:10px; border-left:3px solid #8f0045; margin-bottom:14px; }
 .sct.colps { cursor:pointer; display:flex; align-items:center; justify-content:space-between; }

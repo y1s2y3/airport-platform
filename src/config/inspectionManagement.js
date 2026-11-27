@@ -100,6 +100,18 @@ export function getHazardCategoryOptions(category = '', includeDisabled = false)
     .map(item => ({ value: item.name, label: category ? item.name : `${item.category} / ${item.name}`, category: item.category }))
 }
 
+export function getHazardCategoryFilterOptions(category = '') {
+  return getHazardCategoryOptions('', true)
+    .filter(option => !category || option.category === category)
+    .map(({ label }) => ({ label, value: label }))
+}
+
+export function matchesHazardCategoryFilter(row, selected) {
+  if (!selected) return true
+  return normalizeInspectionCategories(row.inspectionCategories || row.inspectionCategory)
+    .some(category => `${category} / ${row.hazardCategory}` === selected)
+}
+
 export function saveInspectionDictionary(kind, entry) {
   const list = inspectionDictionaries[kind]
   if (!['types', 'hazards'].includes(kind) || !Array.isArray(list)) throw new Error('配置类型无效')
